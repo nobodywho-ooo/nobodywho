@@ -36,7 +36,6 @@ type SizeT = usize;
 // errno constants — values from Emscripten's musl-derived errno table.
 // Used as -errno return codes per the syscall ABI.
 const EBADF: c_int = 8;
-const ENOENT: c_int = 44;
 const EIO: c_int = 29;
 
 /// Resolve `Module.FS` once per call via `js_sys::Reflect`. Returns a
@@ -132,16 +131,12 @@ pub unsafe extern "C" fn __syscall_openat(
 /// Common stat helper. `kind` is either "stat" (follows symlinks) or
 /// "lstat" (doesn't). Writes the stat into `buf` via SYSCALLS.writeStat
 /// — which we reach by going through `Module.SYSCALLS` instead of FS.
-fn stat_into_buf(path_str: &str, buf: *mut u8, lstat: bool) -> c_int {
+fn stat_into_buf(path_str: &str, buf: *mut u8) -> c_int {
     let fs = match fs_namespace() {
         Ok(fs) => fs,
         Err(e) => return -e,
     };
-    let stat_result = fs_call(
-        &fs,
-        if lstat { "lstat" } else { "stat" },
-        &[JsValue::from_str(path_str)],
-    );
+    let stat_result = fs_call(&fs, "stat", &[JsValue::from_str(path_str)]);
     let stat_obj = match stat_result {
         Ok(o) => o,
         Err(e) => return e,
@@ -191,7 +186,7 @@ pub unsafe extern "C" fn __syscall_stat64(path: *const c_char, buf: *mut u8) -> 
         Ok(s) => s,
         Err(_) => return -EBADF,
     };
-    stat_into_buf(path_str, buf, false)
+    stat_into_buf(path_str, buf)
 }
 
 /// `__syscall_fstat64` strong override — stat by fd.
@@ -234,7 +229,7 @@ pub unsafe extern "C" fn __syscall_fstat64(fd: c_int, buf: *mut u8) -> c_int {
         None => return -EBADF,
     };
     let _ = fs; // suppress warning if `fs` is unused on this branch
-    stat_into_buf(&path_str, buf, false)
+    stat_into_buf(&path_str, buf)
 }
 
 /// Look up a `SYSCALLS` method and invoke it.

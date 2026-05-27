@@ -212,58 +212,6 @@ pub fn has_gpu_backend() -> bool {
 ///
 /// # Platform support
 ///
-/// Available everywhere except Windows MSVC, mirroring
-/// [`llama_cpp_2::model::LlamaModel::load_from_buffer`]. The underlying
-/// `fmemopen` is POSIX and not in the MSVC CRT; a Windows tempfile
-/// fallback can be added later if a caller needs it.
-#[cfg(not(all(target_os = "windows", target_env = "msvc")))]
-pub fn get_model_from_bytes(
-    bytes: &[u8],
-    mmproj_path: Option<&std::path::Path>,
-    gpu_layers: u32,
-) -> Result<Model, LoadModelError> {
-    info!(
-        bytes_len = bytes.len(),
-        mmproj_path = ?mmproj_path,
-        gpu_layers,
-        "Loading model from in-memory bytes"
-    );
-
-    // On wasm, fmemopen FILE* has no real fd (fileno returns -1), so
-    // mmap fails. Disable it so the loader copies tensor data via fread.
-    // The path-based loader (get_model_from_path) uses mmap instead.
-    #[cfg(target_family = "wasm")]
-    let model_params = LlamaModelParams::default()
-        .with_n_gpu_layers(gpu_layers)
-        .with_use_mmap(false);
-    #[cfg(not(target_family = "wasm"))]
-    let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
-    let model_params = pin!(model_params);
-
-    let language_model = LlamaModel::load_from_buffer(&LLAMA_BACKEND, bytes, &model_params)
-        .map_err(|e| {
-            let error_msg = format!("Failed to load model from in-memory bytes: {e}");
-            error!(error = %error_msg);
-            LoadModelError::InvalidModel(error_msg)
-        })?;
-
-    info!("Model loaded from buffer successfully");
-
-    let projection_model = if let Some(path) = mmproj_path {
-        let pm =
-            crate::tokenizer::ProjectionModel::from_path(path, &language_model, gpu_layers > 0)
-                .map_err(LoadModelError::Multimodal)?;
-        Some(pm)
-    } else {
-        None
-    };
-
-    Ok(Model {
-        language_model,
-        projection_model,
-    })
-}
-
 /// Wasm-only: load a model from a path that already exists in
 /// Emscripten's MEMFS (or any libc-fopen-reachable filesystem). The JS
 /// binding uses this when the caller passed `modelPath` to
@@ -1169,28 +1117,4 @@ mod tests {
         assert_eq!(count.load(Ordering::Relaxed), 2);
     }
 
-    /// Error-path test for the bytes-based loader: feeding non-GGUF bytes
-    /// must return `LoadModelError::InvalidModel` (rather than panicking,
-    /// returning a different error variant, or — worst — silently succeeding).
-    ///
-    /// We deliberately don't test the success path here: under nix-sandbox
-    /// Linux, llama.cpp's `llama_model_load_from_buffer` (POSIX `fmemopen`
-    /// path) returns NULL for an otherwise-valid GGUF that loads fine via
-    /// the file-based path. Tracking the underlying llama.cpp issue is
-    /// out of scope for this PR; the bytes-loader's success path is
-    /// covered end-to-end by the wasm binding's CI smoke test, where
-    /// emscripten provides its own `fmemopen` that does work.
-    #[cfg(not(all(target_os = "windows", target_env = "msvc")))]
-    #[test]
-    fn get_model_from_bytes_rejects_invalid_data() {
-        use crate::test_utils::init_test_tracing;
-        init_test_tracing();
-        // Definitely not a valid GGUF — even the magic header is missing.
-        let bytes = vec![0u8; 4096];
-        let result = get_model_from_bytes(&bytes, None, 0);
-        assert!(
-            matches!(result, Err(LoadModelError::InvalidModel(_))),
-            "expected InvalidModel error, got {result:?}"
-        );
-    }
 }
