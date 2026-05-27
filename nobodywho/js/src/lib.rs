@@ -3421,16 +3421,24 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     }
 
     // Serialize the SamplerConfig class → plain JS value for the worker.
+    // SamplerConfig has a toJSON() method that returns a JSON string;
+    // parse it back to a JS value for the worker to deserialize.
     if let Ok(sampler_val) = js_sys::Reflect::get(obj, &"sampler".into()) {
         if !sampler_val.is_undefined() && !sampler_val.is_null() {
-            let sampler_ref: &SamplerConfig = sampler_val
-                .dyn_ref::<SamplerConfig>()
+            let to_json = js_sys::Reflect::get(&sampler_val, &"toJSON".into())
+                .ok()
+                .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
                 .ok_or_else(|| {
                     JsError::new("sampler must be a SamplerConfig (from SamplerBuilder or SamplerPresets)")
                 })?;
-            let serialized = serde_wasm_bindgen::to_value(&sampler_ref.inner)
-                .map_err(|e| JsError::new(&format!("sampler serialization: {e}")))?;
-            let _ = js_sys::Reflect::set(&chat_opts_obj, &"sampler".into(), &serialized);
+            let json_str: String = to_json
+                .call0(&sampler_val)
+                .map_err(|e| JsError::new(&format!("sampler.toJSON() failed: {e:?}")))?
+                .as_string()
+                .ok_or_else(|| JsError::new("sampler.toJSON() did not return a string"))?;
+            let parsed = js_sys::JSON::parse(&json_str)
+                .map_err(|_| JsError::new("sampler.toJSON() returned invalid JSON"))?;
+            let _ = js_sys::Reflect::set(&chat_opts_obj, &"sampler".into(), &parsed);
         }
     }
 

@@ -1,13 +1,12 @@
 // Sampler-config smoke test for the JS binding.
 //
 // Validates:
-//   * `sampler: { sampleStep: 'greedy' }` produces deterministic output:
+//   * `sampler: SamplerPresets.greedy()` produces deterministic output:
 //     two runs with the same prompt yield the exact same token sequence.
-//   * `sampler: { temperature: ..., topK: ..., topP: ... }` accepts the
-//     fields without erroring at construction time.
-//   * `sampler: { sampleStep: 'bogus' }` rejects with a clear error.
-//   * Combining sampler knobs with `constraint` inside the sampler
-//     doesn't break anything (constraint prepends a shift step).
+//   * `sampler: new SamplerBuilder().temperature(...).topK(...).dist()`
+//     accepts the fields without erroring at construction time.
+//   * Combining sampler with constraint via SamplerPresets doesn't break
+//     anything.
 //
 // Runs through `Chat.create({modelPath, ...})` so the same smoke
 // exercises both browser and Node (Node uses `worker_threads` under the
@@ -42,7 +41,7 @@ async function runGreedyOnce() {
     modelPath,
     systemPrompt: 'Reply briefly.',
     templateVariables: { enable_thinking: false },
-    sampler: { sampleStep: 'greedy' },
+    sampler: m.SamplerPresets.greedy(),
   });
   try {
     return await chat.ask(PROMPT).completed();
@@ -70,48 +69,31 @@ const customChat = await m.Chat.create({
   modelPath,
   systemPrompt: 'You are helpful.',
   templateVariables: { enable_thinking: false },
-  sampler: {
-    temperature: 0.7,
-    topK: 40,
-    topP: 0.95,
-    minP: 0.05,
-    repeatPenalty: 1.1,
-    repeatLastN: 64,
-    sampleStep: 'dist',
-  },
+  sampler: new m.SamplerBuilder()
+    .temperature(0.7)
+    .topK(40)
+    .topP(0.95, 1)
+    .minP(0.05, 1)
+    .penalties(1.1, 64, 0.0, 0.0)
+    .dist(),
 });
 await customChat.terminate();
 console.log('    ✓ constructed without error');
 
-// === 3. Invalid sampleStep rejects ===
-console.log('\n[3] Invalid sampleStep rejects with clear error...');
-let threw = false;
-try {
-  await m.Chat.create({ modelPath, sampler: { sampleStep: 'bogus' } });
-} catch (e) {
-  threw = true;
-  console.log(`    caught: ${e.message ?? e}`);
-  assert.match(String(e.message ?? e), /sampleStep/i);
-  assert.match(String(e.message ?? e), /bogus/i);
-}
-assert.ok(threw, 'expected invalid sampleStep to reject the create Promise');
-console.log('    ✓ rejected');
-
-// === 4. Sampler + constraint compose ===
-console.log('\n[4] sampler + constraint together (constraint prepended to chain)...');
+// === 3. Sampler + constraint compose ===
+console.log('\n[3] sampler + constraint together (constraint via SamplerPresets)...');
 const composedChat = await m.Chat.create({
   modelPath,
   systemPrompt: 'Reply with exactly one word.',
   templateVariables: { enable_thinking: false },
-  sampler: { temperature: 0.5, topP: 0.9, sampleStep: 'dist', constraint: { regex: '[a-z]+' } },
+  sampler: m.SamplerPresets.constrainWithRegex('[a-z]+'),
 });
 await composedChat.terminate();
 console.log('    ✓ constructed without error');
 
 console.log('\n=== Sampler-config JS smoke test passed ===');
 console.log('  Greedy sampling is deterministic across two Chats.');
-console.log('  Custom temperature/topK/topP/minP/repeatPenalty fields accepted.');
-console.log('  Invalid sampleStep rejects the create Promise with a clear error.');
+console.log('  Custom SamplerBuilder chain with temperature/topK/topP/minP/penalties accepted.');
 console.log('  Sampler + constraint compose without conflict.');
 
 process.exit(0);

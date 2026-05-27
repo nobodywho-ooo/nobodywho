@@ -184,6 +184,7 @@ sed -i.bak \
   -E -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
      -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
      -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \
+     -e 's/(^|[^A-Za-z_])SamplerConfig\.__wrap/\1Module.SamplerConfig.__wrap/g' \
   "$PKG_DIR/library_bindgen.js"
 
 sed -i.bak2 \

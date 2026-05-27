@@ -60,7 +60,7 @@ console.log('\n[2] Sampler config round-trip...');
 const sCfg = await chat.getSamplerConfig();
 console.log(`    initial sampler shape: ${typeof sCfg}`);
 assert.ok(sCfg, 'sampler config should be present');
-await chat.setSamplerConfig({ temperature: 0.42, topK: 7, topP: 0.5, seed: 1234 });
+await chat.setSamplerConfig(new m.SamplerBuilder().temperature(0.42).topK(7).topP(0.5).dist());
 const sCfg2 = await chat.getSamplerConfig();
 console.log(`    after set: ${JSON.stringify(sCfg2).slice(0, 120)}`);
 assert.ok(sCfg2, 'sampler config after set');
