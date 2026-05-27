@@ -814,9 +814,30 @@ where
                 .with_flash_attention_policy(llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED);
 
             // Create inference context and sampler
-            let ctx = model
+            let mut ctx = model
                 .language_model
                 .new_context(&LLAMA_BACKEND, ctx_params)?;
+
+            // On wasm, attach a persistent threadpool so ggml doesn't
+            // create disposable threads mid-compute. Emscripten's
+            // pthread_create is async (proxied through the main JS
+            // thread), so creating threads synchronously inside
+            // ggml_graph_compute deadlocks. A persistent pool created
+            // here (during init, when the event loop is free) avoids
+            // that — the threads are already running when compute starts.
+            #[cfg(target_family = "wasm")]
+            {
+                unsafe {
+                    let mut params = std::mem::zeroed::<llama_cpp_sys_2::ggml_threadpool_params>();
+                    llama_cpp_sys_2::ggml_threadpool_params_init(&mut params, n_threads);
+                    params.poll = 0;
+                    let tp = llama_cpp_sys_2::ggml_threadpool_new(&mut params);
+                    if !tp.is_null() {
+                        ctx.attach_threadpool(tp, tp);
+                    }
+                }
+            }
+
             (ctx, n_ctx as usize)
         };
 
