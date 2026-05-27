@@ -31,7 +31,7 @@ def circle_area(radius: float) -> str:
 As you can see, every `@tool` definition has to be complemented by a description
 of what such tool does. To let your LLM use it, simply add it when creating `Chat`:
 
-```python
+```{.python continuation}
 chat = Chat('./model.gguf', tools=[circle_area])
 ```
 

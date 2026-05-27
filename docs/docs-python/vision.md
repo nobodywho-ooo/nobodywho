@@ -29,7 +29,7 @@ from nobodywho import Model, Chat
 
 model = Model("./vision-model.gguf", projection_model_path="./projection_model.gguf")
 chat = Chat(
-    model, system_prompt="You are a helpful assistant, that can hear and see stuff!"
+    "./model.gguf", system_prompt="You are a helpful assistant, that can hear and see stuff!"
 )
 ```
 
@@ -42,7 +42,7 @@ to work together.
 ## Composing a prompt object
 With the model configured, all that is left is to compose the prompt and send it to the model.
 That is done through the `Prompt` object.
-```python
+```{.python continuation}
 from nobodywho import Audio, Image, Prompt, Text
 
 prompt = Prompt([
@@ -70,9 +70,9 @@ prompt = Prompt([
 
 Also, there is still a lot of variance between how the models internally process the images.
 This, for example, causes differences in how quickly the model consumes context - for some models like Gemma 3, the number of tokens per image is constant; for others like Qwen 3, they scale with the size of the image. In that case, you can increase the context size if the resources allow:
-```python
+```
 chat = Chat(
-    model, system_prompt="You are a helpful assistant.", n_ctx=4096
+    "./model.gguf", system_prompt="You are a helpful assistant.", n_ctx=4096
 )
 ```
 Or, for example, preprocess your images with some kind of compression (sometimes even changing the image type helps).
