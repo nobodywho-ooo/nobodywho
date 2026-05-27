@@ -863,49 +863,15 @@ fn js_fs_write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
-/// Stream a fetch() response directly into a MEMFS file. Runs on the
-/// worker so the download goes straight to the virtual FS without an
-/// intermediate JS buffer or main-thread copy.
-///
-/// `on_progress` is an optional JS callback `(downloaded, total) => void`
-/// posted back to main via the worker's postMessage.
+/// Resolve a `ReadableStreamDefaultReader` from a body and stream it
+/// into a MEMFS file via `FS.open` / `FS.write` / `FS.close`.
 #[cfg(target_family = "wasm")]
-async fn stream_url_to_memfs(
-    kind: &str,
-    url: &str,
+async fn stream_reader_to_memfs(
+    reader: &web_sys::ReadableStreamDefaultReader,
+    memfs_path: &str,
+    total: f64,
     on_progress: Option<&js_sys::Function>,
-) -> Result<std::path::PathBuf, String> {
-    let memfs_path = format!("/home/web_user/nbw-{kind}.gguf");
-
-    let response_jsval = wasm_bindgen_futures::JsFuture::from(fetch_from_global(url))
-        .await
-        .map_err(|e| format!("fetch failed: {e:?}"))?;
-    let response: web_sys::Response = response_jsval
-        .dyn_into()
-        .map_err(|_| "fetch did not return a Response".to_string())?;
-    if !response.ok() {
-        return Err(format!(
-            "fetch {url}: HTTP {} {}",
-            response.status(),
-            response.status_text()
-        ));
-    }
-    let total: f64 = response
-        .headers()
-        .get("content-length")
-        .ok()
-        .flatten()
-        .and_then(|s| s.parse::<f64>().ok())
-        .unwrap_or(0.0);
-
-    let body = response
-        .body()
-        .ok_or_else(|| "response.body is null".to_string())?;
-    let reader: web_sys::ReadableStreamDefaultReader = body
-        .get_reader()
-        .dyn_into()
-        .map_err(|_| "expected ReadableStreamDefaultReader".to_string())?;
-
+) -> Result<(), String> {
     let fs = {
         let global_obj = js_sys::global();
         let module = js_sys::Reflect::get(&global_obj, &"Module".into())
@@ -927,7 +893,7 @@ async fn stream_url_to_memfs(
         .ok_or("FS.close not found")?;
 
     let stream = fs_open
-        .call2(&fs, &JsValue::from_str(&memfs_path), &JsValue::from_str("w"))
+        .call2(&fs, &JsValue::from_str(memfs_path), &JsValue::from_str("w"))
         .map_err(|e| format!("FS.open({memfs_path}, w) failed: {e:?}"))?;
 
     let mut downloaded: f64 = 0.0;
@@ -974,6 +940,114 @@ async fn stream_url_to_memfs(
         }
     }
     let _ = fs_close.call1(&fs, &stream);
+    Ok(())
+}
+
+/// Fetch a URL and stream it into a MEMFS file with Cache API caching.
+///
+/// - **Cache hit:** stream the cached response directly into MEMFS.
+/// - **Cache miss:** `fetch()` → `body.tee()` → one reader streams into
+///   MEMFS, the other is wrapped in a Response and put into the Cache API.
+///   Both happen in parallel so the first download isn't slowed down.
+///
+/// Falls back to a plain uncached fetch if the Cache API isn't available
+/// (insecure context, file://, etc.).
+#[cfg(target_family = "wasm")]
+async fn stream_url_to_memfs(
+    kind: &str,
+    url: &str,
+    on_progress: Option<&js_sys::Function>,
+) -> Result<std::path::PathBuf, String> {
+    let memfs_path = format!("/home/web_user/nbw-{kind}.gguf");
+
+    // --- Cache hit path ---
+    if let Some(cache) = open_model_cache().await {
+        let matched = wasm_bindgen_futures::JsFuture::from(cache.match_with_str(url))
+            .await
+            .ok();
+        if let Some(ref val) = matched {
+            if !val.is_undefined() {
+                let response: web_sys::Response = val
+                    .clone()
+                    .dyn_into()
+                    .map_err(|_| "cache hit returned non-Response".to_string())?;
+                let total: f64 = response
+                    .headers()
+                    .get("content-length")
+                    .ok()
+                    .flatten()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+                let body = response
+                    .body()
+                    .ok_or_else(|| "cached response.body is null".to_string())?;
+                let reader: web_sys::ReadableStreamDefaultReader = body
+                    .get_reader()
+                    .dyn_into()
+                    .map_err(|_| "expected ReadableStreamDefaultReader".to_string())?;
+                stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
+                return Ok(std::path::PathBuf::from(memfs_path));
+            }
+        }
+    }
+
+    // --- Cache miss: fetch + tee ---
+    let response_jsval = wasm_bindgen_futures::JsFuture::from(fetch_from_global(url))
+        .await
+        .map_err(|e| format!("fetch failed: {e:?}"))?;
+    let response: web_sys::Response = response_jsval
+        .dyn_into()
+        .map_err(|_| "fetch did not return a Response".to_string())?;
+    if !response.ok() {
+        return Err(format!(
+            "fetch {url}: HTTP {} {}",
+            response.status(),
+            response.status_text()
+        ));
+    }
+    let total: f64 = response
+        .headers()
+        .get("content-length")
+        .ok()
+        .flatten()
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0);
+
+    let body = response
+        .body()
+        .ok_or_else(|| "response.body is null".to_string())?;
+
+    // Tee the body: one stream goes to MEMFS, the other to Cache API.
+    let teed = body.tee();
+    let memfs_stream: web_sys::ReadableStream = js_sys::Reflect::get(&teed, &0.into())
+        .map_err(|_| "tee()[0] failed".to_string())?
+        .dyn_into()
+        .map_err(|_| "tee()[0] not a ReadableStream".to_string())?;
+    let cache_stream: web_sys::ReadableStream = js_sys::Reflect::get(&teed, &1.into())
+        .map_err(|_| "tee()[1] failed".to_string())?
+        .dyn_into()
+        .map_err(|_| "tee()[1] not a ReadableStream".to_string())?;
+
+    let reader: web_sys::ReadableStreamDefaultReader = memfs_stream
+        .get_reader()
+        .dyn_into()
+        .map_err(|_| "expected ReadableStreamDefaultReader".to_string())?;
+
+    // Start cache population in the background (best-effort).
+    let cache_url = url.to_string();
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Some(cache) = open_model_cache().await {
+            let cache_resp = web_sys::Response::new_with_opt_readable_stream(Some(&cache_stream));
+            if let Ok(resp) = cache_resp {
+                let _ = wasm_bindgen_futures::JsFuture::from(
+                    cache.put_with_str(&cache_url, &resp),
+                )
+                .await;
+            }
+        }
+    });
+
+    stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
 
     Ok(std::path::PathBuf::from(memfs_path))
 }
