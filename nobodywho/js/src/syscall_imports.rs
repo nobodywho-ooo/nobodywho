@@ -300,10 +300,16 @@ pub unsafe extern "C" fn _mmap_js(
     );
     match mmap_result {
         Ok(res) => {
-            let ptr_val = js_sys::Reflect::get(&res, &"ptr".into()).unwrap_or(JsValue::from_f64(0.0));
-            let alloc_val = js_sys::Reflect::get(&res, &"allocated".into()).unwrap_or(JsValue::FALSE);
+            let ptr_val =
+                js_sys::Reflect::get(&res, &"ptr".into()).unwrap_or(JsValue::from_f64(0.0));
+            let alloc_val =
+                js_sys::Reflect::get(&res, &"allocated".into()).unwrap_or(JsValue::FALSE);
             let ptr = ptr_val.as_f64().unwrap_or(0.0) as usize;
-            let alloc = if alloc_val.as_bool().unwrap_or(false) { 1 } else { 0 };
+            let alloc = if alloc_val.as_bool().unwrap_or(false) {
+                1
+            } else {
+                0
+            };
             *addr = ptr as *mut u8;
             *allocated = alloc;
             0
