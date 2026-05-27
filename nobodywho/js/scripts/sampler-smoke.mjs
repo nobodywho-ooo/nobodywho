@@ -6,8 +6,8 @@
 //   * `sampler: { temperature: ..., topK: ..., topP: ... }` accepts the
 //     fields without erroring at construction time.
 //   * `sampler: { sampleStep: 'bogus' }` rejects with a clear error.
-//   * Combining `sampler` and `constraint` doesn't break anything (constraint
-//     prepends a shift step to the user's sampler chain).
+//   * Combining sampler knobs with `constraint` inside the sampler
+//     doesn't break anything (constraint prepends a shift step).
 //
 // Runs through `Chat.create({modelBytes, ...})` so the same smoke
 // exercises both browser and Node (Node uses `worker_threads` under the
@@ -105,8 +105,7 @@ const composedChat = await m.Chat.create({
   modelBytes,
   systemPrompt: 'Reply with exactly one word.',
   templateVariables: { enable_thinking: false },
-  sampler: { temperature: 0.5, topP: 0.9, sampleStep: 'dist' },
-  constraint: { regex: '[a-z]+' },
+  sampler: { temperature: 0.5, topP: 0.9, sampleStep: 'dist', constraint: { regex: '[a-z]+' } },
 });
 await composedChat.terminate();
 console.log('    ✓ constructed without error');

@@ -1,7 +1,7 @@
 // Constraint (structured-output) smoke test for the JS binding.
 //
-// Validates that `constraint: { regex | jsonSchema | lark }` on
-// `Chat.create({...})` actually constrains generation at the token
+// Validates that `sampler: { constraint: { regex | jsonSchema | lark } }`
+// on `Chat.create({...})` actually constrains generation at the token
 // sampler level. llguidance (the upstream sampler) compiles the
 // constraint to a token-level grammar; under Emscripten this runs
 // through the standard llama.cpp llguidance integration.
@@ -38,7 +38,7 @@ const regexChat = await m.Chat.create({
   modelBytes,
   systemPrompt: 'Reply with one word.',
   templateVariables: { enable_thinking: false },
-  constraint: { regex: '[A-Z][a-z]+' },
+  sampler: { constraint: { regex: '[A-Z][a-z]+' } },
 });
 const t0 = performance.now();
 const regexResponse = await regexChat.ask('Name a city.').completed();
@@ -67,7 +67,7 @@ const jsonChat = await m.Chat.create({
   modelBytes,
   systemPrompt: 'Reply with one short JSON object.',
   templateVariables: { enable_thinking: false },
-  constraint: { jsonSchema: JSON.stringify(schema) },
+  sampler: { constraint: { jsonSchema: schema } },
 });
 const t1 = performance.now();
 const jsonResponse = await jsonChat.ask('Give me a city and its country.').completed();

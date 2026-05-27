@@ -3,8 +3,9 @@
 // Validates:
 //   * SamplerPresets.greedy() / .temperature() / .topK() / .topP() /
 //     .default() return the expected JS shapes.
-//   * SamplerPresets.constrainWithRegex() returns a {constraint:{regex}}
-//     shape and a constrained ask produces only matching tokens.
+//   * SamplerPresets.constrainWithRegex() returns a sampler-shaped
+//     {constraint:{regex}} object and a constrained ask produces only
+//     matching tokens.
 //   * SamplerBuilder fluent chain produces a sampler spec equivalent to
 //     hand-writing the JSON; Chat.create accepts it and ask works.
 //
@@ -94,7 +95,7 @@ const chat2 = await m.Chat.create({
   modelBytes,
   systemPrompt: 'Reply with a single integer.',
   templateVariables: { enable_thinking: false },
-  ...m.SamplerPresets.constrainWithRegex('^[0-9]{1,3}$'),
+  sampler: m.SamplerPresets.constrainWithRegex('^[0-9]{1,3}$'),
 });
 const numReply = await chat2.ask('Pick a number 1-100.').completed();
 console.log(`    constrained reply: ${JSON.stringify(numReply).slice(0, 30)}`);

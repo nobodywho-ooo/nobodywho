@@ -92,12 +92,12 @@ console.log('    ✓ dry() preset shape OK');
 console.log('\n[6] SamplerPresets.json() — JSON-constrained preset shape + actually JSON...');
 const jsonPreset = m.SamplerPresets.json();
 console.log(`    spec: ${JSON.stringify(jsonPreset)}`);
-assert.deepEqual(jsonPreset, { constraint: { jsonSchema: '{}' } });
+assert.deepEqual(jsonPreset, { constraint: { jsonSchema: {} } });
 const jchat = await m.Chat.create({
   modelBytes,
   systemPrompt: 'Reply with valid JSON only.',
   templateVariables: { enable_thinking: false },
-  ...jsonPreset,
+  sampler: jsonPreset,
 });
 const jreply = await jchat.ask('Give a JSON object with one key "color" set to a color name.').completed();
 console.log(`    constrained reply: ${JSON.stringify(jreply).slice(0, 80)}`);

@@ -391,13 +391,11 @@ impl Audio {
 /// await Chat.create({ modelBytes, sampler: SamplerPresets.temperature(0.8) });
 /// ```
 ///
-/// The constrain-* presets return `{constraint: ...}` instead of a
-/// sampler spec, because grammars are wired through `Chat.create`'s
-/// `constraint` option rather than the sampler chain in this binding:
+/// The constrain-* presets return a sampler object with a `constraint`
+/// field — pass directly as `sampler`:
 ///
 /// ```js
-/// const cfg = SamplerPresets.constrainWithRegex('^\\d+$');
-/// await Chat.create({ modelBytes, ...cfg });
+/// await Chat.create({ modelBytes, sampler: SamplerPresets.constrainWithRegex('^\\d+$') });
 /// ```
 #[wasm_bindgen]
 pub struct SamplerPresets;
@@ -443,9 +441,8 @@ impl SamplerPresets {
         o
     }
 
-    /// Constrain generation to a regular expression. Returns a
-    /// `{constraint: {regex}}` shape — pass to `Chat.create` via
-    /// `Chat.create({modelBytes, ...preset})`.
+    /// Constrain generation to a regular expression. Returns a sampler
+    /// object — pass as `Chat.create({modelBytes, sampler: preset})`.
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithRegex)]
     pub fn constrain_with_regex(pattern: String) -> js_sys::Object {
         let inner = js_sys::Object::new();
@@ -455,11 +452,11 @@ impl SamplerPresets {
         outer
     }
 
-    /// Constrain generation to a JSON schema (string-form).
+    /// Constrain generation to a JSON schema (plain object).
     #[wasm_bindgen(static_method_of = SamplerPresets, js_name = constrainWithJsonSchema)]
-    pub fn constrain_with_json_schema(schema: String) -> js_sys::Object {
+    pub fn constrain_with_json_schema(schema: JsValue) -> js_sys::Object {
         let inner = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&inner, &"jsonSchema".into(), &schema.as_str().into());
+        let _ = js_sys::Reflect::set(&inner, &"jsonSchema".into(), &schema);
         let outer = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
         outer
@@ -497,12 +494,16 @@ impl SamplerPresets {
 
     /// Constrain output to ANY valid JSON (no schema). For schema-validated
     /// JSON, use `constrainWithJsonSchema(schema)` instead. Returns a
-    /// `{constraint: {jsonSchema}}` shape with `{}` schema (which
-    /// llguidance accepts as "any valid JSON value").
+    /// sampler object with an empty `{}` JSON Schema (which llguidance
+    /// accepts as "any valid JSON value").
     #[wasm_bindgen(static_method_of = SamplerPresets)]
     pub fn json() -> js_sys::Object {
         let inner = js_sys::Object::new();
-        let _ = js_sys::Reflect::set(&inner, &"jsonSchema".into(), &"{}".into());
+        let _ = js_sys::Reflect::set(
+            &inner,
+            &"jsonSchema".into(),
+            &js_sys::Object::new().into(),
+        );
         let outer = js_sys::Object::new();
         let _ = js_sys::Reflect::set(&outer, &"constraint".into(), &inner.into());
         outer
@@ -1183,7 +1184,7 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
 ///   modelBytes,
 ///   contextSize: 4096,
 ///   systemPrompt: "You are helpful.",
-///   constraint: { jsonSchema: '{"type":"object","properties":{...}}' },
+///   sampler: { temperature: 0.7, constraint: { jsonSchema: {type: "object"} } },
 /// });
 /// ```
 // `deny_unknown_fields` matches ConstraintSpec below and surfaces JS-side
@@ -1194,14 +1195,11 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
 struct ChatOptions {
     context_size: Option<u32>,
     system_prompt: Option<String>,
-    constraint: Option<ConstraintSpec>,
-    /// Sampling knobs (temperature, top_p, top_k, etc.). All fields are
-    /// optional; absent fields are not applied. When `sampler` is omitted
-    /// entirely, the core's default sampler is used (top_k=20, top_p=0.95,
-    /// temperature=0.6, dist sampling). When `sampler` is provided
-    /// alongside `constraint`, the constraint's grammar shift step is
-    /// prepended to the user's sampler chain — same compose pattern that
-    /// tool-call grammars use internally.
+    /// Sampling knobs (temperature, top_p, top_k, etc.) and optional
+    /// constraint for structured output. All fields are optional; absent
+    /// fields are not applied. When `sampler` is omitted entirely, the
+    /// core's default sampler is used (top_k=20, top_p=0.95,
+    /// temperature=0.6, dist sampling).
     sampler: Option<SamplerSpec>,
     /// Variables passed to the chat template, e.g. `{ enable_thinking: false }`
     /// for Qwen-Thinking-style models that emit `<think>…</think>` blocks you
@@ -1216,8 +1214,8 @@ struct ChatOptions {
 /// Exactly one of the fields should be set. JS-side examples:
 ///
 /// ```js
-/// // JSON Schema:
-/// { jsonSchema: '{"type":"object","properties":{"answer":{"type":"string"}}}' }
+/// // JSON Schema (plain object — no JSON.stringify needed):
+/// { jsonSchema: {type: "object", properties: {answer: {type: "string"}}} }
 ///
 /// // Regex:
 /// { regex: "[A-Z][a-z]+" }
@@ -1233,39 +1231,16 @@ struct ChatOptions {
 /// clock — Emscripten's libc has `clock_gettime`, so this works at
 /// runtime. End-to-end verified on Emscripten via
 /// `js/scripts/constraint-smoke.mjs` (regex + json_schema + lark).
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConstraintSpec {
-    json_schema: Option<String>,
+    json_schema: Option<serde_json::Value>,
     regex: Option<String>,
     lark: Option<String>,
 }
 
 impl ConstraintSpec {
-    /// Build a full SamplerConfig from this constraint alone — used when
-    /// `ChatOptions.sampler` is not provided. Equivalent to the matching
-    /// `SamplerPresets::constrain_with_*` shape (constraint shift + Dist).
-    fn into_sampler(self) -> Result<nobodywho::sampler_config::SamplerConfig, JsError> {
-        use nobodywho::sampler_config::SamplerPresets;
-        Ok(match self.into_shift_step()? {
-            nobodywho::sampler_config::ShiftStep::JsonSchema(s) => {
-                SamplerPresets::constrain_with_json_schema(s)
-            }
-            nobodywho::sampler_config::ShiftStep::Regex(p) => {
-                SamplerPresets::constrain_with_regex(p)
-            }
-            nobodywho::sampler_config::ShiftStep::Lark(l) => {
-                SamplerPresets::constrain_with_grammar(l)
-            }
-            // `into_shift_step` only ever returns one of the three above.
-            _ => unreachable!("ConstraintSpec::into_shift_step variant invariant"),
-        })
-    }
-
-    /// Extract just the constraint shift step. Lets callers compose the
-    /// constraint with their own sampler chain (prepend the constraint so
-    /// it runs before temperature / top-k / top-p, matching how core's
-    /// tool-call grammar prepending works in `Worker::ask`).
+    /// Extract the constraint as a shift step for the sampler chain.
     fn into_shift_step(self) -> Result<nobodywho::sampler_config::ShiftStep, JsError> {
         use nobodywho::sampler_config::ShiftStep;
         let n_set = self.json_schema.is_some() as u8
@@ -1276,8 +1251,8 @@ impl ConstraintSpec {
                 "constraint must set exactly one of jsonSchema / regex / lark",
             ));
         }
-        Ok(if let Some(s) = self.json_schema {
-            ShiftStep::JsonSchema(s)
+        Ok(if let Some(v) = self.json_schema {
+            ShiftStep::JsonSchema(serde_json::to_string(&v).unwrap())
         } else if let Some(p) = self.regex {
             ShiftStep::Regex(p)
         } else {
@@ -1291,7 +1266,7 @@ impl ConstraintSpec {
 /// `ChatOptions` entirely (which falls back to core's default).
 ///
 /// Shift steps are applied in llama.cpp's canonical order:
-/// penalties → top_k → top_p → min_p → temperature → sample_step.
+/// constraint → penalties → top_k → top_p → min_p → temperature → sample_step.
 ///
 /// JS shape:
 /// ```js
@@ -1305,6 +1280,7 @@ impl ConstraintSpec {
 ///     repeatPenalty: 1.1,
 ///     repeatLastN: 64,
 ///     sampleStep: 'dist', // 'dist' | 'greedy' | 'mirostatV1' | 'mirostatV2'
+///     constraint: { jsonSchema: {type: "object", properties: {answer: {type: "string"}}} },
 ///   },
 /// });
 /// ```
@@ -1314,6 +1290,9 @@ impl ConstraintSpec {
 #[derive(serde::Deserialize, Default, Debug)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SamplerSpec {
+    /// Structured-output constraint (jsonSchema / regex / lark). When set,
+    /// the grammar shift step is prepended to the sampler chain.
+    constraint: Option<ConstraintSpec>,
     temperature: Option<f32>,
     top_k: Option<i32>,
     top_p: Option<f32>,
@@ -1367,6 +1346,10 @@ impl SamplerSpec {
         use nobodywho::sampler_config::{SampleStep, SamplerConfig, ShiftStep};
 
         let mut config = SamplerConfig::new();
+
+        if let Some(c) = self.constraint {
+            config = config.shift(c.into_shift_step()?);
+        }
 
         if self.repeat_penalty.is_some()
             || self.repeat_last_n.is_some()
@@ -1460,28 +1443,12 @@ impl SamplerSpec {
     }
 }
 
-/// Build a sampler from the four possible combinations of `sampler` and
-/// `constraint` on `ChatOptions`.
-///
-/// | sampler | constraint | result                                              |
-/// |---------|------------|-----------------------------------------------------|
-/// | None    | None       | None (caller falls back to core's default sampler)  |
-/// | None    | Some(c)    | constraint-only sampler                             |
-/// | Some(s) | None       | user's sampler                                       |
-/// | Some(s) | Some(c)    | user's sampler with constraint shift PREPENDED       |
+/// Build a sampler from the optional `SamplerSpec`. Returns `None` when
+/// `sampler` is omitted (caller falls back to core's default).
 fn build_sampler(
     sampler: Option<SamplerSpec>,
-    constraint: Option<ConstraintSpec>,
 ) -> Result<Option<nobodywho::sampler_config::SamplerConfig>, JsError> {
-    match (sampler, constraint) {
-        (None, None) => Ok(None),
-        (None, Some(c)) => Ok(Some(c.into_sampler()?)),
-        (Some(s), None) => Ok(Some(s.into_sampler()?)),
-        (Some(s), Some(c)) => {
-            let cfg = s.into_sampler()?;
-            Ok(Some(cfg.prepend(c.into_shift_step()?)))
-        }
-    }
+    sampler.map(|s| s.into_sampler()).transpose()
 }
 
 // ---------- Encoder ----------
@@ -2236,7 +2203,7 @@ fn chat_handle_from_options(
     if let Some(sys) = opts.system_prompt {
         builder = builder.with_system_prompt(Some(sys));
     }
-    if let Some(sampler) = build_sampler(opts.sampler, opts.constraint).map_err(|e| {
+    if let Some(sampler) = build_sampler(opts.sampler).map_err(|e| {
         // build_sampler returns Err(JsError) only when the spec is invalid
         // (constraint not exclusive-one-of, unknown sampleStep, etc.); reach
         // into the underlying Error.message via Reflect.
@@ -2244,7 +2211,7 @@ fn chat_handle_from_options(
         js_sys::Reflect::get(&val, &"message".into())
             .ok()
             .and_then(|m| m.as_string())
-            .unwrap_or_else(|| "invalid sampler / constraint".to_string())
+            .unwrap_or_else(|| "invalid sampler".to_string())
     })? {
         builder = builder.with_sampler(sampler);
     }
