@@ -18,7 +18,7 @@
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/tool-smoke.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -67,9 +67,8 @@ console.log(`    ✓ name=${weatherTool.name} __nbwKind=${weatherTool.__nbwKind}
 
 // === 3. Chat with tools — model decides whether to call ===
 console.log('\n[3] Spawning Chat with tools...');
-const modelBytes = new Uint8Array(readFileSync(modelPath));
 const chat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt:
     'You are a helpful assistant. When the user asks about weather, use the get_weather tool. Then answer in one short sentence.',
   templateVariables: { enable_thinking: false },
@@ -133,7 +132,7 @@ const weatherToolAsync = m.Tool.fromFn(
 
 await chat.terminate();
 const chatAsync = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt:
     'You are a helpful assistant. When the user asks about weather, use the get_weather tool. Then answer in one short sentence.',
   templateVariables: { enable_thinking: false },

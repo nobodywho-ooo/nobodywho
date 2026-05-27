@@ -11,7 +11,6 @@
 //     post-tool-call generation streamed correctly too)
 //
 // Usage: node tool-stream-check.mjs <model.gguf>
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -44,7 +43,7 @@ const weather = m.Tool.fromFn(
 );
 
 const chat = await m.Chat.create({
-  modelBytes: new Uint8Array(readFileSync(modelPath)),
+  modelPath,
   systemPrompt: 'You are a helpful assistant. Use the get_weather tool when asked about weather.',
   templateVariables: { enable_thinking: false },
   tools: [weather],

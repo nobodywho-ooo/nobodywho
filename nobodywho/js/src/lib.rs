@@ -235,17 +235,21 @@ impl Model {
 
         promisify(async move {
             let model_memfs: std::path::PathBuf = if let Some(path) = model_path {
-                mount_host_path_via_nodefs("model", &path)?
+                mount_host_path_via_nodefs("model", &path)
+                    .map_err(|e| JsError::new(&e))?
             } else if let Some(url) = model_url {
-                stream_url_to_memfs("model", &url, None).await?
+                stream_url_to_memfs("model", &url, None).await
+                    .map_err(|e| JsError::new(&e))?
             } else {
                 unreachable!()
             };
 
             let mmproj_memfs: Option<std::path::PathBuf> = if let Some(path) = mmproj_path {
-                Some(mount_host_path_via_nodefs("mmproj", &path)?)
+                Some(mount_host_path_via_nodefs("mmproj", &path)
+                    .map_err(|e| JsError::new(&e))?)
             } else if let Some(url) = mmproj_url {
-                Some(stream_url_to_memfs("mmproj", &url, None).await?)
+                Some(stream_url_to_memfs("mmproj", &url, None).await
+                    .map_err(|e| JsError::new(&e))?)
             } else {
                 None
             };
@@ -3732,10 +3736,8 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
 
     Ok(ChatCreateParsed {
         model_url,
-        model_bytes,
         model_path,
         mmproj_url,
-        mmproj_bytes,
         mmproj_path,
         on_progress,
         chat_opts_jsval: chat_opts_obj.into(),

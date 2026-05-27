@@ -9,7 +9,6 @@
 //     poisoning from the abort)
 //
 // Usage: node terminate-mid-stream-smoke.mjs <model.gguf>
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -23,12 +22,10 @@ if (!modelPath) {
   process.exit(2);
 }
 
-const bytes = new Uint8Array(readFileSync(modelPath));
-
 // --- Phase 1: terminate mid-stream ---
 console.log('[phase 1] starting chat, will terminate after 3 streamed tokens');
 const chat1 = await m.Chat.create({
-  modelBytes: bytes,
+  modelPath,
   systemPrompt: 'You are a helpful assistant.',
   templateVariables: { enable_thinking: false },
 });
@@ -101,7 +98,7 @@ try {
 // --- Phase 2: fresh chat after a terminated one ---
 console.log('\n[phase 2] creating a fresh chat after terminate — should work normally');
 const chat2 = await m.Chat.create({
-  modelBytes: bytes,
+  modelPath,
   systemPrompt: 'You are a helpful assistant.',
   templateVariables: { enable_thinking: false },
 });

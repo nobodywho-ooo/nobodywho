@@ -14,13 +14,11 @@ if (!modelPath || !mmprojPath || !imagePath) {
   process.exit(2);
 }
 
-const modelBytes = new Uint8Array(readFileSync(modelPath));
-const mmprojBytes = new Uint8Array(readFileSync(mmprojPath));
 const imgBytes = new Uint8Array(readFileSync(imagePath));
 
 const chat = await m.Chat.create({
-  modelBytes,
-  mmprojBytes,
+  modelPath,
+  mmprojPath,
   systemPrompt: 'You are a helpful assistant. Be brief.',
   templateVariables: { enable_thinking: false },
   contextSize: 4096,

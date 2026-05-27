@@ -1,14 +1,13 @@
 // Path A end-to-end vision smoke test.
 //
 // Loads Qwen2.5-Omni-3B (~2 GB main model + ~1.5 GB mmproj) via
-// `Chat.create({modelBytes, mmprojBytes, ...})` — the binding writes
-// both byte buffers into the worker's MEMFS and loads through the
-// existing path-based ProjectionModel. Then asks the model to identify
+// `Chat.create({modelPath, mmprojPath, ...})` — the binding loads
+// through the path-based ProjectionModel. Then asks the model to identify
 // a penguin image passed through `Image.fromBytes(uint8)` (same MEMFS-
 // backed mechanism).
 //
 // What's being validated end-to-end:
-//   * Chat.create accepts mmprojBytes alongside modelBytes and produces
+//   * Chat.create accepts mmprojPath alongside modelPath and produces
 //     a worker with a working projection_model.
 //   * Image.fromBytes wraps raw bytes in a tagged object whose worker-
 //     side handler writes to /tmp/nbw-image-<hash>.bin in MEMFS and
@@ -50,12 +49,8 @@ console.log('  module loaded.');
 assert.equal(typeof m.Image, 'function', 'expected m.Image factory');
 assert.equal(typeof m.Image.fromBytes, 'function', 'expected m.Image.fromBytes');
 
-console.log('\nReading model + mmproj bytes...');
-const modelBytes = new Uint8Array(readFileSync(modelPath));
-const mmprojBytes = new Uint8Array(readFileSync(mmprojPath));
+console.log('\nReading image bytes...');
 const imgBytes = new Uint8Array(readFileSync(imagePath));
-console.log(`  main model: ${(modelBytes.byteLength / 1e6).toFixed(0)} MB`);
-console.log(`  mmproj:     ${(mmprojBytes.byteLength / 1e6).toFixed(0)} MB`);
 console.log(`  image:      ${imgBytes.byteLength} bytes`);
 
 // On wasm32 core::memory::plan_context floors n_ubatch at 1024 (not
@@ -65,8 +60,8 @@ console.log(`  image:      ${imgBytes.byteLength} bytes`);
 console.log('\nBuilding Chat with mmproj (contextSize=4096 — fits the image embedding)...');
 const t0 = performance.now();
 const chat = await m.Chat.create({
-  modelBytes,
-  mmprojBytes,
+  modelPath,
+  mmprojPath,
   systemPrompt: 'You are a helpful assistant. Be brief.',
   templateVariables: { enable_thinking: false },
   contextSize: 4096,
@@ -113,7 +108,7 @@ if (chunkCount < 2) {
 await chat.terminate();
 
 console.log('\n=== Path A end-to-end vision smoke passed ===');
-console.log('  Chat.create({modelBytes, mmprojBytes}) wires mmproj through worker MEMFS,');
+console.log('  Chat.create({modelPath, mmprojPath}) wires mmproj through the path-based loader,');
 console.log('  Image.fromBytes(uint8) wires image bytes through MEMFS,');
 console.log('  multimodal inference returns a sensible answer,');
 console.log('  AND streams it token-by-token via the per-token hook.');

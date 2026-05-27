@@ -2,7 +2,6 @@
 // Symbol.asyncIterator shim landed in pre.js.
 //
 // Usage: node forawait-smoke.mjs <model.gguf>
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -17,7 +16,7 @@ if (!modelPath) {
 }
 
 const chat = await m.Chat.create({
-  modelBytes: new Uint8Array(readFileSync(modelPath)),
+  modelPath,
   systemPrompt: 'You are a helpful assistant.',
   templateVariables: { enable_thinking: false },
 });

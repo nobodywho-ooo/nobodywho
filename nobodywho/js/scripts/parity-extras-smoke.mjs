@@ -24,7 +24,6 @@ if (!existsSync(modelPath)) {
 console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-const modelBytes = new Uint8Array(readFileSync(modelPath));
 
 // === [1] cosineSimilarity ===
 console.log('\n[1] cosineSimilarity helper...');
@@ -93,7 +92,7 @@ console.log('    ✓ Image.fromPath works');
 // === [4] Chat.reset(opts) — combined atomic reset ===
 console.log('\n[4] Chat.reset({systemPrompt, tools})...');
 const chat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Initial system.',
   templateVariables: { enable_thinking: false },
 });

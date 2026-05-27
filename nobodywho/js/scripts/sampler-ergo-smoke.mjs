@@ -12,7 +12,7 @@
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/sampler-ergo-smoke.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -30,7 +30,6 @@ if (!existsSync(modelPath)) {
 console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-const modelBytes = new Uint8Array(readFileSync(modelPath));
 
 console.log('\n[1] SamplerPresets shape sanity...');
 const greedy = m.SamplerPresets.greedy();
@@ -79,7 +78,7 @@ console.log('    ✓ greedy terminal OK');
 
 console.log('\n[4] Chat.create accepts the built sampler — actually runs inference...');
 const chat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Reply concisely.',
   templateVariables: { enable_thinking: false },
   sampler: new m.SamplerBuilder().topK(40).temperature(0.5).dist(),
@@ -92,7 +91,7 @@ console.log('    ✓ Chat.create + built sampler + ask round-trip');
 
 console.log('\n[5] SamplerPresets.constrainWithRegex routed through Chat.create...');
 const chat2 = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Reply with a single integer.',
   templateVariables: { enable_thinking: false },
   sampler: m.SamplerPresets.constrainWithRegex('^[0-9]{1,3}$'),

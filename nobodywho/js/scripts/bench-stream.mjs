@@ -14,7 +14,6 @@
 //
 // Wasm stderr (model-load tensor noise) is suppressed by default — set
 // NBW_SHOW_WASM_STDERR=1 to see it.
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -42,8 +41,6 @@ if (!process.env.NBW_SHOW_WASM_STDERR) {
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
-const bytes = new Uint8Array(readFileSync(modelPath));
-console.log(`model: ${(bytes.byteLength / 1e6).toFixed(1)} MB`);
 console.log(`trials=${trials}  max_tokens=${maxTokens}`);
 console.log('');
 
@@ -55,7 +52,7 @@ const results = [];
 for (let t = 0; t < trials; t++) {
   process.stdout.write(`trial ${t + 1}/${trials}: loading model into worker… `);
   const chat = await m.Chat.create({
-    modelBytes: bytes,
+    modelPath,
     systemPrompt: 'You are a helpful assistant.',
     templateVariables: { enable_thinking: false },
   });

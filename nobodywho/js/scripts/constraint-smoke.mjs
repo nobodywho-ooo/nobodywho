@@ -13,7 +13,7 @@
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/constraint-smoke.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -29,13 +29,11 @@ console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
-const modelBytes = new Uint8Array(readFileSync(modelPath));
-
 // === 1. Regex constraint ===
 console.log('\n[1] Regex constraint `^[A-Z][a-z]+$` (single capitalized word)...');
 const regex = /^[A-Z][a-z]+$/;
 const regexChat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Reply with one word.',
   templateVariables: { enable_thinking: false },
   sampler: { constraint: { regex: '[A-Z][a-z]+' } },
@@ -64,7 +62,7 @@ const schema = {
   additionalProperties: false,
 };
 const jsonChat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Reply with one short JSON object.',
   templateVariables: { enable_thinking: false },
   sampler: { constraint: { jsonSchema: schema } },

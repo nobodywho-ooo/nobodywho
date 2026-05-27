@@ -20,7 +20,6 @@
 //   - no turn errored
 //
 // Usage: node context-shift-smoke.mjs <model.gguf>
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -42,7 +41,7 @@ const CTX = 256;
 console.log(`[setup] contextSize=${CTX}, multi-turn dialogue forcing a shift`);
 
 const chat = await m.Chat.create({
-  modelBytes: new Uint8Array(readFileSync(modelPath)),
+  modelPath,
   contextSize: CTX,
   systemPrompt: 'You are a helpful assistant. Give complete but moderately detailed answers (3-5 sentences).',
   templateVariables: { enable_thinking: false },

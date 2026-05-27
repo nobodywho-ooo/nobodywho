@@ -17,7 +17,7 @@
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/setters-smoke.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -35,11 +35,10 @@ if (!existsSync(modelPath)) {
 console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-const modelBytes = new Uint8Array(readFileSync(modelPath));
 
 console.log('\n[1] System prompt round-trip...');
 const chat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Initial system prompt.',
   templateVariables: { enable_thinking: false },
 });

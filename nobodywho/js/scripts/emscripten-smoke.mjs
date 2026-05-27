@@ -2,7 +2,7 @@
 //
 // Loads the Emscripten-emitted nobodywho_js.js (which auto-instantiates the
 // wasm and runs wasm-bindgen's start function via the modularized factory),
-// then exercises Model.loadBytes + Encoder.encode end-to-end on a tiny
+// then exercises Model.load + Encoder.encode end-to-end on a tiny
 // embedding model. Passes iff a finite Float32Array of the expected
 // dimension comes back.
 //
@@ -15,7 +15,7 @@
 // Emscripten + pthreads. Exit non-zero = phase 0 hasn't passed yet; see the
 // printed error.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -87,12 +87,8 @@ for (const sym of ['Model', 'Encoder', 'init']) {
   }
 }
 
-console.log('loading model bytes from disk...');
-const bytes = new Uint8Array(readFileSync(modelPath));
-console.log(`  ${bytes.byteLength.toLocaleString()} bytes`);
-
-console.log('Model.loadBytes...');
-const model = await module.Model.loadBytes(bytes);
+console.log('Model.load({modelPath})...');
+const model = await module.Model.load({ modelPath });
 
 console.log('new Encoder + encode("test")...');
 const encoder = new module.Encoder(model, 2048);

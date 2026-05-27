@@ -12,7 +12,7 @@
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/sampler-extra-smoke.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -29,11 +29,10 @@ if (!existsSync(modelPath)) {
 console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-const modelBytes = new Uint8Array(readFileSync(modelPath));
 
 async function runWithSampler(label, sampler) {
   const chat = await m.Chat.create({
-    modelBytes,
+    modelPath,
     systemPrompt: 'Reply with the single word "ok".',
     templateVariables: { enable_thinking: false },
     sampler,
@@ -94,7 +93,7 @@ const jsonPreset = m.SamplerPresets.json();
 console.log(`    spec: ${JSON.stringify(jsonPreset)}`);
 assert.deepEqual(jsonPreset, { constraint: { jsonSchema: {} } });
 const jchat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Reply with valid JSON only.',
   templateVariables: { enable_thinking: false },
   sampler: jsonPreset,

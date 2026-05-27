@@ -15,7 +15,7 @@
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/stop-smoke.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -35,11 +35,9 @@ let __hookDebugSeen = 0;
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
-const modelBytes = new Uint8Array(readFileSync(modelPath));
-
 console.log('\n[1] Long generation, stop after a few tokens...');
 const chat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Reply concisely.',
   templateVariables: { enable_thinking: false },
 });

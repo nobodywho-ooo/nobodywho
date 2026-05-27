@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { strict as assert } from 'node:assert';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -8,7 +7,7 @@ const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
 const chat = await m.Chat.create({
-  modelBytes: new Uint8Array(readFileSync(process.argv[2])),
+  modelPath: process.argv[2],
   systemPrompt: 'You are a helpful assistant',
   templateVariables: { enable_thinking: false },
 });

@@ -9,7 +9,7 @@
 //   * Combining sampler knobs with `constraint` inside the sampler
 //     doesn't break anything (constraint prepends a shift step).
 //
-// Runs through `Chat.create({modelBytes, ...})` so the same smoke
+// Runs through `Chat.create({modelPath, ...})` so the same smoke
 // exercises both browser and Node (Node uses `worker_threads` under the
 // hood via `__nbw_spawn_worker`). Each section spawns a fresh Chat
 // and terminates it when done so workers don't pile up.
@@ -19,7 +19,7 @@
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/scripts/sampler-smoke.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { strict as assert } from 'node:assert';
@@ -35,13 +35,11 @@ console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
-const modelBytes = new Uint8Array(readFileSync(modelPath));
-
 const PROMPT = 'Reply with exactly one word: hello';
 
 async function runGreedyOnce() {
   const chat = await m.Chat.create({
-    modelBytes,
+    modelPath,
     systemPrompt: 'Reply briefly.',
     templateVariables: { enable_thinking: false },
     sampler: { sampleStep: 'greedy' },
@@ -69,7 +67,7 @@ console.log('    ✓ identical');
 // === 2. Temperature / topK / topP accepted at construction time ===
 console.log('\n[2] Custom sampler with temperature/topK/topP/minP/repeatPenalty...');
 const customChat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'You are helpful.',
   templateVariables: { enable_thinking: false },
   sampler: {
@@ -89,7 +87,7 @@ console.log('    ✓ constructed without error');
 console.log('\n[3] Invalid sampleStep rejects with clear error...');
 let threw = false;
 try {
-  await m.Chat.create({ modelBytes, sampler: { sampleStep: 'bogus' } });
+  await m.Chat.create({ modelPath, sampler: { sampleStep: 'bogus' } });
 } catch (e) {
   threw = true;
   console.log(`    caught: ${e.message ?? e}`);
@@ -102,7 +100,7 @@ console.log('    ✓ rejected');
 // === 4. Sampler + constraint compose ===
 console.log('\n[4] sampler + constraint together (constraint prepended to chain)...');
 const composedChat = await m.Chat.create({
-  modelBytes,
+  modelPath,
   systemPrompt: 'Reply with exactly one word.',
   templateVariables: { enable_thinking: false },
   sampler: { temperature: 0.5, topP: 0.9, sampleStep: 'dist', constraint: { regex: '[a-z]+' } },

@@ -32,9 +32,6 @@ console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
-const modelBytes = new Uint8Array(readFileSync(modelPath));
-const mmprojBytes = new Uint8Array(readFileSync(mmprojPath));
-
 const formats = [
   { ext: 'wav', desc: 'WAV (uncompressed PCM)' },
   { ext: 'mp3', desc: 'MP3' },
@@ -66,8 +63,8 @@ for (const { ext, desc } of formats) {
   // marker in stdout). The downstream encoder may crash for audio
   // mmprojs that use ops not in our wasm build.
   const chat = await m.Chat.create({
-    modelBytes,
-    mmprojBytes,
+    modelPath,
+    mmprojPath,
     systemPrompt: 'Transcribe the audio.',
     templateVariables: { enable_thinking: false },
   });
