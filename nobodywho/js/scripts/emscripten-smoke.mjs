@@ -87,9 +87,6 @@ for (const sym of ['Model', 'Encoder', 'init']) {
   }
 }
 
-// Idempotent panic-hook + tracing init (same as setup.mjs does today).
-module.init();
-
 console.log('loading model bytes from disk...');
 const bytes = new Uint8Array(readFileSync(modelPath));
 console.log(`  ${bytes.byteLength.toLocaleString()} bytes`);

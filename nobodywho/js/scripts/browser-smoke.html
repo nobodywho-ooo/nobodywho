@@ -90,7 +90,6 @@
       const cLoad = addCheck('1. wasm module loads');
       const { default: createNobodyWhoModule } = await import('../pkg-bundler/nobodywho_js.js');
       const m = await createNobodyWhoModule();
-      m.init();
       cLoad.pass();
 
       const cIter = addCheck('2. Symbol.asyncIterator is attached on TokenStream.prototype');

@@ -6,7 +6,6 @@
   <script type="module">
     const { default: createNobodyWhoModule } = await import('../pkg-bundler/nobodywho_js.js');
     const m = await createNobodyWhoModule();
-    m.init();
 
     const bytes = await m.fetchModelBytes(
       'https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf',

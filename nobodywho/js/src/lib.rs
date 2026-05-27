@@ -97,8 +97,8 @@ pub unsafe extern "C" fn __cxa_atexit(
 
 // ---------- Install panic hook & tracing ----------
 
-/// Install panic hook and tracing subscriber. Call once from JS before any
-/// other API. Safe to call multiple times.
+/// Install panic hook and tracing subscriber.
+/// Auto-called via the postRun hook in pre.js — no need to call from JS.
 #[wasm_bindgen(js_name = init)]
 pub fn init() {
     console_error_panic_hook::set_once();

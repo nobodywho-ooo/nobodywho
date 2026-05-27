@@ -31,7 +31,6 @@ for (const [label, p] of [['model', modelPath], ['mmproj', mmprojPath]]) {
 console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-m.init();
 
 const modelBytes = new Uint8Array(readFileSync(modelPath));
 const mmprojBytes = new Uint8Array(readFileSync(mmprojPath));

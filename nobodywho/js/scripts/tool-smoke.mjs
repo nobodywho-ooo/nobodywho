@@ -33,7 +33,6 @@ if (!existsSync(modelPath)) { console.error('missing model:', modelPath); proces
 console.log('Loading wasm...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-m.init();
 
 // === 1. Surface check ===
 console.log('\n[1] m.Tool.fromFn exposed?');

@@ -44,7 +44,6 @@ for (const p of [modelPath, mmprojPath, imagePath]) {
 console.log('Loading wasm module...');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-m.init();
 console.log('  module loaded.');
 
 // Sanity: Image factory is exposed.

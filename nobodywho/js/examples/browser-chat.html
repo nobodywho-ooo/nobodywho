@@ -6,7 +6,6 @@
   <script type="module">
     const { default: createNobodyWhoModule } = await import('../pkg-bundler/nobodywho_js.js');
     const m = await createNobodyWhoModule();
-    m.init();
 
     const chat = await m.Chat.create({
       modelUrl: 'https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf',

@@ -5,7 +5,6 @@ import { join, dirname } from 'node:path';
 const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'pkg-bundler');
 const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_js.js'));
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
-m.init();
 
 const modelPath = process.argv[2];
 const mmprojPath = process.argv[3];

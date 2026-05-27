@@ -14,7 +14,6 @@ examples next door — load a model, call the API:
 import { readFileSync } from 'node:fs';
 const { default: createNobodyWhoModule } = await import('./pkg-bundler/nobodywho_js.js');
 const m = await createNobodyWhoModule();
-m.init();
 
 const modelBytes = new Uint8Array(readFileSync(process.argv[2]));
 const chat = await m.Chat.create({
@@ -55,7 +54,6 @@ while (true) {
 **Embedding** (`encoder_demo.mjs`):
 ```js
 const m = await createNobodyWhoModule();
-m.init();
 
 const model = await m.Model.loadBytes(modelBytes);
 const encoder = new m.Encoder(model, 2048);
@@ -231,7 +229,6 @@ Helpers on the `Model` class:
 ```js
 const { default: createNobodyWhoModule } = await import('nobodywho-js');
 const m = await createNobodyWhoModule();
-m.init();
 
 // Pre-populate the cache during a splash screen / onboarding step so the
 // user doesn't sit through a 400 MB download when they click "chat".
@@ -352,7 +349,6 @@ is the point of this section, not throughput.
 ```js
 const { default: createNobodyWhoModule } = await import('nobodywho-js');
 const m = await createNobodyWhoModule();
-m.init();
 
 const modelBytes  = new Uint8Array(await (await fetch('/model.gguf')).arrayBuffer());
 const mmprojBytes = new Uint8Array(await (await fetch('/mmproj.gguf')).arrayBuffer());
