@@ -1527,7 +1527,10 @@ impl TokenStream {
         let inner = self.inner.clone();
         promisify(async move {
             let mut stream = inner.lock().await;
-            let text = stream.completed().await.map_err(|e| JsError::new(&e.to_string()))?;
+            let text = stream
+                .completed()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok::<JsValue, JsError>(JsValue::from_str(&text))
         })
     }
@@ -1547,20 +1550,36 @@ impl Chat {
     #[wasm_bindgen(js_name = create)]
     pub fn create(opts: JsValue) -> js_sys::Promise {
         promisify(async move {
-            let obj = opts.dyn_ref::<js_sys::Object>()
+            let obj = opts
+                .dyn_ref::<js_sys::Object>()
                 .ok_or_else(|| JsError::new("Chat.create requires an options object"))?;
 
-            let model_url = js_sys::Reflect::get(obj, &"modelUrl".into()).ok().and_then(|v| v.as_string());
-            let model_path = js_sys::Reflect::get(obj, &"modelPath".into()).ok().and_then(|v| v.as_string());
-            let mmproj_url = js_sys::Reflect::get(obj, &"mmprojUrl".into()).ok().and_then(|v| v.as_string());
-            let mmproj_path = js_sys::Reflect::get(obj, &"mmprojPath".into()).ok().and_then(|v| v.as_string());
-            let system_prompt = js_sys::Reflect::get(obj, &"systemPrompt".into()).ok().and_then(|v| v.as_string());
-            let context_size = js_sys::Reflect::get(obj, &"contextSize".into()).ok().and_then(|v| v.as_f64()).map(|v| v as u32);
+            let model_url = js_sys::Reflect::get(obj, &"modelUrl".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            let model_path = js_sys::Reflect::get(obj, &"modelPath".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            let mmproj_url = js_sys::Reflect::get(obj, &"mmprojUrl".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            let mmproj_path = js_sys::Reflect::get(obj, &"mmprojPath".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            let system_prompt = js_sys::Reflect::get(obj, &"systemPrompt".into())
+                .ok()
+                .and_then(|v| v.as_string());
+            let context_size = js_sys::Reflect::get(obj, &"contextSize".into())
+                .ok()
+                .and_then(|v| v.as_f64())
+                .map(|v| v as u32);
 
             let model_memfs: std::path::PathBuf = if let Some(path) = model_path {
                 mount_host_path_via_nodefs("model", &path).map_err(|e| JsError::new(&e))?
             } else if let Some(url) = model_url {
-                stream_url_to_memfs("model", &url, None).await.map_err(|e| JsError::new(&e))?
+                stream_url_to_memfs("model", &url, None)
+                    .await
+                    .map_err(|e| JsError::new(&e))?
             } else {
                 return Err(JsError::new("Chat.create: pass modelUrl or modelPath"));
             };
@@ -1568,16 +1587,23 @@ impl Chat {
             let mmproj_memfs: Option<std::path::PathBuf> = if let Some(path) = mmproj_path {
                 Some(mount_host_path_via_nodefs("mmproj", &path).map_err(|e| JsError::new(&e))?)
             } else if let Some(url) = mmproj_url {
-                Some(stream_url_to_memfs("mmproj", &url, None).await.map_err(|e| JsError::new(&e))?)
+                Some(
+                    stream_url_to_memfs("mmproj", &url, None)
+                        .await
+                        .map_err(|e| JsError::new(&e))?,
+                )
             } else {
                 None
             };
 
-            let model = nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
-                .map_err(|e| JsError::new(&e.to_string()))?;
+            let model =
+                nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
+                    .map_err(|e| JsError::new(&e.to_string()))?;
             let model = Arc::new(model);
 
-            let tools_jsval = js_sys::Reflect::get(obj, &"tools".into()).ok().filter(|v| !v.is_undefined() && !v.is_null());
+            let tools_jsval = js_sys::Reflect::get(obj, &"tools".into())
+                .ok()
+                .filter(|v| !v.is_undefined() && !v.is_null());
             let tools = if let Some(tools_val) = tools_jsval {
                 extract_tools(&tools_val)?
             } else {
@@ -1595,27 +1621,37 @@ impl Chat {
                 builder = builder.with_tools(tools);
             }
 
-            let sampler_val = js_sys::Reflect::get(obj, &"sampler".into()).ok().filter(|v| !v.is_undefined() && !v.is_null());
+            let sampler_val = js_sys::Reflect::get(obj, &"sampler".into())
+                .ok()
+                .filter(|v| !v.is_undefined() && !v.is_null());
             if let Some(sv) = sampler_val {
                 let to_json = js_sys::Reflect::get(&sv, &"toJSON".into())
-                    .ok().and_then(|v| v.dyn_into::<js_sys::Function>().ok())
+                    .ok()
+                    .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
                     .ok_or_else(|| JsError::new("sampler must be a SamplerConfig"))?;
-                let json_str: String = to_json.call0(&sv)
+                let json_str: String = to_json
+                    .call0(&sv)
                     .map_err(|e| JsError::new(&format!("sampler.toJSON() failed: {e:?}")))?
-                    .as_string().ok_or_else(|| JsError::new("sampler.toJSON() not a string"))?;
+                    .as_string()
+                    .ok_or_else(|| JsError::new("sampler.toJSON() not a string"))?;
                 let cfg: nobodywho::sampler_config::SamplerConfig = serde_json::from_str(&json_str)
                     .map_err(|e| JsError::new(&format!("sampler parse: {e}")))?;
                 builder = builder.with_sampler(cfg);
             }
 
-            let template_vars = js_sys::Reflect::get(obj, &"templateVariables".into()).ok().filter(|v| !v.is_undefined() && !v.is_null());
+            let template_vars = js_sys::Reflect::get(obj, &"templateVariables".into())
+                .ok()
+                .filter(|v| !v.is_undefined() && !v.is_null());
             if let Some(tv) = template_vars {
-                let vars: std::collections::HashMap<String, bool> = serde_wasm_bindgen::from_value(tv)
-                    .map_err(|e| JsError::new(&format!("templateVariables: {e}")))?;
+                let vars: std::collections::HashMap<String, bool> =
+                    serde_wasm_bindgen::from_value(tv)
+                        .map_err(|e| JsError::new(&format!("templateVariables: {e}")))?;
                 builder = builder.with_template_variables(vars);
             }
 
-            let handle = builder.build_async().map_err(|e| JsError::new(&e.to_string()))?;
+            let handle = builder
+                .build_async()
+                .map_err(|e| JsError::new(&e.to_string()))?;
 
             Ok(Chat { inner: handle })
         })
@@ -1638,7 +1674,10 @@ impl Chat {
     pub fn get_chat_history(&self) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            let messages = inner.get_chat_history().await.map_err(|e| JsError::new(&e.to_string()))?;
+            let messages = inner
+                .get_chat_history()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             serde_wasm_bindgen::to_value(&messages).map_err(|e| JsError::new(&e.to_string()))
         })
     }
@@ -1649,7 +1688,10 @@ impl Chat {
         promisify(async move {
             let msgs: Vec<nobodywho::chat::Message> = serde_wasm_bindgen::from_value(messages)
                 .map_err(|e| JsError::new(&format!("messages: {e}")))?;
-            inner.set_chat_history(msgs).await.map_err(|e| JsError::new(&e.to_string()))?;
+            inner
+                .set_chat_history(msgs)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }
@@ -1658,8 +1700,14 @@ impl Chat {
     pub fn get_system_prompt(&self) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            let prompt = inner.get_system_prompt().await.map_err(|e| JsError::new(&e.to_string()))?;
-            Ok(match prompt { Some(s) => JsValue::from_str(&s), None => JsValue::NULL })
+            let prompt = inner
+                .get_system_prompt()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            Ok(match prompt {
+                Some(s) => JsValue::from_str(&s),
+                None => JsValue::NULL,
+            })
         })
     }
 
@@ -1667,8 +1715,15 @@ impl Chat {
     pub fn set_system_prompt(&self, prompt: JsValue) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            let p = if prompt.is_null() || prompt.is_undefined() { None } else { prompt.as_string() };
-            inner.set_system_prompt(p).await.map_err(|e| JsError::new(&e.to_string()))?;
+            let p = if prompt.is_null() || prompt.is_undefined() {
+                None
+            } else {
+                prompt.as_string()
+            };
+            inner
+                .set_system_prompt(p)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }
@@ -1677,7 +1732,10 @@ impl Chat {
     pub fn get_sampler_config(&self) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            let cfg = inner.get_sampler_config().await.map_err(|e| JsError::new(&e.to_string()))?;
+            let cfg = inner
+                .get_sampler_config()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(SamplerConfig { inner: cfg })
         })
     }
@@ -1687,7 +1745,10 @@ impl Chat {
         let cfg = sampler.inner.clone();
         let inner = self.inner.clone();
         promisify(async move {
-            inner.set_sampler_config(cfg).await.map_err(|e| JsError::new(&e.to_string()))?;
+            inner
+                .set_sampler_config(cfg)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }
@@ -1696,10 +1757,14 @@ impl Chat {
     pub fn get_template_variables(&self) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            let vars = inner.get_template_variables().await.map_err(|e| JsError::new(&e.to_string()))?;
+            let vars = inner
+                .get_template_variables()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             use serde::Serialize;
             let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-            vars.serialize(&ser).map_err(|e| JsError::new(&e.to_string()))
+            vars.serialize(&ser)
+                .map_err(|e| JsError::new(&e.to_string()))
         })
     }
 
@@ -1707,7 +1772,10 @@ impl Chat {
     pub fn set_template_variable(&self, name: String, value: bool) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            inner.set_template_variable(name, value).await.map_err(|e| JsError::new(&e.to_string()))?;
+            inner
+                .set_template_variable(name, value)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }
@@ -1716,9 +1784,13 @@ impl Chat {
     pub fn set_template_variables(&self, variables: JsValue) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            let vars: std::collections::HashMap<String, bool> = serde_wasm_bindgen::from_value(variables)
-                .map_err(|e| JsError::new(&format!("variables: {e}")))?;
-            inner.set_template_variables(vars).await.map_err(|e| JsError::new(&e.to_string()))?;
+            let vars: std::collections::HashMap<String, bool> =
+                serde_wasm_bindgen::from_value(variables)
+                    .map_err(|e| JsError::new(&format!("variables: {e}")))?;
+            inner
+                .set_template_variables(vars)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }
@@ -1732,7 +1804,10 @@ impl Chat {
             } else {
                 extract_tools(&tools)?
             };
-            inner.set_tools(t).await.map_err(|e| JsError::new(&e.to_string()))?;
+            inner
+                .set_tools(t)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }
@@ -1744,16 +1819,27 @@ impl Chat {
             let (prompt, tools_val) = if opts.is_undefined() || opts.is_null() {
                 (None, JsValue::UNDEFINED)
             } else {
-                let p = js_sys::Reflect::get(&opts, &"systemPrompt".into()).unwrap_or(JsValue::NULL);
+                let p =
+                    js_sys::Reflect::get(&opts, &"systemPrompt".into()).unwrap_or(JsValue::NULL);
                 let t = js_sys::Reflect::get(&opts, &"tools".into()).unwrap_or(JsValue::UNDEFINED);
-                (if p.is_null() || p.is_undefined() { None } else { p.as_string() }, t)
+                (
+                    if p.is_null() || p.is_undefined() {
+                        None
+                    } else {
+                        p.as_string()
+                    },
+                    t,
+                )
             };
             let tools = if tools_val.is_undefined() || tools_val.is_null() {
                 Vec::new()
             } else {
                 extract_tools(&tools_val)?
             };
-            inner.reset_chat(prompt, tools).await.map_err(|e| JsError::new(&e.to_string()))?;
+            inner
+                .reset_chat(prompt, tools)
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }
@@ -1762,7 +1848,10 @@ impl Chat {
     pub fn reset_history(&self) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
-            inner.reset_history().await.map_err(|e| JsError::new(&e.to_string()))?;
+            inner
+                .reset_history()
+                .await
+                .map_err(|e| JsError::new(&e.to_string()))?;
             Ok(JsValue::UNDEFINED)
         })
     }

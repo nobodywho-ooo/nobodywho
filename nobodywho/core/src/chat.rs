@@ -647,10 +647,7 @@ impl ChatHandleAsync {
         prompt: Prompt,
     ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask {
-            prompt,
-            output_tx,
-        });
+        self.guard.send(ChatMsg::Ask { prompt, output_tx });
         output_rx
     }
 
@@ -669,7 +666,6 @@ impl ChatHandleAsync {
     pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
         TokenStreamAsync::new(self.ask_channel(prompt.to_prompt()))
     }
-
 
     // internal helper function for async setters
     async fn set_and_wait_async<F>(&self, make_msg: F) -> Option<()>
@@ -1116,10 +1112,7 @@ async fn process_worker_msg(
 ) -> Result<(), ChatWorkerError> {
     info!(?msg, "Worker processing:");
     match msg {
-        ChatMsg::Ask {
-            prompt,
-            output_tx,
-        } => {
+        ChatMsg::Ask { prompt, output_tx } => {
             let should_stop = Arc::clone(&worker_state.extra.should_stop);
             let error_tx = output_tx.clone();
 
