@@ -814,6 +814,7 @@ where
                 .with_flash_attention_policy(llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED);
 
             // Create inference context and sampler
+            #[allow(unused_mut)]
             let mut ctx = model
                 .language_model
                 .new_context(&LLAMA_BACKEND, ctx_params)?;
