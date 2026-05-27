@@ -2690,7 +2690,7 @@ impl Chat {
 
             // Handshake step 3: post 'create-chat' with the chat options
             // (the original JS object minus the modelUrl/modelPath/
-            // onDownloadProgress/tools keys; see parse_chat_create_opts)
+            // tools keys; see parse_chat_create_opts)
             // plus a separate `tools` field carrying just metadata.
             // Callbacks stay main-thread; the worker synthesizes RPC stubs
             // that round-trip via `tool-call` / `tool-reply`.
@@ -3271,7 +3271,7 @@ async fn wait_for_handshake(
 }
 
 /// Parsed Chat.create options. `chat_opts_jsval` is the original JS object
-/// minus the modelUrl / modelPath / onDownloadProgress / tools keys — passed
+/// minus the modelUrl / modelPath / tools keys — passed
 /// through to the worker as-is via postMessage. We do NOT re-serialize via
 /// `serde_wasm_bindgen::to_value(&ChatOptions)` because that converts nested
 /// maps (e.g. `templateVariables: { enable_thinking: false }`) into JS Maps,
@@ -3284,7 +3284,6 @@ struct ChatCreateParsed {
     model_path: Option<String>,
     mmproj_url: Option<String>,
     mmproj_path: Option<String>,
-    on_progress: Option<js_sys::Function>,
     chat_opts_jsval: JsValue,
     /// Tool metadata for the worker. Just `{name, description, jsonSchema}`
     /// per entry — the user's JS callback stays main-thread-only and goes
@@ -3316,11 +3315,6 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
     let mmproj_path = js_sys::Reflect::get(obj, &"mmprojPath".into())
         .ok()
         .and_then(|v| v.as_string());
-    let on_progress = js_sys::Reflect::get(obj, &"onDownloadProgress".into())
-        .ok()
-        .filter(|v| !v.is_undefined() && !v.is_null())
-        .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
-
     if model_url.is_some() && model_path.is_some() {
         return Err(JsError::new(
             "Chat.create: pass one of modelUrl / modelPath, not both",
@@ -3402,7 +3396,6 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
                 | "modelPath"
                 | "mmprojUrl"
                 | "mmprojPath"
-                | "onDownloadProgress"
                 | "tools"
                 | "sampler"
         ) {
@@ -3442,7 +3435,6 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
         model_path,
         mmproj_url,
         mmproj_path,
-        on_progress,
         chat_opts_jsval: chat_opts_obj.into(),
         tools_jsval: tools_meta_array.into(),
         tool_callbacks,

@@ -58,15 +58,11 @@ features = [
   "Blob",
   "BlobPropertyBag",
   "Url",
-  # For `fetchModelBytes` + `Model.preload` / `Model.clearCache` — Cache API
-  # model storage and streaming fetch with progress.
+  # Cache API for modelUrl streaming + fetch.
   "Window",
   "Cache",
   "CacheStorage",
-  "Request",
-  "RequestInit",
   "Response",
-  "Headers",
   "ReadableStream",
   "ReadableStreamDefaultReader",
 ]

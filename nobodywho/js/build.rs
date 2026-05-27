@@ -93,10 +93,6 @@ fn main() {
     // and our strong override can use it.
     println!("cargo:rustc-link-arg-cdylib=-sFORCE_FILESYSTEM=1");
 
-    // Include NODEFS so Node.js can mount the host filesystem for
-    // zero-copy model loading via Chat.create({modelPath}).
-    println!("cargo:rustc-link-arg-cdylib=-lnodefs.js");
-
     // Force-keep libc stdio in the wasm against wasm-ld's
     // --gc-sections pass. Without these the linker decides nothing in
     // the Rust crate directly references fopen / fread / etc. (the
