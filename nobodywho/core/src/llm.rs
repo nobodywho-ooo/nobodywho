@@ -229,10 +229,9 @@ pub fn get_model_from_bytes(
         "Loading model from in-memory bytes"
     );
 
-    // On wasm32-unknown-emscripten, mmap on a fmemopen FILE* traps inside
-    // llama.cpp's init_mappings phase (Emscripten's mmap doesn't support
-    // memory-backed FILE handles). Disable it so the loader copies tensor
-    // data instead. Native targets keep the default (mmap on) for speed.
+    // On wasm, fmemopen FILE* has no real fd (fileno returns -1), so
+    // mmap fails. Disable it so the loader copies tensor data via fread.
+    // The path-based loader (get_model_from_path) uses mmap instead.
     #[cfg(target_family = "wasm")]
     let model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
@@ -270,19 +269,14 @@ pub fn get_model_from_bytes(
 /// binding uses this when the caller passed `modelPath` to
 /// `Chat.create({...})` — main passes the host path to the worker,
 /// the worker's Node-fs helper streams chunks into MEMFS, and we
-/// hand off the MEMFS path here.
+/// hand off the path here.
 ///
-/// Why this exists alongside `get_model_from_bytes`: bytes-based
-/// loading forces the caller to hold the entire model in a JS
-/// `Buffer` first, which trips Node's 2 GiB `fs.readFileSync` cap on
-/// large models. Going via path lets the worker stream chunks into
-/// MEMFS directly without ever materializing the full model in
-/// main-thread memory. (The wasm32 4 GiB linear-memory ceiling still
-/// applies to the model + tensors + KV cache total; this loader
-/// doesn't fix that.)
-///
-/// `mmproj_path` is the same as `get_model_from_bytes`'s mmproj
-/// parameter — an already-on-MEMFS GGUF for the projection model.
+/// The path may point to NODEFS (Node.js `modelPath` — real disk
+/// file, no wasm-memory copy) or MEMFS (browser `modelBytes` written
+/// via `FS.writeFile`). mmap is enabled: on NODEFS Emscripten's mmap
+/// reads the file into a wasm-heap region and llama.cpp maps tensors
+/// directly; on MEMFS it allocates + copies (still 2x but doesn't
+/// crash).
 #[cfg(target_family = "wasm")]
 pub fn get_model_from_path(
     model_path: &std::path::Path,
@@ -293,19 +287,18 @@ pub fn get_model_from_path(
         model_path = %model_path.display(),
         mmproj_path = ?mmproj_path,
         gpu_layers,
-        "Loading model from MEMFS path"
+        "Loading model from path (NODEFS or MEMFS)"
     );
 
-    // mmap is off on wasm regardless of path: Emscripten's mmap
-    // doesn't work on MEMFS files either (tried; traps inside
-    // llama.cpp's init_mappings phase the same way as on
-    // fmemopen-backed FILE*s). Tensors get copied into separate
-    // wasm-heap allocations during load, doubling memory pressure.
-    // For models that don't fit, the only fix is memory64 or
-    // NODEFS+host-fs+working-mmap — neither in this change.
+    // Enable mmap: on NODEFS (Node modelPath) Emscripten's mmap
+    // reads the file into a wasm-heap allocation via the FS backend,
+    // and llama.cpp points tensor data directly at that region. On
+    // MEMFS (browser bytes path) mmap also works but still copies
+    // because ALLOW_MEMORY_GROWTH prevents MEMFS from holding
+    // wasm-heap references.
     let model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
-        .with_use_mmap(false);
+        .with_use_mmap(true);
     let model_params = pin!(model_params);
 
     let language_model = LlamaModel::load_from_file(&LLAMA_BACKEND, model_path, &model_params)
