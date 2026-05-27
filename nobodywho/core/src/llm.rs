@@ -220,8 +220,8 @@ pub fn has_gpu_backend() -> bool {
 /// hand off the path here.
 ///
 /// The path may point to NODEFS (Node.js `modelPath` — real disk
-/// file, no wasm-memory copy) or MEMFS (browser `modelBytes` written
-/// via `FS.writeFile`). mmap is enabled: on NODEFS Emscripten's mmap
+/// file, no wasm-memory copy) or MEMFS (browser `modelUrl` streamed
+/// via `FS.write`). mmap is enabled: on NODEFS Emscripten's mmap
 /// reads the file into a wasm-heap region and llama.cpp maps tensors
 /// directly; on MEMFS it allocates + copies (still 2x but doesn't
 /// crash).

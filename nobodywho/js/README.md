@@ -279,7 +279,7 @@ A few cfg-gates in `nobodywho/core` for wasm32:
 - Worker pattern: `std::thread::spawn` → `wasm_bindgen_futures::spawn_local`,
   `std::sync::mpsc` → `tokio::sync::mpsc::unbounded_channel`.
 - Model loading: `get_model_from_path` with `use_mmap(true)` via NODEFS
-  or MEMFS; `get_model_from_bytes` with `fmemopen` for the fmemopen path.
+  or MEMFS.
 - `Tokenizer::tokenize_text` inlines the `mtmd_default_marker` literal.
 - `Worker` n_threads hardcoded to 1 (`available_parallelism` errors on
   wasm).

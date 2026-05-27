@@ -130,12 +130,11 @@ fn package_version_is_placeholder() {
     );
 }
 
-/// Finding #N2 — `ChatOptions` allows unknown fields, silently dropping them.
+/// Finding #N2 — `ChatOptions` must deny unknown fields.
 ///
-/// `ConstraintSpec` (lib.rs:213) has `#[serde(deny_unknown_fields, ...)]`.
-/// `ChatOptions` (lib.rs:183) doesn't. A JS caller writing
-/// `Chat.create({modelBytes, foo: 'bar'})` gets no error — serde drops `foo`
-/// and the user wonders why nothing changed. Match `ConstraintSpec`.
+/// Without `deny_unknown_fields`, a JS caller writing
+/// `Chat.create({modelUrl, foo: 'bar'})` gets no error — serde drops `foo`
+/// and the user wonders why nothing changed.
 #[test]
 fn chat_options_denies_unknown_fields() {
     let pos = LIB_RS
@@ -160,24 +159,18 @@ fn chat_options_denies_unknown_fields() {
         attrs_block.contains("deny_unknown_fields"),
         "js/src/lib.rs: ChatOptions doesn't have \
          #[serde(deny_unknown_fields)]. A JS caller passing an unknown \
-         option (e.g. `Chat.create({{modelBytes, foo: 'bar'}})`) silently has the \
-         field discarded by serde — same shape as ConstraintSpec (line \
-         213) which DOES deny unknown fields. Add the attribute for \
-         consistency and to make typos surface as errors.\n\n\
+         option (e.g. `Chat.create({{modelUrl, foo: 'bar'}})`) silently has the \
+         field discarded by serde. Add the attribute to make typos \
+         surface as errors.\n\n\
          Attributes block above ChatOptions:\n{}",
         attrs_block
     );
 }
 
-/// Finding #R4 — README status table contradicts the code.
+/// Finding #R4 — README status table must mention Constraint.
 ///
-/// The status table in `js/README.md` previously said
-/// `Structured output (Constraint) | not yet wired up to the JS surface`.
-/// In fact `ConstraintSpec` IS wired through `Chat::new`'s options
-/// (see lib.rs `ChatOptions { constraint: Option<ConstraintSpec> }`
-/// and the `into_sampler` call). A reader of the table concludes the
-/// API doesn't exist yet, when really it does — just with a runtime
-/// caveat on wasm32. The status row must reflect reality.
+/// The status table in `js/README.md` must have a row mentioning
+/// "Constraint" to confirm structured output is documented.
 #[test]
 fn readme_status_table_doesnt_lie_about_constraint() {
     // Find the Constraint row in the status table and verify its description
@@ -194,9 +187,8 @@ fn readme_status_table_doesnt_lie_about_constraint() {
     assert!(
         !claims_not_wired,
         "js/README.md: Constraint row in the status table claims the API \
-         isn't wired up, but ConstraintSpec is exposed via Chat::new's \
-         options (see lib.rs:184 ChatOptions.constraint). Update the row \
-         to reflect what's actually wired and what the runtime caveat is.\n\n\
+         isn't wired up, but constraints are exposed via SamplerPresets. \
+         Update the row to reflect reality.\n\n\
          Current row:\n{}",
         row
     );
