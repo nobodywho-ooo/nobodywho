@@ -235,31 +235,30 @@ impl Model {
 
         promisify(async move {
             let model_memfs: std::path::PathBuf = if let Some(path) = model_path {
-                mount_host_path_via_nodefs("model", &path)
-                    .map_err(|e| JsError::new(&e))?
+                mount_host_path_via_nodefs("model", &path).map_err(|e| JsError::new(&e))?
             } else if let Some(url) = model_url {
-                stream_url_to_memfs("model", &url, None).await
+                stream_url_to_memfs("model", &url, None)
+                    .await
                     .map_err(|e| JsError::new(&e))?
             } else {
                 unreachable!()
             };
 
             let mmproj_memfs: Option<std::path::PathBuf> = if let Some(path) = mmproj_path {
-                Some(mount_host_path_via_nodefs("mmproj", &path)
-                    .map_err(|e| JsError::new(&e))?)
+                Some(mount_host_path_via_nodefs("mmproj", &path).map_err(|e| JsError::new(&e))?)
             } else if let Some(url) = mmproj_url {
-                Some(stream_url_to_memfs("mmproj", &url, None).await
-                    .map_err(|e| JsError::new(&e))?)
+                Some(
+                    stream_url_to_memfs("mmproj", &url, None)
+                        .await
+                        .map_err(|e| JsError::new(&e))?,
+                )
             } else {
                 None
             };
 
-            let model = nobodywho::llm::get_model_from_path(
-                &model_memfs,
-                mmproj_memfs.as_deref(),
-                0,
-            )
-            .map_err(|e| JsError::new(&e.to_string()))?;
+            let model =
+                nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
+                    .map_err(|e| JsError::new(&e.to_string()))?;
 
             Ok(Model {
                 inner: Arc::new(model),
@@ -552,7 +551,10 @@ impl SamplerBuilder {
     }
 
     pub fn temperature(self, temperature: f32) -> SamplerBuilder {
-        shift(self, nobodywho::sampler_config::ShiftStep::Temperature { temperature })
+        shift(
+            self,
+            nobodywho::sampler_config::ShiftStep::Temperature { temperature },
+        )
     }
 
     #[wasm_bindgen(js_name = topK)]
@@ -562,12 +564,18 @@ impl SamplerBuilder {
 
     #[wasm_bindgen(js_name = topP)]
     pub fn top_p(self, top_p: f32, min_keep: u32) -> SamplerBuilder {
-        shift(self, nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep })
+        shift(
+            self,
+            nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep },
+        )
     }
 
     #[wasm_bindgen(js_name = minP)]
     pub fn min_p(self, min_p: f32, min_keep: u32) -> SamplerBuilder {
-        shift(self, nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep })
+        shift(
+            self,
+            nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep },
+        )
     }
 
     pub fn penalties(
@@ -742,10 +750,7 @@ fn write_bytes_to_memfs(kind: &str, bytes: &[u8]) -> Result<std::path::PathBuf, 
 ///
 /// Node-only; errors clearly in browser.
 #[cfg(target_family = "wasm")]
-fn mount_host_path_via_nodefs(
-    kind: &str,
-    src_path: &str,
-) -> Result<std::path::PathBuf, String> {
+fn mount_host_path_via_nodefs(kind: &str, src_path: &str) -> Result<std::path::PathBuf, String> {
     let path = std::path::Path::new(src_path);
     let dir = path
         .parent()
@@ -785,9 +790,7 @@ fn mount_host_path_via_nodefs(
             format!("__nbw_mount_nodefs failed: {msg}")
         })?;
 
-    Ok(std::path::PathBuf::from(format!(
-        "{mountpoint}/{filename}"
-    )))
+    Ok(std::path::PathBuf::from(format!("{mountpoint}/{filename}")))
 }
 
 /// Call `Module.FS.writeFile(path, bytes)` from Rust. Used by both
@@ -1009,10 +1012,8 @@ async fn stream_url_to_memfs(
         if let Some(cache) = open_model_cache().await {
             let cache_resp = web_sys::Response::new_with_opt_readable_stream(Some(&cache_stream));
             if let Ok(resp) = cache_resp {
-                let _ = wasm_bindgen_futures::JsFuture::from(
-                    cache.put_with_str(&cache_url, &resp),
-                )
-                .await;
+                let _ = wasm_bindgen_futures::JsFuture::from(cache.put_with_str(&cache_url, &resp))
+                    .await;
             }
         }
     });
@@ -1676,9 +1677,8 @@ async fn handle_worker_message(data: JsValue, scope: &JsValue) -> Result<(), Str
                 None
             };
 
-            let model =
-                nobodywho::llm::get_model_from_path(&model_path, mmproj_path.as_deref(), 0)
-                    .map_err(|e| e.to_string())?;
+            let model = nobodywho::llm::get_model_from_path(&model_path, mmproj_path.as_deref(), 0)
+                .map_err(|e| e.to_string())?;
             WORKER_MODEL.with(|m| *m.borrow_mut() = Some(Arc::new(model)));
             post(&worker_reply("model-loaded"));
         }
@@ -2667,12 +2667,9 @@ impl Chat {
                 let _ =
                     js_sys::Reflect::set(&load_msg, &"srcPath".into(), &JsValue::from_str(path));
             } else if let Some(url) = parsed.model_url {
-                let _ =
-                    js_sys::Reflect::set(&load_msg, &"url".into(), &JsValue::from_str(&url));
+                let _ = js_sys::Reflect::set(&load_msg, &"url".into(), &JsValue::from_str(&url));
             } else {
-                return Err(JsError::new(
-                    "Chat.create: pass modelUrl or modelPath",
-                ));
+                return Err(JsError::new("Chat.create: pass modelUrl or modelPath"));
             }
 
             if let Some(path) = parsed.mmproj_path.as_ref() {
@@ -2682,11 +2679,8 @@ impl Chat {
                     &JsValue::from_str(path),
                 );
             } else if let Some(url) = parsed.mmproj_url {
-                let _ = js_sys::Reflect::set(
-                    &load_msg,
-                    &"mmprojUrl".into(),
-                    &JsValue::from_str(&url),
-                );
+                let _ =
+                    js_sys::Reflect::set(&load_msg, &"mmprojUrl".into(), &JsValue::from_str(&url));
             }
             // (no mmproj provided ⇒ text-only model)
 
@@ -2858,8 +2852,7 @@ impl Chat {
     /// `SamplerBuilder` or `SamplerPresets`).
     #[wasm_bindgen(js_name = setSamplerConfig)]
     pub fn set_sampler_config(&self, sampler: &SamplerConfig) -> js_sys::Promise {
-        let serialized = serde_wasm_bindgen::to_value(&sampler.inner)
-            .unwrap_or(JsValue::NULL);
+        let serialized = serde_wasm_bindgen::to_value(&sampler.inner).unwrap_or(JsValue::NULL);
         let state = self.state.clone();
         promisify(async move {
             check_not_terminated(&state)?;
@@ -3429,7 +3422,9 @@ fn parse_chat_create_opts(opts: &JsValue) -> Result<ChatCreateParsed, JsError> {
                 .ok()
                 .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
                 .ok_or_else(|| {
-                    JsError::new("sampler must be a SamplerConfig (from SamplerBuilder or SamplerPresets)")
+                    JsError::new(
+                        "sampler must be a SamplerConfig (from SamplerBuilder or SamplerPresets)",
+                    )
                 })?;
             let json_str: String = to_json
                 .call0(&sampler_val)
