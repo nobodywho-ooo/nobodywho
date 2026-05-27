@@ -21,7 +21,7 @@ The return type of `ask` is a `TokenStream`.
 If you want to start reading the response as soon as possible, you can just iterate over the `TokenStream`.
 Each token is either an individual word or fragments of a word.
 
-```{.python continuation}
+```python continuation
 for token in response:
    print(token, end="", flush=True)
 print("\n")
@@ -30,7 +30,7 @@ print("\n")
 If you just want to get the complete response, you can call `TokenStream.completed()`.
 This will block until the model is done generating its entire response.
 
-```{.python continuation}
+```python continuation
 full_response: str = response.completed()
 ```
 
@@ -40,7 +40,7 @@ All of your messages and the model's responses are stored in the `Chat` object, 
 
 If you want to inspect the messages inside the `Chat` object, you can use `get_chat_history`.
 
-```{.python continuation}
+```python continuation
 msgs: list[dict] = chat.get_chat_history()
 print(msgs[0]["content"]) # "Is water wet?"
 ```
@@ -48,7 +48,7 @@ print(msgs[0]["content"]) # "Is water wet?"
 Similarly, if you want to edit what messages are in the context, you can use `set_chat_history`:
 
 
-```{.python continuation}
+```python continuation
 chat.set_chat_history([{
    "role": "user",
    "content": "What is water?",
@@ -87,7 +87,7 @@ Even with properly selected context size it might happen that you fill up your e
 
 Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `.reset()` with the new system prompt and potentially changed tools.
 
-```{.python continuation}
+```python continuation
 chat.reset(system_prompt="New system prompt", tools=[])
 ```
 
@@ -151,7 +151,7 @@ chat = Chat("./model.gguf", template_variables={"enable_thinking": True})
 
 You can also modify template variables on an existing chat instance:
 
-```{.python continuation}
+```python continuation
 # Set a single template variable
 chat.set_template_variable("enable_thinking", True)
 

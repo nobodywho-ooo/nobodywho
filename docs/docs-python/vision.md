@@ -29,7 +29,7 @@ from nobodywho import Model, Chat
 
 model = Model("./vision-model.gguf", projection_model_path="./projection_model.gguf")
 chat = Chat(
-    "./model.gguf", system_prompt="You are a helpful assistant, that can hear and see stuff!"
+    model, system_prompt="You are a helpful assistant, that can hear and see stuff!"
 )
 ```
 
@@ -42,7 +42,7 @@ to work together.
 ## Composing a prompt object
 With the model configured, all that is left is to compose the prompt and send it to the model.
 That is done through the `Prompt` object.
-```{.python continuation}
+```python notest
 from nobodywho import Audio, Image, Prompt, Text
 
 prompt = Prompt([
