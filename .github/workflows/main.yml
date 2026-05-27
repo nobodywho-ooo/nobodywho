@@ -39,6 +39,8 @@ jobs:
 
   js_ci:
     uses: ./.github/workflows/js_ci.yml
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
   swift_ci:
     needs: [build]

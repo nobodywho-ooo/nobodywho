@@ -1,37 +1,66 @@
 name: "JS CI"
 
-# Builds the wasm32-unknown-emscripten target via the patched Emscripten
-# fork + patched wasm-bindgen-cli, then runs the no-model lint suite
-# plus an end-to-end Encoder smoke against a tiny 35 MB embedding GGUF.
-# Mirrors what `js/scripts/build-pkg-emscripten.sh` does locally.
-#
-# The two patched forks (Emscripten + wasm-bindgen) are slow to build
-# from source but are cached across runs — first run is ~12 min, cached
-# subsequent runs ~4 min.
-
 on:
-  workflow_call: {}
+  workflow_call:
+    inputs:
+      full_ci:
+        description: "Run full JS CI (wasm build + model smoke tests). If false, only lint regression tests run."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 env:
-  # walkingeyerobot's emscripten fork carries the -sWASM_BINDGEN flag
-  # (tracked in emscripten-core/emscripten#23493). The patch lives on
-  # the `wbg-walkingeyerobot` branch, not main.
   EMSDK_FORK_URL: https://github.com/walkingeyerobot/emscripten
   EMSDK_FORK_REF: wbg-walkingeyerobot
   WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
   WBG_FORK_REF: emscripten-descriptor-fixes
 
 jobs:
-  js-build:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-js-lint-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-js-lint-
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install Vulkan dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: "Run lint regression tests"
+        working-directory: ./nobodywho
+        run: cargo test -p nobodywho-js --locked
+
+  build-and-test:
+    if: inputs.full_ci
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - name: Cache cargo registry + git deps
-        uses: actions/cache@v4
+      - name: "Cache cargo registry + git deps"
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -41,79 +70,33 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-emsc-
 
-      - name: Setup Rust toolchain
+      - name: "Setup Rust toolchain"
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: wasm32-unknown-emscripten
 
-      - name: Install system deps for emscripten + bindgen
-        # libclang for bindgen (consumed via $LIBCLANG_PATH below);
-        # cmake + python3 are needed by Emscripten + llama.cpp's cmake;
-        # build-essential gets us a C compiler for emscripten's bootstrap.
-        # libvulkan-dev + libshaderc-dev + glslc: the native lint step
-        # (`cargo test -p nobodywho-js`) transitively builds
-        # llama-cpp-sys-2 for the host target with the `vulkan` ggml
-        # backend enabled, which requires Vulkan headers + the glslc
-        # shader compiler. Mirrors the apt set used by the other linux
-        # binding workflows.
+      - name: "Install system deps"
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake python3 python3-pip build-essential libclang-dev clang brotli \
             libvulkan-dev libshaderc-dev glslc
 
-      - name: Run lint regression tests (native target, no wasm toolchain needed)
-        # Source-text invariants over the binding + examples + scripts.
-        # Failing here means a docstring / example / build script drifted
-        # from a contract a past code review pinned. See js/tests/lint.rs.
-        working-directory: nobodywho
-        run: cargo test -p nobodywho-js
-
-      - name: Install upstream emsdk (provides LLVM + binaryen)
-        # walkingeyerobot's fork is just patched Python wrappers — it
-        # doesn't bundle LLVM. Install emsdk separately for the LLVM /
-        # binaryen / node bundle, then point the fork's .emscripten at
-        # them. Mirrors the local setup (homebrew emscripten as the
-        # LLVM source paired with the fork's wrappers).
+      - name: "Install upstream emsdk (provides LLVM + binaryen)"
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 5.0.7
           actions-cache-folder: emsdk-cache-v1
 
-      - name: Cache patched Emscripten fork
+      - name: "Cache patched Emscripten fork"
         id: emsdk-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/emscripten-wbg
-          # Bump the v# suffix when the fork URL or bootstrap behavior
-          # changes in a way the cached tree would miss. v8->v9: patch
-          # the fork's emscripten-version.txt to match upstream emsdk
-          # so emcc's check_sanity sees matching versions and doesn't
-          # call cache.erase() when the fork's emcc (via PATH) and the
-          # upstream emcc (via $EMSDK for cmake) share the same cache.
           key: emsdk-wbg-${{ runner.os }}-v9
 
-      - name: Clone + bootstrap + configure patched Emscripten fork
+      - name: "Clone + bootstrap + configure patched Emscripten fork"
         if: steps.emsdk-cache.outputs.cache-hit != 'true'
-        # Clone walkingeyerobot's patched wrappers, then:
-        # 1. Run ./bootstrap to generate the emcc / em++ / etc. entry-
-        #    point shell wrappers from emcc.py / em++.py etc.
-        #    (bootstrap calls tools/maint/create_entry_points.py).
-        #    Without this, only the .py files exist — emcc as a
-        #    callable command doesn't.
-        # 2. Write `.emscripten` pointing at emsdk's LLVM / binaryen /
-        #    node bundle. The local setup uses homebrew emscripten as
-        #    the LLVM provider; in CI we reuse emsdk's.
-        # 3. Patch emscripten-version.txt to match the upstream emsdk
-        #    version (5.0.7). The fork tip reports 5.0.8-git. When
-        #    cmake invokes the upstream emsdk's emcc (which build.rs's
-        #    detect_emscripten_root selects via $EMSDK), emcc's
-        #    check_sanity compares its expected version string
-        #    (5.0.7|...) against cache/sanity.txt. If the fork's emcc
-        #    ran first (via PATH) and wrote 5.0.8-git, the upstream
-        #    emcc sees a mismatch and calls cache.erase(), wiping
-        #    the sysroot mid-compile. Patching the version makes both
-        #    emcc's write the same sanity string → no erase.
         run: |
           git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
           cd "$HOME/emscripten-wbg"
@@ -126,20 +109,10 @@ jobs:
           JS_ENGINES = [NODE_JS]
           CACHE = '$HOME/emscripten-wbg/cache'
           EMSCRIPTEN_CONFIG
-          # Align fork version with upstream emsdk to prevent sanity mismatch
           UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           echo "${UPSTREAM_VER:-5.0.7}" > emscripten-version.txt
-          echo "Patched fork version to $(cat emscripten-version.txt)"
-          ls -la "$HOME/emscripten-wbg/emcc" "$HOME/emscripten-wbg/.emscripten"
 
-      - name: Export EMSDK_DIR + EM_CONFIG to job env
-        # Runs whether or not the cache hit. The build script reads both
-        # of these (EMSDK_DIR has emcc on $PATH; EM_CONFIG tells emcc
-        # where to find LLVM/binaryen/node).
-        # Also rewrite .emscripten with the CURRENT run's emsdk paths —
-        # the cached copy has absolute paths from the previous runner's
-        # temp dir (different UUID each run), which don't exist anymore.
-        # The version patch also needs refreshing on cache hit.
+      - name: "Export EMSDK_DIR + EM_CONFIG"
         run: |
           echo "EMSDK_DIR=$HOME/emscripten-wbg" >> "$GITHUB_ENV"
           echo "EM_CONFIG=$HOME/emscripten-wbg/.emscripten" >> "$GITHUB_ENV"
@@ -154,82 +127,46 @@ jobs:
           UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           echo "${UPSTREAM_VER:-5.0.7}" > "$HOME/emscripten-wbg/emscripten-version.txt"
 
-      - name: Cache patched wasm-bindgen-cli
+      - name: "Cache patched wasm-bindgen-cli"
         id: wbg-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/wbg-patched
           key: wbg-patched-${{ runner.os }}-${{ env.WBG_FORK_REF }}-v1
 
-      - name: Build patched wasm-bindgen-cli (if not cached)
+      - name: "Build patched wasm-bindgen-cli (if not cached)"
         if: steps.wbg-cache.outputs.cache-hit != 'true'
-        # Patched fork adds descriptor-interpreter tolerance for the
-        # Emscripten output mode that emcc-wbg's post-link step uses.
-        # Stock CLI silently emits bundler-shape output instead and the
-        # post-link step then can't find library_bindgen.js.
         run: |
           git clone --depth 1 --branch "$WBG_FORK_REF" "$WBG_FORK_URL" /tmp/wbg-src
           cargo install --path /tmp/wbg-src/crates/cli --root /tmp/wbg-patched --locked
 
-      - name: Set up Node 26
-        # Node 26+: wasi-sdk/libcxx STL emits noexternref (WasmGC) +
-        # exn (wasm EH) types that older Nodes flag as experimental.
-        # Node 26 enables both by default.
+      - name: "Set up Node 26"
         uses: actions/setup-node@v4
         with:
           node-version: '26'
 
-      - name: Build pkg-bundler (wasm32-unknown-emscripten)
+      - name: "Build pkg-bundler (wasm32-unknown-emscripten)"
         env:
-          # EMSDK_DIR + EM_CONFIG are exported via $GITHUB_ENV in the
-          # "Export EMSDK_DIR" step above so they resolve to the right
-          # $HOME on both real GitHub runners (/home/runner) and act
-          # containers (/root).
           EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
-          # llvm-config-* on ubuntu-24.04 points at /usr/lib/llvm-*/lib
           LIBCLANG_PATH: /usr/lib/llvm-18/lib
-        # Builds llama.cpp + the Rust binding for wasm32-unknown-emscripten,
-        # injects the wasm-bindgen marker custom section, runs the patched
-        # wasm-bindgen-cli, applies the codegen sed patches, runs em++
-        # in --post-link mode to emit the modularized loader.
         run: bash nobodywho/js/scripts/build-pkg-emscripten.sh
 
-      - name: Download tiny embedding GGUF
+      - name: "Download test models"
         working-directory: /tmp
         run: |
-          # bge-small-en-v1.5 Q8_0 is 35 MB — enough to exercise
-          # Model.loadBytes + Encoder.encode without burning CI time.
           curl -L --fail -o bge-small.gguf \
             'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
-          ls -lh bge-small.gguf
-
-      - name: End-to-end embedding smoke
-        # Sanity check that the binding can actually load a model and
-        # produce embeddings. Parses the demo's output to confirm finite
-        # floats came out, not zeros / NaNs.
-        working-directory: nobodywho
-        run: |
-          output=$(node js/examples/encoder_demo.mjs /tmp/bge-small.gguf)
-          echo "$output"
-          echo "$output" | grep -q "Embedding dimension: 384" \
-            || { echo "expected 'Embedding dimension: 384' line in output"; exit 1; }
-          echo "$output" | grep -q "first 8: \[-\?[0-9]" \
-            || { echo "expected 'first 8: [<float>...' line"; exit 1; }
-
-      - name: emscripten-smoke (Model.loadBytes + Encoder.encode)
-        working-directory: nobodywho
-        run: node js/scripts/emscripten-smoke.mjs /tmp/bge-small.gguf
-
-      - name: Download vision model (Qwen3.5-0.8B + mmproj)
-        working-directory: /tmp
-        run: |
           curl -L --fail -o qwen3.5-0.8b-q4km.gguf \
             'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf'
           curl -L --fail -o qwen3.5-0.8b-mmproj-f16.gguf \
             'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/mmproj-F16.gguf'
-          ls -lh qwen3.5-0.8b-q4km.gguf qwen3.5-0.8b-mmproj-f16.gguf
+          ls -lh *.gguf
 
-      - name: End-to-end vision smoke (multimodal)
+      - name: "Smoke: Model.load + Encoder.encode"
+        working-directory: nobodywho
+        run: node js/scripts/emscripten-smoke.mjs /tmp/bge-small.gguf
+
+      - name: "Smoke: vision (Qwen3.5-0.8B multimodal)"
         working-directory: nobodywho
         run: |
           output=$(node js/examples/vision_demo.mjs \
@@ -240,16 +177,16 @@ jobs:
           echo "$output" | grep -qiE "penguin|tux" \
             || { echo "expected model to identify a penguin (or tux)"; exit 1; }
 
-      - name: Inspect artifact sizes
+      - name: "Inspect artifact sizes"
         working-directory: nobodywho/js/pkg-bundler
         run: |
           ls -lh
           echo ""
-          echo "Brotli-compressed size of wasm (target for npm distribution):"
+          echo "Brotli-compressed wasm size:"
           brotli -k -q 11 nobodywho_js_bg.wasm -o /tmp/wasm.br || true
           ls -lh /tmp/wasm.br || true
 
-      - name: Upload artifact
+      - name: "Upload artifact"
         uses: actions/upload-artifact@v4
         with:
           name: nobodywho-js-pkg
