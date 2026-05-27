@@ -1,12 +1,10 @@
-// Smoke test for the extended sampler surface — closes the last Python
-// parity gaps on samplers:
-//   * SamplerSpec accepts DRY / XTC / TypicalP shift fields.
+// Smoke test for the extended sampler surface:
 //   * SamplerBuilder has .dry / .xtc / .typicalP / .penalties methods.
-//   * SamplerPresets has .dry() and .json() presets.
+//   * SamplerPresets has .dry() and .constrainWithJsonSchema() presets.
 //
 // Sanity-only: we don't try to assert each sampler produces specific
 // output — sampler-config behavior is verified by core's tests. Here
-// we just confirm the JS layer accepts the spec and Chat.create
+// we just confirm the JS layer accepts the config and Chat.create
 // instantiates a usable chat for each shape.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
