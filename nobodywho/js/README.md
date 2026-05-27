@@ -81,7 +81,7 @@ surface to JS via wasm-bindgen.
 | `Chat.resetHistory()` — clear history, preserve system prompt + tools + sampler | ✅ verified |
 | `Chat.terminate()` — shut down the worker (returns Promise) | ✅ verified |
 | `SamplerConfig` / `SamplerBuilder` / `SamplerPresets` — typed sampler API matching Python | ✅ verified |
-| Structured output via `SamplerPresets.constrainWithJsonSchema()` / `constrainWithRegex()` / `constrainWithGrammar()` | ✅ verified |
+| Structured output / Constraint via `SamplerPresets.constrainWithJsonSchema()` / `constrainWithRegex()` / `constrainWithGrammar()` | ✅ verified |
 | `TokenStream.next()` / `completed()` / async-iteration via `for await` | ✅ verified |
 | Multimodal vision/audio (`Image.fromBytes` / `Audio.fromBytes`, plus Node-only `fromPath`) | ✅ verified |
 | Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — sync and async callbacks via worker ↔ main RPC bridge |
