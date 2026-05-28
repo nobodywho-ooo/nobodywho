@@ -99,10 +99,18 @@ echo "==> cargo build --target wasm32-unknown-emscripten --release -p nobodywho-
 rm -rf "$TARGET_DIR"
 (
   cd "$ROOT/nobodywho"
+  # Set RUSTFLAGS explicitly instead of relying on .cargo/config.toml's
+  # [target.wasm32-unknown-emscripten] rustflags. A RUSTFLAGS env var
+  # (e.g. CI's `setup-rust-toolchain` sets `-D warnings`) overrides the
+  # config.toml target rustflags entirely, which would silently drop the
+  # +atomics features and break the shared-memory link. Setting it here
+  # makes the build self-contained. Safe: cargo doesn't apply target
+  # RUSTFLAGS to host build-scripts when --target differs from the host.
   PATH="$EMSDK_DIR:$HOME/.cargo/bin:/opt/homebrew/bin:$PATH" \
   EM_CONFIG="$EM_CONFIG" \
   EM_WASM_BINDGEN="$WASM_BINDGEN_BIN" \
   LIBCLANG_PATH="${LIBCLANG_PATH:-/Library/Developer/CommandLineTools/usr/lib}" \
+  RUSTFLAGS="-C panic=abort -C target-feature=+atomics,+bulk-memory,+mutable-globals" \
   cargo +nightly build --release --target wasm32-unknown-emscripten -p nobodywho-js \
     -Zbuild-std=std,panic_abort
 )
