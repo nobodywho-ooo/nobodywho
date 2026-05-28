@@ -256,48 +256,125 @@ jobs:
 
   # Mirror of publish-react-native-npm but for the js binding.
   # Tag your release like `nobodywho-js-v0.1.0` to trigger.
-  # NOTE: still uses the OLD wasi-sdk pipeline. The dev/CI build moved
-  # to wasm32-unknown-emscripten (see js_ci.yml + build-pkg-emscripten.sh);
-  # the release path needs the same emsdk + patched-fork install before
-  # `nobodywho-js-v*` tags will produce a working npm artifact again.
-  # Tracked as follow-up — the JS binding isn't currently shipped via
-  # npm, so this job is dormant.
+  # Builds the wasm32-unknown-emscripten artifact the same way js_ci.yml does
+  # (upstream emsdk for LLVM/binaryen + walkingeyerobot's Emscripten fork for
+  # -sWASM_BINDGEN + our patched wasm-bindgen-cli, via build-pkg-emscripten.sh),
+  # smoke-tests it, then publishes pkg-bundler/ to npm. Keep the setup steps in
+  # sync with js_ci.yml's build-and-test job.
   publish-js-npm:
     if: startsWith(github.ref, 'refs/tags/nobodywho-js-v')
     runs-on: ubuntu-24.04
+    env:
+      EMSDK_FORK_URL: https://github.com/walkingeyerobot/emscripten
+      EMSDK_FORK_REF: wbg-walkingeyerobot
+      WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
+      WBG_FORK_REF: emscripten-descriptor-fixes
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
+
+      - name: "Cache cargo registry + git deps"
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nobodywho/target
+          key: js-${{ runner.os }}-emsc-${{ hashFiles('nobodywho/Cargo.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-emsc-
+
+      - name: "Setup Rust toolchain"
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable,nightly
+          target: wasm32-unknown-emscripten
+          components: rust-src
+
+      - name: "Install system deps"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake python3 python3-pip build-essential libclang-dev clang brotli \
+            libvulkan-dev libshaderc-dev glslc
+
+      - name: "Install upstream emsdk (provides LLVM + binaryen)"
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache-v1
+
+      - name: "Cache patched Emscripten fork"
+        id: emsdk-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/emscripten-wbg
+          key: emsdk-wbg-${{ runner.os }}-v9
+
+      - name: "Clone + bootstrap + configure patched Emscripten fork"
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
+          cd "$HOME/emscripten-wbg"
+          ./bootstrap
+          cat > "$HOME/emscripten-wbg/.emscripten" <<EMSCRIPTEN_CONFIG
+          LLVM_ROOT = '$EMSDK/upstream/bin'
+          BINARYEN_ROOT = '$EMSDK/upstream'
+          NODE_JS = '$EMSDK_NODE'
+          COMPILER_ENGINE = NODE_JS
+          JS_ENGINES = [NODE_JS]
+          CACHE = '$HOME/emscripten-wbg/cache'
+          EMSCRIPTEN_CONFIG
+          UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "${UPSTREAM_VER:-5.0.7}" > emscripten-version.txt
+
+      - name: "Export EMSDK_DIR + EM_CONFIG"
+        run: |
+          echo "EMSDK_DIR=$HOME/emscripten-wbg" >> "$GITHUB_ENV"
+          echo "EM_CONFIG=$HOME/emscripten-wbg/.emscripten" >> "$GITHUB_ENV"
+          cat > "$HOME/emscripten-wbg/.emscripten" <<EMSCRIPTEN_CONFIG
+          LLVM_ROOT = '$EMSDK/upstream/bin'
+          BINARYEN_ROOT = '$EMSDK/upstream'
+          NODE_JS = '$EMSDK_NODE'
+          COMPILER_ENGINE = NODE_JS
+          JS_ENGINES = [NODE_JS]
+          CACHE = '$HOME/emscripten-wbg/cache'
+          EMSCRIPTEN_CONFIG
+          UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "${UPSTREAM_VER:-5.0.7}" > "$HOME/emscripten-wbg/emscripten-version.txt"
+
+      - name: "Cache patched wasm-bindgen-cli"
+        id: wbg-cache
+        uses: actions/cache@v5
+        with:
+          path: /tmp/wbg-patched
+          key: wbg-patched-${{ runner.os }}-${{ env.WBG_FORK_REF }}-v1
+
+      - name: "Build patched wasm-bindgen-cli (if not cached)"
+        if: steps.wbg-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$WBG_FORK_REF" "$WBG_FORK_URL" /tmp/wbg-src
+          cargo install --path /tmp/wbg-src/crates/cli --root /tmp/wbg-patched --locked
 
       - name: "Setup Node.js"
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '26'
           registry-url: https://registry.npmjs.org
 
-      - name: "Install wasi-sdk"
+      - name: "Build pkg-bundler (wasm32-unknown-emscripten)"
+        env:
+          EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+        run: bash nobodywho/js/scripts/build-pkg-emscripten.sh
+
+      - name: "Smoke: Model.load + Encoder.encode (pre-publish gate)"
+        working-directory: nobodywho
         run: |
-          set -euo pipefail
-          cd ~
-          curl -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-linux.tar.gz \
-            | tar -xz
-          echo "WASI_SDK_PATH=$HOME/wasi-sdk-33.0-x86_64-linux" >> "$GITHUB_ENV"
-
-      - name: "Install rustc wasm target"
-        run: rustup target add wasm32-unknown-unknown
-
-      - name: "Install wasm-bindgen-cli"
-        # Version is read from Cargo.lock so the CLI and the runtime glue
-        # baked into the .wasm always match. See wasm-bindgen-version.sh.
-        run: |
-          version=$(bash nobodywho/js/scripts/wasm-bindgen-version.sh)
-          echo "Installing wasm-bindgen-cli v$version (from Cargo.lock)"
-          cargo install wasm-bindgen-cli --version "$version" --locked
-
-      - name: "Build the npm package"
-        working-directory: ./nobodywho
-        run: bash js/scripts/build-pkg.sh
+          curl -L --fail -o /tmp/bge-small.gguf \
+            'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
+          node js/scripts/emscripten-smoke.mjs /tmp/bge-small.gguf
 
       - name: "Verify Login"
         working-directory: ./nobodywho/js/pkg-bundler
