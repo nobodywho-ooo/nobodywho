@@ -273,9 +273,14 @@ jobs:
       - name: "Rename built file"
         run: |
           if [ "${{ matrix.integration }}" = "uniffi" ]; then
-            # React Native needs static libraries (.a)
+            # Static library (.a) for xcframeworks (React Native, Swift)
             cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+            # Dynamic library (.dylib) for macOS desktop JNA (Kotlin JVM)
+            if [ -f ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ]; then
+              cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
+                ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+            fi
           else
             cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
