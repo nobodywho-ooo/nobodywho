@@ -16,10 +16,10 @@ jobs:
     if: inputs.full_ci
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download uniffi Linux x86_64 artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-x86_64-unknown-linux-gnu-release
           path: ./native-lib
@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: "Setup JDK"
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
