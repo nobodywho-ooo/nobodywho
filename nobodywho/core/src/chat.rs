@@ -1547,10 +1547,6 @@ impl Worker<'_, ChatWorker> {
                         None,
                     )
                 }
-                x @ Err(_) => {
-                    tracing::error!(?new_token, "Failed to convert token to bytes");
-                    x
-                }
                 x => x,
             }?;
 

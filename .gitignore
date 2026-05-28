@@ -14,5 +14,3 @@ docs/apfel-grotezk-main/
 result
 target/
 .env
-mlruns/
-mlflow.db
