@@ -40,7 +40,6 @@ use std::sync::Arc;
 #[cfg(target_family = "wasm")]
 use std::cell::RefCell;
 
-
 use futures::FutureExt;
 use wasm_bindgen::prelude::*;
 
