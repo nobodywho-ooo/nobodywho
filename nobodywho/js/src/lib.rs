@@ -37,21 +37,9 @@ use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 
-/// Wrapper asserting Send + Sync for JS values that are only ever
-/// accessed from the JS event loop thread. With Emscripten pthreads
-/// enabled, the compiler enforces Send/Sync on closures captured by
-/// `Tool::new_async`, but the pthreads are llama.cpp compute threads
-/// that never touch JS objects. The tool callback is always invoked
-/// from the JS event loop thread, never from a pthread compute thread.
-///
-/// # Safety
-///
-/// Only safe when the inner value is accessed exclusively from the JS
-/// event loop thread, never from a pthread.
-#[derive(Clone)]
-struct SendSyncWrapper<T>(T);
-unsafe impl<T> Send for SendSyncWrapper<T> {}
-unsafe impl<T> Sync for SendSyncWrapper<T> {}
+#[cfg(target_family = "wasm")]
+use std::cell::RefCell;
+
 
 use futures::FutureExt;
 use wasm_bindgen::prelude::*;
@@ -153,6 +141,37 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> Result<f32, JsError> {
     Ok(dot / (na.sqrt() * nb.sqrt()))
 }
 
+/// RAII guard that keeps the JS event loop pumping while held. Acquires a
+/// ref-counted keepalive timer (defined in pre.js) on creation, releases it
+/// on drop. Needed because inference runs on an Emscripten pthread and the
+/// cross-thread token wake isn't delivered unless the main thread's event
+/// loop keeps ticking — see the keepalive comment in pre.js.
+#[cfg(target_family = "wasm")]
+struct KeepAlive;
+
+#[cfg(target_family = "wasm")]
+impl KeepAlive {
+    fn new() -> Self {
+        if let Ok(f) = js_sys::Reflect::get(&js_sys::global(), &"__nbw_keepalive_acquire".into()) {
+            if let Ok(f) = f.dyn_into::<js_sys::Function>() {
+                let _ = f.call0(&JsValue::NULL);
+            }
+        }
+        KeepAlive
+    }
+}
+
+#[cfg(target_family = "wasm")]
+impl Drop for KeepAlive {
+    fn drop(&mut self) {
+        if let Ok(f) = js_sys::Reflect::get(&js_sys::global(), &"__nbw_keepalive_release".into()) {
+            if let Ok(f) = f.dyn_into::<js_sys::Function>() {
+                let _ = f.call0(&JsValue::NULL);
+            }
+        }
+    }
+}
+
 /// Wrap a `Future<Output = Result<T, JsError>>` into a `js_sys::Promise`,
 /// asserting it's unwind-safe and catching panics so they reject the promise
 /// rather than tearing down the whole wasm instance.
@@ -165,6 +184,10 @@ where
     // A Rust panic propagates as a hard wasm abort — the same failure
     // mode as a C++ exception crossing the wasm boundary on Emscripten.
     wasm_bindgen_futures::future_to_promise(AssertUnwindSafe(async move {
+        // Keep the event loop pumping for the lifetime of this future so
+        // cross-thread inference wakes are delivered (see KeepAlive).
+        #[cfg(target_family = "wasm")]
+        let _keepalive = KeepAlive::new();
         match fut.await {
             Ok(v) => Ok(v.into()),
             Err(e) => Err(JsValue::from(e)),
@@ -1147,42 +1170,34 @@ impl Tool {
     }
 }
 
-/// Read the `tools` array off a `Chat` options object and materialize
-/// each entry as a `nobodywho::tool_calling::Tool` (the core's Arc'd
-/// closure form). Returns an empty vec for missing / null / undefined
-/// `tools`. Each array element must be a `Tool.fromFn(...)` return
-/// value (tagged with `__nbwKind: 'tool'`); rejects anything else with
-/// a clear error pointing the caller at `Tool.fromFn`.
-fn extract_tools(opts: &JsValue) -> Result<Vec<nobodywho::tool_calling::Tool>, JsError> {
-    if opts.is_undefined() || opts.is_null() {
-        return Ok(Vec::new());
-    }
-    let tools_val = match js_sys::Reflect::get(opts, &JsValue::from_str("tools")) {
-        Ok(v) => v,
-        Err(_) => return Ok(Vec::new()),
-    };
-    if tools_val.is_undefined() || tools_val.is_null() {
-        return Ok(Vec::new());
-    }
-    let arr = tools_val.dyn_ref::<js_sys::Array>().ok_or_else(|| {
-        JsError::new("Chat options.tools must be an array of Tool.fromFn(...) values")
-    })?;
-    let mut out = Vec::with_capacity(arr.length() as usize);
-    for i in 0..arr.length() {
-        let elem = arr.get(i);
-        out.push(
-            tool_from_tagged(&elem)
-                .map_err(|e| JsError::new(&format!("Chat options.tools[{i}]: {e}")))?,
-        );
-    }
-    Ok(out)
-}
+// ---------- Tool-call proxy (pthread → main thread) ----------
+//
+// Inference runs on an Emscripten pthread. A tool's JS callback is a
+// `js_sys::Function` created on the main thread — its externref index and
+// the wasm-bindgen JS glue (HEAP_DATA_VIEW etc.) are only valid on main,
+// so it can't be invoked from the inference pthread. Instead, the core
+// `Tool` closure (running on the pthread) sends a `ToolRequest` — the tool
+// name, the args as plain JSON, and a reply channel — to the main-thread
+// dispatcher over a tokio channel (works cross-thread via atomics; the
+// payload is all `Send`). The dispatcher invokes the real JS callback on
+// main and sends the string result back. The pthread closure awaits it.
 
-/// Take a tagged tool object (the shape `Tool::from_fn` returns) and
-/// rebuild it as a core `Tool`. The JS callback is wrapped in an
-/// `Arc<Fn(Value) -> String + Send + Sync>` that the inference loop
-/// invokes when the model emits a matching tool-call.
-fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, String> {
+/// A tool invocation proxied from the inference pthread to the main
+/// thread: `(tool_name, args, reply_channel)`.
+#[cfg(target_family = "wasm")]
+type ToolRequest = (
+    String,
+    serde_json::Value,
+    tokio::sync::oneshot::Sender<String>,
+);
+
+/// Validate a `Tool.fromFn(...)` tagged object and split it into its
+/// parts: `(name, description, schema, callback)`. Runs on the main
+/// thread (the callback stays here).
+#[cfg(target_family = "wasm")]
+fn parse_tagged_tool(
+    part: &JsValue,
+) -> Result<(String, String, serde_json::Value, js_sys::Function), String> {
     let kind = js_sys::Reflect::get(part, &"__nbwKind".into())
         .ok()
         .and_then(|v| v.as_string());
@@ -1205,72 +1220,139 @@ fn tool_from_tagged(part: &JsValue) -> Result<nobodywho::tool_calling::Tool, Str
         .ok_or_else(|| "jsonSchema is not JSON-serializable".to_string())?;
     let schema: serde_json::Value =
         serde_json::from_str(&schema_str).map_err(|e| format!("jsonSchema parse: {e}"))?;
-    let callback_jsval = js_sys::Reflect::get(part, &"callback".into())
-        .map_err(|_| "missing callback".to_string())?;
-    let callback: js_sys::Function = callback_jsval
+    let callback: js_sys::Function = js_sys::Reflect::get(part, &"callback".into())
+        .map_err(|_| "missing callback".to_string())?
         .dyn_into::<js_sys::Function>()
         .map_err(|_| "callback is not a function".to_string())?;
+    Ok((name, description, schema, callback))
+}
 
-    let callback = SendSyncWrapper(callback);
-    Ok(nobodywho::tool_calling::Tool::new_async(
+/// Build a core `Tool` whose async closure proxies the call to the
+/// main-thread dispatcher via `req_tx` (the JS callback can't be invoked
+/// from the inference pthread — see the module comment above).
+#[cfg(target_family = "wasm")]
+fn proxy_tool(
+    name: String,
+    description: String,
+    schema: serde_json::Value,
+    req_tx: tokio::sync::mpsc::UnboundedSender<ToolRequest>,
+) -> nobodywho::tool_calling::Tool {
+    let name_for_closure = name.clone();
+    nobodywho::tool_calling::Tool::new_async(
         name,
         description,
         schema,
         move |args: serde_json::Value| {
-            let callback = callback.clone();
+            let req_tx = req_tx.clone();
+            let name = name_for_closure.clone();
             async move {
-                let callback = &callback.0;
-                // serde_json::Value → JsValue for the JS-side function,
-                // with `serialize_maps_as_objects(true)` so the user's
-                // callback sees a plain JS object (so `args.city` works)
-                // rather than a JS Map (where it wouldn't).
-                let args_js = {
-                    use serde::Serialize as _;
-                    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-                    match args.serialize(&ser) {
-                        Ok(v) => v,
-                        Err(e) => return format!("ERROR: tool arg conversion: {e}"),
-                    }
-                };
-                let result = match callback.call1(&JsValue::NULL, &args_js) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        let msg = js_sys::Reflect::get(&e, &"message".into())
-                            .ok()
-                            .and_then(|m| m.as_string())
-                            .unwrap_or_else(|| format!("{e:?}"));
-                        return format!("ERROR: {msg}");
-                    }
-                };
-                // If the JS callback returned a Promise, await its
-                // resolution. Otherwise use the value directly.
-                let resolved = if result.is_instance_of::<js_sys::Promise>() {
-                    match wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(result)).await
-                    {
-                        Ok(v) => v,
-                        Err(e) => {
-                            let msg = js_sys::Reflect::get(&e, &"message".into())
-                                .ok()
-                                .and_then(|m| m.as_string())
-                                .unwrap_or_else(|| format!("{e:?}"));
-                            return format!("ERROR: tool promise rejected: {msg}");
-                        }
-                    }
-                } else {
-                    result
-                };
-                if let Some(s) = resolved.as_string() {
-                    return s;
+                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                if req_tx.send((name, args, reply_tx)).is_err() {
+                    return "ERROR: tool dispatcher is gone".to_string();
                 }
-                // Non-string return (or resolved value): JSON.stringify
-                // as a fallback so the model gets something legible.
-                js_sys::JSON::stringify(&resolved)
-                    .ok()
-                    .and_then(|s| s.as_string())
-                    .unwrap_or_else(|| "ERROR: tool returned a non-serializable value".to_string())
+                match reply_rx.await {
+                    Ok(s) => s,
+                    Err(_) => "ERROR: tool reply channel dropped".to_string(),
+                }
             }
         },
-    ))
+    )
+}
+
+/// Invoke a JS tool callback on the main thread with the given args and
+/// return its result as a string. Handles both sync (string return) and
+/// async (Promise-returning) callbacks.
+#[cfg(target_family = "wasm")]
+async fn invoke_js_callback(callback: &js_sys::Function, args: serde_json::Value) -> String {
+    use serde::Serialize as _;
+    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+    let args_js = match args.serialize(&ser) {
+        Ok(v) => v,
+        Err(e) => return format!("ERROR: tool arg conversion: {e}"),
+    };
+    let result = match callback.call1(&JsValue::NULL, &args_js) {
+        Ok(v) => v,
+        Err(e) => {
+            let msg = js_sys::Reflect::get(&e, &"message".into())
+                .ok()
+                .and_then(|m| m.as_string())
+                .unwrap_or_else(|| format!("{e:?}"));
+            return format!("ERROR: {msg}");
+        }
+    };
+    let resolved = if result.is_instance_of::<js_sys::Promise>() {
+        match wasm_bindgen_futures::JsFuture::from(js_sys::Promise::from(result)).await {
+            Ok(v) => v,
+            Err(e) => {
+                let msg = js_sys::Reflect::get(&e, &"message".into())
+                    .ok()
+                    .and_then(|m| m.as_string())
+                    .unwrap_or_else(|| format!("{e:?}"));
+                return format!("ERROR: tool promise rejected: {msg}");
+            }
+        }
+    } else {
+        result
+    };
+    if let Some(s) = resolved.as_string() {
+        return s;
+    }
+    js_sys::JSON::stringify(&resolved)
+        .ok()
+        .and_then(|s| s.as_string())
+        .unwrap_or_else(|| "ERROR: tool returned a non-serializable value".to_string())
+}
+
+/// The main-thread tool registry: tool name → JS callback. Shared
+/// (`Rc<RefCell<…>>`) between `Chat` (which updates it on `setTools` /
+/// `reset`) and the dispatcher task (which reads it per call).
+#[cfg(target_family = "wasm")]
+type ToolRegistry = std::rc::Rc<RefCell<std::collections::HashMap<String, js_sys::Function>>>;
+
+/// Spawn the main-thread dispatcher: receive proxied tool requests from
+/// the inference pthread, invoke the registered JS callback, reply.
+/// Runs until the request channel closes (chat dropped). The event loop
+/// is kept pumping by the `KeepAlive` held during the in-flight `ask`.
+#[cfg(target_family = "wasm")]
+fn spawn_tool_dispatcher(
+    registry: ToolRegistry,
+    mut req_rx: tokio::sync::mpsc::UnboundedReceiver<ToolRequest>,
+) {
+    wasm_bindgen_futures::spawn_local(async move {
+        while let Some((name, args, reply_tx)) = req_rx.recv().await {
+            let cb = registry.borrow().get(&name).cloned();
+            let result = match cb {
+                Some(cb) => invoke_js_callback(&cb, args).await,
+                None => format!("ERROR: no callback registered for tool {name:?}"),
+            };
+            let _ = reply_tx.send(result);
+        }
+    });
+}
+
+/// Parse a `tools` JS array into core proxy `Tool`s, populating
+/// `registry` with the JS callbacks. Each proxy tool routes through
+/// `req_tx` to the main-thread dispatcher.
+#[cfg(target_family = "wasm")]
+fn build_proxy_tools(
+    tools_val: &JsValue,
+    registry: &ToolRegistry,
+    req_tx: &tokio::sync::mpsc::UnboundedSender<ToolRequest>,
+) -> Result<Vec<nobodywho::tool_calling::Tool>, JsError> {
+    if tools_val.is_undefined() || tools_val.is_null() {
+        return Ok(Vec::new());
+    }
+    let arr = tools_val.dyn_ref::<js_sys::Array>().ok_or_else(|| {
+        JsError::new("Chat options.tools must be an array of Tool.fromFn(...) values")
+    })?;
+    let mut out = Vec::with_capacity(arr.length() as usize);
+    for i in 0..arr.length() {
+        let (name, description, schema, callback) = parse_tagged_tool(&arr.get(i))
+            .map_err(|e| JsError::new(&format!("Chat options.tools[{i}]: {e}")))?;
+        registry.borrow_mut().insert(name.clone(), callback);
+        out.push(proxy_tool(name, description, schema, req_tx.clone()));
+    }
+    Ok(out)
 }
 
 // ---------- Encoder ----------
@@ -1475,6 +1557,12 @@ impl TokenStream {
 #[wasm_bindgen]
 pub struct Chat {
     inner: nobodywho::chat::ChatHandleAsync,
+    /// Sender for proxying tool calls from the inference pthread to the
+    /// main-thread dispatcher. Cloned into each proxy `Tool`.
+    tool_req_tx: tokio::sync::mpsc::UnboundedSender<ToolRequest>,
+    /// Main-thread tool registry (name → JS callback), shared with the
+    /// dispatcher. Updated by `setTools` / `reset`.
+    tool_registry: ToolRegistry,
 }
 
 #[cfg(target_family = "wasm")]
@@ -1534,14 +1622,21 @@ impl Chat {
                     .map_err(|e| JsError::new(&e.to_string()))?;
             let model = Arc::new(model);
 
+            // Tool-call proxy: JS callbacks stay on the main thread in
+            // `registry`; the inference pthread reaches them via `req_tx`
+            // → the dispatcher (see the tool-call proxy section above).
+            let (req_tx, req_rx) = tokio::sync::mpsc::unbounded_channel::<ToolRequest>();
+            let registry: ToolRegistry =
+                std::rc::Rc::new(RefCell::new(std::collections::HashMap::new()));
             let tools_jsval = js_sys::Reflect::get(obj, &"tools".into())
                 .ok()
                 .filter(|v| !v.is_undefined() && !v.is_null());
             let tools = if let Some(tools_val) = tools_jsval {
-                extract_tools(&tools_val)?
+                build_proxy_tools(&tools_val, &registry, &req_tx)?
             } else {
                 Vec::new()
             };
+            spawn_tool_dispatcher(registry.clone(), req_rx);
 
             let mut builder = nobodywho::chat::ChatBuilder::new(model);
             if let Some(ctx) = context_size {
@@ -1586,7 +1681,11 @@ impl Chat {
                 .build_async()
                 .map_err(|e| JsError::new(&e.to_string()))?;
 
-            Ok(Chat { inner: handle })
+            Ok(Chat {
+                inner: handle,
+                tool_req_tx: req_tx,
+                tool_registry: registry,
+            })
         })
     }
 
@@ -1730,13 +1829,16 @@ impl Chat {
 
     #[wasm_bindgen(js_name = setTools)]
     pub fn set_tools(&self, tools: JsValue) -> js_sys::Promise {
+        // Rebuild the registry + proxy tools synchronously on the main
+        // thread (the JS callbacks live here), then hand the proxy tools
+        // to the inference worker.
+        self.tool_registry.borrow_mut().clear();
+        let t = match build_proxy_tools(&tools, &self.tool_registry, &self.tool_req_tx) {
+            Ok(t) => t,
+            Err(e) => return js_sys::Promise::reject(&e.into()),
+        };
         let inner = self.inner.clone();
         promisify(async move {
-            let t = if tools.is_undefined() || tools.is_null() {
-                Vec::new()
-            } else {
-                extract_tools(&tools)?
-            };
             inner
                 .set_tools(t)
                 .await
@@ -1747,28 +1849,28 @@ impl Chat {
 
     #[wasm_bindgen(js_name = reset)]
     pub fn reset(&self, opts: JsValue) -> js_sys::Promise {
+        let (prompt, tools_val) = if opts.is_undefined() || opts.is_null() {
+            (None, JsValue::UNDEFINED)
+        } else {
+            let p = js_sys::Reflect::get(&opts, &"systemPrompt".into()).unwrap_or(JsValue::NULL);
+            let t = js_sys::Reflect::get(&opts, &"tools".into()).unwrap_or(JsValue::UNDEFINED);
+            (
+                if p.is_null() || p.is_undefined() {
+                    None
+                } else {
+                    p.as_string()
+                },
+                t,
+            )
+        };
+        // Rebuild the registry + proxy tools synchronously (main thread).
+        self.tool_registry.borrow_mut().clear();
+        let tools = match build_proxy_tools(&tools_val, &self.tool_registry, &self.tool_req_tx) {
+            Ok(t) => t,
+            Err(e) => return js_sys::Promise::reject(&e.into()),
+        };
         let inner = self.inner.clone();
         promisify(async move {
-            let (prompt, tools_val) = if opts.is_undefined() || opts.is_null() {
-                (None, JsValue::UNDEFINED)
-            } else {
-                let p =
-                    js_sys::Reflect::get(&opts, &"systemPrompt".into()).unwrap_or(JsValue::NULL);
-                let t = js_sys::Reflect::get(&opts, &"tools".into()).unwrap_or(JsValue::UNDEFINED);
-                (
-                    if p.is_null() || p.is_undefined() {
-                        None
-                    } else {
-                        p.as_string()
-                    },
-                    t,
-                )
-            };
-            let tools = if tools_val.is_undefined() || tools_val.is_null() {
-                Vec::new()
-            } else {
-                extract_tools(&tools_val)?
-            };
             inner
                 .reset_chat(prompt, tools)
                 .await
@@ -1789,7 +1891,14 @@ impl Chat {
         })
     }
 
+    /// Stop any in-flight generation and resolve. There's no separate
+    /// worker to tear down (inference runs on a pthread owned by the
+    /// core handle, freed when the handle drops), so this signals the
+    /// inference loop to stop — the in-flight `TokenStream` then ends
+    /// (done=true) within a token or two. Kept for API parity with the
+    /// old worker-backed binding.
     pub fn terminate(&self) -> js_sys::Promise {
+        self.inner.stop_generation();
         js_sys::Promise::resolve(&JsValue::UNDEFINED)
     }
 }

@@ -173,6 +173,11 @@ cp "$WBG_WASM" "$PKG_DIR/nobodywho_js_bg.wasm"
 
 echo "==> applying sed patches to library_bindgen.js"
 # See block comment at top of file for why each substitution is needed.
+# IMPORTANT: the HEAP patterns must run in BRE mode (default), where the
+# `()` are LITERAL parens to strip. They MUST NOT share a sed invocation
+# with the `-E` (ERE) `__wrap` patterns below — under -E, `()` is an empty
+# group and `s/HEAPF32()/HEAPF32/g` becomes a no-op, leaving `HEAPF32()`
+# which then breaks once emcc wraps it as `(growMemViews(), HEAPF32)()`.
 sed -i.bak \
   -e 's/HEAPU80()/HEAPU8/g' \
   -e 's/HEAP320()/HEAP32/g' \
@@ -190,10 +195,14 @@ sed -i.bak \
   -e 's/HEAPU32()/HEAPU32/g' \
   -e 's/HEAP80()/HEAP8/g' \
   -e 's/HEAP8()/HEAP8/g' \
-  -E -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
-     -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
-     -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \
-     -e 's/(^|[^A-Za-z_])SamplerConfig\.__wrap/\1Module.SamplerConfig.__wrap/g' \
+  "$PKG_DIR/library_bindgen.js"
+
+# Separate ERE invocation for the __wrap redirects (needs grouping).
+sed -i.bak1 -E \
+  -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
+  -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
+  -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \
+  -e 's/(^|[^A-Za-z_])SamplerConfig\.__wrap/\1Module.SamplerConfig.__wrap/g' \
   "$PKG_DIR/library_bindgen.js"
 
 sed -i.bak2 \
@@ -257,14 +266,21 @@ echo "==> em++ --post-link to build nobodywho_js.js"
     -o nobodywho_js.js
 )
 
-echo "==> patching nobodywho_js.js: defer _initialize for pthread pool"
+echo "==> patching nobodywho_js.js: defer _initialize + wait for pthread pool"
 # _initialize() runs C++ static constructors. With pthreads, mutexes in
 # the ctors use memory.atomic.wait32 which needs the pthread pool workers
 # to be running. The pool workers are started asynchronously (new Worker)
 # and need the event loop to tick. _initialize blocks the event loop, so
 # the workers never start → deadlock. Fix: defer _initialize to a
-# setTimeout(0) so the event loop starts the workers first, then run
-# _initialize on the next tick.
+# setTimeout so the event loop starts the workers first.
+#
+# We ALSO wait for the pthread pool to FULLY load (runDependencies → 0)
+# before the factory resolves. The pool loads as a run-dependency that
+# run() defers; if the factory resolves before it completes, the first
+# inference's ggml threadpool pthread_create blocks waiting for pool
+# workers that aren't ready — deadlocking in top-level-await code that
+# never yields back to the event loop. Waiting here guarantees the pool
+# is warm before any user inference call.
 python3 -c "
 import sys
 path = sys.argv[1]
@@ -277,11 +293,18 @@ text = text.replace(
     '// _initialize deferred — see below'
 )
 
-# 2. After the main-thread createWasm + run(), defer _initialize behind
-#    a setTimeout so the event loop can start the pthread pool workers.
+# 2. After the main-thread createWasm + run(): yield so the pool workers
+#    start, wait until the worker-loading run dependency clears, then run
+#    _initialize. This keeps the event loop pumping (setTimeout macrotasks)
+#    while the Emscripten pthread pool finishes loading.
 text = text.replace(
     'wasmExports = await (createWasm());\n  run();',
-    'wasmExports = await (createWasm());\n  run();\n  if (wasmExports[\"_initialize\"]) {\n    await new Promise(r => setTimeout(r, 200));\n    wasmExports[\"_initialize\"]();\n  }'
+    'wasmExports = await (createWasm());\n  run();\n'
+    '  // Wait for the pthread pool to finish loading (runDependencies → 0).\n'
+    '  for (let i = 0; i < 600 && runDependencies > 0; i++) {\n'
+    '    await new Promise(r => setTimeout(r, 50));\n'
+    '  }\n'
+    '  if (wasmExports[\"_initialize\"]) {\n    await new Promise(r => setTimeout(r, 0));\n    wasmExports[\"_initialize\"]();\n  }'
 )
 
 # 3. Set the wasm-bindgen 'wasm' binding object in receiveInstance()

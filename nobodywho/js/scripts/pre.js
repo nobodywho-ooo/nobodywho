@@ -21,6 +21,29 @@ Module.preRun.push(() => {
 // is unambiguous within that realm.
 globalThis.Module = Module;
 
+// Reference-counted event-loop keepalive. Inference runs on an Emscripten
+// pthread (Web Worker); tokens come back to the main thread via a tokio
+// channel whose waker posts cross-thread. In Node, a top-level-await that
+// never yields to a macrotask can leave the event loop without pumping the
+// pthread message ports, so the cross-thread wake never gets delivered and
+// the first `ask`/`encode` deadlocks. A ref'd timer ticking every 50ms
+// keeps the loop pumping. It's ref-counted (acquired around each async op
+// via the Rust `promisify` helper, released on completion) so it only runs
+// while inference is in flight and never blocks process exit when idle.
+if (!globalThis.__nbw_keepalive_acquire) {
+  let count = 0, timer = null;
+  globalThis.__nbw_keepalive_acquire = () => {
+    count++;
+    if (!timer) timer = setInterval(() => {}, 50);
+  };
+  globalThis.__nbw_keepalive_release = () => {
+    if (--count <= 0) {
+      count = 0;
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+  };
+}
+
 // Skip Emscripten's MEMFS permission checks at the libc syscall layer.
 Module.preRun.push(() => {
   FS.ignorePermissions = true;
