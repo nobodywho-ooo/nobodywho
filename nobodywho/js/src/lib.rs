@@ -92,6 +92,17 @@ pub unsafe extern "C" fn __cxa_atexit(
 
 // ---------- Install panic hook & tracing ----------
 
+/// Handle to swap the global tracing level filter at runtime (see
+/// [`set_log_level`]). Set once by [`init`]; the type is the reload layer's
+/// handle over the registry it filters.
+#[cfg(target_family = "wasm")]
+static LOG_RELOAD: std::sync::OnceLock<
+    tracing_subscriber::reload::Handle<
+        tracing_subscriber::filter::LevelFilter,
+        tracing_subscriber::Registry,
+    >,
+> = std::sync::OnceLock::new();
+
 /// Install panic hook and tracing subscriber.
 /// Auto-called via the postRun hook in pre.js — no need to call from JS.
 #[wasm_bindgen(js_name = init)]
@@ -99,10 +110,56 @@ pub fn init() {
     console_error_panic_hook::set_once();
     #[cfg(target_family = "wasm")]
     {
-        // `set_as_global_default` panics if called twice; the `try_*` variant
-        // returns Err which we discard, making this idempotent from JS.
-        tracing_wasm::try_set_as_global_default().ok();
+        use tracing_subscriber::prelude::*;
+        // Build the subscriber ourselves (rather than tracing_wasm's
+        // set_as_global_default) so we can put a *reloadable* level filter in
+        // front of the WASMLayer. Default WARN keeps the console quiet — like
+        // Python's logging defaulting to WARNING — while `setLogLevel(...)`
+        // can dial it up at runtime (the JS analog of logging.basicConfig).
+        let (filter, handle) =
+            tracing_subscriber::reload::Layer::new(tracing_subscriber::filter::LevelFilter::WARN);
+        let _ = LOG_RELOAD.set(handle);
+        let _ = tracing_subscriber::registry()
+            .with(filter)
+            .with(tracing_wasm::WASMLayer::new(
+                tracing_wasm::WASMLayerConfigBuilder::new().build(),
+            ))
+            .try_init();
+        // Route llama.cpp/ggml logs into `tracing` (→ WASMLayer → leveled
+        // console.{info,warn,error}) instead of letting them fall back to
+        // stderr, which Emscripten funnels to console.error — turning every
+        // model-load info line into a red "error". The level is preserved, so
+        // genuine errors stay console.error. Python/Flutter bindings do the same.
+        nobodywho::send_llamacpp_logs_to_tracing();
     }
+}
+
+/// Set the console log verbosity at runtime: one of
+/// `off | error | warn | info | debug | trace` (default `warn`).
+/// The JS analog of Python's `logging.basicConfig(level=...)`.
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen(js_name = setLogLevel)]
+pub fn set_log_level(level: &str) -> Result<(), JsError> {
+    use tracing_subscriber::filter::LevelFilter;
+    let lvl = match level.to_ascii_lowercase().as_str() {
+        "off" => LevelFilter::OFF,
+        "error" => LevelFilter::ERROR,
+        "warn" => LevelFilter::WARN,
+        "info" => LevelFilter::INFO,
+        "debug" => LevelFilter::DEBUG,
+        "trace" => LevelFilter::TRACE,
+        other => {
+            return Err(JsError::new(&format!(
+                "invalid log level '{other}': expected off|error|warn|info|debug|trace"
+            )))
+        }
+    };
+    LOG_RELOAD
+        .get()
+        .ok_or_else(|| JsError::new("logging not initialized"))?
+        .reload(lvl)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(())
 }
 
 // ---------- Promise helper ----------
