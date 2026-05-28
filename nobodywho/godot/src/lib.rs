@@ -192,21 +192,24 @@ impl NobodyWhoModel {
     /// - "path": String absolute path to the cached model file
     /// - "size": int size in bytes of that file
     ///
-    /// Returns an empty Array on error.
-    fn get_cached_models() -> Array<Variant> {
+    /// Returns nil on error (also logged via godot_error!).
+    fn get_cached_models() -> Variant {
         match nobodywho::llm::get_cached_models() {
-            Ok(models) => models
-                .into_iter()
-                .map(|(path, size)| {
-                    let mut dict = VarDictionary::new();
-                    dict.set("path", GString::from(path.to_string_lossy().as_ref()));
-                    dict.set("size", size as i64);
-                    Variant::from(dict)
-                })
-                .collect(),
+            Ok(models) => {
+                let arr: Array<Variant> = models
+                    .into_iter()
+                    .map(|(path, size)| {
+                        let mut dict = VarDictionary::new();
+                        dict.set("path", GString::from(path.to_string_lossy().as_ref()));
+                        dict.set("size", size as i64);
+                        Variant::from(dict)
+                    })
+                    .collect();
+                Variant::from(arr)
+            }
             Err(e) => {
                 godot_error!("Failed to get cached models: {}", e);
-                Array::new()
+                Variant::nil()
             }
         }
     }
