@@ -8277,6 +8277,10 @@ rec {
             packageId = "ureq";
             features = [ "rustls" ];
           }
+          {
+            name = "walkdir";
+            packageId = "walkdir";
+          }
         ];
 
       };
