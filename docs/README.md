@@ -35,62 +35,59 @@ Edit markdown files directly in the `docs-<binding>/` directories. Changes are r
 
 ## Versioning
 
-Each binding has its own version history. The current version labels are set in `docusaurus.config.ts`:
+Each binding has three kinds of docs:
+
+- **Latest tagged release** — the default. Lives in `<binding>_versioned_docs/version-<v>/`. Served at `/<binding>/`.
+- **`main`** — the unreleased state from the `main` branch. Lives in `docs-<binding>/`. Served at `/<binding>/main/` with an "unreleased" banner.
+- **Older releases** — previous snapshots. Served at `/<binding>/<v>/` with an "unmaintained" banner.
+
+The "latest release" per binding is declared in `docusaurus.config.ts`:
 
 ```ts
-const bindingVersions: Record<string, string> = {
+const latestReleases: Record<string, string> = {
   python: '1.4.0',
-  swift: '2.0.0',
+  swift: '2.0.1',
   'react-native': '2.2.0',
   flutter: '2.2.0',
   godot: '9.3.0',
 };
 ```
 
-### Updating docs for a new release (no breaking changes)
+The banner on each non-default version is chosen automatically by Docusaurus based on whether the version is newer or older than `lastVersion` (which is set from `latestReleases`).
 
-If the docs content hasn't changed significantly, just update the version label in `docusaurus.config.ts`:
+### Cutting docs for a new release
+
+When you tag a new release (e.g. `nobodywho-python-v1.5.0`), snapshot the current `main`-branch docs as the new release and bump the default:
+
+**1. Snapshot `docs-python/` at the new version:**
+
+```bash
+cd docs
+npx docusaurus docs:version:python 1.5.0
+```
+
+This creates:
+
+```
+python_versioned_docs/version-1.5.0/    # Frozen copy of docs-python/
+python_versioned_sidebars/              # Frozen sidebar
+python_versions.json                    # ["1.5.0", "1.4.0", ...]
+```
+
+**2. Update `latestReleases` in `docusaurus.config.ts`:**
 
 ```ts
 python: '1.5.0',  // was '1.4.0'
 ```
 
-No snapshot needed. The version badge on each page updates automatically.
+**3. Commit** the versioned folders, the versions JSON, and the config change.
 
-### Updating docs for a breaking release (preserve old docs)
+After building:
+- `/python/` — 1.5.0 (the new default, no banner)
+- `/python/main/` — `docs-python/`, banner "unreleased"
+- `/python/1.4.0/` — previous release, banner "unmaintained"
 
-When a release has breaking API changes and you want users on the old version to still access the old docs:
-
-**1. Snapshot the current docs before making changes:**
-
-```bash
-cd docs
-npx docusaurus docs:version:python 1.4.0
-```
-
-This creates a frozen copy:
-
-```
-python_versioned_docs/version-1.4.0/    # Full copy of docs-python/
-python_versioned_sidebars/              # Frozen sidebar
-python_versions.json                    # ["1.4.0"]
-```
-
-**2. Update the docs in `docs-python/`** to reflect the new API.
-
-**3. Update the version label** in `docusaurus.config.ts`:
-
-```ts
-python: '1.5.0',
-```
-
-**4. Commit everything** — the versioned folders, the updated docs, and the config change.
-
-After building, the site will have:
-- `/python/` — version 1.5.0 (from `docs-python/`)
-- `/python/1.4.0/` — version 1.4.0 (from `python_versioned_docs/version-1.4.0/`)
-
-A version dropdown appears automatically in the left sidebar when multiple versions exist.
+If you want to start landing docs changes for the *next* release on `main`, edit `docs-python/` directly — those changes show up under `/python/main/` until the next snapshot.
 
 The same workflow applies to any binding — replace `python` with `swift`, `flutter`, `react-native`, or `godot`.
 

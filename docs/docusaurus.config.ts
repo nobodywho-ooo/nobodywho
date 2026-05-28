@@ -2,20 +2,26 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
-// Per-binding version labels (match the latest released version)
-const bindingVersions: Record<string, string> = {
+// The latest tagged release per binding. This is the default version users see
+// at /<binding>/. Bumping this requires a matching snapshot in
+// `<binding>_versioned_docs/` (see docs/README.md).
+const latestReleases: Record<string, string> = {
   python: '1.4.0',
-  swift: '2.0.0',
+  swift: '2.0.1',
   'react-native': '2.2.0',
   flutter: '2.2.0',
   godot: '9.3.0',
 };
 
+// `current` reflects the `main` branch — possibly ahead of the latest tag.
+// It's published at /<binding>/main/ and gets the "unreleased" banner
+// automatically because it's newer than `lastVersion`. Older snapshotted
+// versions get the "unmaintained" banner automatically.
 function sdkDocsConfig(id: string) {
   return {
-    lastVersion: 'current',
+    lastVersion: latestReleases[id],
     versions: {
-      current: {label: bindingVersions[id] ?? 'Latest', path: ''},
+      current: {label: 'main', path: 'main'},
     },
   };
 }

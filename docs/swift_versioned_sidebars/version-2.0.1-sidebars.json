@@ -1,0 +1,10 @@
+{
+  "swift": [
+    "index",
+    "chat",
+    "tool-calling",
+    "vision",
+    "sampling",
+    "embeddings-and-rag"
+  ]
+}
