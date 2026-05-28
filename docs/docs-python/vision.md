@@ -42,7 +42,7 @@ to work together.
 ## Composing a prompt object
 With the model configured, all that is left is to compose the prompt and send it to the model.
 That is done through the `Prompt` object.
-```{.python continuation}
+```python notest
 from nobodywho import Audio, Image, Prompt, Text
 
 prompt = Prompt([
@@ -59,7 +59,7 @@ As with textual prompts, the format in which you supply the multimodal prompt ca
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text
 and the multimodal files, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
 
-```{.python continuation}
+```python
 prompt = Prompt([
     Text("Tell me what you see in the image."),
     Image("./dog.png"),
@@ -70,9 +70,9 @@ prompt = Prompt([
 
 Also, there is still a lot of variance between how the models internally process the images.
 This, for example, causes differences in how quickly the model consumes context - for some models like Gemma 3, the number of tokens per image is constant; for others like Qwen 3, they scale with the size of the image. In that case, you can increase the context size if the resources allow:
-```{.python continuation}
+```
 chat = Chat(
-    model, system_prompt="You are a helpful assistant.", n_ctx=4096
+    "./model.gguf", system_prompt="You are a helpful assistant.", n_ctx=4096
 )
 ```
 Or, for example, preprocess your images with some kind of compression (sometimes even changing the image type helps).

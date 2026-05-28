@@ -125,7 +125,7 @@ print(scores)  # [0.23, 0.89, 0.45] - second doc scores highest
 
 For convenience, use `rank_and_sort` to get documents sorted by relevance:
 
-```{.python continuation}
+```python continuation
 # Returns list of (document, score) tuples, sorted by score
 ranked_docs = crossencoder.rank_and_sort(query, documents)
 
