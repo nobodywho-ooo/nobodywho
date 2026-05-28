@@ -4,6 +4,7 @@ const sidebars: SidebarsConfig = {
   godot: [
     'install',
     'getting-started',
+    'downloading-models',
     'chat',
     'structured-output',
     'tool-calling',

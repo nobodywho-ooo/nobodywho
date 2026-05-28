@@ -29,46 +29,6 @@ console.log(response); // Yes, indeed, water is wet!
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
 
-## Downloading gated model
-
-Some HuggingFace models are either private or gated by a license that you need to accept.
-For both scenarios, you need to be authorized to download the model weights.
-
-In that case, you can resort to manually accessing the model page through your web browser,
-getting the GGUF file downloaded to the device, and then pointing our chat instance to the path where you have stored it:
-```typescript
-import { Chat } from "react-native-nobodywho";
-
-const chat = await Chat.fromPath({ modelPath: "./model.gguf" });
-```
-
-Or you can use the `downloadModel` function, where you can pass in the authorization token:
-```typescript
-import { downloadModel, Chat } from "react-native-nobodywho";
-
-const modelPath = await downloadModel({
-  modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
-  headers: { Authorization: "Bearer your_hf_token" },
-});
-
-const chat = await Chat.fromPath({ modelPath });
-```
-
-The token can be then generated in [your account settings](https://huggingface.co/settings/tokens).
-
-## Tracking download progress
-
-When loading a remote model (e.g. via a `huggingface:` or `https://` path), pass an `onDownloadProgress` option to observe the download. It receives `(downloaded, total)` byte counts, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
-
-```typescript
-const chat = await Chat.fromPath({
-  modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
-  onDownloadProgress: (downloaded, total) => {
-    console.log(`${downloaded} / ${total} bytes`);
-  },
-});
-```
-
 To get a full overview of the functionality provided by NobodyWho, simply keep reading.
 
 ## Android requirements

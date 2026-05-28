@@ -25,10 +25,10 @@ Let's show you how to use the plugin to get a large language model to answer you
 ## Download a GGUF Model
 
 The first step is to get a model.
-If you're in a hurry, just download [Qwen3 0.6B Q4_K_M](https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf).
-It's super small and fast, and works for well for simple use-cases.
+If you're in a hurry, just download [Qwen_Qwen3-4B-Q4_K_M.gguf](https://huggingface.co/bartowski/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen_Qwen3-4B-Q4_K_M.gguf). 
+It's pretty good and we will base our tutorials around this model. 
 
-Otherwise, check out our [recommended models](/docs/model-selection) or if you have a non-standard use case, shoot us a question in Discord.
+Otherwise, check out our [recommended models](../model-selection.md) or if you have a non-standard use case, shoot us a question in Discord.
 
 ## Load the GGUF model
 
@@ -37,26 +37,10 @@ At this point you should have downloaded the model and put it into your project 
 
 Add a `NobodyWhoModel` node to your scene tree.
 
-Set the model path to point to your GGUF model. 
-![set model path](/img/godot_model_selection.png)
+Set the model path to point to your GGUF model. (1)
+{ .annotate }
 
-`model_path` accepts local paths (`res://`, `user://`, or an absolute filesystem path) as well as `huggingface:` / `hf://` references and `https://` URLs that are downloaded and cached on first use. See [Downloading models](./downloading-models) for the full list of supported formats, download progress signals, gated/private models, and inspecting the local cache.
-
-### Knowing when the worker is ready
-
-`start_worker()` returns immediately. The worker finishes loading in the background (including any download). Connect to the new signals if your game logic needs to wait:
-
-```gdscript
-chat.worker_started.connect(func():
-    print("Ready to chat!")
-)
-chat.worker_failed.connect(func(err):
-    push_error("Model load failed: " + err)
-)
-chat.start_worker()
-```
-
-You can also call `ask()` straight away — prompts issued before the worker is ready are queued and dispatched as soon as loading completes. The same applies to `NobodyWhoEncoder.encode()` and `NobodyWhoCrossEncoder.rank()`.
+1. ![set model path](assets/godot_model_selection.png)
 
 
 ## Create a new Chat
@@ -83,10 +67,10 @@ func _ready():
     # Start the worker, this is not required, but recommended to do in
     # the beginning of the program to make sure it is ready
     # when the user prompts the chat the first time. This will be called
-    # under the hood when you use `ask()` as well.
+    # under the hood when you use `say()` as well.
     self.start_worker()
 
-    self.ask("How are you?")
+    self.say("How are you?")
 
 func _on_response_updated(token):
     # this will print every time a new token is generated
