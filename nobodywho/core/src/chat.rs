@@ -1719,6 +1719,7 @@ impl Worker<'_, ChatWorker> {
                     .map(|part| match part {
                         PromptPart::Image(path) => projection_model.load_image(path),
                         PromptPart::Audio(path) => projection_model.load_audio(path),
+                        PromptPart::MediaBytes(bytes) => projection_model.load_media_bytes(bytes),
                         PromptPart::Text(_) => unreachable!(),
                     })
                     .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
@@ -1740,6 +1741,10 @@ impl Worker<'_, ChatWorker> {
                 id: id.clone(),
                 path: match part {
                     PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
+                    // In-memory media has no filesystem path; the asset is
+                    // tracked by its content-hash id, so a placeholder is
+                    // fine (path is metadata only, never used to reload).
+                    PromptPart::MediaBytes(_) => std::path::PathBuf::from("<in-memory media>"),
                     PromptPart::Text(_) => unreachable!(),
                 },
             })

@@ -1,8 +1,20 @@
 // wasm-bindgen 0.2.121 Emscripten output references a `HEAP_DATA_VIEW`
-// global it never declares. Define it here as a lazy getter that
-// refreshes when memory grows (HEAPU8.buffer identity change).
-Module.preRun = Module.preRun || [];
-Module.preRun.push(() => {
+// global it never declares. Define it as a lazy getter that refreshes
+// when memory grows (HEAPU8.buffer identity change).
+//
+// This runs at pre-js top level (in the module factory), NOT in
+// Module.preRun, so it executes on EVERY thread — including pthread
+// workers. preRun runs on the main thread only, but pthread workers also
+// run the factory; they need their own HEAP_DATA_VIEW because any
+// wasm-bindgen JS-interop shim invoked there reads it. Concretely, the
+// inference worker runs on a pthread and emits `tracing` logs, and the
+// global tracing-wasm subscriber timestamps them via `performance.now()`,
+// which compiles to `__wbindgen_number_get` → HEAP_DATA_VIEW. The value
+// is produced and consumed on the same worker, so a per-thread DataView
+// over that thread's HEAPU8 is correct. The getter is lazy, so HEAPU8
+// just needs to be assigned before the first access (always true once the
+// runtime is up).
+{
   let buf = null, view = null;
   Object.defineProperty(globalThis, 'HEAP_DATA_VIEW', {
     configurable: true,
@@ -11,7 +23,8 @@ Module.preRun.push(() => {
       return view;
     },
   });
-});
+}
+Module.preRun = Module.preRun || [];
 
 // Expose this instance's Module on globalThis so Rust code inside the
 // wasm can reach Module.FS.writeFile via js_sys::Reflect lookups (used

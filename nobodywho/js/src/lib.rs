@@ -293,23 +293,20 @@ impl Model {
 //     const img = Image.fromBytes(new Uint8Array(await blob.arrayBuffer()));
 //     const reply = await chat.ask(['What is in this image?', img]).completed();
 //
-// `Chat.ask` and `Chat.ask` accept either a plain string (text-only
-// prompt — fast path, unchanged) or a JS array of `string | Image | Audio`
-// parts. There is no `Image(path)` constructor in the wasm binding: a
-// browser tab has no filesystem.
+// `Chat.ask` accepts either a plain string (text-only prompt — fast path,
+// unchanged) or a JS array of `string | Image | Audio` parts. There is no
+// `Image(path)` constructor in the wasm binding: a browser tab has no
+// filesystem.
 //
-// Path A approach: `Image.fromBytes` / `Audio.fromBytes` return plain
-// tagged JS objects of the shape `{__nbwKind: 'image'|'audio', bytes:
-// Uint8Array}`. The Rust side calls `write_bytes_to_memfs(kind, bytes)`
-// to land the bytes in Emscripten's in-memory filesystem at a
-// content-hashed path like `/tmp/nbw-image-<hash>.bin`, then pushes that
-// path through the existing `Prompt::push_image(&Path)` / `push_audio`
-// API. mtmd's `from_file` loader uses `fopen`, which under Emscripten
-// goes through MEMFS; the file appears real to llama.cpp.
-//
-// Why the hash-named path: identical bytes get the same path, so two
-// `Image.fromBytes(sameBuf)` calls share one MEMFS entry (deduplication
-// for free, KV-cache friendly via the existing bitmap-ID logic).
+// `Image.fromBytes` / `Audio.fromBytes` return plain tagged JS objects of
+// the shape `{__nbwKind: 'image'|'audio', bytes: Uint8Array}`. The Rust
+// side reads those bytes and pushes them through `Prompt::push_media_bytes`,
+// so they ride the worker channel in shared memory and are decoded
+// in-memory via `MtmdBitmap::from_buffer`. We deliberately avoid MEMFS
+// here: inference runs on an Emscripten pthread, which can't read the main
+// thread's MEMFS, so a path-based load (`from_file`/`fopen`) would fail on
+// the worker. Content-addressed dedup still happens downstream via the
+// bitmap-ID logic (the id is a hash of the decoded bitmap data).
 
 /// Image factory namespace for multimodal prompts. The only method is
 /// [`Image::from_bytes`] — there is no path-based constructor because a
@@ -729,35 +726,6 @@ fn read_media_bytes(part: &JsValue) -> Result<Vec<u8>, String> {
     Ok(u8a.to_vec())
 }
 
-/// Mount `bytes` into Emscripten's MEMFS under `/home/web_user/nbw-<kind>-
-/// <hash>.bin` and return the path. The path is content-addressed so
-/// identical bytes produce the same file and identical bitmap IDs
-/// downstream.
-///
-/// Writes through `Module.FS.writeFile` on the JS side — libc
-/// `open(2)`/`fopen` from inside the wasm returns EPERM (errno 63) on
-/// `wasm32-unknown-emscripten`'s MEMFS for reasons we haven't tracked
-/// down, but the JS-side FS API works fine on the same paths. Going via
-/// `js_sys::Reflect` against the global `Module.FS` keeps the Rust-side
-/// call site clean and depends only on the build pipeline exporting
-/// `FS` (which `-sEXPORTED_RUNTIME_METHODS=FS` in the emcc post-link
-/// step takes care of).
-fn write_bytes_to_memfs(kind: &str, bytes: &[u8]) -> Result<std::path::PathBuf, String> {
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    bytes.hash(&mut hasher);
-    let hash = hasher.finish();
-    let path = std::path::PathBuf::from(format!("/home/web_user/nbw-{kind}-{hash:016x}.bin"));
-
-    if path.exists() {
-        return Ok(path);
-    }
-
-    js_fs_write_file(&path.to_string_lossy(), bytes)?;
-    Ok(path)
-}
-
 /// Mount the host directory containing `src_path` via NODEFS and return
 /// a virtual-FS path that llama.cpp can `fopen` directly. The file stays
 /// on the host disk — `fread` streams bytes straight into wasm tensor
@@ -806,49 +774,6 @@ fn mount_host_path_via_nodefs(kind: &str, src_path: &str) -> Result<std::path::P
         })?;
 
     Ok(std::path::PathBuf::from(format!("{mountpoint}/{filename}")))
-}
-
-/// Call `Module.FS.writeFile(path, bytes)` from Rust. Used by both
-/// [`write_bytes_to_memfs`] (image/audio prompt parts) and core's
-/// mmproj-from-bytes loader path.
-///
-/// `Module` is the Emscripten module-factory result; in the JS glue
-/// emitted by emcc-MODULARIZE this lives as a top-level local that's
-/// accessible via `globalThis.Module` from inside the wasm-bindgen-
-/// generated JS (since `pre.js` runs `Module.preRun.push(() => { ... })`
-/// it has `Module` in scope). `Module.FS` is the Emscripten FS API,
-/// exported here by `-sEXPORTED_RUNTIME_METHODS=FS`.
-fn js_fs_write_file(path: &str, bytes: &[u8]) -> Result<(), String> {
-    let global_obj = js_sys::global();
-    let module = js_sys::Reflect::get(&global_obj, &JsValue::from_str("Module"))
-        .map_err(|_| "globalThis.Module not found".to_string())?;
-    if module.is_undefined() || module.is_null() {
-        return Err("globalThis.Module is undefined".to_string());
-    }
-    let fs = js_sys::Reflect::get(&module, &JsValue::from_str("FS"))
-        .map_err(|_| "Module.FS not accessible".to_string())?;
-    if fs.is_undefined() || fs.is_null() {
-        return Err(
-            "Module.FS is undefined — build with -sEXPORTED_RUNTIME_METHODS=FS".to_string(),
-        );
-    }
-    let write_file_val = js_sys::Reflect::get(&fs, &JsValue::from_str("writeFile"))
-        .map_err(|_| "Module.FS.writeFile not accessible".to_string())?;
-    let write_file: js_sys::Function = write_file_val
-        .dyn_into()
-        .map_err(|_| "Module.FS.writeFile is not a function".to_string())?;
-
-    let bytes_js: JsValue = js_sys::Uint8Array::from(bytes).into();
-    write_file
-        .call2(&fs, &JsValue::from_str(path), &bytes_js)
-        .map_err(|e| {
-            let msg = js_sys::Reflect::get(&e, &"message".into())
-                .ok()
-                .and_then(|m| m.as_string())
-                .unwrap_or_else(|| format!("{e:?}"));
-            format!("FS.writeFile({path}) failed: {msg}")
-        })?;
-    Ok(())
 }
 
 /// Resolve a `ReadableStreamDefaultReader` from a body and stream it
@@ -1062,15 +987,14 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
         }
         let kind = read_media_kind(&part);
         match kind.as_deref() {
-            Some("image") => {
+            // Pass media as bytes, not a MEMFS path: inference runs on a
+            // pthread that can't read the main thread's MEMFS, so a path
+            // would fail to load there. The bytes ride the worker channel
+            // in shared memory and are decoded in-memory via
+            // `MtmdBitmap::from_buffer` (mtmd auto-detects image vs audio).
+            Some("image") | Some("audio") => {
                 let bytes = read_media_bytes(&part)?;
-                let path = write_bytes_to_memfs("image", &bytes)?;
-                prompt.push_image(&path);
-            }
-            Some("audio") => {
-                let bytes = read_media_bytes(&part)?;
-                let path = write_bytes_to_memfs("audio", &bytes)?;
-                prompt.push_audio(&path);
+                prompt.push_media_bytes(bytes);
             }
             Some(other) => return Err(format!("ask: parts[{i}] unknown kind '{other}'")),
             None => {
