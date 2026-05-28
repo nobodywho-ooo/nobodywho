@@ -682,6 +682,28 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)
 }
 
+/// A cached `.gguf` model and its on-disk size.
+#[derive(uniffi::Record, Clone)]
+pub struct CachedModel {
+    pub path: String,
+    pub size: u64,
+}
+
+/// Returns every cached `.gguf` model paired with its byte size.
+#[uniffi::export]
+pub fn get_cached_models() -> Result<Vec<CachedModel>, NobodyWhoError> {
+    let models = nobodywho::llm::get_cached_models().map_err(|e| NobodyWhoError::Error {
+        message: e.to_string(),
+    })?;
+    Ok(models
+        .into_iter()
+        .map(|(path, size)| CachedModel {
+            path: path.to_string_lossy().into_owned(),
+            size: size as u64,
+        })
+        .collect())
+}
+
 // ---------- RustCrossEncoder ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `CrossEncoder`).
 
