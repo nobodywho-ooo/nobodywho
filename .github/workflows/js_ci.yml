@@ -75,7 +75,7 @@ jobs:
         with:
           toolchain: stable,nightly
           target: wasm32-unknown-emscripten
-          components: rust-src --toolchain nightly
+          components: rust-src
 
       - name: "Install system deps"
         run: |
