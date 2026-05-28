@@ -12,11 +12,11 @@ The `modelPath` argument to `Chat.fromPath` and `Model.downloadModel` accepts:
 
 | Form | Example | Notes |
 | ---- | ------- | ----- |
-| HuggingFace reference | `hf://owner/repo/file.gguf` | Downloaded and cached on first use |
+| HuggingFace reference | `hf:owner/repo/file.gguf` | Downloaded and cached on first use |
 | HTTPS URL | `https://example.com/model.gguf` | Downloaded and cached on first use |
-| Local path | `/abs/path/to/model.gguf` | Used as-is |
+| Local path | `./model.gguf` | Used as-is |
 
-Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
+The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
 
 ## Tracking download progress
 

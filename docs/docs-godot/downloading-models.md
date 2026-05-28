@@ -14,10 +14,10 @@ The `model_path` field on `NobodyWhoModel` (and `projection_model_path` for visi
 | Godot resource path | `res://models/my-model.gguf` | Bundled with your game export |
 | User data path | `user://downloaded.gguf` | Written by your game at runtime |
 | Absolute filesystem path | `/opt/models/foo.gguf` | Local file |
-| HuggingFace reference | `huggingface:owner/repo/file.gguf` or `hf://owner/repo/file.gguf` | Downloaded and cached on first use |
+| HuggingFace reference | `hf:owner/repo/file.gguf` | Downloaded and cached on first use |
 | HTTPS URL | `https://example.com/model.gguf` | Downloaded and cached on first use |
 
-Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
+The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
 
 ## Showing download progress
 
