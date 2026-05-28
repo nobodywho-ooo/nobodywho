@@ -1,0 +1,13 @@
+{
+  "godot": [
+    "install",
+    "getting-started",
+    "chat",
+    "structured-output",
+    "tool-calling",
+    "vision",
+    "sampling",
+    "embeddings-and-rag",
+    "faq"
+  ]
+}
