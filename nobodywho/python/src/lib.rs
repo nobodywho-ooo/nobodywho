@@ -2624,13 +2624,13 @@ pub mod nobodywhopython {
     }
 
     #[pymodule_export]
-    use super::get_cached_models;
-    #[pymodule_export]
     use super::bash_tool;
     #[pymodule_export]
     use super::cosine_similarity;
     #[pymodule_export]
     use super::download_model;
+    #[pymodule_export]
+    use super::get_cached_models;
     #[pymodule_export]
     use super::python_tool;
     #[pymodule_export]
