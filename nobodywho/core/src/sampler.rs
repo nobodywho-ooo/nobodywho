@@ -12,7 +12,12 @@ pub struct SamplerPresets;
 
 impl SamplerPresets {
     pub fn top_k(k: i32) -> SamplerConfig {
-        SamplerConfig::new(vec![ShiftStep::TopK { top_k: k }], SampleStep::Dist { seed: default_seed() })
+        SamplerConfig::new(
+            vec![ShiftStep::TopK { top_k: k }],
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
+        )
     }
 
     pub fn top_p(p: f32) -> SamplerConfig {
@@ -21,7 +26,9 @@ impl SamplerPresets {
                 min_keep: 0,
                 top_p: p,
             }],
-            SampleStep::Dist { seed: default_seed() },
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
         )
     }
 
@@ -32,7 +39,9 @@ impl SamplerPresets {
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig::new(
             vec![ShiftStep::Temperature { temperature }],
-            SampleStep::Dist { seed: default_seed() },
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
         )
     }
 
@@ -50,23 +59,40 @@ impl SamplerPresets {
                     "*".to_string(),
                 ],
             }],
-            SampleStep::Dist { seed: default_seed() },
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
         )
     }
 
     /// Constrain output to a JSON schema using llguidance.
     pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
-        SamplerConfig::new(vec![ShiftStep::JsonSchema(schema)], SampleStep::Dist { seed: default_seed() })
+        SamplerConfig::new(
+            vec![ShiftStep::JsonSchema(schema)],
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
+        )
     }
 
     /// Constrain output to a regular expression using llguidance.
     pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
-        SamplerConfig::new(vec![ShiftStep::Regex(pattern)], SampleStep::Dist { seed: default_seed() })
+        SamplerConfig::new(
+            vec![ShiftStep::Regex(pattern)],
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
+        )
     }
 
     /// Constrain output using a Lark context-free grammar via llguidance.
     pub fn constrain_with_grammar(lark: String) -> SamplerConfig {
-        SamplerConfig::new(vec![ShiftStep::Lark(lark)], SampleStep::Dist { seed: default_seed() })
+        SamplerConfig::new(
+            vec![ShiftStep::Lark(lark)],
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
+        )
     }
 
     pub fn json() -> SamplerConfig {
@@ -76,7 +102,12 @@ impl SamplerPresets {
             root: "root".into(),
             grammar: JSON_GRAMMAR.into(),
         });
-        SamplerConfig::new(steps, SampleStep::Dist { seed: default_seed() })
+        SamplerConfig::new(
+            steps,
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
+        )
     }
 
     #[deprecated(note = "Use SamplerPresets::constrain_with_grammar() instead")]
@@ -87,15 +118,20 @@ impl SamplerPresets {
             root: "root".into(),
             grammar,
         });
-        SamplerConfig::new(steps, SampleStep::Dist { seed: default_seed() })
+        SamplerConfig::new(
+            steps,
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
+        )
     }
 }
 
 /// Sampler configuration struct
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamplerConfig {
-    steps: Vec<ShiftStep>,
-    sample_step: SampleStep,
+    pub steps: Vec<ShiftStep>,
+    pub sample_step: SampleStep,
 }
 
 fn default_seed() -> u32 {
@@ -107,16 +143,6 @@ impl SamplerConfig {
         Self {
             steps: shift_steps,
             sample_step: sample_step,
-        }
-    }
-
-    /// Return a new SamplerConfig with a shift step prepended to the beginning.
-    pub fn prepend(&self, step: ShiftStep) -> Self {
-        let mut steps = vec![step];
-        steps.extend(self.steps.clone());
-        Self {
-            steps,
-            sample_step: self.sample_step.clone(),
         }
     }
 
@@ -135,9 +161,7 @@ impl SamplerConfig {
             SampleStep::MirostatV1 { seed, tau, eta, m } => {
                 LlamaSampler::mirostat(model.n_vocab(), seed, tau, eta, m)
             }
-            SampleStep::MirostatV2 { seed, tau, eta } => {
-                LlamaSampler::mirostat_v2(seed, tau, eta)
-            }
+            SampleStep::MirostatV2 { seed, tau, eta } => LlamaSampler::mirostat_v2(seed, tau, eta),
         };
 
         shift_steps.push(final_sampler);
@@ -268,7 +292,9 @@ impl Default for SamplerConfig {
                 },
                 ShiftStep::Temperature { temperature: 0.6 },
             ],
-            SampleStep::Dist { seed: default_seed() },
+            SampleStep::Dist {
+                seed: default_seed(),
+            },
         )
     }
 }
@@ -389,10 +415,21 @@ pub enum ShiftStep {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum SampleStep {
-    Dist { seed: u32 },
+    Dist {
+        seed: u32,
+    },
     Greedy,
-    MirostatV1 { seed: u32, tau: f32, eta: f32, m: i32 },
-    MirostatV2 { seed: u32, tau: f32, eta: f32 },
+    MirostatV1 {
+        seed: u32,
+        tau: f32,
+        eta: f32,
+        m: i32,
+    },
+    MirostatV2 {
+        seed: u32,
+        tau: f32,
+        eta: f32,
+    },
 }
 
 fn read_meta_f32(model: &LlamaModel, key: &str) -> Option<f32> {
@@ -497,7 +534,9 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
                 }
             }
             "dist" => {
-                sample_step = Some(SampleStep::Dist { seed: default_seed() });
+                sample_step = Some(SampleStep::Dist {
+                    seed: default_seed(),
+                });
             }
             "greedy" => {
                 sample_step = Some(SampleStep::Greedy);
@@ -533,7 +572,9 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
 
     Some(SamplerConfig::new(
         steps,
-        sample_step.unwrap_or(SampleStep::Dist { seed: default_seed() }),
+        sample_step.unwrap_or(SampleStep::Dist {
+            seed: default_seed(),
+        }),
     ))
 }
 
@@ -546,7 +587,9 @@ mod tests {
         let config = SamplerBuilder::new()
             .shift(ShiftStep::TopK { top_k: 40 })
             .shift(ShiftStep::Temperature { temperature: 0.8 })
-            .sample(SampleStep::Dist { seed: default_seed() });
+            .sample(SampleStep::Dist {
+                seed: default_seed(),
+            });
 
         assert_eq!(config.steps.len(), 2);
         // Verify order: TopK first, Temperature second
@@ -559,7 +602,9 @@ mod tests {
         let config = SamplerBuilder::new()
             .shift(ShiftStep::TopK { top_k: 40 })
             .prepend(ShiftStep::Temperature { temperature: 0.8 })
-            .sample(SampleStep::Dist { seed: default_seed() });
+            .sample(SampleStep::Dist {
+                seed: default_seed(),
+            });
 
         assert_eq!(config.steps.len(), 2);
         // Verify order: Temperature first (prepended), TopK second
@@ -589,7 +634,9 @@ mod tests {
                 root: "superroot".into(),
                 grammar: "...".into(),
             })
-            .sample(SampleStep::Dist { seed: default_seed() });
+            .sample(SampleStep::Dist {
+                seed: default_seed(),
+            });
 
         assert_eq!(config.steps.len(), 4);
         // Verify grammar is at the beginning

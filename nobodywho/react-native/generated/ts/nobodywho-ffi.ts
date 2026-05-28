@@ -60,13 +60,13 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_samplerbuilder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(uniffi_out_err: UniffiRustCallStatus): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(ptr: bigint, seed: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(ptr: bigint, multiplier: number, base: number, allowedLength: number, penaltyLastN: number, seqBreakers: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(ptr: bigint, grammar: Uint8Array, triggerOn: Uint8Array, root: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(ptr: bigint, minP: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(ptr: bigint, tau: number, eta: number, m: number, uniffi_out_err: UniffiRustCallStatus): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(ptr: bigint, tau: number, eta: number, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(ptr: bigint, tau: number, eta: number, m: number, seed: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(ptr: bigint, tau: number, eta: number, seed: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(ptr: bigint, penaltyLastN: number, penaltyRepeat: number, penaltyFreq: number, penaltyPresent: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(ptr: bigint, temperature: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(ptr: bigint, topK: number, uniffi_out_err: UniffiRustCallStatus): bigint;

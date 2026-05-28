@@ -31,8 +31,8 @@ use crate::errors::{
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::llm::{Worker, WorkerGuard, WriteOutput};
-use crate::sampler_config::read_sampler_from_metadata;
-use crate::sampler_config::{SamplerConfig, ShiftStep};
+use crate::sampler::read_sampler_from_metadata;
+use crate::sampler::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk,
@@ -1662,14 +1662,17 @@ impl Worker<'_, ChatWorker> {
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),
             |tool_grammar| {
-                self.extra
-                    .sampler_config
-                    .clone()
-                    .prepend(ShiftStep::Grammar {
-                        trigger_on: tool_call_begin.clone(),
-                        root: tool_grammar.root_name.to_string(),
-                        grammar: tool_grammar.as_str().into(),
-                    })
+                SamplerConfig::new(
+                    self.extra.sampler_config.steps.clone().insert(
+                        0,
+                        ShiftStep::Grammar {
+                            trigger_on: tool_call_begin.clone(),
+                            root: tool_grammar.root_name.to_string(),
+                            grammar: tool_grammar.as_str().into(),
+                        },
+                    ),
+                    self.extra.sampler_config.sample_step,
+                )
             },
         );
 
@@ -2008,7 +2011,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sampler_config::SamplerPresets;
+    use crate::sampler::SamplerPresets;
     use crate::test_utils;
 
     // Helper function to verify message structure is valid

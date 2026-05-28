@@ -215,7 +215,7 @@ void uniffi_nobodywho_uniffi_fn_free_samplerbuilder(
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(
-    /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
+    /*handle*/ uint64_t ptr, RustBuffer seed, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(
     /*handle*/ uint64_t ptr, float multiplier, float base,
     int32_t allowed_length, int32_t penalty_last_n, RustBuffer seq_breakers,
@@ -230,11 +230,11 @@ void uniffi_nobodywho_uniffi_fn_free_samplerbuilder(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t
 uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(
-    /*handle*/ uint64_t ptr, float tau, float eta, int32_t m,
+    /*handle*/ uint64_t ptr, float tau, float eta, int32_t m, RustBuffer seed,
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t
 uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(
-    /*handle*/ uint64_t ptr, float tau, float eta,
+    /*handle*/ uint64_t ptr, float tau, float eta, RustBuffer seed,
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(
     /*handle*/ uint64_t ptr, int32_t penalty_last_n, float penalty_repeat,
@@ -3139,7 +3139,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist"),
-          1,
+          2,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
@@ -3202,7 +3202,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
                                         "method_samplerbuilder_mirostat_v1"),
-          4,
+          5,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
@@ -3214,7 +3214,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
                                         "method_samplerbuilder_mirostat_v2"),
-          3,
+          4,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
@@ -5725,6 +5725,7 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(
   auto value = uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
@@ -5817,7 +5818,9 @@ jsi::Value NativeNobodywho::
                                                         args[0]),
       uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[1]),
       uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[2]),
-      uniffi_jsi::Bridging<int32_t>::fromJs(rt, callInvoker, args[3]), &status);
+      uniffi_jsi::Bridging<int32_t>::fromJs(rt, callInvoker, args[3]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
+      &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
 
@@ -5834,7 +5837,9 @@ jsi::Value NativeNobodywho::
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
       uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[1]),
-      uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[2]), &status);
+      uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[2]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
+      &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
 

@@ -1754,7 +1754,7 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     /**
      * Sample from the probability distribution (weighted random selection).
      */
-    func dist()  -> SamplerConfig
+    func dist(seed: UInt32?)  -> SamplerConfig
     
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
@@ -1779,12 +1779,12 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
-    func mirostatV1(tau: Float, eta: Float, m: Int32)  -> SamplerConfig
+    func mirostatV1(tau: Float, eta: Float, m: Int32, seed: UInt32?)  -> SamplerConfig
     
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
-    func mirostatV2(tau: Float, eta: Float)  -> SamplerConfig
+    func mirostatV2(tau: Float, eta: Float, seed: UInt32?)  -> SamplerConfig
     
     /**
      * Apply repetition penalties to discourage repeated tokens.
@@ -1878,10 +1878,11 @@ public convenience init() {
     /**
      * Sample from the probability distribution (weighted random selection).
      */
-open func dist() -> SamplerConfig  {
+open func dist(seed: UInt32?) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(
-            self.uniffiCloneHandle(),$0
+            self.uniffiCloneHandle(),
+        FfiConverterOptionUInt32.lower(seed),$0
     )
 })
 }
@@ -1943,13 +1944,14 @@ open func minP(minP: Float, minKeep: UInt32) -> SamplerBuilder  {
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
-open func mirostatV1(tau: Float, eta: Float, m: Int32) -> SamplerConfig  {
+open func mirostatV1(tau: Float, eta: Float, m: Int32, seed: UInt32?) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(
             self.uniffiCloneHandle(),
         FfiConverterFloat.lower(tau),
         FfiConverterFloat.lower(eta),
-        FfiConverterInt32.lower(m),$0
+        FfiConverterInt32.lower(m),
+        FfiConverterOptionUInt32.lower(seed),$0
     )
 })
 }
@@ -1957,12 +1959,13 @@ open func mirostatV1(tau: Float, eta: Float, m: Int32) -> SamplerConfig  {
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
-open func mirostatV2(tau: Float, eta: Float) -> SamplerConfig  {
+open func mirostatV2(tau: Float, eta: Float, seed: UInt32?) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(
             self.uniffiCloneHandle(),
         FfiConverterFloat.lower(tau),
-        FfiConverterFloat.lower(eta),$0
+        FfiConverterFloat.lower(eta),
+        FfiConverterOptionUInt32.lower(seed),$0
     )
 })
 }
@@ -3839,7 +3842,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 10606) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315) {
@@ -3854,10 +3857,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() != 33705) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 58563) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 32524) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 41682) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 34741) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() != 40767) {

@@ -1720,6 +1720,7 @@ fn wire__crate__SamplerBuilder_dist_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>,
             >>::sse_decode(&mut deserializer);
+            let api_seed = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
@@ -1736,7 +1737,8 @@ fn wire__crate__SamplerBuilder_dist_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::SamplerBuilder::dist(&*api_that_guard))?;
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::SamplerBuilder::dist(&*api_that_guard, api_seed))?;
                 Ok(output_ok)
             })())
         },
@@ -1980,6 +1982,7 @@ fn wire__crate__SamplerBuilder_mirostat_v1_impl(
             let api_tau = <f32>::sse_decode(&mut deserializer);
             let api_eta = <f32>::sse_decode(&mut deserializer);
             let api_m = <i32>::sse_decode(&mut deserializer);
+            let api_seed = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
@@ -2001,6 +2004,7 @@ fn wire__crate__SamplerBuilder_mirostat_v1_impl(
                     api_tau,
                     api_eta,
                     api_m,
+                    api_seed,
                 ))?;
                 Ok(output_ok)
             })())
@@ -2033,6 +2037,7 @@ fn wire__crate__SamplerBuilder_mirostat_v2_impl(
             >>::sse_decode(&mut deserializer);
             let api_tau = <f32>::sse_decode(&mut deserializer);
             let api_eta = <f32>::sse_decode(&mut deserializer);
+            let api_seed = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
@@ -2053,6 +2058,7 @@ fn wire__crate__SamplerBuilder_mirostat_v2_impl(
                     &*api_that_guard,
                     api_tau,
                     api_eta,
+                    api_seed,
                 ))?;
                 Ok(output_ok)
             })())

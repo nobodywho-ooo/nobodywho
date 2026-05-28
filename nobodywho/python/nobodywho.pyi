@@ -637,9 +637,12 @@ class SamplerBuilder:
         """
         Create a new SamplerBuilder to construct a custom sampler chain.
         """
-    def dist(self, /) -> SamplerConfig:
+    def dist(self, /, seed: int = 1234) -> SamplerConfig:
         """
         Sample from the probability distribution (weighted random selection).
+        
+        Args:
+            seed: Random seed for reproducibility (default: 1234)
         
         Returns:
             A complete SamplerConfig ready to use
@@ -682,7 +685,7 @@ class SamplerBuilder:
             min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
             min_keep: Minimum number of tokens to always keep
         """
-    def mirostat_v1(self, /, tau: float, eta: float, m: int) -> SamplerConfig:
+    def mirostat_v1(self, /, tau: float, eta: float, m: int, seed: int = 1234) -> SamplerConfig:
         """
         Use Mirostat v1 algorithm for perplexity-controlled sampling.
         Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
@@ -692,11 +695,12 @@ class SamplerBuilder:
             tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
             eta: Learning rate for perplexity adjustment (typically 0.1)
             m: Number of candidates to consider (typically 100)
+            seed: Random seed for reproducibility (default: 1234)
         
         Returns:
             A complete SamplerConfig ready to use
         """
-    def mirostat_v2(self, /, tau: float, eta: float) -> SamplerConfig:
+    def mirostat_v2(self, /, tau: float, eta: float, seed: int = 1234) -> SamplerConfig:
         """
         Use Mirostat v2 algorithm for perplexity-controlled sampling.
         Mirostat v2 is a simplified version of Mirostat that's often preferred.
@@ -705,6 +709,7 @@ class SamplerBuilder:
         Args:
             tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
             eta: Learning rate for perplexity adjustment (typically 0.1)
+            seed: Random seed for reproducibility (default: 1234)
         
         Returns:
             A complete SamplerConfig ready to use

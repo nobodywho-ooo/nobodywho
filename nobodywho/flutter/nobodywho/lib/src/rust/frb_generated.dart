@@ -224,7 +224,10 @@ abstract class NobodyWhoApi extends BaseApi {
 
   String crateRustToolGetSchemaJson({required RustTool that});
 
-  SamplerConfig crateSamplerBuilderDist({required SamplerBuilder that});
+  SamplerConfig crateSamplerBuilderDist({
+    required SamplerBuilder that,
+    int seed = 1234,
+  });
 
   SamplerBuilder crateSamplerBuilderDry({
     required SamplerBuilder that,
@@ -255,12 +258,14 @@ abstract class NobodyWhoApi extends BaseApi {
     required double tau,
     required double eta,
     required int m,
+    int seed = 1234,
   });
 
   SamplerConfig crateSamplerBuilderMirostatV2({
     required SamplerBuilder that,
     required double tau,
     required double eta,
+    int seed = 1234,
   });
 
   SamplerBuilder crateSamplerBuilderNew();
@@ -1730,7 +1735,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
-  SamplerConfig crateSamplerBuilderDist({required SamplerBuilder that}) {
+  SamplerConfig crateSamplerBuilderDist({
+    required SamplerBuilder that,
+    int seed = 1234,
+  }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1739,6 +1747,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
+          sse_encode_u_32(seed, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
         },
         codec: SseCodec(
@@ -1747,14 +1756,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderDistConstMeta,
-        argValues: [that],
+        argValues: [that, seed],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateSamplerBuilderDistConstMeta =>
-      const TaskConstMeta(debugName: "SamplerBuilder_dist", argNames: ["that"]);
+  TaskConstMeta get kCrateSamplerBuilderDistConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_dist",
+    argNames: ["that", "seed"],
+  );
 
   @override
   SamplerBuilder crateSamplerBuilderDry({
@@ -1918,6 +1929,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     required double tau,
     required double eta,
     required int m,
+    int seed = 1234,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1930,6 +1942,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
           sse_encode_i_32(m, serializer);
+          sse_encode_u_32(seed, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
@@ -1938,7 +1951,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderMirostatV1ConstMeta,
-        argValues: [that, tau, eta, m],
+        argValues: [that, tau, eta, m, seed],
         apiImpl: this,
       ),
     );
@@ -1947,7 +1960,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   TaskConstMeta get kCrateSamplerBuilderMirostatV1ConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_mirostat_v1",
-        argNames: ["that", "tau", "eta", "m"],
+        argNames: ["that", "tau", "eta", "m", "seed"],
       );
 
   @override
@@ -1955,6 +1968,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     required SamplerBuilder that,
     required double tau,
     required double eta,
+    int seed = 1234,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1966,6 +1980,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
+          sse_encode_u_32(seed, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
@@ -1974,7 +1989,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderMirostatV2ConstMeta,
-        argValues: [that, tau, eta],
+        argValues: [that, tau, eta, seed],
         apiImpl: this,
       ),
     );
@@ -1983,7 +1998,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   TaskConstMeta get kCrateSamplerBuilderMirostatV2ConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_mirostat_v2",
-        argNames: ["that", "tau", "eta"],
+        argNames: ["that", "tau", "eta", "seed"],
       );
 
   @override
@@ -6430,10 +6445,13 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
 
   /// Sample from the probability distribution (weighted random selection).
   ///
+  /// Args:
+  ///     seed: Random seed for reproducibility (default: 1234)
+  ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
-  SamplerConfig dist() =>
-      NobodyWho.instance.api.crateSamplerBuilderDist(that: this);
+  SamplerConfig dist({int seed = 1234}) =>
+      NobodyWho.instance.api.crateSamplerBuilderDist(that: this, seed: seed);
 
   /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
   ///
@@ -6495,6 +6513,7 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
   ///     eta: Learning rate for perplexity adjustment (typically 0.1)
   ///     m: Number of candidates to consider (typically 100)
+  ///     seed: Random seed for reproducibility (default: 1234)
   ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
@@ -6502,11 +6521,13 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double tau,
     required double eta,
     required int m,
+    int seed = 1234,
   }) => NobodyWho.instance.api.crateSamplerBuilderMirostatV1(
     that: this,
     tau: tau,
     eta: eta,
     m: m,
+    seed: seed,
   );
 
   /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
@@ -6516,15 +6537,20 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Args:
   ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
   ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+  ///     seed: Random seed for reproducibility (default: 1234)
   ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
-  SamplerConfig mirostatV2({required double tau, required double eta}) =>
-      NobodyWho.instance.api.crateSamplerBuilderMirostatV2(
-        that: this,
-        tau: tau,
-        eta: eta,
-      );
+  SamplerConfig mirostatV2({
+    required double tau,
+    required double eta,
+    int seed = 1234,
+  }) => NobodyWho.instance.api.crateSamplerBuilderMirostatV2(
+    that: this,
+    tau: tau,
+    eta: eta,
+    seed: seed,
+  );
 
   /// Apply repetition penalties to discourage repeated tokens.
   ///

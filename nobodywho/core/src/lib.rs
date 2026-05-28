@@ -4,7 +4,7 @@ pub mod encoder;
 pub mod errors;
 pub mod llm;
 pub mod memory;
-pub mod sampler_config;
+pub mod sampler;
 pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;

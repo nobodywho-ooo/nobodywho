@@ -1,7 +1,7 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message};
-use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
+use nobodywho::sampler::{SamplerConfig, SamplerPresets};
 use nobodywho::{errors, llm, tokenizer};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1272,7 +1272,7 @@ impl NobodyWhoChat {
     #[func]
     fn set_sampler_preset_constrain_with_json_schema(&mut self, schema: String) {
         self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(schema),
+            nobodywho::sampler::SamplerPresets::constrain_with_json_schema(schema),
         );
     }
 
@@ -1280,7 +1280,7 @@ impl NobodyWhoChat {
     #[func]
     fn set_sampler_preset_constrain_with_regex(&mut self, pattern: String) {
         self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
+            nobodywho::sampler::SamplerPresets::constrain_with_regex(pattern),
         );
     }
 
@@ -1288,7 +1288,7 @@ impl NobodyWhoChat {
     #[func]
     fn set_sampler_preset_constrain_with_grammar(&mut self, grammar: String) {
         self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
+            nobodywho::sampler::SamplerPresets::constrain_with_grammar(grammar),
         );
     }
 

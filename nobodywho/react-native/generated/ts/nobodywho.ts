@@ -150,7 +150,7 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelLike> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -178,7 +178,7 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
 /**
  * Create a sampler that constrains output using a Lark grammar via llguidance.
  */
-export function samplerPresetConstrainWithGrammar(grammar: string): SamplerConfigInterface {
+export function samplerPresetConstrainWithGrammar(grammar: string): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
@@ -191,7 +191,7 @@ export function samplerPresetConstrainWithGrammar(grammar: string): SamplerConfi
 /**
  * Create a sampler that constrains output to a JSON schema via llguidance.
  */
-export function samplerPresetConstrainWithJsonSchema(schema: string): SamplerConfigInterface {
+export function samplerPresetConstrainWithJsonSchema(schema: string): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
@@ -204,7 +204,7 @@ export function samplerPresetConstrainWithJsonSchema(schema: string): SamplerCon
 /**
  * Create a sampler that constrains output to a regular expression via llguidance.
  */
-export function samplerPresetConstrainWithRegex(pattern: string): SamplerConfigInterface {
+export function samplerPresetConstrainWithRegex(pattern: string): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
@@ -217,7 +217,7 @@ export function samplerPresetConstrainWithRegex(pattern: string): SamplerConfigI
 /**
  * Get the default sampler configuration.
  */
-export function samplerPresetDefault(): SamplerConfigInterface {
+export function samplerPresetDefault(): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(
@@ -229,7 +229,7 @@ export function samplerPresetDefault(): SamplerConfigInterface {
 /**
  * Create a DRY sampler preset to reduce repetition.
  */
-export function samplerPresetDry(): SamplerConfigInterface {
+export function samplerPresetDry(): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(
@@ -241,7 +241,7 @@ export function samplerPresetDry(): SamplerConfigInterface {
 /**
  * Create a sampler with a custom grammar constraint.
  */
-export function samplerPresetGrammar(grammar: string): SamplerConfigInterface {
+export function samplerPresetGrammar(grammar: string): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(
@@ -254,7 +254,7 @@ export function samplerPresetGrammar(grammar: string): SamplerConfigInterface {
 /**
  * Create a greedy sampler (always picks most probable token).
  */
-export function samplerPresetGreedy(): SamplerConfigInterface {
+export function samplerPresetGreedy(): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_greedy(
@@ -263,7 +263,7 @@ export function samplerPresetGreedy(): SamplerConfigInterface {
             /*liftString:*/ FfiConverterString.lift,
     ));
     }
-export function samplerPresetJson(): SamplerConfigInterface {
+export function samplerPresetJson(): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_json(
@@ -275,7 +275,7 @@ export function samplerPresetJson(): SamplerConfigInterface {
 /**
  * Create a sampler with temperature scaling.
  */
-export function samplerPresetTemperature(temperature: /*f32*/number): SamplerConfigInterface {
+export function samplerPresetTemperature(temperature: /*f32*/number): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_temperature(
@@ -288,7 +288,7 @@ export function samplerPresetTemperature(temperature: /*f32*/number): SamplerCon
 /**
  * Create a sampler with top-k filtering only.
  */
-export function samplerPresetTopK(topK: /*i32*/number): SamplerConfigInterface {
+export function samplerPresetTopK(topK: /*i32*/number): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_k(
@@ -301,7 +301,7 @@ export function samplerPresetTopK(topK: /*i32*/number): SamplerConfigInterface {
 /**
  * Create a sampler with nucleus (top-p) sampling.
  */
-export function samplerPresetTopP(topP: /*f32*/number): SamplerConfigInterface {
+export function samplerPresetTopP(topP: /*f32*/number): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_p(
@@ -460,21 +460,8 @@ export const Asset = (() => {
         return uniffiCreateRecord<Asset, ReturnType<typeof defaults>>(defaults);
     })();
     return Object.freeze({
-        /**
-         * Create a frozen instance of {@link Asset}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         create,
-
-        /**
-         * Create a frozen instance of {@link Asset}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         new: create,
-
-        /**
-         * Defaults specified in the {@link nobodywho} crate.
-         */
         defaults: () => Object.freeze(defaults()) as Partial<Asset>,
 
     });
@@ -582,21 +569,8 @@ export const PendingToolCall = (() => {
         return uniffiCreateRecord<PendingToolCall, ReturnType<typeof defaults>>(defaults);
     })();
     return Object.freeze({
-        /**
-         * Create a frozen instance of {@link PendingToolCall}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         create,
-
-        /**
-         * Create a frozen instance of {@link PendingToolCall}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         new: create,
-
-        /**
-         * Defaults specified in the {@link nobodywho} crate.
-         */
         defaults: () => Object.freeze(defaults()) as Partial<PendingToolCall>,
 
     });
@@ -640,21 +614,8 @@ export const ToolCall = (() => {
         return uniffiCreateRecord<ToolCall, ReturnType<typeof defaults>>(defaults);
     })();
     return Object.freeze({
-        /**
-         * Create a frozen instance of {@link ToolCall}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         create,
-
-        /**
-         * Create a frozen instance of {@link ToolCall}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         new: create,
-
-        /**
-         * Defaults specified in the {@link nobodywho} crate.
-         */
         defaults: () => Object.freeze(defaults()) as Partial<ToolCall>,
 
     });
@@ -701,21 +662,8 @@ export const ToolParameter = (() => {
         return uniffiCreateRecord<ToolParameter, ReturnType<typeof defaults>>(defaults);
     })();
     return Object.freeze({
-        /**
-         * Create a frozen instance of {@link ToolParameter}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         create,
-
-        /**
-         * Create a frozen instance of {@link ToolParameter}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
         new: create,
-
-        /**
-         * Defaults specified in the {@link nobodywho} crate.
-         */
         defaults: () => Object.freeze(defaults()) as Partial<ToolParameter>,
 
     });
@@ -1286,19 +1234,19 @@ const FfiConverterMapStringBool = new FfiConverterMap(FfiConverterString, FfiCon
 const FfiConverterMapStringString = new FfiConverterMap(FfiConverterString, FfiConverterString);
 
 
-export interface RustChatInterface {
+export interface RustChatLike {
     
     /**
      * Send a message and get a token stream for the response.
      */
-    ask(message: string) : RustTokenStreamInterface;
+    ask(message: string) : RustTokenStreamLike;
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
      * `parts` is an ordered list of `PromptPart` items.
      * Image and audio parts should contain a local file-system path.
      */
-    askWithPrompt(parts: Array<PromptPart>) : RustTokenStreamInterface;
+    askWithPrompt(parts: Array<PromptPart>) : RustTokenStreamLike;
     /**
      * Get the current chat history as a list of messages.
      */
@@ -1318,7 +1266,7 @@ export interface RustChatInterface {
     /**
      * Reset the chat context with a new system prompt and tools.
      */
-    resetContext(systemPrompt: string | undefined, tools: Array<RustToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    resetContext(systemPrompt: string | undefined, tools: Array<RustToolLike> | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
     /**
      * Reset the chat history, keeping the system prompt and tools.
      */
@@ -1330,7 +1278,7 @@ export interface RustChatInterface {
     /**
      * Set the sampler configuration.
      */
-    setSamplerConfig(sampler: SamplerConfigInterface, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    setSamplerConfig(sampler: SamplerConfigLike, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
     /**
      * Set the system prompt.
      */
@@ -1342,15 +1290,19 @@ export interface RustChatInterface {
     /**
      * Set the tools available to the model.
      */
-    setTools(tools: Array<RustToolInterface>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    setTools(tools: Array<RustToolLike>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
     /**
      * Stop the current generation.
      */
     stopGeneration() : void;
 }
+/**
+ * @deprecated Use `RustChatLike` instead.
+ */
+export type RustChatInterface = RustChatLike;
 
 
-export class RustChat extends UniffiAbstractObject implements RustChatInterface {
+export class RustChat extends UniffiAbstractObject implements RustChatLike {
 
     readonly [uniffiTypeNameSymbol] = "RustChat";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -1358,7 +1310,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     /**
      * Create a new chat session.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) /*throws*/ {
+    constructor(model: RustModelLike, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolLike> | undefined, sampler: SamplerConfigLike | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -1386,7 +1338,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     /**
      * Send a message and get a token stream for the response.
      */
- ask(message: string): RustTokenStreamInterface {
+ ask(message: string): RustTokenStreamLike {
     return FfiConverterTypeRustTokenStream.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(uniffiTypeRustChatObjectFactory.clonePointer(this), 
@@ -1403,7 +1355,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
      * `parts` is an ordered list of `PromptPart` items.
      * Image and audio parts should contain a local file-system path.
      */
- askWithPrompt(parts: Array<PromptPart>): RustTokenStreamInterface {
+ askWithPrompt(parts: Array<PromptPart>): RustTokenStreamLike {
     return FfiConverterTypeRustTokenStream.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(uniffiTypeRustChatObjectFactory.clonePointer(this), 
@@ -1541,7 +1493,7 @@ async  getTemplateVariables(asyncOpts_?: { signal: AbortSignal }): Promise<Map<s
     /**
      * Reset the chat context with a new system prompt and tools.
      */
-async  resetContext(systemPrompt: string | undefined, tools: Array<RustToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+async  resetContext(systemPrompt: string | undefined, tools: Array<RustToolLike> | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -1634,7 +1586,7 @@ async  setChatHistory(messages: Array<Message>, asyncOpts_?: { signal: AbortSign
     /**
      * Set the sampler configuration.
      */
-async  setSamplerConfig(sampler: SamplerConfigInterface, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+async  setSamplerConfig(sampler: SamplerConfigLike, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -1727,7 +1679,7 @@ async  setTemplateVariable(name: string, value: boolean, asyncOpts_?: { signal: 
     /**
      * Set the tools available to the model.
      */
-async  setTools(tools: Array<RustToolInterface>, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+async  setTools(tools: Array<RustToolLike>, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -1787,10 +1739,10 @@ async  setTools(tools: Array<RustToolInterface>, asyncOpts_?: { signal: AbortSig
     
 }
 
-const uniffiTypeRustChatObjectFactory: UniffiObjectFactory<RustChatInterface> = (() => {
+const uniffiTypeRustChatObjectFactory: UniffiObjectFactory<RustChatLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustChatInterface {
+    create(pointer: UniffiHandle): RustChatLike {
         const instance = Object.create(RustChat.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -1811,14 +1763,14 @@ const uniffiTypeRustChatObjectFactory: UniffiObjectFactory<RustChatInterface> = 
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustChatInterface): UniffiHandle {
+    pointer(obj: RustChatLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustChatInterface): UniffiHandle {
+    clonePointer(obj: RustChatLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat(pointer, callStatus),
@@ -1833,15 +1785,15 @@ const uniffiTypeRustChatObjectFactory: UniffiObjectFactory<RustChatInterface> = 
         );
     },
 
-    isConcreteType(obj: any): obj is RustChatInterface {
+    isConcreteType(obj: any): obj is RustChatLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustChat";
     },
 }})();
-// FfiConverter for RustChatInterface
+// FfiConverter for RustChatLike
 const FfiConverterTypeRustChat =  new FfiConverterObject(uniffiTypeRustChatObjectFactory);
 
 
-export interface RustCrossEncoderInterface {
+export interface RustCrossEncoderLike {
     
     /**
      * Rank documents by relevance to a query. Returns similarity scores.
@@ -1854,9 +1806,13 @@ export interface RustCrossEncoderInterface {
      */
     rankAndSortJson(query: string, documents: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
 }
+/**
+ * @deprecated Use `RustCrossEncoderLike` instead.
+ */
+export type RustCrossEncoderInterface = RustCrossEncoderLike;
 
 
-export class RustCrossEncoder extends UniffiAbstractObject implements RustCrossEncoderInterface {
+export class RustCrossEncoder extends UniffiAbstractObject implements RustCrossEncoderLike {
 
     readonly [uniffiTypeNameSymbol] = "RustCrossEncoder";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -1864,7 +1820,7 @@ export class RustCrossEncoder extends UniffiAbstractObject implements RustCrossE
     /**
      * Create a new cross-encoder for ranking documents by relevance.
      */
-    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) {
+    constructor(model: RustModelLike, contextSize: /*u32*/number | undefined) {
         super();
         const pointer =
             uniffiCaller.rustCall(
@@ -1968,10 +1924,10 @@ async  rankAndSortJson(query: string, documents: Array<string>, asyncOpts_?: { s
     
 }
 
-const uniffiTypeRustCrossEncoderObjectFactory: UniffiObjectFactory<RustCrossEncoderInterface> = (() => {
+const uniffiTypeRustCrossEncoderObjectFactory: UniffiObjectFactory<RustCrossEncoderLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustCrossEncoderInterface {
+    create(pointer: UniffiHandle): RustCrossEncoderLike {
         const instance = Object.create(RustCrossEncoder.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -1992,14 +1948,14 @@ const uniffiTypeRustCrossEncoderObjectFactory: UniffiObjectFactory<RustCrossEnco
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustCrossEncoderInterface): UniffiHandle {
+    pointer(obj: RustCrossEncoderLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustCrossEncoderInterface): UniffiHandle {
+    clonePointer(obj: RustCrossEncoderLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(pointer, callStatus),
@@ -2014,24 +1970,28 @@ const uniffiTypeRustCrossEncoderObjectFactory: UniffiObjectFactory<RustCrossEnco
         );
     },
 
-    isConcreteType(obj: any): obj is RustCrossEncoderInterface {
+    isConcreteType(obj: any): obj is RustCrossEncoderLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustCrossEncoder";
     },
 }})();
-// FfiConverter for RustCrossEncoderInterface
+// FfiConverter for RustCrossEncoderLike
 const FfiConverterTypeRustCrossEncoder =  new FfiConverterObject(uniffiTypeRustCrossEncoderObjectFactory);
 
 
-export interface RustEncoderInterface {
+export interface RustEncoderLike {
     
     /**
      * Encode text into an embedding vector.
      */
     encode(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
 }
+/**
+ * @deprecated Use `RustEncoderLike` instead.
+ */
+export type RustEncoderInterface = RustEncoderLike;
 
 
-export class RustEncoder extends UniffiAbstractObject implements RustEncoderInterface {
+export class RustEncoder extends UniffiAbstractObject implements RustEncoderLike {
 
     readonly [uniffiTypeNameSymbol] = "RustEncoder";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -2039,7 +1999,7 @@ export class RustEncoder extends UniffiAbstractObject implements RustEncoderInte
     /**
      * Create a new encoder for generating text embeddings.
      */
-    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) {
+    constructor(model: RustModelLike, contextSize: /*u32*/number | undefined) {
         super();
         const pointer =
             uniffiCaller.rustCall(
@@ -2110,10 +2070,10 @@ async  encode(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array
     
 }
 
-const uniffiTypeRustEncoderObjectFactory: UniffiObjectFactory<RustEncoderInterface> = (() => {
+const uniffiTypeRustEncoderObjectFactory: UniffiObjectFactory<RustEncoderLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustEncoderInterface {
+    create(pointer: UniffiHandle): RustEncoderLike {
         const instance = Object.create(RustEncoder.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -2134,14 +2094,14 @@ const uniffiTypeRustEncoderObjectFactory: UniffiObjectFactory<RustEncoderInterfa
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustEncoderInterface): UniffiHandle {
+    pointer(obj: RustEncoderLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustEncoderInterface): UniffiHandle {
+    clonePointer(obj: RustEncoderLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustencoder(pointer, callStatus),
@@ -2156,20 +2116,24 @@ const uniffiTypeRustEncoderObjectFactory: UniffiObjectFactory<RustEncoderInterfa
         );
     },
 
-    isConcreteType(obj: any): obj is RustEncoderInterface {
+    isConcreteType(obj: any): obj is RustEncoderLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustEncoder";
     },
 }})();
-// FfiConverter for RustEncoderInterface
+// FfiConverter for RustEncoderLike
 const FfiConverterTypeRustEncoder =  new FfiConverterObject(uniffiTypeRustEncoderObjectFactory);
 
 
-export interface RustModelInterface {
+export interface RustModelLike {
     
 }
+/**
+ * @deprecated Use `RustModelLike` instead.
+ */
+export type RustModelInterface = RustModelLike;
 
 
-export class RustModel extends UniffiAbstractObject implements RustModelInterface {
+export class RustModel extends UniffiAbstractObject implements RustModelLike {
 
     readonly [uniffiTypeNameSymbol] = "RustModel";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -2205,10 +2169,10 @@ private constructor(pointer: UniffiHandle) {
     
 }
 
-const uniffiTypeRustModelObjectFactory: UniffiObjectFactory<RustModelInterface> = (() => {
+const uniffiTypeRustModelObjectFactory: UniffiObjectFactory<RustModelLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustModelInterface {
+    create(pointer: UniffiHandle): RustModelLike {
         const instance = Object.create(RustModel.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -2229,14 +2193,14 @@ const uniffiTypeRustModelObjectFactory: UniffiObjectFactory<RustModelInterface> 
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustModelInterface): UniffiHandle {
+    pointer(obj: RustModelLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustModelInterface): UniffiHandle {
+    clonePointer(obj: RustModelLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustmodel(pointer, callStatus),
@@ -2251,15 +2215,15 @@ const uniffiTypeRustModelObjectFactory: UniffiObjectFactory<RustModelInterface> 
         );
     },
 
-    isConcreteType(obj: any): obj is RustModelInterface {
+    isConcreteType(obj: any): obj is RustModelLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustModel";
     },
 }})();
-// FfiConverter for RustModelInterface
+// FfiConverter for RustModelLike
 const FfiConverterTypeRustModel =  new FfiConverterObject(uniffiTypeRustModelObjectFactory);
 
 
-export interface RustTokenStreamInterface {
+export interface RustTokenStreamLike {
     
     /**
      * Wait for the full response to complete and return it.
@@ -2270,9 +2234,13 @@ export interface RustTokenStreamInterface {
      */
     nextToken(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string | undefined>;
 }
+/**
+ * @deprecated Use `RustTokenStreamLike` instead.
+ */
+export type RustTokenStreamInterface = RustTokenStreamLike;
 
 
-export class RustTokenStream extends UniffiAbstractObject implements RustTokenStreamInterface {
+export class RustTokenStream extends UniffiAbstractObject implements RustTokenStreamLike {
 
     readonly [uniffiTypeNameSymbol] = "RustTokenStream";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -2370,10 +2338,10 @@ async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefin
     
 }
 
-const uniffiTypeRustTokenStreamObjectFactory: UniffiObjectFactory<RustTokenStreamInterface> = (() => {
+const uniffiTypeRustTokenStreamObjectFactory: UniffiObjectFactory<RustTokenStreamLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustTokenStreamInterface {
+    create(pointer: UniffiHandle): RustTokenStreamLike {
         const instance = Object.create(RustTokenStream.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -2394,14 +2362,14 @@ const uniffiTypeRustTokenStreamObjectFactory: UniffiObjectFactory<RustTokenStrea
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustTokenStreamInterface): UniffiHandle {
+    pointer(obj: RustTokenStreamLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustTokenStreamInterface): UniffiHandle {
+    clonePointer(obj: RustTokenStreamLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(pointer, callStatus),
@@ -2416,15 +2384,15 @@ const uniffiTypeRustTokenStreamObjectFactory: UniffiObjectFactory<RustTokenStrea
         );
     },
 
-    isConcreteType(obj: any): obj is RustTokenStreamInterface {
+    isConcreteType(obj: any): obj is RustTokenStreamLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustTokenStream";
     },
 }})();
-// FfiConverter for RustTokenStreamInterface
+// FfiConverter for RustTokenStreamLike
 const FfiConverterTypeRustTokenStream =  new FfiConverterObject(uniffiTypeRustTokenStreamObjectFactory);
 
 
-export interface RustToolInterface {
+export interface RustToolLike {
     
     /**
      * Get the JSON schema for this tool's parameters as a string.
@@ -2439,9 +2407,13 @@ export interface RustToolInterface {
      */
     resolvePendingCall(callId: string, result: string) : void;
 }
+/**
+ * @deprecated Use `RustToolLike` instead.
+ */
+export type RustToolInterface = RustToolLike;
 
 
-export class RustTool extends UniffiAbstractObject implements RustToolInterface {
+export class RustTool extends UniffiAbstractObject implements RustToolLike {
 
     readonly [uniffiTypeNameSymbol] = "RustTool";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -2475,7 +2447,7 @@ export class RustTool extends UniffiAbstractObject implements RustToolInterface 
      * `resolve_pending_call` to return results. The inference thread
      * blocks until resolved.
      */
-static newAsync(name: string, description: string, parameters: Array<ToolParameter>): RustToolInterface {
+static newAsync(name: string, description: string, parameters: Array<ToolParameter>): RustToolLike {
     return FfiConverterTypeRustTool.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttool_new_async(
@@ -2568,10 +2540,10 @@ async  nextPendingCall(asyncOpts_?: { signal: AbortSignal }): Promise<PendingToo
     
 }
 
-const uniffiTypeRustToolObjectFactory: UniffiObjectFactory<RustToolInterface> = (() => {
+const uniffiTypeRustToolObjectFactory: UniffiObjectFactory<RustToolLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustToolInterface {
+    create(pointer: UniffiHandle): RustToolLike {
         const instance = Object.create(RustTool.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -2592,14 +2564,14 @@ const uniffiTypeRustToolObjectFactory: UniffiObjectFactory<RustToolInterface> = 
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustToolInterface): UniffiHandle {
+    pointer(obj: RustToolLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustToolInterface): UniffiHandle {
+    clonePointer(obj: RustToolLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttool(pointer, callStatus),
@@ -2614,72 +2586,76 @@ const uniffiTypeRustToolObjectFactory: UniffiObjectFactory<RustToolInterface> = 
         );
     },
 
-    isConcreteType(obj: any): obj is RustToolInterface {
+    isConcreteType(obj: any): obj is RustToolLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustTool";
     },
 }})();
-// FfiConverter for RustToolInterface
+// FfiConverter for RustToolLike
 const FfiConverterTypeRustTool =  new FfiConverterObject(uniffiTypeRustToolObjectFactory);
 
 
-export interface SamplerBuilderInterface {
+export interface SamplerBuilderLike {
     
     /**
      * Sample from the probability distribution (weighted random selection).
      */
-    dist() : SamplerConfigInterface;
+    dist(seed: /*u32*/number | undefined) : SamplerConfigLike;
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
      */
-    dry(multiplier: /*f32*/number, base: /*f32*/number, allowedLength: /*i32*/number, penaltyLastN: /*i32*/number, seqBreakers: Array<string>) : SamplerBuilderInterface;
+    dry(multiplier: /*f32*/number, base: /*f32*/number, allowedLength: /*i32*/number, penaltyLastN: /*i32*/number, seqBreakers: Array<string>) : SamplerBuilderLike;
     /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
-    grammar(grammar: string, triggerOn: string | undefined, root: string) : SamplerBuilderInterface;
+    grammar(grammar: string, triggerOn: string | undefined, root: string) : SamplerBuilderLike;
     /**
      * Always select the most probable token (deterministic).
      */
-    greedy() : SamplerConfigInterface;
+    greedy() : SamplerConfigLike;
     /**
      * Keep tokens with probability above min_p * (probability of most likely token).
      */
-    minP(minP: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderInterface;
+    minP(minP: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderLike;
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
-    mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number) : SamplerConfigInterface;
+    mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number, seed: /*u32*/number | undefined) : SamplerConfigLike;
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
-    mirostatV2(tau: /*f32*/number, eta: /*f32*/number) : SamplerConfigInterface;
+    mirostatV2(tau: /*f32*/number, eta: /*f32*/number, seed: /*u32*/number | undefined) : SamplerConfigLike;
     /**
      * Apply repetition penalties to discourage repeated tokens.
      */
-    penalties(penaltyLastN: /*i32*/number, penaltyRepeat: /*f32*/number, penaltyFreq: /*f32*/number, penaltyPresent: /*f32*/number) : SamplerBuilderInterface;
+    penalties(penaltyLastN: /*i32*/number, penaltyRepeat: /*f32*/number, penaltyFreq: /*f32*/number, penaltyPresent: /*f32*/number) : SamplerBuilderLike;
     /**
      * Apply temperature scaling to the probability distribution.
      */
-    temperature(temperature: /*f32*/number) : SamplerBuilderInterface;
+    temperature(temperature: /*f32*/number) : SamplerBuilderLike;
     /**
      * Keep only the top K most probable tokens.
      */
-    topK(topK: /*i32*/number) : SamplerBuilderInterface;
+    topK(topK: /*i32*/number) : SamplerBuilderLike;
     /**
      * Keep tokens whose cumulative probability is below top_p.
      */
-    topP(topP: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderInterface;
+    topP(topP: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderLike;
     /**
      * Typical sampling: keeps tokens close to expected information content.
      */
-    typicalP(typP: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderInterface;
+    typicalP(typP: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderLike;
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
-    xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderInterface;
+    xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderLike;
 }
+/**
+ * @deprecated Use `SamplerBuilderLike` instead.
+ */
+export type SamplerBuilderInterface = SamplerBuilderLike;
 
 
-export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuilderInterface {
+export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuilderLike {
 
     readonly [uniffiTypeNameSymbol] = "SamplerBuilder";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -2707,10 +2683,11 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Sample from the probability distribution (weighted random selection).
      */
- dist(): SamplerConfigInterface {
+ dist(seed: /*u32*/number | undefined): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterOptionalUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2720,7 +2697,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
      */
- dry(multiplier: /*f32*/number, base: /*f32*/number, allowedLength: /*i32*/number, penaltyLastN: /*i32*/number, seqBreakers: Array<string>): SamplerBuilderInterface {
+ dry(multiplier: /*f32*/number, base: /*f32*/number, allowedLength: /*i32*/number, penaltyLastN: /*i32*/number, seqBreakers: Array<string>): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2738,7 +2715,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
- grammar(grammar: string, triggerOn: string | undefined, root: string): SamplerBuilderInterface {
+ grammar(grammar: string, triggerOn: string | undefined, root: string): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2754,7 +2731,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Always select the most probable token (deterministic).
      */
- greedy(): SamplerConfigInterface {
+ greedy(): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2767,7 +2744,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Keep tokens with probability above min_p * (probability of most likely token).
      */
- minP(minP: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderInterface {
+ minP(minP: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2782,13 +2759,14 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
- mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number): SamplerConfigInterface {
+ mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number, seed: /*u32*/number | undefined): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
         FfiConverterFloat32.lower(tau),
         FfiConverterFloat32.lower(eta),
         FfiConverterInt32.lower(m),
+        FfiConverterOptionalUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2798,12 +2776,13 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
- mirostatV2(tau: /*f32*/number, eta: /*f32*/number): SamplerConfigInterface {
+ mirostatV2(tau: /*f32*/number, eta: /*f32*/number, seed: /*u32*/number | undefined): SamplerConfigLike {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
         FfiConverterFloat32.lower(tau),
         FfiConverterFloat32.lower(eta),
+        FfiConverterOptionalUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2813,7 +2792,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Apply repetition penalties to discourage repeated tokens.
      */
- penalties(penaltyLastN: /*i32*/number, penaltyRepeat: /*f32*/number, penaltyFreq: /*f32*/number, penaltyPresent: /*f32*/number): SamplerBuilderInterface {
+ penalties(penaltyLastN: /*i32*/number, penaltyRepeat: /*f32*/number, penaltyFreq: /*f32*/number, penaltyPresent: /*f32*/number): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2830,7 +2809,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Apply temperature scaling to the probability distribution.
      */
- temperature(temperature: /*f32*/number): SamplerBuilderInterface {
+ temperature(temperature: /*f32*/number): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2844,7 +2823,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Keep only the top K most probable tokens.
      */
- topK(topK: /*i32*/number): SamplerBuilderInterface {
+ topK(topK: /*i32*/number): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2858,7 +2837,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Keep tokens whose cumulative probability is below top_p.
      */
- topP(topP: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderInterface {
+ topP(topP: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2873,7 +2852,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Typical sampling: keeps tokens close to expected information content.
      */
- typicalP(typP: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderInterface {
+ typicalP(typP: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_typical_p(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2888,7 +2867,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
- xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderInterface {
+ xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderLike {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
@@ -2922,10 +2901,10 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     
 }
 
-const uniffiTypeSamplerBuilderObjectFactory: UniffiObjectFactory<SamplerBuilderInterface> = (() => {
+const uniffiTypeSamplerBuilderObjectFactory: UniffiObjectFactory<SamplerBuilderLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): SamplerBuilderInterface {
+    create(pointer: UniffiHandle): SamplerBuilderLike {
         const instance = Object.create(SamplerBuilder.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -2946,14 +2925,14 @@ const uniffiTypeSamplerBuilderObjectFactory: UniffiObjectFactory<SamplerBuilderI
         ptr.markDestroyed();
     },
 
-    pointer(obj: SamplerBuilderInterface): UniffiHandle {
+    pointer(obj: SamplerBuilderLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: SamplerBuilderInterface): UniffiHandle {
+    clonePointer(obj: SamplerBuilderLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(pointer, callStatus),
@@ -2968,24 +2947,28 @@ const uniffiTypeSamplerBuilderObjectFactory: UniffiObjectFactory<SamplerBuilderI
         );
     },
 
-    isConcreteType(obj: any): obj is SamplerBuilderInterface {
+    isConcreteType(obj: any): obj is SamplerBuilderLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "SamplerBuilder";
     },
 }})();
-// FfiConverter for SamplerBuilderInterface
+// FfiConverter for SamplerBuilderLike
 const FfiConverterTypeSamplerBuilder =  new FfiConverterObject(uniffiTypeSamplerBuilderObjectFactory);
 
 
-export interface SamplerConfigInterface {
+export interface SamplerConfigLike {
     
     /**
      * Serialize the sampler configuration to a JSON string.
      */
     toJson()  /*throws*/: string;
 }
+/**
+ * @deprecated Use `SamplerConfigLike` instead.
+ */
+export type SamplerConfigInterface = SamplerConfigLike;
 
 
-export class SamplerConfig extends UniffiAbstractObject implements SamplerConfigInterface {
+export class SamplerConfig extends UniffiAbstractObject implements SamplerConfigLike {
 
     readonly [uniffiTypeNameSymbol] = "SamplerConfig";
     readonly [destructorGuardSymbol]: UniffiGcObject;
@@ -3001,7 +2984,7 @@ private constructor(pointer: UniffiHandle) {
     /**
      * Deserialize a sampler configuration from a JSON string.
      */
-static fromJson(jsonStr: string): SamplerConfigInterface /*throws*/ {
+static fromJson(jsonStr: string): SamplerConfigLike /*throws*/ {
     return FfiConverterTypeSamplerConfig.lift(
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
@@ -3052,10 +3035,10 @@ static fromJson(jsonStr: string): SamplerConfigInterface /*throws*/ {
     
 }
 
-const uniffiTypeSamplerConfigObjectFactory: UniffiObjectFactory<SamplerConfigInterface> = (() => {
+const uniffiTypeSamplerConfigObjectFactory: UniffiObjectFactory<SamplerConfigLike> = (() => {
     
     return {
-    create(pointer: UniffiHandle): SamplerConfigInterface {
+    create(pointer: UniffiHandle): SamplerConfigLike {
         const instance = Object.create(SamplerConfig.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
@@ -3076,14 +3059,14 @@ const uniffiTypeSamplerConfigObjectFactory: UniffiObjectFactory<SamplerConfigInt
         ptr.markDestroyed();
     },
 
-    pointer(obj: SamplerConfigInterface): UniffiHandle {
+    pointer(obj: SamplerConfigLike): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: SamplerConfigInterface): UniffiHandle {
+    clonePointer(obj: SamplerConfigLike): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerconfig(pointer, callStatus),
@@ -3098,11 +3081,11 @@ const uniffiTypeSamplerConfigObjectFactory: UniffiObjectFactory<SamplerConfigInt
         );
     },
 
-    isConcreteType(obj: any): obj is SamplerConfigInterface {
+    isConcreteType(obj: any): obj is SamplerConfigLike {
         return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "SamplerConfig";
     },
 }})();
-// FfiConverter for SamplerConfigInterface
+// FfiConverter for SamplerConfigLike
 const FfiConverterTypeSamplerConfig =  new FfiConverterObject(uniffiTypeSamplerConfigObjectFactory);
 
 
@@ -3154,7 +3137,7 @@ const FfiConverterOptionalMapStringBool = new FfiConverterOptional(FfiConverterM
 const FfiConverterOptionalMapStringString = new FfiConverterOptional(FfiConverterMapStringString);
 
 
-// FfiConverter for SamplerConfigInterface | undefined
+// FfiConverter for SamplerConfigLike | undefined
 const FfiConverterOptionalTypeSamplerConfig = new FfiConverterOptional(FfiConverterTypeSamplerConfig);
 
 
@@ -3170,11 +3153,11 @@ const FfiConverterArrayTypeMessage = new FfiConverterArray(FfiConverterTypeMessa
 const FfiConverterArrayTypePromptPart = new FfiConverterArray(FfiConverterTypePromptPart);
 
 
-// FfiConverter for Array<RustToolInterface>
+// FfiConverter for Array<RustToolLike>
 const FfiConverterArrayTypeRustTool = new FfiConverterArray(FfiConverterTypeRustTool);
 
 
-// FfiConverter for Array<RustToolInterface> | undefined
+// FfiConverter for Array<RustToolLike> | undefined
 const FfiConverterOptionalArrayTypeRustTool = new FfiConverterOptional(FfiConverterArrayTypeRustTool);
 
 /**
@@ -3306,7 +3289,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() !== 10096) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 10606) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() !== 35315) {
@@ -3321,10 +3304,10 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() !== 33705) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() !== 58563) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() !== 32524) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() !== 41682) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() !== 34741) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() !== 40767) {

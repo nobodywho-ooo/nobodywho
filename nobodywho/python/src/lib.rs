@@ -1375,7 +1375,7 @@ fn download_model(
 #[pyclass(from_py_object)]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
-    sampler_config: nobodywho::sampler_config::SamplerConfig,
+    sampler_config: nobodywho::sampler::SamplerConfig,
 }
 
 #[pymethods]
@@ -1404,9 +1404,8 @@ impl SamplerConfig {
     ///     ValueError: If the JSON is invalid or doesn't represent a valid sampler configuration
     #[staticmethod]
     pub fn from_json(json_str: &str) -> PyResult<Self> {
-        let sampler_config: nobodywho::sampler_config::SamplerConfig =
-            serde_json::from_str(json_str)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let sampler_config: nobodywho::sampler::SamplerConfig = serde_json::from_str(json_str)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(Self { sampler_config })
     }
 
@@ -1427,7 +1426,7 @@ impl SamplerConfig {
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct SamplerBuilder {
-    sampler_config: nobodywho::sampler_config::SamplerConfig,
+    inner: nobodywho::sampler::SamplerBuilder,
 }
 
 impl Default for SamplerBuilder {
@@ -1442,7 +1441,7 @@ impl SamplerBuilder {
     #[new]
     pub fn new() -> Self {
         Self {
-            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+            inner: nobodywho::sampler::SamplerBuilder::new(),
         }
     }
 
@@ -1451,10 +1450,7 @@ impl SamplerBuilder {
     /// Args:
     ///     top_k: Number of top tokens to keep
     pub fn top_k(&self, top_k: i32) -> Self {
-        shift_step(
-            self.clone(),
-            nobodywho::sampler_config::ShiftStep::TopK { top_k },
-        )
+        shift_step(self.clone(), nobodywho::sampler::ShiftStep::TopK { top_k })
     }
 
     /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
@@ -1465,7 +1461,7 @@ impl SamplerBuilder {
     pub fn top_p(&self, top_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep },
+            nobodywho::sampler::ShiftStep::TopP { top_p, min_keep },
         )
     }
 
@@ -1477,7 +1473,7 @@ impl SamplerBuilder {
     pub fn min_p(&self, min_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep },
+            nobodywho::sampler::ShiftStep::MinP { min_p, min_keep },
         )
     }
 
@@ -1491,7 +1487,7 @@ impl SamplerBuilder {
     pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::XTC {
+            nobodywho::sampler::ShiftStep::XTC {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
@@ -1507,7 +1503,7 @@ impl SamplerBuilder {
     pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
+            nobodywho::sampler::ShiftStep::TypicalP { typ_p, min_keep },
         )
     }
 
@@ -1524,7 +1520,7 @@ impl SamplerBuilder {
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Grammar {
+            nobodywho::sampler::ShiftStep::Grammar {
                 grammar,
                 trigger_on,
                 root,
@@ -1550,7 +1546,7 @@ impl SamplerBuilder {
     ) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::DRY {
+            nobodywho::sampler::ShiftStep::DRY {
                 multiplier,
                 base,
                 allowed_length,
@@ -1576,7 +1572,7 @@ impl SamplerBuilder {
     ) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Penalties {
+            nobodywho::sampler::ShiftStep::Penalties {
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
@@ -1592,16 +1588,20 @@ impl SamplerBuilder {
     pub fn temperature(&self, temperature: f32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Temperature { temperature },
+            nobodywho::sampler::ShiftStep::Temperature { temperature },
         )
     }
 
     /// Sample from the probability distribution (weighted random selection).
     ///
+    /// Args:
+    ///     seed: Random seed for reproducibility (default: 1234)
+    ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
-    pub fn dist(&self) -> SamplerConfig {
-        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Dist)
+    #[pyo3(signature = (seed = 1234))]
+    pub fn dist(&self, seed: u32) -> SamplerConfig {
+        sample_step(self.clone(), nobodywho::sampler::SampleStep::Dist { seed })
     }
 
     /// Always select the most probable token (deterministic).
@@ -1609,7 +1609,7 @@ impl SamplerBuilder {
     /// Returns:
     ///     A complete SamplerConfig ready to use
     pub fn greedy(&self) -> SamplerConfig {
-        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Greedy)
+        sample_step(self.clone(), nobodywho::sampler::SampleStep::Greedy)
     }
 
     /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
@@ -1620,13 +1620,15 @@ impl SamplerBuilder {
     ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
     ///     eta: Learning rate for perplexity adjustment (typically 0.1)
     ///     m: Number of candidates to consider (typically 100)
+    ///     seed: Random seed for reproducibility (default: 1234)
     ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
-    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> SamplerConfig {
+    #[pyo3(signature = (tau, eta, m, seed = 1234))]
+    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32, seed: u32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
+            nobodywho::sampler::SampleStep::MirostatV1 { seed, tau, eta, m },
         )
     }
 
@@ -1637,32 +1639,28 @@ impl SamplerBuilder {
     /// Args:
     ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
     ///     eta: Learning rate for perplexity adjustment (typically 0.1)
+    ///     seed: Random seed for reproducibility (default: 1234)
     ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
-    pub fn mirostat_v2(&self, tau: f32, eta: f32) -> SamplerConfig {
+    #[pyo3(signature = (tau, eta, seed = 1234))]
+    pub fn mirostat_v2(&self, tau: f32, eta: f32, seed: u32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
+            nobodywho::sampler::SampleStep::MirostatV2 { seed, tau, eta },
         )
     }
 }
 
-fn shift_step(
-    builder: SamplerBuilder,
-    step: nobodywho::sampler_config::ShiftStep,
-) -> SamplerBuilder {
+fn shift_step(builder: SamplerBuilder, step: nobodywho::sampler::ShiftStep) -> SamplerBuilder {
     SamplerBuilder {
-        sampler_config: builder.sampler_config.shift(step),
+        inner: builder.inner.shift(step),
     }
 }
 
-fn sample_step(
-    builder: SamplerBuilder,
-    step: nobodywho::sampler_config::SampleStep,
-) -> SamplerConfig {
+fn sample_step(builder: SamplerBuilder, step: nobodywho::sampler::SampleStep) -> SamplerConfig {
     SamplerConfig {
-        sampler_config: builder.sampler_config.sample(step),
+        sampler_config: builder.inner.sample(step),
     }
 }
 
@@ -1679,7 +1677,7 @@ impl SamplerPresets {
     #[allow(clippy::should_implement_trait)]
     pub fn default() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+            sampler_config: nobodywho::sampler::SamplerConfig::default(),
         }
     }
 
@@ -1690,7 +1688,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn top_k(top_k: i32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+            sampler_config: nobodywho::sampler::SamplerPresets::top_k(top_k),
         }
     }
 
@@ -1701,7 +1699,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn top_p(top_p: f32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+            sampler_config: nobodywho::sampler::SamplerPresets::top_p(top_p),
         }
     }
 
@@ -1709,7 +1707,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn greedy() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::greedy(),
+            sampler_config: nobodywho::sampler::SamplerPresets::greedy(),
         }
     }
 
@@ -1720,7 +1718,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+            sampler_config: nobodywho::sampler::SamplerPresets::temperature(temperature),
         }
     }
 
@@ -1728,7 +1726,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn dry() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::dry(),
+            sampler_config: nobodywho::sampler::SamplerPresets::dry(),
         }
     }
 
@@ -1748,7 +1746,7 @@ impl SamplerPresets {
                 .extract::<String>()?
         };
         Ok(SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_json_schema(
                 schema_str,
             ),
         })
@@ -1761,9 +1759,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(
-                pattern,
-            ),
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_regex(pattern),
         }
     }
 
@@ -1774,9 +1770,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn constrain_with_grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(
-                grammar,
-            ),
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_grammar(grammar),
         }
     }
 
@@ -1787,7 +1781,7 @@ impl SamplerPresets {
     #[allow(deprecated)]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
+            sampler_config: nobodywho::sampler::SamplerPresets::json(),
         }
     }
 
@@ -1796,7 +1790,7 @@ impl SamplerPresets {
     #[allow(deprecated)]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+            sampler_config: nobodywho::sampler::SamplerPresets::grammar(grammar),
         }
     }
 }

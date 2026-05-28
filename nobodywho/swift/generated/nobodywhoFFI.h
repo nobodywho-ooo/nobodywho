@@ -488,7 +488,7 @@ uint64_t uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(RustCallStatu
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_DIST
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_DIST
-uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(uint64_t ptr, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(uint64_t ptr, RustBuffer seed, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_DRY
@@ -513,12 +513,12 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(uint64_t ptr, fl
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_MIROSTAT_V1
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_MIROSTAT_V1
-uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(uint64_t ptr, float tau, float eta, int32_t m, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(uint64_t ptr, float tau, float eta, int32_t m, RustBuffer seed, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_MIROSTAT_V2
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_MIROSTAT_V2
-uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(uint64_t ptr, float tau, float eta, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(uint64_t ptr, float tau, float eta, RustBuffer seed, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_PENALTIES
