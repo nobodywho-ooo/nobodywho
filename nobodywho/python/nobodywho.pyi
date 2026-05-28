@@ -1005,12 +1005,12 @@ def download_model(model_path: str |PathLike[str], headers: dict[str, str] | Non
         RuntimeError: If the download fails
     """
 
-def get_cached_models() -> tuple[list[str], int]:
+def get_cached_models() -> list[tuple[str, int]]:
     """
-    Returns the paths and total byte size of all cached .gguf models.
+    Returns every cached .gguf model paired with its byte size.
     
     Returns:
-        A tuple of (list[str], int): paths to each cached model file, and their combined size in bytes.
+        list[tuple[str, int]]: each entry is (absolute path, size in bytes).
     
     Raises:
         RuntimeError: If the cache directory cannot be read
