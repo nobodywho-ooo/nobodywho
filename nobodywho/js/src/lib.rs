@@ -1891,14 +1891,18 @@ impl Chat {
         })
     }
 
-    /// Stop any in-flight generation and resolve. There's no separate
-    /// worker to tear down (inference runs on a pthread owned by the
-    /// core handle, freed when the handle drops), so this signals the
-    /// inference loop to stop — the in-flight `TokenStream` then ends
-    /// (done=true) within a token or two. Kept for API parity with the
-    /// old worker-backed binding.
+    /// Stop any in-flight generation, then tear the worker down and wait
+    /// for it to release its resources. Inference runs on an Emscripten
+    /// pthread that also owns a ggml threadpool (several more pthreads);
+    /// pthreads are scarce, and waiting for GC to drop the handle would
+    /// leak them across chats. Shutting down here frees them promptly so
+    /// the next `Chat.create` has pthreads available. The handle is inert
+    /// afterwards.
     pub fn terminate(&self) -> js_sys::Promise {
-        self.inner.stop_generation();
-        js_sys::Promise::resolve(&JsValue::UNDEFINED)
+        let inner = self.inner.clone();
+        promisify(async move {
+            inner.shutdown().await;
+            Ok(JsValue::UNDEFINED)
+        })
     }
 }

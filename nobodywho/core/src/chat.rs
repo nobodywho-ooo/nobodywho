@@ -307,7 +307,7 @@ pub struct ChatHandle {
 impl ChatHandle {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
-        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (msg_tx, msg_rx) = tokio::sync::mpsc::unbounded_channel();
         let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
         let should_stop = Arc::new(AtomicBool::new(false));
@@ -325,7 +325,7 @@ impl ChatHandle {
                 .expect("failed to build worker tokio runtime");
             rt.block_on(async move {
                 let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-                let mut worker_state = match worker {
+                let worker_state = match worker {
                     Ok(w) => {
                         let _ = init_tx.send(Ok(()));
                         w
@@ -336,11 +336,7 @@ impl ChatHandle {
                     }
                 };
 
-                while let Some(msg) = msg_rx.recv().await {
-                    if let Err(e) = process_worker_msg(&mut worker_state, msg).await {
-                        return error!("Worker crashed: {e}");
-                    }
-                }
+                run_worker_loop(worker_state, msg_rx).await;
             });
         });
 
@@ -594,7 +590,7 @@ pub struct ChatHandleAsync {
 impl ChatHandleAsync {
     /// Create a new chat handle directly. Consider using [`ChatBuilder`] for a more ergonomic API.
     pub fn new(model: Arc<llm::Model>, config: ChatConfig) -> Result<Self, InitWorkerError> {
-        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (msg_tx, msg_rx) = tokio::sync::mpsc::unbounded_channel();
         let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
 
         let should_stop = Arc::new(AtomicBool::new(false));
@@ -607,7 +603,7 @@ impl ChatHandleAsync {
                 .expect("failed to build worker tokio runtime");
             rt.block_on(async move {
                 let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-                let mut worker_state = match worker {
+                let worker_state = match worker {
                     Ok(w) => {
                         let _ = init_tx.send(Ok(()));
                         w
@@ -618,11 +614,7 @@ impl ChatHandleAsync {
                     }
                 };
 
-                while let Some(msg) = msg_rx.recv().await {
-                    if let Err(e) = process_worker_msg(&mut worker_state, msg).await {
-                        return error!("Worker crashed: {e}");
-                    }
-                }
+                run_worker_loop(worker_state, msg_rx).await;
             });
         });
 
@@ -793,6 +785,19 @@ impl ChatHandleAsync {
     /// Stop the current generation if one is in progress.
     pub fn stop_generation(&self) {
         self.guard.stop();
+    }
+
+    /// Stop any in-flight generation, then shut the worker down and wait
+    /// for it to release its resources (context and, on wasm, its
+    /// threadpool). The handle is inert afterwards. Useful on wasm where
+    /// pthreads are scarce and waiting for GC to drop the handle would
+    /// leak them.
+    pub async fn shutdown(&self) {
+        self.guard.stop();
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        if self.guard.send(ChatMsg::Shutdown { output_tx }) {
+            let _ = output_rx.recv().await;
+        }
     }
 
     /// Get the chat history without the system prompt (lower-level API).
@@ -1054,6 +1059,12 @@ enum ChatMsg {
         messages: Vec<Message>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
+    /// Break the worker loop and drop the worker (freeing the context and,
+    /// on wasm, its threadpool) before acking. Lets callers reclaim those
+    /// resources promptly instead of waiting for the handle to be dropped.
+    Shutdown {
+        output_tx: tokio::sync::mpsc::Sender<()>,
+    },
 }
 
 impl std::fmt::Debug for ChatMsg {
@@ -1102,6 +1113,27 @@ impl std::fmt::Debug for ChatMsg {
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
+            ChatMsg::Shutdown { .. } => f.debug_struct("Shutdown").finish(),
+        }
+    }
+}
+
+/// Drive the worker: process messages until the channel closes or a
+/// `Shutdown` arrives. On `Shutdown` the worker state is dropped (freeing
+/// the context and, on wasm, its threadpool) before acking, so callers can
+/// reclaim those resources without waiting for the handle to be dropped.
+async fn run_worker_loop(
+    mut worker_state: Worker<'_, ChatWorker>,
+    mut msg_rx: tokio::sync::mpsc::UnboundedReceiver<ChatMsg>,
+) {
+    while let Some(msg) = msg_rx.recv().await {
+        if let ChatMsg::Shutdown { output_tx } = msg {
+            drop(worker_state);
+            let _ = output_tx.send(()).await;
+            return;
+        }
+        if let Err(e) = process_worker_msg(&mut worker_state, msg).await {
+            return error!("Worker crashed: {e}");
         }
     }
 }
@@ -1199,6 +1231,9 @@ async fn process_worker_msg(
             let sampler_config = worker_state.get_sampler_config();
             let _ = output_tx.send(sampler_config).await;
         }
+        // Intercepted by the worker loop, which needs to drop the worker
+        // state; never dispatched here.
+        ChatMsg::Shutdown { .. } => unreachable!("Shutdown is handled by the worker loop"),
     };
 
     Ok(())

@@ -741,6 +741,29 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) n_batch: usize,
 
     pub(crate) extra: S,
+
+    // wasm: owns the ggml threadpool attached to `ctx`. Declared last so it
+    // drops after `ctx` (which calls llama_free) — the pool must outlive the
+    // context that uses it.
+    #[cfg(target_family = "wasm")]
+    threadpool: ThreadpoolHandle,
+}
+
+/// Owns a ggml threadpool, freeing it on drop. wasm-only: each worker
+/// attaches a persistent pool during init (see `new_with_type`); freeing it
+/// when the worker drops keeps repeated `Chat.create`/drop cycles from
+/// leaking Emscripten pthreads, which are a scarce resource there.
+#[cfg(target_family = "wasm")]
+#[derive(Debug)]
+struct ThreadpoolHandle(*mut llama_cpp_sys_2::ggml_threadpool);
+
+#[cfg(target_family = "wasm")]
+impl Drop for ThreadpoolHandle {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe { llama_cpp_sys_2::ggml_threadpool_free(self.0) };
+        }
+    }
 }
 
 pub trait PoolingType {
@@ -773,6 +796,11 @@ where
         info!("Initializing worker");
 
         let projection_model = model.projection_model.as_ref();
+
+        // wasm: pointer to the persistent ggml threadpool attached below,
+        // hoisted so the Worker can own it and free it on drop.
+        #[cfg(target_family = "wasm")]
+        let mut threadpool: *mut llama_cpp_sys_2::ggml_threadpool = std::ptr::null_mut();
 
         // Set up context parameters using available parallelism
         let (ctx, n_batch) = {
@@ -826,6 +854,8 @@ where
             // ggml_graph_compute deadlocks. A persistent pool created
             // here (during init, when the event loop is free) avoids
             // that — the threads are already running when compute starts.
+            // The Worker owns `tp` and frees it on drop (see ThreadpoolHandle),
+            // so creating one Chat per call doesn't leak pthreads.
             #[cfg(target_family = "wasm")]
             {
                 unsafe {
@@ -835,6 +865,7 @@ where
                     let tp = llama_cpp_sys_2::ggml_threadpool_new(&mut params);
                     if !tp.is_null() {
                         ctx.attach_threadpool(tp, tp);
+                        threadpool = tp;
                     }
                 }
             }
@@ -860,6 +891,8 @@ where
             extra,
             tokenizer,
             use_embeddings,
+            #[cfg(target_family = "wasm")]
+            threadpool: ThreadpoolHandle(threadpool),
         };
         Ok(state)
     }
@@ -1031,6 +1064,8 @@ where
 /// or an async task on the JS event loop (wasm32, via `recv().await` driven by
 pub(crate) struct WorkerGuard<T> {
     pub(crate) msg_tx: Option<tokio::sync::mpsc::UnboundedSender<T>>,
+    // Only joined on native; on wasm the pthread exits on its own (see Drop).
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
     join_handle: Option<std::thread::JoinHandle<()>>,
     should_stop: Option<Arc<AtomicBool>>,
 }
@@ -1066,8 +1101,20 @@ impl<T> Drop for WorkerGuard<T> {
         if let Some(ref stop) = self.should_stop {
             stop.store(true, Ordering::Relaxed);
         }
+        // Closing the channel makes the worker's `recv()` return `None`,
+        // so the loop exits and the worker state (context, threadpool) is
+        // dropped on the worker thread.
         drop(self.msg_tx.take());
 
+        // On native, join so the worker has fully exited before any
+        // statics it touches (e.g. LLAMA_BACKEND) are destroyed. On wasm,
+        // the worker runs on an Emscripten pthread and joining from the
+        // main thread can deadlock: the pthread's own teardown (freeing
+        // the ggml threadpool joins its workers) is proxied through the
+        // main thread, which is blocked in `join()`. The pthread exits on
+        // its own once the channel closes, and wasm statics live for the
+        // page, so skipping the join is safe.
+        #[cfg(not(target_family = "wasm"))]
         if let Some(handle) = self.join_handle.take() {
             if let Err(e) = handle.join() {
                 error!("Worker panicked: {:?}", e);
