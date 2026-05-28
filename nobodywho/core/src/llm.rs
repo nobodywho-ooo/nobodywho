@@ -125,6 +125,60 @@ where
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
+    /// wasm: buffers in linear memory that the model/mmproj were mmapped
+    /// from zero-copy (single-copy browser load — see the JS binding's
+    /// `stream_reader_to_wasm_buffer`). Declared LAST so it drops AFTER
+    /// `language_model`/`projection_model` — i.e. after llama.cpp's
+    /// `munmap` — avoiding a use-after-free; each frees its allocation on
+    /// drop. Freed on the thread that drops the model (the worker), which
+    /// is fine: it's a `dealloc` of shared linear memory, no JS/FS.
+    #[cfg(target_family = "wasm")]
+    backing_buffers: Vec<ModelBackingBuffer>,
+}
+
+/// Owns one wasm-linear-memory allocation the model was mmapped from;
+/// frees it on drop. See [`Model::attach_backing_buffer`].
+#[cfg(target_family = "wasm")]
+#[derive(Debug)]
+struct ModelBackingBuffer {
+    ptr: *mut u8,
+    size: usize,
+}
+
+// SAFETY: this is just an owned (ptr, size) dealloc handle. `Model` is shared
+// across threads (Arc<Model> handed to the inference worker), so it must be
+// Send + Sync. The handle itself is never used to access the memory —
+// concurrent read-only access to the model weights goes through llama.cpp's
+// mmap region, not this struct, which only frees the allocation once on drop.
+#[cfg(target_family = "wasm")]
+unsafe impl Send for ModelBackingBuffer {}
+#[cfg(target_family = "wasm")]
+unsafe impl Sync for ModelBackingBuffer {}
+
+#[cfg(target_family = "wasm")]
+impl Drop for ModelBackingBuffer {
+    fn drop(&mut self) {
+        if !self.ptr.is_null() && self.size > 0 {
+            // Same 64-byte alignment used at allocation time.
+            if let Ok(layout) = std::alloc::Layout::from_size_align(self.size, 64) {
+                unsafe { std::alloc::dealloc(self.ptr, layout) };
+            }
+        }
+    }
+}
+
+impl Model {
+    /// wasm-only: hand the model ownership of a linear-memory buffer it was
+    /// mmapped from (single-copy load), so the buffer is freed when the
+    /// model is dropped — not before (the mmap points into it) and not
+    /// leaked.
+    #[cfg(target_family = "wasm")]
+    pub fn attach_backing_buffer(&mut self, ptr: usize, size: usize) {
+        self.backing_buffers.push(ModelBackingBuffer {
+            ptr: ptr as *mut u8,
+            size,
+        });
+    }
 }
 
 impl Model {
@@ -272,6 +326,8 @@ pub fn get_model_from_path(
     Ok(Model {
         language_model,
         projection_model,
+        #[cfg(target_family = "wasm")]
+        backing_buffers: Vec::new(),
     })
 }
 
@@ -421,6 +477,8 @@ pub fn get_model(
     Ok(Model {
         language_model,
         projection_model,
+        #[cfg(target_family = "wasm")]
+        backing_buffers: Vec::new(),
     })
 }
 

@@ -329,9 +329,14 @@ impl Model {
                 None
             };
 
-            let model =
+            let mut model =
                 nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
                     .map_err(|e| JsError::new(&e.to_string()))?;
+            // Hand the model the wasm buffer(s) it was mmapped from (single-copy
+            // load), so they're freed when the model drops — not leaked.
+            for (ptr, size) in take_pending_model_buffers() {
+                model.attach_backing_buffer(ptr, size);
+            }
 
             Ok(Model {
                 inner: Arc::new(model),
@@ -912,6 +917,107 @@ async fn stream_reader_to_memfs(
     Ok(())
 }
 
+/// Single-copy variant: stream the reader straight into one buffer in wasm
+/// linear memory, then expose it as a MEMFS file whose `contents` is a
+/// zero-copy heap view (see `__nbw_wrap_wasm_buffer_as_file` in pre.js).
+/// Avoids the JS-heap MEMFS copy: the bytes are materialized once, where
+/// llama.cpp's `mmap` reads them in place. Requires a known `total` size.
+///
+/// The buffer is recorded in `PENDING_MODEL_BUFFERS`; the next
+/// `get_model_from_path` attaches it to the `Model`, which frees it on drop.
+#[cfg(target_family = "wasm")]
+thread_local! {
+    /// Buffers streamed into wasm linear memory awaiting attachment to the
+    /// `Model` that mmaps them. `(ptr, size)` pairs, drained right after
+    /// `get_model_from_path` so the model owns (and later frees) them.
+    static PENDING_MODEL_BUFFERS: std::cell::RefCell<Vec<(usize, usize)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Drain the buffers streamed since the last call (see `PENDING_MODEL_BUFFERS`).
+#[cfg(target_family = "wasm")]
+fn take_pending_model_buffers() -> Vec<(usize, usize)> {
+    PENDING_MODEL_BUFFERS.with(|b| std::mem::take(&mut *b.borrow_mut()))
+}
+
+#[cfg(target_family = "wasm")]
+async fn stream_reader_to_wasm_buffer(
+    reader: &web_sys::ReadableStreamDefaultReader,
+    memfs_path: &str,
+    total: usize,
+    on_progress: Option<&js_sys::Function>,
+) -> Result<(), String> {
+    // 64-byte aligned so GGUF's 32-byte tensor alignment survives the
+    // zero-copy mmap (the mmap base is this buffer's base).
+    let layout = std::alloc::Layout::from_size_align(total.max(1), 64)
+        .map_err(|e| format!("bad model-buffer layout: {e}"))?;
+    let base = unsafe { std::alloc::alloc(layout) };
+    if base.is_null() {
+        return Err(format!("failed to allocate {total} bytes for model buffer"));
+    }
+
+    let mut offset: usize = 0;
+    loop {
+        let read_result = wasm_bindgen_futures::JsFuture::from(reader.read())
+            .await
+            .map_err(|e| format!("reader.read(): {e:?}"))?;
+        let done = js_sys::Reflect::get(&read_result, &"done".into())
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if done {
+            break;
+        }
+        let value = js_sys::Reflect::get(&read_result, &"value".into())
+            .map_err(|_| "read result missing 'value'".to_string())?;
+        let chunk: js_sys::Uint8Array = value
+            .dyn_into()
+            .map_err(|_| "read chunk is not a Uint8Array".to_string())?;
+        let chunk_len = chunk.byte_length() as usize;
+        if offset + chunk_len > total {
+            return Err(format!(
+                "stream exceeded content-length: {offset}+{chunk_len} > {total}"
+            ));
+        }
+        // The single copy: JS chunk bytes -> the wasm-linear buffer.
+        unsafe {
+            let dst = std::slice::from_raw_parts_mut(base.add(offset), chunk_len);
+            chunk.copy_to(dst);
+        }
+        offset += chunk_len;
+        if let Some(cb) = on_progress {
+            let _ = cb.call2(
+                &JsValue::null(),
+                &JsValue::from_f64(offset as f64),
+                &JsValue::from_f64(total as f64),
+            );
+        }
+    }
+    if offset != total {
+        return Err(format!("stream short: got {offset}, expected {total}"));
+    }
+
+    // Expose the buffer as a MEMFS file (zero-copy) via the pre.js helper.
+    let global = js_sys::global();
+    let helper = js_sys::Reflect::get(&global, &"__nbw_wrap_wasm_buffer_as_file".into())
+        .map_err(|_| "wrap helper lookup failed".to_string())?;
+    let helper_fn: js_sys::Function = helper
+        .dyn_into()
+        .map_err(|_| "__nbw_wrap_wasm_buffer_as_file is not a function".to_string())?;
+    helper_fn
+        .call3(
+            &JsValue::NULL,
+            &JsValue::from_str(memfs_path),
+            &JsValue::from_f64(base as usize as f64),
+            &JsValue::from_f64(total as f64),
+        )
+        .map_err(|e| format!("__nbw_wrap_wasm_buffer_as_file failed: {e:?}"))?;
+
+    // Register the buffer for the model to take ownership of (freed on drop).
+    PENDING_MODEL_BUFFERS.with(|b| b.borrow_mut().push((base as usize, total)));
+    Ok(())
+}
+
 /// Fetch a URL and stream it into a MEMFS file with Cache API caching.
 ///
 /// - **Cache hit:** stream the cached response directly into MEMFS.
@@ -954,7 +1060,12 @@ async fn stream_url_to_memfs(
                     .get_reader()
                     .dyn_into()
                     .map_err(|_| "expected ReadableStreamDefaultReader".to_string())?;
-                stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
+                if total > 0.0 {
+                    stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, on_progress)
+                        .await?;
+                } else {
+                    stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
+                }
                 return Ok(std::path::PathBuf::from(memfs_path));
             }
         }
@@ -1004,9 +1115,24 @@ async fn stream_url_to_memfs(
 
     // Start cache population in the background (best-effort).
     let cache_url = url.to_string();
+    let cache_total = total;
     wasm_bindgen_futures::spawn_local(async move {
         if let Some(cache) = open_model_cache().await {
-            let cache_resp = web_sys::Response::new_with_opt_readable_stream(Some(&cache_stream));
+            // Stamp content-length onto the cached response. A Response built
+            // from a stream has none, so without this a later cache HIT reads
+            // total=0 and falls back to the MEMFS (2-copy) path; with it, the
+            // warm load also takes the single-copy wasm-buffer path.
+            let init = web_sys::ResponseInit::new();
+            if cache_total > 0.0 {
+                if let Ok(headers) = web_sys::Headers::new() {
+                    let _ = headers.set("content-length", &(cache_total as u64).to_string());
+                    init.set_headers(headers.as_ref());
+                }
+            }
+            let cache_resp = web_sys::Response::new_with_opt_readable_stream_and_init(
+                Some(&cache_stream),
+                &init,
+            );
             if let Ok(resp) = cache_resp {
                 let _ = wasm_bindgen_futures::JsFuture::from(cache.put_with_str(&cache_url, &resp))
                     .await;
@@ -1014,7 +1140,11 @@ async fn stream_url_to_memfs(
         }
     });
 
-    stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
+    if total > 0.0 {
+        stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, on_progress).await?;
+    } else {
+        stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
+    }
 
     Ok(std::path::PathBuf::from(memfs_path))
 }
@@ -1597,9 +1727,14 @@ impl Chat {
                 None
             };
 
-            let model =
+            let mut model =
                 nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
                     .map_err(|e| JsError::new(&e.to_string()))?;
+            // Hand the model the wasm buffer(s) it was mmapped from (single-copy
+            // load), so they're freed when the model drops — not leaked.
+            for (ptr, size) in take_pending_model_buffers() {
+                model.attach_backing_buffer(ptr, size);
+            }
             let model = Arc::new(model);
 
             // Tool-call proxy: JS callbacks stay on the main thread in

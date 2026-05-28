@@ -86,6 +86,35 @@ Module.postRun.push(() => {
       && !Module.TokenStream.prototype[Symbol.asyncIterator]) {
     Module.TokenStream.prototype[Symbol.asyncIterator] = function () { return this; };
   }
+
+  // Single-copy model load (browser + Node): wrap a buffer that already
+  // lives in wasm linear memory (Rust streamed the model into it) as a
+  // MEMFS file, WITHOUT copying. `node.contents` is a getter returning a
+  // fresh Uint8Array view over the *current* wasm memory at [ptr, ptr+len)
+  // — fresh each access so it survives ALLOW_MEMORY_GROWTH detaching the
+  // old ArrayBuffer. Since the view's .buffer === HEAP.buffer and llama.cpp
+  // mmaps with MAP_SHARED, MEMFS.mmap returns it zero-copy
+  // (contents.byteOffset) instead of allocate+copy; fread/seek/stat read
+  // straight from the view too.
+  globalThis.__nbw_wrap_wasm_buffer_as_file = function (path, ptr, len) {
+    const parts = path.split('/').filter(Boolean);
+    const fname = parts.pop();
+    let cur = '';
+    for (const p of parts) { cur += '/' + p; try { FS.mkdir(cur); } catch (e) { /* EEXIST */ } }
+    try { FS.unlink(path); } catch (e) { /* ENOENT */ }
+    const node = FS.create('/' + parts.join('/') + '/' + fname, 0o444);
+    Object.defineProperty(node, 'contents', {
+      configurable: true,
+      get() {
+        const buf = (typeof wasmMemory !== 'undefined' && wasmMemory.buffer) || HEAPU8.buffer;
+        return new Uint8Array(buf, ptr, len);
+      },
+      set() { /* read-only model file; ignore writes */ },
+    });
+    node.usedBytes = len;
+    return path;
+  };
+
   if (typeof process !== 'undefined' && process.versions && process.versions.node) {
     globalThis.__nbw_node_read_file = async function (srcPath) {
       const fs = await import('node:fs');
