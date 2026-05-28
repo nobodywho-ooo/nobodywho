@@ -10,8 +10,8 @@
 @_exported import enum NobodyWhoGenerated.NobodyWhoError
 @_exported import struct NobodyWhoGenerated.Asset
 @_exported import struct NobodyWhoGenerated.ToolCall
-@_exported import struct NobodyWhoGenerated.SamplerConfig
-@_exported import struct NobodyWhoGenerated.SamplerBuilder
+@_exported import class NobodyWhoGenerated.SamplerConfig
+@_exported import class NobodyWhoGenerated.SamplerBuilder
 
 import NobodyWhoGenerated
 
