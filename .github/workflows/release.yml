@@ -324,10 +324,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download all uniffi release artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-uniffi-*-release
           merge-multiple: true
@@ -359,7 +359,7 @@ jobs:
             nobodywho/kotlin/jvm/src/main/resources/win32-x86-64/nobodywho_uniffi.dll
 
       - name: "Setup JDK"
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -386,11 +386,11 @@ jobs:
           mkdir -p release
           cp nobodywho/kotlin/android/build/outputs/aar/android-release.aar \
             release/nobodywho-android-${{ env.VERSION }}.aar
-          cp nobodywho/kotlin/jvm/build/libs/jvm.jar \
+          cp nobodywho/kotlin/jvm/build/libs/jvm-${{ env.VERSION }}.jar \
             release/nobodywho-${{ env.VERSION }}.jar
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: release/*
         env:
