@@ -150,6 +150,37 @@ void main() {
       );
     });
 
+    test('downloading-models.md:25', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        onDownloadProgress: (downloaded, total) {
+          print('$downloaded / $total bytes');
+        },
+      );
+    });
+
+    test('downloading-models.md:40', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+      );
+    });
+
+    test('downloading-models.md:48', () async {
+      final modelPath = await nobodywho.downloadModel(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        headers: {'Authorization': 'Bearer your_hf_token'},
+      );
+      
+      final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
+    });
+
+    test('downloading-models.md:65', () async {
+      final models = nobodywho.getCachedModels();
+      for (final (path, size) in models) {
+        print('$path: ${size ~/ BigInt.from(1024 * 1024)} MiB');
+      }
+    });
+
     test('embeddings-and-rag.md:21', () async {
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       final embedding = await encoder.encode(text: "What is the weather like?");
@@ -238,11 +269,11 @@ void main() {
     });
 
     test('embeddings-and-rag.md:166', () async {
-      await _doctest_13();
+      await _doctest_17();
     });
 
     test('embeddings-and-rag.md:216', () async {
-      await _doctest_14();
+      await _doctest_18();
     });
 
     test('embeddings-and-rag.md:263', () async {
@@ -266,30 +297,6 @@ void main() {
       );
       final msg = await chat.ask('Is water wet?').completed();
       print(msg); // Yes, indeed, water is wet!
-    });
-
-    test('index.md:54', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: './model.gguf',
-      );
-    });
-
-    test('index.md:61', () async {
-      final modelPath = await nobodywho.downloadModel(
-        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-        headers: {'Authorization': 'Bearer your_hf_token'},
-      );
-      
-      final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
-    });
-
-    test('index.md:78', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-        onDownloadProgress: (downloaded, total) {
-          print('$downloaded / $total bytes');
-        },
-      );
     });
 
     test('sampling.md:14', () async {
@@ -463,7 +470,7 @@ void main() {
 }
 
 // Extracted from embeddings-and-rag.md:166
-Future<void> _doctest_13() async {
+Future<void> _doctest_17() async {
   // Initialize the cross-encoder for document ranking
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
@@ -504,7 +511,7 @@ Future<void> _doctest_13() async {
 }
 
 // Extracted from embeddings-and-rag.md:216
-Future<void> _doctest_14() async {
+Future<void> _doctest_18() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
