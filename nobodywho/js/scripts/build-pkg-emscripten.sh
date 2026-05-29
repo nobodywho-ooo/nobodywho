@@ -197,17 +197,49 @@ sed -i.bak \
   -e 's/HEAP8()/HEAP8/g' \
   "$PKG_DIR/library_bindgen.js"
 
+# Fail loudly if any HEAP getter-call form survived the substitutions above.
+# A new wasm-bindgen getter variant would otherwise no-op here and surface as
+# "HEAPxx is not defined" at runtime once emcc wraps the leftover call.
+heap_leftover=$(grep -noE 'HEAP[A-Za-z0-9_]*\(\)' "$PKG_DIR/library_bindgen.js" || true)
+if [[ -n "$heap_leftover" ]]; then
+  echo "error: un-stripped HEAP getter-call form(s) — add each to the sed list above:" >&2
+  echo "$heap_leftover" | sed 's/^/    /' >&2
+  exit 1
+fi
+
 # Separate ERE invocation for the __wrap redirects (needs grouping).
 sed -i.bak1 -E \
   -e 's/(^|[^A-Za-z_])Model\.__wrap/\1Module.Model.__wrap/g' \
   -e 's/(^|[^A-Za-z_])TokenStream\.__wrap/\1Module.TokenStream.__wrap/g' \
   -e 's/(^|[^A-Za-z_])Chat\.__wrap/\1Module.Chat.__wrap/g' \
   -e 's/(^|[^A-Za-z_])SamplerConfig\.__wrap/\1Module.SamplerConfig.__wrap/g' \
+  -e 's/(^|[^A-Za-z_])SamplerBuilder\.__wrap/\1Module.SamplerBuilder.__wrap/g' \
   "$PKG_DIR/library_bindgen.js"
 
-sed -i.bak2 \
-  's|        function __wbg_call_guard() {$|        var __wbg_terminated_addr; var __wbg_called_abort;\n        function __wbg_call_guard() {|' \
-  "$PKG_DIR/library_bindgen.js"
+# Fail loudly if any wrapper class's `.__wrap` call wasn't redirected to
+# `Module.*`. A new #[wasm_bindgen] class returned by value (constructed via
+# `Ok(Foo{..})` or a `-> Self` method) needs its own line above; otherwise
+# emcc's Module-scoping leaves a bare `Foo.__wrap` that throws at runtime.
+unredirected_wrap=$(grep -oE '[A-Za-z_][A-Za-z0-9_.]*\.__wrap' "$PKG_DIR/library_bindgen.js" | grep -v '^Module\.' | sort -u || true)
+if [[ -n "$unredirected_wrap" ]]; then
+  echo "error: un-redirected .__wrap call(s) in library_bindgen.js — add a sed line for each class:" >&2
+  echo "$unredirected_wrap" | sed 's/^/    /' >&2
+  exit 1
+fi
+
+# Only needed for wasm-bindgen versions that reference __wbg_terminated_addr /
+# __wbg_called_abort inside __wbg_call_guard without declaring them. The
+# current 0.2.121 doesn't emit that guard, so this is a guarded no-op; if a
+# future version reintroduces it, hoist the vars and confirm the hoist landed.
+if grep -q 'function __wbg_call_guard() {' "$PKG_DIR/library_bindgen.js"; then
+  sed -i.bak2 \
+    's|        function __wbg_call_guard() {$|        var __wbg_terminated_addr; var __wbg_called_abort;\n        function __wbg_call_guard() {|' \
+    "$PKG_DIR/library_bindgen.js"
+  grep -q 'var __wbg_terminated_addr;' "$PKG_DIR/library_bindgen.js" || {
+    echo "error: __wbg_call_guard present but the var-hoist sed didn't apply (pattern drift)." >&2
+    exit 1
+  }
+fi
 
 # wasm-bindgen emits `addToLibrary({ memory: memory || new
 # WebAssembly.Memory({...,shared:true}) })` when it sees shared memory.
@@ -218,7 +250,12 @@ python3 -c "
 import re, sys
 path = sys.argv[1]
 text = open(path).read()
-text = re.sub(r'addToLibrary\(\{\n\s*memory:.*\n\}\);\n*', '', text)
+text, n = re.subn(r'addToLibrary\(\{\n\s*memory:.*\n\}\);\n*', '', text)
+if n == 0:
+    sys.stderr.write('error: addToLibrary({ memory: ... }) block not found in '
+                     'library_bindgen.js — wasm-bindgen output drifted; the '
+                     'undefined-memory strip silently no-oped.\n')
+    sys.exit(1)
 open(path, 'w').write(text)
 " "$PKG_DIR/library_bindgen.js"
 
@@ -286,36 +323,44 @@ import sys
 path = sys.argv[1]
 text = open(path).read()
 
+def must_replace(text, old, new, label):
+    if old not in text:
+        sys.stderr.write('error: build patch did not match (emcc/wasm-bindgen drift?): '
+                         + label + '. The artifact would build green but '
+                         'deadlock/break at runtime — fix the pattern.\n')
+        sys.exit(1)
+    return text.replace(old, new)
+
 # 1. Skip _initialize in initBindgen (runs sync, can't await the
 #    setTimeout needed to let pthread pool workers start).
-text = text.replace(
+text = must_replace(text,
     'if (wasmExports[\"_initialize\"]) {\n    wasmExports[\"_initialize\"]();\n  }',
-    '// _initialize deferred — see below'
-)
+    '// _initialize deferred — see below',
+    'skip sync _initialize in initBindgen')
 
 # 2. After the main-thread createWasm + run(): yield so the pool workers
 #    start, wait until the worker-loading run dependency clears, then run
 #    _initialize. This keeps the event loop pumping (setTimeout macrotasks)
 #    while the Emscripten pthread pool finishes loading.
-text = text.replace(
+text = must_replace(text,
     'wasmExports = await (createWasm());\n  run();',
     'wasmExports = await (createWasm());\n  run();\n'
     '  // Wait for the pthread pool to finish loading (runDependencies → 0).\n'
     '  for (let i = 0; i < 600 && runDependencies > 0; i++) {\n'
     '    await new Promise(r => setTimeout(r, 50));\n'
     '  }\n'
-    '  if (wasmExports[\"_initialize\"]) {\n    await new Promise(r => setTimeout(r, 0));\n    wasmExports[\"_initialize\"]();\n  }'
-)
+    '  if (wasmExports[\"_initialize\"]) {\n    await new Promise(r => setTimeout(r, 0));\n    wasmExports[\"_initialize\"]();\n  }',
+    'defer _initialize until the pthread pool is ready')
 
 # 3. Set the wasm-bindgen 'wasm' binding object in receiveInstance()
 #    so it's available in pthread workers (not just the main thread).
 #    Without this, JS callbacks from the inference thread hit
 #    'Cannot read properties of null' because initBindgen (which sets
 #    wasm = wasmExports) only runs on the main thread.
-text = text.replace(
+text = must_replace(text,
     'wasmExports = instance.exports;',
-    'wasmExports = instance.exports;\n    wasm = wasmExports;'
-)
+    'wasmExports = instance.exports;\n    wasm = wasmExports;',
+    'set wasm binding in receiveInstance for pthread workers')
 
 open(path, 'w').write(text)
 " "$PKG_DIR/nobodywho_js.js"
