@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   static-checks:
-    runs-on: warp-ubuntu-latest-x64-2x
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
       - name: Install uv
@@ -152,7 +152,7 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
-    runs-on: windows-latest
+    runs-on: warp-windows-latest-x64-4x
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
     steps:
@@ -461,14 +461,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [windows-latest]
+        runner: [warp-windows-latest-x64-4x]
         model: [Gemma]
         include:
           - model: Gemma
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - runner: windows-latest
+          - runner: warp-windows-latest-x64-4x
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
     steps:
