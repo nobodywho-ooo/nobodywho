@@ -403,7 +403,4 @@ jobs:
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
-        run: |
-          ./gradlew :android:publishReleasePublicationToMavenCentralRepository \
-                    :jvm:publishReleasePublicationToMavenCentralRepository \
-            -Pversion=${{ env.VERSION }}
+        run: ./gradlew publishAggregationToCentralPortal -Pversion=${{ env.VERSION }}
