@@ -33,17 +33,6 @@ subprojects {
                     }
                 }
             }
-
-            repositories {
-                maven {
-                    name = "mavenCentral"
-                    url = uri("https://central.sonatype.com/api/v1/publisher/deployments/download/")
-                    credentials {
-                        username = providers.environmentVariable("MAVEN_CENTRAL_USERNAME").orNull
-                        password = providers.environmentVariable("MAVEN_CENTRAL_PASSWORD").orNull
-                    }
-                }
-            }
         }
 
         // Sign all publications if a signing key is available
