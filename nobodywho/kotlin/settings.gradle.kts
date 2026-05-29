@@ -11,6 +11,18 @@ pluginManagement {
     }
 }
 
+plugins {
+    id("com.gradleup.nmcp.settings") version "1.4.4"
+}
+
+nmcpSettings {
+    centralPortal {
+        username = System.getenv("MAVEN_CENTRAL_USERNAME")
+        password = System.getenv("MAVEN_CENTRAL_PASSWORD")
+        publishingType = "AUTOMATIC"
+    }
+}
+
 dependencyResolutionManagement {
     repositories {
         google()
@@ -20,3 +32,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "nobodywho-kotlin"
 include(":common", ":android", ":jvm")
+project(":common").name = "nobodywho-core"

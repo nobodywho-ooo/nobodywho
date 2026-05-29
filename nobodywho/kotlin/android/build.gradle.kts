@@ -35,7 +35,7 @@ android {
 
 dependencies {
     // Exclude the JNA JAR from :common — Android needs the AAR variant instead
-    api(project(":common")) {
+    api(project(":nobodywho-core")) {
         exclude(group = "net.java.dev.jna")
     }
     // JNA AAR for Android runtime

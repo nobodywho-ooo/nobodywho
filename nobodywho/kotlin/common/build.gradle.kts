@@ -1,5 +1,7 @@
 plugins {
     id("org.jetbrains.kotlin.jvm")
+    id("maven-publish")
+    signing
 }
 
 java {
@@ -41,4 +43,15 @@ tasks.withType<Test> {
     val libDir = System.getenv("NOBODYWHO_LIB_DIR") ?: ""
     systemProperty("java.library.path", libDir)
     systemProperty("jna.library.path", libDir)
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("release") {
+            groupId = "ai.nobodywho"
+            artifactId = "nobodywho-core"
+            version = project.version.toString()
+            from(components["java"])
+        }
+    }
 }

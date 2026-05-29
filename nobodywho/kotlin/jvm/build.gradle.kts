@@ -12,7 +12,7 @@ kotlin {
 }
 
 dependencies {
-    api(project(":common"))
+    api(project(":nobodywho-core"))
 }
 
 // Native libs are placed in src/main/resources/ following JNA's expected layout:
