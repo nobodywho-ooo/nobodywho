@@ -2459,6 +2459,22 @@ fn json_value_to_py<'py>(
     }
 }
 
+/// Returns every cached .gguf model paired with its byte size.
+///
+/// Returns:
+///     list[tuple[str, int]]: each entry is (absolute path, size in bytes).
+///
+/// Raises:
+///     RuntimeError: If the cache directory cannot be read
+#[pyfunction]
+fn get_cached_models() -> PyResult<Vec<(String, usize)>> {
+    nobodywho::llm::get_cached_models()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+        .into_iter()
+        .map(|(path, size)| Ok((path.to_string_lossy().into_owned(), size)))
+        .collect()
+}
+
 #[pymodule(name = "nobodywho")]
 pub mod nobodywhopython {
     use pyo3::prelude::*;
@@ -2613,6 +2629,8 @@ pub mod nobodywhopython {
     use super::cosine_similarity;
     #[pymodule_export]
     use super::download_model;
+    #[pymodule_export]
+    use super::get_cached_models;
     #[pymodule_export]
     use super::python_tool;
     #[pymodule_export]

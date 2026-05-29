@@ -28,6 +28,7 @@ final class NobodyWhoTests: XCTestCase {
         return value
     }
 
+<<<<<<< HEAD
     // MARK: - Download
 
     func testDownloadModel() async throws {
@@ -46,6 +47,17 @@ final class NobodyWhoTests: XCTestCase {
         let attrs = try FileManager.default.attributesOfItem(atPath: localPath)
         XCTAssertGreaterThan(attrs[.size] as? UInt64 ?? 0, 0)
         XCTAssertTrue(progressCalled, "Progress callback should have been called")
+=======
+    // MARK: - Cached models
+
+    func testGetCachedModels() throws {
+        // Just verify the FFI bridge works — the cache may be empty on CI.
+        let models = try getCachedModels()
+        for m in models {
+            XCTAssertFalse(m.path.isEmpty)
+            XCTAssertGreaterThan(m.size, 0)
+        }
+>>>>>>> 1d0cf69e (add react-native and swift bindings for getCachedModels)
     }
 
     // MARK: - Chat (completion, streaming, tools)

@@ -125,6 +125,28 @@ pub enum LoadModelError {
 
     #[error("Failed to download model: {0}")]
     DownloadError(String),
+    #[error("Could not determine cache directory: {0}")]
+    CacheDir(#[from] GetCacheDirError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetCacheDirError {
+    #[error("Could not determine cache directory")]
+    NoCacheDir,
+    #[cfg(target_os = "android")]
+    #[error("Failed to read /proc/self/cmdline: {0}")]
+    ReadCmdline(#[from] std::io::Error),
+    #[cfg(target_os = "android")]
+    #[error("Could not determine Android package name from /proc/self/cmdline")]
+    NoPackageName,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetCachedModelsError {
+    #[error("Could not determine cache directory: {0}")]
+    CacheDir(#[from] GetCacheDirError),
+    #[error("Failed to walk cache directory: {0}")]
+    Walk(#[from] walkdir::Error),
 }
 
 fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {

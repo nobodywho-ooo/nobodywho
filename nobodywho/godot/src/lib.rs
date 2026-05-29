@@ -186,6 +186,35 @@ impl NobodyWhoModel {
     }
 
     #[func]
+    /// Returns every cached .gguf model paired with its byte size.
+    ///
+    /// Each entry is a Dictionary with:
+    /// - "path": String absolute path to the cached model file
+    /// - "size": int size in bytes of that file
+    ///
+    /// Returns nil on error (also logged via godot_error!).
+    fn get_cached_models() -> Variant {
+        match nobodywho::llm::get_cached_models() {
+            Ok(models) => {
+                let arr: Array<Variant> = models
+                    .into_iter()
+                    .map(|(path, size)| {
+                        let mut dict = VarDictionary::new();
+                        dict.set("path", GString::from(path.to_string_lossy().as_ref()));
+                        dict.set("size", size as i64);
+                        Variant::from(dict)
+                    })
+                    .collect();
+                Variant::from(arr)
+            }
+            Err(e) => {
+                godot_error!("Failed to get cached models: {}", e);
+                Variant::nil()
+            }
+        }
+    }
+
+    #[func]
     /// Sets the (global) log level of NobodyWho.
     /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
     fn set_log_level(level: String) {

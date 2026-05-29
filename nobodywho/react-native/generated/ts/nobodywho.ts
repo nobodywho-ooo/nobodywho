@@ -127,6 +127,20 @@ export async function downloadModel(modelPath: string, headers: Map<string, stri
     }
     }
 /**
+ * Returns every cached `.gguf` model paired with its byte size.
+ */
+export function getCachedModels(): Array<CachedModel> /*throws*/ {
+    return FfiConverterArrayTypeCachedModel.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_get_cached_models(
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+/**
  * Load a GGUF model from a local path or remote URL.
  *
  * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
@@ -482,6 +496,67 @@ const FfiConverterTypeAsset = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.id) + 
             FfiConverterString.allocationSize(value.path);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
+/**
+ * A cached `.gguf` model and its on-disk size.
+ */
+export type CachedModel = {
+    path: string,
+    size: /*u64*/bigint
+}
+
+/**
+ * Generated factory for {@link CachedModel} record objects.
+ */
+export const CachedModel = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<CachedModel, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link CachedModel}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link CachedModel}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<CachedModel>,
+
+    });
+})();
+
+const FfiConverterTypeCachedModel = (() => {
+    type TypeName = CachedModel;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                path: FfiConverterString.read(from), 
+                size: FfiConverterUInt64.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterString.write(value.path, into);
+            FfiConverterUInt64.write(value.size, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterString.allocationSize(value.path) + 
+            FfiConverterUInt64.allocationSize(value.size);
             
         }
     };
@@ -3055,6 +3130,10 @@ const FfiConverterArrayFloat32 = new FfiConverterArray(FfiConverterFloat32);
 const FfiConverterArrayTypeAsset = new FfiConverterArray(FfiConverterTypeAsset);
 
 
+// FfiConverter for Array<CachedModel>
+const FfiConverterArrayTypeCachedModel = new FfiConverterArray(FfiConverterTypeCachedModel);
+
+
 // FfiConverter for Array<ToolCall>
 const FfiConverterArrayTypeToolCall = new FfiConverterArray(FfiConverterTypeToolCall);
 
@@ -3121,6 +3200,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_download_model() !== 31331) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_download_model");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models() !== 12002) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_get_cached_models");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
@@ -3302,6 +3384,7 @@ export default Object.freeze({
   initialize: uniffiEnsureInitialized,
   converters: {
     FfiConverterTypeAsset,
+    FfiConverterTypeCachedModel,
     FfiConverterTypeMessage,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePendingToolCall,

@@ -12,10 +12,19 @@
 @_exported import struct NobodyWhoGenerated.ToolCall
 @_exported import class NobodyWhoGenerated.SamplerConfig
 @_exported import class NobodyWhoGenerated.SamplerBuilder
+@_exported import struct NobodyWhoGenerated.CachedModel
 
 import NobodyWhoGenerated
 
 /// Compute cosine similarity between two embedding vectors.
 public func cosineSimilarity(a: [Float], b: [Float]) -> Float {
     return NobodyWhoGenerated.cosineSimilarity(a: a, b: b)
+}
+
+/// Returns every cached `.gguf` model paired with its byte size.
+///
+/// Scans the platform model cache directory. Returns an empty array if the cache
+/// directory does not exist yet.
+public func getCachedModels() throws -> [CachedModel] {
+    return try NobodyWhoGenerated.getCachedModels()
 }

@@ -48,6 +48,12 @@ Future<String> downloadModel({
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
     NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
 
+/// Returns every cached .gguf model paired with its byte size.
+///
+/// Each entry is (absolute path, size in bytes).
+List<(String, BigInt)> getCachedModels() =>
+    NobodyWho.instance.api.crateGetCachedModels();
+
 RustTool newToolImpl({
   required FutureOr<String> Function(String) function,
   required String name,

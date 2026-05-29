@@ -39,16 +39,6 @@ let chat = try await Chat.fromPath(
 let chat = try await Chat.fromPath(modelPath: "/path/to/model.gguf")
 ```
 
-When loading from a remote URL, you can track download progress:
-
-```swift
-let chat = try await Chat.fromPath(
-    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
-) { downloaded, total in
-    print("Downloaded \(downloaded)/\(total) bytes")
-}
-```
-
 Once you have a `Chat`, call `.ask` to get a response!
 
 ```swift
@@ -57,31 +47,6 @@ print(response) // Yes, indeed, water is wet!
 ```
 
 This is a super simple example, but we believe that examples which do simple things, should be simple!
-
-## Downloading gated model
-
-Some HuggingFace models are either private or gated by a license that you need to accept.
-For both scenarios, you need to be authorized to download the model weights.
-
-In that case, you can resort to manually accessing the model page through your web browser,
-getting the GGUF file downloaded and then pointing our chat instance to the path where you have stored it:
-```swift
-let chat = try await Chat.fromPath(modelPath: "./model.gguf")
-```
-
-Or you can use the `Model.downloadModel` function, where you can pass in the authorization token:
-```swift
-import NobodyWho
-
-let modelPath = try await Model.downloadModel(
-    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
-    headers: ["Authorization": "Bearer your_hf_token"]
-)
-
-let chat = try await Chat.fromPath(modelPath: modelPath)
-```
-
-The token can be then generated in [your account settings](https://huggingface.co/settings/tokens).
 
 To get a full overview of the functionality provided by NobodyWho, simply keep reading.
 
