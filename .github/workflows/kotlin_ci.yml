@@ -82,7 +82,7 @@ jobs:
 
       - name: "Compile Kotlin modules"
         working-directory: ./nobodywho/kotlin
-        run: ./gradlew :common:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
+        run: ./gradlew :nobodywho-core:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
 
       - name: "Download test model"
         run: |
@@ -95,4 +95,4 @@ jobs:
         env:
           NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
-        run: ./gradlew :common:test
+        run: ./gradlew :nobodywho-core:test
