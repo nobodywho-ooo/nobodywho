@@ -102,6 +102,15 @@ assert.ok(
   typeof lastArgs === 'object' && lastArgs !== null,
   `expected callback args to be an object; got ${typeof lastArgs}: ${JSON.stringify(lastArgs)}`,
 );
+// Round-trip proof: a non-empty FINAL response means the worker received the
+// tool-reply and RESUMED inference past the tool-dispatch boundary. We do NOT
+// assert the answer *contains* the tool's text — with a 0.6B model that's a
+// flaky model-quality check (per the note above); a non-empty completion is
+// the binding-level guarantee that the reply actually made it back.
+assert.ok(
+  response.length > 0,
+  `expected a non-empty final response after the tool round-trip; got ${JSON.stringify(response)} — the tool-reply may not have reached the worker (inference didn't resume)`,
+);
 
 console.log('\n=== Sync-callback path passed ===');
 
@@ -155,6 +164,10 @@ assert.ok(
 assert.ok(
   typeof asyncLastArgs === 'object' && asyncLastArgs !== null,
   `expected async callback args to be an object; got ${typeof asyncLastArgs}: ${JSON.stringify(asyncLastArgs)}`,
+);
+assert.ok(
+  responseAsync.length > 0,
+  `expected a non-empty final response after the async tool round-trip; got ${JSON.stringify(responseAsync)} — the tool-reply may not have reached the worker (inference didn't resume)`,
 );
 
 await chatAsync.terminate();

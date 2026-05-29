@@ -36,18 +36,34 @@ const { default: createNobodyWhoModule } = await import(join(pkgDir, 'nobodywho_
 const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
 console.log('\n[1] Long generation, stop after a few tokens...');
-const chat = await m.Chat.create({
+const PROMPT = 'Write a long, detailed essay about the history of Copenhagen.';
+const STOP_AFTER = 5;
+
+// Baseline: how many tokens this prompt+model produces WITHOUT stopping
+// (capped so a runaway can't hang the test). We compare the stopped run
+// against THIS, not an arbitrary fixed token ceiling — otherwise a
+// naturally-short generation would pass even if stopGeneration() were a
+// no-op (the original `count < 200` check did exactly that).
+const BASELINE_CAP = 200;
+const baselineChat = await m.Chat.create({
   modelPath,
-  systemPrompt: 'Reply concisely.',
+  systemPrompt: 'You are a helpful assistant.',
   templateVariables: { enable_thinking: false },
 });
+let baseline = 0;
+for await (const _tok of baselineChat.ask(PROMPT)) {
+  if (++baseline >= BASELINE_CAP) break;
+}
+await baselineChat.terminate();
+console.log(`    unstopped baseline produced ${baseline} tokens (cap ${BASELINE_CAP}).`);
+assert.ok(baseline > STOP_AFTER * 4, `baseline too short (${baseline}) to meaningfully test stop — prompt under-generated`);
 
-// Ask for something long. Sample tokens as they arrive; stop after
-// we've seen STOP_AFTER tokens; confirm the stream resolves with a
-// final count not vastly greater (some in-flight tokens land between
-// the stop call and core's loop noticing the flag).
-const STOP_AFTER = 5;
-const stream = chat.ask('Write a 500-word essay about Copenhagen.');
+const chat = await m.Chat.create({
+  modelPath,
+  systemPrompt: 'You are a helpful assistant.',
+  templateVariables: { enable_thinking: false },
+});
+const stream = chat.ask(PROMPT);
 let count = 0;
 const start = performance.now();
 let stoppedAt = null;
@@ -61,10 +77,14 @@ for await (const tok of stream) {
 }
 const totalMs = performance.now() - start;
 console.log(`    Stream ended at ${count} tokens (${totalMs.toFixed(0)} ms total).`);
-assert.ok(count < 200, `expected stopped run to produce <200 tokens, got ${count}`);
-assert.ok(count >= STOP_AFTER, `expected at least ${STOP_AFTER} tokens (got ${count}); race between stop and stream consumption`);
 const post_stop_tokens = count - STOP_AFTER;
-console.log(`    Tokens that landed after stopGeneration(): ${post_stop_tokens} (in-flight tail; expected small)`);
+console.log(`    Tokens after stopGeneration(): ${post_stop_tokens} (in-flight tail; expected small).`);
+// A working stop produces far fewer tokens than the unstopped baseline and
+// only a small in-flight tail; a no-op stop would run to ~baseline and fail
+// both assertions.
+assert.ok(count < baseline, `expected stopped run (${count}) < unstopped baseline (${baseline}); stopGeneration() looks like a no-op`);
+assert.ok(post_stop_tokens < baseline / 2, `expected a small in-flight tail after stop, got ${post_stop_tokens} (baseline ${baseline})`);
+assert.ok(count >= STOP_AFTER, `expected at least ${STOP_AFTER} tokens (got ${count}); race between stop and stream consumption`);
 console.log('    ✓ stopGeneration cut the generation short');
 
 console.log('\n[2] Chat is reusable after stop — second ask works...');

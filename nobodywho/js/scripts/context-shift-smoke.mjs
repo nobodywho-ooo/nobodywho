@@ -59,6 +59,7 @@ const turns = [
 
 const LEAKS = ['<|im_start|>', '<|im_end|>', '<|begin_of_text|>', '<|endoftext|>'];
 let totalChars = 0;
+let totalGenTokens = 0;
 
 for (let t = 0; t < turns.length; t++) {
   process.stdout.write(`[turn ${t + 1}/${turns.length}] q=${JSON.stringify(turns[t])}\n  a=`);
@@ -91,21 +92,22 @@ for (let t = 0; t < turns.length; t++) {
     }
   }
   totalChars += text.length;
+  totalGenTokens += count;
 }
 
 await chat.terminate();
 
-// Rough check: by the last turn the cumulative dialogue text far exceeds
-// what fits in CTX tokens (~3 chars/token ≈ CTX*3 chars window). If we
-// got through every turn without a per-turn error, context_shift fired
-// successfully at least once.
-const approxTokenBudget = CTX * 3; // very rough chars-to-tokens proxy for the window
-console.log(`\n  cumulative response chars: ${totalChars}`);
-console.log(`  approx window-tokens × 3:  ${approxTokenBudget}`);
-
-if (totalChars < approxTokenBudget) {
-  console.log('NOTE: cumulative output was small enough that a shift might not have been needed.');
-  console.log('      The smoke still passes (no errors, no leaks), but did not stress the shift path.');
-} else {
-  console.log('PASS: 7-turn dialogue completed past the context window; shift happened transparently.');
+// Proof that a shift actually happened: generating MORE tokens across the
+// dialogue than the entire context window holds is only possible if core ran
+// context_shift to keep going past the window. (The old check used a rough
+// chars-vs-CTX*3 heuristic and PASSED even in the branch where it admitted no
+// shift likely happened — so it could go green without testing what it claims.)
+console.log(`\n  cumulative generated tokens: ${totalGenTokens} (contextSize=${CTX}); cumulative chars: ${totalChars}`);
+if (totalGenTokens <= CTX) {
+  console.log(
+    `FAIL: only ${totalGenTokens} tokens generated across the dialogue (contextSize=${CTX}); ` +
+    `the window was never overflowed, so no context_shift occurred — the smoke did not exercise the shift path.`
+  );
+  process.exit(1);
 }
+console.log(`PASS: generated ${totalGenTokens} tokens past a ${CTX}-token window — context_shift fired transparently.`);

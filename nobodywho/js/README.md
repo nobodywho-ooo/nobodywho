@@ -79,7 +79,7 @@ surface to JS via wasm-bindgen.
 | `Chat.setTools(tools)` — replace tool registry mid-session | ✅ verified |
 | `Chat.reset(opts?)` — atomic clear-history + optional swap of system prompt + tools | ✅ verified |
 | `Chat.resetHistory()` — clear history, preserve system prompt + tools + sampler | ✅ verified |
-| `Chat.terminate()` — no-op (returns resolved Promise; kept for API compat) | ✅ verified |
+| `Chat.terminate()` — stops any in-flight generation and shuts down the worker (frees the model) | ✅ verified |
 | `SamplerConfig` / `SamplerBuilder` / `SamplerPresets` — typed sampler API matching Python | ✅ verified |
 | Structured output / Constraint via `SamplerPresets.constrainWithJsonSchema()` / `constrainWithRegex()` / `constrainWithGrammar()` | ✅ verified |
 | `TokenStream.next()` / `completed()` / async-iteration via `for await` | ✅ verified |

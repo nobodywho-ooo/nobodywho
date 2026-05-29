@@ -39,12 +39,16 @@ const sim_opp = m.cosineSimilarity([1, 0], [-1, 0]);  // plain array also works
 console.log(`    opposite vectors (plain array): ${sim_opp}`);
 assert.equal(sim_opp.toFixed(6), '-1.000000');
 
+// assert OUTSIDE the try — a bare `assert.fail()` inside it is caught by the
+// same `catch`, so the mismatch case could never actually fail the suite.
+let mismatchThrew = false;
 try {
   m.cosineSimilarity([1, 2, 3], [1, 2]);
-  assert.fail('expected length mismatch to throw');
 } catch (e) {
+  mismatchThrew = true;
   console.log(`    length mismatch throws: ${e.message.slice(0, 60)}`);
 }
+assert.ok(mismatchThrew, 'expected cosineSimilarity to throw on length mismatch, but it returned');
 console.log('    ✓ cosineSimilarity OK');
 
 // === [2] Audio.fromPath ===

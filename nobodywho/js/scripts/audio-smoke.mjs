@@ -109,26 +109,25 @@ for (const f of formats) {
   console.log(`  ${f.ext.padEnd(5)} ${s}`);
 }
 
-const allOk = formats.every((f) => {
-  const r = results[f.ext];
-  if (r === 'skipped') return true;
-  return typeof r === 'object' && (r.state === 'full-ok' || r.state === 'decoder-ok');
-});
 const fullPassed = formats.filter((f) => typeof results[f.ext] === 'object' && results[f.ext].state === 'full-ok').length;
 const decoderPassed = formats.filter((f) => typeof results[f.ext] === 'object' && results[f.ext].state === 'decoder-ok').length;
 const skipped = formats.filter((f) => results[f.ext] === 'skipped').length;
 
-if (allOk) {
-  console.log(`\n=== Audio decoder smoke passed ===`);
-  console.log(`  ${fullPassed}/${formats.length} full inference, ${decoderPassed}/${formats.length} decoder-only, ${skipped} skipped`);
-  console.log(`  miniaudio decoders are linked + functional through the JS API for each verified format.`);
-  if (decoderPassed > 0) {
-    console.log(`  ${decoderPassed} format(s) reached the worker but didn't complete full inference;`);
-    console.log(`  sequential worker memory can accumulate (each chat carries the model +`);
-    console.log(`  mmproj via structured clone). Run formats individually to verify.`);
-  }
-  process.exit(0);
-} else {
-  console.error(`\n=== Audio decoder smoke FAILED ===`);
+// The old `allOk` counted all-skipped AND inference-threw-but-caught as a
+// pass, so it could exit 0 with zero transcripts. Audio inference is verified
+// working end-to-end against the default Qwen3-ASR model, so require at least
+// one real transcript and refuse to pass when every format was skipped.
+if (skipped === formats.length) {
+  console.error(`\n=== Audio smoke FAILED: every format skipped — no audio test files found ===`);
   process.exit(1);
 }
+if (fullPassed < 1) {
+  console.error(`\n=== Audio smoke FAILED: no format produced a transcript ===`);
+  console.error(`  full-ok=${fullPassed} decoder-ok=${decoderPassed} skipped=${skipped}`);
+  console.error(`  A decoder-only result means the encode/inference path regressed`);
+  console.error(`  (it is known to work with the default Qwen3-ASR model) — not a pass.`);
+  process.exit(1);
+}
+console.log(`\n=== Audio smoke passed ===`);
+console.log(`  ${fullPassed}/${formats.length} full transcript(s), ${decoderPassed} decoder-only, ${skipped} skipped`);
+process.exit(0);
