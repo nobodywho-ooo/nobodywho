@@ -67,14 +67,17 @@ fn fs_call(fs: &JsValue, method: &str, args: &[JsValue]) -> Result<JsValue, c_in
         args_array.push(a);
     }
     js_sys::Reflect::apply(&func, fs, &args_array).map_err(|e| {
-        // FS.ErrnoError has an `errno` property. Translate to our negative
-        // return value. Default to EIO for any other thrown shape.
+        // FS.ErrnoError has an `errno` property. This helper's contract is to
+        // return an ALREADY-NEGATED errno (callers forward it verbatim), so
+        // both branches must be negative. Default to -EIO for any other
+        // thrown shape — returning +EIO here would be read by libc as a
+        // successful syscall result.
         if let Ok(errno) = js_sys::Reflect::get(&e, &"errno".into()) {
             if let Some(n) = errno.as_f64() {
                 return -(n as c_int);
             }
         }
-        EIO
+        -EIO
     })
 }
 
@@ -300,6 +303,13 @@ pub unsafe extern "C" fn _mmap_js(
             let alloc_val =
                 js_sys::Reflect::get(&res, &"allocated".into()).unwrap_or(JsValue::FALSE);
             let ptr = ptr_val.as_f64().unwrap_or(0.0) as usize;
+            // A real mapping pointer is never null. ptr == 0 means FS.mmap
+            // returned a malformed result (missing/!number `ptr`); fail
+            // cleanly rather than reporting a successful map at address 0,
+            // which would hand libc a NULL base and corrupt every read.
+            if ptr == 0 {
+                return -EIO;
+            }
             let alloc = if alloc_val.as_bool().unwrap_or(false) {
                 1
             } else {
@@ -315,8 +325,12 @@ pub unsafe extern "C" fn _mmap_js(
 
 /// `_munmap_js` strong override.
 ///
-/// For read-only mappings (our use case) this is a no-op. The weak stub
-/// returns -ENOSYS which would make munmap fail.
+/// Intentionally a no-op — and that does NOT leak. Emscripten's C-side
+/// `munmap` (emscripten_mmap.c) frees the backing buffer itself for
+/// `allocated` mappings (`emscripten_builtin_free(map->addr)`) plus the map
+/// record; it calls this hook only for msync/writeback, which read-only
+/// mappings don't need. We still must override it because the weak stub
+/// returns -ENOSYS, which would make `munmap` fail.
 #[no_mangle]
 pub unsafe extern "C" fn _munmap_js(
     _addr: usize,
