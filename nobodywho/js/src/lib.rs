@@ -7,19 +7,17 @@
 //!
 
 // Native builds (used by `cargo test -p nobodywho-js` for the lint suite +
-// `cargo check` for IDE integration) trip dead-code warnings on
+// `cargo check` for IDE integration) trip dead-code/unused warnings on
 // wasm-only items because the wasm_bindgen-exported callers are
-// cfg-gated to wasm. Suppress on native to keep the signal alive
-// for the wasm build.
-#![allow(dead_code)]
+// cfg-gated to wasm. Suppress on native only — that keeps genuine
+// dead-code detection alive for the wasm build (the target that matters).
 #![cfg_attr(not(target_family = "wasm"), allow(unused))]
 // wasm_bindgen's `#[wasm_bindgen(static_method_of = ..., js_name = ...)]`
 // macro generates an `unused variable: static_method_of` warning that we
-// can't suppress at the call site (the warning fires inside the macro
-// expansion). Same for the `unused_imports` cases — they're generated
-// by macros. CI sets RUSTFLAGS=-D warnings which turns these into hard
-// errors. Allow at crate level.
-#![allow(unused_variables, unused_imports)]
+// can't suppress at the call site (it fires inside the macro expansion).
+// CI sets RUSTFLAGS=-D warnings which turns it into a hard error, so we
+// allow `unused_variables` at crate level.
+#![allow(unused_variables)]
 
 //! # Why everything returns `js_sys::Promise` instead of being `pub async fn`
 //!
@@ -40,7 +38,6 @@ use std::sync::Arc;
 #[cfg(target_family = "wasm")]
 use std::cell::RefCell;
 
-use futures::FutureExt;
 use wasm_bindgen::prelude::*;
 
 // Force-import file-open syscalls into the wasm; see the module's
@@ -917,14 +914,6 @@ async fn stream_reader_to_memfs(
     Ok(())
 }
 
-/// Single-copy variant: stream the reader straight into one buffer in wasm
-/// linear memory, then expose it as a MEMFS file whose `contents` is a
-/// zero-copy heap view (see `__nbw_wrap_wasm_buffer_as_file` in pre.js).
-/// Avoids the JS-heap MEMFS copy: the bytes are materialized once, where
-/// llama.cpp's `mmap` reads them in place. Requires a known `total` size.
-///
-/// The buffer is recorded in `PENDING_MODEL_BUFFERS`; the next
-/// `get_model_from_path` attaches it to the `Model`, which frees it on drop.
 #[cfg(target_family = "wasm")]
 thread_local! {
     /// Buffers streamed into wasm linear memory awaiting attachment to the
@@ -940,6 +929,14 @@ fn take_pending_model_buffers() -> Vec<(usize, usize)> {
     PENDING_MODEL_BUFFERS.with(|b| std::mem::take(&mut *b.borrow_mut()))
 }
 
+/// Single-copy variant: stream the reader straight into one buffer in wasm
+/// linear memory, then expose it as a MEMFS file whose `contents` is a
+/// zero-copy heap view (see `__nbw_wrap_wasm_buffer_as_file` in pre.js).
+/// Avoids the JS-heap MEMFS copy: the bytes are materialized once, where
+/// llama.cpp's `mmap` reads them in place. Requires a known `total` size.
+///
+/// The buffer is recorded in `PENDING_MODEL_BUFFERS`; the next
+/// `get_model_from_path` attaches it to the `Model`, which frees it on drop.
 #[cfg(target_family = "wasm")]
 async fn stream_reader_to_wasm_buffer(
     reader: &web_sys::ReadableStreamDefaultReader,

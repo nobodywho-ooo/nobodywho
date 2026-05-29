@@ -1,8 +1,3 @@
-// `doc_above` is a helper that's currently unused by every shipped test
-// arm — kept because pending findings are likely to need it. CI sets
-// `RUSTFLAGS=-D warnings` which would otherwise fail the suite on this.
-#![allow(dead_code)]
-
 //! Source-text invariants that exist because past code-review passes
 //! kept missing them on the human-eye-on-the-PR pass.
 //!
@@ -16,35 +11,9 @@
 //! valuable as a regression guard. When a finding is added, the test
 //! goes red and the message points at the file + the rationale.
 
-const LIB_RS: &str = include_str!("../src/lib.rs");
 const CORE_CARGO_TOML: &str = include_str!("../../core/Cargo.toml");
 const PACKAGE_JSON_TPL: &str = include_str!("../package.json.tpl");
 const README_MD: &str = include_str!("../README.md");
-
-// ---------- Helpers ----------
-
-/// Return the doc comment block (consecutive `///` lines, possibly with
-/// `#[...]` attributes interleaved) that sits directly above the line
-/// matching `signature` in `src`. Empty if the signature isn't preceded
-/// by a doc block.
-fn doc_above(src: &str, signature: &str) -> String {
-    let sig_pos = src.find(signature).expect("signature not found in source");
-    let before = &src[..sig_pos];
-    let mut doc_lines: Vec<&str> = Vec::new();
-    // Walk backwards: take `///` lines, skip attributes/blanks, stop at any other code.
-    for line in before.lines().rev() {
-        let t = line.trim_start();
-        if t.starts_with("///") {
-            doc_lines.push(line);
-        } else if t.starts_with("#[") || t.is_empty() {
-            continue;
-        } else {
-            break;
-        }
-    }
-    doc_lines.reverse();
-    doc_lines.join("\n")
-}
 
 // ---------- Findings ----------
 
