@@ -13,7 +13,7 @@ permissions:
   deployments: write
 jobs:
   deploy-pages:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v5
 

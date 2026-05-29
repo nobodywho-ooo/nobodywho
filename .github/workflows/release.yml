@@ -13,7 +13,7 @@ on:
 
 jobs:
   godot-distributable:
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
         - uses: actions/checkout@v5
   
@@ -39,7 +39,7 @@ jobs:
   create-github-release-godot:
     needs: [godot-distributable]
     if: startsWith(github.ref, 'refs/tags/nobodywho-godot-')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - name: "Download build artifacts"
         uses: actions/download-artifact@v5
@@ -59,7 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test-publish-wheels:
-      runs-on: ubuntu-latest
+      runs-on: warp-ubuntu-latest-x64-2x
       if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
       steps:
         - name: Download all wheels
@@ -98,7 +98,7 @@ jobs:
       [
         test-publish-wheels
       ]
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-2x
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
     steps:
       - name: Download all wheels
@@ -128,7 +128,7 @@ jobs:
   create-github-release-python:
     needs: [publish-wheels]
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - name: "Download all Python wheels"
         uses: actions/download-artifact@v5
@@ -149,7 +149,7 @@ jobs:
 
   create-github-release-flutter:
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write # Required to create github release
     steps:
@@ -194,7 +194,7 @@ jobs:
   # Create GitHub Release with native binaries, then publish to npm.
   create-github-release-react-native:
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write
     steps:
@@ -232,7 +232,7 @@ jobs:
   publish-react-native-npm:
     needs: [create-github-release-react-native]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v5
 

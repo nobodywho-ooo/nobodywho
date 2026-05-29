@@ -15,7 +15,7 @@ jobs:
 
 
   flutter-doc-tests-check:
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v5
 
@@ -45,7 +45,7 @@ jobs:
   # cachix actions as per these docs:
   # https://nix.dev/guides/recipes/continuous-integration-github-actions
   nix-flake-check:
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 360
     steps:
       - name: Check that Cachix Token is set
@@ -76,7 +76,7 @@ jobs:
 
   flutter-multimodal-tests:
     if: inputs.full_ci
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
 
