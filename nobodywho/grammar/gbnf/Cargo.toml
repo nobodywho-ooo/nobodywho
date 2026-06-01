@@ -5,12 +5,8 @@ edition = "2024"
 
 [dependencies]
 serde_json = "1"
-# `jsonschema` defaults pull in `resolve-http` (reqwest + rustls + hyper +
-# tokio/net + mio) and `resolve-file` (filesystem-backed $ref resolution).
-# Neither is needed here: the only use is `jsonschema::meta::is_valid` (a
-# pure in-memory metaschema check) in src/json.rs. Disabling defaults drops
-# ~12 transitive crates including the HTTP stack, which lets this crate
-# compile to wasm32-unknown-unknown (where mio does not build).
+# Only `jsonschema::meta::is_valid` is used (pure, in-memory). Defaults drag in
+# the resolve-http stack (reqwest/hyper/tokio-net/mio, ~33 crates); mio won't build on wasm32.
 jsonschema = { version = "0.41.0", default-features = false }
 
 [dev-dependencies]
