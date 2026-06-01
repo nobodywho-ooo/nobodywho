@@ -45,6 +45,15 @@ tasks.withType<Test> {
     systemProperty("jna.library.path", libDir)
 }
 
+val sourcesJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("sources")
+    from(sourceSets["main"].allSource)
+}
+
+val javadocJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+}
+
 publishing {
     publications {
         create<MavenPublication>("release") {
@@ -52,6 +61,8 @@ publishing {
             artifactId = "nobodywho-core"
             version = project.version.toString()
             from(components["java"])
+            artifact(sourcesJar)
+            artifact(javadocJar)
         }
     }
 }
