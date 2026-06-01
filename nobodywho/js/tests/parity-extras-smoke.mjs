@@ -4,7 +4,7 @@
 //   * Chat.reset({systemPrompt?, tools?}) — atomic combined reset
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/parity-extras-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/parity-extras-smoke.mjs
 
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';

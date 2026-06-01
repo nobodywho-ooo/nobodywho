@@ -16,7 +16,7 @@
 // quickly and known to handle tool calls via the grammar sampler.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/tool-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/tool-smoke.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';

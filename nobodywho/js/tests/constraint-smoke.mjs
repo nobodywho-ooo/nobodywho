@@ -12,7 +12,7 @@
 //   2. JSON Schema: response is a JSON object with `city` and `country`.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/constraint-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/constraint-smoke.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';

@@ -1205,7 +1205,7 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
 // JS callbacks can be either synchronous (return a string) or async
 // (return a Promise<string>) — the worker ↔ main RPC bridge dispatches
 // each tool call back to the main thread, awaits the result, and feeds
-// it into the next inference step. See `js/scripts/tool-smoke.mjs` for
+// it into the next inference step. See `js/tests/tool-smoke.mjs` for
 // both shapes.
 
 /// Factory namespace for LLM-callable tools. Built via [`Tool::from_fn`]

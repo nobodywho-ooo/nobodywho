@@ -87,7 +87,7 @@ surface to JS via wasm-bindgen.
 | Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — sync and async JS callbacks |
 | mmap-backed tensor loading (`CPU_Mapped`) | ✅ verified — strong `_mmap_js`/`_munmap_js` syscall overrides route through `FS.mmap` |
 
-Each row above is backed by a smoke test under `js/scripts/`. To
+Each row above is backed by a smoke test under `js/tests/`. To
 verify locally after a build, run:
 
 | Smoke | Covers |
@@ -372,7 +372,7 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
 - Image decoding via `stb_image`: JPEG, PNG, BMP, GIF, TGA, PSD, PIC,
   PNM. Format is sniffed from the file header by mtmd.
 - Three miniaudio decoders end-to-end: **WAV, MP3, FLAC** — verified
-  by `js/scripts/audio-smoke.mjs` (Qwen3-ASR produces real
+  by `js/tests/audio-smoke.mjs` (Qwen3-ASR produces real
   transcripts).
 - mmproj loading via `mmprojUrl` / `mmprojPath`.
 - Vision encoder via mtmd (chunk-tokenize / encode-chunk / decode

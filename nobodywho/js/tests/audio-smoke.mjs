@@ -10,7 +10,7 @@
 // wasm-emscripten branch).
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/audio-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/audio-smoke.mjs
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';

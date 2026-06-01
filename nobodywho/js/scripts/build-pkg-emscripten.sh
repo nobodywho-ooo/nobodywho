@@ -56,7 +56,7 @@
 #     `addToLibrary({ '$foo': ... })`. We grep them out of library_bindgen.js
 #     and push them onto extraLibraryFuncs so the JS compiler emits them.
 #
-# Outputs are in pkg-bundler/ ready for `node js/scripts/emscripten-smoke.mjs`,
+# Outputs are in pkg-bundler/ ready for `node js/tests/emscripten-smoke.mjs`,
 # `js/examples/*.mjs`, or an npm publish via build-pkg.sh's package.json
 # templating step (which is orthogonal to this script).
 set -euo pipefail
@@ -374,4 +374,4 @@ echo "==> Done. Outputs in $PKG_DIR/:"
 ls -lh "$PKG_DIR" | sed 's/^/    /'
 echo
 echo "Smoke test:"
-echo "  PATH=/opt/homebrew/bin:\$PATH node $JS_DIR/scripts/emscripten-smoke.mjs <embedding.gguf>"
+echo "  PATH=/opt/homebrew/bin:\$PATH node $JS_DIR/tests/emscripten-smoke.mjs <embedding.gguf>"

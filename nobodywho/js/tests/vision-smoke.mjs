@@ -18,7 +18,7 @@
 //     just text.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/vision-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/vision-smoke.mjs
 //
 // Defaults to Qwen-Omni-3B at /tmp/qwen-omni/* and the penguin.png from
 // the Python tests. Override with positional args.

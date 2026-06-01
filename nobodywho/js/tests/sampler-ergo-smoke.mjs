@@ -9,7 +9,7 @@
 //     Chat.create accepts it and ask works.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/sampler-ergo-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/sampler-ergo-smoke.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';

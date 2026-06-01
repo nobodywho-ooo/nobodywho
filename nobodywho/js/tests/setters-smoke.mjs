@@ -15,7 +15,7 @@
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/setters-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/setters-smoke.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';

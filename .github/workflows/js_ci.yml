@@ -166,12 +166,12 @@ jobs:
 
       - name: "Smoke: Model.load + Encoder.encode"
         working-directory: nobodywho
-        run: node js/scripts/emscripten-smoke.mjs /tmp/bge-small.gguf
+        run: node js/tests/emscripten-smoke.mjs /tmp/bge-small.gguf
 
       - name: "Smoke: vision (Qwen3.5-0.8B multimodal)"
         working-directory: nobodywho
         run: |
-          node js/scripts/vision-smoke.mjs \
+          node js/tests/vision-smoke.mjs \
             /tmp/qwen3.5-0.8b-q4km.gguf \
             /tmp/qwen3.5-0.8b-mmproj-f16.gguf \
             python/tests/img/penguin.png

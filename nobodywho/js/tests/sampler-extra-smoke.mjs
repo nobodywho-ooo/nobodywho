@@ -8,7 +8,7 @@
 // instantiates a usable chat for each shape.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/scripts/sampler-extra-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/sampler-extra-smoke.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';

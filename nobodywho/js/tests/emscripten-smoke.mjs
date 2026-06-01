@@ -9,7 +9,7 @@
 // Run after building with the Emscripten toolchain:
 //
 //   EMSDK=... cargo build --target wasm32-unknown-emscripten --release -p nobodywho-js
-//   node js/scripts/emscripten-smoke.mjs /path/to/bge-small.gguf
+//   node js/tests/emscripten-smoke.mjs /path/to/bge-small.gguf
 //
 // Exit 0 = both Rust side and llama.cpp side work end-to-end under
 // Emscripten + pthreads. Exit non-zero = phase 0 hasn't passed yet; see the
