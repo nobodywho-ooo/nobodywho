@@ -226,8 +226,8 @@ Node 20+ should work; 22+ is verified.
 
 ```bash
 cd nobodywho/js
-python3 -m http.server 8000
-# open http://localhost:8000/examples/browser-chat.html
+node examples/serve.mjs
+# open http://localhost:8000/  (or /examples/browser-chat.html, etc.)
 ```
 
 See `js/examples/browser-chat.html` for a chat demo,
@@ -236,8 +236,9 @@ See `js/examples/browser-chat.html` for a chat demo,
 via `createNobodyWhoModule()` and load models via
 `Model.load({ modelUrl })` or `Chat.create({ modelUrl })`. Models are
 cached in the Cache API (`nobodywho-models-v1` store) so subsequent
-loads skip the download. The server must set COOP/COEP headers for
-`SharedArrayBuffer` (required by pthreads).
+loads skip the download. `serve.mjs` sets the COOP/COEP headers
+`SharedArrayBuffer` needs for pthreads; a plain static server such as
+`python3 -m http.server` won't work (it can't set those headers).
 
 ## How it works (and why these specific choices)
 
@@ -283,9 +284,11 @@ llama.cpp's ggml threadpool uses `available_parallelism()` to set
 `os.cpus().length` in Node).
 
 **Browser requirement:** the serving origin must set
-`Cross-Origin-Opener-Policy: same-origin` and
-`Cross-Origin-Embedder-Policy: require-corp` headers for
-`SharedArrayBuffer` to be available.
+`Cross-Origin-Opener-Policy: same-origin` and a
+`Cross-Origin-Embedder-Policy` header for `SharedArrayBuffer` to be
+available. `credentialless` is the easiest value — cross-origin
+resources (e.g. a model fetched from HuggingFace) load without sending
+their own CORP headers — but `require-corp` works too.
 
 **Build requirement:** Rust nightly with `-Zbuild-std=std,panic_abort`
 (the pre-compiled std for `wasm32-unknown-emscripten` doesn't include
@@ -395,9 +398,10 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   linear-memory ceiling. A future wasm64 (memory64) build would lift
   this ceiling but is not yet shipped.
 - Browser COOP/COEP headers. Pthreads are enabled but require
-  `Cross-Origin-Opener-Policy: same-origin` and
-  `Cross-Origin-Embedder-Policy: require-corp` headers on the
-  serving origin for `SharedArrayBuffer` to be available.
+  `Cross-Origin-Opener-Policy: same-origin` plus a
+  `Cross-Origin-Embedder-Policy` header (`credentialless` is the
+  easiest; `require-corp` also works) on the serving origin for
+  `SharedArrayBuffer` to be available.
 - Audio: WAV/MP3/FLAC only — Ogg/Vorbis is not supported under
   Emscripten (surfaces a clean error).
 
