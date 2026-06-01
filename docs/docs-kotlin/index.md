@@ -10,10 +10,10 @@ Add NobodyWho to your project:
 
 ```kotlin
 // Android (build.gradle.kts)
-implementation("ai.nobodywho:nobodywho-android:0.1.0")
+implementation("ai.nobodywho:nobodywho-android:1.0.0")
 
 // Desktop JVM — Linux, macOS, Windows (build.gradle.kts)
-implementation("ai.nobodywho:nobodywho:0.1.0")
+implementation("ai.nobodywho:nobodywho:1.0.0")
 ```
 
 Both artifacts use the same API — the only difference is the bundled native libraries.

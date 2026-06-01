@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // at /<binding>/. Bumping this requires a matching snapshot in
 // `<binding>_versioned_docs/` (see docs/README.md).
 const latestReleases: Record<string, string> = {
-  kotlin: '0.1.0',
+  kotlin: '1.0.0',
   python: '1.4.0',
   swift: '2.0.1',
   'react-native': '2.2.0',
