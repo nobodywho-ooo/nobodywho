@@ -70,10 +70,10 @@ Add to your `build.gradle.kts`:
 
 ```kotlin
 // Android
-implementation("ai.nobodywho:nobodywho-android:0.1.0")
+implementation("ai.nobodywho:nobodywho-android:1.0.0")
 
 // Desktop JVM (Linux, macOS, Windows)
-implementation("ai.nobodywho:nobodywho:0.1.0")
+implementation("ai.nobodywho:nobodywho:1.0.0")
 ```
 
 [Kotlin documentation](https://docs.nobodywho.ooo/kotlin/)
