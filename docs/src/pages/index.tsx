@@ -81,7 +81,7 @@ export default function Home(): React.JSX.Element {
             height={72}
             style={{marginBottom: '1.25rem'}}
           />
-          <h1 style={{fontSize: '2.75rem', fontWeight: 700, marginBottom: '0.75rem', letterSpacing: '-0.02em', fontFamily: "'Apfel Grotezk', var(--ifm-font-family-base)"}}>
+          <h1 style={{fontSize: '2.75rem', fontWeight: 700, marginBottom: '0.75rem', letterSpacing: '-0.02em', fontFamily: "'Apfel Grotezk', var(--ifm-font-family-base)", color: 'var(--nw-logo)'}}>
             NobodyWho
           </h1>
           <p style={{

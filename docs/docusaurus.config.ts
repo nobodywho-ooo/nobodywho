@@ -195,8 +195,7 @@ const config: Config = {
       ],
     },
     footer: {
-      style: 'dark',
-      copyright: 'NobodyWho — EUPL-1.2 — <a href="https://docs.nobodywho.ooo/llms.txt">llms.txt</a> · <a href="https://docs.nobodywho.ooo/llms-full.txt">llms-full.txt</a>',
+      copyright: '<a href="https://www.nobodywho.ai/">NobodyWho.ai</a> — EUPL-1.2 — <a href="https://docs.nobodywho.ooo/llms.txt">llms.txt</a> · <a href="https://docs.nobodywho.ooo/llms-full.txt">llms-full.txt</a>',
     },
     prism: {
       theme: prismThemes.github,
