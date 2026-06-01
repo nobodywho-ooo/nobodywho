@@ -201,6 +201,7 @@ jobs:
       fail-fast: false
     env:
       AGENT_TOOLSDIRECTORY: /Users/actions-runner/hostedtoolcache
+      RUNNER_TOOL_CACHE: /Users/actions-runner/hostedtoolcache
     steps:
       - uses: actions/checkout@v5
       - name: "Debug runner env"
@@ -523,6 +524,7 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64]
     env:
       AGENT_TOOLSDIRECTORY: /Users/actions-runner/hostedtoolcache
+      RUNNER_TOOL_CACHE: /Users/actions-runner/hostedtoolcache
     strategy:
       fail-fast: false
       matrix:
