@@ -86,7 +86,7 @@ if [[ ! -x "$EMSDK_DIR/emcc" ]]; then
 fi
 if [[ ! -x "$WASM_BINDGEN_BIN" ]]; then
   echo "error: wasm-bindgen-cli not found at $WASM_BINDGEN_BIN" >&2
-  echo "       cargo install wasm-bindgen-cli --version \$(bash $JS_DIR/scripts/wasm-bindgen-version.sh) --locked" >&2
+  echo "       Build the patched fork (see comment above): cargo install --path crates/cli --root /tmp/wbg-patched --locked, or set EM_WASM_BINDGEN." >&2
   exit 1
 fi
 # `pre.js` is checked in under scripts/ (the pkg-bundler/ dir is

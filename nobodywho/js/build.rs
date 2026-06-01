@@ -80,7 +80,7 @@ fn main() {
     //     override in src/syscall_imports.rs that satisfies libc fopen
     //     against MEMFS paths.
     //   - `Module.SYSCALLS.writeStat(buf, stat)` from the wasm — used
-    //     by the `__syscall_stat64` / `_lstat64` / `_fstat64` overrides
+    //     by the `__syscall_stat64` / `__syscall_fstat64` overrides
     //     to write the Emscripten struct stat layout without
     //     duplicating it in Rust.
     println!("cargo:rustc-link-arg-cdylib=-sEXPORTED_RUNTIME_METHODS=FS,SYSCALLS");
@@ -108,8 +108,8 @@ fn main() {
     }
 
     // The file-open syscalls themselves (`__syscall_openat` /
-    // `_stat64` / `_lstat64` / `_fstat64` / `_newfstatat`) are
-    // provided as STRONG Rust overrides in src/syscall_imports.rs.
+    // `__syscall_stat64` / `__syscall_fstat64`) are provided as STRONG
+    // Rust overrides in src/syscall_imports.rs.
     // Emscripten's `system/lib/standalone/standalone.c` declares
     // these as WEAK stubs that return -EPERM (for openat) or -ENOSYS
     // (for stat); wasm-ld is happy to satisfy our references against

@@ -183,15 +183,7 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> Result<f32, JsError> {
             b.len()
         )));
     }
-    let mut dot = 0f32;
-    let mut na = 0f32;
-    let mut nb = 0f32;
-    for i in 0..a.len() {
-        dot += a[i] * b[i];
-        na += a[i] * a[i];
-        nb += b[i] * b[i];
-    }
-    Ok(dot / (na.sqrt() * nb.sqrt()))
+    Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
 /// RAII guard that keeps the JS event loop pumping while held. Acquires a
@@ -328,7 +320,7 @@ impl Model {
 
             let mut model =
                 nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
-                    .map_err(|e| JsError::new(&e.to_string()))?;
+                    .map_err(|e| JsError::new(&nobodywho::render_miette(&e)))?;
             // Hand the model the wasm buffer(s) it was mmapped from (single-copy
             // load), so they're freed when the model drops — not leaked.
             for (ptr, size) in take_pending_model_buffers() {
@@ -811,7 +803,7 @@ fn mount_host_path_via_nodefs(kind: &str, src_path: &str) -> Result<std::path::P
         .map_err(|_| "mount_nodefs: lookup failed".to_string())?;
     if helper.is_undefined() || helper.is_null() {
         return Err(
-            "modelPath/mmprojPath is Node-only; in browser use modelUrl or modelUrl".to_string(),
+            "modelPath/mmprojPath is Node-only; in browser use modelUrl or mmprojUrl".to_string(),
         );
     }
     let helper_fn: js_sys::Function = helper
@@ -1640,7 +1632,7 @@ impl TokenStream {
                     let _ = js_sys::Reflect::set(&obj, &"done".into(), &JsValue::from_bool(true));
                     Ok(obj.into())
                 }
-                Err(e) => Err::<JsValue, _>(JsError::new(&e.to_string())),
+                Err(e) => Err::<JsValue, _>(JsError::new(&nobodywho::render_miette(&e))),
             }
         })
     }
@@ -1652,7 +1644,7 @@ impl TokenStream {
             let text = stream
                 .completed()
                 .await
-                .map_err(|e| JsError::new(&e.to_string()))?;
+                .map_err(|e| JsError::new(&nobodywho::render_miette(&e)))?;
             Ok::<JsValue, JsError>(JsValue::from_str(&text))
         })
     }
@@ -1726,7 +1718,7 @@ impl Chat {
 
             let mut model =
                 nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
-                    .map_err(|e| JsError::new(&e.to_string()))?;
+                    .map_err(|e| JsError::new(&nobodywho::render_miette(&e)))?;
             // Hand the model the wasm buffer(s) it was mmapped from (single-copy
             // load), so they're freed when the model drops — not leaked.
             for (ptr, size) in take_pending_model_buffers() {
@@ -1791,7 +1783,7 @@ impl Chat {
 
             let handle = builder
                 .build_async()
-                .map_err(|e| JsError::new(&e.to_string()))?;
+                .map_err(|e| JsError::new(&nobodywho::render_miette(&e)))?;
 
             Ok(Chat {
                 inner: handle,
