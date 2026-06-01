@@ -196,16 +196,14 @@ jobs:
 
   mac-os-build:
     if: inputs.full_ci
-    runs-on: warp-macos-latest-arm64-6x
+    runs-on: [self-hosted, macOS, ARM64]
     strategy:
       fail-fast: false
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-      - run: brew install maturin
+      - run: brew install python@3.13 maturin
+      - run: echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
       - name: "Build macos python wheel"
         run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
@@ -511,7 +509,7 @@ jobs:
   mac-os-pip-install-test:
     if: inputs.full_ci
     needs: [mac-os-build]
-    runs-on: warp-macos-latest-arm64-6x
+    runs-on: [self-hosted, macOS, ARM64]
     strategy:
       fail-fast: false
       matrix:
@@ -523,9 +521,8 @@ jobs:
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
+      - run: brew install python@3.13
+      - run: echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
 
       - name: "Download wheel"
         uses: actions/download-artifact@v5

@@ -40,57 +40,7 @@ Add a `NobodyWhoModel` node to your scene tree.
 Set the model path to point to your GGUF model. 
 ![set model path](/img/godot_model_selection.png)
 
-### Supported model path formats
-
-The `model_path` field (and `projection_model_path` for vision models) accepts several forms:
-
-| Form | Example | Notes |
-| ---- | ------- | ----- |
-| Godot resource path | `res://models/my-model.gguf` | Bundled with your game export |
-| User data path | `user://downloaded.gguf` | Written by your game at runtime |
-| Absolute filesystem path | `/opt/models/foo.gguf` | Local file |
-| HuggingFace reference | `huggingface:owner/repo/file.gguf` or `hf://owner/repo/file.gguf` | Downloaded & cached on first use |
-| HTTPS URL | `https://example.com/model.gguf` | Downloaded & cached on first use |
-
-Remote models are downloaded to the platform cache directory on the first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
-
-### Showing download progress
-
-`NobodyWhoModel` emits a `download_progress(downloaded, total)` signal while a remote model is downloading, throttled to roughly 10 Hz with a guaranteed final emit on completion. Connect it if you'd like to drive a progress bar:
-
-```gdscript
-model.download_progress.connect(func(downloaded: int, total: int):
-    print("%d / %d bytes" % [downloaded, total])
-)
-```
-
-The signal is not emitted for local files or already-cached downloads.
-
-### Downloading a gated model
-
-Some HuggingFace models are either private or gated by a license that you need to accept.
-For both scenarios, you need to be authorized to download the model weights.
-
-In that case, you can resort to manually accessing the model page through your web browser,
-getting the GGUF file downloaded and then setting the model path to where you have stored it.
-
-Or you can use the `NobodyWhoDownloader` node, where you can pass in the authorization token:
-
-```gdscript
-var dl = NobodyWhoDownloader.new()
-dl.model_path = "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
-dl.headers = {"Authorization": "Bearer your_hf_token"}
-dl.download_complete.connect(func(local_path: String):
-    get_node("../ChatModel").model_path = local_path
-)
-dl.download_failed.connect(func(error: String):
-    push_error("Download failed: " + error)
-)
-dl.start_download()
-add_child(dl)
-```
-
-The token can be then generated in [your account settings](https://huggingface.co/settings/tokens).
+`model_path` accepts local paths (`res://`, `user://`, or an absolute filesystem path) as well as `huggingface:` / `hf://` references and `https://` URLs that are downloaded and cached on first use. See [Downloading models](./downloading-models) for the full list of supported formats, download progress signals, gated/private models, and inspecting the local cache.
 
 ### Knowing when the worker is ready
 

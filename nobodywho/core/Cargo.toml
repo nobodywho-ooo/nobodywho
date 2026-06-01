@@ -64,10 +64,12 @@ ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
 bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
+# `walkdir` backs `get_cached_models` (cache-dir enumeration) — native-only,
+# alongside the rest of the model-loader infra.
+walkdir = "2.5"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
-
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"

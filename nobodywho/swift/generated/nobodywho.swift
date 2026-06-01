@@ -2275,6 +2275,61 @@ public func FfiConverterTypeAsset_lower(_ value: Asset) -> RustBuffer {
 
 
 /**
+ * A cached `.gguf` model and its on-disk size.
+ */
+public struct CachedModel: Equatable, Hashable {
+    public var path: String
+    public var size: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(path: String, size: UInt64) {
+        self.path = path
+        self.size = size
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension CachedModel: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCachedModel: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CachedModel {
+        return
+            try CachedModel(
+                path: FfiConverterString.read(from: &buf), 
+                size: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CachedModel, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterUInt64.write(value.size, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCachedModel_lift(_ buf: RustBuffer) throws -> CachedModel {
+    return try FfiConverterTypeCachedModel.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCachedModel_lower(_ value: CachedModel) -> RustBuffer {
+    return FfiConverterTypeCachedModel.lower(value)
+}
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 public struct PendingToolCall: Equatable, Hashable {
@@ -3269,6 +3324,31 @@ fileprivate struct FfiConverterSequenceTypeAsset: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeCachedModel: FfiConverterRustBuffer {
+    typealias SwiftType = [CachedModel]
+
+    public static func write(_ value: [CachedModel], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeCachedModel.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [CachedModel] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [CachedModel]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeCachedModel.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeToolCall: FfiConverterRustBuffer {
     typealias SwiftType = [ToolCall]
 
@@ -3497,6 +3577,15 @@ public func downloadModel(modelPath: String, headers: [String: String]?, onDownl
         )
 }
 /**
+ * Returns every cached `.gguf` model paired with its byte size.
+ */
+public func getCachedModels()throws  -> [CachedModel]  {
+    return try  FfiConverterSequenceTypeCachedModel.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_func_get_cached_models($0
+    )
+})
+}
+/**
  * Load a GGUF model from a local path or remote URL.
  *
  * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
@@ -3643,6 +3732,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587) {

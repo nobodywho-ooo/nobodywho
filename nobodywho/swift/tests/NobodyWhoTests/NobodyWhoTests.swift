@@ -48,6 +48,17 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertTrue(progressCalled, "Progress callback should have been called")
     }
 
+    // MARK: - Cached models
+
+    func testGetCachedModels() throws {
+        // Just verify the FFI bridge works — the cache may be empty on CI.
+        let models = try getCachedModels()
+        for m in models {
+            XCTAssertFalse(m.path.isEmpty)
+            XCTAssertGreaterThan(m.size, 0)
+        }
+    }
+
     // MARK: - Chat (completion, streaming, tools)
 
     func testChat() async throws {

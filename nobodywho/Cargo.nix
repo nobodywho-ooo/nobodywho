@@ -7562,6 +7562,10 @@ rec {
             features = [ "rustls" ];
           }
           {
+            name = "walkdir";
+            packageId = "walkdir";
+          }
+          {
             name = "wasm-bindgen-futures";
             packageId = "wasm-bindgen-futures";
             target = { target, features }: (builtins.elem "wasm" target."family");

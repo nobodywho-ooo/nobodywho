@@ -23,15 +23,20 @@ export { TokenStream } from "./streaming";
 export type { Message } from "./message";
 
 // Re-export types that don't need wrapping.
+//
+// Note: `getCachedModels` returns `size` as `bigint` (Rust `u64`). Wrap with
+// `Number(m.size)` at the call site if a JS number is needed.
 export {
   SamplerBuilder,
   SamplerConfig,
   cosineSimilarity,
+  getCachedModels,
 } from "./index";
 
 export type {
   Asset,
   ToolCall,
+  CachedModel,
 } from "./index";
 
 // Ergonomic wrapper additions.

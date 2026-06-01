@@ -546,31 +546,27 @@ pub fn download_model(
 ///
 /// On other platforms, uses the `dirs` crate to find the standard cache directory.
 #[cfg(not(target_family = "wasm"))]
-fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+fn get_cache_dir() -> Result<std::path::PathBuf, crate::errors::GetCacheDirError> {
     let base = get_platform_cache_dir()?;
     Ok(base.join("nobodywho").join("models"))
 }
 
 #[cfg(all(target_os = "android", not(target_arch = "wasm32")))]
-fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::GetCacheDirError> {
+    use crate::errors::GetCacheDirError;
+
     // Read the package name from /proc/self/cmdline. This file contains the process
     // name as a null-terminated string. On Android this is the package name
     // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
     // (e.g. "com.example.app:remote").
-    let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
-        LoadModelError::DownloadError(format!("Failed to read /proc/self/cmdline: {e}"))
-    })?;
+    let cmdline = std::fs::read("/proc/self/cmdline")?;
 
     let package_name = cmdline
         .split(|&b| b == 0)
         .next()
         .and_then(|bytes| std::str::from_utf8(bytes).ok())
         .map(|s| s.split(':').next().unwrap_or(s))
-        .ok_or_else(|| {
-            LoadModelError::DownloadError(
-                "Could not determine Android package name from /proc/self/cmdline".into(),
-            )
-        })?;
+        .ok_or(GetCacheDirError::NoPackageName)?;
 
     // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
     //   uid = user_id * 100000 + app_id
@@ -585,9 +581,8 @@ fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadMod
 }
 
 #[cfg(all(not(target_os = "android"), not(target_family = "wasm")))]
-fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::LoadModelError> {
-    dirs::cache_dir()
-        .ok_or_else(|| LoadModelError::DownloadError("Could not determine cache directory".into()))
+fn get_platform_cache_dir() -> Result<std::path::PathBuf, crate::errors::GetCacheDirError> {
+    dirs::cache_dir().ok_or(crate::errors::GetCacheDirError::NoCacheDir)
 }
 
 /// Download a file from a URL to a local path, streaming to disk with progress logging.
@@ -742,6 +737,35 @@ fn download_model_from_hf(
     let url = format!("https://huggingface.co/{owner}/{repo}/resolve/main/{filename}");
     download_file(&url, &target_path, progress, headers)?;
     Ok(target_path)
+}
+
+/// Every `.gguf` model in the nobodywho cache, paired with its byte size.
+#[cfg(not(target_family = "wasm"))]
+pub fn get_cached_models(
+) -> Result<Vec<(std::path::PathBuf, usize)>, crate::errors::GetCachedModelsError> {
+    let cache_dir = get_cache_dir()?;
+    if !cache_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    walkdir::WalkDir::new(&cache_dir)
+        .into_iter()
+        .filter(|res| match res {
+            Ok(e) => {
+                e.file_type().is_file()
+                    && e.path()
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .is_some_and(|s| s.eq_ignore_ascii_case("gguf"))
+            }
+            Err(_) => true,
+        })
+        .map(|res| {
+            let entry = res?;
+            let len = entry.metadata()?.len() as usize;
+            Ok((entry.into_path(), len))
+        })
+        .collect()
 }
 
 /// Download a model from a generic HTTP(S) URL and return the local path to it.
