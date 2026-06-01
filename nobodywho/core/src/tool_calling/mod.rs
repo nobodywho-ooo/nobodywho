@@ -505,12 +505,12 @@ mod tests {
 
     #[test]
     fn test_tool_serialization() {
-        let tool = Tool::new(
-            "test_tool",
-            "A test tool",
-            json!({"type": "object"}),
-            Arc::new(|_| "result".to_string()),
-        );
+        let tool = Tool {
+            name: "test_tool".to_string(),
+            description: "A test tool".to_string(),
+            json_schema: json!({"type": "object"}),
+            function: Arc::new(|_| "result".to_string()),
+        };
 
         let serialized = match serde_json::to_value(&tool) {
             Ok(s) => s,
