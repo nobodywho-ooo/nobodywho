@@ -171,13 +171,10 @@ jobs:
       - name: "Smoke: vision (Qwen3.5-0.8B multimodal)"
         working-directory: nobodywho
         run: |
-          output=$(node js/examples/vision_demo.mjs \
+          node js/scripts/vision-smoke.mjs \
             /tmp/qwen3.5-0.8b-q4km.gguf \
             /tmp/qwen3.5-0.8b-mmproj-f16.gguf \
-            python/tests/img/penguin.png)
-          echo "$output"
-          echo "$output" | grep -qiE "penguin|tux" \
-            || { echo "expected model to identify a penguin (or tux)"; exit 1; }
+            python/tests/img/penguin.png
 
       - name: "Inspect artifact sizes"
         working-directory: nobodywho/js/pkg-bundler

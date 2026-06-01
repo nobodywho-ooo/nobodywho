@@ -90,10 +90,13 @@ console.log(`\n=== Response (${dt.toFixed(1)} s) ===`);
 console.log(response);
 console.log(`\nStreaming stats: ${chunkCount} chunks, ttft=${(ttftMs ?? 0).toFixed(0)} ms`);
 
-const containsPenguin = response.toLowerCase().includes('penguin');
-console.log(`\ncontains "penguin": ${containsPenguin}`);
-if (!containsPenguin) {
-  console.error('FAIL: model did not identify a penguin');
+// Accept "tux" too: the small models used in CI (Qwen3.5-0.8B) sometimes
+// name the Linux mascot rather than the species. Larger models say "penguin".
+const lower = response.toLowerCase();
+const identified = lower.includes('penguin') || lower.includes('tux');
+console.log(`\nidentified penguin/tux: ${identified}`);
+if (!identified) {
+  console.error('FAIL: model did not identify a penguin (or tux)');
   process.exit(1);
 }
 // "penguin" is a single BPE token in most chat tokenizers but we
