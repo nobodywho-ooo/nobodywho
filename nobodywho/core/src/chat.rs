@@ -1803,6 +1803,20 @@ impl Worker<'_, ChatWorker> {
 
                     // call the tool
                     debug!("Calling the tool now!");
+                    // Native: tool callbacks are synchronous (identical to
+                    // `main`). Run on a blocking thread so a tool that drives
+                    // its own runtime (e.g. the built-in bash tool) doesn't
+                    // panic by nesting inside the worker's runtime. Wasm: the
+                    // callback is async (it awaits a JS Promise), so await it.
+                    #[cfg(not(target_family = "wasm"))]
+                    let response = {
+                        let f = tool.function.clone();
+                        let args = tool_call.arguments;
+                        tokio::task::spawn_blocking(move || f(args))
+                            .await
+                            .unwrap_or_else(|e| format!("ERROR: tool execution failed: {e}"))
+                    };
+                    #[cfg(target_family = "wasm")]
                     let response = (tool.function)(tool_call.arguments).await;
                     debug!(%tool_call.name, %response, "Tool call result:");
 

@@ -20,7 +20,11 @@ use llama_cpp_2::model::LlamaModel;
 #[cfg(not(target_family = "wasm"))]
 use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
+// `Future`/`Pin` back the async tool callback, which only the wasm binding
+// needs (to await a JS Promise). Native tool callbacks are synchronous.
+#[cfg(target_family = "wasm")]
 use std::future::Future;
+#[cfg(target_family = "wasm")]
 use std::pin::Pin;
 use std::sync::Arc;
 // `Duration` is only used by the native-only `Tool::python` builder.
@@ -38,12 +42,13 @@ pub use qwen35_36::Qwen35_36Handler;
 // Core Types
 // ============================================================================
 
-/// Async callback used by [`Tool::function`]. The closure itself is
-/// `Send + Sync` so a `Tool` can be cloned across threads, but the returned
-/// future is awaited inline on the worker that produced it — so the future
-/// itself is **not** required to be `Send`. That concession lets bindings
-/// like the JS one return futures that capture `!Send` JS handles
-/// (`JsFuture`, `js_sys::Function`).
+/// Async tool callback. **Wasm-only**: the JS binding needs an async
+/// callback so it can `.await` a `JsFuture` for a Promise the user-supplied
+/// callback returned. The future is awaited inline on the worker that
+/// produced it, so it is **not** required to be `Send` (it may capture `!Send`
+/// JS handles like `JsFuture` / `js_sys::Function`). Native tool callbacks are
+/// the synchronous `Fn(Value) -> String` below.
+#[cfg(target_family = "wasm")]
 pub type ToolCallback =
     Arc<dyn Fn(serde_json::Value) -> Pin<Box<dyn Future<Output = String>>> + Send + Sync>;
 
@@ -53,6 +58,11 @@ pub struct Tool {
     pub name: String,
     pub description: String,
     pub json_schema: serde_json::Value,
+    /// Native: a synchronous callback — identical to `main`. Wasm: an async
+    /// callback (see [`ToolCallback`]) so the JS binding can await a Promise.
+    #[cfg(not(target_family = "wasm"))]
+    pub function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
+    #[cfg(target_family = "wasm")]
     pub function: ToolCallback,
 }
 
@@ -68,16 +78,18 @@ impl std::fmt::Debug for Tool {
 }
 
 impl Tool {
-    /// Construct a `Tool` from a synchronous callback. The closure is wrapped
-    /// in an immediately-ready future internally, so existing call sites that
-    /// pass a sync `Fn(Value) -> String` continue to work unchanged.
+    /// Construct a `Tool` from a synchronous `Fn(Value) -> String` callback.
     pub fn new<S: Into<String>>(
         name: S,
         description: S,
         json_schema: serde_json::Value,
         function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
     ) -> Self {
-        let async_fn: ToolCallback = Arc::new(move |args: serde_json::Value| {
+        // Native stores the sync callback directly (identical to `main`).
+        // Wasm wraps it in an immediately-ready future to fit the async
+        // `ToolCallback` the wasm worker dispatches.
+        #[cfg(target_family = "wasm")]
+        let function: ToolCallback = Arc::new(move |args: serde_json::Value| {
             let f = function.clone();
             Box::pin(async move { f(args) })
         });
@@ -85,14 +97,14 @@ impl Tool {
             name: name.into(),
             description: description.into(),
             json_schema,
-            function: async_fn,
+            function,
         }
     }
 
-    /// Construct a `Tool` from a future-returning callback. Use this when the
-    /// binding needs to `.await` something during tool dispatch (e.g. the JS
-    /// binding awaiting a `JsFuture` for a Promise the user-supplied callback
-    /// returned).
+    /// Construct a `Tool` from a future-returning callback. **Wasm-only** — the
+    /// JS binding uses this to `.await` a `JsFuture` for a Promise the
+    /// user-supplied callback returned. Native tool callbacks are synchronous.
+    #[cfg(target_family = "wasm")]
     pub fn new_async<S, F, Fut>(
         name: S,
         description: S,
@@ -182,12 +194,7 @@ impl Tool {
     /// shell concept anyway; if needed, define a custom tool via `Tool::new`.
     #[cfg(not(target_family = "wasm"))]
     pub fn bash(max_commands: Option<usize>) -> Self {
-        // Uses `Tool::new_async` rather than `Tool::new` because bashkit is
-        // itself async. The chat-worker dispatcher already runs inside a
-        // tokio current-thread runtime, so any sync wrapper trying to
-        // `rt.block_on` here would panic with the nested-runtime error —
-        // awaiting directly keeps everything on the same runtime.
-        Tool::new_async(
+        Tool::new(
             "run_bash",
             "Run a bash snippet and return its stdout (and stderr if non-empty). All values must be hardcoded in the commands.",
             serde_json::json!({
@@ -206,34 +213,44 @@ impl Tool {
                 },
                 "required": ["commands"]
             }),
-            move |args: serde_json::Value| async move {
-                let Some(commands) = args.get("commands").and_then(|c| c.as_str()) else {
-                    return "ERROR: commands parameter could not be extracted".to_string();
-                };
+            Arc::new({
+                move |args: serde_json::Value| -> String {
+                    let Some(commands) = args.get("commands").and_then(|c| c.as_str()) else {
+                        return "ERROR: commands parameter could not be extracted".to_string();
+                    };
 
-                let fs = std::sync::Arc::new(InMemoryFs::new());
-                let limits = if let Some(max_cmds) = max_commands {
-                    ExecutionLimits::new().max_commands(max_cmds)
-                } else {
-                    ExecutionLimits::new()
-                };
-                let mut bash = bashkit::Bash::builder().fs(fs).limits(limits).build();
+                    // bashkit requires a Tokio reactor (for timers, I/O, etc.),
+                    // so we need a Tokio runtime here rather than futures::executor.
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("failed to create tokio runtime for bash tool");
+                    rt.block_on(async {
+                        let fs = std::sync::Arc::new(InMemoryFs::new());
+                        let limits = if let Some(max_cmds) = max_commands {
+                            ExecutionLimits::new().max_commands(max_cmds)
+                        } else {
+                            ExecutionLimits::new()
+                        };
+                        let mut bash = bashkit::Bash::builder().fs(fs).limits(limits).build();
 
-                match bash.exec(commands).await {
-                    Ok(result) => {
-                        let mut output = result.stdout;
-                        if !result.stderr.is_empty() {
-                            if !output.is_empty() {
-                                output.push('\n');
+                        match bash.exec(commands).await {
+                            Ok(result) => {
+                                let mut output = result.stdout;
+                                if !result.stderr.is_empty() {
+                                    if !output.is_empty() {
+                                        output.push('\n');
+                                    }
+                                    output.push_str("STDERR: ");
+                                    output.push_str(&result.stderr);
+                                }
+                                output
                             }
-                            output.push_str("STDERR: ");
-                            output.push_str(&result.stderr);
+                            Err(e) => format!("ERROR: {e}"),
                         }
-                        output
-                    }
-                    Err(e) => format!("ERROR: {e}"),
+                    })
                 }
-            },
+            }),
         )
     }
 }
