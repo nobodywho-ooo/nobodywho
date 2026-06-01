@@ -39,7 +39,7 @@ jobs:
 
   macos:
     name: "macOS"
-    runs-on: warp-macos-latest-arm64-6x
+    runs-on: [self-hosted, macOS, ARM64]
     steps:
       - uses: actions/checkout@v5
 
