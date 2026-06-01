@@ -176,10 +176,12 @@ fn main() {
     // parallelism (ggml threadpool), and the Rust core uses
     // std::thread::spawn (mapped to pthread_create by emscripten).
     //
-    // Browser deployment requirement: the serving origin MUST set
+    // Browser deployment requirement: the serving origin must set
     //   Cross-Origin-Opener-Policy: same-origin
-    //   Cross-Origin-Embedder-Policy: require-corp
-    // headers for SharedArrayBuffer to be available.
+    //   Cross-Origin-Embedder-Policy: credentialless   (or require-corp)
+    // for SharedArrayBuffer to be available. credentialless is the most
+    // forgiving value (cross-origin resources load without sending their
+    // own CORP headers); require-corp also works.
     println!("cargo:rustc-link-arg-cdylib=-pthread");
 
     println!("cargo:rustc-link-arg-cdylib=-sDEFAULT_PTHREAD_STACK_SIZE=2MB");
