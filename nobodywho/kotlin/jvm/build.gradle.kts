@@ -23,6 +23,14 @@ dependencies {
 //   win32-x86-64/nobodywho_uniffi.dll
 // JNA automatically extracts and loads the correct one at runtime.
 
+val sourcesJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("sources")
+}
+
+val javadocJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+}
+
 publishing {
     publications {
         register<MavenPublication>("release") {
@@ -31,6 +39,8 @@ publishing {
             version = project.version.toString()
 
             from(components["java"])
+            artifact(sourcesJar)
+            artifact(javadocJar)
         }
     }
 }
