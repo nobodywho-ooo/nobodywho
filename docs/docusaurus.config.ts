@@ -24,7 +24,7 @@ const config: Config = {
   clientModules: ['./src/github-stars.js'],
 
   title: 'NobodyWho',
-  tagline: 'Local-first LLM inference for Swift, Python, Godot, Flutter, and React Native',
+  tagline: 'Local-first LLM inference for Swift, Python, Godot, Flutter, React Native, and JavaScript',
   favicon: 'img/favicon.ico',
 
   url: 'https://docs.nobodywho.ooo',
@@ -87,7 +87,7 @@ const config: Config = {
       {
         hashed: true,
         indexBlog: false,
-        docsRouteBasePath: ['docs', 'python', 'swift', 'react-native', 'flutter', 'godot'],
+        docsRouteBasePath: ['docs', 'python', 'swift', 'react-native', 'flutter', 'godot', 'js'],
       },
     ],
   ],
@@ -146,6 +146,16 @@ const config: Config = {
         ...sdkDocsConfig('godot'),
       },
     ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'js',
+        path: 'docs-js',
+        routeBasePath: 'js',
+        sidebarPath: './sidebars/js.ts',
+        ...sdkDocsConfig('js'),
+      },
+    ],
   ],
 
   themeConfig: {
@@ -173,6 +183,7 @@ const config: Config = {
         {to: '/react-native/', label: 'React Native', position: 'left', activeBaseRegex: '/react-native/'},
         {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/'},
         {to: '/godot/install', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
+        {to: '/js/', label: 'JavaScript', position: 'left', activeBaseRegex: '/js/'},
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',

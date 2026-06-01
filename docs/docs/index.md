@@ -27,7 +27,7 @@ If you are already familiar with the basics of LLMs we suggest you go straight t
   <Link to="/react-native/" className="button button--secondary button--sm">React Native</Link>
   <Link to="/flutter/" className="button button--secondary button--sm">Flutter</Link>
   <Link to="/godot/install" className="button button--secondary button--sm">Godot</Link>
-  <a href="https://github.com/nobodywho-ooo/nobodywho/blob/main/nobodywho/js/README.md" className="button button--secondary button--sm">JavaScript (wasm)</a>
+  <Link to="/js/" className="button button--secondary button--sm">JavaScript (wasm)</Link>
 </div>
 
 ## Basic LLM concepts
