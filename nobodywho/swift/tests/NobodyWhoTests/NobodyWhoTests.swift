@@ -46,6 +46,8 @@ final class NobodyWhoTests: XCTestCase {
         let attrs = try FileManager.default.attributesOfItem(atPath: localPath)
         XCTAssertGreaterThan(attrs[.size] as? UInt64 ?? 0, 0)
         XCTAssertTrue(progressCalled, "Progress callback should have been called")
+    }
+
     // MARK: - Cached models
 
     func testGetCachedModels() throws {
