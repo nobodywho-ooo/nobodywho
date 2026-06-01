@@ -199,8 +199,17 @@ jobs:
     runs-on: [self-hosted, macOS, ARM64]
     strategy:
       fail-fast: false
+    env:
+      AGENT_TOOLSDIRECTORY: /Users/actions-runner/hostedtoolcache
     steps:
       - uses: actions/checkout@v5
+      - name: "Debug runner env"
+        run: |
+          echo "whoami: $(whoami)"
+          echo "HOME=$HOME"
+          echo "RUNNER_TOOL_CACHE=$RUNNER_TOOL_CACHE"
+          echo "AGENT_TOOLSDIRECTORY=$AGENT_TOOLSDIRECTORY"
+          echo "PWD=$PWD"
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: actions/setup-python@v6
         with:
@@ -512,6 +521,8 @@ jobs:
     if: inputs.full_ci
     needs: [mac-os-build]
     runs-on: [self-hosted, macOS, ARM64]
+    env:
+      AGENT_TOOLSDIRECTORY: /Users/actions-runner/hostedtoolcache
     strategy:
       fail-fast: false
       matrix:
