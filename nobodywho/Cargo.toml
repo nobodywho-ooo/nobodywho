@@ -23,16 +23,18 @@ pyo3-macros = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 pyo3-macros-backend = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 pyo3-build-config = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 pyo3-introspection = { git = "https://github.com/PyO3/pyo3", branch = "main" }
-# wasm-bindgen 0.2.121 stock crates.io release predates the upstream
-# `__wasm_bindgen_emscripten_marker` custom section that the patched CLI
-# uses to switch to Emscripten output mode (library_bindgen.js + addToLibrary
-# format). Without the marker the CLI emits bundler-shape output, which
-# emcc-wbg's -sWASM_BINDGEN post-link step then can't find — silently
-# leaving pkg-bundler stale. Point at our fork (which is upstream main +
-# the descriptor-interpreter cli-support tolerance patch) so the marker
-# section is emitted into the compiled wasm. Drop this patch once the
-# fix lands upstream in wasm-bindgen.
-wasm-bindgen = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "emscripten-descriptor-fixes" }
+# wasm-bindgen pinned to nobodywho-ooo/wasm-bindgen branch
+# `wasm-emscripten-0.2.122`: stock upstream 0.2.122 (which absorbed our
+# descriptor-interpreter tolerance + the `__wasm_bindgen_emscripten_marker`
+# / library_bindgen.js Emscripten output mode) plus the one remaining fix —
+# skip wasm-bindgen's `__heap_base`-based thread transform under Emscripten
+# (Emscripten manages its own pthread runtime). The whole family is pinned to
+# the same branch: 0.2.122 isn't on crates.io yet and js-sys/web-sys/futures
+# exact-pin `=0.2.122`. Drop once the pthread fix lands upstream.
+wasm-bindgen = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
+wasm-bindgen-futures = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
+js-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
+web-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
 
 # llama-cpp-2 / llama-cpp-sys-2 are pulled directly from the
 # `nobodywho-ooo/llama-cpp-rs` `wasm-emscripten` branch via the

@@ -1021,7 +1021,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1917,7 +1917,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2009,13 +2009,11 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.98"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67df7112613f8bfd9150013a0314e196f4800d3201ae742489d999db2f979f08"
+version = "0.3.99"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "cfg-if",
  "futures-util",
- "once_cell",
  "wasm-bindgen",
 ]
 
@@ -3312,7 +3310,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3832,7 +3830,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4557,8 +4555,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
+version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -4569,9 +4567,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.71"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96492d0d3ffba25305a7dc88720d250b1401d7edca02cc3bcd50633b424673b8"
+version = "0.4.72"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -4579,8 +4576,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
+version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -4588,8 +4585,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
+version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -4600,8 +4597,8 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.121"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#f4fc33dc7f505b6aa19bdfc2c9672e8680f76168"
+version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "unicode-ident",
 ]
@@ -4642,9 +4639,8 @@ dependencies = [
 
 [[package]]
 name = "web-sys"
-version = "0.3.98"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b572dff8bcf38bad0fa19729c89bb5748b2b9b1d8be70cf90df697e3a8f32aa"
+version = "0.3.99"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -4700,7 +4696,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
