@@ -8,6 +8,7 @@ const sidebars: SidebarsConfig = {
     'vision',
     'sampling',
     'embeddings-and-rag',
+    'downloading-models',
   ],
 };
 
