@@ -5,9 +5,10 @@
 // libc-fopen-based loader → miniaudio decoder → mtmd accepts the
 // decoded PCM → audio mmproj encoder → LLM produces a transcript.
 //
-// Verified end-to-end against Qwen3-ASR after the mtmd-audio.cpp
-// `n_threads = 1` patch on Emscripten (nobodywho-ooo/llama.cpp
-// wasm-emscripten branch).
+// Verified end-to-end against Qwen3-ASR. On Emscripten, mtmd audio
+// preprocessing runs under real pthreads now — the earlier n_threads=1
+// workaround (nobodywho-ooo/llama.cpp fork) is gone; the llama.cpp
+// submodule is stock ggml-org.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
 //   PATH=/opt/homebrew/bin:$PATH node js/tests/audio-smoke.mjs

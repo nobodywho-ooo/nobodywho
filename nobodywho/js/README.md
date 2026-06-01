@@ -407,24 +407,19 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
 
 ## Outstanding
 
-- **Upstream the four forks pinned by this PR.** Each carries
+- **Upstream the three forks pinned by this PR.** Each carries
   changes that need to land in their respective upstream projects so we
-  can drop the fork pointer. All four are publicly hosted under
-  `nobodywho-ooo/` for transparency / reproducibility:
+  can drop the fork pointer. The two we maintain are publicly hosted under
+  `nobodywho-ooo/` for transparency / reproducibility; the third
+  (`emscripten`) is a third-party fork we only consume:
   - [`nobodywho-ooo/llama-cpp-rs` branch `wasm-emscripten`](https://github.com/nobodywho-ooo/llama-cpp-rs/tree/wasm-emscripten)
     — `CMAKE_SYSTEM_PROCESSOR=wasm32` for ggml's wasm SIMD quants, `MA_NO_*`
     defines + `-fexceptions` for mtmd. Pulled directly via `core/Cargo.toml`
     `{ git = "...", branch = "wasm-emscripten" }`. Its `llama.cpp`
-    submodule is pinned at our fork (next bullet).
-  - [`nobodywho-ooo/llama.cpp` branch `wasm-emscripten`](https://github.com/nobodywho-ooo/llama.cpp/tree/wasm-emscripten)
-    — one patch on top of upstream: `5e6a3d945` cfg-gates the
-    mtmd-audio mel spectrogram's `n_threads` to 1 on `__EMSCRIPTEN__`
-    (avoids the `pthread_create` trap that killed audio inference
-    for all formats). Pulled via the llama-cpp-rs submodule.
+    submodule tracks upstream `ggml-org/llama.cpp` (stock, unpatched).
   - [`nobodywho-ooo/wasm-bindgen` branch `emscripten-descriptor-fixes`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/emscripten-descriptor-fixes)
     — descriptor-interpreter tolerance for Emscripten-shaped wasm.
     Pinned via the workspace `Cargo.toml` `[patch.crates-io]` block.
-  - [`nobodywho-ooo/emscripten` branch `wbg-walkingeyerobot`](https://github.com/nobodywho-ooo/emscripten/tree/wbg-walkingeyerobot)
-    — fork of `walkingeyerobot/emscripten` (which itself carries the
-    `-sWASM_BINDGEN` flag tracked in [emscripten-core/emscripten#23493](https://github.com/emscripten-core/emscripten/pull/23493)).
+  - [`walkingeyerobot/emscripten` branch `wbg-walkingeyerobot`](https://github.com/walkingeyerobot/emscripten/tree/wbg-walkingeyerobot)
+    — carries the `-sWASM_BINDGEN` flag tracked in [emscripten-core/emscripten#23493](https://github.com/emscripten-core/emscripten/pull/23493).
     Consumed at build time via `$EMSDK_DIR` pointing at a local clone.
