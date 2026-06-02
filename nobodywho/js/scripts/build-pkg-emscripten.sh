@@ -11,8 +11,9 @@
 # Prereqs (see ../README.md for setup details):
 #   - walkingeyerobot's emscripten fork at $HOME/emscripten-wbg
 #     providing the -sWASM_BINDGEN setting (PR emscripten-core/emscripten#23493).
-#   - stock wasm-bindgen-cli 0.2.121 at ~/.cargo/bin/wasm-bindgen — used by
-#     em++ as the actual descriptor interpreter, controlled via $EM_WASM_BINDGEN.
+#   - wasm-bindgen-cli built from the nobodywho-ooo/wasm-bindgen
+#     `wasm-emscripten-0.2.122` branch (e.g. /tmp/wbg-patched), pointed at via
+#     $EM_WASM_BINDGEN. NOT stock crates.io — see the WASM_BINDGEN_BIN note below.
 #   - $LIBCLANG_PATH pointing at a libclang that bindgen can find (Apple's CLT
 #     bin/lib works: /Library/Developer/CommandLineTools/usr/lib).
 #   - pkg-bundler/pre.js present — the HEAP_DATA_VIEW lazy-getter shim that
@@ -27,8 +28,8 @@
 #   library output (already in emcc's temp dir from the cargo build), with
 #   `-sMODULARIZE=1 -sEXPORT_ES6=1` to wrap the loader in a factory function.
 #
-# Why the sed patches: workarounds for codegen bugs in stock wasm-bindgen-cli
-# 0.2.121 when targeting the emscripten module shape:
+# Why the sed patches: workarounds for codegen quirks in wasm-bindgen-cli
+# 0.2.122's Emscripten output when targeting the emscripten module shape:
 #   - HEAPX0()/HEAPX() (where X = U8/8/U16/16/U32/32/F32/F64) — wasm-bindgen
 #     emits the typed-array getter form used by the bundler target. The "0"
 #     suffix comes from wasm-bindgen's identifier mangling for some call
@@ -57,8 +58,9 @@
 #     and push them onto extraLibraryFuncs so the JS compiler emits them.
 #
 # Outputs are in pkg-bundler/ ready for `node js/tests/emscripten-smoke.mjs`,
-# `js/examples/*.mjs`, or an npm publish via build-pkg.sh's package.json
-# templating step (which is orthogonal to this script).
+# `js/examples/*.mjs`, or an npm publish (release.yml's publish-js-npm job
+# stages pkg-bundler/package.json from package.json.tpl — orthogonal to this
+# script).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")"/../../.. && pwd)"   # repo root
@@ -68,15 +70,15 @@ TARGET_DIR="$ROOT/nobodywho/target/wasm32-unknown-emscripten/release"
 
 EMSDK_DIR="${EMSDK_DIR:-$HOME/emscripten-wbg}"
 EM_CONFIG="${EM_CONFIG:-$EMSDK_DIR/.emscripten}"
-# IMPORTANT: must be the patched wasm-bindgen CLI (descriptor-interpreter
-# fixes + Emscripten output mode), not stock 0.2.121 from crates.io. Build
-# it from the local fork checkout per shell.nix's instructions:
+# IMPORTANT: must be the wasm-bindgen-cli built from the
+# nobodywho-ooo/wasm-bindgen `wasm-emscripten-0.2.122` branch, not stock
+# crates.io (which is still 0.2.121). The cli's schema must match the patched
+# 0.2.122 wasm-bindgen crate pinned in the workspace Cargo.toml, and the fork
+# carries the Emscripten pthread thread-transform skip. Build it from the fork:
 #   ( cd ~/wasm-bindgen && cargo install --path crates/cli \
 #       --root /tmp/wbg-patched --locked )
-# Using ~/.cargo/bin/wasm-bindgen here silently fails — stock CLI emits
-# bundler-shape output instead of library_bindgen.js, and the post-link
-# step below errors with "library_bindgen.js not found" while leaving
-# pkg-bundler stale.
+# A schema-mismatched cli (e.g. stock 0.2.121) makes the post-link step below
+# fail with "library_bindgen.js not found" while leaving pkg-bundler stale.
 WASM_BINDGEN_BIN="${EM_WASM_BINDGEN:-/tmp/wbg-patched/bin/wasm-bindgen}"
 
 if [[ ! -x "$EMSDK_DIR/emcc" ]]; then
@@ -151,8 +153,8 @@ if [[ ! -f "$BINDGEN_OUT/library_bindgen.js" ]]; then
   echo "       Output dir contents:" >&2
   ls -la "$BINDGEN_OUT" >&2
   echo "       Did the marker injection succeed? Re-check the python step above." >&2
-  echo "       wasm-bindgen-cli must be the patched fork (with Emscripten" >&2
-  echo "       output mode); stock 0.2.121 from crates.io won't work." >&2
+  echo "       wasm-bindgen-cli must be the wasm-emscripten-0.2.122 fork build" >&2
+  echo "       (matching schema + pthread transform skip); stock 0.2.121 won't work." >&2
   exit 1
 fi
 echo "==> using $BINDGEN_OUT/library_bindgen.js"
@@ -229,7 +231,7 @@ fi
 
 # Only needed for wasm-bindgen versions that reference __wbg_terminated_addr /
 # __wbg_called_abort inside __wbg_call_guard without declaring them. The
-# current 0.2.121 doesn't emit that guard, so this is a guarded no-op; if a
+# current 0.2.122 doesn't emit that guard, so this is a guarded no-op; if a
 # future version reintroduces it, hoist the vars and confirm the hoist landed.
 if grep -q 'function __wbg_call_guard() {' "$PKG_DIR/library_bindgen.js"; then
   sed -i.bak2 \

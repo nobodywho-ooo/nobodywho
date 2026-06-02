@@ -179,13 +179,14 @@ Rust nightly (for `-Zbuild-std` to recompile std with atomics).
 ```bash
 # 1. Emscripten with the -sWASM_BINDGEN setting
 #    (PR emscripten-core/emscripten#23493)
-git clone https://github.com/walkingeyerobot/emscripten ~/emscripten-wbg
+git clone -b wbg-walkingeyerobot \
+  https://github.com/walkingeyerobot/emscripten ~/emscripten-wbg
 cd ~/emscripten-wbg
 ./bootstrap   # downloads the matching binaryen + node bundle
 
-# 2. wasm-bindgen with descriptor-interpreter + Emscripten-output-mode
-#    + pthreads compatibility fixes
-git clone https://github.com/nobodywho-ooo/wasm-bindgen ~/wasm-bindgen
+# 2. wasm-bindgen 0.2.122 + the Emscripten pthread thread-transform skip
+git clone -b wasm-emscripten-0.2.122 \
+  https://github.com/nobodywho-ooo/wasm-bindgen ~/wasm-bindgen
 cargo install --path ~/wasm-bindgen/crates/cli \
   --root /tmp/wbg-patched --locked
 
@@ -251,9 +252,11 @@ libraries gives us a single wasm that hosts both halves of the binding.
 
 The Rust side uses wasm-bindgen attributes to expose typed JS classes
 (`Model`, `Chat`, `Encoder`, `CrossEncoder`, `Image`, `Audio`,
-`Tool`, etc.). Stock wasm-bindgen-cli doesn't yet ship Emscripten
-output mode, so we use a temporary fork
-(`nobodywho-ooo/wasm-bindgen`) until upstream merges those changes.
+`Tool`, etc.). wasm-bindgen 0.2.122 ships Emscripten output mode
+upstream; we pin a thin fork (`nobodywho-ooo/wasm-bindgen` branch
+`wasm-emscripten-0.2.122`) for the one remaining fix — skipping
+wasm-bindgen's `__heap_base` thread transform, which conflicts with
+Emscripten's own pthread runtime — until that lands upstream too.
 
 ### Source-level patches to llama.cpp
 
@@ -419,7 +422,8 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
     submodule tracks upstream `ggml-org/llama.cpp` (stock, unpatched).
   - [`nobodywho-ooo/wasm-bindgen` branch `wasm-emscripten-0.2.122`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/wasm-emscripten-0.2.122)
     — upstream 0.2.122 + the Emscripten-pthread thread-transform skip (the
-    descriptor-interpreter tolerance was absorbed upstream). Pinned via the
+    descriptor-interpreter tolerance and Emscripten output mode were absorbed
+    upstream). Pinned via the
     workspace `Cargo.toml` `[patch.crates-io]` block. The js CI builds its
     wasm-bindgen-cli from this same branch (`WBG_FORK_REF`) so the cli/crate
     schema versions match.

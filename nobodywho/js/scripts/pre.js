@@ -1,4 +1,4 @@
-// wasm-bindgen 0.2.121 Emscripten output references a `HEAP_DATA_VIEW`
+// wasm-bindgen's Emscripten output references a `HEAP_DATA_VIEW`
 // global it never declares. Define it as a lazy getter that refreshes
 // when memory grows (HEAPU8.buffer identity change).
 //

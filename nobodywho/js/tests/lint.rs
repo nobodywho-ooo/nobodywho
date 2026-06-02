@@ -66,10 +66,11 @@ fn cargo_toml_monty_comment_adjacent_to_monty_dep() {
 
 /// Finding #N1 — `package.json.tpl` must use a clear placeholder version.
 ///
-/// We don't yet have an npm publishing script (the old `build-pkg.sh`
-/// version-rewrite path was deleted alongside the WASI build). Whatever
-/// publish path replaces it will need a placeholder it knows to substitute
-/// rather than a hardcoded release-looking version.
+/// The npm publish path (release.yml's `publish-js-npm` job) renders
+/// `pkg-bundler/package.json` from this template, substituting the
+/// placeholder with the version from the `nobodywho-js-v*` tag. A
+/// hardcoded release-looking version here would defeat that, so the
+/// template must keep a clear placeholder.
 #[test]
 fn package_version_is_placeholder() {
     let version_line = PACKAGE_JSON_TPL

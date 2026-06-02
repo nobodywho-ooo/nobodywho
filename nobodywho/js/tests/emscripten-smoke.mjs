@@ -33,8 +33,8 @@ if (!existsSync(modelPath)) {
 }
 
 // The Emscripten loader lives in pkg-bundler/ after a successful build
-// (build-pkg.sh post-Phase-2). During Phase 0 we point directly at the
-// raw cargo output instead.
+// (build-pkg-emscripten.sh); fall back to the raw cargo output if that
+// hasn't been run yet.
 const candidates = [
   resolve(here, '..', 'pkg-bundler', 'nobodywho_js.js'),
   resolve(

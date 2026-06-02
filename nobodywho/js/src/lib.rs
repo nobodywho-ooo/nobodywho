@@ -1148,8 +1148,8 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
 ///
 /// Tools are returned as plain JS objects of shape
 /// `{__nbwKind: 'tool', name, description, jsonSchema, callback}` rather
-/// than wasm-bindgen class instances — wasm-bindgen 0.2.121's
-/// Rust-defined structs don't `impl JsCast`, so we can't `dyn_into`
+/// than wasm-bindgen class instances — wasm-bindgen's Rust-defined
+/// structs don't `impl JsCast`, so we can't `dyn_into`
 /// them out of a generic options-object on the way back. Tagged plain
 /// objects sidestep that and let the extract step do a brand check.
 #[wasm_bindgen]
