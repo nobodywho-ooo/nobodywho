@@ -93,6 +93,7 @@ verify locally after a build, run:
 | Smoke | Covers |
 |---|---|
 | `emscripten-smoke.mjs` | `Model.load` + `Encoder.encode` round-trip |
+| `onprogress-smoke.mjs` | `Model.load({modelUrl, onProgress})` download-progress callback (serves the GGUF over local HTTP) |
 | `forawait-smoke.mjs` | `for await (const tok of chat.ask(...))` iteration |
 | `sampler-smoke.mjs` | sampler-config knobs end-to-end |
 | `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` (core shift + sample steps) |
@@ -146,6 +147,13 @@ tee'd: one stream goes into MEMFS, the other is stored in the Cache API
 download. On subsequent visits, `cache.match(url)` streams the model
 directly from disk cache into MEMFS. Model bytes never touch the main
 thread.
+
+**Progress.** Pass an `onProgress` callback to `Model.load` / `Chat.create`
+to track URL downloads — it fires per streamed chunk on the main thread as
+`onProgress(loaded, total, kind)`, where `kind` is `'model'` or `'mmproj'`
+and `total` is `0` when the server sent no `Content-Length`. NODEFS path
+loads (`modelPath`) read from disk without streaming, so it doesn't fire
+for them.
 
 ## Build pipeline
 

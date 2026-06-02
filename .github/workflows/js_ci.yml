@@ -168,6 +168,10 @@ jobs:
         working-directory: nobodywho
         run: node js/tests/emscripten-smoke.mjs /tmp/bge-small.gguf
 
+      - name: "Smoke: onProgress download callback (URL streaming)"
+        working-directory: nobodywho
+        run: node js/tests/onprogress-smoke.mjs /tmp/bge-small.gguf
+
       - name: "Smoke: vision (Qwen3.5-0.8B multimodal)"
         working-directory: nobodywho
         run: |

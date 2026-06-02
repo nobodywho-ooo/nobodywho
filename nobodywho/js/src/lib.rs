@@ -229,6 +229,10 @@ impl Model {
     /// const model = await Model.load({ modelPath: '/path/to/model.gguf' });
     /// // Multimodal (vision/audio) — pass mmproj too:
     /// const model = await Model.load({ modelUrl: '...', mmprojUrl: '...' });
+    /// // Track download progress on URL loads (kind: 'model' | 'mmproj';
+    /// // total is 0 if the server sent no Content-Length):
+    /// await Model.load({ modelUrl: '...', onProgress: (loaded, total, kind) =>
+    ///   console.log(`${kind} ${loaded}/${total}`) });
     /// ```
     #[wasm_bindgen(js_name = load)]
     pub fn load(opts: &JsValue) -> js_sys::Promise {
@@ -253,6 +257,13 @@ impl Model {
         let mmproj_path = js_sys::Reflect::get(&obj, &"mmprojPath".into())
             .ok()
             .and_then(|v| v.as_string());
+        // Optional JS progress callback. Invoked per streamed chunk on the
+        // main thread as onProgress(loaded, total, kind) — kind is
+        // "model"|"mmproj", total is 0 when the server sent no Content-Length.
+        // Only URL (streaming) loads fire it; NODEFS path loads don't stream.
+        let on_progress = js_sys::Reflect::get(&obj, &"onProgress".into())
+            .ok()
+            .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
 
         if model_url.is_none() && model_path.is_none() {
             return js_sys::Promise::reject(
@@ -264,7 +275,7 @@ impl Model {
             let model_memfs: std::path::PathBuf = if let Some(path) = model_path {
                 mount_host_path_via_nodefs("model", &path).map_err(|e| JsError::new(&e))?
             } else if let Some(url) = model_url {
-                stream_url_to_memfs("model", &url, None)
+                stream_url_to_memfs("model", &url, on_progress.as_ref())
                     .await
                     .map_err(|e| JsError::new(&e))?
             } else {
@@ -275,7 +286,7 @@ impl Model {
                 Some(mount_host_path_via_nodefs("mmproj", &path).map_err(|e| JsError::new(&e))?)
             } else if let Some(url) = mmproj_url {
                 Some(
-                    stream_url_to_memfs("mmproj", &url, None)
+                    stream_url_to_memfs("mmproj", &url, on_progress.as_ref())
                         .await
                         .map_err(|e| JsError::new(&e))?,
                 )
@@ -784,6 +795,7 @@ async fn stream_reader_to_memfs(
     reader: &web_sys::ReadableStreamDefaultReader,
     memfs_path: &str,
     total: f64,
+    kind: &str,
     on_progress: Option<&js_sys::Function>,
 ) -> Result<(), String> {
     let fs = {
@@ -846,10 +858,11 @@ async fn stream_reader_to_memfs(
         }
         downloaded += chunk_len;
         if let Some(cb) = on_progress {
-            let _ = cb.call2(
+            let _ = cb.call3(
                 &JsValue::null(),
                 &JsValue::from_f64(downloaded),
                 &JsValue::from_f64(total),
+                &JsValue::from_str(kind),
             );
         }
     }
@@ -885,6 +898,7 @@ async fn stream_reader_to_wasm_buffer(
     reader: &web_sys::ReadableStreamDefaultReader,
     memfs_path: &str,
     total: usize,
+    kind: &str,
     on_progress: Option<&js_sys::Function>,
 ) -> Result<(), String> {
     // 64-byte aligned so GGUF's 32-byte tensor alignment survives the
@@ -926,10 +940,11 @@ async fn stream_reader_to_wasm_buffer(
         }
         offset += chunk_len;
         if let Some(cb) = on_progress {
-            let _ = cb.call2(
+            let _ = cb.call3(
                 &JsValue::null(),
                 &JsValue::from_f64(offset as f64),
                 &JsValue::from_f64(total as f64),
+                &JsValue::from_str(kind),
             );
         }
     }
@@ -1001,10 +1016,10 @@ async fn stream_url_to_memfs(
                     .dyn_into()
                     .map_err(|_| "expected ReadableStreamDefaultReader".to_string())?;
                 if total > 0.0 {
-                    stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, on_progress)
+                    stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, kind, on_progress)
                         .await?;
                 } else {
-                    stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
+                    stream_reader_to_memfs(&reader, &memfs_path, total, kind, on_progress).await?;
                 }
                 return Ok(std::path::PathBuf::from(memfs_path));
             }
@@ -1081,9 +1096,9 @@ async fn stream_url_to_memfs(
     });
 
     if total > 0.0 {
-        stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, on_progress).await?;
+        stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, kind, on_progress).await?;
     } else {
-        stream_reader_to_memfs(&reader, &memfs_path, total, on_progress).await?;
+        stream_reader_to_memfs(&reader, &memfs_path, total, kind, on_progress).await?;
     }
 
     Ok(std::path::PathBuf::from(memfs_path))
@@ -1615,11 +1630,16 @@ impl Chat {
                 .ok()
                 .and_then(|v| v.as_f64())
                 .map(|v| v as u32);
+            // Optional JS progress callback — see Model.load for the contract:
+            // onProgress(loaded, total, kind), URL/streaming loads only.
+            let on_progress = js_sys::Reflect::get(obj, &"onProgress".into())
+                .ok()
+                .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
 
             let model_memfs: std::path::PathBuf = if let Some(path) = model_path {
                 mount_host_path_via_nodefs("model", &path).map_err(|e| JsError::new(&e))?
             } else if let Some(url) = model_url {
-                stream_url_to_memfs("model", &url, None)
+                stream_url_to_memfs("model", &url, on_progress.as_ref())
                     .await
                     .map_err(|e| JsError::new(&e))?
             } else {
@@ -1630,7 +1650,7 @@ impl Chat {
                 Some(mount_host_path_via_nodefs("mmproj", &path).map_err(|e| JsError::new(&e))?)
             } else if let Some(url) = mmproj_url {
                 Some(
-                    stream_url_to_memfs("mmproj", &url, None)
+                    stream_url_to_memfs("mmproj", &url, on_progress.as_ref())
                         .await
                         .map_err(|e| JsError::new(&e))?,
                 )
