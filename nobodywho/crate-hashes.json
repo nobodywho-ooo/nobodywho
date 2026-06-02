@@ -13,9 +13,12 @@
   "git+https://github.com/everruns/bashkit?tag=v0.1.10#0.1.10": "0i0m81sqcmkynrdi45q112p6brcna9ws7wy1ac3wkh6mjl5k9swg",
   "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#llama-cpp-2@0.1.147": "1d2ihnji81z5jn5haycby404jwiliy2xzhl01d41vh9l82wg823m",
   "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#llama-cpp-sys-2@0.1.147": "1d2ihnji81z5jn5haycby404jwiliy2xzhl01d41vh9l82wg823m",
-  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#0.2.121": "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj",
-  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#wasm-bindgen-macro-support@0.2.121": "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj",
-  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#wasm-bindgen-macro@0.2.121": "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj",
-  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=emscripten-descriptor-fixes#wasm-bindgen-shared@0.2.121": "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj",
+  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#0.2.122": "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0",
+  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#js-sys@0.3.99": "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0",
+  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#wasm-bindgen-futures@0.4.72": "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0",
+  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#wasm-bindgen-macro-support@0.2.122": "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0",
+  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#wasm-bindgen-macro@0.2.122": "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0",
+  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#wasm-bindgen-shared@0.2.122": "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0",
+  "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#web-sys@0.3.99": "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0",
   "git+https://github.com/pydantic/monty?tag=v0.0.7#0.0.7": "0k7a1pqyph7062msz39p6v2s1ylpyjn37wbscwmi09m3xkj109pa"
 }
