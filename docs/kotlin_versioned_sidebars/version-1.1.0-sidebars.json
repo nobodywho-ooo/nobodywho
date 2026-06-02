@@ -1,0 +1,11 @@
+{
+  "kotlin": [
+    "index",
+    "chat",
+    "tool-calling",
+    "vision",
+    "sampling",
+    "embeddings-and-rag",
+    "downloading-models"
+  ]
+}
