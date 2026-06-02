@@ -15,7 +15,7 @@ env:
   EMSDK_FORK_URL: https://github.com/walkingeyerobot/emscripten
   EMSDK_FORK_REF: wbg-walkingeyerobot
   WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
-  WBG_FORK_REF: emscripten-descriptor-fixes
+  WBG_FORK_REF: wasm-emscripten-0.2.122
 
 jobs:
   lint:

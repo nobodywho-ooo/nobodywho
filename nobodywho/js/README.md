@@ -417,9 +417,12 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
     defines + `-fexceptions` for mtmd. Pulled directly via `core/Cargo.toml`
     `{ git = "...", branch = "wasm-emscripten" }`. Its `llama.cpp`
     submodule tracks upstream `ggml-org/llama.cpp` (stock, unpatched).
-  - [`nobodywho-ooo/wasm-bindgen` branch `emscripten-descriptor-fixes`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/emscripten-descriptor-fixes)
-    — descriptor-interpreter tolerance for Emscripten-shaped wasm.
-    Pinned via the workspace `Cargo.toml` `[patch.crates-io]` block.
+  - [`nobodywho-ooo/wasm-bindgen` branch `wasm-emscripten-0.2.122`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/wasm-emscripten-0.2.122)
+    — upstream 0.2.122 + the Emscripten-pthread thread-transform skip (the
+    descriptor-interpreter tolerance was absorbed upstream). Pinned via the
+    workspace `Cargo.toml` `[patch.crates-io]` block. The js CI builds its
+    wasm-bindgen-cli from this same branch (`WBG_FORK_REF`) so the cli/crate
+    schema versions match.
   - [`walkingeyerobot/emscripten` branch `wbg-walkingeyerobot`](https://github.com/walkingeyerobot/emscripten/tree/wbg-walkingeyerobot)
     — carries the `-sWASM_BINDGEN` flag tracked in [emscripten-core/emscripten#23493](https://github.com/emscripten-core/emscripten/pull/23493).
     Consumed at build time via `$EMSDK_DIR` pointing at a local clone.

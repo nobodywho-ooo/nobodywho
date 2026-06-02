@@ -20,14 +20,14 @@ pkgs.mkShell {
     # without us having to write an Emscripten config file.
     #
     # Pointing at a locally-built patched cli at /tmp/wbg-patched/bin/
-    # while the descriptor-interpreter fixes are out-of-tree. The fork
-    # lives at https://github.com/nobodywho-ooo/wasm-bindgen on branch
-    # `emscripten-descriptor-fixes` (one commit on top of upstream main
-    # @ 49457f2). The same diff is checked into this repo as
-    # ../wasm-bindgen-cli-emscripten.patch.
+    # while the Emscripten-pthread fix is out-of-tree. The fork lives at
+    # https://github.com/nobodywho-ooo/wasm-bindgen on branch
+    # `wasm-emscripten-0.2.122` (one commit on top of upstream main
+    # @ cc60a51, 0.2.122 — the thread-transform skip; the
+    # descriptor-interpreter tolerance is now upstream).
     #
     # First-time setup on a fresh machine:
-    #   git clone -b emscripten-descriptor-fixes \
+    #   git clone -b wasm-emscripten-0.2.122 \
     #     https://github.com/nobodywho-ooo/wasm-bindgen.git
     #   ( cd wasm-bindgen && cargo install --path crates/cli \
     #     --root /tmp/wbg-patched --locked )
