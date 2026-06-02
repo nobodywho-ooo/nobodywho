@@ -689,6 +689,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_download_model(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_get_cached_models(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
@@ -949,6 +951,8 @@ external fun uniffi_nobodywho_uniffi_fn_func_cosine_similarity(`a`: RustBuffer.B
 ): Float
 external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuffer.ByValue,`headers`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1096,6 +1100,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_download_model() != 31331.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587.toShort()) {
@@ -4587,6 +4594,45 @@ public object FfiConverterTypeAsset: FfiConverterRustBuffer<Asset> {
 
 
 /**
+ * A cached `.gguf` model and its on-disk size.
+ */
+data class CachedModel (
+    var `path`: kotlin.String
+    , 
+    var `size`: kotlin.ULong
+    
+){
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeCachedModel: FfiConverterRustBuffer<CachedModel> {
+    override fun read(buf: ByteBuffer): CachedModel {
+        return CachedModel(
+            FfiConverterString.read(buf),
+            FfiConverterULong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: CachedModel) = (
+            FfiConverterString.allocationSize(value.`path`) +
+            FfiConverterULong.allocationSize(value.`size`)
+    )
+
+    override fun write(value: CachedModel, buf: ByteBuffer) {
+            FfiConverterString.write(value.`path`, buf)
+            FfiConverterULong.write(value.`size`, buf)
+    }
+}
+
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 data class PendingToolCall (
@@ -5522,6 +5568,34 @@ public object FfiConverterSequenceTypeAsset: FfiConverterRustBuffer<List<Asset>>
 /**
  * @suppress
  */
+public object FfiConverterSequenceTypeCachedModel: FfiConverterRustBuffer<List<CachedModel>> {
+    override fun read(buf: ByteBuffer): List<CachedModel> {
+        val len = buf.getInt()
+        return List<CachedModel>(len) {
+            FfiConverterTypeCachedModel.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<CachedModel>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeCachedModel.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<CachedModel>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeCachedModel.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceTypeToolCall: FfiConverterRustBuffer<List<ToolCall>> {
     override fun read(buf: ByteBuffer): List<ToolCall> {
         val len = buf.getInt()
@@ -5746,6 +5820,20 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         NobodyWhoException.ErrorHandler,
     )
     }
+
+        /**
+         * Returns every cached `.gguf` model paired with its byte size.
+         */
+    @Throws(NobodyWhoException::class) fun `getCachedModels`(): List<CachedModel> {
+            return FfiConverterSequenceTypeCachedModel.lift(
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_func_get_cached_models(
+    
+        _status)
+}
+    )
+    }
+    
 
         /**
          * Load a GGUF model from a local path or remote URL.

@@ -5,6 +5,7 @@ package ai.nobodywho
 typealias SamplerConfig = uniffi.nobodywho.SamplerConfig
 typealias Asset = uniffi.nobodywho.Asset
 typealias ToolCall = uniffi.nobodywho.ToolCall
+typealias CachedModel = uniffi.nobodywho.CachedModel
 
 /**
  * A message in the chat history.
