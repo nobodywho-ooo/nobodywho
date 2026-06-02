@@ -41,3 +41,15 @@ val model = Model.load(
     println("$downloaded / $total bytes")
 }
 ```
+
+## Listing cached models
+
+`getCachedModels()` returns every `.gguf` model in NobodyWho's cache directory, paired with its size in bytes. This is the same cache used by `Model.download` and by `Chat.fromPath`'s `hf://` paths.
+
+```kotlin
+import ai.nobodywho.getCachedModels
+
+for (model in getCachedModels()) {
+    println("${model.path} — ${model.size} bytes")
+}
+```
