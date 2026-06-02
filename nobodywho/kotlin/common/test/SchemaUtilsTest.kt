@@ -22,8 +22,11 @@ class SchemaUtilsTest {
         assertEquals("""{"type": "number"}""", jsonSchema(typeOf<Float>()))
     @Test fun `Boolean produces boolean schema`() =
         assertEquals("""{"type": "boolean"}""", jsonSchema(typeOf<Boolean>()))
-    @Test fun `Any falls back to string`() =
-        assertEquals("""{"type": "string"}""", jsonSchema(typeOf<Any>()))
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `unsupported type throws`() {
+        jsonSchema(typeOf<Any>())
+    }
 
     @Test fun `List of Int produces array schema`() {
         val s = JSONObject(jsonSchema(typeOf<List<Int>>()))
@@ -59,8 +62,11 @@ class SchemaUtilsTest {
 
     @Test fun `string identity`() =
         assertEquals("hello", convertValue("hello", schema("string")))
-    @Test fun `int to string coercion`() =
-        assertEquals("42", convertValue(42, schema("string")))
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `int to string throws`() {
+        convertValue(42, schema("string"))
+    }
 
     @Test fun `int identity`() =
         assertEquals(42, convertValue(42, schema("integer")))
@@ -68,10 +74,11 @@ class SchemaUtilsTest {
         assertEquals(42, convertValue(42L, schema("integer")))
     @Test fun `double to int truncate`() =
         assertEquals(42, convertValue(42.7, schema("integer")))
-    @Test fun `string to int parse`() =
-        assertEquals(42, convertValue("42", schema("integer")))
-    @Test fun `bad string to int zero`() =
-        assertEquals(0, convertValue("bad", schema("integer")))
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `string to int throws`() {
+        convertValue("42", schema("integer"))
+    }
 
     @Test fun `double identity`() =
         assertEquals(3.14, convertValue(3.14, schema("number")))
@@ -80,10 +87,16 @@ class SchemaUtilsTest {
 
     @Test fun `bool identity`() =
         assertEquals(true, convertValue(true, schema("boolean")))
-    @Test fun `string true to bool`() =
-        assertEquals(true, convertValue("true", schema("boolean")))
-    @Test fun `non-bool to false`() =
-        assertEquals(false, convertValue(42, schema("boolean")))
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `string to bool throws`() {
+        convertValue("true", schema("boolean"))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `int to bool throws`() {
+        convertValue(42, schema("boolean"))
+    }
 
     @Test fun `JSONArray to list`() {
         val arrSchema = JSONObject("""{"type": "array", "items": {"type": "integer"}}""")
@@ -93,9 +106,11 @@ class SchemaUtilsTest {
         val arrSchema = JSONObject("""{"type": "array", "items": {"type": "integer"}}""")
         assertEquals(emptyList<Int>(), convertValue(JSONArray("[]"), arrSchema))
     }
-    @Test fun `scalar wrapped in list`() {
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `scalar to array throws`() {
         val arrSchema = JSONObject("""{"type": "array", "items": {"type": "integer"}}""")
-        assertEquals(listOf(42), convertValue(42, arrSchema))
+        convertValue(42, arrSchema)
     }
 
     @Test fun `nested array`() {
@@ -112,14 +127,21 @@ class SchemaUtilsTest {
         assertEquals(1, obj["x"])
         assertEquals(2, obj["y"])
     }
-    @Test fun `non-object to empty map`() {
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `non-object throws`() {
         val objSchema = JSONObject("""{"type": "object", "additionalProperties": {"type": "integer"}}""")
-        assertEquals(mapOf<String, Any?>(), convertValue("bad", objSchema))
+        convertValue("bad", objSchema)
     }
 
     @Test fun `object with array values`() {
         val objArr = JSONObject("""{"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}""")
         val r = convertValue(JSONObject("""{"tags": ["a","b"]}"""), objArr) as Map<*, *>
         assertEquals(listOf("a", "b"), r["tags"])
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `unknown schema type throws`() {
+        convertValue("hello", JSONObject("""{"type": "foobar"}"""))
     }
 }
