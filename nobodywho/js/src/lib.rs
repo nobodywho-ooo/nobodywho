@@ -1016,8 +1016,14 @@ async fn stream_url_to_memfs(
                     .dyn_into()
                     .map_err(|_| "expected ReadableStreamDefaultReader".to_string())?;
                 if total > 0.0 {
-                    stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, kind, on_progress)
-                        .await?;
+                    stream_reader_to_wasm_buffer(
+                        &reader,
+                        &memfs_path,
+                        total as usize,
+                        kind,
+                        on_progress,
+                    )
+                    .await?;
                 } else {
                     stream_reader_to_memfs(&reader, &memfs_path, total, kind, on_progress).await?;
                 }
@@ -1096,7 +1102,8 @@ async fn stream_url_to_memfs(
     });
 
     if total > 0.0 {
-        stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, kind, on_progress).await?;
+        stream_reader_to_wasm_buffer(&reader, &memfs_path, total as usize, kind, on_progress)
+            .await?;
     } else {
         stream_reader_to_memfs(&reader, &memfs_path, total, kind, on_progress).await?;
     }
