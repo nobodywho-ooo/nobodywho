@@ -1,23 +1,10 @@
-# Per-target rustflags for the nobodywho workspace.
-#
-# `+atomics,+bulk-memory,+mutable-globals` enable Emscripten pthreads
-# support in the Rust compiler output. This lets llama.cpp use multiple
-# threads for matrix multiplication inside the wasm instance (via real
-# Web Workers managed by Emscripten's pthread runtime). The JS host
-# still spawns a user-facing Web Worker around the whole wasm module
-# (see js/src/lib.rs Chat.create); the pthreads are sub-workers WITHIN
-# that instance for compute parallelism.
-#
-# `panic=abort` matches wasm32-unknown-unknown's default. Without it,
-# wasm-bindgen 0.2.121 enforces `MaybeUnwindSafe` (= UnwindSafe +
-# RefUnwindSafe) on every `Closure::new`/`Closure::wrap` callback, and
-# our worker-backed `Chat` captures `Rc<RefCell<ChatState>>` in the
-# Worker `onmessage`/`onerror` callbacks — neither is RefUnwindSafe.
-# Switching to abort drops the marker requirement to no-op. Trade-off:
-# Rust panics inside the wasm tear down the whole module instead of
-# unwinding to a rejected promise; in practice this is the same
-# failure mode as a C++ exception escaping ggml/llama.cpp, which we
-# already can't recover from on this target.
+# Per-target rustflags for wasm builds:
+# - +atomics,+bulk-memory,+mutable-globals: enable Emscripten pthreads,
+#   so llama.cpp can multi-thread its matmuls inside the wasm instance.
+# - panic=abort: wasm-bindgen requires `Closure` callbacks to be
+#   UnwindSafe, but our `Chat` captures `Rc<RefCell<ChatState>>` in its
+#   Worker callbacks (not RefUnwindSafe). Abort drops that requirement;
+#   a panic tears down the module, like an unrecoverable ggml exception.
 [target.wasm32-unknown-emscripten]
 rustflags = [
     "-C", "panic=abort",

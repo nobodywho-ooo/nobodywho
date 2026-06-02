@@ -20,12 +20,6 @@ use llama_cpp_2::model::LlamaModel;
 #[cfg(not(target_family = "wasm"))]
 use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
-// `Future`/`Pin` back the async tool callback, which only the wasm binding
-// needs (to await a JS Promise). Native tool callbacks are synchronous.
-#[cfg(target_family = "wasm")]
-use std::future::Future;
-#[cfg(target_family = "wasm")]
-use std::pin::Pin;
 use std::sync::Arc;
 // `Duration` is only used by the native-only `Tool::python` builder.
 #[cfg(not(target_family = "wasm"))]
@@ -42,28 +36,13 @@ pub use qwen35_36::Qwen35_36Handler;
 // Core Types
 // ============================================================================
 
-/// Async tool callback. **Wasm-only**: the JS binding needs an async
-/// callback so it can `.await` a `JsFuture` for a Promise the user-supplied
-/// callback returned. The future is awaited inline on the worker that
-/// produced it, so it is **not** required to be `Send` (it may capture `!Send`
-/// JS handles like `JsFuture` / `js_sys::Function`). Native tool callbacks are
-/// the synchronous `Fn(Value) -> String` below.
-#[cfg(target_family = "wasm")]
-pub type ToolCallback =
-    Arc<dyn Fn(serde_json::Value) -> Pin<Box<dyn Future<Output = String>>> + Send + Sync>;
-
 /// A tool that can be called by the LLM.
 #[derive(Clone)]
 pub struct Tool {
     pub name: String,
     pub description: String,
     pub json_schema: serde_json::Value,
-    /// Native: a synchronous callback — identical to `main`. Wasm: an async
-    /// callback (see [`ToolCallback`]) so the JS binding can await a Promise.
-    #[cfg(not(target_family = "wasm"))]
     pub function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
-    #[cfg(target_family = "wasm")]
-    pub function: ToolCallback,
 }
 
 impl std::fmt::Debug for Tool {
@@ -78,54 +57,17 @@ impl std::fmt::Debug for Tool {
 }
 
 impl Tool {
-    /// Construct a `Tool` from a synchronous `Fn(Value) -> String` callback.
     pub fn new<S: Into<String>>(
         name: S,
         description: S,
         json_schema: serde_json::Value,
         function: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync>,
     ) -> Self {
-        // Native stores the sync callback directly (identical to `main`).
-        // Wasm wraps it in an immediately-ready future to fit the async
-        // `ToolCallback` the wasm worker dispatches.
-        #[cfg(target_family = "wasm")]
-        let function: ToolCallback = Arc::new(move |args: serde_json::Value| {
-            let f = function.clone();
-            Box::pin(async move { f(args) })
-        });
         Self {
             name: name.into(),
             description: description.into(),
             json_schema,
             function,
-        }
-    }
-
-    /// Construct a `Tool` from a future-returning callback. **Wasm-only** — the
-    /// JS binding uses this to `.await` a `JsFuture` for a Promise the
-    /// user-supplied callback returned. Native tool callbacks are synchronous.
-    #[cfg(target_family = "wasm")]
-    pub fn new_async<S, F, Fut>(
-        name: S,
-        description: S,
-        json_schema: serde_json::Value,
-        function: F,
-    ) -> Self
-    where
-        S: Into<String>,
-        F: Fn(serde_json::Value) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = String> + 'static,
-    {
-        let function = Arc::new(function);
-        let async_fn: ToolCallback = Arc::new(move |args: serde_json::Value| {
-            let f = function.clone();
-            Box::pin(async move { f(args).await })
-        });
-        Self {
-            name: name.into(),
-            description: description.into(),
-            json_schema,
-            function: async_fn,
         }
     }
 

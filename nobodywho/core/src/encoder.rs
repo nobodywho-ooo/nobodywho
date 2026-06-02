@@ -28,7 +28,7 @@ impl Encoder {
 
 impl EncoderAsync {
     pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let (msg_tx, mut msg_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_encoder_worker(&model, n_ctx);
@@ -39,16 +39,16 @@ impl EncoderAsync {
                 }
             };
 
-            while let Some(msg) = msg_rx.blocking_recv() {
+            while let Ok(msg) = msg_rx.recv() {
                 if let Err(e) = process_worker_msg(&mut worker_state, msg) {
                     return error!(error=%e, "Encoder Worker crashed");
                 }
             }
         });
 
-        let guard = Arc::new(WorkerGuard::new(msg_tx, join_handle, None));
-
-        Self { guard }
+        Self {
+            guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
+        }
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {

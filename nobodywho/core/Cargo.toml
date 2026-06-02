@@ -32,6 +32,8 @@ llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = 
 llama-cpp-sys-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm-emscripten", default-features = false }
 lazy_static = "1.5.0"
 tokio-stream = "0.1.17"
+# No `rt-multi-thread` (which main lists): it `compile_error`s on wasm.
+tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
 regex = "1.11.1"
@@ -45,11 +47,6 @@ ahash = "0.8.12"
 indexmap = "2.13.0"
 
 # Native-only deps:
-# - `tokio` with `rt-multi-thread`: background workers spawn real OS threads.
-#   wasm32 only gets `rt + sync + macros` because tokio's `rt-multi-thread`
-#   is gated off on wasm by a compile_error in tokio itself. (Emscripten
-#   pthreads are used by llama.cpp's ggml threadpool for compute
-#   parallelism, not by the Rust async runtime.)
 # - `ureq` does raw TCP/TLS; not available in a browser sandbox. wasm32 fetches
 #   model bytes on the JS side via `fetch` and hands them to a future
 #   `Model::load_bytes` API instead.
@@ -59,7 +56,6 @@ indexmap = "2.13.0"
 #   dependencies (monty has no wasm32 target; bashkit forces `tokio/full`
 #   which pulls `mio` + raw sockets).
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-tokio = { version = "1.43.0", features = ["sync", "rt", "rt-multi-thread", "macros"] }
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
@@ -67,9 +63,6 @@ bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 # `walkdir` backs `get_cached_models` (cache-dir enumeration) — native-only,
 # alongside the rest of the model-loader infra.
 walkdir = "2.5"
-
-[target.'cfg(target_family = "wasm")'.dependencies]
-tokio = { version = "1.43.0", features = ["sync", "rt", "macros"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"

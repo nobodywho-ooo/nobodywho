@@ -1284,11 +1284,7 @@ impl Tool {
 /// A tool invocation proxied from the inference pthread to the main
 /// thread: `(tool_name, args, reply_channel)`.
 #[cfg(target_family = "wasm")]
-type ToolRequest = (
-    String,
-    serde_json::Value,
-    tokio::sync::oneshot::Sender<String>,
-);
+type ToolRequest = (String, serde_json::Value, std::sync::mpsc::Sender<String>);
 
 /// Validate a `Tool.fromFn(...)` tagged object and split it into its
 /// parts: `(name, description, schema, callback)`. Runs on the main
@@ -1337,24 +1333,27 @@ fn proxy_tool(
     req_tx: tokio::sync::mpsc::UnboundedSender<ToolRequest>,
 ) -> nobodywho::tool_calling::Tool {
     let name_for_closure = name.clone();
-    nobodywho::tool_calling::Tool::new_async(
+    nobodywho::tool_calling::Tool::new(
         name,
         description,
         schema,
-        move |args: serde_json::Value| {
-            let req_tx = req_tx.clone();
-            let name = name_for_closure.clone();
-            async move {
-                let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
-                if req_tx.send((name, args, reply_tx)).is_err() {
-                    return "ERROR: tool dispatcher is gone".to_string();
-                }
-                match reply_rx.await {
-                    Ok(s) => s,
-                    Err(_) => "ERROR: tool reply channel dropped".to_string(),
-                }
+        std::sync::Arc::new(move |args: serde_json::Value| {
+            // Block the inference pthread until the main-thread dispatcher runs
+            // the JS tool (awaiting its Promise if async) and replies. Blocking
+            // here is fine: the worker is a pthread, so the main event loop
+            // keeps ticking and resolves the tool's Promise.
+            let (reply_tx, reply_rx) = std::sync::mpsc::channel::<String>();
+            if req_tx
+                .send((name_for_closure.clone(), args, reply_tx))
+                .is_err()
+            {
+                return "ERROR: tool dispatcher is gone".to_string();
             }
-        },
+            match reply_rx.recv() {
+                Ok(s) => s,
+                Err(_) => "ERROR: tool reply channel dropped".to_string(),
+            }
+        }),
     )
 }
 

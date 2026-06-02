@@ -1137,15 +1137,11 @@ where
 /// Owns a background worker's resources and ensures clean shutdown.
 ///
 /// When dropped: sets the optional stop flag, closes the message channel (causing the
-/// worker's `recv()` to return `None`), then joins the thread on native. This ordering
+/// worker's `recv()` to return `Err`), then joins the thread on native. This ordering
 /// guarantees the worker has fully exited before any statics (e.g. `LLAMA_BACKEND`)
 /// are destroyed.
-///
-/// The channel switched from `std::sync::mpsc` to `tokio::sync::mpsc::unbounded_channel`
-/// so the worker can run as either a blocking thread (native, via `blocking_recv()`)
-/// or an async task on the JS event loop (wasm32, via `recv().await` driven by
 pub(crate) struct WorkerGuard<T> {
-    pub(crate) msg_tx: Option<tokio::sync::mpsc::UnboundedSender<T>>,
+    pub(crate) msg_tx: Option<std::sync::mpsc::Sender<T>>,
     // Only joined on native; on wasm the pthread exits on its own (see Drop).
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     join_handle: Option<std::thread::JoinHandle<()>>,
@@ -1154,7 +1150,7 @@ pub(crate) struct WorkerGuard<T> {
 
 impl<T> WorkerGuard<T> {
     pub(crate) fn new(
-        msg_tx: tokio::sync::mpsc::UnboundedSender<T>,
+        msg_tx: std::sync::mpsc::Sender<T>,
         join_handle: std::thread::JoinHandle<()>,
         should_stop: Option<Arc<AtomicBool>>,
     ) -> Self {
@@ -1183,7 +1179,7 @@ impl<T> Drop for WorkerGuard<T> {
         if let Some(ref stop) = self.should_stop {
             stop.store(true, Ordering::Relaxed);
         }
-        // Closing the channel makes the worker's `recv()` return `None`,
+        // Closing the channel makes the worker's `recv()` return `Err`,
         // so the loop exits and the worker state (context, threadpool) is
         // dropped on the worker thread.
         drop(self.msg_tx.take());
