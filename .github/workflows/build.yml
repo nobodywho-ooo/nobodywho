@@ -92,7 +92,7 @@ jobs:
 
   cargo-build-windows:
     if: inputs.full_ci
-    runs-on: warp-windows-latest-x64-4x
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:

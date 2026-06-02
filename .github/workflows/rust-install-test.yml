@@ -62,7 +62,7 @@ jobs:
 
   windows:
     name: "Windows"
-    runs-on: warp-windows-latest-x64-4x
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
 

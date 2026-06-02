@@ -152,7 +152,7 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
-    runs-on: warp-windows-latest-x64-4x
+    runs-on: windows-latest
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
     steps:
@@ -461,14 +461,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [warp-windows-latest-x64-4x]
+        runner: [windows-latest]
         model: [Gemma]
         include:
           - model: Gemma
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - runner: warp-windows-latest-x64-4x
+          - runner: windows-latest
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
     steps:
