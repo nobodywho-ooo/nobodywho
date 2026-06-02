@@ -124,13 +124,9 @@ where
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
-    /// wasm: buffers in linear memory that the model/mmproj were mmapped
-    /// from zero-copy (single-copy browser load — see the JS binding's
-    /// `stream_reader_to_wasm_buffer`). Declared LAST so it drops AFTER
-    /// `language_model`/`projection_model` — i.e. after llama.cpp's
-    /// `munmap` — avoiding a use-after-free; each frees its allocation on
-    /// drop. Freed on the thread that drops the model (the worker), which
-    /// is fine: it's a `dealloc` of shared linear memory, no JS/FS.
+    /// wasm: linear-memory buffers the model/mmproj were mmapped from
+    /// (single-copy browser load). Declared LAST so it drops after the
+    /// models — i.e. after llama.cpp's `munmap` — avoiding a use-after-free.
     #[cfg(target_family = "wasm")]
     backing_buffers: Vec<ModelBackingBuffer>,
 }
@@ -144,11 +140,9 @@ struct ModelBackingBuffer {
     size: usize,
 }
 
-// SAFETY: this is just an owned (ptr, size) dealloc handle. `Model` is shared
-// across threads (Arc<Model> handed to the inference worker), so it must be
-// Send + Sync. The handle itself is never used to access the memory —
-// concurrent read-only access to the model weights goes through llama.cpp's
-// mmap region, not this struct, which only frees the allocation once on drop.
+// SAFETY: an owned (ptr, size) dealloc handle, never used to read the memory
+// (weights go through llama.cpp's mmap). `Model` is Arc-shared to the worker,
+// so the handle must be Send + Sync.
 #[cfg(target_family = "wasm")]
 unsafe impl Send for ModelBackingBuffer {}
 #[cfg(target_family = "wasm")]
@@ -167,10 +161,8 @@ impl Drop for ModelBackingBuffer {
 }
 
 impl Model {
-    /// wasm-only: hand the model ownership of a linear-memory buffer it was
-    /// mmapped from (single-copy load), so the buffer is freed when the
-    /// model is dropped — not before (the mmap points into it) and not
-    /// leaked.
+    /// wasm-only: hand the model ownership of the buffer it was mmapped from,
+    /// so it's freed with the model (not before — the mmap points into it).
     #[cfg(target_family = "wasm")]
     pub fn attach_backing_buffer(&mut self, ptr: usize, size: usize) {
         self.backing_buffers.push(ModelBackingBuffer {
@@ -241,43 +233,12 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
-/// Load a model directly from an in-memory GGUF byte slice.
-///
-/// Primarily intended for sandboxed environments without filesystem access
-/// (notably WebAssembly in a browser tab), where the caller fetches the GGUF
-/// from JS via `fetch` and hands the resulting `ArrayBuffer` over to Rust.
-///
-/// On native targets this also works and is useful for tests where the GGUF
-/// is already in memory. Unlike [`get_model`] this does not consult the
-/// `dirs` cache, does not do HTTP, and does not parse fancy paths — it's a
-/// pure "bytes in, model out" entry point.
-///
-/// GPU offloading is intentionally not exposed: the wasm32 target has no
-/// GPU concept, and on native the `get_model` path is the right one when
-/// you have a file path. Pass any `use_gpu_if_available` policy via the
-/// `gpu_layers` argument (`0` for CPU-only).
-///
-/// Multimodal (`projection_model`) support is wired via the
-/// `mmproj_path` parameter. Caller is responsible for landing the
-/// bytes at this path beforehand (e.g. via Emscripten's MEMFS on the
-/// wasm target, or just writing a real tempfile on native). Pass
-/// `None` for text-only models.
-///
-/// # Platform support
-///
-/// Wasm-only: load a model from a path that already exists in
-/// Emscripten's MEMFS (or any libc-fopen-reachable filesystem). The JS
-/// binding uses this when the caller passed `modelPath` to
-/// `Chat.create({...})` — main passes the host path to the worker,
-/// the worker's Node-fs helper streams chunks into MEMFS, and we
-/// hand off the path here.
-///
-/// The path may point to NODEFS (Node.js `modelPath` — real disk
-/// file, no wasm-memory copy) or MEMFS (browser `modelUrl` streamed
-/// via `FS.write`). mmap is enabled: on NODEFS Emscripten's mmap
-/// reads the file into a wasm-heap region and llama.cpp maps tensors
-/// directly; on MEMFS it allocates + copies (still 2x but doesn't
-/// crash).
+/// wasm model loader: load a GGUF from a path already present in Emscripten's
+/// filesystem — NODEFS (Node `modelPath`, a real file) or MEMFS (browser bytes
+/// streamed in via `FS.write`). `mmap` is on via the `_mmap_js` syscall
+/// override: NODEFS maps tensors directly (single-copy), MEMFS allocates +
+/// copies. `mmproj_path` adds the multimodal projection model; `gpu_layers`
+/// is `0` (no GPU on wasm).
 #[cfg(target_family = "wasm")]
 pub fn get_model_from_path(
     model_path: &std::path::Path,
@@ -331,11 +292,8 @@ pub fn get_model_from_path(
 }
 
 // --- Native-only model loaders -------------------------------------------
-// Everything below up to `read_add_bos_metadata` does HTTP downloads, hits
-// the filesystem, or asks the OS for a cache directory. None of that works
-// in a browser sandbox, so it's gated to non-wasm32 targets. wasm consumers
-// will load models from in-memory bytes via a future `Model::load_from_bytes`
-// API (tracked in nobodywho/js/README.md, Step 2c).
+// HTTP downloads, filesystem, OS cache dir — none of which work in a browser
+// sandbox, so gated to non-wasm32. wasm loads via `get_model_from_path`.
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Clone)]
@@ -830,10 +788,9 @@ pub(crate) struct Worker<'a, S> {
     threadpool: ThreadpoolHandle,
 }
 
-/// Owns a ggml threadpool, freeing it on drop. wasm-only: each worker
-/// attaches a persistent pool during init (see `new_with_type`); freeing it
-/// when the worker drops keeps repeated `Chat.create`/drop cycles from
-/// leaking Emscripten pthreads, which are a scarce resource there.
+/// Owns a ggml threadpool, freeing it on drop. wasm-only: freeing the pool
+/// when the worker drops keeps repeated `Chat.create`/drop cycles from piling
+/// up Emscripten pthreads (each is a Web Worker with a 2 MB stack).
 #[cfg(target_family = "wasm")]
 #[derive(Debug)]
 struct ThreadpoolHandle(*mut llama_cpp_sys_2::ggml_threadpool);
@@ -928,15 +885,11 @@ where
                 .language_model
                 .new_context(&LLAMA_BACKEND, ctx_params)?;
 
-            // On wasm, attach a persistent threadpool so ggml doesn't
-            // create disposable threads mid-compute. Emscripten's
-            // pthread_create is async (proxied through the main JS
-            // thread), so creating threads synchronously inside
-            // ggml_graph_compute deadlocks. A persistent pool created
-            // here (during init, when the event loop is free) avoids
-            // that — the threads are already running when compute starts.
-            // The Worker owns `tp` and frees it on drop (see ThreadpoolHandle),
-            // so creating one Chat per call doesn't leak pthreads.
+            // wasm: attach a persistent threadpool. Emscripten's pthread_create
+            // is async (proxied through the main thread), so ggml spawning
+            // disposable compute threads mid-`ggml_graph_compute` deadlocks;
+            // creating the pool here (at init, event loop free) avoids that.
+            // The Worker frees it on drop (ThreadpoolHandle) — no pthread leak.
             #[cfg(target_family = "wasm")]
             {
                 unsafe {
@@ -1182,14 +1135,11 @@ impl<T> Drop for WorkerGuard<T> {
         // dropped on the worker thread.
         drop(self.msg_tx.take());
 
-        // On native, join so the worker has fully exited before any
-        // statics it touches (e.g. LLAMA_BACKEND) are destroyed. On wasm,
-        // the worker runs on an Emscripten pthread and joining from the
-        // main thread can deadlock: the pthread's own teardown (freeing
-        // the ggml threadpool joins its workers) is proxied through the
-        // main thread, which is blocked in `join()`. The pthread exits on
-        // its own once the channel closes, and wasm statics live for the
-        // page, so skipping the join is safe.
+        // On native, join so the worker fully exits before any statics it
+        // touches (e.g. LLAMA_BACKEND) are destroyed. On wasm we skip the
+        // join: the worker pthread's teardown frees the ggml threadpool by
+        // joining its workers, proxied through the main thread — which is
+        // blocked here in `join()` → deadlock. The pthread exits on its own.
         #[cfg(not(target_family = "wasm"))]
         if let Some(handle) = self.join_handle.take() {
             if let Err(e) = handle.join() {

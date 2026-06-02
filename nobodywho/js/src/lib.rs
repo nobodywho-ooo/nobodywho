@@ -19,17 +19,12 @@
 // allow `unused_variables` at crate level.
 #![allow(unused_variables)]
 
-//! # Why everything returns `js_sys::Promise` instead of being `pub async fn`
+//! # Why methods return `js_sys::Promise` instead of being `pub async fn`
 //!
-//! `#[wasm_bindgen] pub async fn` desugars through
-//! `wasm_bindgen_futures::future_to_promise`, which requires the future to be
-//! `UnwindSafe`. Several of our types (`tokio::sync::Mutex`,
-//! `tokio::sync::mpsc::Receiver`, etc.) aren't, so we'd hit
-//! E0277 on every async method.
-//!
-//! Instead, each exported method is a plain `pub fn` returning
-//! `js_sys::Promise`, with the body run through the [`promisify`] helper which
-//! wraps the body in [`std::panic::AssertUnwindSafe`].
+//! `#[wasm_bindgen] pub async fn` requires the future to be `UnwindSafe`, but
+//! several of our types (`tokio::sync::Mutex`/`Receiver`, …) aren't. So each
+//! method is a plain `pub fn` returning a `Promise`, its body run through
+//! [`promisify`] (which wraps it in `AssertUnwindSafe`).
 
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
@@ -45,38 +40,17 @@ use wasm_bindgen::prelude::*;
 #[cfg(target_family = "wasm")]
 mod syscall_imports;
 
-/// Override libc's `__cxa_atexit` to a no-op.
-///
-/// At least one global-destructor handler libc++ registers during static
-/// init has a wasm signature that doesn't match how `__funcs_on_exit`
-/// invokes it, producing
-///
-/// ```text
-///   RuntimeError: function signature mismatch
-/// ```
-///
-/// on the FIRST export call after instantiation, before any of our code
-/// runs.
-///
-/// Workaround: define `__cxa_atexit` ourselves and have it ignore the
-/// registration. Global destructors won't run at module shutdown (which
-/// is fine — the wasm instance lives for the lifetime of the JS process
-/// anyway, and the OS reclaims the heap), but the dtor walk becomes a
-/// no-op and the signature-mismatch goes away.
-///
-/// `#[no_mangle]` puts the symbol at file scope; in the wasm link, ours
-/// wins over the sysroot's definition because rustc-emitted symbols are
-/// resolved before sysroot archives.
+/// No-op override of libc's `__cxa_atexit`. A libc++ global-destructor
+/// handler has a wasm signature that doesn't match how `__funcs_on_exit`
+/// invokes it, so the first export call after instantiation traps with
+/// `function signature mismatch`. Dropping the registration avoids that —
+/// global dtors won't run at shutdown, which is fine (the wasm instance
+/// lives for the whole JS process). `#[no_mangle]` makes ours win over the
+/// sysroot symbol.
 ///
 /// # Safety
-///
-/// Declared `unsafe` because the C ABI passes a function pointer and a raw
-/// `*mut c_void` argument we can neither validate nor dereference. We do
-/// neither — we ignore all three arguments and return success. That makes
-/// this implementation trivially safe to call from any caller (no UB
-/// regardless of what handlers libc++ tries to register), at the cost of
-/// silently dropping every registration. See the "Workaround:" paragraph
-/// above for why dropping them is acceptable on this target.
+/// Ignores all args and returns success — trivially safe; it just drops
+/// every atexit registration (acceptable here, see above).
 #[cfg(target_family = "wasm")]
 #[no_mangle]
 pub unsafe extern "C" fn __cxa_atexit(
@@ -161,19 +135,10 @@ pub fn set_log_level(level: &str) -> Result<(), JsError> {
 
 // ---------- Promise helper ----------
 
-/// Cosine similarity between two embedding vectors. Convenience
-/// helper paired with `Encoder.encode()`. Mirrors Python's
-/// `nobodywho.cosine_similarity`.
-///
-/// ```js
-/// import { Encoder, Model, cosineSimilarity } from 'nobodywho-js';
-/// const v1 = await encoder.encode('the quick brown fox');
-/// const v2 = await encoder.encode('a fast brown fox');
-/// const sim = cosineSimilarity(v1, v2);  // 0..1
-/// ```
-///
-/// Accepts `Float32Array | number[]`. Throws on length mismatch.
-/// Returns NaN if either vector has zero magnitude (matches Python).
+/// Cosine similarity between two embedding vectors (pairs with
+/// `Encoder.encode()`; mirrors Python's `cosine_similarity`). Accepts
+/// `Float32Array | number[]`, throws on length mismatch, returns NaN if
+/// either vector has zero magnitude.
 #[wasm_bindgen(js_name = cosineSimilarity)]
 pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> Result<f32, JsError> {
     if a.len() != b.len() {
@@ -334,29 +299,15 @@ impl Model {
     }
 }
 
-// ---------- Multimodal: Image / Audio / prompt assembly (Path A) ----------
+// ---------- Multimodal: Image / Audio / prompt assembly ----------
 //
-// JS API:
-//
-//     import { Image, Audio } from 'nobodywho-js';
-//
-//     const img = Image.fromBytes(new Uint8Array(await blob.arrayBuffer()));
-//     const reply = await chat.ask(['What is in this image?', img]).completed();
-//
-// `Chat.ask` accepts either a plain string (text-only prompt — fast path,
-// unchanged) or a JS array of `string | Image | Audio` parts. There is no
-// `Image(path)` constructor in the wasm binding: a browser tab has no
-// filesystem.
-//
-// `Image.fromBytes` / `Audio.fromBytes` return plain tagged JS objects of
-// the shape `{__nbwKind: 'image'|'audio', bytes: Uint8Array}`. The Rust
-// side reads those bytes and pushes them through `Prompt::push_media_bytes`,
-// so they ride the worker channel in shared memory and are decoded
-// in-memory via `MtmdBitmap::from_buffer`. We deliberately avoid MEMFS
-// here: inference runs on an Emscripten pthread, which can't read the main
-// thread's MEMFS, so a path-based load (`from_file`/`fopen`) would fail on
-// the worker. Content-addressed dedup still happens downstream via the
-// bitmap-ID logic (the id is a hash of the decoded bitmap data).
+// `Chat.ask` takes a string (text-only, fast path) or an array of
+// `string | Image | Audio`. `Image.fromBytes` / `Audio.fromBytes` return
+// tagged `{__nbwKind, bytes}` objects; the Rust side pushes the bytes via
+// `Prompt::push_media_bytes`, so they ride the worker channel and decode
+// in-memory (`MtmdBitmap::from_buffer`). No path-based load: inference runs
+// on a pthread that can't read the main thread's MEMFS, and a browser tab
+// has no filesystem anyway.
 
 /// Image factory namespace for multimodal prompts. The only method is
 /// [`Image::from_bytes`] — there is no path-based constructor because a
@@ -1186,27 +1137,11 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
 
 // ---------- Tool (LLM-callable JS function) ----------
 //
-// JS API:
-//
-//     import { Tool, Chat } from 'nobodywho-js';
-//
-//     const weather = Tool.fromFn(
-//       'get_weather',
-//       'Get current weather for a city',
-//       { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
-//       ({ city }) => `Sunny in ${city}, 21°C`,
-//     );
-//
-//     const chat = await Chat.create({
-//       modelUrl, tools: [weather], systemPrompt: '...',
-//     });
-//     const reply = await chat.ask('Weather in CPH?').completed();
-//
-// JS callbacks can be either synchronous (return a string) or async
-// (return a Promise<string>) — the worker ↔ main RPC bridge dispatches
-// each tool call back to the main thread, awaits the result, and feeds
-// it into the next inference step. See `js/tests/tool-smoke.mjs` for
-// both shapes.
+// `Tool.fromFn(name, description, jsonSchema, callback)`, passed via
+// `Chat.create({ tools: [...] })`. Callbacks may be sync (return a string) or
+// async (return a Promise<string>); the worker↔main RPC bridge dispatches each
+// call to the main thread, awaits it, and resumes inference. See
+// `js/tests/tool-smoke.mjs` for both shapes.
 
 /// Factory namespace for LLM-callable tools. Built via [`Tool::from_fn`]
 /// and passed to `Chat`'s `tools` option.
@@ -1224,20 +1159,12 @@ pub struct Tool;
 impl Tool {
     /// Wrap a JS function as an LLM-callable tool.
     ///
-    /// - `name`: identifier the model uses when emitting a tool-call.
-    /// - `description`: shown to the model so it can decide when to call.
-    /// - `jsonSchema`: JSON-Schema (as a plain JS object) describing the
-    ///   argument shape. Used by the grammar sampler to constrain what
-    ///   the model emits to match this schema exactly.
-    /// - `callback`: synchronous JS function. Receives the parsed
-    ///   arguments object as its first argument and must return a string
-    ///   (the value the model sees as the tool's result). Non-string
-    ///   returns are JSON.stringify'd as a best-effort fallback.
-    ///
-    /// Returns a plain JS object `{__nbwKind:'tool', name, description,
-    /// jsonSchema, callback}`. `Chat`'s constructor checks for the brand
-    /// when reading the `tools` option and rebuilds the closure form
-    /// expected by core.
+    /// `name` (tool-call identifier), `description` (helps the model decide
+    /// when to call), `jsonSchema` (constrains the emitted args via the
+    /// grammar sampler), and `callback` (sync or async; receives the parsed
+    /// args, returns the string result — non-strings are JSON.stringify'd).
+    /// Returns a tagged `{__nbwKind:'tool', …}` object that `Chat`'s
+    /// constructor unpacks.
     #[wasm_bindgen(js_name = fromFn)]
     pub fn from_fn(
         name: String,
@@ -1271,15 +1198,11 @@ impl Tool {
 
 // ---------- Tool-call proxy (pthread → main thread) ----------
 //
-// Inference runs on an Emscripten pthread. A tool's JS callback is a
-// `js_sys::Function` created on the main thread — its externref index and
-// the wasm-bindgen JS glue (HEAP_DATA_VIEW etc.) are only valid on main,
-// so it can't be invoked from the inference pthread. Instead, the core
-// `Tool` closure (running on the pthread) sends a `ToolRequest` — the tool
-// name, the args as plain JSON, and a reply channel — to the main-thread
-// dispatcher over a tokio channel (works cross-thread via atomics; the
-// payload is all `Send`). The dispatcher invokes the real JS callback on
-// main and sends the string result back. The pthread closure awaits it.
+// Inference runs on a pthread, but a tool's JS callback (`js_sys::Function`)
+// is only valid on the main thread (its externref index + wasm-bindgen glue).
+// So the core `Tool` closure sends a `ToolRequest` (name + JSON args + a reply
+// channel, all `Send`) to a main-thread dispatcher, which invokes the real
+// callback and sends the string back; the pthread closure blocks on it.
 
 /// A tool invocation proxied from the inference pthread to the main
 /// thread: `(tool_name, args, reply_channel)`.

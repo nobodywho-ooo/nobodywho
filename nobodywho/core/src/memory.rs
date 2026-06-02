@@ -199,14 +199,10 @@ pub(crate) fn plan_context(
     has_projection_model: bool,
     arch: ModelArchitecture,
 ) -> Result<ContextPlan, MemoryError> {
-    // n_ubatch floor: large enough to fit one image embedding in a
-    // single decode pass. Default 2048 covers typical VLM image sizes;
-    // on wasm32 we drop to 1024 because the compute buffer scales
-    // linearly with n_ubatch and 2048 forces a contiguous ~1.2 GB
-    // alloc that fragments out of the 4 GB wasm heap after model +
-    // mmproj are already loaded. mtmd's encoder splits oversized image
-    // embeddings across multiple ubatches; the only visible cost is
-    // more decode passes per image.
+    // n_ubatch floor for fitting an image embedding in one decode pass.
+    // wasm uses 1024 (vs 2048): a 2048 ubatch forces a ~1.2 GB contiguous
+    // alloc that fragments the 4 GB wasm heap. mtmd just splits oversized
+    // embeddings across more ubatches — only cost is more decode passes.
     #[cfg(target_family = "wasm")]
     let ubatch_floor: u32 = 1024;
     #[cfg(not(target_family = "wasm"))]
