@@ -9,6 +9,7 @@ in
 pkgs.mkShell {
   env = {
     LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
+    JAVA_HOME = "${pkgs.jdk17}";
     LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
       pkgs.vulkan-loader
       pkgs.gcc.cc.lib
@@ -27,9 +28,9 @@ pkgs.mkShell {
     pkgs.vulkan-loader
     pkgs.shaderc
 
-    # for android
-    # android-sdk
-    # pkgs.openjdk11-bootstrap
+    # for kotlin/gradle
+    pkgs.jdk17
+    pkgs.gradle
 
     # for mkdocs
     pkgs.python3Packages.mkdocs

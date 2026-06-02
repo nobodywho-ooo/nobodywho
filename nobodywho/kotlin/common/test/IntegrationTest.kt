@@ -8,6 +8,7 @@ import org.junit.Test
 import java.io.File
 
 fun ping(): String = "pong"
+fun badTool(url: java.net.URL): String = url.toString()
 
 class IntegrationTest {
 
@@ -15,6 +16,15 @@ class IntegrationTest {
         val value = System.getenv(name)
         Assume.assumeNotNull(value)
         return value!!
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testUnsupportedToolParameterType() {
+        Tool(
+            name = "bad",
+            description = "This should fail",
+            function = ::badTool
+        )
     }
 
     @Test
