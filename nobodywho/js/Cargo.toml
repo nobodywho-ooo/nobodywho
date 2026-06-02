@@ -11,12 +11,6 @@ crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
 
 [dependencies]
-# `mtmd` stays in the default features even on wasm32-unknown-emscripten.
-# Core's mtmd code paths are cfg-gated so they compile out, but the C-side
-# `mtmd_*` symbols remain wasm imports (resolved by Emscripten's runtime
-# at instantiation time). Flipping this to `default-features = false`
-# would also drop mtmd on native builds via this crate's rlib, which we
-# don't want.
 nobodywho = { path = "../core" }
 # Pin wasm-bindgen to 0.2.122 — the workspace [patch.crates-io] block
 # redirects this (plus js-sys/web-sys/futures) to nobodywho-ooo/wasm-bindgen

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-#[cfg(feature = "mtmd")]
 use llama_cpp_2::mtmd::MtmdBitmap;
 use minijinja::{Environment, Template, Value};
 use tracing::{debug, trace, warn};
@@ -33,7 +32,6 @@ static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
 
 pub struct RenderedChat {
     pub text: String,
-    #[cfg(feature = "mtmd")]
     pub bitmaps: Vec<MtmdBitmap>,
 }
 
@@ -41,7 +39,6 @@ impl RenderedChat {
     pub fn from_text(text: String) -> Self {
         Self {
             text,
-            #[cfg(feature = "mtmd")]
             bitmaps: vec![],
         }
     }

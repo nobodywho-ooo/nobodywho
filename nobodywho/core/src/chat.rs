@@ -42,7 +42,6 @@ use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::context::params::LlamaPoolingType;
-#[cfg(feature = "mtmd")]
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -1231,7 +1230,6 @@ struct ChatContext {
     /// Here we keep the current tokens + media embeddings, which are in the KV cache.
     chunks: TokenizerChunks,
     /// Here we keep a list of the media bitmaps, which are needed for tokenization.
-    #[cfg(feature = "mtmd")]
     bitmaps: IndexMap<ChunkId, MtmdBitmap>,
 }
 
@@ -1239,12 +1237,10 @@ impl ChatContext {
     fn new() -> Self {
         Self {
             chunks: TokenizerChunks::new(),
-            #[cfg(feature = "mtmd")]
             bitmaps: IndexMap::new(),
         }
     }
 
-    #[cfg(feature = "mtmd")]
     pub fn add_bitmaps(
         &mut self,
         bitmaps: Vec<MtmdBitmap>,
@@ -1259,7 +1255,6 @@ impl ChatContext {
         Ok(bitmap_ids)
     }
 
-    #[cfg(feature = "mtmd")]
     pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
         // Garbage collection for the bitmaps.
         let referenced_bitmaps: HashSet<String> = messages
@@ -1278,14 +1273,12 @@ impl ChatContext {
         self.remove_bitmaps(unreferenced_bitmap_ids);
     }
 
-    #[cfg(feature = "mtmd")]
     fn create_bitmap_id(&self, bitmap: &MtmdBitmap) -> String {
         let mut hasher = AHasher::default();
         hasher.write(bitmap.data());
         hasher.finish().to_string()
     }
 
-    #[cfg(feature = "mtmd")]
     fn remove_bitmaps(&mut self, bitmap_ids: Vec<String>) {
         for id in bitmap_ids {
             if let Some(bitmap) = self.bitmaps.shift_remove(&id) {
@@ -1688,9 +1681,7 @@ impl Worker<'_, ChatWorker> {
 
         let media_assets = prompt.extract_media_assets();
 
-        // Multimodal bitmap construction. Only enabled when the `mtmd`
-        // feature is on (native + Emscripten wasm).
-        #[cfg(feature = "mtmd")]
+        // Multimodal bitmap construction.
         let bitmap_ids = {
             let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
                 media_assets
@@ -1708,10 +1699,6 @@ impl Worker<'_, ChatWorker> {
             debug!("Detected bitmaps: {:?}", bitmaps);
             self.extra.context.add_bitmaps(bitmaps)?
         };
-        // Without the mtmd feature: no projection model, no bitmaps, no media
-        // assets. Tokenizer just sees text.
-        #[cfg(not(feature = "mtmd"))]
-        let bitmap_ids: Vec<String> = Vec::new();
 
         let assets = bitmap_ids
             .iter()

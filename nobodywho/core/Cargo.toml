@@ -3,19 +3,6 @@ name = "nobodywho"
 version = "2.2.0"
 edition = "2021"
 
-[features]
-default = ["mtmd"]
-# Multimodal (image / audio) input support, backed by llama.cpp's `mtmd`
-# C++ library. Default-on for native. On wasm32, the fork of llama-cpp-2
-# keeps bindgen running against the mtmd headers even with the feature
-# off, so the Rust types stay in scope and only the C++ link is gated —
-# `mtmd_*` functions resolve to unresolved wasm imports that the JS host
-# stubs. On native, disabling it propagates to llama-cpp-2, the mtmd
-# Rust module disappears, and code in core that refers to `MtmdBitmap` /
-# `MtmdInputChunks` / etc. (in tokenizer.rs, chat.rs, llm.rs) fails to
-# compile.
-mtmd = ["llama-cpp-2/mtmd"]
-
 [dependencies]
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
@@ -27,6 +14,7 @@ chrono = "0.4.39"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm-emscripten", default-features = false, features = [
     "openmp",
     "android-static-stdcxx",
+    "mtmd",
     "llguidance",
 ] }
 llama-cpp-sys-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm-emscripten", default-features = false }
@@ -80,6 +68,7 @@ dirs = "6"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "wasm-emscripten", default-features = false, features = [
     "openmp",
     "vulkan",
+    "mtmd",
     "android-static-stdcxx",
     "llguidance",
 ] }
