@@ -155,6 +155,15 @@ and `total` is `0` when the server sent no `Content-Length`. NODEFS path
 loads (`modelPath`) read from disk without streaming, so it doesn't fire
 for them.
 
+**Cache management (v1 limitation).** Browser caching is deliberately
+minimal in v1: cached models persist in the `nobodywho-models-v1` Cache
+Storage indefinitely — no eviction, size cap, or `clearModelCache()` API
+(clear it manually via `caches.delete('nobodywho-models-v1')`); the URL is
+the only cache key, so there's no revalidation if the bytes at a URL
+change; and an in-flight `Model.load` can't be aborted (no `AbortSignal`).
+Planned for a later release. (Node has no Cache Storage, so `modelUrl`
+loads there are never cached.)
+
 ## Build pipeline
 
 ```
