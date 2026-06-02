@@ -18,23 +18,6 @@ use tracing::{info, warn};
 
 use crate::{errors::MultimodalError, errors::TokenizationError};
 
-/// Get the media-marker string used to split text from media in rendered
-/// chat templates. Native reads this from llama.cpp's
-/// `mtmd_default_marker()`. On wasm32 we inline the literal
-/// (`"<__media__>"`) directly — the same string the FFI call would
-/// return — to avoid the FFI hop.
-#[inline]
-fn mtmd_marker_string() -> String {
-    #[cfg(target_family = "wasm")]
-    {
-        "<__media__>".to_string()
-    }
-    #[cfg(not(target_family = "wasm"))]
-    {
-        llama_cpp_2::mtmd::mtmd_default_marker().to_string()
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Prompt {
     parts: Vec<PromptPart>,
@@ -42,7 +25,7 @@ pub struct Prompt {
 
 impl Display for Prompt {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let marker = mtmd_marker_string();
+        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
         let result = self
             .parts
             .iter()
@@ -395,7 +378,7 @@ impl ProjectionModel {
             .map(|p| p.get() as i32)
             .unwrap_or(4);
 
-        let media_marker = mtmd_marker_string();
+        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
 
         let mtmd_params = MtmdContextParams {
             use_gpu,
@@ -419,7 +402,7 @@ impl ProjectionModel {
     }
 
     pub fn tokenize(&self, bitmap: &MtmdBitmap) -> Result<TokenizerChunk, TokenizationError> {
-        let media_marker = mtmd_marker_string();
+        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
         let mtmd_chunks = self
             .ctx
             .tokenize(
@@ -536,7 +519,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, TokenizationError> {
-        let media_marker = mtmd_marker_string();
+        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
         let splits = text
             .split(media_marker.as_str())
             .enumerate()
