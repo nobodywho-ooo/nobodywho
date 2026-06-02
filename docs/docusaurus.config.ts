@@ -189,7 +189,7 @@ const config: Config = {
         {to: '/react-native/', label: 'React Native', position: 'left', activeBaseRegex: '/react-native/'},
         {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/'},
         {to: '/godot/install', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
-        {to: '/js/', label: 'JavaScript', position: 'left', activeBaseRegex: '/js/'},
+        {to: '/js/main/', label: 'JavaScript', position: 'left', activeBaseRegex: '/js/'},
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',
