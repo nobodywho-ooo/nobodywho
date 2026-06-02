@@ -20,19 +20,14 @@
     "gguf"
   ],
   "main": "./nobodywho_js.js",
-  "types": "./nobodywho_js.d.ts",
   "type": "module",
   "files": [
     "nobodywho_js.js",
-    "nobodywho_js.d.ts",
-    "nobodywho_js_bg.js",
-    "nobodywho_js_bg.wasm",
-    "nobodywho_js_bg.wasm.d.ts",
+    "nobodywho_js.wasm",
     "README.md"
   ],
   "sideEffects": [
-    "./nobodywho_js.js",
-    "./snippets/*"
+    "./nobodywho_js.js"
   ],
   "engines": {
     "node": ">=20"
