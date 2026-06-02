@@ -6181,14 +6181,9 @@ rec {
       };
       "js-sys" = rec {
         crateName = "js-sys";
-        version = "0.3.99";
+        version = "0.3.98";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/nobodywho-ooo/wasm-bindgen";
-          rev = "7bd658ebaf4322fcf9091469ebbce52680360baf";
-          sha256 = "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0";
-        };
+        sha256 = "024zjwpxp6fri4j79bh1686q1x4nw4a06fh1a28zv2rzc4973pv7";
         libName = "js_sys";
         authors = [
           "The wasm-bindgen Developers"
@@ -6204,6 +6199,11 @@ rec {
             optional = true;
             usesDefaultFeatures = false;
             features = [ "std" ];
+          }
+          {
+            name = "once_cell";
+            packageId = "once_cell";
+            usesDefaultFeatures = false;
           }
           {
             name = "wasm-bindgen";
@@ -6536,7 +6536,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "6ea5ffbd202e00e3bbf78e021fb9aa89f1a67501";
+          rev = "ddb03a042be938f64e810199b94d898fd3df332f";
           sha256 = "1d2ihnji81z5jn5haycby404jwiliy2xzhl01d41vh9l82wg823m";
         };
         libName = "llama_cpp_2";
@@ -6616,7 +6616,7 @@ rec {
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "6ea5ffbd202e00e3bbf78e021fb9aa89f1a67501";
+          rev = "ddb03a042be938f64e810199b94d898fd3df332f";
           sha256 = "1d2ihnji81z5jn5haycby404jwiliy2xzhl01d41vh9l82wg823m";
         };
         libName = "llama_cpp_sys_2";
@@ -7564,7 +7564,11 @@ rec {
           {
             name = "walkdir";
             packageId = "walkdir";
-            target = { target, features }: (!(builtins.elem "wasm" target."family"));
+          }
+          {
+            name = "wasm-bindgen-futures";
+            packageId = "wasm-bindgen-futures";
+            target = { target, features }: (builtins.elem "wasm" target."family");
           }
         ];
         features = {
@@ -7707,12 +7711,6 @@ rec {
             packageId = "tracing";
           }
           {
-            name = "tracing-subscriber";
-            packageId = "tracing-subscriber";
-            usesDefaultFeatures = false;
-            features = [ "registry" "std" ];
-          }
-          {
             name = "tracing-wasm";
             packageId = "tracing-wasm";
           }
@@ -7727,7 +7725,7 @@ rec {
           {
             name = "web-sys";
             packageId = "web-sys";
-            features = [ "console" "DedicatedWorkerGlobalScope" "WorkerGlobalScope" "Window" "Cache" "CacheStorage" "Headers" "Response" "ResponseInit" "ReadableStream" "ReadableStreamDefaultReader" ];
+            features = [ "console" "DedicatedWorkerGlobalScope" "MessageEvent" "ErrorEvent" "Worker" "WorkerOptions" "WorkerType" "WorkerGlobalScope" "Blob" "BlobPropertyBag" "Url" "Window" "Cache" "CacheStorage" "Request" "RequestInit" "Response" "Headers" "ReadableStream" "ReadableStreamDefaultReader" ];
           }
         ];
 
@@ -14105,13 +14103,13 @@ rec {
       };
       "wasm-bindgen" = rec {
         crateName = "wasm-bindgen";
-        version = "0.2.122";
+        version = "0.2.121";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/wasm-bindgen";
-          rev = "7bd658ebaf4322fcf9091469ebbce52680360baf";
-          sha256 = "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0";
+          rev = "f4fc33dc7f505b6aa19bdfc2c9672e8680f76168";
+          sha256 = "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj";
         };
         libName = "wasm_bindgen";
         authors = [
@@ -14162,14 +14160,9 @@ rec {
       };
       "wasm-bindgen-futures" = rec {
         crateName = "wasm-bindgen-futures";
-        version = "0.4.72";
+        version = "0.4.71";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/nobodywho-ooo/wasm-bindgen";
-          rev = "7bd658ebaf4322fcf9091469ebbce52680360baf";
-          sha256 = "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0";
-        };
+        sha256 = "1f3k8r13nqshrlxwq0naxpbh250b4l6p526wlw2m78pv7w6jsjcn";
         libName = "wasm_bindgen_futures";
         authors = [
           "The wasm-bindgen Developers"
@@ -14195,13 +14188,13 @@ rec {
       };
       "wasm-bindgen-macro" = rec {
         crateName = "wasm-bindgen-macro";
-        version = "0.2.122";
+        version = "0.2.121";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/wasm-bindgen";
-          rev = "7bd658ebaf4322fcf9091469ebbce52680360baf";
-          sha256 = "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0";
+          rev = "f4fc33dc7f505b6aa19bdfc2c9672e8680f76168";
+          sha256 = "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj";
         };
         procMacro = true;
         libName = "wasm_bindgen_macro";
@@ -14224,13 +14217,13 @@ rec {
       };
       "wasm-bindgen-macro-support" = rec {
         crateName = "wasm-bindgen-macro-support";
-        version = "0.2.122";
+        version = "0.2.121";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/wasm-bindgen";
-          rev = "7bd658ebaf4322fcf9091469ebbce52680360baf";
-          sha256 = "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0";
+          rev = "f4fc33dc7f505b6aa19bdfc2c9672e8680f76168";
+          sha256 = "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj";
         };
         libName = "wasm_bindgen_macro_support";
         authors = [
@@ -14265,14 +14258,14 @@ rec {
       };
       "wasm-bindgen-shared" = rec {
         crateName = "wasm-bindgen-shared";
-        version = "0.2.122";
+        version = "0.2.121";
         edition = "2021";
         links = "wasm_bindgen";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/wasm-bindgen";
-          rev = "7bd658ebaf4322fcf9091469ebbce52680360baf";
-          sha256 = "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0";
+          rev = "f4fc33dc7f505b6aa19bdfc2c9672e8680f76168";
+          sha256 = "0x3qsa1h2a27aq9635l1cxnzx3dnnp14a3an8brq54djas9px8jj";
         };
         libName = "wasm_bindgen_shared";
         authors = [
@@ -14398,14 +14391,9 @@ rec {
       };
       "web-sys" = rec {
         crateName = "web-sys";
-        version = "0.3.99";
+        version = "0.3.98";
         edition = "2021";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/nobodywho-ooo/wasm-bindgen";
-          rev = "7bd658ebaf4322fcf9091469ebbce52680360baf";
-          sha256 = "1wznkyjax33hv61zkvk8xf283i05g71q2wk4nq7f89pn5kffm4c0";
-        };
+        sha256 = "1aijiwx7wsfzj37p1gnqn6wv4j2ppf4rqwhrzb8blf6gigzjsmsb";
         libName = "web_sys";
         authors = [
           "The wasm-bindgen Developers"
@@ -14896,7 +14884,7 @@ rec {
           "default" = [ "std" ];
           "std" = [ "wasm-bindgen/std" "js-sys/std" ];
         };
-        resolvedDefaultFeatures = [ "Blob" "BlobPropertyBag" "BroadcastChannel" "Cache" "CacheStorage" "DedicatedWorkerGlobalScope" "ErrorEvent" "Event" "EventTarget" "Headers" "MessageEvent" "MessagePort" "ReadableStream" "ReadableStreamDefaultReader" "Response" "ResponseInit" "Url" "Window" "Worker" "WorkerGlobalScope" "console" "default" "std" ];
+        resolvedDefaultFeatures = [ "Blob" "BlobPropertyBag" "BroadcastChannel" "Cache" "CacheStorage" "DedicatedWorkerGlobalScope" "ErrorEvent" "Event" "EventTarget" "Headers" "MessageEvent" "MessagePort" "ReadableStream" "ReadableStreamDefaultReader" "Request" "RequestInit" "Response" "Url" "Window" "Worker" "WorkerGlobalScope" "WorkerOptions" "WorkerType" "console" "default" "std" ];
       };
       "web-time" = rec {
         crateName = "web-time";
