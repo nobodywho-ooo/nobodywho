@@ -23,8 +23,7 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 #[cfg(not(target_family = "wasm"))]
 use std::time::Duration;
 use tracing::{debug, debug_span, error, info, warn};
-// `info_span` is only used inside the native model-loader path; gate it so the
-// wasm build doesn't warn about an unused import.
+// `info_span` is native-only; gate to avoid an unused-import warning on wasm.
 #[cfg(not(target_family = "wasm"))]
 use tracing::info_span;
 
@@ -53,9 +52,7 @@ pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 /// Detects a new download (model → mmproj transition) by watching for `total` to change,
 /// finishes the previous bar, and starts a fresh one.
 ///
-/// Native-only: `indicatif` is not pulled in on wasm32 (no terminal). The wasm
-/// model-load path (`Model::load_bytes`, future) skips this entirely since
-/// bytes are already in memory.
+/// Native-only — `indicatif` is not available on wasm32 (no terminal).
 #[cfg(not(target_family = "wasm"))]
 pub fn default_progress_callback() -> DownloadProgressCallback {
     let style = ProgressStyle::with_template(
@@ -124,15 +121,12 @@ where
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
-    /// wasm: linear-memory buffers the model/mmproj were mmapped from
-    /// (single-copy browser load). Declared LAST so it drops after the
-    /// models — i.e. after llama.cpp's `munmap` — avoiding a use-after-free.
+    /// wasm mmap backing buffers; declared last so they drop after the model.
     #[cfg(target_family = "wasm")]
     backing_buffers: Vec<ModelBackingBuffer>,
 }
 
-/// Owns one wasm-linear-memory allocation the model was mmapped from;
-/// frees it on drop. See [`Model::attach_backing_buffer`].
+/// Owns a wasm linear-memory allocation the model was mmapped from; frees on drop.
 #[cfg(target_family = "wasm")]
 #[derive(Debug)]
 struct ModelBackingBuffer {
@@ -140,9 +134,8 @@ struct ModelBackingBuffer {
     size: usize,
 }
 
-// SAFETY: an owned (ptr, size) dealloc handle, never used to read the memory
-// (weights go through llama.cpp's mmap). `Model` is Arc-shared to the worker,
-// so the handle must be Send + Sync.
+// SAFETY: owned dealloc handle only; weights are accessed via llama.cpp's mmap.
+// Send + Sync required because `Model` is Arc-shared to the worker thread.
 #[cfg(target_family = "wasm")]
 unsafe impl Send for ModelBackingBuffer {}
 #[cfg(target_family = "wasm")]
@@ -152,7 +145,7 @@ unsafe impl Sync for ModelBackingBuffer {}
 impl Drop for ModelBackingBuffer {
     fn drop(&mut self) {
         if !self.ptr.is_null() && self.size > 0 {
-            // Same 64-byte alignment used at allocation time.
+            // 64-byte alignment matches the allocation site.
             if let Ok(layout) = std::alloc::Layout::from_size_align(self.size, 64) {
                 unsafe { std::alloc::dealloc(self.ptr, layout) };
             }
@@ -161,8 +154,7 @@ impl Drop for ModelBackingBuffer {
 }
 
 impl Model {
-    /// wasm-only: hand the model ownership of the buffer it was mmapped from,
-    /// so it's freed with the model (not before — the mmap points into it).
+    /// wasm-only: transfer ownership of the mmap backing buffer to this model.
     #[cfg(target_family = "wasm")]
     pub fn attach_backing_buffer(&mut self, ptr: usize, size: usize) {
         self.backing_buffers.push(ModelBackingBuffer {
@@ -173,12 +165,9 @@ impl Model {
 }
 
 impl Model {
-    /// Returns true if this model can generate text (i.e. is an autoregressive decoder).
-    ///
-    /// Generative models never pool token representations, so `<arch>.pooling_type` is absent
-    /// from their GGUF metadata (giving `Unspecified`). Encoder-only models (BERT, nomic-bert,
-    /// etc.) always have this key set to CLS, Mean, or similar — a reliable,
-    /// architecture-agnostic signal that the model cannot generate text.
+    /// Returns true if this model is a generative (autoregressive) decoder.
+    /// Encoder-only models (BERT etc.) always set `<arch>.pooling_type`; its
+    /// absence (`Unspecified`) is a reliable sign the model can generate text.
     pub fn is_generative_model(&self) -> bool {
         let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
             return true;
@@ -233,12 +222,8 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
-/// wasm model loader: load a GGUF from a path already present in Emscripten's
-/// filesystem — NODEFS (Node `modelPath`, a real file) or MEMFS (browser bytes
-/// streamed in via `FS.write`). `mmap` is on via the `_mmap_js` syscall
-/// override: NODEFS maps tensors directly (single-copy), MEMFS allocates +
-/// copies. `mmproj_path` adds the multimodal projection model; `gpu_layers`
-/// is `0` (no GPU on wasm).
+/// wasm model loader: load a GGUF from an Emscripten FS path (NODEFS or MEMFS).
+/// mmap is enabled via the `_mmap_js` syscall override in syscall_imports.rs.
 #[cfg(target_family = "wasm")]
 pub fn get_model_from_path(
     model_path: &std::path::Path,
@@ -252,11 +237,7 @@ pub fn get_model_from_path(
         "Loading model from path (NODEFS or MEMFS)"
     );
 
-    // mmap is enabled: our strong _mmap_js override in syscall_imports.rs
-    // routes through FS.mmap, which works on both MEMFS and NODEFS.
-    // On NODEFS (Node modelPath) this avoids the MEMFS copy entirely.
-    // On MEMFS (browser bytes) it allocates + copies (still 2x due to
-    // ALLOW_MEMORY_GROWTH) but is no worse than use_mmap(false).
+    // _mmap_js routes mmap() through FS.mmap (NODEFS: zero-copy, MEMFS: one copy).
     let model_params = LlamaModelParams::default()
         .with_n_gpu_layers(gpu_layers)
         .with_use_mmap(true);
@@ -291,9 +272,7 @@ pub fn get_model_from_path(
     })
 }
 
-// --- Native-only model loaders -------------------------------------------
-// HTTP downloads, filesystem, OS cache dir — none of which work in a browser
-// sandbox, so gated to non-wasm32. wasm loads via `get_model_from_path`.
+// --- Native-only model loaders (HTTP, filesystem, cache dir) ---
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Clone)]
@@ -775,22 +754,17 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) projection_model: Option<&'a ProjectionModel>,
     pub(crate) tokenizer: Tokenizer<'a>,
     pub(crate) use_embeddings: bool,
-    // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
-    // Used to guard against sending more tokens than the context can decode in one batch.
+    // n_batch: planned context size before llama.cpp rounding; guards batch decode limits.
     pub(crate) n_batch: usize,
 
     pub(crate) extra: S,
 
-    // wasm: owns the ggml threadpool attached to `ctx`. Declared last so it
-    // drops after `ctx` (which calls llama_free) — the pool must outlive the
-    // context that uses it.
+    // wasm: declared last so it drops after `ctx` (threadpool must outlive context).
     #[cfg(target_family = "wasm")]
     threadpool: ThreadpoolHandle,
 }
 
-/// Owns a ggml threadpool, freeing it on drop. wasm-only: freeing the pool
-/// when the worker drops keeps repeated `Chat.create`/drop cycles from piling
-/// up Emscripten pthreads (each is a Web Worker with a 2 MB stack).
+/// Owns a ggml threadpool (wasm-only); frees it on drop to avoid pthread leaks.
 #[cfg(target_family = "wasm")]
 #[derive(Debug)]
 struct ThreadpoolHandle(*mut llama_cpp_sys_2::ggml_threadpool);
@@ -835,8 +809,7 @@ where
 
         let projection_model = model.projection_model.as_ref();
 
-        // wasm: pointer to the persistent ggml threadpool attached below,
-        // hoisted so the Worker can own it and free it on drop.
+        // wasm: threadpool pointer, hoisted so Worker owns and frees it on drop.
         #[cfg(target_family = "wasm")]
         let mut threadpool: *mut llama_cpp_sys_2::ggml_threadpool = std::ptr::null_mut();
 
@@ -872,9 +845,7 @@ where
                 .with_n_threads_batch(n_threads)
                 .with_embeddings(use_embeddings)
                 .with_pooling_type(extra.pooling_type());
-            // Disable Flash Attention on wasm32 — llama.cpp's FA kernels
-            // trip wasm memory-access-out-of-bounds during inference. The
-            // standard attention path works fine.
+            // FA kernels trip wasm out-of-bounds; standard attention works fine.
             #[cfg(target_family = "wasm")]
             let ctx_params = ctx_params
                 .with_flash_attention_policy(llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED);
@@ -885,11 +856,9 @@ where
                 .language_model
                 .new_context(&LLAMA_BACKEND, ctx_params)?;
 
-            // wasm: attach a persistent threadpool. Emscripten's pthread_create
-            // is async (proxied through the main thread), so ggml spawning
-            // disposable compute threads mid-`ggml_graph_compute` deadlocks;
-            // creating the pool here (at init, event loop free) avoids that.
-            // The Worker frees it on drop (ThreadpoolHandle) — no pthread leak.
+            // wasm: attach a persistent threadpool at init (not mid-compute) to
+            // avoid deadlocking Emscripten's async pthread_create, and to ensure
+            // the Worker frees it on drop rather than leaking pthreads.
             #[cfg(target_family = "wasm")]
             {
                 unsafe {
@@ -1085,12 +1054,7 @@ where
     }
 }
 
-/// Owns a background worker's resources and ensures clean shutdown.
-///
-/// When dropped: sets the optional stop flag, closes the message channel (causing the
-/// worker's `recv()` to return `Err`), then joins the thread on native. This ordering
-/// guarantees the worker has fully exited before any statics (e.g. `LLAMA_BACKEND`)
-/// are destroyed.
+/// Owns a background worker's resources; joins the thread on drop (native only).
 pub(crate) struct WorkerGuard<T> {
     pub(crate) msg_tx: Option<std::sync::mpsc::Sender<T>>,
     // Only joined on native; on wasm the pthread exits on its own (see Drop).
@@ -1130,16 +1094,11 @@ impl<T> Drop for WorkerGuard<T> {
         if let Some(ref stop) = self.should_stop {
             stop.store(true, Ordering::Relaxed);
         }
-        // Closing the channel makes the worker's `recv()` return `Err`,
-        // so the loop exits and the worker state (context, threadpool) is
-        // dropped on the worker thread.
+        // Closing the channel makes the worker's recv() return Err, exiting the loop.
         drop(self.msg_tx.take());
 
-        // On native, join so the worker fully exits before any statics it
-        // touches (e.g. LLAMA_BACKEND) are destroyed. On wasm we skip the
-        // join: the worker pthread's teardown frees the ggml threadpool by
-        // joining its workers, proxied through the main thread — which is
-        // blocked here in `join()` → deadlock. The pthread exits on its own.
+        // Native: join so LLAMA_BACKEND outlives the worker. Wasm: skip —
+        // joining would deadlock (threadpool teardown is proxied via main thread).
         #[cfg(not(target_family = "wasm"))]
         if let Some(handle) = self.join_handle.take() {
             if let Err(e) = handle.join() {
