@@ -71,9 +71,7 @@ impl Tool {
         }
     }
 
-    /// Built-in Python tool, backed by the `monty` interpreter. Native-only:
-    /// `monty` does not currently target wasm32. wasm consumers can still call
-    /// `Tool::new` with their own JS-side Python implementation if needed.
+    /// Built-in Python tool via the `monty` interpreter. Native-only (no wasm32).
     #[cfg(not(target_family = "wasm"))]
     pub fn python(
         max_duration: Option<Duration>,
@@ -130,10 +128,7 @@ impl Tool {
         )
     }
 
-    /// Built-in bash tool, backed by the `bashkit` virtual interpreter.
-    /// Native-only: `bashkit` requires `tokio/full` (mio + sockets) which
-    /// doesn't compile to wasm32. wasm consumers don't typically have a
-    /// shell concept anyway; if needed, define a custom tool via `Tool::new`.
+    /// Built-in bash tool via the `bashkit` interpreter. Native-only (no wasm32).
     #[cfg(not(target_family = "wasm"))]
     pub fn bash(max_commands: Option<usize>) -> Self {
         Tool::new(
