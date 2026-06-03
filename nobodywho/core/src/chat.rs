@@ -597,10 +597,9 @@ impl ChatHandleAsync {
             run_worker_loop(worker_state, msg_rx);
         });
 
-        // On native, block until the worker thread is ready. On wasm,
-        // skip the blocking wait — the spawned pthread needs the event
-        // loop to tick before it can start, and recv() would block the
-        // event loop. Init errors surface on the first ask instead.
+        // Native: block until the worker is ready. Wasm: skip it — the worker
+        // pthread needs the event loop to tick to start, and recv() would block
+        // it; init errors surface on the first ask instead.
         #[cfg(not(target_family = "wasm"))]
         init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
         #[cfg(target_family = "wasm")]
@@ -1077,9 +1076,6 @@ impl std::fmt::Debug for ChatMsg {
     }
 }
 
-/// Drive the worker: process messages until the channel closes. When it closes
-/// (the handle was dropped), the loop exits and `worker_state` drops, freeing
-/// the context and (on wasm) its threadpool.
 fn run_worker_loop(
     mut worker_state: Worker<'_, ChatWorker>,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
@@ -1678,9 +1674,8 @@ impl Worker<'_, ChatWorker> {
                 id: id.clone(),
                 path: match part {
                     PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
-                    // In-memory media has no filesystem path; the asset is
-                    // tracked by its content-hash id, so a placeholder is
-                    // fine (path is metadata only, never used to reload).
+                    // In-memory media has no path; it's tracked by content-hash
+                    // id, and path here is metadata only (never used to reload).
                     PromptPart::MediaBytes(_) => std::path::PathBuf::from("<in-memory media>"),
                     PromptPart::Text(_) => unreachable!(),
                 },
@@ -1918,11 +1913,9 @@ impl Worker<'_, ChatWorker> {
             }
         }
 
-        // Skip the render when messages is empty for the same reason
-        // `set_chat_history` does — some chat templates dereference
-        // `messages[0]` unconditionally and panic on an empty list.
-        // The KV cache stays as-is until the next ask, which will
-        // re-render with whatever messages are present at that point.
+        // Skip the render on empty messages (like `set_chat_history`): some
+        // templates index `messages[0]` and panic on an empty list. The KV
+        // cache is left as-is; the next ask re-renders.
         if !self.extra.messages.is_empty() {
             let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
             let inference_lock_token = _gil_guard.unwrap();
