@@ -311,7 +311,7 @@ impl ChatHandle {
 
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-            let worker_state = match worker {
+            let mut worker_state = match worker {
                 Ok(w) => {
                     let _ = init_tx.send(Ok(()));
                     w
@@ -322,7 +322,11 @@ impl ChatHandle {
                 }
             };
 
-            run_worker_loop(worker_state, msg_rx);
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
         });
 
         init_rx.recv().map_err(|_| InitWorkerError::NoResponse)??;
@@ -583,7 +587,7 @@ impl ChatHandleAsync {
 
         let join_handle = std::thread::spawn(move || {
             let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
-            let worker_state = match worker {
+            let mut worker_state = match worker {
                 Ok(w) => {
                     let _ = init_tx.send(Ok(()));
                     w
@@ -594,7 +598,11 @@ impl ChatHandleAsync {
                 }
             };
 
-            run_worker_loop(worker_state, msg_rx);
+            while let Ok(msg) = msg_rx.recv() {
+                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
+                    return error!("Worker crashed: {e}");
+                }
+            }
         });
 
         // Native: block until the worker is ready. Wasm: skip it — the worker
@@ -1072,17 +1080,6 @@ impl std::fmt::Debug for ChatMsg {
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
-        }
-    }
-}
-
-fn run_worker_loop(
-    mut worker_state: Worker<'_, ChatWorker>,
-    msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
-) {
-    while let Ok(msg) = msg_rx.recv() {
-        if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-            return error!("Worker crashed: {e}");
         }
     }
 }
