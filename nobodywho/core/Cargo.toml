@@ -42,6 +42,12 @@ ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 hound = "3"
 safetensors = "0.5"
+# STT audio pipeline
+symphonia = { version = "0.5", default-features = false, features = ["wav", "mp3", "flac"] }
+rubato = "0.16"
+mel_spec = "0.4"
+ndarray = "0.16"
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"

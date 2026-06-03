@@ -11,7 +11,8 @@
 
 use crate::errors::TtsError;
 use crate::tts::backend::TtsBackendImpl;
-use crate::tts::{ort_util, TtsDevice, DEFAULT_SAMPLE_RATE};
+use crate::onnx::Device as TtsDevice;
+use crate::tts::DEFAULT_SAMPLE_RATE;
 use espeak_ng::Translator;
 use ort::session::Session;
 use ort::value::Tensor;
@@ -44,7 +45,7 @@ impl KokoroBackend {
         device: TtsDevice,
         espeak_data_dir: Option<&Path>,
     ) -> Result<Self, TtsError> {
-        let session = ort_util::load_session(&model_dir.join("model.onnx"), device)?;
+        let session = crate::onnx::load_session(&model_dir.join("model.onnx"), device)?;
         let vocab = load_vocab(&model_dir.join("config.json"))?;
         let (voice_style, max_input_phonemes) = load_voice(&model_dir.join("voices"), voice)?;
         let translator = init_translator(language, espeak_data_dir)?;

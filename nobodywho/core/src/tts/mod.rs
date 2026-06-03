@@ -45,10 +45,11 @@
 
 mod backend;
 mod backends;
-mod ort_util;
 
 use crate::errors::TtsError;
 pub use backends::KokoroConfig;
+/// Re-export the shared ONNX device enum under the TTS-facing name.
+pub use crate::onnx::Device as TtsDevice;
 use std::sync::mpsc;
 
 /// Backend selection and model directory for a [`Tts`] handle.
@@ -60,34 +61,6 @@ pub enum TtsConfig {
 impl TtsConfig {
     pub fn kokoro(source: impl AsRef<str>) -> Self {
         Self::Kokoro(KokoroConfig::new(source))
-    }
-}
-
-/// Hardware target for ONNX Runtime execution.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TtsDevice {
-    /// Prefer CUDA, silently fall back to CPU if unavailable.
-    Auto,
-    Cpu,
-    Cuda,
-}
-
-pub(super) fn ort_execution_providers(
-    device: TtsDevice,
-) -> Vec<ort::ep::ExecutionProviderDispatch> {
-    match device {
-        // CPU is listed alongside CUDA as a per-op fallback,
-        // as some ops may not have ONNX CUDA kernel.
-        // CUDA still takes whichever ops it supports.
-        TtsDevice::Cuda => vec![
-            ort::ep::CUDA::default().build().error_on_failure(),
-            ort::ep::CPU::default().build(),
-        ],
-        TtsDevice::Cpu => vec![ort::ep::CPU::default().build()],
-        TtsDevice::Auto => vec![
-            ort::ep::CUDA::default().build().fail_silently(),
-            ort::ep::CPU::default().build(),
-        ],
     }
 }
 
@@ -105,7 +78,7 @@ pub struct Tts {
 impl Tts {
     /// Build a `Tts` handle with [`TtsDevice::Auto`].
     pub fn new(config: TtsConfig) -> Result<Self, TtsError> {
-        Self::with_device(config, TtsDevice::Auto)
+        Self::with_device(config, crate::onnx::Device::Auto)
     }
 
     /// Build a `Tts` handle on the specified device.

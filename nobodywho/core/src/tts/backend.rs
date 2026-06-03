@@ -1,6 +1,7 @@
 use crate::errors::TtsError;
 use crate::huggingface;
-use crate::tts::{backends, TtsConfig, TtsDevice};
+use crate::onnx::Device as TtsDevice;
+use crate::tts::{backends, TtsConfig};
 use std::time::Instant;
 use tracing::info;
 

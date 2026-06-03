@@ -437,6 +437,29 @@ impl From<HuggingFaceError> for TtsError {
     }
 }
 
+// STT errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum SttError {
+    #[error("Error initializing STT: {0}")]
+    Init(String),
+
+    #[error("Error during transcription: {0}")]
+    Transcription(String),
+
+    #[error("ONNX Runtime error: {0}")]
+    Ort(#[from] ort::Error),
+
+    #[error("Audio decode error: {0}")]
+    Audio(String),
+}
+
+impl From<HuggingFaceError> for SttError {
+    fn from(e: HuggingFaceError) -> Self {
+        SttError::Init(e.to_string())
+    }
+}
+
 // ChatWorker errors
 
 #[derive(thiserror::Error, Debug)]
