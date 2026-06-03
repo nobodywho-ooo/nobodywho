@@ -1,0 +1,98 @@
+name: "kotlin_ci"
+
+on:
+  workflow_call:
+    inputs:
+      full_ci:
+        description: "Run full Kotlin CI (bindings check, compilation, integration tests with model)."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: inputs.full_ci
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download uniffi Linux x86_64 artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-x86_64-unknown-linux-gnu-release
+          path: ./native-lib
+
+      - name: "Rename native lib for JNA"
+        run: |
+          cp ./native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
+            ./native-lib/libnobodywho_uniffi.so
+
+      - name: "Setup Rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install Vulkan dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: "Build uniffi-bindgen"
+        working-directory: ./nobodywho
+        run: cargo build --bin uniffi-bindgen --locked
+
+      - name: "Generate Kotlin bindings"
+        working-directory: ./nobodywho
+        run: |
+          cargo run --bin uniffi-bindgen -- generate \
+            --library ${{ github.workspace }}/native-lib/libnobodywho_uniffi.so \
+            --language kotlin \
+            --out-dir kotlin/common/generated
+
+      - name: "Verify committed generated files are up to date"
+        working-directory: ./nobodywho/kotlin
+        run: |
+          if git diff --exit-code common/generated/; then
+            echo "Generated bindings are up to date"
+          else
+            echo "ERROR: Committed generated bindings are out of date."
+            echo "Run the binding generation command and commit the results:"
+            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
+            echo "  cargo run --bin uniffi-bindgen -- generate \\"
+            echo "    --library target/debug/libnobodywho_uniffi.so \\"
+            echo "    --language kotlin --out-dir kotlin/common/generated"
+            exit 1
+          fi
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - name: "Compile Kotlin modules"
+        working-directory: ./nobodywho/kotlin
+        run: ./gradlew :nobodywho-core:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
+
+      - name: "Download test model"
+        run: |
+          mkdir -p test-models
+          curl -L -o test-models/model.gguf \
+            "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+
+      - name: "Run tests"
+        working-directory: ./nobodywho/kotlin
+        env:
+          NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
+          TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
+        run: ./gradlew :nobodywho-core:test
