@@ -1,4 +1,4 @@
-// Smoke test for SamplerBuilder + SamplerPresets ergonomic wrappers.
+// Test for SamplerBuilder + SamplerPresets ergonomic wrappers.
 //
 // Validates:
 //   * SamplerPresets.greedy() / .temperature() / .topK() / .topP() /
@@ -9,7 +9,7 @@
 //     Chat.create accepts it and ask works.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/sampler-ergo-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_sampler-ergo.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -99,5 +99,5 @@ assert.ok(/^[0-9]{1,3}$/.test(numReply.trim()),
 await chat2.terminate();
 console.log('    ✓ regex constraint enforced');
 
-console.log('\n=== sampler-ergo-smoke passed ===');
+console.log('\n=== sampler-ergo passed ===');
 process.exit(0);

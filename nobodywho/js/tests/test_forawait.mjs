@@ -1,7 +1,7 @@
-// Smoke test: verify `for await (const tok of stream)` works after the
+// Test: verify `for await (const tok of stream)` works after the
 // Symbol.asyncIterator shim landed in pre.js.
 //
-// Usage: node forawait-smoke.mjs <model.gguf>
+// Usage: node test_forawait.mjs <model.gguf>
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -11,7 +11,7 @@ const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
 const modelPath = process.argv[2];
 if (!modelPath) {
-  console.error('usage: forawait-smoke.mjs <model.gguf>');
+  console.error('usage: test_forawait.mjs <model.gguf>');
   process.exit(2);
 }
 

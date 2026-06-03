@@ -1,4 +1,4 @@
-// Audio decoder smoke test for the JS binding.
+// Audio decoder test for the JS binding.
 //
 // Win condition: bytes in each audio format (WAV, MP3, FLAC) flow
 // through `Audio.fromBytes(uint8)` → wasm boundary → mtmd's
@@ -11,7 +11,7 @@
 // submodule is stock ggml-org.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/audio-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_audio.mjs
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -103,7 +103,7 @@ for (const { ext, desc } of formats) {
   await chat.terminate();
 }
 
-console.log('\n=== Audio decoder smoke summary ===');
+console.log('\n=== Audio decoder summary ===');
 for (const f of formats) {
   const r = results[f.ext];
   const s = typeof r === 'string' ? r : r.state;
@@ -119,16 +119,16 @@ const skipped = formats.filter((f) => results[f.ext] === 'skipped').length;
 // working end-to-end against the default Qwen3-ASR model, so require at least
 // one real transcript and refuse to pass when every format was skipped.
 if (skipped === formats.length) {
-  console.error(`\n=== Audio smoke FAILED: every format skipped — no audio test files found ===`);
+  console.error(`\n=== Audio FAILED: every format skipped — no audio test files found ===`);
   process.exit(1);
 }
 if (fullPassed < 1) {
-  console.error(`\n=== Audio smoke FAILED: no format produced a transcript ===`);
+  console.error(`\n=== Audio FAILED: no format produced a transcript ===`);
   console.error(`  full-ok=${fullPassed} decoder-ok=${decoderPassed} skipped=${skipped}`);
   console.error(`  A decoder-only result means the encode/inference path regressed`);
   console.error(`  (it is known to work with the default Qwen3-ASR model) — not a pass.`);
   process.exit(1);
 }
-console.log(`\n=== Audio smoke passed ===`);
+console.log(`\n=== Audio passed ===`);
 console.log(`  ${fullPassed}/${formats.length} full transcript(s), ${decoderPassed} decoder-only, ${skipped} skipped`);
 process.exit(0);

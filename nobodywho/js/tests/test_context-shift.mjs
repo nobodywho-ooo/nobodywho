@@ -1,4 +1,4 @@
-// Smoke: streaming continues cleanly when the KV cache wraps and
+// Test: streaming continues cleanly when the KV cache wraps and
 // core's inference loop hits `self.context_shift()`.
 //
 // Strategy: tiny contextSize (512) + multi-turn dialogue. Each call
@@ -19,7 +19,7 @@
 //     running
 //   - no turn errored
 //
-// Usage: node context-shift-smoke.mjs <model.gguf>
+// Usage: node test_context-shift.mjs <model.gguf>
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -29,7 +29,7 @@ const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
 const modelPath = process.argv[2];
 if (!modelPath) {
-  console.error('usage: context-shift-smoke.mjs <model.gguf>');
+  console.error('usage: test_context-shift.mjs <model.gguf>');
   process.exit(2);
 }
 
@@ -106,7 +106,7 @@ console.log(`\n  cumulative generated tokens: ${totalGenTokens} (contextSize=${C
 if (totalGenTokens <= CTX) {
   console.log(
     `FAIL: only ${totalGenTokens} tokens generated across the dialogue (contextSize=${CTX}); ` +
-    `the window was never overflowed, so no context_shift occurred — the smoke did not exercise the shift path.`
+    `the window was never overflowed, so no context_shift occurred — the test did not exercise the shift path.`
   );
   process.exit(1);
 }

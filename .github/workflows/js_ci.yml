@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       full_ci:
-        description: "Run full JS CI (wasm build + model smoke tests). If false, only lint regression tests run."
+        description: "Run full JS CI (wasm build + model tests). If false, only lint regression tests run."
         type: boolean
         default: false
 
@@ -33,13 +33,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-home-js-lint-
 
-      - name: "Setup rust toolchain"
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . "$HOME/.cargo/env"
-          rustup update stable
-          rustup default stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      # Same toolchain action as python_ci.yml and the build job below.
+      # cache: false keeps the manual "Cache Cargo Home" step above as the
+      # single caching mechanism (no double-cache of ~/.cargo + target).
+      - name: "Setup Rust toolchain"
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
 
       - name: "Install Vulkan dependencies"
         run: |
@@ -50,7 +51,10 @@ jobs:
         working-directory: ./nobodywho
         run: cargo test -p nobodywho-js --locked
 
-  build-and-test:
+  # Build once: produce the wasm32-unknown-emscripten pkg-bundler/ and upload it
+  # as an artifact. The tests job downloads that artifact instead of rebuilding —
+  # same "build once, fan out tests" topology python_ci.yml uses for its wheel.
+  build:
     if: inputs.full_ci
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -142,43 +146,11 @@ jobs:
           git clone --depth 1 --branch "$WBG_FORK_REF" "$WBG_FORK_URL" /tmp/wbg-src
           cargo install --path /tmp/wbg-src/crates/cli --root /tmp/wbg-patched --locked
 
-      - name: "Set up Node 26"
-        uses: actions/setup-node@v4
-        with:
-          node-version: '26'
-
       - name: "Build pkg-bundler (wasm32-unknown-emscripten)"
         env:
           EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
           LIBCLANG_PATH: /usr/lib/llvm-18/lib
         run: bash nobodywho/js/scripts/build-pkg-emscripten.sh
-
-      - name: "Download test models"
-        working-directory: /tmp
-        run: |
-          curl -L --fail -o bge-small.gguf \
-            'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
-          curl -L --fail -o qwen3.5-0.8b-q4km.gguf \
-            'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf'
-          curl -L --fail -o qwen3.5-0.8b-mmproj-f16.gguf \
-            'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/mmproj-F16.gguf'
-          ls -lh *.gguf
-
-      - name: "Smoke: Model.load + Encoder.encode"
-        working-directory: nobodywho
-        run: node js/tests/emscripten-smoke.mjs /tmp/bge-small.gguf
-
-      - name: "Smoke: onProgress download callback (URL streaming)"
-        working-directory: nobodywho
-        run: node js/tests/onprogress-smoke.mjs /tmp/bge-small.gguf
-
-      - name: "Smoke: vision (Qwen3.5-0.8B multimodal)"
-        working-directory: nobodywho
-        run: |
-          node js/tests/vision-smoke.mjs \
-            /tmp/qwen3.5-0.8b-q4km.gguf \
-            /tmp/qwen3.5-0.8b-mmproj-f16.gguf \
-            python/tests/img/penguin.png
 
       - name: "Inspect artifact sizes"
         working-directory: nobodywho/js/pkg-bundler
@@ -190,8 +162,69 @@ jobs:
           ls -lh /tmp/wasm.br || true
 
       - name: "Upload artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-js-pkg
           path: nobodywho/js/pkg-bundler/
           retention-days: 14
+
+  # Fan out the model tests over the prebuilt artifact. Each leg only needs
+  # Node + the downloaded pkg-bundler/ + its model(s) — no Rust/Emscripten/CMake
+  # toolchain — so they run in parallel, mirroring python_ci.yml's per-suite jobs.
+  tests:
+    if: inputs.full_ci
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "Model.load + Encoder.encode"
+            model_file: bge-small.gguf
+            model_url: https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf
+            run: node js/tests/test_emscripten.mjs /tmp/models/bge-small.gguf
+          - name: "onProgress download callback (URL streaming)"
+            model_file: bge-small.gguf
+            model_url: https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf
+            run: node js/tests/test_onprogress.mjs /tmp/models/bge-small.gguf
+          - name: "vision (Qwen3.5-0.8B multimodal)"
+            model_file: qwen3.5-0.8b-q4km.gguf
+            model_url: https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf
+            mmproj_file: qwen3.5-0.8b-mmproj-f16.gguf
+            mmproj_url: https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/mmproj-F16.gguf
+            run: node js/tests/test_vision.mjs /tmp/models/qwen3.5-0.8b-q4km.gguf /tmp/models/qwen3.5-0.8b-mmproj-f16.gguf python/tests/img/penguin.png
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Set up Node 26"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      - name: "Download pkg-bundler artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-js-pkg
+          path: nobodywho/js/pkg-bundler/
+
+      # Cache the GGUFs across runs, keyed by filename(s) (-v1 = manual bust lever).
+      # The two bge-small legs share a key, so it's fetched once and reused.
+      - name: "Cache test model(s)"
+        uses: actions/cache@v5
+        with:
+          path: /tmp/models
+          key: gguf-v1-${{ matrix.model_file }}-${{ matrix.mmproj_file }}
+
+      - name: "Download test model(s) (skips any restored from cache)"
+        run: |
+          mkdir -p /tmp/models
+          [ -f "/tmp/models/${{ matrix.model_file }}" ] || curl -L --fail -o "/tmp/models/${{ matrix.model_file }}" '${{ matrix.model_url }}'
+          if [ -n "${{ matrix.mmproj_url }}" ]; then
+            [ -f "/tmp/models/${{ matrix.mmproj_file }}" ] || curl -L --fail -o "/tmp/models/${{ matrix.mmproj_file }}" '${{ matrix.mmproj_url }}'
+          fi
+          ls -lh /tmp/models/*.gguf
+
+      - name: "Test: ${{ matrix.name }}"
+        working-directory: nobodywho
+        run: ${{ matrix.run }}

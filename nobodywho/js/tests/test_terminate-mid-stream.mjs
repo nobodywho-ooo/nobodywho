@@ -1,4 +1,4 @@
-// Smoke: chat.terminate() called WHILE tokens are still streaming.
+// Test: chat.terminate() called WHILE tokens are still streaming.
 //
 // Asserts:
 //   - terminate() resolves cleanly (no unhandled rejection)
@@ -8,7 +8,7 @@
 //   - a fresh chat can be created+used afterwards (no global state
 //     poisoning from the abort)
 //
-// Usage: node terminate-mid-stream-smoke.mjs <model.gguf>
+// Usage: node test_terminate-mid-stream.mjs <model.gguf>
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 
@@ -18,7 +18,7 @@ const m = await createNobodyWhoModule({ locateFile: (p) => join(pkgDir, p) });
 
 const modelPath = process.argv[2];
 if (!modelPath) {
-  console.error('usage: terminate-mid-stream-smoke.mjs <model.gguf>');
+  console.error('usage: test_terminate-mid-stream.mjs <model.gguf>');
   process.exit(2);
 }
 

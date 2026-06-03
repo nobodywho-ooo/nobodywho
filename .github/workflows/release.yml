@@ -259,8 +259,8 @@ jobs:
   # Builds the wasm32-unknown-emscripten artifact the same way js_ci.yml does
   # (upstream emsdk for LLVM/binaryen + walkingeyerobot's Emscripten fork for
   # -sWASM_BINDGEN + our patched wasm-bindgen-cli, via build-pkg-emscripten.sh),
-  # smoke-tests it, then publishes pkg-bundler/ to npm. Keep the setup steps in
-  # sync with js_ci.yml's build-and-test job.
+  # tests it, then publishes pkg-bundler/ to npm. Keep the setup steps in
+  # sync with js_ci.yml's build job.
   publish-js-npm:
     if: startsWith(github.ref, 'refs/tags/nobodywho-js-v')
     runs-on: ubuntu-24.04
@@ -369,12 +369,18 @@ jobs:
           LIBCLANG_PATH: /usr/lib/llvm-18/lib
         run: bash nobodywho/js/scripts/build-pkg-emscripten.sh
 
-      - name: "Smoke: Model.load + Encoder.encode (pre-publish gate)"
+      - name: "Cache pre-publish gate model"
+        uses: actions/cache@v5
+        with:
+          path: /tmp/bge-small.gguf
+          key: gguf-v1-bge-small-en-v1.5-q8_0
+
+      - name: "Test: Model.load + Encoder.encode (pre-publish gate)"
         working-directory: nobodywho
         run: |
-          curl -L --fail -o /tmp/bge-small.gguf \
+          [ -f /tmp/bge-small.gguf ] || curl -L --fail -o /tmp/bge-small.gguf \
             'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
-          node js/tests/emscripten-smoke.mjs /tmp/bge-small.gguf
+          node js/tests/test_emscripten.mjs /tmp/bge-small.gguf
 
       - name: "Stage package.json (release version) + README into pkg-bundler/"
         working-directory: nobodywho/js

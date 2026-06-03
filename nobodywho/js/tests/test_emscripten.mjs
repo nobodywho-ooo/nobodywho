@@ -1,4 +1,4 @@
-// Phase 0 verification smoke test for the wasm32-unknown-emscripten port.
+// Phase 0 verification test for the wasm32-unknown-emscripten port.
 //
 // Loads the Emscripten-emitted nobodywho_js.js (which auto-instantiates the
 // wasm and runs wasm-bindgen's start function via the modularized factory),
@@ -9,7 +9,7 @@
 // Run after building with the Emscripten toolchain:
 //
 //   EMSDK=... cargo build --target wasm32-unknown-emscripten --release -p nobodywho-js
-//   node js/tests/emscripten-smoke.mjs /path/to/bge-small.gguf
+//   node js/tests/test_emscripten.mjs /path/to/bge-small.gguf
 //
 // Exit 0 = both Rust side and llama.cpp side work end-to-end under
 // Emscripten + pthreads. Exit non-zero = phase 0 hasn't passed yet; see the
@@ -23,7 +23,7 @@ import { strict as assert } from 'node:assert';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const modelPath = process.argv[2];
 if (!modelPath) {
-  console.error('usage: node emscripten-smoke.mjs <path-to-embedding.gguf>');
+  console.error('usage: node test_emscripten.mjs <path-to-embedding.gguf>');
   console.error('  tip: download bge-small-en-v1.5-q8_0.gguf from HuggingFace');
   process.exit(2);
 }

@@ -1,4 +1,4 @@
-// Smoke test for Chat.stopGeneration().
+// Test for Chat.stopGeneration().
 //
 // Validates:
 //   * Ask for a long generation, let a handful of tokens stream,
@@ -13,7 +13,7 @@
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/stop-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_stop.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -102,5 +102,5 @@ await chat.terminate();
 chat.stopGeneration();
 console.log('    ✓ no error after terminate');
 
-console.log('\n=== stop-smoke passed ===');
+console.log('\n=== stop passed ===');
 process.exit(0);

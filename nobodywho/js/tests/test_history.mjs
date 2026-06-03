@@ -1,4 +1,4 @@
-// Smoke test for Chat.getChatHistory() / Chat.setChatHistory().
+// Test for Chat.getChatHistory() / Chat.setChatHistory().
 //
 // Validates:
 //   * After an ask, getChatHistory returns user + assistant messages.
@@ -11,7 +11,7 @@
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/history-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_history.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -80,5 +80,5 @@ console.log('    ✓ model used loaded history');
 
 await chat.terminate();
 
-console.log('\n=== history-smoke passed ===');
+console.log('\n=== history passed ===');
 process.exit(0);

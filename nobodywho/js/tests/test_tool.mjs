@@ -1,4 +1,4 @@
-// Tool-calling smoke test for the JS binding.
+// Tool-calling test for the JS binding.
 //
 // Validates:
 //   * `Tool.fromFn(name, description, jsonSchema, callback)` builds a
@@ -16,7 +16,7 @@
 // quickly and known to handle tool calls via the grammar sampler.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/tool-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_tool.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -172,7 +172,7 @@ assert.ok(
 
 await chatAsync.terminate();
 
-console.log('\n=== Tool-calling JS smoke test passed ===');
+console.log('\n=== Tool-calling JS test passed ===');
 console.log('  Sync and async callbacks both dispatch through the Chat worker');
 console.log('  tool-call / tool-reply RPC bridge. The async path proves the');
 console.log('  wasm yields control to the JS event loop while parked at the');

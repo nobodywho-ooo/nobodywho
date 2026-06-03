@@ -1,4 +1,4 @@
-// Smoke test for Chat mid-session setters/getters and reset.
+// Test for Chat mid-session setters/getters and reset.
 //
 // Validates:
 //   * getSystemPrompt returns what was passed at create time.
@@ -15,7 +15,7 @@
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/setters-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_setters.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -107,5 +107,5 @@ console.log('    ✓ resetHistory works');
 
 await chat.terminate();
 
-console.log('\n=== setters-smoke passed ===');
+console.log('\n=== setters passed ===');
 process.exit(0);

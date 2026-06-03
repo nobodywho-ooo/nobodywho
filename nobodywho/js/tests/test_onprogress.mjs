@@ -1,4 +1,4 @@
-// Smoke test for the `onProgress` download callback on URL (streaming) loads.
+// Test for the `onProgress` download callback on URL (streaming) loads.
 //
 // Serves a GGUF over a local HTTP server and loads it via
 // `Model.load({ modelUrl, onProgress })`, asserting the callback fires with
@@ -11,9 +11,9 @@
 // onProgress. (NODEFS `modelPath` loads read from disk without streaming, so
 // they never fire it.)
 //
-//   node js/tests/onprogress-smoke.mjs /path/to/embedding.gguf
+//   node js/tests/test_onprogress.mjs /path/to/embedding.gguf
 //
-// Exit 0 + "=== onProgress smoke passed ===" on success.
+// Exit 0 + "=== onProgress passed ===" on success.
 
 import { existsSync, statSync, createReadStream } from 'node:fs';
 import { resolve } from 'node:path';
@@ -24,7 +24,7 @@ import { strict as assert } from 'node:assert';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const modelPath = process.argv[2];
 if (!modelPath) {
-  console.error('usage: node onprogress-smoke.mjs <path-to-embedding.gguf>');
+  console.error('usage: node test_onprogress.mjs <path-to-embedding.gguf>');
   process.exit(2);
 }
 if (!existsSync(modelPath)) {
@@ -100,7 +100,7 @@ try {
   );
   console.log(`embedding dimension: ${vec.length}`);
 
-  console.log('\n=== onProgress smoke passed ===');
+  console.log('\n=== onProgress passed ===');
 } catch (e) {
   failure = e;
 } finally {

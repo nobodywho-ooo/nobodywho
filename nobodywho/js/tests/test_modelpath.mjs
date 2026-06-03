@@ -1,4 +1,4 @@
-// Smoke: Chat.create({modelPath}) — Node-only path-based loader that
+// Test: Chat.create({modelPath}) — Node-only path-based loader that
 // streams the model from host fs into MEMFS without holding a Buffer
 // on the main thread.
 //
@@ -11,7 +11,7 @@
 //
 // Optional second arg: mmprojPath (for multimodal models).
 //
-// Usage: node modelpath-smoke.mjs <model.gguf> [mmproj.gguf]
+// Usage: node test_modelpath.mjs <model.gguf> [mmproj.gguf]
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -21,7 +21,7 @@ const modelPath = process.argv[2];
 const mmprojPath = process.argv[3];
 
 if (!modelPath) {
-  console.error('usage: modelpath-smoke.mjs <model.gguf> [mmproj.gguf]');
+  console.error('usage: test_modelpath.mjs <model.gguf> [mmproj.gguf]');
   process.exit(2);
 }
 if (!existsSync(modelPath)) {

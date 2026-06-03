@@ -1,4 +1,4 @@
-// Sampler-config smoke test for the JS binding.
+// Sampler-config test for the JS binding.
 //
 // Validates:
 //   * `sampler: SamplerPresets.greedy()` produces deterministic output:
@@ -8,7 +8,7 @@
 //   * Combining sampler with constraint via SamplerPresets doesn't break
 //     anything.
 //
-// Runs through `Chat.create({modelPath, ...})` so the same smoke
+// Runs through `Chat.create({modelPath, ...})` so the same test
 // exercises both browser and Node (Node uses `worker_threads` under the
 // hood via `__nbw_spawn_worker`). Each section spawns a fresh Chat
 // and terminates it when done so workers don't pile up.
@@ -16,7 +16,7 @@
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/sampler-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_sampler.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -91,7 +91,7 @@ const composedChat = await m.Chat.create({
 await composedChat.terminate();
 console.log('    ✓ constructed without error');
 
-console.log('\n=== Sampler-config JS smoke test passed ===');
+console.log('\n=== Sampler-config JS test passed ===');
 console.log('  Greedy sampling is deterministic across two Chats.');
 console.log('  Custom SamplerBuilder chain with temperature/topK/topP/minP/penalties accepted.');
 console.log('  Sampler + constraint compose without conflict.');

@@ -1,4 +1,4 @@
-// Constraint (structured-output) smoke test for the JS binding.
+// Constraint (structured-output) test for the JS binding.
 //
 // Validates that `sampler: SamplerPresets.constrainWithRegex(...)` and
 // `sampler: SamplerPresets.constrainWithJsonSchema(...)` on
@@ -12,7 +12,7 @@
 //   2. JSON Schema: response is a JSON object with `city` and `country`.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/constraint-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_constraint.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -83,7 +83,7 @@ assert.equal(typeof parsed.country, 'string', `parsed.country must be a string; 
 console.log(`    ✓ parsed: city=${JSON.stringify(parsed.city)} country=${JSON.stringify(parsed.country)}`);
 await jsonChat.terminate();
 
-console.log('\n=== Constraint JS smoke test passed ===');
+console.log('\n=== Constraint JS test passed ===');
 console.log('  Regex and JSON Schema constraints both shape token sampling');
 console.log('  end-to-end through llguidance on Emscripten.');
 

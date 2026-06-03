@@ -1,4 +1,4 @@
-// Path A end-to-end vision smoke test.
+// Path A end-to-end vision test.
 //
 // Loads Qwen2.5-Omni-3B (~2 GB main model + ~1.5 GB mmproj) via
 // `Chat.create({modelPath, mmprojPath, ...})` — the binding loads
@@ -18,7 +18,7 @@
 //     just text.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/vision-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_vision.mjs
 //
 // Defaults to Qwen-Omni-3B at /tmp/qwen-omni/* and the penguin.png from
 // the Python tests. Override with positional args.
@@ -110,7 +110,7 @@ if (chunkCount < 2) {
 
 await chat.terminate();
 
-console.log('\n=== Path A end-to-end vision smoke passed ===');
+console.log('\n=== Path A end-to-end vision passed ===');
 console.log('  Chat.create({modelPath, mmprojPath}) wires mmproj through the path-based loader,');
 console.log('  Image.fromBytes(uint8) wires image bytes through MEMFS,');
 console.log('  multimodal inference returns a sensible answer,');

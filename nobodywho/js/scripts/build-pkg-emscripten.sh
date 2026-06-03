@@ -57,7 +57,7 @@
 #     `addToLibrary({ '$foo': ... })`. We grep them out of library_bindgen.js
 #     and push them onto extraLibraryFuncs so the JS compiler emits them.
 #
-# Outputs are in pkg-bundler/ ready for `node js/tests/emscripten-smoke.mjs`,
+# Outputs are in pkg-bundler/ ready for `node js/tests/test_emscripten.mjs`,
 # `js/examples/*.mjs`, or an npm publish (release.yml's publish-js-npm job
 # stages pkg-bundler/package.json from package.json.tpl — orthogonal to this
 # script).
@@ -375,5 +375,5 @@ echo
 echo "==> Done. Outputs in $PKG_DIR/:"
 ls -lh "$PKG_DIR" | sed 's/^/    /'
 echo
-echo "Smoke test:"
-echo "  PATH=/opt/homebrew/bin:\$PATH node $JS_DIR/tests/emscripten-smoke.mjs <embedding.gguf>"
+echo "Test:"
+echo "  PATH=/opt/homebrew/bin:\$PATH node $JS_DIR/tests/test_emscripten.mjs <embedding.gguf>"

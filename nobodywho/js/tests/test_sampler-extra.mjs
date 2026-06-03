@@ -1,4 +1,4 @@
-// Smoke test for the extended sampler surface:
+// Test for the extended sampler surface:
 //   * SamplerBuilder has .dry / .xtc / .typicalP / .penalties methods.
 //   * SamplerPresets has .dry() and .constrainWithJsonSchema() presets.
 //
@@ -8,7 +8,7 @@
 // instantiates a usable chat for each shape.
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/sampler-extra-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_sampler-extra.mjs
 
 import { existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -101,5 +101,5 @@ try {
 }
 await jchat.terminate();
 
-console.log('\n=== sampler-extra-smoke passed ===');
+console.log('\n=== sampler-extra passed ===');
 process.exit(0);

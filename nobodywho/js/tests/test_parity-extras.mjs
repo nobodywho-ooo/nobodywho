@@ -1,10 +1,10 @@
-// Smoke test for the last three Python-parity items:
+// Test for the last three Python-parity items:
 //   * Audio.fromPath / Image.fromPath (Node-only ergonomic factories)
 //   * cosineSimilarity helper
 //   * Chat.reset({systemPrompt?, tools?}) — atomic combined reset
 //
 // Run after `bash js/scripts/build-pkg-emscripten.sh`:
-//   PATH=/opt/homebrew/bin:$PATH node js/tests/parity-extras-smoke.mjs
+//   PATH=/opt/homebrew/bin:$PATH node js/tests/test_parity-extras.mjs
 
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -54,7 +54,7 @@ console.log('    ✓ cosineSimilarity OK');
 // === [2] Audio.fromPath ===
 console.log('\n[2] Audio.fromPath (Node-only)...');
 // Create a tiny valid WAV file in /tmp to read.
-const tmpDir = '/tmp/parity-smoke';
+const tmpDir = '/tmp/parity-extras';
 mkdirSync(tmpDir, { recursive: true });
 const wavPath = join(tmpDir, 'silence.wav');
 // 44-byte WAV header + 0 PCM samples = 44 bytes total (smallest valid WAV).
@@ -130,5 +130,5 @@ assert.equal(sysNull, null, 'reset() with no opts clears system prompt');
 await chat.terminate();
 console.log('    ✓ reset round-trip works');
 
-console.log('\n=== parity-extras-smoke passed ===');
+console.log('\n=== parity-extras passed ===');
 process.exit(0);

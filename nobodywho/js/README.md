@@ -87,30 +87,30 @@ surface to JS via wasm-bindgen.
 | Tool calling (`Tool.fromFn(...)`, `Chat.create({tools: [...]})`) | ✅ verified — sync and async JS callbacks |
 | mmap-backed tensor loading (`CPU_Mapped`) | ✅ verified — strong `_mmap_js`/`_munmap_js` syscall overrides route through `FS.mmap` |
 
-Each row above is backed by a smoke test under `js/tests/`. To
+Each row above is backed by a test under `js/tests/`. To
 verify locally after a build, run:
 
-| Smoke | Covers |
+| Test | Covers |
 |---|---|
-| `emscripten-smoke.mjs` | `Model.load` + `Encoder.encode` round-trip |
-| `onprogress-smoke.mjs` | `Model.load({modelUrl, onProgress})` download-progress callback (serves the GGUF over local HTTP) |
-| `forawait-smoke.mjs` | `for await (const tok of chat.ask(...))` iteration |
-| `sampler-smoke.mjs` | sampler-config knobs end-to-end |
-| `sampler-ergo-smoke.mjs` | `SamplerBuilder` + `SamplerPresets` (core shift + sample steps) |
-| `sampler-extra-smoke.mjs` | DRY / XTC / TypicalP / full Penalties shift steps + `dry()` / `json()` presets |
-| `constraint-smoke.mjs` | structured output (regex / JSON Schema / lark) |
-| `tool-smoke.mjs` | sync + async tool callbacks |
-| `audio-smoke.mjs` | WAV / MP3 / FLAC decoder paths end-to-end |
-| `vision-smoke.mjs` | image input through mtmd (Qwen2-VL / Gemma 3 etc.) |
-| `stop-smoke.mjs` | `Chat.stopGeneration()` interrupting an in-flight ask |
-| `terminate-mid-stream-smoke.mjs` | `Chat.terminate()` during an in-flight TokenStream |
-| `history-smoke.mjs` | `getChatHistory` / `setChatHistory` round-trip + loaded-context use |
-| `setters-smoke.mjs` | `setSystemPrompt` (incl. `null`) / sampler / template vars / `setTools` / `resetHistory` |
-| `parity-extras-smoke.mjs` | `Audio.fromPath` / `Image.fromPath` / `cosineSimilarity` / `Chat.reset({systemPrompt, tools})` |
-| `modelpath-smoke.mjs` | Node-only `Chat.create({modelPath, mmprojPath})` via NODEFS |
-| `context-shift-smoke.mjs` | KV-cache shift when the conversation grows past `contextSize` |
+| `test_emscripten.mjs` | `Model.load` + `Encoder.encode` round-trip |
+| `test_onprogress.mjs` | `Model.load({modelUrl, onProgress})` download-progress callback (serves the GGUF over local HTTP) |
+| `test_forawait.mjs` | `for await (const tok of chat.ask(...))` iteration |
+| `test_sampler.mjs` | sampler-config knobs end-to-end |
+| `test_sampler-ergo.mjs` | `SamplerBuilder` + `SamplerPresets` (core shift + sample steps) |
+| `test_sampler-extra.mjs` | DRY / XTC / TypicalP / full Penalties shift steps + `dry()` / `json()` presets |
+| `test_constraint.mjs` | structured output (regex / JSON Schema / lark) |
+| `test_tool.mjs` | sync + async tool callbacks |
+| `test_audio.mjs` | WAV / MP3 / FLAC decoder paths end-to-end |
+| `test_vision.mjs` | image input through mtmd (Qwen2-VL / Gemma 3 etc.) |
+| `test_stop.mjs` | `Chat.stopGeneration()` interrupting an in-flight ask |
+| `test_terminate-mid-stream.mjs` | `Chat.terminate()` during an in-flight TokenStream |
+| `test_history.mjs` | `getChatHistory` / `setChatHistory` round-trip + loaded-context use |
+| `test_setters.mjs` | `setSystemPrompt` (incl. `null`) / sampler / template vars / `setTools` / `resetHistory` |
+| `test_parity-extras.mjs` | `Audio.fromPath` / `Image.fromPath` / `cosineSimilarity` / `Chat.reset({systemPrompt, tools})` |
+| `test_modelpath.mjs` | Node-only `Chat.create({modelPath, mmprojPath})` via NODEFS |
+| `test_context-shift.mjs` | KV-cache shift when the conversation grows past `contextSize` |
 
-Each smoke prints a `=== passed ===` line on success and exits 0; CI
+Each test prints a `=== passed ===` line on success and exits 0; CI
 runs them in sequence.
 
 Native (`cargo check --workspace`) is unchanged.
@@ -392,7 +392,7 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
 - Image decoding via `stb_image`: JPEG, PNG, BMP, GIF, TGA, PSD, PIC,
   PNM. Format is sniffed from the file header by mtmd.
 - Three miniaudio decoders end-to-end: **WAV, MP3, FLAC** — verified
-  by `js/tests/audio-smoke.mjs` (Qwen3-ASR produces real
+  by `js/tests/test_audio.mjs` (Qwen3-ASR produces real
   transcripts).
 - mmproj loading via `mmprojUrl` / `mmprojPath`.
 - Vision encoder via mtmd (chunk-tokenize / encode-chunk / decode

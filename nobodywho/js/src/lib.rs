@@ -1163,7 +1163,7 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
 // `Chat.create({ tools: [...] })`. Callbacks may be sync (return a string) or
 // async (return a Promise<string>); the worker↔main RPC bridge dispatches each
 // call to the main thread, awaits it, and resumes inference. See
-// `js/tests/tool-smoke.mjs` for both shapes.
+// `js/tests/test_tool.mjs` for both shapes.
 
 /// Factory namespace for LLM-callable tools. Built via [`Tool::from_fn`]
 /// and passed to `Chat`'s `tools` option.
