@@ -165,9 +165,12 @@ impl Model {
 }
 
 impl Model {
-    /// Returns true if this model is a generative (autoregressive) decoder.
-    /// Encoder-only models (BERT etc.) always set `<arch>.pooling_type`; its
-    /// absence (`Unspecified`) is a reliable sign the model can generate text.
+    /// Returns true if this model can generate text (i.e. is an autoregressive decoder).
+    ///
+    /// Generative models never pool token representations, so `<arch>.pooling_type` is absent
+    /// from their GGUF metadata (giving `Unspecified`). Encoder-only models (BERT, nomic-bert,
+    /// etc.) always have this key set to CLS, Mean, or similar — a reliable,
+    /// architecture-agnostic signal that the model cannot generate text.
     pub fn is_generative_model(&self) -> bool {
         let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
             return true;
@@ -1054,7 +1057,11 @@ where
     }
 }
 
-/// Owns a background worker's resources; joins the thread on drop (native only).
+/// Owns a background worker thread's resources and ensures clean shutdown.
+///
+/// When dropped: sets the optional stop flag, closes the message channel (causing the
+/// worker's `recv()` to return `Err`), then joins the thread. This ordering guarantees
+/// the worker has fully exited before any statics (e.g. `LLAMA_BACKEND`) are destroyed.
 pub(crate) struct WorkerGuard<T> {
     pub(crate) msg_tx: Option<std::sync::mpsc::Sender<T>>,
     // Only joined on native; on wasm the pthread exits on its own (see Drop).
