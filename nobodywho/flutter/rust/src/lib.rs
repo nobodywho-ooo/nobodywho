@@ -113,8 +113,15 @@ impl Model {
     }
 }
 
-/// Download a GGUF model to the local cache. Use when you need custom HTTP headers
-/// (e.g. `{"Authorization": "Bearer hf_..."}`); for public models pass the URL to `Model.load`.
+/// Download a model from a remote URL or HuggingFace path and return the local file path.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+/// For unauthenticated downloads, pass the URL directly to `Model.load`.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF model file.
+///     headers: Optional HTTP headers (e.g. `{"Authorization": "Bearer hf_..."}`).
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while downloading.
 #[flutter_rust_bridge::frb]
 pub fn download_model(
     model_path: String,
@@ -524,7 +531,9 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)
 }
 
-/// Returns every cached `.gguf` model as `(absolute path, size in bytes)`.
+/// Returns every cached .gguf model paired with its byte size.
+///
+/// Each entry is (absolute path, size in bytes).
 #[flutter_rust_bridge::frb(sync)]
 pub fn get_cached_models() -> Result<Vec<(String, usize)>, String> {
     nobodywho::llm::get_cached_models()

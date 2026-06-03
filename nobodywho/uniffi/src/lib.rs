@@ -227,8 +227,10 @@ pub async fn load_model(
     }))
 }
 
-/// Download a GGUF model to the local cache. Use when you need custom HTTP headers;
-/// for public models pass the URL directly to `load_model`.
+/// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
+///
+/// Use this when you need custom headers, e.g. for gated models that require authentication.
+/// For unauthenticated downloads, pass the URL directly to `load_model`.
 #[uniffi::export]
 pub async fn download_model(
     model_path: String,
@@ -238,7 +240,8 @@ pub async fn download_model(
     init_logging();
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = on_download_progress.map(wrap_progress);
-    // spawn_blocking unavailable — UniFFI's async bridge has no Tokio runtime.
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
     std::thread::spawn(move || {
         let result = nobodywho::llm::download_model(&model_path, headers_vec, progress)
