@@ -178,6 +178,7 @@ impl WhisperBackend {
         enc_hidden: &[f32],
         hidden_dim: usize,
         lang_id: u32,
+        on_token: &mut dyn FnMut(String),
     ) -> Result<Vec<u32>, SttError> {
         let mut tokens: Vec<i64> = vec![
             self.sot_id as i64,
@@ -195,6 +196,9 @@ impl WhisperBackend {
             }
             tokens.push(next_token);
             generated.push(next_token as u32);
+            if let Ok(piece) = self.tokenizer.decode(&[next_token as u32], false) {
+                on_token(piece);
+            }
         }
 
         Ok(generated)
@@ -202,10 +206,10 @@ impl WhisperBackend {
 }
 
 impl SttBackendImpl for WhisperBackend {
-    fn transcribe_window(&mut self, window: &[f32]) -> Result<String, SttError> {
+    fn transcribe_window(&mut self, window: &[f32], on_token: &mut dyn FnMut(String)) -> Result<String, SttError> {
         let (enc_hidden, hidden_dim) = self.encode(window)?;
         let lang_id = self.resolve_language(&enc_hidden, hidden_dim)?;
-        let generated = self.greedy_decode(&enc_hidden, hidden_dim, lang_id)?;
+        let generated = self.greedy_decode(&enc_hidden, hidden_dim, lang_id, on_token)?;
         let text = self
             .tokenizer
             .decode(&generated, true)
