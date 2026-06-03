@@ -1099,7 +1099,6 @@ impl<T> Drop for WorkerGuard<T> {
         if let Some(ref stop) = self.should_stop {
             stop.store(true, Ordering::Relaxed);
         }
-        // Closing the channel makes the worker's recv() return Err, exiting the loop.
         drop(self.msg_tx.take());
 
         // Native: join so LLAMA_BACKEND outlives the worker. Wasm: skip —
