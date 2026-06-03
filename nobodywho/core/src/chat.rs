@@ -880,8 +880,10 @@ impl TokenStream {
         }
     }
 
-    /// Get the next token from the stream. Returns `Ok(Some(token))`, `Ok(None)` on
-    /// completion, or `Err(e)` on worker error.
+    /// Get the next token from the stream.
+    ///
+    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
+    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
     pub fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
         if self.completed_response.is_some() {
             return Ok(None);
@@ -933,8 +935,10 @@ impl TokenStreamAsync {
         }
     }
 
-    /// Waits for the next token in the stream. Returns `Ok(Some(token))`, `Ok(None)` on
-    /// completion, or `Err(e)` on worker error.
+    /// Waits for the next token in the stream. Consumes the token when emitted.
+    ///
+    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
+    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
     pub async fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
         if self.completed_response.is_some() {
             return Ok(None);
