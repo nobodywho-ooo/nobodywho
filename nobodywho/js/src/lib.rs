@@ -1,30 +1,20 @@
-//! WebAssembly binding for NobodyWho.
-//!
-//! Mirrors the Python binding's API for JS/TS consumers. Built with
-//! Emscripten pthreads — inference runs on a real background thread via
-//! `std::thread::spawn` (same code path as native). See `README.md` for
-//! build instructions.
+//! WebAssembly binding for NobodyWho — mirrors the Python binding's API for
+//! JS/TS. Emscripten pthreads run inference on a background thread via
+//! `std::thread::spawn`, same as native. Build steps in `README.md`.
 //!
 
-// Native builds (used by `cargo test -p nobodywho-js` for the lint suite +
-// `cargo check` for IDE integration) trip dead-code/unused warnings on
-// wasm-only items because the wasm_bindgen-exported callers are
-// cfg-gated to wasm. Suppress on native only — that keeps genuine
-// dead-code detection alive for the wasm build (the target that matters).
+// Native builds flag wasm-only items as dead code (their wasm_bindgen callers
+// are cfg'd to wasm). Suppress on native only; wasm keeps real dead-code checks.
 #![cfg_attr(not(target_family = "wasm"), allow(unused))]
-// wasm_bindgen's `#[wasm_bindgen(static_method_of = ..., js_name = ...)]`
-// macro generates an `unused variable: static_method_of` warning that we
-// can't suppress at the call site (it fires inside the macro expansion).
-// CI sets RUSTFLAGS=-D warnings which turns it into a hard error, so we
-// allow `unused_variables` at crate level.
+// wasm_bindgen's `static_method_of` macro emits an unsuppressable
+// `unused_variables` warning from inside its expansion; CI's `-D warnings`
+// would make it fatal, so allow it crate-wide.
 #![allow(unused_variables)]
 
-//! # Why methods return `js_sys::Promise` instead of being `pub async fn`
-//!
-//! `#[wasm_bindgen] pub async fn` requires the future to be `UnwindSafe`, but
-//! several of our types (`tokio::sync::Mutex`/`Receiver`, …) aren't. So each
-//! method is a plain `pub fn` returning a `Promise`, its body run through
-//! [`promisify`] (which wraps it in `AssertUnwindSafe`).
+//! Methods return `js_sys::Promise` rather than `pub async fn`: wasm_bindgen's
+//! async needs an `UnwindSafe` future, which several of our types
+//! (`tokio::sync::Mutex`/`Receiver`) aren't. Each is a plain `pub fn` whose body
+//! runs through [`promisify`] (`AssertUnwindSafe`).
 
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
@@ -40,17 +30,12 @@ use wasm_bindgen::prelude::*;
 #[cfg(target_family = "wasm")]
 mod syscall_imports;
 
-/// No-op override of libc's `__cxa_atexit`. A libc++ global-destructor
-/// handler has a wasm signature that doesn't match how `__funcs_on_exit`
-/// invokes it, so the first export call after instantiation traps with
-/// `function signature mismatch`. Dropping the registration avoids that —
-/// global dtors won't run at shutdown, which is fine (the wasm instance
-/// lives for the whole JS process). `#[no_mangle]` makes ours win over the
-/// sysroot symbol.
+/// No-op override of libc's `__cxa_atexit`: a libc++ global-dtor's wasm
+/// signature mismatches `__funcs_on_exit`, trapping the first export call.
+/// Dropping the registration avoids it — dtors won't run at shutdown, which is
+/// fine (the instance lives the whole process). `#[no_mangle]` shadows the sysroot.
 ///
-/// # Safety
-/// Ignores all args and returns success — trivially safe; it just drops
-/// every atexit registration (acceptable here, see above).
+/// # Safety: ignores its args, returns success; only drops atexit registrations.
 #[cfg(target_family = "wasm")]
 #[no_mangle]
 pub unsafe extern "C" fn __cxa_atexit(
@@ -82,11 +67,9 @@ pub fn init() {
     #[cfg(target_family = "wasm")]
     {
         use tracing_subscriber::prelude::*;
-        // Build the subscriber ourselves (rather than tracing_wasm's
-        // set_as_global_default) so we can put a *reloadable* level filter in
-        // front of the WASMLayer. Default WARN keeps the console quiet — like
-        // Python's logging defaulting to WARNING — while `setLogLevel(...)`
-        // can dial it up at runtime (the JS analog of logging.basicConfig).
+        // Build the subscriber manually (not tracing_wasm's global default) so a
+        // *reloadable* level filter sits in front of the WASMLayer. Default WARN
+        // keeps the console quiet; `setLogLevel(...)` dials it up at runtime.
         let (filter, handle) =
             tracing_subscriber::reload::Layer::new(tracing_subscriber::filter::LevelFilter::WARN);
         let _ = LOG_RELOAD.set(handle);
@@ -96,11 +79,9 @@ pub fn init() {
                 tracing_wasm::WASMLayerConfigBuilder::new().build(),
             ))
             .try_init();
-        // Route llama.cpp/ggml logs into `tracing` (→ WASMLayer → leveled
-        // console.{info,warn,error}) instead of letting them fall back to
-        // stderr, which Emscripten funnels to console.error — turning every
-        // model-load info line into a red "error". The level is preserved, so
-        // genuine errors stay console.error. Python/Flutter bindings do the same.
+        // Route llama.cpp/ggml logs through `tracing` (→ leveled console.*)
+        // instead of stderr, which Emscripten dumps to console.error — making
+        // every info line look like an error. Matches Python/Flutter.
         nobodywho::send_llamacpp_logs_to_tracing();
     }
 }
@@ -135,10 +116,9 @@ pub fn set_log_level(level: &str) -> Result<(), JsError> {
 
 // ---------- Promise helper ----------
 
-/// Cosine similarity between two embedding vectors (pairs with
-/// `Encoder.encode()`; mirrors Python's `cosine_similarity`). Accepts
-/// `Float32Array | number[]`, throws on length mismatch, returns NaN if
-/// either vector has zero magnitude.
+/// Cosine similarity between two embedding vectors (mirrors Python's
+/// `cosine_similarity`). Accepts `Float32Array | number[]`, throws on length
+/// mismatch, returns NaN if either has zero magnitude.
 #[wasm_bindgen(js_name = cosineSimilarity)]
 pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> Result<f32, JsError> {
     if a.len() != b.len() {
@@ -151,11 +131,9 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> Result<f32, JsError> {
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
-/// RAII guard that keeps the JS event loop pumping while held. Acquires a
-/// ref-counted keepalive timer (defined in pre.js) on creation, releases it
-/// on drop. Needed because inference runs on an Emscripten pthread and the
-/// cross-thread token wake isn't delivered unless the main thread's event
-/// loop keeps ticking — see the keepalive comment in pre.js.
+/// RAII guard that keeps the JS event loop pumping while held (acquires/releases
+/// a ref-counted keepalive timer from pre.js). Inference runs on an Emscripten
+/// pthread whose cross-thread token wakes only arrive while the main loop ticks.
 #[cfg(target_family = "wasm")]
 struct KeepAlive;
 
@@ -190,9 +168,9 @@ where
     F: Future<Output = Result<T, JsError>> + 'static,
     T: Into<JsValue>,
 {
-    // AssertUnwindSafe satisfies future_to_promise's UnwindSafe bound.
-    // A Rust panic propagates as a hard wasm abort — the same failure
-    // mode as a C++ exception crossing the wasm boundary on Emscripten.
+    // AssertUnwindSafe satisfies future_to_promise's UnwindSafe bound. A Rust
+    // panic propagates as a hard wasm abort (like a C++ exception crossing the
+    // boundary on Emscripten).
     wasm_bindgen_futures::future_to_promise(AssertUnwindSafe(async move {
         // Keep the event loop pumping for the lifetime of this future so
         // cross-thread inference wakes are delivered (see KeepAlive).
@@ -257,10 +235,8 @@ impl Model {
         let mmproj_path = js_sys::Reflect::get(&obj, &"mmprojPath".into())
             .ok()
             .and_then(|v| v.as_string());
-        // Optional JS progress callback. Invoked per streamed chunk on the
-        // main thread as onProgress(loaded, total, kind) — kind is
-        // "model"|"mmproj", total is 0 when the server sent no Content-Length.
-        // Only URL (streaming) loads fire it; NODEFS path loads don't stream.
+        // Optional progress callback: onProgress(loaded, total, kind) per chunk
+        // (kind "model"|"mmproj", total 0 if no Content-Length). URL loads only.
         let on_progress = js_sys::Reflect::get(&obj, &"onProgress".into())
             .ok()
             .and_then(|v| v.dyn_into::<js_sys::Function>().ok());
@@ -297,8 +273,7 @@ impl Model {
             let mut model =
                 nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
                     .map_err(|e| JsError::new(&nobodywho::render_miette(&e)))?;
-            // Hand the model the wasm buffer(s) it was mmapped from (single-copy
-            // load), so they're freed when the model drops — not leaked.
+            // Hand the model its mmap backing buffer(s) so they free on drop.
             for (ptr, size) in take_pending_model_buffers() {
                 model.attach_backing_buffer(ptr, size);
             }
@@ -312,13 +287,11 @@ impl Model {
 
 // ---------- Multimodal: Image / Audio / prompt assembly ----------
 //
-// `Chat.ask` takes a string (text-only, fast path) or an array of
-// `string | Image | Audio`. `Image.fromBytes` / `Audio.fromBytes` return
-// tagged `{__nbwKind, bytes}` objects; the Rust side pushes the bytes via
-// `Prompt::push_media_bytes`, so they ride the worker channel and decode
-// in-memory (`MtmdBitmap::from_buffer`). No path-based load: inference runs
-// on a pthread that can't read the main thread's MEMFS, and a browser tab
-// has no filesystem anyway.
+// `Chat.ask` takes a string or an array of `string | Image | Audio`.
+// `Image/Audio.fromBytes` return tagged `{__nbwKind, bytes}` objects; the Rust
+// side pushes the bytes (`Prompt::push_media_bytes`) to decode in-memory
+// (`MtmdBitmap::from_buffer`) — the inference pthread can't read the main
+// thread's MEMFS, and a browser has no fs anyway.
 
 /// Image factory namespace for multimodal prompts. `fromBytes` works in the
 /// browser and Node; `fromPath` is Node-only (mirrors Python's `Image("/path")`).
@@ -327,12 +300,9 @@ pub struct Image;
 
 #[wasm_bindgen]
 impl Image {
-    /// Build an image prompt part by reading a file from a host
-    /// filesystem path. Node-only — in the browser, fetch the bytes
-    /// yourself and use `fromBytes()`. Returns a Promise because the
-    /// underlying Node fs lookup goes through an `await import('node:fs')`
-    /// dynamic-import shim. Mirrors Python's `Image("/path/to/file.png")`
-    /// one-liner ergonomics (modulo the await).
+    /// Build an image prompt part by reading a host file (Node-only; in the
+    /// browser, fetch the bytes and use `fromBytes()`). Async because the Node
+    /// fs lookup uses `await import('node:fs')`. Mirrors Python's `Image(path)`.
     ///
     /// ```js
     /// const img = await Image.fromPath('/path/to/dog.png');
@@ -342,11 +312,9 @@ impl Image {
         media_from_path("image", path)
     }
 
-    /// Build an image prompt part from raw file bytes (JPEG / PNG / BMP /
-    /// GIF / TGA / PSD / PIC / PNM — anything `stb_image` can decode).
-    /// The format is sniffed via the file header inside
-    /// `mtmd_helper_bitmap_init_from_file` (Path A goes through the file
-    /// loader, with the bytes mounted into MEMFS at a synthetic path).
+    /// Build an image prompt part from raw file bytes (JPEG/PNG/BMP/GIF/TGA/
+    /// PSD/PIC/PNM — anything `stb_image` decodes; format sniffed from the
+    /// header by mtmd).
     ///
     /// Returns a plain JS object `{__nbwKind: 'image', bytes: Uint8Array}`
     /// suitable for inclusion in a `chat.ask([...])` array.
@@ -362,12 +330,9 @@ pub struct Audio;
 
 #[wasm_bindgen]
 impl Audio {
-    /// Build an audio prompt part by reading a file from a host
-    /// filesystem path. Node-only — in the browser, fetch the bytes
-    /// yourself and use `fromBytes()`. Returns a Promise because the
-    /// underlying Node fs lookup goes through an `await import('node:fs')`
-    /// dynamic-import shim. Mirrors Python's `Audio("/path/to/file.wav")`
-    /// one-liner ergonomics (modulo the await).
+    /// Build an audio prompt part by reading a host file (Node-only; in the
+    /// browser, fetch the bytes and use `fromBytes()`). Async because the Node
+    /// fs lookup uses `await import('node:fs')`. Mirrors Python's `Audio(path)`.
     ///
     /// ```js
     /// const audio = await Audio.fromPath('/path/to/foo.wav');
@@ -377,11 +342,9 @@ impl Audio {
         media_from_path("audio", path)
     }
 
-    /// Build an audio prompt part from raw file bytes. Supported formats
-    /// on the wasm-Emscripten build: WAV, MP3, FLAC (the playback /
-    /// threading / engine layers are cut out via `MA_NO_*`, but the
-    /// decoders front-end stays linked). The format is sniffed via the
-    /// file header by mtmd's `is_audio_file`.
+    /// Build an audio prompt part from raw file bytes. wasm build supports
+    /// WAV/MP3/FLAC (miniaudio's decoders; playback/engine cut via `MA_NO_*`).
+    /// Format sniffed from the header by mtmd's `is_audio_file`.
     ///
     /// Returns `{__nbwKind: 'audio', bytes: Uint8Array}`.
     #[wasm_bindgen(js_name = fromBytes)]
@@ -655,11 +618,8 @@ impl SamplerBuilder {
     }
 }
 
-/// Read a host filesystem file into a `Vec<u8>` via the Node helper
-/// `globalThis.__nbw_node_read_file` (defined in pre.js, Node-only).
-/// Returns a future so the caller can await the JS dynamic import that
-/// the helper uses under the hood. Errors clearly with browser-friendly
-/// guidance if the Node helper isn't available.
+/// Read a host file into a `Vec<u8>` via the Node-only pre.js helper
+/// `globalThis.__nbw_node_read_file`. Errors with browser guidance if absent.
 #[cfg(target_family = "wasm")]
 async fn read_node_file_bytes(path: &str) -> Result<Vec<u8>, JsError> {
     let global = js_sys::global();
@@ -731,12 +691,9 @@ fn read_media_bytes(part: &JsValue) -> Result<Vec<u8>, String> {
     Ok(u8a.to_vec())
 }
 
-/// Mount the host directory containing `src_path` via NODEFS and return
-/// a virtual-FS path that llama.cpp can `fopen` directly. The file stays
-/// on the host disk — `fread` streams bytes straight into wasm tensor
-/// allocations without an intermediate MEMFS copy.
-///
-/// Node-only; errors clearly in browser.
+/// Mount the host dir of `src_path` via NODEFS and return a virtual-FS path
+/// llama.cpp can `fopen` directly — `fread` streams from host disk into wasm
+/// tensor allocations with no MEMFS copy. Node-only; errors in browser.
 #[cfg(target_family = "wasm")]
 fn mount_host_path_via_nodefs(kind: &str, src_path: &str) -> Result<std::path::PathBuf, String> {
     let path = std::path::Path::new(src_path);
@@ -865,9 +822,8 @@ async fn stream_reader_to_memfs(
 
 #[cfg(target_family = "wasm")]
 thread_local! {
-    /// Buffers streamed into wasm linear memory awaiting attachment to the
-    /// `Model` that mmaps them. `(ptr, size)` pairs, drained right after
-    /// `get_model_from_path` so the model owns (and later frees) them.
+    /// `(ptr, size)` buffers streamed into wasm memory, awaiting attachment to
+    /// the `Model` that mmaps them; drained after `get_model_from_path`.
     static PENDING_MODEL_BUFFERS: std::cell::RefCell<Vec<(usize, usize)>> =
         const { std::cell::RefCell::new(Vec::new()) };
 }
@@ -878,14 +834,11 @@ fn take_pending_model_buffers() -> Vec<(usize, usize)> {
     PENDING_MODEL_BUFFERS.with(|b| std::mem::take(&mut *b.borrow_mut()))
 }
 
-/// Single-copy variant: stream the reader straight into one buffer in wasm
-/// linear memory, then expose it as a MEMFS file whose `contents` is a
-/// zero-copy heap view (see `__nbw_wrap_wasm_buffer_as_file` in pre.js).
-/// Avoids the JS-heap MEMFS copy: the bytes are materialized once, where
-/// llama.cpp's `mmap` reads them in place. Requires a known `total` size.
-///
-/// The buffer is recorded in `PENDING_MODEL_BUFFERS`; the next
-/// `get_model_from_path` attaches it to the `Model`, which frees it on drop.
+/// Single-copy load: stream the reader into one wasm-memory buffer, then expose
+/// it as a MEMFS file via a zero-copy heap view (`__nbw_wrap_wasm_buffer_as_file`
+/// in pre.js), so llama.cpp's `mmap` reads it in place — no JS-heap MEMFS copy.
+/// Needs a known `total`. Recorded in `PENDING_MODEL_BUFFERS` for the next
+/// `get_model_from_path` to attach to the `Model` (freed on drop).
 #[cfg(target_family = "wasm")]
 async fn stream_reader_to_wasm_buffer(
     reader: &web_sys::ReadableStreamDefaultReader,
@@ -966,15 +919,11 @@ async fn stream_reader_to_wasm_buffer(
     Ok(())
 }
 
-/// Fetch a URL and stream it into a MEMFS file with Cache API caching.
-///
-/// - **Cache hit:** stream the cached response directly into MEMFS.
-/// - **Cache miss:** `fetch()` → `body.tee()` → one reader streams into
-///   MEMFS, the other is wrapped in a Response and put into the Cache API.
-///   Both happen in parallel so the first download isn't slowed down.
-///
-/// Falls back to a plain uncached fetch if the Cache API isn't available
-/// (insecure context, file://, etc.).
+/// Fetch a URL into a MEMFS file, caching via the Cache API:
+/// - hit: stream the cached response into MEMFS.
+/// - miss: `fetch()` → `body.tee()` → one reader streams to MEMFS, the other is
+///   cached (in parallel, so the first download isn't slowed).
+/// Falls back to an uncached fetch if the Cache API is unavailable.
 #[cfg(target_family = "wasm")]
 async fn stream_url_to_memfs(
     kind: &str,
@@ -1104,9 +1053,8 @@ async fn stream_url_to_memfs(
     Ok(std::path::PathBuf::from(memfs_path))
 }
 
-/// Convert a `JsValue` (a bare string OR an array containing strings and
-/// tagged media-part objects) into a core `Prompt`. Media bytes are
-/// written to MEMFS here.
+/// Convert a `JsValue` (a bare string, or an array of strings and tagged
+/// media-part objects) into a core `Prompt`.
 fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String> {
     let mut prompt = nobodywho::tokenizer::Prompt::new();
 
@@ -1128,10 +1076,8 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
         }
         let kind = read_media_kind(&part);
         match kind.as_deref() {
-            // Pass media as bytes, not a MEMFS path: inference runs on a
-            // pthread that can't read the main thread's MEMFS, so a path
-            // would fail to load there. The bytes ride the worker channel
-            // in shared memory and are decoded in-memory via
+            // Media rides as bytes, not a MEMFS path: the inference pthread
+            // can't read the main thread's MEMFS. Decoded in-memory via
             // `MtmdBitmap::from_buffer` (mtmd auto-detects image vs audio).
             Some("image") | Some("audio") => {
                 let bytes = read_media_bytes(&part)?;
@@ -1153,33 +1099,27 @@ fn js_to_prompt(input: &JsValue) -> Result<nobodywho::tokenizer::Prompt, String>
 // ---------- Tool (LLM-callable JS function) ----------
 //
 // `Tool.fromFn(name, description, jsonSchema, callback)`, passed via
-// `Chat.create({ tools: [...] })`. Callbacks may be sync (return a string) or
-// async (return a Promise<string>); the worker↔main RPC bridge dispatches each
-// call to the main thread, awaits it, and resumes inference. See
-// `js/tests/test_tool.mjs` for both shapes.
+// `Chat.create({ tools: [...] })`. Callbacks are sync or async; the worker↔main
+// RPC bridge dispatches each call to the main thread and resumes inference.
+// See `js/tests/test_tool.mjs`.
 
-/// Factory namespace for LLM-callable tools. Built via [`Tool::from_fn`]
-/// and passed to `Chat`'s `tools` option.
+/// Factory namespace for LLM-callable tools (via [`Tool::from_fn`], passed to
+/// `Chat`'s `tools` option).
 ///
-/// Tools are returned as plain JS objects of shape
-/// `{__nbwKind: 'tool', name, description, jsonSchema, callback}` rather
-/// than wasm-bindgen class instances — wasm-bindgen's Rust-defined
-/// structs don't `impl JsCast`, so we can't `dyn_into`
-/// them out of a generic options-object on the way back. Tagged plain
-/// objects sidestep that and let the extract step do a brand check.
+/// Tools are plain tagged objects `{__nbwKind: 'tool', name, description,
+/// jsonSchema, callback}`, not wasm-bindgen class instances: Rust-defined
+/// structs don't `impl JsCast`, so they can't be `dyn_into`'d back out of a
+/// generic options object. Tagged objects allow a brand check instead.
 #[wasm_bindgen]
 pub struct Tool;
 
 #[wasm_bindgen]
 impl Tool {
-    /// Wrap a JS function as an LLM-callable tool.
-    ///
-    /// `name` (tool-call identifier), `description` (helps the model decide
-    /// when to call), `jsonSchema` (constrains the emitted args via the
-    /// grammar sampler), and `callback` (sync or async; receives the parsed
-    /// args, returns the string result — non-strings are JSON.stringify'd).
-    /// Returns a tagged `{__nbwKind:'tool', …}` object that `Chat`'s
-    /// constructor unpacks.
+    /// Wrap a JS function as an LLM-callable tool: `name` (identifier),
+    /// `description` (when to call), `jsonSchema` (constrains args via the
+    /// grammar sampler), `callback` (sync/async; gets parsed args, returns a
+    /// string — non-strings are JSON.stringify'd). Returns a tagged
+    /// `{__nbwKind:'tool', …}` object the `Chat` constructor unpacks.
     #[wasm_bindgen(js_name = fromFn)]
     pub fn from_fn(
         name: String,
@@ -1187,9 +1127,8 @@ impl Tool {
         json_schema: JsValue,
         callback: js_sys::Function,
     ) -> Result<JsValue, JsError> {
-        // Sanity-check the schema up-front so a typo errors at Tool
-        // construction time rather than mid-inference. The Rust side
-        // re-parses in `tool_from_tagged`; this is just a fast-fail.
+        // Validate the schema up-front so a typo errors here, not mid-inference
+        // (the Rust side re-parses later; this is just a fast-fail).
         let schema_str = js_sys::JSON::stringify(&json_schema)
             .ok()
             .and_then(|s| s.as_string())
@@ -1213,11 +1152,10 @@ impl Tool {
 
 // ---------- Tool-call proxy (pthread → main thread) ----------
 //
-// Inference runs on a pthread, but a tool's JS callback (`js_sys::Function`)
-// is only valid on the main thread (its externref index + wasm-bindgen glue).
-// So the core `Tool` closure sends a `ToolRequest` (name + JSON args + a reply
-// channel, all `Send`) to a main-thread dispatcher, which invokes the real
-// callback and sends the string back; the pthread closure blocks on it.
+// A tool's JS callback is only valid on the main thread, but inference runs on
+// a pthread. So the core `Tool` closure sends a `ToolRequest` (name + args +
+// reply channel, all `Send`) to a main-thread dispatcher that runs the real
+// callback and replies; the pthread closure blocks on the reply.
 
 /// A tool invocation proxied from the inference pthread to the main
 /// thread: `(tool_name, args, reply_channel)`.
@@ -1276,10 +1214,9 @@ fn proxy_tool(
         description,
         schema,
         std::sync::Arc::new(move |args: serde_json::Value| {
-            // Block the inference pthread until the main-thread dispatcher runs
-            // the JS tool (awaiting its Promise if async) and replies. Blocking
-            // here is fine: the worker is a pthread, so the main event loop
-            // keeps ticking and resolves the tool's Promise.
+            // Block the inference pthread until the dispatcher runs the JS tool
+            // and replies. Safe: the worker is a pthread, so the main loop keeps
+            // ticking and resolves the tool's Promise.
             let (reply_tx, reply_rx) = std::sync::mpsc::channel::<String>();
             if req_tx
                 .send((name_for_closure.clone(), args, reply_tx))
@@ -1345,10 +1282,9 @@ async fn invoke_js_callback(callback: &js_sys::Function, args: serde_json::Value
 #[cfg(target_family = "wasm")]
 type ToolRegistry = std::rc::Rc<RefCell<std::collections::HashMap<String, js_sys::Function>>>;
 
-/// Spawn the main-thread dispatcher: receive proxied tool requests from
-/// the inference pthread, invoke the registered JS callback, reply.
-/// Runs until the request channel closes (chat dropped). The event loop
-/// is kept pumping by the `KeepAlive` held during the in-flight `ask`.
+/// Spawn the main-thread dispatcher: receive proxied requests, invoke the
+/// registered JS callback, reply. Runs until the channel closes (chat dropped);
+/// the `KeepAlive` during an in-flight `ask` keeps the event loop pumping.
 #[cfg(target_family = "wasm")]
 fn spawn_tool_dispatcher(
     registry: ToolRegistry,
@@ -1421,8 +1357,7 @@ impl Encoder {
                 .encode(text)
                 .await
                 .map_err(|e| JsError::new(&e.to_string()))?;
-            // Convert Vec<f32> to Float32Array. The `js_sys::Float32Array::from`
-            // copies into a fresh wasm-allocated typed array.
+            // Vec<f32> → Float32Array (copies into a fresh wasm typed array).
             Ok(JsValue::from(js_sys::Float32Array::from(
                 embedding.as_slice(),
             )))
@@ -1477,10 +1412,8 @@ impl CrossEncoder {
                 .rank_and_sort(query, documents)
                 .await
                 .map_err(|e| JsError::new(&e.to_string()))?;
-            // Build `[[doc, score], ...]` as nested `js_sys::Array`. Returning a
-            // Vec<(String, f32)> directly would need serde_wasm_bindgen and the
-            // JS side would see plain Objects; nested Arrays keep the wire
-            // format obvious (`for (const [doc, score] of result)`).
+            // Build `[[doc, score], ...]` as nested Arrays (not a serde-converted
+            // Vec<(String,f32)>, which the JS side would see as plain Objects).
             let outer = js_sys::Array::new_with_length(ranked.len() as u32);
             for (i, (doc, score)) in ranked.into_iter().enumerate() {
                 let pair = js_sys::Array::new_with_length(2);
@@ -1661,16 +1594,14 @@ impl Chat {
             let mut model =
                 nobodywho::llm::get_model_from_path(&model_memfs, mmproj_memfs.as_deref(), 0)
                     .map_err(|e| JsError::new(&nobodywho::render_miette(&e)))?;
-            // Hand the model the wasm buffer(s) it was mmapped from (single-copy
-            // load), so they're freed when the model drops — not leaked.
+            // Hand the model its mmap backing buffer(s) so they free on drop.
             for (ptr, size) in take_pending_model_buffers() {
                 model.attach_backing_buffer(ptr, size);
             }
             let model = Arc::new(model);
 
-            // Tool-call proxy: JS callbacks stay on the main thread in
-            // `registry`; the inference pthread reaches them via `req_tx`
-            // → the dispatcher (see the tool-call proxy section above).
+            // Tool-call proxy: JS callbacks stay on the main thread in `registry`;
+            // the inference pthread reaches them via `req_tx` → the dispatcher.
             let (req_tx, req_rx) = tokio::sync::mpsc::unbounded_channel::<ToolRequest>();
             let registry: ToolRegistry =
                 std::rc::Rc::new(RefCell::new(std::collections::HashMap::new()));
@@ -1875,9 +1806,8 @@ impl Chat {
 
     #[wasm_bindgen(js_name = setTools)]
     pub fn set_tools(&self, tools: JsValue) -> js_sys::Promise {
-        // Rebuild the registry + proxy tools synchronously on the main
-        // thread (the JS callbacks live here), then hand the proxy tools
-        // to the inference worker.
+        // Rebuild the registry + proxy tools on the main thread (JS callbacks
+        // live here), then hand the proxy tools to the inference worker.
         self.tool_registry.borrow_mut().clear();
         let t = match build_proxy_tools(&tools, &self.tool_registry, &self.tool_req_tx) {
             Ok(t) => t,
@@ -1937,13 +1867,11 @@ impl Chat {
         })
     }
 
-    /// Stop any in-flight generation, then tear the worker down and wait
-    /// for it to release its resources. Inference runs on an Emscripten
-    /// pthread that also owns a ggml threadpool (several more pthreads);
-    /// pthreads are scarce, and waiting for GC to drop the handle would
-    /// leak them across chats. Shutting down here frees them promptly so
-    /// the next `Chat.create` has pthreads available. The handle is inert
-    /// afterwards.
+    /// Stop any in-flight generation, tear the worker down, and wait for it to
+    /// release its resources. The worker pthread also owns a ggml threadpool
+    /// (more pthreads), and pthreads are scarce — relying on GC would leak them
+    /// across chats. Shutting down here frees them for the next `Chat.create`.
+    /// The handle is inert afterwards.
     pub fn terminate(&self) -> js_sys::Promise {
         let inner = self.inner.clone();
         promisify(async move {
