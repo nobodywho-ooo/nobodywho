@@ -858,12 +858,16 @@ where
                 .new_context(&LLAMA_BACKEND, ctx_params)?;
 
             // wasm: create the threadpool here at init, not inside ggml_graph_compute.
-            // ggml_threadpool_new calls pthread_create immediately for each worker;
-            // on Emscripten pthread_create is async and needs the JS event loop to
-            // complete — but ggml_graph_compute blocks that loop while running,
-            // so spawning threads mid-compute deadlocks. Pre-creating them here
-            // (event loop free) lets them park in their wait loop before inference
-            // starts. poll=0 puts idle workers to sleep rather than busy-waiting.
+            // pthread_create from a Worker uses Atomics.wait — an OS-level block with
+            // no event loop dependency — so spawning workers from the inference pthread
+            // doesn't deadlock. The problem is exhaustion: without a persistent pool,
+            // ggml_graph_compute creates and destroys a disposable threadpool on every
+            // call, churning through Emscripten's pre-spawned Worker pool. Once the pool
+            // is exhausted, spawning a new OS Worker requires a message to the browser
+            // main thread; if that is blocked, it deadlocks (and even if it isn't, pool
+            // exhaustion makes the 4th+ Chat.create fail). Pre-creating a persistent pool
+            // here means the same Workers are reused across all inferences for this Chat.
+            // poll=0 puts idle workers to sleep rather than busy-waiting.
             #[cfg(target_family = "wasm")]
             {
                 unsafe {
