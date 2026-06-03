@@ -320,9 +320,8 @@ impl Model {
 // on a pthread that can't read the main thread's MEMFS, and a browser tab
 // has no filesystem anyway.
 
-/// Image factory namespace for multimodal prompts. The only method is
-/// [`Image::from_bytes`] — there is no path-based constructor because a
-/// browser tab has no filesystem.
+/// Image factory namespace for multimodal prompts. `fromBytes` works in the
+/// browser and Node; `fromPath` is Node-only (mirrors Python's `Image("/path")`).
 #[wasm_bindgen]
 pub struct Image;
 
@@ -340,21 +339,7 @@ impl Image {
     /// ```
     #[wasm_bindgen(js_name = fromPath)]
     pub fn from_path(path: String) -> js_sys::Promise {
-        promisify(async move {
-            #[cfg(target_family = "wasm")]
-            {
-                let bytes = read_node_file_bytes(&path).await?;
-                Ok(JsValue::from(make_media_part("image", &bytes)))
-            }
-            #[cfg(not(target_family = "wasm"))]
-            {
-                let _ = path;
-                // Type-annotate so `promisify`'s `T: Into<JsValue>` bound
-                // can be inferred on native — the Err-only branch can't
-                // figure it out on its own.
-                Err::<JsValue, _>(JsError::new("fromPath: not supported on this target"))
-            }
-        })
+        media_from_path("image", path)
     }
 
     /// Build an image prompt part from raw file bytes (JPEG / PNG / BMP /
@@ -389,21 +374,7 @@ impl Audio {
     /// ```
     #[wasm_bindgen(js_name = fromPath)]
     pub fn from_path(path: String) -> js_sys::Promise {
-        promisify(async move {
-            #[cfg(target_family = "wasm")]
-            {
-                let bytes = read_node_file_bytes(&path).await?;
-                Ok(JsValue::from(make_media_part("audio", &bytes)))
-            }
-            #[cfg(not(target_family = "wasm"))]
-            {
-                let _ = path;
-                // Type-annotate so `promisify`'s `T: Into<JsValue>` bound
-                // can be inferred on native — the Err-only branch can't
-                // figure it out on its own.
-                Err::<JsValue, _>(JsError::new("fromPath: not supported on this target"))
-            }
-        })
+        media_from_path("audio", path)
     }
 
     /// Build an audio prompt part from raw file bytes. Supported formats
@@ -719,6 +690,28 @@ fn make_media_part(kind: &str, bytes: &[u8]) -> js_sys::Object {
     let _ = js_sys::Reflect::set(&o, &"__nbwKind".into(), &JsValue::from_str(kind));
     let _ = js_sys::Reflect::set(&o, &"bytes".into(), &js_sys::Uint8Array::from(bytes).into());
     o
+}
+
+/// Shared body for `Image.fromPath` / `Audio.fromPath`: read a host file
+/// (Node-only, via `read_node_file_bytes`) and wrap its bytes as a tagged
+/// media part of `kind`. Returns a Promise that rejects on non-wasm targets —
+/// there's no Node fs there, but the crate must still compile for the host so
+/// the `lint` CI job can run `cargo test`.
+fn media_from_path(kind: &'static str, path: String) -> js_sys::Promise {
+    promisify(async move {
+        #[cfg(target_family = "wasm")]
+        {
+            let bytes = read_node_file_bytes(&path).await?;
+            Ok(JsValue::from(make_media_part(kind, &bytes)))
+        }
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let _ = (kind, path);
+            // Type-annotate so `promisify`'s `T: Into<JsValue>` bound can be
+            // inferred on native — the Err-only branch can't on its own.
+            Err::<JsValue, _>(JsError::new("fromPath: not supported on this target"))
+        }
+    })
 }
 
 /// Pull `__nbwKind` off a candidate part. Returns None if the object is not
