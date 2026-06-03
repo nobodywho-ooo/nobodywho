@@ -1332,21 +1332,12 @@ fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> PyResult<f32> {
     Ok(nobodywho::encoder::cosine_similarity(&a, &b))
 }
 
-/// Download a model from a remote URL or HuggingFace path and return the local path.
-///
-/// This is useful when you need to pass custom headers (e.g. for authentication).
-/// For unauthenticated downloads, you can pass the path directly to `Chat` or `Model`.
-///
-/// Args:
-///     model_path: Path or URL to a GGUF model file. Accepts a local file path, a `huggingface:` path, or an `https://` URL.
-///     headers: Optional dict of HTTP headers to include in the download request (e.g. `{"Authorization": "Bearer hf_..."}`).
-///     on_download_progress: Optional callable invoked during downloads with `(downloaded_bytes, total_bytes)`.
-///
-/// Returns:
-///     Local path to the downloaded model file, which can be passed to `Model` or `Chat`.
+/// Download a GGUF model to the local cache and return its path.
+/// Use when you need custom HTTP headers (e.g. `{"Authorization": "Bearer hf_..."}`);
+/// for public models pass the URL directly to `Chat` or `Model`.
 ///
 /// Raises:
-///     RuntimeError: If the download fails
+///     RuntimeError: If the download fails.
 #[pyfunction]
 #[pyo3(signature = (model_path, headers=None, on_download_progress: "typing.Callable[[int, int], None] | None" = None))]
 fn download_model(
@@ -2459,13 +2450,10 @@ fn json_value_to_py<'py>(
     }
 }
 
-/// Returns every cached .gguf model paired with its byte size.
-///
-/// Returns:
-///     list[tuple[str, int]]: each entry is (absolute path, size in bytes).
+/// Returns every cached `.gguf` model as `list[tuple[str, int]]` (path, size in bytes).
 ///
 /// Raises:
-///     RuntimeError: If the cache directory cannot be read
+///     RuntimeError: If the cache directory cannot be read.
 #[pyfunction]
 fn get_cached_models() -> PyResult<Vec<(String, usize)>> {
     nobodywho::llm::get_cached_models()

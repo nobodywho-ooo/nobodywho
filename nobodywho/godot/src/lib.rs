@@ -186,13 +186,8 @@ impl NobodyWhoModel {
     }
 
     #[func]
-    /// Returns every cached .gguf model paired with its byte size.
-    ///
-    /// Each entry is a Dictionary with:
-    /// - "path": String absolute path to the cached model file
-    /// - "size": int size in bytes of that file
-    ///
-    /// Returns nil on error (also logged via godot_error!).
+    /// Returns every cached `.gguf` model. Each entry is a Dictionary with
+    /// `{"path": String, "size": int}`. Returns nil on error.
     fn get_cached_models() -> Variant {
         match nobodywho::llm::get_cached_models() {
             Ok(models) => {
@@ -222,11 +217,8 @@ impl NobodyWhoModel {
     }
 }
 
-/// Downloads a GGUF model from a remote URL or HuggingFace path to the local cache.
-///
-/// Use this node when you need custom HTTP headers, e.g. for gated models that require
-/// a HuggingFace token. For unauthenticated downloads, set `model_path` directly on
-/// `NobodyWhoModel` — it downloads automatically.
+/// Downloads a GGUF model to the local cache. Use when you need custom HTTP headers
+/// (e.g. a HuggingFace token); for public models set `model_path` on `NobodyWhoModel`.
 ///
 /// Usage:
 /// ```gdscript
@@ -326,8 +318,7 @@ impl NobodyWhoDownloader {
     }
 
     #[func]
-    /// Start downloading the model asynchronously. Returns immediately.
-    /// Connect to `download_complete(local_path)` or `download_failed(error)` for results.
+    /// Start downloading asynchronously; emits `download_complete(path)` or `download_failed(err)`.
     fn start_download(&mut self) {
         let me = self.to_gd();
         godot::task::spawn(async move {

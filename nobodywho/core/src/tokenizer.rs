@@ -69,11 +69,8 @@ impl Prompt {
         self.parts.push(PromptPart::Audio(audio_path.into()));
     }
 
-    /// Push media (image or audio) as in-memory bytes. mtmd auto-detects
-    /// the kind from magic bytes. Prefer this over `push_image`/`push_audio`
-    /// when the media isn't on a filesystem the inference worker can read
-    /// (e.g. wasm, where the worker pthread can't reach the main thread's
-    /// MEMFS).
+    /// Push media as raw bytes (format sniffed by mtmd). Use when the worker
+    /// can't read the file directly (e.g. wasm — inference pthread can't reach main thread's MEMFS).
     pub fn push_media_bytes(&mut self, bytes: Vec<u8>) {
         self.parts.push(PromptPart::MediaBytes(bytes));
     }
@@ -101,11 +98,8 @@ pub(crate) enum PromptPart {
     Text(String),
     Image(PathBuf),
     Audio(PathBuf),
-    /// Media supplied as in-memory bytes rather than a filesystem path.
-    /// Decoded via `MtmdBitmap::from_buffer` (mtmd auto-detects image vs
-    /// audio from magic bytes). Used on wasm, where the inference worker
-    /// runs on a pthread that can't read the main thread's MEMFS — the
-    /// bytes travel through the worker channel in shared memory instead.
+    /// In-memory media bytes (format sniffed by mtmd). Used on wasm where
+    /// the inference pthread can't reach main-thread MEMFS paths.
     MediaBytes(Vec<u8>),
 }
 
@@ -450,10 +444,8 @@ impl ProjectionModel {
         Ok(bitmap)
     }
 
-    /// Load media (image or audio) from in-memory bytes via
-    /// `MtmdBitmap::from_buffer`. mtmd auto-detects the kind from magic
-    /// bytes, and `tokenize` later distinguishes image vs audio via
-    /// `bitmap.is_audio()`, so a single byte path covers both.
+    /// Load media from in-memory bytes via `MtmdBitmap::from_buffer`
+    /// (mtmd sniffs image vs audio from magic bytes).
     pub fn load_media_bytes(&self, bytes: &[u8]) -> Result<MtmdBitmap, MultimodalError> {
         let bitmap =
             MtmdBitmap::from_buffer(&self.ctx, bytes).map_err(|e| MultimodalError::LoadImage {
