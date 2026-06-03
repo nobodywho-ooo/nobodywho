@@ -3,7 +3,9 @@ use crate::errors::MemoryError;
 use std::path::Path;
 use tracing::warn;
 
-// Native-only: feeds `plan_model_loading` which is only called from `get_model`.
+// `GgufModelInfo` and the load-planning items below feed `plan_model_loading`,
+// which is only called from the native model-loader path (`get_model`). Gated
+// to non-wasm so the wasm build doesn't warn about unused items.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) struct GgufModelInfo {
     pub n_layers: u32,
@@ -197,8 +199,10 @@ pub(crate) fn plan_context(
     has_projection_model: bool,
     arch: ModelArchitecture,
 ) -> Result<ContextPlan, MemoryError> {
-    // wasm: 1024 instead of 2048 — a 2 GB ubatch fragments the 4 GB heap;
-    // mtmd splits large embeddings across more decode passes instead.
+    // n_ubatch floor for fitting an image embedding in one decode pass.
+    // wasm uses 1024 (vs 2048): a 2048 ubatch forces a ~1.2 GB contiguous
+    // alloc that fragments the 4 GB wasm heap. mtmd just splits oversized
+    // embeddings across more ubatches — only cost is more decode passes.
     #[cfg(target_family = "wasm")]
     let ubatch_floor: u32 = 1024;
     #[cfg(not(target_family = "wasm"))]

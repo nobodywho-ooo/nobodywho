@@ -1,12 +1,28 @@
 //! Strong overrides for Emscripten's weak file-syscall stubs.
 //!
-//! Emscripten's standalone.c defines `__syscall_openat` / `__syscall_stat64` /
-//! etc. as weak symbols returning -EPERM/-ENOSYS. wasm-ld silently uses those
-//! stubs, so libc `fopen` fails with EPERM before reaching our MEMFS.
+//! Emscripten's `system/lib/standalone/standalone.c` declares `__syscall_openat`
+//! / `__syscall_stat64` / etc. as `weak` symbols that always return -EPERM or
+//! -ENOSYS. They're meant for the standalone (no-JS-host) build mode. The
+//! weak stubs get silently linked in to OUR build too — we DO have a JS host
+//! with a working MEMFS, but wasm-ld is happy to satisfy `__syscall_openat`
+//! references against the weak stub and never emit an import for us to
+//! override.
 //!
-//! This module provides strong `#[no_mangle] pub extern "C"` overrides that
-//! route through `Module.FS` (installed on globalThis by pre.js) so llama.cpp's
-//! `fopen` calls land on the bytes we wrote into MEMFS from JS.
+//! Result before this module: libc `fopen` → libc internals → weak
+//! `__syscall_openat` → returns -EPERM → fopen returns NULL with errno=EPERM.
+//! `gguf_init_from_file` logs "Operation not permitted" and abort.
+//!
+//! Result with this module: we define `__syscall_openat` (etc.) as STRONG
+//! symbols in Rust with `#[no_mangle] pub extern "C" fn`. wasm-ld picks
+//! the strong over the weak. The body calls into JS via `js_sys::Reflect`
+//! against `Module.FS.open` / `FS.stat` / etc. — same FS that
+//! `Module.FS.writeFile` populates from JS, so reads land on the bytes
+//! we wrote there.
+//!
+//! `Module` is installed on `globalThis` by `pkg-bundler/pre.js` at
+//! module init and lives for the lifetime of the wasm instance. The
+//! syscall overrides are called from the main JS thread; pthreads
+//! (compute threads) don't invoke file syscalls.
 
 #![cfg(target_family = "wasm")]
 
@@ -22,8 +38,11 @@ type SizeT = usize;
 const EBADF: c_int = 8;
 const EIO: c_int = 29;
 
-/// Resolve `Module.FS` via `js_sys::Reflect`; returns EIO on failure
-/// (can't panic from inside an EH-disabled C++ callstack).
+/// Resolve `Module.FS` once per call via `js_sys::Reflect`. Returns a
+/// `JsValue` whose underlying object is the FS namespace, ready for
+/// per-method lookups. Bails to a sentinel error if Module or FS
+/// isn't present — that should never happen with our pre.js setup
+/// but we don't want to panic from inside an EH-disabled C++ callstack.
 fn fs_namespace() -> Result<JsValue, c_int> {
     let global_obj = js_sys::global();
     let module =
@@ -38,7 +57,8 @@ fn fs_namespace() -> Result<JsValue, c_int> {
     Ok(fs)
 }
 
-/// Look up and call a method on the FS namespace.
+/// Look up a method on the FS namespace and invoke it. The trailing
+/// generic is just here to keep the call sites short.
 fn fs_call(fs: &JsValue, method: &str, args: &[JsValue]) -> Result<JsValue, c_int> {
     let func_val = js_sys::Reflect::get(fs, &JsValue::from_str(method)).map_err(|_| EIO)?;
     let func: js_sys::Function = func_val.dyn_ref::<js_sys::Function>().ok_or(EIO)?.clone();
@@ -47,7 +67,11 @@ fn fs_call(fs: &JsValue, method: &str, args: &[JsValue]) -> Result<JsValue, c_in
         args_array.push(a);
     }
     js_sys::Reflect::apply(&func, fs, &args_array).map_err(|e| {
-        // Return already-negated errno; default -EIO for unknown thrown shape.
+        // FS.ErrnoError has an `errno` property. This helper's contract is to
+        // return an ALREADY-NEGATED errno (callers forward it verbatim), so
+        // both branches must be negative. Default to -EIO for any other
+        // thrown shape — returning +EIO here would be read by libc as a
+        // successful syscall result.
         if let Ok(errno) = js_sys::Reflect::get(&e, &"errno".into()) {
             if let Some(n) = errno.as_f64() {
                 return -(n as c_int);
@@ -107,7 +131,9 @@ pub unsafe extern "C" fn __syscall_openat(
     }
 }
 
-/// Stat `path_str` via FS.stat and write the result into `buf` via SYSCALLS.writeStat.
+/// Common stat helper. `kind` is either "stat" (follows symlinks) or
+/// "lstat" (doesn't). Writes the stat into `buf` via SYSCALLS.writeStat
+/// — which we reach by going through `Module.SYSCALLS` instead of FS.
 fn stat_into_buf(path_str: &str, buf: *mut u8) -> c_int {
     let fs = match fs_namespace() {
         Ok(fs) => fs,
@@ -119,8 +145,10 @@ fn stat_into_buf(path_str: &str, buf: *mut u8) -> c_int {
         Err(e) => return e,
     };
 
-    // Delegate struct stat layout to SYSCALLS.writeStat — avoids reproducing
-    // Emscripten's layout in Rust and keeps it from drifting.
+    // SYSCALLS.writeStat(buf, stat) writes into the wasm memory at `buf`
+    // using the Emscripten-defined struct stat layout. We delegate
+    // because reproducing the layout in Rust is error-prone and would
+    // drift if Emscripten's emitted stat struct changes.
     let global_obj = js_sys::global();
     let module = match js_sys::Reflect::get(&global_obj, &"Module".into()) {
         Ok(m) => m,
@@ -171,7 +199,9 @@ pub unsafe extern "C" fn __syscall_fstat64(fd: c_int, buf: *mut u8) -> c_int {
         Ok(fs) => fs,
         Err(e) => return -e,
     };
-    // Look up path via SYSCALLS.getStreamFromFD(fd).path; FS has no public fstat.
+    // First, look up the path via SYSCALLS.getStreamFromFD(fd).path so
+    // we can re-stat by path. (FS.stat takes a path; there's no public
+    // FS.fstat that we can call uniformly.)
     let global_obj = js_sys::global();
     let module = match js_sys::Reflect::get(&global_obj, &"Module".into()) {
         Ok(m) => m,
@@ -226,7 +256,11 @@ fn syscalls_call(method: &str, args: &[JsValue]) -> Result<JsValue, c_int> {
     })
 }
 
-/// `_mmap_js` strong override — routes musl's mmap through `FS.mmap` (MEMFS + NODEFS).
+/// `_mmap_js` strong override.
+///
+/// Musl's mmap calls this to perform the actual mapping. The weak stub
+/// in `standalone.c` returns -ENOSYS. We route through `FS.mmap` which
+/// supports both MEMFS and NODEFS.
 ///
 /// # Safety
 ///
@@ -269,7 +303,10 @@ pub unsafe extern "C" fn _mmap_js(
             let alloc_val =
                 js_sys::Reflect::get(&res, &"allocated".into()).unwrap_or(JsValue::FALSE);
             let ptr = ptr_val.as_f64().unwrap_or(0.0) as usize;
-            // ptr == 0 means FS.mmap returned a malformed result; a NULL base corrupts reads.
+            // A real mapping pointer is never null. ptr == 0 means FS.mmap
+            // returned a malformed result (missing/!number `ptr`); fail
+            // cleanly rather than reporting a successful map at address 0,
+            // which would hand libc a NULL base and corrupt every read.
             if ptr == 0 {
                 return -EIO;
             }
@@ -286,9 +323,14 @@ pub unsafe extern "C" fn _mmap_js(
     }
 }
 
-/// `_munmap_js` strong override — intentional no-op. Emscripten's C-side munmap
-/// already frees the backing buffer; this hook is only for msync/writeback.
-/// Must override anyway because the weak stub returns -ENOSYS.
+/// `_munmap_js` strong override.
+///
+/// Intentionally a no-op — and that does NOT leak. Emscripten's C-side
+/// `munmap` (emscripten_mmap.c) frees the backing buffer itself for
+/// `allocated` mappings (`emscripten_builtin_free(map->addr)`) plus the map
+/// record; it calls this hook only for msync/writeback, which read-only
+/// mappings don't need. We still must override it because the weak stub
+/// returns -ENOSYS, which would make `munmap` fail.
 #[no_mangle]
 pub unsafe extern "C" fn _munmap_js(
     _addr: usize,
