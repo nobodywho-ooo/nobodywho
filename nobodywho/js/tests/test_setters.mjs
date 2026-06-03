@@ -105,7 +105,7 @@ console.log(`    history after reset: ${after.length} entries`);
 assert.equal(after.length, 0, 'history should be empty after reset');
 console.log('    ✓ resetHistory works');
 
-await chat.terminate();
+chat.free();
 
 console.log('\n=== setters passed ===');
 process.exit(0);

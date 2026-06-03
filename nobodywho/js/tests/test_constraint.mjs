@@ -49,7 +49,7 @@ assert.match(
   `regex constraint should produce a single capitalized word; got: ${JSON.stringify(regexResponse)}`,
 );
 console.log(`    ✓ matches /${regex.source}/`);
-await regexChat.terminate();
+regexChat.free();
 
 // === 2. JSON Schema constraint ===
 console.log('\n[2] JSON Schema constraint (object with `city` and `country` strings)...');
@@ -81,7 +81,7 @@ try {
 assert.equal(typeof parsed.city, 'string', `parsed.city must be a string; got ${typeof parsed.city}`);
 assert.equal(typeof parsed.country, 'string', `parsed.country must be a string; got ${typeof parsed.country}`);
 console.log(`    ✓ parsed: city=${JSON.stringify(parsed.city)} country=${JSON.stringify(parsed.country)}`);
-await jsonChat.terminate();
+jsonChat.free();
 
 console.log('\n=== Constraint JS test passed ===');
 console.log('  Regex and JSON Schema constraints both shape token sampling');

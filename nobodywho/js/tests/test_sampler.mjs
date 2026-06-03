@@ -11,7 +11,7 @@
 // Runs through `Chat.create({modelPath, ...})` so the same test
 // exercises both browser and Node (Node uses `worker_threads` under the
 // hood via `__nbw_spawn_worker`). Each section spawns a fresh Chat
-// and terminates it when done so workers don't pile up.
+// and frees it when done.
 //
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
@@ -46,7 +46,7 @@ async function runGreedyOnce() {
   try {
     return await chat.ask(PROMPT).completed();
   } finally {
-    await chat.terminate();
+    chat.free();
   }
 }
 
@@ -77,7 +77,7 @@ const customChat = await m.Chat.create({
     .penalties(1.1, 64, 0.0, 0.0)
     .dist(),
 });
-await customChat.terminate();
+customChat.free();
 console.log('    ✓ constructed without error');
 
 // === 3. Sampler + constraint compose ===
@@ -88,7 +88,7 @@ const composedChat = await m.Chat.create({
   templateVariables: { enable_thinking: false },
   sampler: m.SamplerPresets.constrainWithRegex('[a-z]+'),
 });
-await composedChat.terminate();
+composedChat.free();
 console.log('    ✓ constructed without error');
 
 console.log('\n=== Sampler-config JS test passed ===');

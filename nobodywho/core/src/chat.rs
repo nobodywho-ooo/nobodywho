@@ -766,19 +766,6 @@ impl ChatHandleAsync {
         self.guard.stop();
     }
 
-    /// Stop any in-flight generation, then shut the worker down and wait
-    /// for it to release its resources (context and, on wasm, its
-    /// threadpool). The handle is inert afterwards. Useful on wasm where
-    /// pthreads are scarce and waiting for GC to drop the handle would
-    /// leak them.
-    pub async fn shutdown(&self) {
-        self.guard.stop();
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        if self.guard.send(ChatMsg::Shutdown { output_tx }) {
-            let _ = output_rx.recv().await;
-        }
-    }
-
     /// Get the chat history without the system prompt (lower-level API).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
@@ -1038,12 +1025,6 @@ enum ChatMsg {
         messages: Vec<Message>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
-    /// Break the worker loop and drop the worker (freeing the context and,
-    /// on wasm, its threadpool) before acking. Lets callers reclaim those
-    /// resources promptly instead of waiting for the handle to be dropped.
-    Shutdown {
-        output_tx: tokio::sync::mpsc::Sender<()>,
-    },
 }
 
 impl std::fmt::Debug for ChatMsg {
@@ -1092,25 +1073,18 @@ impl std::fmt::Debug for ChatMsg {
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
-            ChatMsg::Shutdown { .. } => f.debug_struct("Shutdown").finish(),
         }
     }
 }
 
-/// Drive the worker: process messages until the channel closes or a
-/// `Shutdown` arrives. On `Shutdown` the worker state is dropped (freeing
-/// the context and, on wasm, its threadpool) before acking, so callers can
-/// reclaim those resources without waiting for the handle to be dropped.
+/// Drive the worker: process messages until the channel closes. When it closes
+/// (the handle was dropped), the loop exits and `worker_state` drops, freeing
+/// the context and (on wasm) its threadpool.
 fn run_worker_loop(
     mut worker_state: Worker<'_, ChatWorker>,
     msg_rx: std::sync::mpsc::Receiver<ChatMsg>,
 ) {
     while let Ok(msg) = msg_rx.recv() {
-        if let ChatMsg::Shutdown { output_tx } = msg {
-            drop(worker_state);
-            let _ = output_tx.blocking_send(());
-            return;
-        }
         if let Err(e) = process_worker_msg(&mut worker_state, msg) {
             return error!("Worker crashed: {e}");
         }
@@ -1209,9 +1183,6 @@ fn process_worker_msg(
             let sampler_config = worker_state.get_sampler_config();
             let _ = output_tx.blocking_send(sampler_config);
         }
-        // Intercepted by the worker loop, which needs to drop the worker
-        // state; never dispatched here.
-        ChatMsg::Shutdown { .. } => unreachable!("Shutdown is handled by the worker loop"),
     };
 
     Ok(())

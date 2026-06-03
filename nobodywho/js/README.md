@@ -79,7 +79,7 @@ surface to JS via wasm-bindgen.
 | `Chat.setTools(tools)` — replace tool registry mid-session | ✅ verified |
 | `Chat.reset(opts?)` — atomic clear-history + optional swap of system prompt + tools | ✅ verified |
 | `Chat.resetHistory()` — clear history, preserve system prompt + tools + sampler | ✅ verified |
-| `Chat.terminate()` — stops any in-flight generation and shuts down the worker (frees the model) | ✅ verified |
+| `chat.free()` / GC — release the chat and its worker, like the other bindings' Drop | ✅ verified |
 | `SamplerConfig` / `SamplerBuilder` / `SamplerPresets` — typed sampler API matching Python | ✅ verified |
 | Structured output / Constraint via `SamplerPresets.constrainWithJsonSchema()` / `constrainWithRegex()` / `constrainWithGrammar()` | ✅ verified |
 | `TokenStream.next()` / `completed()` / async-iteration via `for await` | ✅ verified |
@@ -103,7 +103,6 @@ verify locally after a build, run:
 | `test_audio.mjs` | WAV / MP3 / FLAC decoder paths end-to-end |
 | `test_vision.mjs` | image input through mtmd (Qwen2-VL / Gemma 3 etc.) |
 | `test_stop.mjs` | `Chat.stopGeneration()` interrupting an in-flight ask |
-| `test_terminate-mid-stream.mjs` | `Chat.terminate()` during an in-flight TokenStream |
 | `test_history.mjs` | `getChatHistory` / `setChatHistory` round-trip + loaded-context use |
 | `test_setters.mjs` | `setSystemPrompt` (incl. `null`) / sampler / template vars / `setTools` / `resetHistory` |
 | `test_parity-extras.mjs` | `Audio.fromPath` / `Image.fromPath` / `cosineSimilarity` / `Chat.reset({systemPrompt, tools})` |

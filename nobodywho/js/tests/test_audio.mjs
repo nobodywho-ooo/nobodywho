@@ -100,7 +100,7 @@ for (const { ext, desc } of formats) {
     console.log(`    ✓ Audio.fromBytes passed bytes through wasm; downstream inference error (separate issue): ${inferenceErr}`);
   }
 
-  await chat.terminate();
+  chat.free();
 }
 
 console.log('\n=== Audio decoder summary ===');

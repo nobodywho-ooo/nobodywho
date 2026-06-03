@@ -139,7 +139,7 @@ const weatherToolAsync = m.Tool.fromFn(
   },
 );
 
-await chat.terminate();
+chat.free();
 const chatAsync = await m.Chat.create({
   modelPath,
   systemPrompt:
@@ -170,7 +170,7 @@ assert.ok(
   `expected a non-empty final response after the async tool round-trip; got ${JSON.stringify(responseAsync)} — the tool-reply may not have reached the worker (inference didn't resume)`,
 );
 
-await chatAsync.terminate();
+chatAsync.free();
 
 console.log('\n=== Tool-calling JS test passed ===');
 console.log('  Sync and async callbacks both dispatch through the Chat worker');

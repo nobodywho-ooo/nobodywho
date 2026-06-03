@@ -73,7 +73,7 @@ for (let t = 0; t < turns.length; t++) {
     }
   } catch (e) {
     console.log(`\n  FAIL: turn ${t + 1} threw: ${e?.message ?? e}`);
-    await chat.terminate();
+    chat.free();
     process.exit(1);
   }
   if (count > 12) process.stdout.write(`…(${count} toks total)`);
@@ -81,13 +81,13 @@ for (let t = 0; t < turns.length; t++) {
 
   if (count < 2) {
     console.log(`  FAIL: turn ${t + 1} produced ${count} tokens`);
-    await chat.terminate();
+    chat.free();
     process.exit(1);
   }
   for (const marker of LEAKS) {
     if (text.includes(marker)) {
       console.log(`  FAIL: turn ${t + 1} text contains template marker ${JSON.stringify(marker)}`);
-      await chat.terminate();
+      chat.free();
       process.exit(1);
     }
   }
@@ -95,7 +95,7 @@ for (let t = 0; t < turns.length; t++) {
   totalGenTokens += count;
 }
 
-await chat.terminate();
+chat.free();
 
 // Proof that a shift actually happened: generating MORE tokens across the
 // dialogue than the entire context window holds is only possible if core ran

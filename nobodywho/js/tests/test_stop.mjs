@@ -7,8 +7,6 @@
 //   * The chat remains usable: ask again on the same Chat and verify
 //     it works (no zombie worker state from the stop).
 //   * stopGeneration() is a no-op when no ask is in flight (no throw).
-//   * stopGeneration() after terminate() is a silent no-op (matches
-//     Python's behavior).
 //
 // Uses Qwen3-0.6B — small enough to iterate quickly.
 //
@@ -54,7 +52,7 @@ let baseline = 0;
 for await (const _tok of baselineChat.ask(PROMPT)) {
   if (++baseline >= BASELINE_CAP) break;
 }
-await baselineChat.terminate();
+baselineChat.free();
 console.log(`    unstopped baseline produced ${baseline} tokens (cap ${BASELINE_CAP}).`);
 assert.ok(baseline > STOP_AFTER * 4, `baseline too short (${baseline}) to meaningfully test stop — prompt under-generated`);
 
@@ -97,10 +95,7 @@ console.log('\n[3] stopGeneration() when no ask is in flight — no throw...');
 chat.stopGeneration();
 console.log('    ✓ no error');
 
-console.log('\n[4] Terminate, then stopGeneration() — silent no-op...');
-await chat.terminate();
-chat.stopGeneration();
-console.log('    ✓ no error after terminate');
+chat.free();
 
 console.log('\n=== stop passed ===');
 process.exit(0);

@@ -38,7 +38,7 @@ async function runWithSampler(label, sampler) {
   const reply = await chat.ask('Say "ok".').completed();
   console.log(`    ${label}: ${JSON.stringify(reply).slice(0, 50)}`);
   assert.ok(reply.length > 0, `${label}: expected non-empty reply`);
-  await chat.terminate();
+  chat.free();
 }
 
 console.log('\n[1] SamplerBuilder.dry(...) — DRY repetition penalty...');
@@ -99,7 +99,7 @@ try {
 } catch (e) {
   assert.fail(`expected JSON-parseable output, got: ${jreply}`);
 }
-await jchat.terminate();
+jchat.free();
 
 console.log('\n=== sampler-extra passed ===');
 process.exit(0);

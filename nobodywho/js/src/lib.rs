@@ -1866,17 +1866,4 @@ impl Chat {
             Ok(JsValue::UNDEFINED)
         })
     }
-
-    /// Stop any in-flight generation, tear the worker down, and wait for it to
-    /// release its resources. The worker pthread also owns a ggml threadpool
-    /// (more pthreads), and pthreads are scarce — relying on GC would leak them
-    /// across chats. Shutting down here frees them for the next `Chat.create`.
-    /// The handle is inert afterwards.
-    pub fn terminate(&self) -> js_sys::Promise {
-        let inner = self.inner.clone();
-        promisify(async move {
-            inner.shutdown().await;
-            Ok(JsValue::UNDEFINED)
-        })
-    }
 }

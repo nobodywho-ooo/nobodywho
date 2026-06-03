@@ -82,7 +82,7 @@ const chat = await m.Chat.create({
 const reply = await chat.ask('Say "ok".').completed();
 console.log(`    reply: ${JSON.stringify(reply).slice(0, 60)}`);
 assert.ok(reply.length > 0);
-await chat.terminate();
+chat.free();
 console.log('    ✓ Chat.create + built sampler + ask round-trip');
 
 console.log('\n[5] SamplerPresets.constrainWithRegex routed through Chat.create...');
@@ -96,7 +96,7 @@ const numReply = await chat2.ask('Pick a number 1-100.').completed();
 console.log(`    constrained reply: ${JSON.stringify(numReply).slice(0, 30)}`);
 assert.ok(/^[0-9]{1,3}$/.test(numReply.trim()),
   `constrained output must match regex, got: ${numReply}`);
-await chat2.terminate();
+chat2.free();
 console.log('    ✓ regex constraint enforced');
 
 console.log('\n=== sampler-ergo passed ===');

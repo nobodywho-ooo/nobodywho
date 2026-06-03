@@ -7,7 +7,7 @@
 //     the file into MEMFS and loaded via the path-based loader)
 //   - for-await on chat.ask(...) yields multiple tokens (streaming
 //     code path unchanged)
-//   - chat.terminate() resolves
+//   - chat.free() releases the chat
 //
 // Optional second arg: mmprojPath (for multimodal models).
 //
@@ -63,8 +63,8 @@ for await (const tok of chat.ask('Say hello in one short sentence.')) {
 console.log(`[ok] for-await streamed ${chunks} chunks; ttft=${ttftMs.toFixed(0)} ms`);
 console.log(`     text: ${JSON.stringify(text)}`);
 
-await chat.terminate();
-console.log(`[ok] terminate() resolved`);
+chat.free();
+console.log(`[ok] freed`);
 
 if (chunks < 2) {
   console.error(`FAIL: only ${chunks} chunk(s) — streaming did not engage`);

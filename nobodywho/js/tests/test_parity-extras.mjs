@@ -127,7 +127,7 @@ const sysNull = await chat.getSystemPrompt();
 console.log(`    after empty reset(), system: ${JSON.stringify(sysNull)}`);
 assert.equal(sysNull, null, 'reset() with no opts clears system prompt');
 
-await chat.terminate();
+chat.free();
 console.log('    ✓ reset round-trip works');
 
 console.log('\n=== parity-extras passed ===');

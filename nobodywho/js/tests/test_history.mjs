@@ -78,7 +78,7 @@ assert.ok(
 );
 console.log('    ✓ model used loaded history');
 
-await chat.terminate();
+chat.free();
 
 console.log('\n=== history passed ===');
 process.exit(0);

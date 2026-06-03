@@ -108,7 +108,7 @@ if (chunkCount < 2) {
   process.exit(1);
 }
 
-await chat.terminate();
+chat.free();
 
 console.log('\n=== Path A end-to-end vision passed ===');
 console.log('  Chat.create({modelPath, mmprojPath}) wires mmproj through the path-based loader,');

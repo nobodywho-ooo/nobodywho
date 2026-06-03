@@ -29,7 +29,7 @@ const hasIter = typeof proto[Symbol.asyncIterator] === 'function';
 console.log(`[check] TokenStream prototype has [Symbol.asyncIterator]: ${hasIter}`);
 if (!hasIter) {
   console.error('FAIL: shim did not attach');
-  await chat.terminate();
+  chat.free();
   process.exit(1);
 }
 
@@ -45,7 +45,7 @@ console.log(`---`);
 console.log(`total tokens iterated: ${count}`);
 console.log(`accumulated text:      ${JSON.stringify(text)}`);
 
-await chat.terminate();
+chat.free();
 if (count <= 1) {
   console.error('FAIL: expected multiple tokens via for-await');
   process.exit(1);
