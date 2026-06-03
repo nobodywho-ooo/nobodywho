@@ -144,11 +144,8 @@ unsafe impl Sync for ModelBackingBuffer {}
 #[cfg(target_family = "wasm")]
 impl Drop for ModelBackingBuffer {
     fn drop(&mut self) {
-        if !self.ptr.is_null() && self.size > 0 {
-            // 64-byte alignment matches the allocation site.
-            if let Ok(layout) = std::alloc::Layout::from_size_align(self.size, 64) {
-                unsafe { std::alloc::dealloc(self.ptr, layout) };
-            }
+        if let Ok(layout) = std::alloc::Layout::from_size_align(self.size, 64) {
+            unsafe { std::alloc::dealloc(self.ptr, layout) };
         }
     }
 }
