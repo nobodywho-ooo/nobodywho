@@ -293,7 +293,6 @@ impl ChatBuilder {
 /// Interact with a ChatWorker in a blocking manner.
 ///
 /// Use [`ChatBuilder`] to create a new instance with a fluent API.
-/// Native-only synchronous chat handle. Use `ChatHandleAsync` on wasm.
 #[cfg(not(target_family = "wasm"))]
 pub struct ChatHandle {
     guard: WorkerGuard<ChatMsg>,
@@ -865,11 +864,7 @@ impl ChatHandleAsync {
     }
 }
 
-/// A stream of tokens from the model.
-///
-/// Native-only synchronous stream — `next_token` calls `blocking_recv`, which
-/// would deadlock the single-threaded JS event loop. Wasm consumers use
-/// [`TokenStreamAsync`] instead, returned from [`ChatHandleAsync::ask`].
+/// A stream of tokens from the model. Native-only — wasm uses [`TokenStreamAsync`].
 #[cfg(not(target_family = "wasm"))]
 pub struct TokenStream {
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
@@ -885,10 +880,8 @@ impl TokenStream {
         }
     }
 
-    /// Get the next token from the stream.
-    ///
-    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
-    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
+    /// Get the next token from the stream. Returns `Ok(Some(token))`, `Ok(None)` on
+    /// completion, or `Err(e)` on worker error.
     pub fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
         if self.completed_response.is_some() {
             return Ok(None);
@@ -940,10 +933,8 @@ impl TokenStreamAsync {
         }
     }
 
-    /// Waits for the next token in the stream. Consumes the token when emitted.
-    ///
-    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
-    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
+    /// Waits for the next token in the stream. Returns `Ok(Some(token))`, `Ok(None)` on
+    /// completion, or `Err(e)` on worker error.
     pub async fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
         if self.completed_response.is_some() {
             return Ok(None);
@@ -1645,7 +1636,6 @@ impl Worker<'_, ChatWorker> {
 
         let media_assets = prompt.extract_media_assets();
 
-        // Multimodal bitmap construction.
         let bitmap_ids = {
             let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
                 media_assets
