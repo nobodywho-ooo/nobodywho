@@ -754,7 +754,8 @@ pub(crate) struct Worker<'a, S> {
     pub(crate) projection_model: Option<&'a ProjectionModel>,
     pub(crate) tokenizer: Tokenizer<'a>,
     pub(crate) use_embeddings: bool,
-    // n_batch: planned context size before llama.cpp rounding; guards batch decode limits.
+    // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
+    // Used to guard against sending more tokens than the context can decode in one batch.
     pub(crate) n_batch: usize,
 
     pub(crate) extra: S,
