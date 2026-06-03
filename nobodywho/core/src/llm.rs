@@ -857,9 +857,13 @@ where
                 .language_model
                 .new_context(&LLAMA_BACKEND, ctx_params)?;
 
-            // wasm: attach a persistent threadpool at init (not mid-compute) to
-            // avoid deadlocking Emscripten's async pthread_create, and to ensure
-            // the Worker frees it on drop rather than leaking pthreads.
+            // wasm: create the threadpool here at init, not inside ggml_graph_compute.
+            // ggml_threadpool_new calls pthread_create immediately for each worker;
+            // on Emscripten pthread_create is async and needs the JS event loop to
+            // complete — but ggml_graph_compute blocks that loop while running,
+            // so spawning threads mid-compute deadlocks. Pre-creating them here
+            // (event loop free) lets them park in their wait loop before inference
+            // starts. poll=0 puts idle workers to sleep rather than busy-waiting.
             #[cfg(target_family = "wasm")]
             {
                 unsafe {
