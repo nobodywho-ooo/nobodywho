@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   static-checks:
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
       - name: Install uv
@@ -60,17 +60,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x]
         include:
-          - runner: ubuntu-24.04
+          - runner: warp-ubuntu-latest-x64-4x
             manylinux_target: manylinux_2_34_x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: warp-ubuntu-latest-arm64-4x
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -91,7 +91,7 @@ jobs:
           pip3 install maturin auditwheel
 
       - name: Setup Vulkan SDK (manual for ARM64)
-        if: matrix.runner == 'ubuntu-24.04-arm'
+        if: matrix.runner == 'warp-ubuntu-latest-arm64-4x'
         run: |
           SDK_VERSION="1.4.304.0"
           SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
@@ -217,7 +217,7 @@ jobs:
   linux-pytest:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
       - name: Install uv
@@ -263,7 +263,7 @@ jobs:
   linux-multimodal-tests:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
       - name: Install uv
@@ -298,7 +298,7 @@ jobs:
 
   linux-model-downloading-tests:
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v5
 
@@ -334,7 +334,7 @@ jobs:
   linux-tool-calling-tests:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
       matrix:
@@ -412,7 +412,7 @@ jobs:
       fail-fast: false
       matrix:
         model: [Qwen, Gemma]
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x]
         include:
           - model: Qwen
             model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
@@ -422,9 +422,9 @@ jobs:
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - runner: ubuntu-24.04
+          - runner: warp-ubuntu-latest-x64-4x
             manylinux_target: manylinux_2_34_x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: warp-ubuntu-latest-arm64-4x
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -489,9 +489,9 @@ jobs:
 
       - name: Download models
         run: |
-          mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywho_python/models
+          mkdir -p ${{ github.workspace }}/windows/nobodywho_python/models
           pip install -U "huggingface_hub"
-          Invoke-WebRequest ${{ matrix.model_link }} -OutFile "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name}}"
+          Invoke-WebRequest ${{ matrix.model_link }} -OutFile "${{ github.workspace }}/windows/nobodywho_python/models/${{ matrix.model_name}}"
 
       # uncomment this to get an interactive shell on the github runner
       # - name: Debug with sshx
@@ -504,7 +504,7 @@ jobs:
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "D:/a/nobodywho/nobodywho/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name }}"
+          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "${{ github.workspace }}/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "${{ github.workspace }}/windows/nobodywho_python/models/${{ matrix.model_name }}"
 
   mac-os-pip-install-test:
     if: inputs.full_ci

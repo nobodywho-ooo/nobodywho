@@ -42,20 +42,6 @@ import { Chat } from "react-native-nobodywho";
 const chat = await Chat.fromPath({ modelPath: "./model.gguf" });
 ```
 
-Or you can use the `downloadModel` function, where you can pass in the authorization token:
-```typescript
-import { downloadModel, Chat } from "react-native-nobodywho";
-
-const modelPath = await downloadModel({
-  modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
-  headers: { Authorization: "Bearer your_hf_token" },
-});
-
-const chat = await Chat.fromPath({ modelPath });
-```
-
-The token can be then generated in [your account settings](https://huggingface.co/settings/tokens).
-
 ## Tracking download progress
 
 When loading a remote model (e.g. via a `huggingface:` or `https://` path), pass an `onDownloadProgress` option to observe the download. It receives `(downloaded, total)` byte counts, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.

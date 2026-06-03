@@ -13,21 +13,18 @@ permissions:
 
 jobs:
   generate-and-check:
-    runs-on: ubuntu-24.04
+    if: inputs.full_ci
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v5
 
-      - name: "Cache Cargo Home"
-        uses: actions/cache@v5
+      - name: "Download uniffi Linux x86_64 artifact"
+        uses: actions/download-artifact@v5
         with:
-          path: |
-            ~/.cargo
-            nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-host-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-host-
+          name: nobodywho-uniffi-x86_64-unknown-linux-gnu-release
+          path: ./native-lib
 
-      - name: "Setup rust toolchain"
+      - name: "Setup Rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           . "$HOME/.cargo/env"
@@ -39,10 +36,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-
-      - name: "Build uniffi crate for host"
-        working-directory: ./nobodywho
-        run: cargo build -p nobodywho-uniffi --locked
 
       - name: "Setup Node.js"
         uses: actions/setup-node@v5
@@ -60,7 +53,7 @@ jobs:
             --library \
             --ts-dir react-native/generated/ts \
             --cpp-dir react-native/generated/cpp \
-            target/debug/libnobodywho_uniffi.so
+            ${{ github.workspace }}/native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so
 
       - name: "Verify committed generated files are up to date"
         working-directory: ./nobodywho/react-native

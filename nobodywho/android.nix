@@ -7,10 +7,12 @@ let
   androidEnv = android-nixpkgs.sdk.${stdenv.system} (
     sdkPkgs: with sdkPkgs; [
       cmdline-tools-latest
+      build-tools-34-0-0 # needed by AGP 8.7.x
       build-tools-35-0-0 # needed by our version of flutter
       platform-tools
       # platforms-android-33 # needed by our version of flutter
       # platforms-android-34 # needed by our version of flutter
+      platforms-android-35 # needed by kotlin bindings
       platforms-android-36 # needed by our version of flutter
       ndk-28-2-13676358 # needed by our version of flutter
       cmake-3-22-1 # needed for native builds
@@ -38,7 +40,6 @@ pkgs.mkShell {
     CARGO_TARGET_X86_64_LINUX_ANDROID_AR = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar";
     ANDROID_HOME = "${androidEnv}/share/android-sdk";
     ANDROID_SDK_ROOT = "${androidEnv}/share/android-sdk";
-    JAVA_HOME = "${pkgs.jdk17}";
   };
   buildInputs = [
     androidEnv

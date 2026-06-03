@@ -14,6 +14,8 @@ pkgs.mkShell {
     # the extension.
     LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
 
+    JAVA_HOME = "${pkgs.jdk17}";
+
     # walkingeyerobot's Emscripten fork looks up wasm-bindgen-cli via the
     # `WASM_BINDGEN` key of its ~/.emscripten config file. The standard
     # env-var override is `EM_<KEY>` — set it here so emcc finds the cli
@@ -31,10 +33,6 @@ pkgs.mkShell {
     #     https://github.com/nobodywho-ooo/wasm-bindgen.git
     #   ( cd wasm-bindgen && cargo install --path crates/cli \
     #     --root /tmp/wbg-patched --locked )
-    #
-    # If the patches change, refresh the in-repo .patch from the branch:
-    #   ( cd wasm-bindgen && git format-patch -1 HEAD --stdout \
-    #     > /path/to/nobodywho/wasm-bindgen-cli-emscripten.patch )
     #
     # Once the patches land upstream, switch this back to the
     # Nix-store cli:
@@ -58,9 +56,9 @@ pkgs.mkShell {
     pkgs.vulkan-loader
     pkgs.shaderc
 
-    # for android
-    # android-sdk
-    # pkgs.openjdk11-bootstrap
+    # for kotlin/gradle
+    pkgs.jdk17
+    pkgs.gradle
 
     # for mkdocs
     pkgs.python3Packages.mkdocs

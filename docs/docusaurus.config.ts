@@ -6,6 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // at /<binding>/. Bumping this requires a matching snapshot in
 // `<binding>_versioned_docs/` (see docs/README.md).
 const latestReleases: Record<string, string> = {
+  kotlin: '1.1.0',
   python: '1.4.0',
   swift: '2.0.1',
   'react-native': '2.2.0',
@@ -30,7 +31,7 @@ const config: Config = {
   clientModules: ['./src/github-stars.js'],
 
   title: 'NobodyWho',
-  tagline: 'Local-first LLM inference for Swift, Python, Godot, Flutter, React Native, and JavaScript',
+  tagline: 'Local-first LLM inference for Kotlin, Swift, Python, Godot, Flutter, React Native, and JavaScript',
   favicon: 'img/favicon.ico',
 
   url: 'https://docs.nobodywho.ooo',
@@ -93,7 +94,7 @@ const config: Config = {
       {
         hashed: true,
         indexBlog: false,
-        docsRouteBasePath: ['docs', 'python', 'swift', 'react-native', 'flutter', 'godot', 'js'],
+        docsRouteBasePath: ['docs', 'kotlin', 'python', 'swift', 'react-native', 'flutter', 'godot', 'js'],
       },
     ],
   ],
@@ -102,6 +103,16 @@ const config: Config = {
     // LLM-friendly output (llms.txt and llms-full.txt)
     './plugins/llms-txt/index.js',
     // ---- Per-binding docs instances (independently versioned) ----
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'kotlin',
+        path: 'docs-kotlin',
+        routeBasePath: 'kotlin',
+        sidebarPath: './sidebars/kotlin.ts',
+        ...sdkDocsConfig('kotlin'),
+      },
+    ],
     [
       '@docusaurus/plugin-content-docs',
       {
@@ -184,6 +195,7 @@ const config: Config = {
           label: 'Basics',
         },
         // Per-binding links
+        {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/'},
         {to: '/python/', label: 'Python', position: 'left', activeBaseRegex: '/python/'},
         {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/'},
         {to: '/react-native/', label: 'React Native', position: 'left', activeBaseRegex: '/react-native/'},
@@ -211,7 +223,7 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'dart', 'swift', 'json', 'toml'],
+      additionalLanguages: ['bash', 'dart', 'kotlin', 'swift', 'json', 'toml'],
     },
   } satisfies Preset.ThemeConfig,
 };

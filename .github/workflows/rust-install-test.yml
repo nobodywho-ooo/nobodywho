@@ -18,7 +18,7 @@ on:
 jobs:
   ubuntu:
     name: "Ubuntu (apt)"
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
 
@@ -87,7 +87,7 @@ jobs:
 
   nix:
     name: "Nix"
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
 
