@@ -30,7 +30,7 @@ impl DecodedAudio {
     /// Multi-channel audio is downmixed to mono by averaging all channels.
     pub fn from_file(path: &Path) -> Result<Self, SttError> {
         let mut format = probe_format(path)?;
-        let mut info = find_track(format.as_mut())?;
+        let mut info = TrackInfo::from_format(format.as_mut())?;
         let samples = decode_packets(format.as_mut(), &mut info)?;
         Ok(Self {
             samples,
@@ -79,6 +79,29 @@ struct TrackInfo {
     decoder: Box<dyn symphonia::core::codecs::Decoder>,
 }
 
+impl TrackInfo {
+    fn from_format(format: &mut dyn FormatReader) -> Result<Self, SttError> {
+        let track = format
+            .tracks()
+            .iter()
+            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .ok_or_else(|| SttError::Audio("no audio track found".into()))?;
+
+        let sample_rate = track
+            .codec_params
+            .sample_rate
+            .ok_or_else(|| SttError::Audio("unknown sample rate".into()))?;
+        let n_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
+        let track_id = track.id;
+
+        let decoder = symphonia::default::get_codecs()
+            .make(&track.codec_params, &DecoderOptions::default())
+            .map_err(|e| SttError::Audio(format!("decoder init: {e}")))?;
+
+        Ok(Self { sample_rate, n_channels, track_id, decoder })
+    }
+}
+
 fn probe_format(path: &Path) -> Result<Box<dyn FormatReader>, SttError> {
     let file = std::fs::File::open(path)
         .map_err(|e| SttError::Audio(format!("open {}: {e}", path.display())))?;
@@ -100,31 +123,6 @@ fn probe_format(path: &Path) -> Result<Box<dyn FormatReader>, SttError> {
         .map_err(|e| SttError::Audio(format!("probe {}: {e}", path.display())))
 }
 
-fn find_track(format: &mut dyn FormatReader) -> Result<TrackInfo, SttError> {
-    let track = format
-        .tracks()
-        .iter()
-        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-        .ok_or_else(|| SttError::Audio("no audio track found".into()))?;
-
-    let sample_rate = track
-        .codec_params
-        .sample_rate
-        .ok_or_else(|| SttError::Audio("unknown sample rate".into()))?;
-    let n_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
-    let track_id = track.id;
-
-    let decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &DecoderOptions::default())
-        .map_err(|e| SttError::Audio(format!("decoder init: {e}")))?;
-
-    Ok(TrackInfo {
-        sample_rate,
-        n_channels,
-        track_id,
-        decoder,
-    })
-}
 
 /// Iterator over packets belonging to a specific track, hiding EOF and
 /// wrong-track packets from the caller.
