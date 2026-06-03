@@ -1,62 +1,10 @@
-//! Speech-to-text transcription using Whisper via ONNX Runtime.
-//!
-//! [`Stt::new`] takes an [`SttConfig`] pointing at either a local directory
-//! or a HuggingFace Hub repo ID (`owner/repo`). HF repos are downloaded into
-//! the user's cache on first use, then reused.
-//!
-//! ```no_run
-//! # use nobodywho::stt::{Stt, SttConfig};
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let stt = Stt::new(SttConfig::whisper("onnx-community/whisper-base"))?;
-//! let text = stt.transcribe_file("recording.wav")?;
-//! # let _ = text;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! Override language (ISO 639-1 code; default is auto-detect):
-//!
-//! ```no_run
-//! # use nobodywho::stt::{Stt, SttConfig, WhisperConfig};
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut cfg = WhisperConfig::new("onnx-community/whisper-base");
-//! cfg.language = Some("en".into());
-//! let stt = Stt::new(SttConfig::Whisper(cfg))?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! Pass raw i16 PCM from a microphone stream (e.g. Flutter `mic_stream` or
-//! React Native `voice-processor`):
-//!
-//! ```no_run
-//! # use nobodywho::stt::{Stt, SttConfig};
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let stt = Stt::new(SttConfig::whisper("onnx-community/whisper-base"))?;
-//! # let mic_chunks: Vec<i16> = vec![];
-//! let text = stt.transcribe_pcm(mic_chunks, 16_000)?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! From an async context use the `_async` variants:
-//!
-//! ```no_run
-//! # use nobodywho::stt::{Stt, SttConfig};
-//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let stt = Stt::new(SttConfig::whisper("onnx-community/whisper-base"))?;
-//! let text = stt.transcribe_file_async("recording.mp3").await?;
-//! # Ok(())
-//! # }
-//! ```
-
 pub(crate) mod audio;
 mod backend;
 mod backends;
 
 use crate::errors::SttError;
-pub use backends::WhisperConfig;
 pub use crate::onnx::Device;
+pub use backends::WhisperConfig;
 use std::path::PathBuf;
 use std::sync::mpsc;
 
@@ -78,7 +26,10 @@ enum AudioInput {
     Pcm { samples: Vec<i16>, sample_rate: u32 },
 }
 
-type SttRequest = (AudioInput, tokio::sync::mpsc::Sender<Result<String, SttError>>);
+type SttRequest = (
+    AudioInput,
+    tokio::sync::mpsc::Sender<Result<String, SttError>>,
+);
 
 /// STT handle. Transcription runs on a background worker thread.
 ///
@@ -142,14 +93,13 @@ impl Stt {
     ///
     /// `sample_rate` is the capture rate (e.g. 16000, 44100). The backend
     /// resamples to 16 kHz internally if needed. Blocks until complete.
-    pub fn transcribe_pcm(
-        &self,
-        samples: Vec<i16>,
-        sample_rate: u32,
-    ) -> Result<String, SttError> {
-        self.enqueue(AudioInput::Pcm { samples, sample_rate })?
-            .blocking_recv()
-            .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
+    pub fn transcribe_pcm(&self, samples: Vec<i16>, sample_rate: u32) -> Result<String, SttError> {
+        self.enqueue(AudioInput::Pcm {
+            samples,
+            sample_rate,
+        })?
+        .blocking_recv()
+        .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
     }
 
     /// Transcribe raw i16 PCM samples asynchronously.
@@ -158,9 +108,12 @@ impl Stt {
         samples: Vec<i16>,
         sample_rate: u32,
     ) -> Result<String, SttError> {
-        self.enqueue(AudioInput::Pcm { samples, sample_rate })?
-            .recv()
-            .await
-            .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
+        self.enqueue(AudioInput::Pcm {
+            samples,
+            sample_rate,
+        })?
+        .recv()
+        .await
+        .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
     }
 }
