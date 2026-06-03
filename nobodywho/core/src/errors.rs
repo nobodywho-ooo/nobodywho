@@ -141,8 +141,6 @@ pub enum GetCacheDirError {
     NoPackageName,
 }
 
-// `walkdir` is native-only (lives in the cfg(not(wasm)) deps block), and this
-// error is only produced by `get_cached_models`, which is itself wasm-gated.
 #[cfg(not(target_family = "wasm"))]
 #[derive(Debug, thiserror::Error)]
 pub enum GetCachedModelsError {
