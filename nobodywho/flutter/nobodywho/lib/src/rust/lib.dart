@@ -296,6 +296,38 @@ abstract class RustChat implements RustOpaqueInterface {
   void stopGeneration();
 }
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTT>>
+abstract class RustStt implements RustOpaqueInterface {
+  /// Create an STT handle.
+  /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
+  /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
+  static RustStt new_({required String source, String? language = null}) =>
+      NobodyWho.instance.api.crateRustSttNew(
+        source: source,
+        language: language,
+      );
+
+  /// Transcribe an audio file (WAV / MP3 / FLAC).
+  RustSttStream transcribeFile({required String path});
+
+  /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
+  /// `sample_rate` is the capture rate in Hz; resampled to 16 kHz internally.
+  RustSttStream transcribePcm({
+    required List<int> samples,
+    required int sampleRate,
+  });
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTTStream>>
+abstract class RustSttStream implements RustOpaqueInterface {
+  Future<String> completed();
+
+  /// Stream all tokens into `sink`. Resolves when transcription is complete.
+  Stream<String> iter();
+
+  Future<String?> nextToken();
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>
 abstract class RustTokenStream implements RustOpaqueInterface {
   Future<String> completed();

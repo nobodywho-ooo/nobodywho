@@ -98,7 +98,12 @@ impl TrackInfo {
             .make(&track.codec_params, &DecoderOptions::default())
             .map_err(|e| SttError::Audio(format!("decoder init: {e}")))?;
 
-        Ok(Self { sample_rate, n_channels, track_id, decoder })
+        Ok(Self {
+            sample_rate,
+            n_channels,
+            track_id,
+            decoder,
+        })
     }
 }
 
@@ -122,7 +127,6 @@ fn probe_format(path: &Path) -> Result<Box<dyn FormatReader>, SttError> {
         .map(|probed| probed.format)
         .map_err(|e| SttError::Audio(format!("probe {}: {e}", path.display())))
 }
-
 
 /// Iterator over packets belonging to a specific track, hiding EOF and
 /// wrong-track packets from the caller.
@@ -211,7 +215,11 @@ impl AudioResampler {
         if audio.sample_rate == self.target_rate {
             return Ok(audio);
         }
-        let AudioResampler { target_rate, chunk_size, sinc_params } = self;
+        let AudioResampler {
+            target_rate,
+            chunk_size,
+            sinc_params,
+        } = self;
         let ratio = target_rate as f64 / audio.sample_rate as f64;
         let mut resampler = SincFixedIn::<f32>::new(ratio, 2.0, sinc_params, chunk_size, 1)
             .map_err(|e| SttError::Audio(format!("resampler init: {e}")))?;
@@ -220,10 +228,17 @@ impl AudioResampler {
         for chunk in audio.samples.chunks(chunk_size) {
             output.extend(Self::resample_chunk(&mut resampler, chunk, chunk_size)?);
         }
-        Ok(DecodedAudio { samples: output, sample_rate: target_rate })
+        Ok(DecodedAudio {
+            samples: output,
+            sample_rate: target_rate,
+        })
     }
 
-    fn resample_chunk(resampler: &mut SincFixedIn<f32>, chunk: &[f32], chunk_size: usize) -> Result<Vec<f32>, SttError> {
+    fn resample_chunk(
+        resampler: &mut SincFixedIn<f32>,
+        chunk: &[f32],
+        chunk_size: usize,
+    ) -> Result<Vec<f32>, SttError> {
         let mut padded = chunk.to_vec();
         padded.resize(chunk_size, 0.0);
         resampler
@@ -240,7 +255,10 @@ mod tests {
     const WINDOW_SAMPLES: usize = 480_000;
 
     fn audio(samples: Vec<f32>) -> DecodedAudio {
-        DecodedAudio { samples, sample_rate: 16_000 }
+        DecodedAudio {
+            samples,
+            sample_rate: 16_000,
+        }
     }
 
     #[test]

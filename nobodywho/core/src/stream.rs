@@ -31,7 +31,10 @@ impl<E> TokenStream<E> {
         }
         match self.rx.blocking_recv() {
             Some(StreamOutput::Token(t)) => Ok(Some(t)),
-            Some(StreamOutput::Done(text)) => { self.done = Some(text); Ok(None) }
+            Some(StreamOutput::Done(text)) => {
+                self.done = Some(text);
+                Ok(None)
+            }
             Some(StreamOutput::Error(e)) => Err(e),
             None => Ok(None),
         }
@@ -65,7 +68,10 @@ impl<E> TokenStreamAsync<E> {
         }
         match self.rx.recv().await {
             Some(StreamOutput::Token(t)) => Ok(Some(t)),
-            Some(StreamOutput::Done(text)) => { self.done = Some(text); Ok(None) }
+            Some(StreamOutput::Done(text)) => {
+                self.done = Some(text);
+                Ok(None)
+            }
             Some(StreamOutput::Error(e)) => Err(e),
             None => Ok(None),
         }

@@ -10,7 +10,11 @@ use tracing::info;
 pub(super) trait SttBackendImpl: Send {
     /// Transcribe a single 30-second window of 16 kHz mono f32 samples.
     /// `on_token` is called with each decoded token piece as it is generated.
-    fn transcribe_window(&mut self, window: &[f32], on_token: &mut dyn FnMut(String)) -> Result<String, SttError>;
+    fn transcribe_window(
+        &mut self,
+        window: &[f32],
+        on_token: &mut dyn FnMut(String),
+    ) -> Result<String, SttError>;
 }
 
 pub(super) fn load_backend(
@@ -21,11 +25,8 @@ pub(super) fn load_backend(
         SttConfig::Whisper(config) => {
             let init_start = Instant::now();
             let model_dir = huggingface::resolve(huggingface::parse(&config.source)?)?;
-            let backend = backends::WhisperBackend::new(
-                &model_dir,
-                config.language.as_deref(),
-                device,
-            )?;
+            let backend =
+                backends::WhisperBackend::new(&model_dir, config.language.as_deref(), device)?;
             info!(elapsed = ?init_start.elapsed(), "Initialized Whisper STT");
             Ok(Box::new(backend))
         }
@@ -36,9 +37,10 @@ fn decode_input(input: AudioInput) -> Result<Vec<Vec<f32>>, SttError> {
     Ok(audio::AudioResampler::default()
         .resample(match input {
             AudioInput::File(path) => audio::DecodedAudio::from_file(&path)?,
-            AudioInput::Pcm { samples, sample_rate } => {
-                audio::DecodedAudio::from_pcm_i16(&samples, sample_rate)
-            }
+            AudioInput::Pcm {
+                samples,
+                sample_rate,
+            } => audio::DecodedAudio::from_pcm_i16(&samples, sample_rate),
         })?
         .into_windows())
 }

@@ -416,6 +416,86 @@ impl RustTokenStream {
     }
 }
 
+// ---------------------------------------------------------------------------
+// STT
+// ---------------------------------------------------------------------------
+
+/// Speech-to-text handle. Create with `RustSTT.new_()`, then call
+/// `transcribeFile` or `transcribePcm` to get a `RustSTTStream`.
+#[flutter_rust_bridge::frb(opaque)]
+pub struct RustSTT {
+    stt: nobodywho::stt::Stt,
+}
+
+impl RustSTT {
+    /// Create an STT handle.
+    /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
+    /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new_(
+        source: String,
+        #[frb(default = "null")] language: Option<String>,
+    ) -> Result<Self, String> {
+        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+        cfg.language = language;
+        let stt = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
+            .map_err(|e| e.to_string())?;
+        Ok(Self { stt })
+    }
+
+    /// Transcribe an audio file (WAV / MP3 / FLAC).
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn transcribe_file(&self, path: String) -> Result<RustSTTStream, String> {
+        let stream = self.stt.transcribe_file_stream_async(path)
+            .map_err(|e| e.to_string())?;
+        Ok(RustSTTStream { stream })
+    }
+
+    /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
+    /// `sample_rate` is the capture rate in Hz; resampled to 16 kHz internally.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn transcribe_pcm(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+    ) -> Result<RustSTTStream, String> {
+        let stream = self.stt.transcribe_pcm_stream_async(samples, sample_rate)
+            .map_err(|e| e.to_string())?;
+        Ok(RustSTTStream { stream })
+    }
+}
+
+/// A stream of transcript tokens. Consume via `iter(sink)`, `nextToken()`, or `completed()`.
+#[flutter_rust_bridge::frb(opaque)]
+pub struct RustSTTStream {
+    stream: nobodywho::stt::TokenStreamAsync<nobodywho::errors::SttError>,
+}
+
+impl RustSTTStream {
+    /// Stream all tokens into `sink`. Resolves when transcription is complete.
+    pub async fn iter(
+        &mut self,
+        sink: crate::frb_generated::StreamSink<String>,
+    ) -> Result<(), String> {
+        loop {
+            match self.stream.next_token().await {
+                Ok(Some(piece)) => sink.add(piece).map_err(|e| e.to_string())?,
+                Ok(None) => break,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn next_token(&mut self) -> Result<Option<String>, String> {
+        self.stream.next_token().await.map_err(|e| e.to_string())
+    }
+
+    pub async fn completed(&mut self) -> Result<String, String> {
+        self.stream.completed().await.map_err(|e| e.to_string())
+    }
+}
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct Encoder {
     handle: nobodywho::encoder::EncoderAsync,

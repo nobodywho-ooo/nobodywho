@@ -76,7 +76,10 @@ impl Stt {
         Ok(Self { msg_tx })
     }
 
-    fn enqueue(&self, input: AudioInput) -> Result<tokio::sync::mpsc::Receiver<Result<String, SttError>>, SttError> {
+    fn enqueue(
+        &self,
+        input: AudioInput,
+    ) -> Result<tokio::sync::mpsc::Receiver<Result<String, SttError>>, SttError> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         self.msg_tx
             .send((input, SttResponseChannel::Full(tx)))
@@ -84,7 +87,10 @@ impl Stt {
         Ok(rx)
     }
 
-    fn enqueue_stream(&self, input: AudioInput) -> Result<UnboundedReceiver<StreamOutput<SttError>>, SttError> {
+    fn enqueue_stream(
+        &self,
+        input: AudioInput,
+    ) -> Result<UnboundedReceiver<StreamOutput<SttError>>, SttError> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         self.msg_tx
             .send((input, SttResponseChannel::Stream(tx)))
@@ -100,39 +106,80 @@ impl Stt {
             .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
     }
 
-    pub async fn transcribe_file_async(&self, path: impl Into<PathBuf>) -> Result<String, SttError> {
+    pub async fn transcribe_file_async(
+        &self,
+        path: impl Into<PathBuf>,
+    ) -> Result<String, SttError> {
         self.enqueue(AudioInput::File(path.into()))?
-            .recv().await
+            .recv()
+            .await
             .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
     }
 
     pub fn transcribe_pcm(&self, samples: Vec<i16>, sample_rate: u32) -> Result<String, SttError> {
-        self.enqueue(AudioInput::Pcm { samples, sample_rate })?
-            .blocking_recv()
-            .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
+        self.enqueue(AudioInput::Pcm {
+            samples,
+            sample_rate,
+        })?
+        .blocking_recv()
+        .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
     }
 
-    pub async fn transcribe_pcm_async(&self, samples: Vec<i16>, sample_rate: u32) -> Result<String, SttError> {
-        self.enqueue(AudioInput::Pcm { samples, sample_rate })?
-            .recv().await
-            .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
+    pub async fn transcribe_pcm_async(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+    ) -> Result<String, SttError> {
+        self.enqueue(AudioInput::Pcm {
+            samples,
+            sample_rate,
+        })?
+        .recv()
+        .await
+        .ok_or_else(|| SttError::Transcription("stt worker dropped response sender".into()))?
     }
 
     // --- Streaming ---
 
-    pub fn transcribe_file_stream(&self, path: impl Into<PathBuf>) -> Result<TokenStream<SttError>, SttError> {
-        Ok(TokenStream::new(self.enqueue_stream(AudioInput::File(path.into()))?))
+    pub fn transcribe_file_stream(
+        &self,
+        path: impl Into<PathBuf>,
+    ) -> Result<TokenStream<SttError>, SttError> {
+        Ok(TokenStream::new(
+            self.enqueue_stream(AudioInput::File(path.into()))?,
+        ))
     }
 
-    pub fn transcribe_file_stream_async(&self, path: impl Into<PathBuf>) -> Result<TokenStreamAsync<SttError>, SttError> {
-        Ok(TokenStreamAsync::new(self.enqueue_stream(AudioInput::File(path.into()))?))
+    pub fn transcribe_file_stream_async(
+        &self,
+        path: impl Into<PathBuf>,
+    ) -> Result<TokenStreamAsync<SttError>, SttError> {
+        Ok(TokenStreamAsync::new(
+            self.enqueue_stream(AudioInput::File(path.into()))?,
+        ))
     }
 
-    pub fn transcribe_pcm_stream(&self, samples: Vec<i16>, sample_rate: u32) -> Result<TokenStream<SttError>, SttError> {
-        Ok(TokenStream::new(self.enqueue_stream(AudioInput::Pcm { samples, sample_rate })?))
+    pub fn transcribe_pcm_stream(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+    ) -> Result<TokenStream<SttError>, SttError> {
+        Ok(TokenStream::new(self.enqueue_stream(AudioInput::Pcm {
+            samples,
+            sample_rate,
+        })?))
     }
 
-    pub fn transcribe_pcm_stream_async(&self, samples: Vec<i16>, sample_rate: u32) -> Result<TokenStreamAsync<SttError>, SttError> {
-        Ok(TokenStreamAsync::new(self.enqueue_stream(AudioInput::Pcm { samples, sample_rate })?))
+    pub fn transcribe_pcm_stream_async(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+    ) -> Result<TokenStreamAsync<SttError>, SttError> {
+        Ok(TokenStreamAsync::new(self.enqueue_stream(
+            AudioInput::Pcm {
+                samples,
+                sample_rate,
+            },
+        )?))
     }
 }

@@ -1964,6 +1964,150 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
         .collect()
 }
 
+// ---------------------------------------------------------------------------
+// NobodyWhoSTT
+// ---------------------------------------------------------------------------
+
+/// NobodyWhoSTT is a Godot node for local speech-to-text using Whisper.
+///
+/// Set `model_path` to a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`)
+/// or a local directory path, then call `transcribe_file()` or `transcribe_pcm()`.
+/// Tokens stream out via the `transcription_updated` signal; the full transcript
+/// arrives via `transcription_finished`.
+///
+/// Example::
+///
+///     extends NobodyWhoSTT
+///
+///     func _ready():
+///         model_path = "onnx-community/whisper-base"
+///         transcription_updated.connect(func(piece): $Label.text += piece)
+///         transcription_finished.connect(func(text): print("Done:", text))
+///         transcribe_file("res://recording.wav")
+///
+#[derive(GodotClass)]
+#[class(base=Node)]
+struct NobodyWhoSTT {
+    #[export]
+    /// HuggingFace repo ID or local directory path for the Whisper ONNX model.
+    model_path: GString,
+
+    #[export]
+    /// ISO 639-1 language code (e.g. "en"). Leave empty for auto-detection.
+    language: GString,
+
+    stt: Option<nobodywho::stt::Stt>,
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoSTT {
+    fn init(base: Base<Node>) -> Self {
+        Self {
+            model_path: GString::from(""),
+            language: GString::from(""),
+            stt: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoSTT {
+    #[signal]
+    /// Emitted for each decoded token piece as transcription progresses.
+    fn transcription_updated(piece: GString);
+
+    #[signal]
+    /// Emitted when transcription is complete. Contains the full transcript.
+    fn transcription_finished(text: GString);
+
+    #[signal]
+    /// Emitted if loading the model or transcription fails.
+    fn worker_failed(error: GString);
+
+    fn ensure_stt(&mut self) -> Result<nobodywho::stt::Stt, GString> {
+        if let Some(stt) = &self.stt {
+            return Ok(stt.clone());
+        }
+        let source = self.model_path.to_string();
+        if source.is_empty() {
+            return Err(GString::from("model_path is not set"));
+        }
+        let language: Option<String> = {
+            let s = self.language.to_string();
+            if s.is_empty() { None } else { Some(s) }
+        };
+        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+        cfg.language = language;
+        let stt = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
+            .map_err(|e| GString::from(e.to_string().as_str()))?;
+        self.stt = Some(stt.clone());
+        Ok(stt)
+    }
+
+    fn spawn_transcription(emit_node: Gd<Self>, stt: nobodywho::stt::Stt, input: TranscriptionInput) {
+        godot::task::spawn(async move {
+            let stream_result = match input {
+                TranscriptionInput::File(path) => stt.transcribe_file_stream_async(path),
+                TranscriptionInput::Pcm { samples, sample_rate } => {
+                    stt.transcribe_pcm_stream_async(samples, sample_rate)
+                }
+            };
+            let mut stream = match stream_result {
+                Ok(s) => s,
+                Err(e) => {
+                    emit_node.signals().worker_failed().emit(&GString::from(e.to_string().as_str()));
+                    return;
+                }
+            };
+            loop {
+                match stream.next_token().await {
+                    Ok(Some(piece)) => emit_node.signals().transcription_updated().emit(&GString::from(piece.as_str())),
+                    Ok(None) => break,
+                    Err(e) => {
+                        emit_node.signals().worker_failed().emit(&GString::from(e.to_string().as_str()));
+                        return;
+                    }
+                }
+            }
+            let full = stream.completed().await.unwrap_or_default();
+            emit_node.signals().transcription_finished().emit(&GString::from(full.as_str()));
+        });
+    }
+
+    #[func]
+    /// Transcribe an audio file (WAV / MP3 / FLAC). Downloads the model on first call.
+    fn transcribe_file(&mut self, path: String) {
+        let stt = match self.ensure_stt() {
+            Ok(s) => s,
+            Err(e) => { self.signals().worker_failed().emit(&e); return; }
+        };
+        Self::spawn_transcription(self.to_gd(), stt, TranscriptionInput::File(path));
+    }
+
+    #[func]
+    /// Transcribe raw i16 PCM samples (e.g. from a microphone).
+    /// `samples` is a `PackedByteArray` of interleaved i16 samples.
+    /// `sample_rate` is the capture rate in Hz (e.g. 44100).
+    fn transcribe_pcm(&mut self, samples: PackedByteArray, sample_rate: u32) {
+        let stt = match self.ensure_stt() {
+            Ok(s) => s,
+            Err(e) => { self.signals().worker_failed().emit(&e); return; }
+        };
+        let bytes = samples.to_vec();
+        let samples_i16: Vec<i16> = bytes.chunks_exact(2)
+            .map(|b| i16::from_le_bytes([b[0], b[1]]))
+            .collect();
+        Self::spawn_transcription(self.to_gd(), stt, TranscriptionInput::Pcm { samples: samples_i16, sample_rate });
+    }
+}
+
+enum TranscriptionInput {
+    File(String),
+    Pcm { samples: Vec<i16>, sample_rate: u32 },
+}
+
 // LOGGING
 
 // Writer that forwards to Godot logging

@@ -10,8 +10,8 @@
 //! input length the voice has a style row for.
 
 use crate::errors::TtsError;
-use crate::tts::backend::TtsBackendImpl;
 use crate::onnx::Device as TtsDevice;
+use crate::tts::backend::TtsBackendImpl;
 use crate::tts::DEFAULT_SAMPLE_RATE;
 use espeak_ng::Translator;
 use ort::session::Session;

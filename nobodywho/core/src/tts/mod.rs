@@ -47,9 +47,9 @@ mod backend;
 mod backends;
 
 use crate::errors::TtsError;
-pub use backends::KokoroConfig;
 /// Re-export the shared ONNX device enum under the TTS-facing name.
 pub use crate::onnx::Device as TtsDevice;
+pub use backends::KokoroConfig;
 use std::sync::mpsc;
 
 /// Backend selection and model directory for a [`Tts`] handle.

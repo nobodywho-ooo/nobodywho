@@ -867,7 +867,8 @@ pub type TokenStreamAsync = crate::stream::TokenStreamAsync<crate::errors::Compl
 /// forwarder to serve the generic `TokenStream`.
 fn forward_write_output(
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
-) -> tokio::sync::mpsc::UnboundedReceiver<crate::stream::StreamOutput<crate::errors::CompletionError>> {
+) -> tokio::sync::mpsc::UnboundedReceiver<crate::stream::StreamOutput<crate::errors::CompletionError>>
+{
     let (tx, new_rx) = tokio::sync::mpsc::unbounded_channel();
     tokio::spawn(async move {
         let mut rx = rx;
@@ -879,7 +880,9 @@ fn forward_write_output(
                     crate::errors::CompletionError::WorkerError(e),
                 ),
             };
-            if tx.send(item).is_err() { break; }
+            if tx.send(item).is_err() {
+                break;
+            }
         }
     });
     new_rx

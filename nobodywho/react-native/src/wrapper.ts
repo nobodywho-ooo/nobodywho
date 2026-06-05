@@ -13,6 +13,7 @@
 // Wrapper classes
 export { Model } from "./model";
 export { Chat } from "./chat";
+export { STT } from "./stt";
 export { Encoder } from "./encoder";
 export { CrossEncoder } from "./cross_encoder";
 export { Prompt } from "./prompt";

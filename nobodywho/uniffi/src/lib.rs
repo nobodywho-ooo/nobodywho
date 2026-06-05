@@ -463,6 +463,75 @@ impl RustChat {
     }
 }
 
+// ---------- RustSTT ----------
+
+/// Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
+/// Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+#[derive(uniffi::Object)]
+pub struct RustSTT {
+    inner: nobodywho::stt::Stt,
+}
+
+#[uniffi::export]
+impl RustSTT {
+    /// Create an STT handle. `source` is a HuggingFace repo ID
+    /// (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+    /// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+    #[uniffi::constructor]
+    pub fn new(source: String, language: Option<String>) -> Result<Arc<Self>, NobodyWhoError> {
+        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+        cfg.language = language;
+        let inner = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
+            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
+        Ok(Arc::new(Self { inner }))
+    }
+
+    /// Start transcribing an audio file (WAV / MP3 / FLAC).
+    /// Returns a `RustSTTStream` to consume tokens as they are generated.
+    pub fn transcribe_file(&self, path: String) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
+        let stream = self.inner
+            .transcribe_file_stream_async(path)
+            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
+        Ok(Arc::new(RustSTTStream { inner: tokio::sync::Mutex::new(stream) }))
+    }
+
+    /// Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
+    /// `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
+    pub fn transcribe_pcm(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+    ) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
+        let stream = self.inner
+            .transcribe_pcm_stream_async(samples, sample_rate)
+            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
+        Ok(Arc::new(RustSTTStream { inner: tokio::sync::Mutex::new(stream) }))
+    }
+}
+
+// ---------- RustSTTStream ----------
+
+/// A stream of transcript tokens from a Whisper STT run.
+#[derive(uniffi::Object)]
+pub struct RustSTTStream {
+    inner: tokio::sync::Mutex<nobodywho::stt::TokenStreamAsync<nobodywho::errors::SttError>>,
+}
+
+#[uniffi::export]
+impl RustSTTStream {
+    /// Get the next transcript token. Returns `None` when transcription is complete.
+    pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
+        self.inner.lock().await.next_token().await
+            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })
+    }
+
+    /// Wait for transcription to finish and return the full transcript.
+    pub async fn completed(&self) -> Result<String, NobodyWhoError> {
+        self.inner.lock().await.completed().await
+            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })
+    }
+}
+
 // ---------- RustTokenStream ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `TokenStream`).
 
