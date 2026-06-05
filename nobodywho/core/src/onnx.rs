@@ -4,6 +4,7 @@
 //! around [`ort`] session construction so each backend doesn't repeat the
 //! boilerplate.
 
+use ort::ep::{ExecutionProvider, ExecutionProviderDispatch, CPU, CUDA};
 use ort::session::builder::SessionBuilder;
 use ort::session::Session;
 use std::path::Path;
@@ -21,17 +22,21 @@ pub enum Device {
 ///
 /// CPU is always appended alongside CUDA as a per-op fallback — some ops lack
 /// CUDA kernels, so CUDA still handles what it supports while CPU covers the rest.
-pub fn execution_providers(device: Device) -> Vec<ort::ep::ExecutionProviderDispatch> {
+pub fn execution_providers(device: Device) -> Vec<ExecutionProviderDispatch> {
     match device {
         Device::Cuda => vec![
-            ort::ep::CUDA::default().build().error_on_failure(),
-            ort::ep::CPU::default().build(),
+            CUDA::default().build().error_on_failure(),
+            CPU::default().build(),
         ],
-        Device::Cpu => vec![ort::ep::CPU::default().build()],
-        Device::Auto => vec![
-            ort::ep::CUDA::default().build().fail_silently(),
-            ort::ep::CPU::default().build(),
-        ],
+        Device::Cpu => vec![CPU::default().build()],
+        Device::Auto => {
+            let mut eps: Vec<ExecutionProviderDispatch> = Vec::new();
+            if CUDA::default().is_available().unwrap_or(false) {
+                eps.push(CUDA::default().build().fail_silently());
+            }
+            eps.push(CPU::default().build());
+            eps
+        }
     }
 }
 

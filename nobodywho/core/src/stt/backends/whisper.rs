@@ -96,27 +96,24 @@ impl KVCache {
         Ok(Self(entries))
     }
 
-    /// Produce the ONNX inputs for the cache state: `use_cache_branch`
-    /// (derived from whether the cache is populated) followed by one tensor
-    /// per KV entry.
-    fn to_inputs(
+    /// Convert each KV entry to an ONNX tensor, using `num_heads` and `head_dim`
+    /// to reconstruct the `[1, num_heads, seq_len, head_dim]` shape from the
+    /// flat data length.
+    fn as_tensors(
         &self,
         num_heads: usize,
         head_dim: usize,
     ) -> Result<Vec<(Cow<'static, str>, DynValue)>, SttError> {
-        let mut inputs: Vec<(Cow<'static, str>, DynValue)> = vec![(
-            "use_cache_branch".into(),
-            Tensor::from_array(([1usize], vec![!self.is_empty()]))?.into_dyn(),
-        )];
-        for (name, data) in self {
-            let seq_len = data.len() / (num_heads * head_dim);
-            let tensor = Tensor::from_array((
-                [1i64, num_heads as i64, seq_len as i64, head_dim as i64],
-                data.clone(),
-            ))?;
-            inputs.push((name.clone().into(), tensor.into_dyn()));
-        }
-        Ok(inputs)
+        self.iter()
+            .map(|(name, data)| {
+                let seq_len = data.len() / (num_heads * head_dim);
+                let tensor = Tensor::from_array((
+                    [1i64, num_heads as i64, seq_len as i64, head_dim as i64],
+                    data.clone(),
+                ))?;
+                Ok((name.clone().into(), tensor.into_dyn()))
+            })
+            .collect()
     }
 }
 
@@ -270,8 +267,12 @@ impl WhisperBackend {
         let mut inputs: Vec<(Cow<'static, str>, DynValue)> = vec![
             ("input_ids".into(), input_ids.into_dyn()),
             ("encoder_hidden_states".into(), enc_tensor.into_dyn()),
+            (
+                "use_cache_branch".into(),
+                Tensor::from_array(([1usize], vec![!kv.is_empty()]))?.into_dyn(),
+            ),
         ];
-        inputs.extend(kv.to_inputs(self.num_heads, self.head_dim)?);
+        inputs.extend(kv.as_tensors(self.num_heads, self.head_dim)?);
         Ok(inputs)
     }
 
