@@ -43,6 +43,23 @@ wasm-bindgen-futures = { path = "../../wasm-bindgen/crates/futures" }
 js-sys = { path = "../../wasm-bindgen/crates/js-sys" }
 web-sys = { path = "../../wasm-bindgen/crates/web-sys" }
 
+# TEMPORARY (wasm64 bring-up): local clone of libc with the rust-lang/libc#5156
+# fix — pointer-width-aware pthread type sizes for `*-emscripten`. On
+# `wasm64-unknown-emscripten` (MEMORY64) `pthread_attr_t` is 88 bytes, not the
+# hardcoded wasm32 44, so `pthread_attr_init` overruns the buffer that std's
+# `Thread::new` stack-allocates → corrupted `pthread_create` result → spurious
+# "failed to spawn thread".
+#
+# NOTE: this patch fixes only the APP's libc. The crash is in STD's libc, and
+# under `-Zbuild-std` the sysroot is resolved separately — this `[patch]` does
+# NOT reach it (verified via `cargo build --unit-graph`). The std-side fix must
+# be injected by adding the same `[patch.crates-io] libc` to the nightly's
+# rust-src `library/Cargo.toml` (a per-toolchain step; see js/README.md), until
+# #5156 lands in a libc that a future nightly's std bumps to. The clone is
+# pinned to 0.2.185 — the exact version std's `library/Cargo.lock` locks — so
+# both patches apply as a clean source-swap with no version churn.
+libc = { path = "../../libc-wasm64" }
+
 # llama-cpp-2 / llama-cpp-sys-2 are pulled directly from the
 # `nobodywho-ooo/llama-cpp-rs` `wasm-emscripten` branch via the
 # git+branch declarations in `core/Cargo.toml`.

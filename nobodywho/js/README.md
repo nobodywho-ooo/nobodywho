@@ -416,13 +416,20 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   Model tensors + mmproj + KV cache + compute buffer must fit in
   wasm32's hard 4 GiB linear-memory ceiling. The sibling **wasm64
   (MEMORY64) build** (`scripts/build-pkg-emscripten-wasm64.sh` →
-  `pkg-bundler-wasm64/`) lifts that to 16 GiB. It's now buildable on a
-  stock nightly: the last blocker — `-Zbuild-std`'s unwinder lacking a
+  `pkg-bundler-wasm64/`) lifts that to 16 GiB, multi-threaded (MEMORY64 +
+  pthreads, like wasm32). One blocker — `-Zbuild-std`'s unwinder lacking a
   wasm64 `unwinder_private_data_size` const — was fixed in
   [rust-lang/rust#156573](https://github.com/rust-lang/rust/pull/156573)
-  (merged 2026-06-07; a nightly ≥ 2026-06-08 needs no rustlib patch).
-  wasm32 stays the default — wasm64 pays a download/load cost for 64-bit
-  pointers — so reach for wasm64 only when a model overflows 4 GiB.
+  (merged 2026-06-07; a nightly ≥ 2026-06-07 needs no rustlib patch). A
+  second, **pthread-specific** blocker remains until upstream: std's libc
+  hardcodes wasm32 pthread sizes, so `pthread_attr_init` overruns std's
+  `pthread_attr_t` on wasm64 and `std::thread::spawn` fails. The fix is
+  [rust-lang/libc#5156](https://github.com/rust-lang/libc/pull/5156); until
+  a nightly's std bumps to a libc that includes it, apply the one-time
+  rust-src `[patch]` documented under **Outstanding** (the build script
+  refuses to proceed without it). wasm32 stays the default — wasm64 pays a
+  download/load cost for 64-bit pointers — so reach for wasm64 only when a
+  model overflows 4 GiB.
 - Browser COOP/COEP headers. Pthreads are enabled but require
   `Cross-Origin-Opener-Policy: same-origin` plus a
   `Cross-Origin-Embedder-Policy` header (`credentialless` is the
@@ -457,3 +464,35 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   - [`walkingeyerobot/emscripten` branch `wbg-walkingeyerobot`](https://github.com/walkingeyerobot/emscripten/tree/wbg-walkingeyerobot)
     — carries the `-sWASM_BINDGEN` flag tracked in [emscripten-core/emscripten#23493](https://github.com/emscripten-core/emscripten/pull/23493).
     Consumed at build time via `$EMSDK_DIR` pointing at a local clone.
+
+- **Upstream the libc pthread-size fix ([rust-lang/libc#5156](https://github.com/rust-lang/libc/pull/5156)),
+  then drop the manual rust-src `[patch]` (wasm64 only).** libc hardcodes
+  wasm32 pthread type sizes for `*-emscripten`; on wasm64 `pthread_attr_t`
+  is 88 bytes (not 44), so `pthread_attr_init` overruns the buffer std's
+  `Thread::new` stack-allocates and `std::thread::spawn` fails. #5156 makes
+  those sizes pointer-width-aware. The workspace `Cargo.toml`
+  `[patch.crates-io]` already redirects the **app's** libc to a local clone
+  carrying the fix — but that is **not enough on its own**: `-Zbuild-std`
+  recompiles `std` from rust-src and resolves the sysroot's libc
+  *separately*, so the workspace `[patch]` never reaches it (confirmable
+  with `cargo build … --unit-graph`). Since the crash is in **std's**
+  `Thread::new`, the fix must also be injected into the nightly's rust-src,
+  as a **one-time local-dev step** (the build script aborts without it):
+
+  ```bash
+  RUST_SRC="$(rustup run nightly rustc --print sysroot)/lib/rustlib/src/rust"
+  # 1. Note the libc version std locks (the clone's version MUST match it):
+  grep -A1 'name = "libc"' "$RUST_SRC/library/Cargo.lock"   # e.g. 0.2.185
+  # 2. Make a clone of THAT version + the #5156 fix (3 lines in
+  #    src/unix/linux_like/emscripten/mod.rs: __size [u32;11]→[usize;11];
+  #    __SIZEOF_PTHREAD_{RWLOCK,MUTEX}_T → cfg(target_pointer_width) 32/56,
+  #    24/40). Easiest: copy the registry source and edit it:
+  #      cp -R ~/.cargo/registry/src/*/libc-0.2.185 ~/git/libc-wasm64
+  # 3. Add to $RUST_SRC/library/Cargo.toml under [patch.crates-io]
+  #    (back the file up first; restore to undo):
+  #      libc = { path = '/abs/path/to/libc-wasm64' }
+  ```
+
+  Verified working end-to-end (multi-threaded `Encoder.encode` on wasm64).
+  Once a nightly's std bumps to a libc that includes #5156, delete both the
+  workspace `[patch]` and this rust-src `[patch]` — no manual step remains.

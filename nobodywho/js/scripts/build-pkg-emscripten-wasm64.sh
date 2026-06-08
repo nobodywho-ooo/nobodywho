@@ -131,6 +131,38 @@ if ! grep -Eq 'target_family = "wasm".*target_os = "emscripten"' "$LIBUNWIND"; t
   exit 1
 fi
 
+# Verify STD's libc carries the wasm64 pthread-size fix (rust-lang/libc#5156).
+# -Zbuild-std recompiles std from rust-src and resolves the SYSROOT's libc
+# SEPARATELY from the workspace [patch], so the app-level patch does NOT reach
+# std. Without the fix, std's Thread::new overruns pthread_attr_t (44 vs 88
+# bytes on wasm64) → std::thread::spawn fails at RUNTIME with a spurious
+# "failed to spawn thread": a green build that breaks the moment any worker
+# (Encoder/Chat/…) starts. Require the one-time rust-src [patch] until a
+# nightly's std bumps to a libc that includes #5156. See README → Outstanding.
+LIB_CARGO="$RUST_SRC/library/Cargo.toml"
+LIBC_PATCH_PATH="$(awk -F"['\"]" \
+  '/^[[:space:]]*libc[[:space:]]*=[[:space:]]*\{[[:space:]]*path/ {print $2; exit}' \
+  "$LIB_CARGO" 2>/dev/null)"
+if [[ -z "$LIBC_PATCH_PATH" ]]; then
+  echo "error: the nightly's rust-src has no libc [patch] — std's libc lacks the" >&2
+  echo "       wasm64 pthread-size fix (rust-lang/libc#5156). Multi-threaded" >&2
+  echo "       std::thread::spawn fails at runtime ('failed to spawn thread')." >&2
+  echo "       Apply the one-time rust-src [patch] (see js/README.md → Outstanding):" >&2
+  echo "         add to $LIB_CARGO under [patch.crates-io]:" >&2
+  echo "           libc = { path = '/abs/path/to/libc-clone-with-5156' }" >&2
+  echo "       (clone version must match $RUST_SRC/library/Cargo.lock's libc)." >&2
+  exit 1
+fi
+if ! grep -q '__size: \[usize; 11\]' \
+     "$LIBC_PATCH_PATH/src/unix/linux_like/emscripten/mod.rs" 2>/dev/null; then
+  echo "error: rust-src libc [patch] points at" >&2
+  echo "         $LIBC_PATCH_PATH" >&2
+  echo "       but that clone lacks the #5156 fix (expected '__size: [usize; 11]'" >&2
+  echo "       in src/unix/linux_like/emscripten/mod.rs). std::thread::spawn would" >&2
+  echo "       fail at runtime. See js/README.md → Outstanding." >&2
+  exit 1
+fi
+
 # wasm64 sysroot: emcc lazily builds exactly the wasm64-emscripten system
 # libraries this link needs (the right libc/libc++/compiler-rt variants) on the
 # first link below, caching them under the emscripten install for reuse. We
