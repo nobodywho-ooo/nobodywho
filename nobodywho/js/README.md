@@ -412,10 +412,17 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   Gemma, LLaVA, etc. use the string-with-markers convention and
   work fine; OpenAI-typed-content models would need a renderer
   update.
-- Models whose total working set exceeds 4 GiB. Model tensors +
-  mmproj + KV cache + compute buffer must fit in wasm32's hard 4 GiB
-  linear-memory ceiling. A future wasm64 (memory64) build would lift
-  this ceiling but is not yet shipped.
+- Models whose total working set exceeds 4 GiB **on the wasm32 build**.
+  Model tensors + mmproj + KV cache + compute buffer must fit in
+  wasm32's hard 4 GiB linear-memory ceiling. The sibling **wasm64
+  (MEMORY64) build** (`scripts/build-pkg-emscripten-wasm64.sh` →
+  `pkg-bundler-wasm64/`) lifts that to 16 GiB. It's now buildable on a
+  stock nightly: the last blocker — `-Zbuild-std`'s unwinder lacking a
+  wasm64 `unwinder_private_data_size` const — was fixed in
+  [rust-lang/rust#156573](https://github.com/rust-lang/rust/pull/156573)
+  (merged 2026-06-07; a nightly ≥ 2026-06-08 needs no rustlib patch).
+  wasm32 stays the default — wasm64 pays a download/load cost for 64-bit
+  pointers — so reach for wasm64 only when a model overflows 4 GiB.
 - Browser COOP/COEP headers. Pthreads are enabled but require
   `Cross-Origin-Opener-Policy: same-origin` plus a
   `Cross-Origin-Embedder-Policy` header (`credentialless` is the
@@ -436,6 +443,10 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
     defines + `-fexceptions` for mtmd. Pulled directly via `core/Cargo.toml`
     `{ git = "...", branch = "wasm-emscripten" }`. Its `llama.cpp`
     submodule tracks upstream `ggml-org/llama.cpp` (stock, unpatched).
+    The wasm64 (MEMORY64) build adds target recognition + `-sMEMORY64=1` +
+    `LLAMA_WASM_MEM64=ON` on the `wasm64-emscripten` branch; until that
+    merges back, the workspace `Cargo.toml` `[patch]` block points both
+    crates at a local clone of it (see that block's comment).
   - [`nobodywho-ooo/wasm-bindgen` branch `wasm-emscripten-0.2.122`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/wasm-emscripten-0.2.122)
     — upstream 0.2.122 + the Emscripten-pthread thread-transform skip (the
     descriptor-interpreter tolerance and Emscripten output mode were absorbed

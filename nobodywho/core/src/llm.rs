@@ -224,6 +224,10 @@ pub fn has_gpu_backend() -> bool {
 
 /// wasm model loader: load a GGUF from an Emscripten FS path (NODEFS or MEMFS).
 /// mmap is enabled via the `_mmap_js` syscall override in syscall_imports.rs.
+///
+/// The model + tensors + KV cache + compute working set must fit the wasm
+/// linear-memory ceiling: 4 GiB on the wasm32 build, 16 GiB on the sibling
+/// wasm64 (MEMORY64) build (`js/scripts/build-pkg-emscripten-wasm64.sh`).
 #[cfg(target_family = "wasm")]
 pub fn get_model_from_path(
     model_path: &std::path::Path,

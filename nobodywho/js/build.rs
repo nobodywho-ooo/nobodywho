@@ -10,6 +10,14 @@ fn main() {
         return;
     }
 
+    // wasm64-unknown-emscripten (MEMORY64) shares this entire emscripten link
+    // config with wasm32; only the memory ceiling and the -sMEMORY64 codegen
+    // flag differ (see the MAXIMUM_MEMORY block below). CARGO_CFG_TARGET_ARCH
+    // is "wasm64" for the custom target spec, "wasm32" for the built-in target.
+    let is_wasm64 = std::env::var("CARGO_CFG_TARGET_ARCH")
+        .map(|a| a == "wasm64")
+        .unwrap_or(false);
+
     // cdylib variant of the crate needs --no-entry so emscripten doesn't
     // look for `main`. (The crate is `cdylib + rlib`; only the cdylib
     // build hits emcc's link step.)
@@ -46,13 +54,23 @@ fn main() {
     println!("cargo:rustc-link-arg-cdylib=-sMAIN_MODULE=0");
 
     // Allow memory growth so GGUF loads aren't capped at Emscripten's
-    // default 16 MB heap. MAXIMUM_MEMORY bumps the ceiling from the
-    // default 2 GB to 4 GB — the hard cap for wasm on 32-bit browser
-    // tabs. Loading a ~500 MB GGUF needs the raw bytes plus llama.cpp's
+    // default 16 MB heap. MAXIMUM_MEMORY bumps the ceiling: on wasm32 to
+    // 4 GB — the hard cap for wasm on 32-bit browser tabs — and on wasm64
+    // (MEMORY64) to 16 GB, which is the whole point of the wasm64 build:
+    // models whose tensors + KV cache + compute working set exceed 4 GB.
+    // Loading even a ~500 MB GGUF needs the raw bytes plus llama.cpp's
     // working set (context KV cache, scratch buffers), which blows past
     // 2 GB when ALLOW_MEMORY_GROWTH hits the default ceiling.
     println!("cargo:rustc-link-arg-cdylib=-sALLOW_MEMORY_GROWTH=1");
-    println!("cargo:rustc-link-arg-cdylib=-sMAXIMUM_MEMORY=4GB");
+    if is_wasm64 {
+        // -sMEMORY64=1 makes emcc emit a 64-bit-memory module matching the
+        // wasm64 target's pointer width; -sWASM_BIGINT (from the target spec)
+        // carries the 64-bit pointers/values across the JS boundary.
+        println!("cargo:rustc-link-arg-cdylib=-sMEMORY64=1");
+        println!("cargo:rustc-link-arg-cdylib=-sMAXIMUM_MEMORY=16GB");
+    } else {
+        println!("cargo:rustc-link-arg-cdylib=-sMAXIMUM_MEMORY=4GB");
+    }
 
     // Emscripten's default stack is 64 KB. minijinja's recursive-descent
     // chat-template parser (parse_math2 → parse_pow → parse_unary →

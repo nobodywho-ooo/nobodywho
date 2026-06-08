@@ -2010,7 +2010,6 @@ dependencies = [
 [[package]]
 name = "js-sys"
 version = "0.3.99"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -2131,7 +2130,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#6ea5ffbd202e00e3bbf78e021fb9aa89f1a67501"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2146,7 +2144,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm-emscripten#6ea5ffbd202e00e3bbf78e021fb9aa89f1a67501"
 dependencies = [
  "bindgen",
  "cc",
@@ -4557,7 +4554,6 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen"
 version = "0.2.122"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -4569,7 +4565,6 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-futures"
 version = "0.4.72"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -4578,7 +4573,6 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-macro"
 version = "0.2.122"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -4587,7 +4581,6 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-macro-support"
 version = "0.2.122"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -4599,7 +4592,6 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-shared"
 version = "0.2.122"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "unicode-ident",
 ]
@@ -4641,7 +4633,6 @@ dependencies = [
 [[package]]
 name = "web-sys"
 version = "0.3.99"
-source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm-emscripten-0.2.122#7bd658ebaf4322fcf9091469ebbce52680360baf"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

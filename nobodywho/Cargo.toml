@@ -31,11 +31,30 @@ pyo3-introspection = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 # (Emscripten manages its own pthread runtime). The whole family is pinned to
 # the same branch: 0.2.122 isn't on crates.io yet and js-sys/web-sys/futures
 # exact-pin `=0.2.122`. Drop once the pthread fix lands upstream.
-wasm-bindgen = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
-wasm-bindgen-futures = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
-js-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
-web-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm-emscripten-0.2.122" }
+#
+# TEMPORARY (wasm64 bring-up): redirected from git to a local clone of the
+# fork's `wasm64-emscripten` branch, which adds the one missing wasm64 fix —
+# js-sys's multithreaded-futures waker hardcoded `core::arch::wasm32`, which
+# doesn't exist on wasm64 (the rest of wasm-bindgen is already memory64-aware).
+# Same temporary-override pattern as the llama-cpp-rs `[patch]` above; push the
+# branch and restore the git pins once it's merged.
+wasm-bindgen = { path = "../../wasm-bindgen" }
+wasm-bindgen-futures = { path = "../../wasm-bindgen/crates/futures" }
+js-sys = { path = "../../wasm-bindgen/crates/js-sys" }
+web-sys = { path = "../../wasm-bindgen/crates/web-sys" }
 
 # llama-cpp-2 / llama-cpp-sys-2 are pulled directly from the
 # `nobodywho-ooo/llama-cpp-rs` `wasm-emscripten` branch via the
 # git+branch declarations in `core/Cargo.toml`.
+#
+# TEMPORARY (wasm64 bring-up): redirect both crates to a local clone of the
+# fork's `wasm64-emscripten` branch, which teaches `llama-cpp-sys-2/build.rs`
+# to recognize `wasm64-unknown-emscripten` and emit `-sMEMORY64=1` +
+# `LLAMA_WASM_MEM64=ON`. The edits are gated on `is_wasm64_emscripten()`, so
+# every non-wasm64 target (native, wasm32, …) compiles byte-for-byte as before.
+# The clone is expected as a sibling checkout; init its llama.cpp submodule.
+# Once `wasm64-emscripten` is pushed to nobodywho-ooo/llama-cpp-rs, delete this
+# block and bump the rev on the git+branch pins in `core/Cargo.toml` instead.
+[patch."https://github.com/nobodywho-ooo/llama-cpp-rs"]
+llama-cpp-2 = { path = "../../llama-cpp-rs/llama-cpp-2" }
+llama-cpp-sys-2 = { path = "../../llama-cpp-rs/llama-cpp-sys-2" }

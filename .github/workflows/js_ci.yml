@@ -168,6 +168,33 @@ jobs:
           path: nobodywho/js/pkg-bundler/
           retention-days: 14
 
+      # wasm64 (MEMORY64) variant. Reuses this job's toolchain — nightly +
+      # rust-src + the emscripten/wasm-bindgen forks are all already set up
+      # above. The script builds std from source (-Zbuild-std) and pre-warms
+      # the wasm64 sysroot, so it's slower than the wasm32 build; requires a
+      # nightly >= 2026-06-08 (rust-lang/rust#156573, the wasm64 unwinder fix).
+      - name: "Build pkg-bundler-wasm64 (wasm64-unknown-emscripten)"
+        env:
+          EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+        run: bash nobodywho/js/scripts/build-pkg-emscripten-wasm64.sh
+
+      - name: "Inspect wasm64 artifact sizes"
+        working-directory: nobodywho/js/pkg-bundler-wasm64
+        run: |
+          ls -lh
+          echo ""
+          echo "Brotli-compressed wasm size:"
+          brotli -k -q 11 nobodywho_js_bg.wasm -o /tmp/wasm64.br || true
+          ls -lh /tmp/wasm64.br || true
+
+      - name: "Upload wasm64 artifact"
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho-js-pkg-wasm64
+          path: nobodywho/js/pkg-bundler-wasm64/
+          retention-days: 14
+
   # Fan out the model tests over the prebuilt artifact. Each leg only needs
   # Node + the downloaded pkg-bundler/ + its model(s) — no Rust/Emscripten/CMake
   # toolchain — so they run in parallel, mirroring python_ci.yml's per-suite jobs.
@@ -228,3 +255,45 @@ jobs:
       - name: "Test: ${{ matrix.name }}"
         working-directory: nobodywho
         run: ${{ matrix.run }}
+
+  # Smoke-test the wasm64 (MEMORY64) artifact. One encode leg is enough to
+  # prove the 64-bit build loads + runs end-to-end; the wasm32 `tests` matrix
+  # above covers the broader API surface (the JS glue is shared between the
+  # two builds). A model large enough to overflow wasm32's 4 GiB ceiling would
+  # be the true payoff test, but that's too big to download every CI run.
+  tests-wasm64:
+    if: inputs.full_ci
+    needs: [build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Set up Node 26"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+
+      - name: "Download wasm64 pkg-bundler artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-js-pkg-wasm64
+          path: nobodywho/js/pkg-bundler-wasm64/
+
+      # Shares the model cache with the `tests` job (same key shape: the
+      # bge-small leg has no mmproj, so its key is `gguf-v1-bge-small.gguf-`).
+      - name: "Cache test model"
+        uses: actions/cache@v5
+        with:
+          path: /tmp/models
+          key: gguf-v1-bge-small.gguf-
+
+      - name: "Download test model (skips if cached)"
+        run: |
+          mkdir -p /tmp/models
+          [ -f /tmp/models/bge-small.gguf ] || curl -L --fail -o /tmp/models/bge-small.gguf 'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
+          ls -lh /tmp/models/*.gguf
+
+      - name: "Test: wasm64 Model.load + Encoder.encode"
+        working-directory: nobodywho
+        run: node js/tests/test_emscripten_wasm64.mjs /tmp/models/bge-small.gguf

@@ -10,3 +10,15 @@ rustflags = [
     "-C", "panic=abort",
     "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals",
 ]
+
+# wasm64 (MEMORY64) uses the SAME rustflags — the 64-bit pointer width comes
+# from the custom target spec (js/targets/wasm64-unknown-emscripten.json), not
+# a target-feature. Keyed on that spec's file stem. The build script
+# (build-pkg-emscripten-wasm64.sh) sets RUSTFLAGS explicitly to survive a
+# `-D warnings` env override, same as the wasm32 script; this block is the
+# fallback for a bare `cargo build --target …/wasm64-unknown-emscripten.json`.
+[target.wasm64-unknown-emscripten]
+rustflags = [
+    "-C", "panic=abort",
+    "-C", "target-feature=+atomics,+bulk-memory,+mutable-globals",
+]

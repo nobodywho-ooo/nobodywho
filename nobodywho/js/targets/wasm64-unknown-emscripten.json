@@ -1,0 +1,45 @@
+{
+  "arch": "wasm64",
+  "binary-format": "wasm",
+  "crt-objects-fallback": "true",
+  "crt-static-allows-dylibs": true,
+  "crt-static-default": true,
+  "crt-static-respected": true,
+  "data-layout": "e-m:e-p:64:64-p10:8:8-p20:8:8-i64:64-i128:128-f128:64-n32:64-S128-ni:1:10:20",
+  "dll-prefix": "",
+  "dll-suffix": ".wasm",
+  "dynamic-linking": true,
+  "eh-frame-header": false,
+  "emit-debug-gdb-scripts": false,
+  "exe-suffix": ".js",
+  "generate-arange-section": false,
+  "has-thread-local": true,
+  "is-like-wasm": true,
+  "linker-flavor": "em-cc",
+  "linker-is-gnu": false,
+  "llvm-target": "wasm64-unknown-emscripten",
+  "max-atomic-width": 64,
+  "metadata": {
+    "description": "WebAssembly64 (MEMORY64) via Emscripten",
+    "host_tools": false,
+    "std": true,
+    "tier": 3
+  },
+  "no-default-libraries": false,
+  "only-cdylib": true,
+  "os": "emscripten",
+  "panic-strategy": "abort",
+  "post-link-args": {
+    "em-cc": [
+      "-sABORTING_MALLOC=0",
+      "-sWASM_BIGINT"
+    ]
+  },
+  "singlethread": true,
+  "target-family": [
+    "unix",
+    "wasm"
+  ],
+  "target-pointer-width": 64,
+  "tls-model": "local-exec"
+}
