@@ -2,7 +2,7 @@
   "name": "@nobodywho/js",
   "version": "0.0.0-PLACEHOLDER",
   "description": "Run local LLMs in the browser via llama.cpp compiled to WebAssembly.",
-  "license": "MIT",
+  "license": "EUPL-1.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/nobodywho-ooo/nobodywho",
