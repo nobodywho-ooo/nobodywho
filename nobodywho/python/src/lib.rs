@@ -1484,13 +1484,15 @@ impl SamplerBuilder {
     ///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
     ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
     ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
-    pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
+    #[pyo3(signature = (xtc_probability, xtc_threshold, min_keep, seed = 1234))]
+    pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32, seed: u32) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler::ShiftStep::XTC {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
+                seed,
             },
         )
     }

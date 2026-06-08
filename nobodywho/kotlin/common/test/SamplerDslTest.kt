@@ -1,9 +1,16 @@
 package ai.nobodywho
 
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
 class SamplerDslTest {
+
+    @Test fun `shift steps are not silently dropped`() {
+        val json = buildSampler { topK(40); temperature(0.8f); dist() }.toJson()
+        val steps = JSONObject(json).getJSONArray("steps")
+        assertEquals("expected 2 shift steps in resulting SamplerConfig, got: $json", 2, steps.length())
+    }
 
     @Test fun `default terminal is dist`() {
         assertNotNull(buildSampler { topK(40); temperature(0.8f) })

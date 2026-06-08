@@ -2379,6 +2379,7 @@ fn wire__crate__SamplerBuilder_xtc_impl(
             let api_xtc_probability = <f32>::sse_decode(&mut deserializer);
             let api_xtc_threshold = <f32>::sse_decode(&mut deserializer);
             let api_min_keep = <u32>::sse_decode(&mut deserializer);
+            let api_seed = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
@@ -2400,6 +2401,7 @@ fn wire__crate__SamplerBuilder_xtc_impl(
                     api_xtc_probability,
                     api_xtc_threshold,
                     api_min_keep,
+                    api_seed,
                 ))?;
                 Ok(output_ok)
             })())

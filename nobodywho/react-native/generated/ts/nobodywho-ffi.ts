@@ -72,7 +72,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(ptr: bigint, topK: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(ptr: bigint, topP: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_typical_p(ptr: bigint, typP: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(ptr: bigint, xtcProbability: number, xtcThreshold: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(ptr: bigint, xtcProbability: number, xtcThreshold: number, minKeep: number, seed: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerconfig(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_samplerconfig(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_samplerconfig_from_json(jsonStr: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;

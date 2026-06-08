@@ -1662,17 +1662,16 @@ impl Worker<'_, ChatWorker> {
         let sampler = self.extra.tool_grammar.as_ref().map_or(
             self.extra.sampler_config.clone(),
             |tool_grammar| {
-                SamplerConfig::new(
-                    self.extra.sampler_config.steps.clone().insert(
-                        0,
-                        ShiftStep::Grammar {
-                            trigger_on: tool_call_begin.clone(),
-                            root: tool_grammar.root_name.to_string(),
-                            grammar: tool_grammar.as_str().into(),
-                        },
-                    ),
-                    self.extra.sampler_config.sample_step,
-                )
+                let mut steps = self.extra.sampler_config.steps.clone();
+                steps.insert(
+                    0,
+                    ShiftStep::Grammar {
+                        trigger_on: tool_call_begin.clone(),
+                        root: tool_grammar.root_name.to_string(),
+                        grammar: tool_grammar.as_str().into(),
+                    },
+                );
+                SamplerConfig::new(steps, self.extra.sampler_config.sample_step.clone())
             },
         );
 

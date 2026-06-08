@@ -798,13 +798,20 @@ impl SamplerBuilder {
     ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
     ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
     #[flutter_rust_bridge::frb(sync)]
-    pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
+    pub fn xtc(
+        &self,
+        xtc_probability: f32,
+        xtc_threshold: f32,
+        min_keep: u32,
+        #[frb(default = 1234)] seed: u32,
+    ) -> Self {
         shift_step(
             self.clone(),
             nobodywho::sampler::ShiftStep::XTC {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
+                seed,
             },
         )
     }

@@ -548,7 +548,7 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_typical_p(uint64_t ptr
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_XTC
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_XTC
-uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(uint64_t ptr, float xtc_probability, float xtc_threshold, uint32_t min_keep, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(uint64_t ptr, float xtc_probability, float xtc_threshold, uint32_t min_keep, RustBuffer seed, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_SAMPLERCONFIG

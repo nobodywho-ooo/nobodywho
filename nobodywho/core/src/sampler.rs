@@ -183,11 +183,12 @@ impl SamplerConfig {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
+                seed,
             } => Ok(LlamaSampler::xtc(
                 xtc_probability,
                 xtc_threshold,
                 min_keep as usize,
-                default_seed(),
+                seed,
             )),
             ShiftStep::TypicalP { typ_p, min_keep } => {
                 Ok(LlamaSampler::typical(typ_p, min_keep as usize))
@@ -377,6 +378,7 @@ pub enum ShiftStep {
         xtc_probability: f32,
         xtc_threshold: f32,
         min_keep: u32,
+        seed: u32,
     },
     TypicalP {
         typ_p: f32,
@@ -520,6 +522,7 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
                         xtc_probability: prob,
                         xtc_threshold: thresh,
                         min_keep: 1,
+                        seed: default_seed(),
                     });
                 }
             }

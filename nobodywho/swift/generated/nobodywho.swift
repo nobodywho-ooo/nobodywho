@@ -1814,7 +1814,7 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
-    func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32)  -> SamplerBuilder
+    func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32, seed: UInt32?)  -> SamplerBuilder
     
 }
 open class SamplerBuilder: SamplerBuilderProtocol, @unchecked Sendable {
@@ -2038,13 +2038,14 @@ open func typicalP(typP: Float, minKeep: UInt32) -> SamplerBuilder  {
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
-open func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32) -> SamplerBuilder  {
+open func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32, seed: UInt32?) -> SamplerBuilder  {
     return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(
             self.uniffiCloneHandle(),
         FfiConverterFloat.lower(xtcProbability),
         FfiConverterFloat.lower(xtcThreshold),
-        FfiConverterUInt32.lower(minKeep),$0
+        FfiConverterUInt32.lower(minKeep),
+        FfiConverterOptionUInt32.lower(seed),$0
     )
 })
 }
@@ -3878,7 +3879,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p() != 28727) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 22853) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 45981) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {

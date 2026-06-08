@@ -252,7 +252,7 @@ uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(
     /*handle*/ uint64_t ptr, float xtc_probability, float xtc_threshold,
-    uint32_t min_keep, RustCallStatus *uniffi_out_err);
+    uint32_t min_keep, RustBuffer seed, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_samplerconfig(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_samplerconfig(
@@ -3288,7 +3288,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc"),
-          4,
+          5,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
@@ -5945,6 +5945,7 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(
       uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[1]),
       uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[2]),
       uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[3]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);

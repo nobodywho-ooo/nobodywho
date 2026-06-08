@@ -15,16 +15,16 @@ annotation class SamplerDsl
  */
 @SamplerDsl
 class SamplerScope {
-    private val builder = SamplerBuilder()
+    private var builder = SamplerBuilder()
     private var result: SamplerConfig? = null
 
-    fun topK(topK: Int) { builder.topK(topK) }
-    fun topP(topP: Float, minKeep: UInt = 1u) { builder.topP(topP, minKeep) }
-    fun minP(minP: Float, minKeep: UInt = 1u) { builder.minP(minP, minKeep) }
-    fun temperature(temperature: Float) { builder.temperature(temperature) }
-    fun typicalP(typP: Float, minKeep: UInt = 1u) { builder.typicalP(typP, minKeep) }
-    fun xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt = 1u) { builder.xtc(xtcProbability, xtcThreshold, minKeep) }
-    fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder.grammar(grammar, triggerOn, root) }
+    fun topK(topK: Int) { builder = builder.topK(topK) }
+    fun topP(topP: Float, minKeep: UInt = 1u) { builder = builder.topP(topP, minKeep) }
+    fun minP(minP: Float, minKeep: UInt = 1u) { builder = builder.minP(minP, minKeep) }
+    fun temperature(temperature: Float) { builder = builder.temperature(temperature) }
+    fun typicalP(typP: Float, minKeep: UInt = 1u) { builder = builder.typicalP(typP, minKeep) }
+    fun xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt = 1u, seed: UInt? = null) { builder = builder.xtc(xtcProbability, xtcThreshold, minKeep, seed) }
+    fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder = builder.grammar(grammar, triggerOn, root) }
 
     fun dry(
         multiplier: Float = 0.8f,
@@ -32,26 +32,26 @@ class SamplerScope {
         allowedLength: Int = 2,
         penaltyLastN: Int = -1,
         seqBreakers: List<String> = listOf("\n", ":", "\"", "*")
-    ) { builder.dry(multiplier, base, allowedLength, penaltyLastN, seqBreakers) }
+    ) { builder = builder.dry(multiplier, base, allowedLength, penaltyLastN, seqBreakers) }
 
     fun penalties(
         penaltyLastN: Int = 64,
         penaltyRepeat: Float = 1.0f,
         penaltyFreq: Float = 0.0f,
         penaltyPresent: Float = 0.0f
-    ) { builder.penalties(penaltyLastN, penaltyRepeat, penaltyFreq, penaltyPresent) }
+    ) { builder = builder.penalties(penaltyLastN, penaltyRepeat, penaltyFreq, penaltyPresent) }
 
     private fun setResult(config: SamplerConfig) {
         check(result == null) { "A terminal step was already called" }
         result = config
     }
 
-    fun dist() { setResult(builder.dist()) }
+    fun dist(seed: UInt? = null) { setResult(builder.dist(seed)) }
     fun greedy() { setResult(builder.greedy()) }
-    fun mirostatV1(tau: Float = 5.0f, eta: Float = 0.1f, m: Int = 100) { setResult(builder.mirostatV1(tau, eta, m)) }
-    fun mirostatV2(tau: Float = 5.0f, eta: Float = 0.1f) { setResult(builder.mirostatV2(tau, eta)) }
+    fun mirostatV1(tau: Float = 5.0f, eta: Float = 0.1f, m: Int = 100, seed: UInt? = null) { setResult(builder.mirostatV1(tau, eta, m, seed)) }
+    fun mirostatV2(tau: Float = 5.0f, eta: Float = 0.1f, seed: UInt? = null) { setResult(builder.mirostatV2(tau, eta, seed)) }
 
-    internal fun build(): SamplerConfig = result ?: builder.dist()
+    internal fun build(): SamplerConfig = result ?: builder.dist(null)
 }
 
 /**

@@ -454,6 +454,7 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
+    int seed = 1234,
   });
 }
 

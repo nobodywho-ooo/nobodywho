@@ -305,6 +305,7 @@ abstract class NobodyWhoApi extends BaseApi {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
+    int seed = 1234,
   });
 
   SamplerConfig crateSamplerConfigFromJson({required String jsonStr});
@@ -2220,6 +2221,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
+    int seed = 1234,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -2232,6 +2234,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(xtcProbability, serializer);
           sse_encode_f_32(xtcThreshold, serializer);
           sse_encode_u_32(minKeep, serializer);
+          sse_encode_u_32(seed, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
@@ -2240,7 +2243,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderXtcConstMeta,
-        argValues: [that, xtcProbability, xtcThreshold, minKeep],
+        argValues: [that, xtcProbability, xtcThreshold, minKeep, seed],
         apiImpl: this,
       ),
     );
@@ -2248,7 +2251,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateSamplerBuilderXtcConstMeta => const TaskConstMeta(
     debugName: "SamplerBuilder_xtc",
-    argNames: ["that", "xtcProbability", "xtcThreshold", "minKeep"],
+    argNames: ["that", "xtcProbability", "xtcThreshold", "minKeep", "seed"],
   );
 
   @override
@@ -6621,11 +6624,13 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
+    int seed = 1234,
   }) => NobodyWho.instance.api.crateSamplerBuilderXtc(
     that: this,
     xtcProbability: xtcProbability,
     xtcThreshold: xtcThreshold,
     minKeep: minKeep,
+    seed: seed,
   );
 }
 

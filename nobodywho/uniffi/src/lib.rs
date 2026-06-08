@@ -851,6 +851,7 @@ impl SamplerBuilder {
         xtc_probability: f32,
         xtc_threshold: f32,
         min_keep: u32,
+        seed: Option<u32>,
     ) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
             inner: self
@@ -860,6 +861,7 @@ impl SamplerBuilder {
                     xtc_probability,
                     xtc_threshold,
                     min_keep,
+                    seed: seed.unwrap_or(1234),
                 }),
         })
     }
