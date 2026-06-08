@@ -708,7 +708,18 @@ fn mount_host_path_via_nodefs(kind: &str, src_path: &str) -> Result<std::path::P
         .to_str()
         .ok_or("mount_nodefs: non-UTF-8 filename")?;
 
-    let mountpoint = format!("/mnt/nbw-{kind}");
+    // Mountpoint must be unique per host directory, not just per `kind`.
+    // FS.mount at an already-used mountpoint throws EBUSY (which pre.js
+    // swallows), so a second load from a DIFFERENT directory under the same
+    // kind would silently resolve into the FIRST dir's mount and fail to open
+    // the file. Fold the source dir into the mountpoint so distinct dirs get
+    // distinct mounts and same-dir loads correctly reuse one.
+    let mountpoint = {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        dir.hash(&mut hasher);
+        format!("/mnt/nbw-{kind}-{:016x}", hasher.finish())
+    };
 
     let global = js_sys::global();
     let helper = js_sys::Reflect::get(&global, &"__nbw_mount_nodefs".into())
