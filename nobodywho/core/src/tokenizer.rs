@@ -421,7 +421,7 @@ impl ProjectionModel {
 
     pub fn load_image(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
         let p = path.to_string_lossy().into_owned();
-        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str(), false).map_err(|e| {
             MultimodalError::LoadImage {
                 path: p.clone(),
                 error: e.to_string(),
@@ -435,7 +435,7 @@ impl ProjectionModel {
 
     pub fn load_audio(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
         let p = path.to_string_lossy().into_owned();
-        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str(), false).map_err(|e| {
             MultimodalError::LoadAudio {
                 path: p.clone(),
                 error: e.to_string(),
