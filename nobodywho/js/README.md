@@ -479,19 +479,13 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   local-dev step** (the build script aborts without it):
 
   ```bash
-  RUST_SRC="$(rustup run nightly rustc --print sysroot)/lib/rustlib/src/rust"
-  # 1. Note the libc version std locks (the clone's version MUST match it):
-  grep -A1 'name = "libc"' "$RUST_SRC/library/Cargo.lock"   # e.g. 0.2.185
-  # 2. Make a clone of THAT version + the #5156 fix (3 lines in
-  #    src/unix/linux_like/emscripten/mod.rs: __size [u32;11]→[usize;11];
-  #    __SIZEOF_PTHREAD_{RWLOCK,MUTEX}_T → cfg(target_pointer_width) 32/56,
-  #    24/40). Easiest: copy the registry source and edit it:
-  #      cp -R ~/.cargo/registry/src/*/libc-0.2.185 ~/git/libc-wasm64
-  # 3. Add to $RUST_SRC/library/Cargo.toml under [patch.crates-io]
-  #    (back the file up first; restore to undo):
-  #      libc = { path = '/abs/path/to/libc-wasm64' }
+  bash js/scripts/patch-rust-src-libc.sh
   ```
 
-  Verified working end-to-end (multi-threaded `Encoder.encode` on wasm64).
-  Once a nightly's std bumps to a libc that includes #5156, delete both the
-  workspace `[patch]` and this rust-src `[patch]` — no manual step remains.
+  That reads the exact libc version std locks, downloads it, applies the #5156
+  fix, and adds `[patch.crates-io] libc = { path = … }` to rust-src's
+  `library/Cargo.toml` (idempotent; restore `library/Cargo.toml.wasm64-orig` to
+  undo). **CI runs this same script** (`js_ci.yml`, just before the wasm64
+  build) — it's what makes the `tests-wasm64` leg pass. Verified end-to-end
+  (multi-threaded `Encoder.encode` on wasm64). Once a nightly's std bumps to a
+  libc that includes #5156 the fix step no-ops — delete the CI step + script then.

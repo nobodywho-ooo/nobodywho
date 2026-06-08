@@ -173,6 +173,13 @@ jobs:
       # above. The script builds std from source (-Zbuild-std) and pre-warms
       # the wasm64 sysroot, so it's slower than the wasm32 build; requires a
       # nightly >= 2026-06-08 (rust-lang/rust#156573, the wasm64 unwinder fix).
+      - name: "Inject libc#5156 pthread-size fix into rust-src (wasm64 std)"
+        # -Zbuild-std compiles std's libc from rust-src; without #5156, std's
+        # Thread::new overruns pthread_attr_t on wasm64 and thread::spawn fails.
+        # Self-contained: downloads the libc version std locks and applies the
+        # fix. Drop once a nightly's std bumps to a libc that includes #5156.
+        run: bash nobodywho/js/scripts/patch-rust-src-libc.sh
+
       - name: "Build pkg-bundler-wasm64 (wasm64-unknown-emscripten)"
         env:
           EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
