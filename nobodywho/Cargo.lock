@@ -2010,6 +2010,7 @@ dependencies = [
 [[package]]
 name = "js-sys"
 version = "0.3.99"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm64-emscripten#e2fd43d26558e2e17598b1319a475c612b5ba697"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -2077,7 +2078,9 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libc"
-version = "0.2.185"
+version = "0.2.186"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
 name = "libloading"
@@ -2128,6 +2131,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm64-emscripten#b92dd427a7ae93164972379948b84eeb49e048c2"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2142,6 +2146,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=wasm64-emscripten#b92dd427a7ae93164972379948b84eeb49e048c2"
 dependencies = [
  "bindgen",
  "cc",
@@ -4552,6 +4557,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen"
 version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm64-emscripten#e2fd43d26558e2e17598b1319a475c612b5ba697"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -4563,6 +4569,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-futures"
 version = "0.4.72"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm64-emscripten#e2fd43d26558e2e17598b1319a475c612b5ba697"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -4571,6 +4578,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-macro"
 version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm64-emscripten#e2fd43d26558e2e17598b1319a475c612b5ba697"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -4579,6 +4587,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-macro-support"
 version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm64-emscripten#e2fd43d26558e2e17598b1319a475c612b5ba697"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -4590,6 +4599,7 @@ dependencies = [
 [[package]]
 name = "wasm-bindgen-shared"
 version = "0.2.122"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm64-emscripten#e2fd43d26558e2e17598b1319a475c612b5ba697"
 dependencies = [
  "unicode-ident",
 ]
@@ -4631,6 +4641,7 @@ dependencies = [
 [[package]]
 name = "web-sys"
 version = "0.3.99"
+source = "git+https://github.com/nobodywho-ooo/wasm-bindgen?branch=wasm64-emscripten#e2fd43d26558e2e17598b1319a475c612b5ba697"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

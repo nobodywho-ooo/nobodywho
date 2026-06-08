@@ -32,46 +32,31 @@ pyo3-introspection = { git = "https://github.com/PyO3/pyo3", branch = "main" }
 # the same branch: 0.2.122 isn't on crates.io yet and js-sys/web-sys/futures
 # exact-pin `=0.2.122`. Drop once the pthread fix lands upstream.
 #
-# TEMPORARY (wasm64 bring-up): redirected from git to a local clone of the
-# fork's `wasm64-emscripten` branch, which adds the one missing wasm64 fix —
-# js-sys's multithreaded-futures waker hardcoded `core::arch::wasm32`, which
-# doesn't exist on wasm64 (the rest of wasm-bindgen is already memory64-aware).
-# Same temporary-override pattern as the llama-cpp-rs `[patch]` above; push the
-# branch and restore the git pins once it's merged.
-wasm-bindgen = { path = "../../wasm-bindgen" }
-wasm-bindgen-futures = { path = "../../wasm-bindgen/crates/futures" }
-js-sys = { path = "../../wasm-bindgen/crates/js-sys" }
-web-sys = { path = "../../wasm-bindgen/crates/web-sys" }
+# wasm64 bring-up: pinned to the fork's `wasm64-emscripten` branch (=
+# `wasm-emscripten-0.2.122` + two wasm64 fixes — js-sys's multithreaded-futures
+# waker hardcoded `core::arch::wasm32`, absent on wasm64; and cli-support
+# memory64 stack-pointer/retptr handling). Restore the `wasm-emscripten-0.2.122`
+# pin once those merge there (or upstream).
+wasm-bindgen = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm64-emscripten" }
+wasm-bindgen-futures = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm64-emscripten" }
+js-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm64-emscripten" }
+web-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm64-emscripten" }
 
-# TEMPORARY (wasm64 bring-up): local clone of libc with the rust-lang/libc#5156
-# fix — pointer-width-aware pthread type sizes for `*-emscripten`. On
-# `wasm64-unknown-emscripten` (MEMORY64) `pthread_attr_t` is 88 bytes, not the
-# hardcoded wasm32 44, so `pthread_attr_init` overruns the buffer that std's
-# `Thread::new` stack-allocates → corrupted `pthread_create` result → spurious
-# "failed to spawn thread".
-#
-# NOTE: this patch fixes only the APP's libc. The crash is in STD's libc, and
-# under `-Zbuild-std` the sysroot is resolved separately — this `[patch]` does
-# NOT reach it (verified via `cargo build --unit-graph`). The std-side fix must
-# be injected by adding the same `[patch.crates-io] libc` to the nightly's
-# rust-src `library/Cargo.toml` (a per-toolchain step; see js/README.md), until
-# #5156 lands in a libc that a future nightly's std bumps to. The clone is
-# pinned to 0.2.185 — the exact version std's `library/Cargo.lock` locks — so
-# both patches apply as a clean source-swap with no version churn.
-libc = { path = "../../libc-wasm64" }
+# No app-side libc [patch] here. The wasm64 pthread-size fix
+# (rust-lang/libc#5156) is needed only by STD's libc: std's `Thread::new`
+# overruns `pthread_attr_t` (44 vs 88 bytes on wasm64) and `std::thread::spawn`
+# fails. `-Zbuild-std` resolves the sysroot's libc separately from this
+# workspace, so the fix is injected into the nightly's rust-src
+# `library/Cargo.toml` instead — a one-time local-dev step (see js/README.md →
+# Outstanding), kept until a nightly's std bumps to a libc that includes #5156.
+# The app's own libc use is just `getuid()`, unaffected by the change; a path
+# patch here would only break CI (no such checkout) for no benefit.
 
-# llama-cpp-2 / llama-cpp-sys-2 are pulled directly from the
-# `nobodywho-ooo/llama-cpp-rs` `wasm-emscripten` branch via the
-# git+branch declarations in `core/Cargo.toml`.
-#
-# TEMPORARY (wasm64 bring-up): redirect both crates to a local clone of the
-# fork's `wasm64-emscripten` branch, which teaches `llama-cpp-sys-2/build.rs`
-# to recognize `wasm64-unknown-emscripten` and emit `-sMEMORY64=1` +
-# `LLAMA_WASM_MEM64=ON`. The edits are gated on `is_wasm64_emscripten()`, so
-# every non-wasm64 target (native, wasm32, …) compiles byte-for-byte as before.
-# The clone is expected as a sibling checkout; init its llama.cpp submodule.
-# Once `wasm64-emscripten` is pushed to nobodywho-ooo/llama-cpp-rs, delete this
-# block and bump the rev on the git+branch pins in `core/Cargo.toml` instead.
-[patch."https://github.com/nobodywho-ooo/llama-cpp-rs"]
-llama-cpp-2 = { path = "../../llama-cpp-rs/llama-cpp-2" }
-llama-cpp-sys-2 = { path = "../../llama-cpp-rs/llama-cpp-sys-2" }
+# (No llama-cpp [patch] here: llama-cpp-2 / llama-cpp-sys-2 are pinned directly
+# in `core/Cargo.toml` to the fork's `wasm64-emscripten` branch. Patching a git
+# source to the same repo's other branch isn't allowed by cargo ("patch must
+# point to a different source"), so the branch is bumped at the declaration
+# instead. That branch = `wasm-emscripten` + build.rs wasm64 recognition
+# (`-sMEMORY64=1` / `LLAMA_WASM_MEM64=ON`, gated on `is_wasm64_emscripten()`, so
+# native/wasm32 are byte-for-byte unchanged). Restore `wasm-emscripten` once the
+# wasm64 build.rs changes merge there.)

@@ -470,14 +470,13 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   wasm32 pthread type sizes for `*-emscripten`; on wasm64 `pthread_attr_t`
   is 88 bytes (not 44), so `pthread_attr_init` overruns the buffer std's
   `Thread::new` stack-allocates and `std::thread::spawn` fails. #5156 makes
-  those sizes pointer-width-aware. The workspace `Cargo.toml`
-  `[patch.crates-io]` already redirects the **app's** libc to a local clone
-  carrying the fix — but that is **not enough on its own**: `-Zbuild-std`
-  recompiles `std` from rust-src and resolves the sysroot's libc
-  *separately*, so the workspace `[patch]` never reaches it (confirmable
-  with `cargo build … --unit-graph`). Since the crash is in **std's**
-  `Thread::new`, the fix must also be injected into the nightly's rust-src,
-  as a **one-time local-dev step** (the build script aborts without it):
+  those sizes pointer-width-aware. The fix is needed **only by std's** libc:
+  `-Zbuild-std` recompiles `std` from rust-src and resolves the sysroot's libc
+  *separately* from this workspace, so a workspace `[patch]` would never reach
+  it (confirmable with `cargo build … --unit-graph`). The app crate doesn't
+  need it — its only libc use is `getuid()` — so there is **no app-side libc
+  patch**; the fix is injected into the nightly's rust-src as a **one-time
+  local-dev step** (the build script aborts without it):
 
   ```bash
   RUST_SRC="$(rustup run nightly rustc --print sysroot)/lib/rustlib/src/rust"
