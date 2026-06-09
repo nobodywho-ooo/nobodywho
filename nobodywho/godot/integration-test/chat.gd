@@ -10,6 +10,7 @@ func run_test():
 	assert(await test_tool_call())
 	assert(await test_tool_call_underscores())
 	assert(await test_tool_remove())
+	assert(await test_sampler_builder())
 	return true
 
 func test_say():
@@ -108,6 +109,26 @@ func test_tool_call_underscores():
 	var response = await response_finished
 	print(response)
 	assert("P@sSW0rd" in response)
+	return true
+
+
+func test_sampler_builder():
+	print("✨ Testing SamplerBuilder")
+	reset_context()
+	self.allow_thinking = false
+	self.system_prompt = "You are a helpful assistant, capable of answering questions about the world."
+
+	var cfg = SamplerBuilder.new() \
+		.top_k(40) \
+		.temperature(0.8) \
+		.seed(42) \
+		.dist()
+	set_sampler_config(cfg)
+
+	ask("Please tell me what the capital city of Denmark is.")
+	var response = await response_finished
+	print("✨ Got response: " + response)
+	assert("Copenhagen" in response)
 	return true
 
 

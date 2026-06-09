@@ -365,6 +365,19 @@ void main() {
             .topK(topK: 5)
             .dist()
       );
+    });
+
+    test('sampling.md:153', () async {
+      final sampler = nobodywho.SamplerBuilder()
+          .temperature(temperature: 0.8)
+          .topK(topK: 5)
+          .seed(seed: 42)
+          .dist();
+    });
+
+    test('sampling.md:163', () async {
+      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+      
       final sampler = nobodywho.SamplerBuilder()
           .temperature(temperature: 0.8)
           .topK(topK: 5)

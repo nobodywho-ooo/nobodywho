@@ -160,7 +160,9 @@ final sampler = nobodywho.SamplerBuilder()
 
 You can also change the sampler configuration on an existing chat instance:
 
-```dart continuation
+```dart
+final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+
 final sampler = nobodywho.SamplerBuilder()
     .temperature(temperature: 0.8)
     .topK(topK: 5)
