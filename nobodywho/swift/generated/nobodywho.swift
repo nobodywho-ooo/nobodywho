@@ -1754,7 +1754,7 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     /**
      * Sample from the probability distribution (weighted random selection).
      */
-    func dist(seed: UInt32?)  -> SamplerConfig
+    func dist()  -> SamplerConfig
     
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
@@ -1779,17 +1779,23 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
-    func mirostatV1(tau: Float, eta: Float, m: Int32, seed: UInt32?)  -> SamplerConfig
+    func mirostatV1(tau: Float, eta: Float, m: Int32)  -> SamplerConfig
     
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
-    func mirostatV2(tau: Float, eta: Float, seed: UInt32?)  -> SamplerConfig
+    func mirostatV2(tau: Float, eta: Float)  -> SamplerConfig
     
     /**
      * Apply repetition penalties to discourage repeated tokens.
      */
     func penalties(penaltyLastN: Int32, penaltyRepeat: Float, penaltyFreq: Float, penaltyPresent: Float)  -> SamplerBuilder
+    
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+    func seed(seed: UInt32)  -> SamplerBuilder
     
     /**
      * Apply temperature scaling to the probability distribution.
@@ -1814,7 +1820,7 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
-    func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32, seed: UInt32?)  -> SamplerBuilder
+    func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32)  -> SamplerBuilder
     
 }
 open class SamplerBuilder: SamplerBuilderProtocol, @unchecked Sendable {
@@ -1878,11 +1884,10 @@ public convenience init() {
     /**
      * Sample from the probability distribution (weighted random selection).
      */
-open func dist(seed: UInt32?) -> SamplerConfig  {
+open func dist() -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(
-            self.uniffiCloneHandle(),
-        FfiConverterOptionUInt32.lower(seed),$0
+            self.uniffiCloneHandle(),$0
     )
 })
 }
@@ -1944,14 +1949,13 @@ open func minP(minP: Float, minKeep: UInt32) -> SamplerBuilder  {
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
-open func mirostatV1(tau: Float, eta: Float, m: Int32, seed: UInt32?) -> SamplerConfig  {
+open func mirostatV1(tau: Float, eta: Float, m: Int32) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(
             self.uniffiCloneHandle(),
         FfiConverterFloat.lower(tau),
         FfiConverterFloat.lower(eta),
-        FfiConverterInt32.lower(m),
-        FfiConverterOptionUInt32.lower(seed),$0
+        FfiConverterInt32.lower(m),$0
     )
 })
 }
@@ -1959,13 +1963,12 @@ open func mirostatV1(tau: Float, eta: Float, m: Int32, seed: UInt32?) -> Sampler
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
-open func mirostatV2(tau: Float, eta: Float, seed: UInt32?) -> SamplerConfig  {
+open func mirostatV2(tau: Float, eta: Float) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(
             self.uniffiCloneHandle(),
         FfiConverterFloat.lower(tau),
-        FfiConverterFloat.lower(eta),
-        FfiConverterOptionUInt32.lower(seed),$0
+        FfiConverterFloat.lower(eta),$0
     )
 })
 }
@@ -1981,6 +1984,19 @@ open func penalties(penaltyLastN: Int32, penaltyRepeat: Float, penaltyFreq: Floa
         FfiConverterFloat.lower(penaltyRepeat),
         FfiConverterFloat.lower(penaltyFreq),
         FfiConverterFloat.lower(penaltyPresent),$0
+    )
+})
+}
+    
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+open func seed(seed: UInt32) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(seed),$0
     )
 })
 }
@@ -2038,14 +2054,13 @@ open func typicalP(typP: Float, minKeep: UInt32) -> SamplerBuilder  {
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
-open func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32, seed: UInt32?) -> SamplerBuilder  {
+open func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32) -> SamplerBuilder  {
     return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(
             self.uniffiCloneHandle(),
         FfiConverterFloat.lower(xtcProbability),
         FfiConverterFloat.lower(xtcThreshold),
-        FfiConverterUInt32.lower(minKeep),
-        FfiConverterOptionUInt32.lower(seed),$0
+        FfiConverterUInt32.lower(minKeep),$0
     )
 })
 }
@@ -3843,7 +3858,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 10606) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315) {
@@ -3858,13 +3873,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() != 33705) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 32524) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 58563) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 34741) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 41682) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() != 40767) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed() != 25129) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature() != 8456) {
@@ -3879,7 +3897,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p() != 28727) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 45981) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 22853) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {

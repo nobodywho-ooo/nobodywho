@@ -23,8 +23,12 @@ class SamplerScope {
     fun minP(minP: Float, minKeep: UInt = 1u) { builder = builder.minP(minP, minKeep) }
     fun temperature(temperature: Float) { builder = builder.temperature(temperature) }
     fun typicalP(typP: Float, minKeep: UInt = 1u) { builder = builder.typicalP(typP, minKeep) }
-    fun xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt = 1u, seed: UInt? = null) { builder = builder.xtc(xtcProbability, xtcThreshold, minKeep, seed) }
+    fun xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt = 1u) { builder = builder.xtc(xtcProbability, xtcThreshold, minKeep) }
     fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder = builder.grammar(grammar, triggerOn, root) }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostatV1`, `mirostatV2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    fun seed(value: UInt) { builder = builder.seed(value) }
 
     fun dry(
         multiplier: Float = 0.8f,
@@ -46,12 +50,12 @@ class SamplerScope {
         result = config
     }
 
-    fun dist(seed: UInt? = null) { setResult(builder.dist(seed)) }
+    fun dist() { setResult(builder.dist()) }
     fun greedy() { setResult(builder.greedy()) }
-    fun mirostatV1(tau: Float = 5.0f, eta: Float = 0.1f, m: Int = 100, seed: UInt? = null) { setResult(builder.mirostatV1(tau, eta, m, seed)) }
-    fun mirostatV2(tau: Float = 5.0f, eta: Float = 0.1f, seed: UInt? = null) { setResult(builder.mirostatV2(tau, eta, seed)) }
+    fun mirostatV1(tau: Float = 5.0f, eta: Float = 0.1f, m: Int = 100) { setResult(builder.mirostatV1(tau, eta, m)) }
+    fun mirostatV2(tau: Float = 5.0f, eta: Float = 0.1f) { setResult(builder.mirostatV2(tau, eta)) }
 
-    internal fun build(): SamplerConfig = result ?: builder.dist(null)
+    internal fun build(): SamplerConfig = result ?: builder.dist()
 }
 
 /**

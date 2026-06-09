@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 250237116;
+  int get rustContentHash => 742391188;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -224,10 +224,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   String crateRustToolGetSchemaJson({required RustTool that});
 
-  SamplerConfig crateSamplerBuilderDist({
-    required SamplerBuilder that,
-    int seed = 1234,
-  });
+  SamplerConfig crateSamplerBuilderDist({required SamplerBuilder that});
 
   SamplerBuilder crateSamplerBuilderDry({
     required SamplerBuilder that,
@@ -258,14 +255,12 @@ abstract class NobodyWhoApi extends BaseApi {
     required double tau,
     required double eta,
     required int m,
-    int seed = 1234,
   });
 
   SamplerConfig crateSamplerBuilderMirostatV2({
     required SamplerBuilder that,
     required double tau,
     required double eta,
-    int seed = 1234,
   });
 
   SamplerBuilder crateSamplerBuilderNew();
@@ -276,6 +271,11 @@ abstract class NobodyWhoApi extends BaseApi {
     required double penaltyRepeat,
     required double penaltyFreq,
     required double penaltyPresent,
+  });
+
+  SamplerBuilder crateSamplerBuilderSeed({
+    required SamplerBuilder that,
+    required int seed,
   });
 
   SamplerBuilder crateSamplerBuilderTemperature({
@@ -305,7 +305,6 @@ abstract class NobodyWhoApi extends BaseApi {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
-    int seed = 1234,
   });
 
   SamplerConfig crateSamplerConfigFromJson({required String jsonStr});
@@ -1736,10 +1735,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
-  SamplerConfig crateSamplerBuilderDist({
-    required SamplerBuilder that,
-    int seed = 1234,
-  }) {
+  SamplerConfig crateSamplerBuilderDist({required SamplerBuilder that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1748,7 +1744,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_u_32(seed, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
         },
         codec: SseCodec(
@@ -1757,16 +1752,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderDistConstMeta,
-        argValues: [that, seed],
+        argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateSamplerBuilderDistConstMeta => const TaskConstMeta(
-    debugName: "SamplerBuilder_dist",
-    argNames: ["that", "seed"],
-  );
+  TaskConstMeta get kCrateSamplerBuilderDistConstMeta =>
+      const TaskConstMeta(debugName: "SamplerBuilder_dist", argNames: ["that"]);
 
   @override
   SamplerBuilder crateSamplerBuilderDry({
@@ -1930,7 +1923,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     required double tau,
     required double eta,
     required int m,
-    int seed = 1234,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1943,7 +1935,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
           sse_encode_i_32(m, serializer);
-          sse_encode_u_32(seed, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
@@ -1952,7 +1943,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderMirostatV1ConstMeta,
-        argValues: [that, tau, eta, m, seed],
+        argValues: [that, tau, eta, m],
         apiImpl: this,
       ),
     );
@@ -1961,7 +1952,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   TaskConstMeta get kCrateSamplerBuilderMirostatV1ConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_mirostat_v1",
-        argNames: ["that", "tau", "eta", "m", "seed"],
+        argNames: ["that", "tau", "eta", "m"],
       );
 
   @override
@@ -1969,7 +1960,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     required SamplerBuilder that,
     required double tau,
     required double eta,
-    int seed = 1234,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1981,7 +1971,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
-          sse_encode_u_32(seed, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
@@ -1990,7 +1979,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderMirostatV2ConstMeta,
-        argValues: [that, tau, eta, seed],
+        argValues: [that, tau, eta],
         apiImpl: this,
       ),
     );
@@ -1999,7 +1988,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   TaskConstMeta get kCrateSamplerBuilderMirostatV2ConstMeta =>
       const TaskConstMeta(
         debugName: "SamplerBuilder_mirostat_v2",
-        argNames: ["that", "tau", "eta", "seed"],
+        argNames: ["that", "tau", "eta"],
       );
 
   @override
@@ -2078,6 +2067,39 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
+  SamplerBuilder crateSamplerBuilderSeed({
+    required SamplerBuilder that,
+    required int seed,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder(
+            that,
+            serializer,
+          );
+          sse_encode_u_32(seed, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerBuilder,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateSamplerBuilderSeedConstMeta,
+        argValues: [that, seed],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateSamplerBuilderSeedConstMeta => const TaskConstMeta(
+    debugName: "SamplerBuilder_seed",
+    argNames: ["that", "seed"],
+  );
+
+  @override
   SamplerBuilder crateSamplerBuilderTemperature({
     required SamplerBuilder that,
     required double temperature,
@@ -2091,7 +2113,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2125,7 +2147,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2160,7 +2182,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(topP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2195,7 +2217,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(typP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2221,7 +2243,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
-    int seed = 1234,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -2234,8 +2255,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(xtcProbability, serializer);
           sse_encode_f_32(xtcThreshold, serializer);
           sse_encode_u_32(minKeep, serializer);
-          sse_encode_u_32(seed, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2243,7 +2263,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: null,
         ),
         constMeta: kCrateSamplerBuilderXtcConstMeta,
-        argValues: [that, xtcProbability, xtcThreshold, minKeep, seed],
+        argValues: [that, xtcProbability, xtcThreshold, minKeep],
         apiImpl: this,
       ),
     );
@@ -2251,7 +2271,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateSamplerBuilderXtcConstMeta => const TaskConstMeta(
     debugName: "SamplerBuilder_xtc",
-    argNames: ["that", "xtcProbability", "xtcThreshold", "minKeep", "seed"],
+    argNames: ["that", "xtcProbability", "xtcThreshold", "minKeep"],
   );
 
   @override
@@ -2261,7 +2281,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(jsonStr, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2290,7 +2310,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2317,7 +2337,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(grammar, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2346,7 +2366,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(schema, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2375,7 +2395,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(pattern, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2401,7 +2421,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2427,7 +2447,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2451,7 +2471,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(grammar, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2476,7 +2496,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2499,7 +2519,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2523,7 +2543,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2550,7 +2570,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2576,7 +2596,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(topP, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2605,7 +2625,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2635,7 +2655,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2671,7 +2691,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             arguments,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2704,7 +2724,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2734,7 +2754,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_f_32_loose(a, serializer);
           sse_encode_list_prim_f_32_loose(b, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_32,
@@ -2770,7 +2790,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 64,
             port: port_,
           );
         },
@@ -2796,7 +2816,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_record_string_usize,
@@ -2821,7 +2841,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 66,
             port: port_,
           );
         },
@@ -2846,7 +2866,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_box_autoadd_usize(maxCommands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2878,7 +2898,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_u_64(maxDurationSecs, serializer);
           sse_encode_opt_box_autoadd_usize(maxMemoryBytes, serializer);
           sse_encode_opt_box_autoadd_usize(maxRecursionDepth, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2917,7 +2937,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
           sse_encode_Map_String_String_None(parameterDescriptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2959,7 +2979,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(downloaded, serializer);
           sse_encode_i_64(total, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -2988,7 +3008,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -6448,13 +6468,10 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
 
   /// Sample from the probability distribution (weighted random selection).
   ///
-  /// Args:
-  ///     seed: Random seed for reproducibility (default: 1234)
-  ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
-  SamplerConfig dist({int seed = 1234}) =>
-      NobodyWho.instance.api.crateSamplerBuilderDist(that: this, seed: seed);
+  SamplerConfig dist() =>
+      NobodyWho.instance.api.crateSamplerBuilderDist(that: this);
 
   /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
   ///
@@ -6516,7 +6533,6 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
   ///     eta: Learning rate for perplexity adjustment (typically 0.1)
   ///     m: Number of candidates to consider (typically 100)
-  ///     seed: Random seed for reproducibility (default: 1234)
   ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
@@ -6524,13 +6540,11 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double tau,
     required double eta,
     required int m,
-    int seed = 1234,
   }) => NobodyWho.instance.api.crateSamplerBuilderMirostatV1(
     that: this,
     tau: tau,
     eta: eta,
     m: m,
-    seed: seed,
   );
 
   /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
@@ -6540,20 +6554,15 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   /// Args:
   ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
   ///     eta: Learning rate for perplexity adjustment (typically 0.1)
-  ///     seed: Random seed for reproducibility (default: 1234)
   ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
-  SamplerConfig mirostatV2({
-    required double tau,
-    required double eta,
-    int seed = 1234,
-  }) => NobodyWho.instance.api.crateSamplerBuilderMirostatV2(
-    that: this,
-    tau: tau,
-    eta: eta,
-    seed: seed,
-  );
+  SamplerConfig mirostatV2({required double tau, required double eta}) =>
+      NobodyWho.instance.api.crateSamplerBuilderMirostatV2(
+        that: this,
+        tau: tau,
+        eta: eta,
+      );
 
   /// Apply repetition penalties to discourage repeated tokens.
   ///
@@ -6574,6 +6583,11 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     penaltyFreq: penaltyFreq,
     penaltyPresent: penaltyPresent,
   );
+
+  /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+  /// `greedy` ignores it. If unset, a default seed is used.
+  SamplerBuilder seed({required int seed}) =>
+      NobodyWho.instance.api.crateSamplerBuilderSeed(that: this, seed: seed);
 
   /// Apply temperature scaling to the probability distribution.
   ///
@@ -6624,13 +6638,11 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
-    int seed = 1234,
   }) => NobodyWho.instance.api.crateSamplerBuilderXtc(
     that: this,
     xtcProbability: xtcProbability,
     xtcThreshold: xtcThreshold,
     minKeep: minKeep,
-    seed: seed,
   );
 }
 

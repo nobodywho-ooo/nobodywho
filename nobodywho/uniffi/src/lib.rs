@@ -851,7 +851,6 @@ impl SamplerBuilder {
         xtc_probability: f32,
         xtc_threshold: f32,
         min_keep: u32,
-        seed: Option<u32>,
     ) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
             inner: self
@@ -861,8 +860,15 @@ impl SamplerBuilder {
                     xtc_probability,
                     xtc_threshold,
                     min_keep,
-                    seed: seed.unwrap_or(1234),
                 }),
+        })
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    pub fn seed(&self, seed: u32) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().seed(seed),
         })
     }
 
@@ -945,12 +951,12 @@ impl SamplerBuilder {
     // -- Sample steps (finalize to SamplerConfig) --
 
     /// Sample from the probability distribution (weighted random selection).
-    pub fn dist(&self, seed: Option<u32>) -> Arc<SamplerConfig> {
+    pub fn dist(&self) -> Arc<SamplerConfig> {
         Arc::new(SamplerConfig {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler::SampleStep::Dist { seed: seed.unwrap_or(1234) }),
+                .sample(nobodywho::sampler::SampleStep::Dist),
         })
     }
 
@@ -965,22 +971,22 @@ impl SamplerBuilder {
     }
 
     /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
-    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32, seed: Option<u32>) -> Arc<SamplerConfig> {
+    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> Arc<SamplerConfig> {
         Arc::new(SamplerConfig {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler::SampleStep::MirostatV1 { seed: seed.unwrap_or(1234), tau, eta, m }),
+                .sample(nobodywho::sampler::SampleStep::MirostatV1 { tau, eta, m }),
         })
     }
 
     /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
-    pub fn mirostat_v2(&self, tau: f32, eta: f32, seed: Option<u32>) -> Arc<SamplerConfig> {
+    pub fn mirostat_v2(&self, tau: f32, eta: f32) -> Arc<SamplerConfig> {
         Arc::new(SamplerConfig {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler::SampleStep::MirostatV2 { seed: seed.unwrap_or(1234), tau, eta }),
+                .sample(nobodywho::sampler::SampleStep::MirostatV2 { tau, eta }),
         })
     }
 }

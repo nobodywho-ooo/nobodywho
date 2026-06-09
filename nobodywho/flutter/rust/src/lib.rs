@@ -803,7 +803,6 @@ impl SamplerBuilder {
         xtc_probability: f32,
         xtc_threshold: f32,
         min_keep: u32,
-        #[frb(default = 1234)] seed: u32,
     ) -> Self {
         shift_step(
             self.clone(),
@@ -811,9 +810,17 @@ impl SamplerBuilder {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
-                seed,
             },
         )
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn seed(&self, seed: u32) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().seed(seed),
+        }
     }
 
     /// Typical sampling: keeps tokens close to expected information content.
@@ -915,14 +922,11 @@ impl SamplerBuilder {
 
     /// Sample from the probability distribution (weighted random selection).
     ///
-    /// Args:
-    ///     seed: Random seed for reproducibility (default: 1234)
-    ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
     #[flutter_rust_bridge::frb(sync)]
-    pub fn dist(&self, #[frb(default = 1234)] seed: u32) -> SamplerConfig {
-        sample_step(self.clone(), nobodywho::sampler::SampleStep::Dist { seed })
+    pub fn dist(&self) -> SamplerConfig {
+        sample_step(self.clone(), nobodywho::sampler::SampleStep::Dist)
     }
 
     /// Always select the most probable token (deterministic).
@@ -942,15 +946,14 @@ impl SamplerBuilder {
     ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
     ///     eta: Learning rate for perplexity adjustment (typically 0.1)
     ///     m: Number of candidates to consider (typically 100)
-    ///     seed: Random seed for reproducibility (default: 1234)
     ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
     #[flutter_rust_bridge::frb(sync)]
-    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32, #[frb(default = 1234)] seed: u32) -> SamplerConfig {
+    pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler::SampleStep::MirostatV1 { seed, tau, eta, m },
+            nobodywho::sampler::SampleStep::MirostatV1 { tau, eta, m },
         )
     }
 
@@ -961,15 +964,14 @@ impl SamplerBuilder {
     /// Args:
     ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
     ///     eta: Learning rate for perplexity adjustment (typically 0.1)
-    ///     seed: Random seed for reproducibility (default: 1234)
     ///
     /// Returns:
     ///     A complete SamplerConfig ready to use
     #[flutter_rust_bridge::frb(sync)]
-    pub fn mirostat_v2(&self, tau: f32, eta: f32, #[frb(default = 1234)] seed: u32) -> SamplerConfig {
+    pub fn mirostat_v2(&self, tau: f32, eta: f32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler::SampleStep::MirostatV2 { seed, tau, eta },
+            nobodywho::sampler::SampleStep::MirostatV2 { tau, eta },
         )
     }
 }

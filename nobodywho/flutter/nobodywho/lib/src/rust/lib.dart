@@ -321,12 +321,9 @@ abstract class RustTool implements RustOpaqueInterface {
 abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Sample from the probability distribution (weighted random selection).
   ///
-  /// Args:
-  ///     seed: Random seed for reproducibility (default: 1234)
-  ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
-  SamplerConfig dist({int seed = 1234});
+  SamplerConfig dist();
 
   /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
   ///
@@ -372,7 +369,6 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
   ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
   ///     eta: Learning rate for perplexity adjustment (typically 0.1)
   ///     m: Number of candidates to consider (typically 100)
-  ///     seed: Random seed for reproducibility (default: 1234)
   ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
@@ -380,7 +376,6 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double tau,
     required double eta,
     required int m,
-    int seed = 1234,
   });
 
   /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
@@ -390,15 +385,10 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Args:
   ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
   ///     eta: Learning rate for perplexity adjustment (typically 0.1)
-  ///     seed: Random seed for reproducibility (default: 1234)
   ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
-  SamplerConfig mirostatV2({
-    required double tau,
-    required double eta,
-    int seed = 1234,
-  });
+  SamplerConfig mirostatV2({required double tau, required double eta});
 
   /// Create a new SamplerBuilder to construct a custom sampler chain.
   factory SamplerBuilder() => NobodyWho.instance.api.crateSamplerBuilderNew();
@@ -416,6 +406,10 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double penaltyFreq,
     required double penaltyPresent,
   });
+
+  /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+  /// `greedy` ignores it. If unset, a default seed is used.
+  SamplerBuilder seed({required int seed});
 
   /// Apply temperature scaling to the probability distribution.
   ///
@@ -454,7 +448,6 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double xtcProbability,
     required double xtcThreshold,
     required int minKeep,
-    int seed = 1234,
   });
 }
 

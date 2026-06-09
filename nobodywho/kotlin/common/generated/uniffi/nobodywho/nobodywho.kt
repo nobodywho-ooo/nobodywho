@@ -775,6 +775,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(
@@ -909,7 +911,7 @@ external fun uniffi_nobodywho_uniffi_fn_free_samplerbuilder(`handle`: Long,uniff
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(`ptr`: Long,`seed`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(`ptr`: Long,`multiplier`: Float,`base`: Float,`allowedLength`: Int,`penaltyLastN`: Int,`seqBreakers`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -919,11 +921,13 @@ external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(`ptr`: Long
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(`ptr`: Long,`minP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(`ptr`: Long,`tau`: Float,`eta`: Float,`m`: Int,`seed`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(`ptr`: Long,`tau`: Float,`eta`: Float,`m`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(`ptr`: Long,`tau`: Float,`eta`: Float,`seed`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(`ptr`: Long,`tau`: Float,`eta`: Float,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(`ptr`: Long,`penaltyLastN`: Int,`penaltyRepeat`: Float,`penaltyFreq`: Float,`penaltyPresent`: Float,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(`ptr`: Long,`seed`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(`ptr`: Long,`temperature`: Float,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -933,7 +937,7 @@ external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_typical_p(`ptr`: Long,`typP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(`ptr`: Long,`xtcProbability`: Float,`xtcThreshold`: Float,`minKeep`: Int,`seed`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(`ptr`: Long,`xtcProbability`: Float,`xtcThreshold`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_clone_samplerconfig(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1207,7 +1211,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 10606.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315.toShort()) {
@@ -1222,13 +1226,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() != 33705.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 32524.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() != 58563.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 34741.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() != 41682.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() != 40767.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed() != 25129.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature() != 8456.toShort()) {
@@ -1243,7 +1250,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p() != 28727.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 45981.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() != 22853.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
@@ -3866,7 +3873,7 @@ public interface SamplerBuilderInterface {
     /**
      * Sample from the probability distribution (weighted random selection).
      */
-    fun `dist`(`seed`: kotlin.UInt?): SamplerConfig
+    fun `dist`(): SamplerConfig
     
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
@@ -3891,17 +3898,23 @@ public interface SamplerBuilderInterface {
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
-    fun `mirostatV1`(`tau`: kotlin.Float, `eta`: kotlin.Float, `m`: kotlin.Int, `seed`: kotlin.UInt?): SamplerConfig
+    fun `mirostatV1`(`tau`: kotlin.Float, `eta`: kotlin.Float, `m`: kotlin.Int): SamplerConfig
     
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
-    fun `mirostatV2`(`tau`: kotlin.Float, `eta`: kotlin.Float, `seed`: kotlin.UInt?): SamplerConfig
+    fun `mirostatV2`(`tau`: kotlin.Float, `eta`: kotlin.Float): SamplerConfig
     
     /**
      * Apply repetition penalties to discourage repeated tokens.
      */
     fun `penalties`(`penaltyLastN`: kotlin.Int, `penaltyRepeat`: kotlin.Float, `penaltyFreq`: kotlin.Float, `penaltyPresent`: kotlin.Float): SamplerBuilder
+    
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+    fun `seed`(`seed`: kotlin.UInt): SamplerBuilder
     
     /**
      * Apply temperature scaling to the probability distribution.
@@ -3926,7 +3939,7 @@ public interface SamplerBuilderInterface {
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
-    fun `xtc`(`xtcProbability`: kotlin.Float, `xtcThreshold`: kotlin.Float, `minKeep`: kotlin.UInt, `seed`: kotlin.UInt?): SamplerBuilder
+    fun `xtc`(`xtcProbability`: kotlin.Float, `xtcThreshold`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder
     
     companion object
 }
@@ -4041,13 +4054,13 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     
     /**
      * Sample from the probability distribution (weighted random selection).
-     */override fun `dist`(`seed`: kotlin.UInt?): SamplerConfig {
+     */override fun `dist`(): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(
         it,
-        FfiConverterOptionalUInt.lower(`seed`),_status)
+        _status)
 }
     }
     )
@@ -4121,13 +4134,13 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
-     */override fun `mirostatV1`(`tau`: kotlin.Float, `eta`: kotlin.Float, `m`: kotlin.Int, `seed`: kotlin.UInt?): SamplerConfig {
+     */override fun `mirostatV1`(`tau`: kotlin.Float, `eta`: kotlin.Float, `m`: kotlin.Int): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(
         it,
-        FfiConverterFloat.lower(`tau`),FfiConverterFloat.lower(`eta`),FfiConverterInt.lower(`m`),FfiConverterOptionalUInt.lower(`seed`),_status)
+        FfiConverterFloat.lower(`tau`),FfiConverterFloat.lower(`eta`),FfiConverterInt.lower(`m`),_status)
 }
     }
     )
@@ -4137,13 +4150,13 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
-     */override fun `mirostatV2`(`tau`: kotlin.Float, `eta`: kotlin.Float, `seed`: kotlin.UInt?): SamplerConfig {
+     */override fun `mirostatV2`(`tau`: kotlin.Float, `eta`: kotlin.Float): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(
         it,
-        FfiConverterFloat.lower(`tau`),FfiConverterFloat.lower(`eta`),FfiConverterOptionalUInt.lower(`seed`),_status)
+        FfiConverterFloat.lower(`tau`),FfiConverterFloat.lower(`eta`),_status)
 }
     }
     )
@@ -4160,6 +4173,23 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(
         it,
         FfiConverterInt.lower(`penaltyLastN`),FfiConverterFloat.lower(`penaltyRepeat`),FfiConverterFloat.lower(`penaltyFreq`),FfiConverterFloat.lower(`penaltyPresent`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */override fun `seed`(`seed`: kotlin.UInt): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(
+        it,
+        FfiConverterUInt.lower(`seed`),_status)
 }
     }
     )
@@ -4233,13 +4263,13 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
-     */override fun `xtc`(`xtcProbability`: kotlin.Float, `xtcThreshold`: kotlin.Float, `minKeep`: kotlin.UInt, `seed`: kotlin.UInt?): SamplerBuilder {
+     */override fun `xtc`(`xtcProbability`: kotlin.Float, `xtcThreshold`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder {
             return FfiConverterTypeSamplerBuilder.lift(
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(
         it,
-        FfiConverterFloat.lower(`xtcProbability`),FfiConverterFloat.lower(`xtcThreshold`),FfiConverterUInt.lower(`minKeep`),FfiConverterOptionalUInt.lower(`seed`),_status)
+        FfiConverterFloat.lower(`xtcProbability`),FfiConverterFloat.lower(`xtcThreshold`),FfiConverterUInt.lower(`minKeep`),_status)
 }
     }
     )

@@ -2627,7 +2627,7 @@ export interface SamplerBuilderInterface {
     /**
      * Sample from the probability distribution (weighted random selection).
      */
-    dist(seed: /*u32*/number | undefined) : SamplerConfigInterface;
+    dist() : SamplerConfigInterface;
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
      */
@@ -2647,15 +2647,20 @@ export interface SamplerBuilderInterface {
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
-    mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number, seed: /*u32*/number | undefined) : SamplerConfigInterface;
+    mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number) : SamplerConfigInterface;
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
-    mirostatV2(tau: /*f32*/number, eta: /*f32*/number, seed: /*u32*/number | undefined) : SamplerConfigInterface;
+    mirostatV2(tau: /*f32*/number, eta: /*f32*/number) : SamplerConfigInterface;
     /**
      * Apply repetition penalties to discourage repeated tokens.
      */
     penalties(penaltyLastN: /*i32*/number, penaltyRepeat: /*f32*/number, penaltyFreq: /*f32*/number, penaltyPresent: /*f32*/number) : SamplerBuilderInterface;
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+    seed(seed: /*u32*/number) : SamplerBuilderInterface;
     /**
      * Apply temperature scaling to the probability distribution.
      */
@@ -2675,7 +2680,7 @@ export interface SamplerBuilderInterface {
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
-    xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number, seed: /*u32*/number | undefined) : SamplerBuilderInterface;
+    xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number) : SamplerBuilderInterface;
 }
 
 
@@ -2707,11 +2712,10 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Sample from the probability distribution (weighted random selection).
      */
- dist(seed: /*u32*/number | undefined): SamplerConfigInterface {
+ dist(): SamplerConfigInterface {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
-        FfiConverterOptionalUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2783,14 +2787,13 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
- mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number, seed: /*u32*/number | undefined): SamplerConfigInterface {
+ mirostatV1(tau: /*f32*/number, eta: /*f32*/number, m: /*i32*/number): SamplerConfigInterface {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
         FfiConverterFloat32.lower(tau),
         FfiConverterFloat32.lower(eta),
         FfiConverterInt32.lower(m),
-        FfiConverterOptionalUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2800,13 +2803,12 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
- mirostatV2(tau: /*f32*/number, eta: /*f32*/number, seed: /*u32*/number | undefined): SamplerConfigInterface {
+ mirostatV2(tau: /*f32*/number, eta: /*f32*/number): SamplerConfigInterface {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
         FfiConverterFloat32.lower(tau),
         FfiConverterFloat32.lower(eta),
-        FfiConverterOptionalUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2824,6 +2826,21 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
         FfiConverterFloat32.lower(penaltyRepeat),
         FfiConverterFloat32.lower(penaltyFreq),
         FfiConverterFloat32.lower(penaltyPresent),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+ seed(seed: /*u32*/number): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2891,14 +2908,13 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
- xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number, seed: /*u32*/number | undefined): SamplerBuilderInterface {
+ xtc(xtcProbability: /*f32*/number, xtcThreshold: /*f32*/number, minKeep: /*u32*/number): SamplerBuilderInterface {
     return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
         FfiConverterFloat32.lower(xtcProbability),
         FfiConverterFloat32.lower(xtcThreshold),
         FfiConverterUInt32.lower(minKeep),
-        FfiConverterOptionalUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -3310,7 +3326,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() !== 10096) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 10606) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() !== 35315) {
@@ -3325,14 +3341,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() !== 33705) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() !== 32524) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1() !== 58563) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() !== 34741) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2() !== 41682) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() !== 40767) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed() !== 25129) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature() !== 8456) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature");
@@ -3346,7 +3365,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p() !== 28727) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() !== 45981) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc() !== 22853) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
