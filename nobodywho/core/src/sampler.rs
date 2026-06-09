@@ -132,9 +132,7 @@ impl SamplerConfig {
             SampleStep::MirostatV1 { tau, eta, m } => {
                 LlamaSampler::mirostat(model.n_vocab(), self.seed, tau, eta, m)
             }
-            SampleStep::MirostatV2 { tau, eta } => {
-                LlamaSampler::mirostat_v2(self.seed, tau, eta)
-            }
+            SampleStep::MirostatV2 { tau, eta } => LlamaSampler::mirostat_v2(self.seed, tau, eta),
         };
 
         shift_steps.push(final_sampler);
@@ -274,6 +272,12 @@ impl Default for SamplerConfig {
 pub struct SamplerBuilder {
     steps: Vec<ShiftStep>,
     seed: u32,
+}
+
+impl Default for SamplerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SamplerBuilder {
@@ -600,7 +604,7 @@ mod tests {
         let cfg: SamplerConfig = serde_json::from_str(legacy_dist_and_xtc)
             .expect("legacy v2.2.0 JSON with dist + xtc (no seed fields) should deserialize");
         assert_eq!(cfg.steps.len(), 2);
-        assert!(matches!(cfg.sample_step, SampleStep::Dist { .. }));
+        assert!(matches!(cfg.sample_step, SampleStep::Dist));
 
         let legacy_mirostat_v2 = r#"{
             "steps": [],

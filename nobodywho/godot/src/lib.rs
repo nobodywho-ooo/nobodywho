@@ -1279,17 +1279,17 @@ impl NobodyWhoChat {
     /// Constrains the model output to a regular expression via llguidance.
     #[func]
     fn set_sampler_preset_constrain_with_regex(&mut self, pattern: String) {
-        self.set_sampler_preset_impl(
-            nobodywho::sampler::SamplerPresets::constrain_with_regex(pattern),
-        );
+        self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_regex(
+            pattern,
+        ));
     }
 
     /// Constrains the model output using a Lark context-free grammar via llguidance.
     #[func]
     fn set_sampler_preset_constrain_with_grammar(&mut self, grammar: String) {
-        self.set_sampler_preset_impl(
-            nobodywho::sampler::SamplerPresets::constrain_with_grammar(grammar),
-        );
+        self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_grammar(
+            grammar,
+        ));
     }
 
     /// Constrain output to valid JSON (any structure) using GBNF.
