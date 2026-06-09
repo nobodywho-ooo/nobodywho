@@ -276,7 +276,7 @@ jobs:
       EMSDK_FORK_URL: https://github.com/nobodywho-ooo/emscripten
       EMSDK_FORK_REF: wbg-walkingeyerobot
       WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
-      WBG_FORK_REF: wasm-emscripten-0.2.122
+      WBG_FORK_REF: wasm64-emscripten
     steps:
       - uses: actions/checkout@v5
         with:
@@ -358,7 +358,7 @@ jobs:
         with:
           path: /tmp/wbg-patched
           # -v2: rebuild the CLI to pick up the SAB-safe encodeInto polyfill
-          # (nobodywho-ooo/wasm-bindgen@wasm-emscripten-0.2.122). Key is the branch
+          # (nobodywho-ooo/wasm-bindgen@wasm64-emscripten). Key is the branch
           # name, so a same-branch push needs a version bump to bust it.
           key: wbg-patched-${{ runner.os }}-${{ env.WBG_FORK_REF }}-v2
 

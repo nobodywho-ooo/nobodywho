@@ -200,8 +200,8 @@ git clone -b wbg-walkingeyerobot \
 cd ~/emscripten-wbg
 ./bootstrap   # downloads the matching binaryen + node bundle
 
-# 2. wasm-bindgen 0.2.122 + the Emscripten pthread thread-transform skip
-git clone -b wasm-emscripten-0.2.122 \
+# 2. wasm-bindgen 0.2.122 + Emscripten/wasm64 fixes (pthread skip, MEMORY64, encodeInto)
+git clone -b wasm64-emscripten \
   https://github.com/nobodywho-ooo/wasm-bindgen ~/wasm-bindgen
 cargo install --path ~/wasm-bindgen/crates/cli \
   --root /tmp/wbg-patched --locked
@@ -270,9 +270,10 @@ The Rust side uses wasm-bindgen attributes to expose typed JS classes
 (`Model`, `Chat`, `Encoder`, `CrossEncoder`, `Image`, `Audio`,
 `Tool`, etc.). wasm-bindgen 0.2.122 ships Emscripten output mode
 upstream; we pin a thin fork (`nobodywho-ooo/wasm-bindgen` branch
-`wasm-emscripten-0.2.122`) for the one remaining fix — skipping
-wasm-bindgen's `__heap_base` thread transform, which conflicts with
-Emscripten's own pthread runtime — until that lands upstream too.
+`wasm64-emscripten`) for a few Emscripten/wasm64 fixes not yet upstream:
+skipping the `__heap_base` thread transform (Emscripten manages its own
+pthread runtime), MEMORY64 stack-pointer/retptr handling, and a SAB-safe
+`encodeInto` polyfill — until those land upstream too.
 
 ### Source-level patches to llama.cpp
 
@@ -454,14 +455,13 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
     `LLAMA_WASM_MEM64=ON` on the `wasm64-emscripten` branch; until that
     merges back, the workspace `Cargo.toml` `[patch]` block points both
     crates at a local clone of it (see that block's comment).
-  - [`nobodywho-ooo/wasm-bindgen`](https://github.com/nobodywho-ooo/wasm-bindgen)
-    — upstream 0.2.122 plus Emscripten support: the pthread thread-transform skip
-    and a SAB-safe `TextEncoder.encodeInto` polyfill (`encodeInto` rejects
-    `SharedArrayBuffer`-backed views, which threaded builds always use). The
-    *crate* is pinned via `Cargo.toml` `[patch.crates-io]` on `wasm64-emscripten`;
-    js CI builds the *cli* (which emits the glue + that polyfill) from
-    `wasm-emscripten-0.2.122` (`WBG_FORK_REF`). `wasm64-emscripten` is that branch
-    plus the wasm64 commits, so the two share a schema version and interoperate.
+  - [`nobodywho-ooo/wasm-bindgen` branch `wasm64-emscripten`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/wasm64-emscripten)
+    — upstream 0.2.122 plus the Emscripten/wasm64 fixes both the crate and the cli
+    need: the pthread thread-transform skip, MEMORY64 handling (the i64
+    stack-pointer shim for `__wbindgen_add_to_stack_pointer` + retptr BigInt), and
+    a SAB-safe `TextEncoder.encodeInto` polyfill. Both the *crate* (`Cargo.toml`
+    `[patch.crates-io]`) and the js-CI *cli* (`WBG_FORK_REF`) pin this one branch,
+    so they stay in lockstep.
   - [`nobodywho-ooo/emscripten` branch `wbg-walkingeyerobot`](https://github.com/nobodywho-ooo/emscripten/tree/wbg-walkingeyerobot)
     — our fork of `walkingeyerobot/emscripten`, pinned at a fixed commit for
     reproducible CI. Carries the `-sWASM_BINDGEN` flag tracked in

@@ -29,7 +29,7 @@
 #   - nobodywho-ooo's emscripten fork at $HOME/emscripten-wbg
 #     providing the -sWASM_BINDGEN setting (PR emscripten-core/emscripten#23493).
 #   - wasm-bindgen-cli built from the nobodywho-ooo/wasm-bindgen
-#     `wasm-emscripten-0.2.122` branch (e.g. /tmp/wbg-patched), pointed at via
+#     `wasm64-emscripten` branch (e.g. /tmp/wbg-patched), pointed at via
 #     $EM_WASM_BINDGEN. NOT stock crates.io — see the WASM_BINDGEN_BIN note below.
 #   - $LIBCLANG_PATH pointing at a libclang that bindgen can find (Apple's CLT
 #     bin/lib works: /Library/Developer/CommandLineTools/usr/lib).
@@ -89,7 +89,7 @@ TARGET_DIR="$ROOT/nobodywho/target/wasm64-unknown-emscripten/release"
 EMSDK_DIR="${EMSDK_DIR:-$HOME/emscripten-wbg}"
 EM_CONFIG="${EM_CONFIG:-$EMSDK_DIR/.emscripten}"
 # IMPORTANT: must be the wasm-bindgen-cli built from the
-# nobodywho-ooo/wasm-bindgen `wasm-emscripten-0.2.122` branch, not stock
+# nobodywho-ooo/wasm-bindgen `wasm64-emscripten` branch, not stock
 # crates.io (which is still 0.2.121). The cli's schema must match the patched
 # 0.2.122 wasm-bindgen crate pinned in the workspace Cargo.toml, and the fork
 # carries the Emscripten pthread thread-transform skip. Build it from the fork:
@@ -234,7 +234,7 @@ if [[ ! -f "$BINDGEN_OUT/library_bindgen.js" ]]; then
   echo "       Output dir contents:" >&2
   ls -la "$BINDGEN_OUT" >&2
   echo "       Did the marker injection succeed? Re-check the python step above." >&2
-  echo "       wasm-bindgen-cli must be the wasm-emscripten-0.2.122 fork build" >&2
+  echo "       wasm-bindgen-cli must be the wasm64-emscripten fork build" >&2
   echo "       (matching schema + pthread transform skip); stock 0.2.121 won't work." >&2
   exit 1
 fi
