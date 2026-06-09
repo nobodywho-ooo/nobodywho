@@ -82,7 +82,9 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          vulkan_version: 1.4.304.0
+          # See the Windows wheel job below: the new ggml-vulkan backend needs
+          # SPIRV-HeadersConfig.cmake, only bundled in the SDK from ~1.4.313+.
+          vulkan_version: 1.4.313.2
           cache: true
 
       - name: Install build dependencies
@@ -167,7 +169,12 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          vulkan_version: 1.4.304.0
+          # 1.4.313.2 matches llama.cpp's own Windows Vulkan CI. The newer
+          # ggml-vulkan backend does find_package(SPIRV-Headers CONFIG REQUIRED);
+          # SPIRV-HeadersConfig.cmake is only bundled in the SDK from ~1.4.313+,
+          # so 1.4.304.0 fails to configure. (Discovery uses the VULKAN_SDK env
+          # var this action sets; stripdown doesn't touch the cmake config.)
+          vulkan_version: 1.4.313.2
           install_runtime: false
           cache: true
           stripdown: true
