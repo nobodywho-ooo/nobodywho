@@ -454,13 +454,14 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
     `LLAMA_WASM_MEM64=ON` on the `wasm64-emscripten` branch; until that
     merges back, the workspace `Cargo.toml` `[patch]` block points both
     crates at a local clone of it (see that block's comment).
-  - [`nobodywho-ooo/wasm-bindgen` branch `wasm-emscripten-0.2.122`](https://github.com/nobodywho-ooo/wasm-bindgen/tree/wasm-emscripten-0.2.122)
-    — upstream 0.2.122 + the Emscripten-pthread thread-transform skip (the
-    descriptor-interpreter tolerance and Emscripten output mode were absorbed
-    upstream). Pinned via the
-    workspace `Cargo.toml` `[patch.crates-io]` block. The js CI builds its
-    wasm-bindgen-cli from this same branch (`WBG_FORK_REF`) so the cli/crate
-    schema versions match.
+  - [`nobodywho-ooo/wasm-bindgen`](https://github.com/nobodywho-ooo/wasm-bindgen)
+    — upstream 0.2.122 plus Emscripten support: the pthread thread-transform skip
+    and a SAB-safe `TextEncoder.encodeInto` polyfill (`encodeInto` rejects
+    `SharedArrayBuffer`-backed views, which threaded builds always use). The
+    *crate* is pinned via `Cargo.toml` `[patch.crates-io]` on `wasm64-emscripten`;
+    js CI builds the *cli* (which emits the glue + that polyfill) from
+    `wasm-emscripten-0.2.122` (`WBG_FORK_REF`). `wasm64-emscripten` is that branch
+    plus the wasm64 commits, so the two share a schema version and interoperate.
   - [`nobodywho-ooo/emscripten` branch `wbg-walkingeyerobot`](https://github.com/nobodywho-ooo/emscripten/tree/wbg-walkingeyerobot)
     — our fork of `walkingeyerobot/emscripten`, pinned at a fixed commit for
     reproducible CI. Carries the `-sWASM_BINDGEN` flag tracked in
