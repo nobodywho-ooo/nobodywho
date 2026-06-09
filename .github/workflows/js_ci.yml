@@ -12,7 +12,12 @@ permissions:
   contents: read
 
 env:
-  EMSDK_FORK_URL: https://github.com/walkingeyerobot/emscripten
+  # Our fork of walkingeyerobot/emscripten, pinned at a fixed commit and
+  # carrying the NODEFS >2GB chunked-read fix (needed to mmap GGUF models larger
+  # than 2GB under MEMORY64; node's fs.readSync caps a single read at 2^31-1).
+  # Pinning to our own fork also makes CI reproducible — it no longer tracks
+  # walkingeyerobot's live branch, which moves underneath us.
+  EMSDK_FORK_URL: https://github.com/nobodywho-ooo/emscripten
   EMSDK_FORK_REF: wbg-walkingeyerobot
   WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
   WBG_FORK_REF: wasm-emscripten-0.2.122

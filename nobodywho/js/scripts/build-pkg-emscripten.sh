@@ -9,7 +9,7 @@
 #   library_bindgen.js      — kept around so debugging post-link is easy
 #
 # Prereqs (see ../README.md for setup details):
-#   - walkingeyerobot's emscripten fork at $HOME/emscripten-wbg
+#   - nobodywho-ooo's emscripten fork at $HOME/emscripten-wbg
 #     providing the -sWASM_BINDGEN setting (PR emscripten-core/emscripten#23493).
 #   - wasm-bindgen-cli built from the nobodywho-ooo/wasm-bindgen
 #     `wasm-emscripten-0.2.122` branch (e.g. /tmp/wbg-patched), pointed at via
@@ -83,7 +83,7 @@ WASM_BINDGEN_BIN="${EM_WASM_BINDGEN:-/tmp/wbg-patched/bin/wasm-bindgen}"
 
 if [[ ! -x "$EMSDK_DIR/emcc" ]]; then
   echo "error: emcc not found at $EMSDK_DIR/emcc" >&2
-  echo "       Set EMSDK_DIR to walkingeyerobot's emscripten fork checkout." >&2
+  echo "       Set EMSDK_DIR to nobodywho-ooo's emscripten fork checkout." >&2
   exit 1
 fi
 if [[ ! -x "$WASM_BINDGEN_BIN" ]]; then

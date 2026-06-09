@@ -265,7 +265,7 @@ jobs:
   # Mirror of publish-react-native-npm but for the js binding.
   # Tag your release like `nobodywho-js-v0.1.0` to trigger.
   # Builds the wasm32-unknown-emscripten artifact the same way js_ci.yml does
-  # (upstream emsdk for LLVM/binaryen + walkingeyerobot's Emscripten fork for
+  # (upstream emsdk for LLVM/binaryen + our pinned Emscripten fork for
   # -sWASM_BINDGEN + our patched wasm-bindgen-cli, via build-pkg-emscripten.sh),
   # tests it, then publishes pkg-bundler/ to npm. Keep the setup steps in
   # sync with js_ci.yml's build job.
@@ -273,7 +273,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/nobodywho-js-v')
     runs-on: ubuntu-24.04
     env:
-      EMSDK_FORK_URL: https://github.com/walkingeyerobot/emscripten
+      EMSDK_FORK_URL: https://github.com/nobodywho-ooo/emscripten
       EMSDK_FORK_REF: wbg-walkingeyerobot
       WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
       WBG_FORK_REF: wasm-emscripten-0.2.122

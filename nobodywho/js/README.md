@@ -196,7 +196,7 @@ Rust nightly (for `-Zbuild-std` to recompile std with atomics).
 # 1. Emscripten with the -sWASM_BINDGEN setting
 #    (PR emscripten-core/emscripten#23493)
 git clone -b wbg-walkingeyerobot \
-  https://github.com/walkingeyerobot/emscripten ~/emscripten-wbg
+  https://github.com/nobodywho-ooo/emscripten ~/emscripten-wbg
 cd ~/emscripten-wbg
 ./bootstrap   # downloads the matching binaryen + node bundle
 
@@ -461,8 +461,12 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
     workspace `Cargo.toml` `[patch.crates-io]` block. The js CI builds its
     wasm-bindgen-cli from this same branch (`WBG_FORK_REF`) so the cli/crate
     schema versions match.
-  - [`walkingeyerobot/emscripten` branch `wbg-walkingeyerobot`](https://github.com/walkingeyerobot/emscripten/tree/wbg-walkingeyerobot)
-    — carries the `-sWASM_BINDGEN` flag tracked in [emscripten-core/emscripten#23493](https://github.com/emscripten-core/emscripten/pull/23493).
+  - [`nobodywho-ooo/emscripten` branch `wbg-walkingeyerobot`](https://github.com/nobodywho-ooo/emscripten/tree/wbg-walkingeyerobot)
+    — our fork of `walkingeyerobot/emscripten`, pinned at a fixed commit for
+    reproducible CI. Carries the `-sWASM_BINDGEN` flag tracked in
+    [emscripten-core/emscripten#23493](https://github.com/emscripten-core/emscripten/pull/23493),
+    plus a NODEFS fix to mmap GGUF models >2GB under MEMORY64 (node's
+    `fs.readSync` caps a single read at 2^31-1 bytes).
     Consumed at build time via `$EMSDK_DIR` pointing at a local clone.
 
 - **Upstream the libc pthread-size fix ([rust-lang/libc#5156](https://github.com/rust-lang/libc/pull/5156)),
