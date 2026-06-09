@@ -143,7 +143,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: /tmp/wbg-patched
-          key: wbg-patched-${{ runner.os }}-${{ env.WBG_FORK_REF }}-v1
+          # -v2: rebuild the CLI to pick up the SAB-safe encodeInto polyfill
+          # (nobodywho-ooo/wasm-bindgen@wasm-emscripten-0.2.122). The key is the
+          # branch name, so a same-branch push needs a version bump to bust it.
+          key: wbg-patched-${{ runner.os }}-${{ env.WBG_FORK_REF }}-v2
 
       - name: "Build patched wasm-bindgen-cli (if not cached)"
         if: steps.wbg-cache.outputs.cache-hit != 'true'
