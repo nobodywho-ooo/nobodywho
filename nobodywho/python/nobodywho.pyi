@@ -659,7 +659,7 @@ class SamplerBuilder:
         """
         Apply a GBNF grammar constraint to enforce structured output.
         
-        Deprecated: Use `SamplerBuilder.constrain()` with a `Constraint` object instead.
+        Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
         
         Args:
             grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)

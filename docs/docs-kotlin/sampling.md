@@ -133,8 +133,8 @@ import ai.nobodywho.buildSampler
 
 val sampler = buildSampler {
     topK(40)
-    temperature(0.8f)
-    minP(0.05f)
+    temperature(0.8)
+    minP(0.05)
     dist()
 }
 
@@ -152,12 +152,25 @@ Terminal steps: `dist()`, `greedy()`, `mirostatV1()`, `mirostatV2()`
 
 If no terminal step is called, `dist()` is used by default.
 
+For reproducible output, set the RNG seed with `seed(value)` anywhere in the chain.
+It is consumed by every random sampler — `dist`, `mirostatV1`, `mirostatV2`, and the `xtc`
+configuration step. `greedy` ignores it. If unset, a default seed is used.
+
+```kotlin
+val sampler = buildSampler {
+    topK(40)
+    temperature(0.8)
+    seed(42)
+    dist()
+}
+```
+
 You can also change the sampler on an existing chat:
 
 ```kotlin
 val newSampler = buildSampler {
-    temperature(1.2f)
-    topP(0.9f)
+    temperature(1.2)
+    topP(0.9)
     dist()
 }
 chat.setSamplerConfig(newSampler)

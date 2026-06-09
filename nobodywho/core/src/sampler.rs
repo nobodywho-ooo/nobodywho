@@ -370,7 +370,7 @@ pub enum ShiftStep {
         typ_p: f32,
         min_keep: u32,
     },
-    /// Deprecated: use [`GrammarConstraint`] with [`SamplerConfig::constrain`] instead.
+    /// Deprecated: use [`SamplerPresets::constrain_with_grammar`] instead. It accepts both Lark and GBNF strings.
     Grammar {
         trigger_on: Option<String>,
         root: String,

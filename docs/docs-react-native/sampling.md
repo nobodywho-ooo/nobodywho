@@ -151,6 +151,14 @@ types of methods: ones which modify the distribution (returning again the instan
 So in order to have the sampler working properly, be careful
 to always end the chain with one of the sampling steps (e.g. `dist()`, `greedy()`, `mirostatV2()`, etc.).
 
+For reproducible output, set the RNG seed with `.seed(value)` anywhere in the chain.
+It is consumed by every random sampler in the chain — `dist`, `mirostatV1`, `mirostatV2`,
+and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
+
+```typescript
+const sampler = new SamplerBuilder().temperature(0.8).topK(5).seed(42).dist() as SamplerConfig;
+```
+
 You can also change the sampler configuration on an existing chat instance:
 
 ```typescript
