@@ -82,9 +82,11 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          # See the Windows wheel job below: the new ggml-vulkan backend needs
-          # SPIRV-HeadersConfig.cmake, only bundled in the SDK from ~1.4.313+.
-          vulkan_version: 1.4.313.2
+          # The new ggml-vulkan backend needs SPIRV-HeadersConfig.cmake, only
+          # bundled in the SDK from ~1.4.313+. Linux uses .0 (not the Windows
+          # job's .2): jakoch's ARM-Linux mirror (jakoch/vulkan-sdk-arm) only
+          # publishes 1.4.313.0, and 1.4.313.2 fails to download for arm64.
+          vulkan_version: 1.4.313.0
           cache: true
 
       - name: Install build dependencies
