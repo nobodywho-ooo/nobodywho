@@ -417,6 +417,161 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  # wasm64 (MEMORY64) variant of the js binding, published as a separate package
+  # `@nobodywho/js-wasm64` (16 GiB heap — for models whose working set exceeds
+  # wasm32's 4 GiB). Same toolchain + forks as publish-js-npm, plus the libc#5156
+  # rust-src inject and the -Zbuild-std wasm64 build. Same `nobodywho-js-v*` tag.
+  # Keep the setup in sync with js_ci.yml's wasm64 steps.
+  publish-js-wasm64-npm:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-js-v')
+    runs-on: ubuntu-24.04
+    env:
+      EMSDK_FORK_URL: https://github.com/nobodywho-ooo/emscripten
+      EMSDK_FORK_REF: wbg-walkingeyerobot
+      WBG_FORK_URL: https://github.com/nobodywho-ooo/wasm-bindgen
+      WBG_FORK_REF: wasm64-emscripten
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: "Cache cargo registry + git deps"
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            nobodywho/target
+          key: js-wasm64-${{ runner.os }}-emsc-${{ hashFiles('nobodywho/Cargo.lock') }}
+          restore-keys: |
+            js-wasm64-${{ runner.os }}-emsc-
+
+      - name: "Setup Rust toolchain"
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable,nightly
+          target: wasm32-unknown-emscripten
+          components: rust-src
+
+      - name: "Install system deps"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake python3 python3-pip build-essential libclang-dev clang brotli \
+            libvulkan-dev libshaderc-dev glslc
+
+      - name: "Install upstream emsdk (provides LLVM + binaryen)"
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 5.0.7
+          actions-cache-folder: emsdk-cache-v1
+
+      - name: "Cache patched Emscripten fork"
+        id: emsdk-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/emscripten-wbg
+          key: emsdk-wbg-${{ runner.os }}-v9
+
+      - name: "Clone + bootstrap + configure patched Emscripten fork"
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$EMSDK_FORK_REF" "$EMSDK_FORK_URL" "$HOME/emscripten-wbg"
+          cd "$HOME/emscripten-wbg"
+          ./bootstrap
+          cat > "$HOME/emscripten-wbg/.emscripten" <<EMSCRIPTEN_CONFIG
+          LLVM_ROOT = '$EMSDK/upstream/bin'
+          BINARYEN_ROOT = '$EMSDK/upstream'
+          NODE_JS = '$EMSDK_NODE'
+          COMPILER_ENGINE = NODE_JS
+          JS_ENGINES = [NODE_JS]
+          CACHE = '$HOME/emscripten-wbg/cache'
+          EMSCRIPTEN_CONFIG
+          UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "${UPSTREAM_VER:-5.0.7}" > emscripten-version.txt
+
+      - name: "Export EMSDK_DIR + EM_CONFIG"
+        run: |
+          echo "EMSDK_DIR=$HOME/emscripten-wbg" >> "$GITHUB_ENV"
+          echo "EM_CONFIG=$HOME/emscripten-wbg/.emscripten" >> "$GITHUB_ENV"
+          cat > "$HOME/emscripten-wbg/.emscripten" <<EMSCRIPTEN_CONFIG
+          LLVM_ROOT = '$EMSDK/upstream/bin'
+          BINARYEN_ROOT = '$EMSDK/upstream'
+          NODE_JS = '$EMSDK_NODE'
+          COMPILER_ENGINE = NODE_JS
+          JS_ENGINES = [NODE_JS]
+          CACHE = '$HOME/emscripten-wbg/cache'
+          EMSCRIPTEN_CONFIG
+          UPSTREAM_VER=$("$EMSDK/upstream/emscripten/emcc" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "${UPSTREAM_VER:-5.0.7}" > "$HOME/emscripten-wbg/emscripten-version.txt"
+
+      - name: "Cache patched wasm-bindgen-cli"
+        id: wbg-cache
+        uses: actions/cache@v5
+        with:
+          path: /tmp/wbg-patched
+          key: wbg-patched-${{ runner.os }}-${{ env.WBG_FORK_REF }}-v2
+
+      - name: "Build patched wasm-bindgen-cli (if not cached)"
+        if: steps.wbg-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$WBG_FORK_REF" "$WBG_FORK_URL" /tmp/wbg-src
+          cargo install --path /tmp/wbg-src/crates/cli --root /tmp/wbg-patched --locked
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          registry-url: https://registry.npmjs.org
+
+      - name: "Inject libc#5156 pthread-size fix into rust-src (wasm64 std)"
+        run: bash nobodywho/js/scripts/patch-rust-src-libc.sh
+
+      - name: "Build pkg-bundler-wasm64 (wasm64-unknown-emscripten)"
+        env:
+          EM_WASM_BINDGEN: /tmp/wbg-patched/bin/wasm-bindgen
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+        run: bash nobodywho/js/scripts/build-pkg-emscripten-wasm64.sh
+
+      - name: "Cache pre-publish gate model"
+        uses: actions/cache@v5
+        with:
+          path: /tmp/bge-small.gguf
+          key: gguf-v1-bge-small-en-v1.5-q8_0
+
+      - name: "Test: wasm64 Model.load + Encoder.encode (pre-publish gate)"
+        working-directory: nobodywho
+        run: |
+          [ -f /tmp/bge-small.gguf ] || curl -L --fail -o /tmp/bge-small.gguf \
+            'https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf'
+          node js/tests/test_emscripten_wasm64.mjs /tmp/bge-small.gguf
+
+      - name: "Stage package.json (release version, -wasm64 name) into pkg-bundler-wasm64/"
+        working-directory: nobodywho/js
+        run: |
+          VERSION="${GITHUB_REF_NAME#nobodywho-js-v}"
+          echo "Publishing @nobodywho/js-wasm64@${VERSION}"
+          sed -e "s/0\.0\.0-PLACEHOLDER/${VERSION}/" \
+              -e 's|"name": "@nobodywho/js"|"name": "@nobodywho/js-wasm64"|' \
+              package.json.tpl > pkg-bundler-wasm64/package.json
+          cp README.md pkg-bundler-wasm64/README.md
+          if grep -q "PLACEHOLDER" pkg-bundler-wasm64/package.json; then
+            echo "::error::version placeholder was not substituted"; exit 1
+          fi
+          node -e "const p=require('./pkg-bundler-wasm64/package.json'); console.log('pkg-bundler-wasm64 =', p.name, p.version)"
+
+      - name: "Verify Login"
+        working-directory: ./nobodywho/js/pkg-bundler-wasm64
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: "Publish to npm"
+        working-directory: ./nobodywho/js/pkg-bundler-wasm64
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   # Create GitHub Release with xcframework, then push to nobodywho-swift mirror repo.
   create-github-release-swift:
     if: startsWith(github.ref, 'refs/tags/nobodywho-swift-')
