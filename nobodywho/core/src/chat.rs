@@ -1904,15 +1904,6 @@ impl Worker<'_, ChatWorker> {
             }
         }
 
-        // Skip the render on empty messages (like `set_chat_history`): some
-        // templates index `messages[0]` and panic on an empty list. The KV
-        // cache is left as-is; the next ask re-renders.
-        if !self.extra.messages.is_empty() {
-            let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-            let inference_lock_token = _gil_guard.unwrap();
-            self.sync_context_with_render(&inference_lock_token)?;
-        }
-
         Ok(())
     }
 
@@ -1958,12 +1949,6 @@ impl Worker<'_, ChatWorker> {
         self.extra.tools = tools;
 
         self.extra.chat_template = select_template(self.ctx.model, !self.extra.tools.is_empty())?;
-
-        // Reuse cached prefix
-
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
@@ -2363,6 +2348,26 @@ mod tests {
             .unwrap();
         let cat_response = chat.ask("Hello again!").completed().unwrap();
         assert!(cat_response.to_lowercase().contains("meow"));
+    }
+
+    #[test]
+    fn test_setters_on_empty_history_do_not_crash() {
+        // Rendering the chat template with neither a system prompt nor any messages
+        // would crash, so set_system_prompt(None) and set_tools(..) on an empty
+        // history must not immediately sync the context — only the next ask() should.
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(512)
+            .build()
+            .expect("chat build failed in test");
+
+        chat.set_system_prompt(None).unwrap();
+        assert_eq!(chat.get_system_prompt().unwrap(), None);
+
+        chat.set_tools(vec![]).unwrap();
+        chat.set_tools(vec![test_tool()]).unwrap();
+
+        assert!(chat.get_chat_history().unwrap().is_empty());
     }
 
     #[test]
