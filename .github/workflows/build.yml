@@ -118,6 +118,11 @@ jobs:
       RUSTFLAGS: >-
         -l Advapi32
         -C target-cpu=x86-64-v3
+      # Fetch git deps + submodules with the git CLI instead of libgit2. libgit2
+      # ignores core.longpaths, so the deeply nested llama.cpp tools/ui/ paths
+      # blow past Windows' 260-char MAX_PATH during the submodule checkout. The
+      # git CLI honors core.longpaths (set below) and uses \\?\ extended paths.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -166,6 +171,10 @@ jobs:
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
         run: |
           mv ./nobodywho/* C:/
+          # Allow >260-char paths so cargo's git CLI can check out the deep
+          # llama.cpp tools/ui/ submodule files (see CARGO_NET_GIT_FETCH_WITH_CLI).
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+          git config --system core.longpaths true
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
           cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t

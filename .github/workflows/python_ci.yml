@@ -159,6 +159,11 @@ jobs:
     runs-on: windows-latest
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
+      # libgit2 (cargo's default git backend) ignores core.longpaths, so the deep
+      # llama.cpp tools/ui/ submodule paths exceed Windows' 260-char MAX_PATH even
+      # though LongPathsEnabled + core.longpaths are set below. Fetch with the git
+      # CLI instead, which honors core.longpaths and uses \\?\ extended paths.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
