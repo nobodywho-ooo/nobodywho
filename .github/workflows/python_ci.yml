@@ -361,7 +361,7 @@ jobs:
             format: Gemma4
           - name: LFM2.5 350M
             file: LFM2.5-350M-Q4_0.gguf
-            url: https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/blob/main/LFM2.5-350M-Q4_0.gguf
+            url: https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/resolve/main/LFM2.5-350M-Q4_0.gguf
             format: LFM2.5
 
     steps:
