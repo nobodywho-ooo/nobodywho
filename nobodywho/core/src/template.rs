@@ -31,7 +31,13 @@ static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     env
 });
 
-/// Rewrite training-only `{% generation %}`/`{% endgeneration %}` tags to no-op `{% if true %}`/`{% endif %}` that minijinja can parse.
+/// Some chat templates use `{% generation %}`/`{% endgeneration %}` tags,
+/// these are non-standard jinja syntax, and rely on a jinja extension used by hf transformers
+/// It looks like support for extensions like this isn't coming to minijinja anytime soon:
+///   https://github.com/mitsuhiko/minijinja/discussions/178
+///   https://github.com/mitsuhiko/minijinja/issues/200
+///   https://github.com/mitsuhiko/minijinja/issues/815
+/// For now our best bet is to replace these tags with a no-op.
 fn rewrite_generation_tags(template: &str) -> std::borrow::Cow<'_, str> {
     static GENERATION_TAG: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"\{%(-?)\s*(end)?generation\s*(-?)%\}")
