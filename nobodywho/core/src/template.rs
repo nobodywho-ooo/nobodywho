@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 
 use llama_cpp_2::mtmd::MtmdBitmap;
 use minijinja::{Environment, Template, Value};
+use regex::Regex;
 use tracing::{debug, trace, warn};
 
 use crate::{chat::Message, errors::SelectTemplateError, tool_calling::Tool};
@@ -29,6 +30,28 @@ static MINIJINJA_ENV: LazyLock<Environment> = LazyLock::new(|| {
     env.set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
     env
 });
+
+/// Some chat templates use `{% generation %}`/`{% endgeneration %}` tags,
+/// these are non-standard jinja syntax, and rely on a jinja extension used by hf transformers
+/// It looks like support for extensions like this isn't coming to minijinja anytime soon:
+///   https://github.com/mitsuhiko/minijinja/discussions/178
+///   https://github.com/mitsuhiko/minijinja/issues/200
+///   https://github.com/mitsuhiko/minijinja/issues/815
+/// For now our best bet is to replace these tags with a no-op.
+fn rewrite_generation_tags(template: &str) -> std::borrow::Cow<'_, str> {
+    static GENERATION_TAG: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\{%(-?)\s*(end)?generation\s*(-?)%\}")
+            .expect("generation-tag regex should compile")
+    });
+    GENERATION_TAG.replace_all(template, |c: &regex::Captures| {
+        let keyword = if c.get(2).is_some() {
+            "endif"
+        } else {
+            "if true"
+        };
+        format!("{{%{} {keyword} {}%}}", &c[1], &c[3])
+    })
+}
 
 pub struct RenderedChat {
     pub text: String,
@@ -59,7 +82,7 @@ impl ChatTemplate {
         trace!("Loading chat template: {}", original_template);
 
         Ok(Self {
-            template: original_template.to_string(),
+            template: rewrite_generation_tags(original_template).into_owned(),
             bos_token: bos_token.to_string(),
             eos_token: eos_token.to_string(),
         })
@@ -462,5 +485,77 @@ mod tests {
         // The template now includes empty thinking blocks for assistant messages
         let expected5 = "<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi there!<|im_end|>\n";
         assert_eq!(rendered5, expected5);
+    }
+
+    #[test]
+    fn test_rewrite_generation_tags() {
+        // Tags become no-op if/endif; whitespace-control markers preserved.
+        assert_eq!(
+            rewrite_generation_tags("a{%- generation -%}b{%- endgeneration -%}c"),
+            "a{%- if true -%}b{%- endif -%}c"
+        );
+        assert_eq!(
+            rewrite_generation_tags("a{% generation %}b{% endgeneration %}c"),
+            "a{% if true %}b{% endif %}c"
+        );
+        assert_eq!(
+            rewrite_generation_tags("a{%-generation-%}b{%-endgeneration-%}c"),
+            "a{%- if true -%}b{%- endif -%}c"
+        );
+        // `add_generation_prompt` must NOT be touched.
+        let untouched = "{%- if add_generation_prompt -%}x{%- endif -%}";
+        assert_eq!(rewrite_generation_tags(untouched), untouched);
+    }
+
+    #[test]
+    fn test_render_lfm2_5_generation_block_template() {
+        // Mirrors the LFM2.5-VL template structure that crashed in issue #558:
+        // the assistant turn is wrapped in a `{%- generation -%}` block, which
+        // minijinja cannot parse until we strip the delimiters.
+        let template = "{{- bos_token -}}\n\
+            {%- for message in messages -%}\n\
+                {{- \"<|im_start|>\" + message.role + \"\\n\" -}}\n\
+                {%- if message.role == \"assistant\" -%}\n\
+                    {%- generation -%}\n\
+                    {{- message.content + \"<|im_end|>\\n\" -}}\n\
+                    {%- endgeneration -%}\n\
+                {%- else -%}\n\
+                    {{- message.content + \"<|im_end|>\\n\" -}}\n\
+                {%- endif -%}\n\
+            {%- endfor -%}\n\
+            {%- if add_generation_prompt -%}\n\
+                {{- \"<|im_start|>assistant\\n\" -}}\n\
+            {%- endif -%}";
+
+        let ctx = ChatTemplateContext {
+            template_variables: HashMap::default(),
+            tools: None,
+        };
+        // `ChatTemplate::new` must not error (previously: "unknown statement generation").
+        let chat_template = ChatTemplate::new(template, "<bos>", "<eos>").unwrap();
+
+        // Pending user turn -> generation prompt appended.
+        let rendered = chat_template
+            .render(&[Message::new_user("Hi".into())], &ctx)
+            .unwrap();
+        assert_eq!(
+            rendered,
+            "<bos><|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n"
+        );
+
+        // Assistant content inside the (now-stripped) generation block is preserved.
+        let rendered2 = chat_template
+            .render(
+                &[
+                    Message::new_user("Hi".into()),
+                    Message::new_assistant("Hello".into()),
+                ],
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(
+            rendered2,
+            "<bos><|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\nHello<|im_end|>\n"
+        );
     }
 }
