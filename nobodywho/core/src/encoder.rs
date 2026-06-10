@@ -16,9 +16,10 @@ pub struct EncoderAsync {
 }
 
 impl Encoder {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let async_handle = EncoderAsync::new(model, n_ctx);
-        Self { async_handle }
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        Ok(Self {
+            async_handle: EncoderAsync::new(model, n_ctx)?,
+        })
     }
 
     pub fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
@@ -27,7 +28,13 @@ impl Encoder {
 }
 
 impl EncoderAsync {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        if model.model_kind() != llm::ModelKind::Embedding {
+            return Err(InitWorkerError::NotAnEmbedder {
+                architecture: model.architecture(),
+            });
+        }
+
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
@@ -46,9 +53,9 @@ impl EncoderAsync {
             }
         });
 
-        Self {
+        Ok(Self {
             guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
-        }
+        })
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
@@ -137,7 +144,7 @@ mod tests {
     fn test_encoder_sync() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 1024);
+        let encoder = Encoder::new(model, 1024)?;
 
         let copenhagen_embedding =
             encoder.encode("Copenhagen is the capital of Denmark.".to_string())?;
@@ -220,10 +227,20 @@ mod tests {
     }
 
     #[test]
+    fn test_encoder_rejects_generative_model() {
+        test_utils::init_test_tracing();
+        let chat_model = test_utils::load_test_model();
+        match Encoder::new(chat_model, 1024) {
+            Err(crate::errors::InitWorkerError::NotAnEmbedder { .. }) => {}
+            other => panic!("expected NotAnEmbedder, got {:?}", other.map(|_| "ok")),
+        }
+    }
+
+    #[test]
     fn test_deterministic_encoder() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
-        let encoder = Encoder::new(model, 1024);
+        let encoder = Encoder::new(model, 1024)?;
 
         let input = "I don't want to be different";
 

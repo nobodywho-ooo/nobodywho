@@ -270,6 +270,26 @@ pub enum InitWorkerError {
     )]
     NotAnLLM { architecture: String },
 
+    #[error("Model is not a reranker: {architecture}")]
+    #[diagnostic(
+        code(nobodywho::not_a_reranker),
+        help(
+            "CrossEncoder requires a model with a Rank pooling head (e.g. BGE-reranker).\n\
+             '{architecture}' has no Rank head — logit-based rerankers (like Qwen3Reranker) are not yet supported."
+        )
+    )]
+    NotAReranker { architecture: String },
+
+    #[error("Model is not an embedder: {architecture}")]
+    #[diagnostic(
+        code(nobodywho::not_an_embedder),
+        help(
+            "Encoder requires an embedding model (e.g. BGE, nomic-bert) with a CLS, Mean, or Last pooling head.\n\
+             '{architecture}' does not produce embeddings."
+        )
+    )]
+    NotAnEmbedder { architecture: String },
+
     #[error("Could not determine number of threads available: {0}")]
     ThreadCount(#[from] std::io::Error),
 

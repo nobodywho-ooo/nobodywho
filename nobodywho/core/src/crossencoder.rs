@@ -16,9 +16,10 @@ pub struct CrossEncoderAsync {
 }
 
 impl CrossEncoder {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
-        let async_handle = CrossEncoderAsync::new(model, n_ctx);
-        Self { async_handle }
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        Ok(Self {
+            async_handle: CrossEncoderAsync::new(model, n_ctx)?,
+        })
     }
 
     pub fn rank(
@@ -41,7 +42,13 @@ impl CrossEncoder {
 }
 
 impl CrossEncoderAsync {
-    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Self {
+    pub fn new(model: Arc<llm::Model>, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        if model.model_kind() != llm::ModelKind::Reranker {
+            return Err(InitWorkerError::NotAReranker {
+                architecture: model.architecture(),
+            });
+        }
+
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
@@ -60,9 +67,9 @@ impl CrossEncoderAsync {
             }
         });
 
-        Self {
+        Ok(Self {
             guard: Arc::new(WorkerGuard::new(msg_tx, join_handle, None)),
-        }
+        })
     }
 
     pub async fn rank(
@@ -201,7 +208,7 @@ mod tests {
     async fn test_crossencoder_async() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
-        let handle: CrossEncoderAsync = CrossEncoderAsync::new(model, 4096);
+        let handle: CrossEncoderAsync = CrossEncoderAsync::new(model, 4096)?;
 
         let query = "What is the capital of France?".to_string();
         let mut documents = vec![
@@ -239,10 +246,20 @@ mod tests {
     }
 
     #[test]
+    fn test_crossencoder_rejects_generative_model() {
+        test_utils::init_test_tracing();
+        let chat_model = test_utils::load_test_model();
+        match CrossEncoder::new(chat_model, 1024) {
+            Err(crate::errors::InitWorkerError::NotAReranker { .. }) => {}
+            other => panic!("expected NotAReranker, got {:?}", other.map(|_| "ok")),
+        }
+    }
+
+    #[test]
     fn test_crossencoder_sync() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
-        let encoder = CrossEncoder::new(model, 4096);
+        let encoder = CrossEncoder::new(model, 4096)?;
 
         let query = "What is the capital of France?".to_string();
         let documents = vec![

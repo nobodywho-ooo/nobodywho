@@ -1252,10 +1252,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 63560.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 36527.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431.toShort()) {
@@ -2460,7 +2460,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
      */
     constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
         this(UniffiWithHandle, 
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
     
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)
@@ -2762,7 +2762,7 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
      */
     constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
         this(UniffiWithHandle, 
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
     
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)

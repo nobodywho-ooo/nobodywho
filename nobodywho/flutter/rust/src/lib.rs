@@ -423,9 +423,10 @@ pub struct Encoder {
 
 impl Encoder {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
-        let handle = nobodywho::encoder::EncoderAsync::new(Arc::clone(&model.model), n_ctx);
-        Self { handle }
+    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Result<Self, String> {
+        let handle = nobodywho::encoder::EncoderAsync::new(Arc::clone(&model.model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
     }
 
     /// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
@@ -454,7 +455,8 @@ impl Encoder {
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
-        let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx);
+        let handle = nobodywho::encoder::EncoderAsync::new(Arc::new(model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
 
         Ok(Self { handle })
     }
@@ -474,10 +476,11 @@ pub struct CrossEncoder {
 
 impl CrossEncoder {
     #[flutter_rust_bridge::frb(sync)]
-    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Self {
+    pub fn new(model: &Model, #[frb(default = 4096)] n_ctx: u32) -> Result<Self, String> {
         let handle =
-            nobodywho::crossencoder::CrossEncoderAsync::new(Arc::clone(&model.model), n_ctx);
-        Self { handle }
+            nobodywho::crossencoder::CrossEncoderAsync::new(Arc::clone(&model.model), n_ctx)
+                .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
     }
 
     /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
@@ -506,7 +509,8 @@ impl CrossEncoder {
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
-        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx);
+        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(Arc::new(model), n_ctx)
+            .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { handle })
     }
     pub async fn rank(

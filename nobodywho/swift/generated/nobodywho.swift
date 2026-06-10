@@ -1058,9 +1058,9 @@ open class RustCrossEncoder: RustCrossEncoderProtocol, @unchecked Sendable {
     /**
      * Create a new cross-encoder for ranking documents by relevance.
      */
-public convenience init(model: RustModel, contextSize: UInt32?) {
+public convenience init(model: RustModel, contextSize: UInt32?)throws  {
     let handle =
-        try! rustCall() {
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
         FfiConverterTypeRustModel_lower(model),
         FfiConverterOptionUInt32.lower(contextSize),$0
@@ -1218,9 +1218,9 @@ open class RustEncoder: RustEncoderProtocol, @unchecked Sendable {
     /**
      * Create a new encoder for generating text embeddings.
      */
-public convenience init(model: RustModel, contextSize: UInt32?) {
+public convenience init(model: RustModel, contextSize: UInt32?)throws  {
     let handle =
-        try! rustCall() {
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
         FfiConverterTypeRustModel_lower(model),
         FfiConverterOptionUInt32.lower(contextSize),$0
@@ -3884,10 +3884,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 63560) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 36527) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431) {

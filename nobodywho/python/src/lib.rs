@@ -348,7 +348,8 @@ impl Encoder {
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "Encoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
-        let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx);
+        let encoder = nobodywho::encoder::Encoder::new(nw_model, n_ctx)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self {
             encoder: Some(encoder),
         })
@@ -412,7 +413,8 @@ impl EncoderAsync {
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "EncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
-        let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx);
+        let encoder_handle = nobodywho::encoder::EncoderAsync::new(nw_model, n_ctx)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self {
             encoder_handle: Some(encoder_handle),
         })
@@ -479,7 +481,8 @@ impl CrossEncoder {
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoder")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
-        let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx);
+        let crossencoder = nobodywho::crossencoder::CrossEncoder::new(nw_model, n_ctx)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self {
             crossencoder: Some(crossencoder),
         })
@@ -569,7 +572,8 @@ impl CrossEncoderAsync {
     #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096) -> "CrossEncoderAsync")]
     pub fn new(model: ModelOrPath, n_ctx: u32) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
-        let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx);
+        let crossencoder_handle = nobodywho::crossencoder::CrossEncoderAsync::new(nw_model, n_ctx)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self {
             crossencoder_handle: Some(crossencoder_handle),
         })

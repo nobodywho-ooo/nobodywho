@@ -1260,12 +1260,10 @@ impl Worker<'_, ChatWorker> {
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
     ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
-        if !model.is_generative_model() {
-            let architecture = model
-                .language_model
-                .meta_val_str("general.architecture")
-                .unwrap_or_else(|_| "unknown".into());
-            return Err(InitWorkerError::NotAnLLM { architecture });
+        if model.model_kind() != llm::ModelKind::Generative {
+            return Err(InitWorkerError::NotAnLLM {
+                architecture: model.architecture(),
+            });
         }
 
         let template = select_template(&model.language_model, !config.tools.is_empty())?;

@@ -13,8 +13,9 @@ public class Encoder {
     /// - Parameters:
     ///   - model: A loaded model to use for encoding.
     ///   - contextSize: Maximum context size in tokens. Defaults to 4096 if nil.
-    public init(model: Model, contextSize: UInt32? = nil) {
-        self.inner = NobodyWhoGenerated.RustEncoder(model: model.inner, contextSize: contextSize)
+    /// - Throws: `NobodyWhoError` if the model is not an embedding model.
+    public init(model: Model, contextSize: UInt32? = nil) throws {
+        self.inner = try NobodyWhoGenerated.RustEncoder(model: model.inner, contextSize: contextSize)
     }
 
     /// Create an encoder directly from a model path.
@@ -24,7 +25,7 @@ public class Encoder {
         contextSize: UInt32? = nil
     ) async throws -> Encoder {
         let model = try await Model.load(modelPath: modelPath, useGpu: useGpu)
-        return Encoder(model: model, contextSize: contextSize)
+        return try Encoder(model: model, contextSize: contextSize)
     }
 
     /// Encode text into an embedding vector.

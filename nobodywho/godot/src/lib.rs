@@ -1544,7 +1544,8 @@ impl NobodyWhoEncoder {
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         // TODO: configurable n_ctx
-        let handle = nobodywho::encoder::EncoderAsync::new(model, 4096);
+        let handle = nobodywho::encoder::EncoderAsync::new(model, 4096)
+            .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         let mut b = me.bind_mut();
         if let Some(existing) = &b.encoder_handle {
@@ -1730,7 +1731,8 @@ impl NobodyWhoCrossEncoder {
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         // TODO: configurable n_ctx like with the embeddings node
-        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096);
+        let handle = nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096)
+            .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         let mut b = me.bind_mut();
         if let Some(existing) = &b.crossencoder_handle {
@@ -1874,8 +1876,15 @@ impl NobodyWhoCrossEncoder {
                     return PackedStringArray::new();
                 }
             };
-            self.crossencoder_handle =
-                Some(nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096));
+            match nobodywho::crossencoder::CrossEncoderAsync::new(model, 4096) {
+                Ok(handle) => self.crossencoder_handle = Some(handle),
+                Err(e) => {
+                    let err = GString::from(nobodywho::render_miette(&e).as_str());
+                    godot_error!("Failed initializing cross-encoder: {}", err);
+                    self.signals().worker_failed().emit(&err);
+                    return PackedStringArray::new();
+                }
+            }
         }
 
         let crossencoder_handle = self.crossencoder_handle.as_ref().unwrap().clone();

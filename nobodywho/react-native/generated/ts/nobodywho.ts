@@ -1864,10 +1864,12 @@ export class RustCrossEncoder extends UniffiAbstractObject implements RustCrossE
     /**
      * Create a new cross-encoder for ranking documents by relevance.
      */
-    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) {
+    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) /*throws*/ {
         super();
         const pointer =
-            uniffiCaller.rustCall(
+            
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
         FfiConverterTypeRustModel.lower(model),
@@ -2039,10 +2041,12 @@ export class RustEncoder extends UniffiAbstractObject implements RustEncoderInte
     /**
      * Create a new encoder for generating text embeddings.
      */
-    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) {
+    constructor(model: RustModelInterface, contextSize: /*u32*/number | undefined) /*throws*/ {
         super();
         const pointer =
-            uniffiCaller.rustCall(
+            
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
         FfiConverterTypeRustModel.lower(model),
@@ -3351,10 +3355,10 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 24505) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 63560) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 27902) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 36527) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 9431) {

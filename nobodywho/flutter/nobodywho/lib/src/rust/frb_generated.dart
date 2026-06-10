@@ -591,7 +591,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCrossEncoder,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateCrossEncoderNewConstMeta,
         argValues: [model, nCtx],
@@ -783,7 +783,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerEncoder,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateEncoderNewConstMeta,
         argValues: [model, nCtx],

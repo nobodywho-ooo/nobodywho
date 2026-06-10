@@ -122,7 +122,7 @@ fn wire__crate__CrossEncoder_new_impl(
             >>::sse_decode(&mut deserializer);
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, String>((move || {
                 let mut api_model_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -137,8 +137,7 @@ fn wire__crate__CrossEncoder_new_impl(
                     }
                 }
                 let api_model_guard = api_model_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::CrossEncoder::new(&*api_model_guard, api_n_ctx))?;
+                let output_ok = crate::CrossEncoder::new(&*api_model_guard, api_n_ctx)?;
                 Ok(output_ok)
             })())
         },
@@ -391,7 +390,7 @@ fn wire__crate__Encoder_new_impl(
             >>::sse_decode(&mut deserializer);
             let api_n_ctx = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, String>((move || {
                 let mut api_model_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -406,8 +405,7 @@ fn wire__crate__Encoder_new_impl(
                     }
                 }
                 let api_model_guard = api_model_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::Encoder::new(&*api_model_guard, api_n_ctx))?;
+                let output_ok = crate::Encoder::new(&*api_model_guard, api_n_ctx)?;
                 Ok(output_ok)
             })())
         },

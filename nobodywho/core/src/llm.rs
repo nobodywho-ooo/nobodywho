@@ -114,25 +114,94 @@ pub struct Model {
     pub(crate) projection_model: Option<ProjectionModel>,
 }
 
+/// What a model can be used for, inferred from its GGUF metadata.
+///
+/// This is an operational taxonomy ("which nobodywho API can use this model"), not a
+/// general-purpose classifier of every kind of language model in the wild.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelKind {
+    /// Autoregressive decoder compatible with `Chat` (Llama, Qwen, Gemma, …).
+    Generative,
+    /// Encoder-only embedder (BGE, nomic-bert, …) — pools token representations into a vector.
+    Embedding,
+    /// Cross-encoder reranker with a classifier head (BGE-reranker, …).
+    Reranker,
+}
+
 impl Model {
-    /// Returns true if this model can generate text (i.e. is an autoregressive decoder).
-    ///
-    /// Generative models never pool token representations, so `<arch>.pooling_type` is absent
-    /// from their GGUF metadata (giving `Unspecified`). Encoder-only models (BERT, nomic-bert,
-    /// etc.) always have this key set to CLS, Mean, or similar — a reliable,
-    /// architecture-agnostic signal that the model cannot generate text.
-    pub fn is_generative_model(&self) -> bool {
-        let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
-            return true;
-        };
-        let key = format!("{arch}.pooling_type");
+    /// Returns the GGUF architecture string (e.g. `"qwen3"`, `"bert"`), or `"unknown"` if
+    /// the model has no `general.architecture` metadata.
+    pub fn architecture(&self) -> String {
         self.language_model
-            .meta_val_str(&key)
+            .meta_val_str("general.architecture")
+            .unwrap_or_else(|_| "unknown".to_string())
+    }
+
+    /// Classify the model based on its GGUF metadata.
+    ///
+    /// # Detection logic
+    /// 1. `<arch>.attention.causal` is `true` (or absent — autoregressive decoders typically
+    ///    omit it, defaulting to `true`) → [`ModelKind::Generative`].
+    ///    Autoregressive generation is biconditional with causal attention (each token must
+    ///    only see previous tokens), so this is both necessary and sufficient for `Chat`.
+    /// 2. Otherwise (`causal=false` — encoder-style) check `<arch>.pooling_type`:
+    ///    - `CLS` / `Mean` / `Last` → [`ModelKind::Embedding`].
+    ///    - `Rank` or `Unspecified` → [`ModelKind::Reranker`] (BGE-reranker-v2-m3 ships
+    ///      without explicit pooling metadata but has `cls.*` classifier tensors).
+    ///
+    /// # What this catches
+    /// - Loading a chat decoder into `CrossEncoder` (would otherwise crash in llama.cpp).
+    /// - Loading a BGE-style reranker into `Chat` or `Encoder`.
+    /// - Loading an embedder into `Chat`.
+    ///
+    /// # Known holes
+    /// - **Logit-based rerankers** (Qwen3-Reranker, etc.) are autoregressive decoders
+    ///   fine-tuned to emit a Yes/No token. GGUF-wise they're indistinguishable from a
+    ///   chat model → classified as `Generative`. Loading one into `CrossEncoder` returns
+    ///   `NotAReranker` with a help message pointing at this limitation.
+    /// - **Non-autoregressive generative models** (diffusion LMs like Dream, LLaDA) set
+    ///   `causal=false` and have no pooling → classified as `Reranker`. nobodywho doesn't
+    ///   support running these on any API path, so misuse fails at runtime instead.
+    /// - **MLM-only BERT** (no pooling head, no rank head — rare in practice) would bucket
+    ///   as `Reranker`; CrossEncoder use would likely crash at inference time.
+    /// - **Encoder embedder shipped without `pooling_type`** would bucket as `Reranker`;
+    ///   embedding extraction wouldn't work anyway without pooling metadata.
+    ///
+    /// A fully robust classifier would require tensor-name inspection (look for `cls.*`
+    /// weights), which `llama-cpp-2` does not expose today.
+    pub fn model_kind(&self) -> ModelKind {
+        let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
+            return ModelKind::Generative;
+        };
+
+        let causal = self
+            .language_model
+            .meta_val_str(&format!("{arch}.attention.causal"))
+            .ok()
+            .map(|v| v.trim() == "true")
+            .unwrap_or(true);
+
+        if causal {
+            return ModelKind::Generative;
+        }
+
+        let pooling = self
+            .language_model
+            .meta_val_str(&format!("{arch}.pooling_type"))
             .ok()
             .and_then(|val| val.parse::<i32>().ok())
             .map(LlamaPoolingType::from)
-            .unwrap_or(LlamaPoolingType::Unspecified)
-            == LlamaPoolingType::Unspecified
+            .unwrap_or(LlamaPoolingType::Unspecified);
+
+        match pooling {
+            LlamaPoolingType::Unspecified | LlamaPoolingType::Rank => ModelKind::Reranker,
+            _ => ModelKind::Embedding,
+        }
+    }
+
+    /// Returns true if this model is compatible with `Chat` (autoregressive decoder).
+    pub fn is_generative_model(&self) -> bool {
+        self.model_kind() == ModelKind::Generative
     }
 }
 
@@ -945,7 +1014,20 @@ impl<T> Drop for WorkerGuard<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn test_model_kind_classification() {
+        let chat_model = test_utils::load_test_model();
+        assert_eq!(chat_model.model_kind(), ModelKind::Generative);
+
+        let embed_model = test_utils::load_embeddings_model();
+        assert_eq!(embed_model.model_kind(), ModelKind::Embedding);
+
+        let rerank_model = test_utils::load_crossencoder_model();
+        assert_eq!(rerank_model.model_kind(), ModelKind::Reranker);
+    }
 
     #[test]
     fn throttled_callback_drops_intermediate_calls_within_window() {
