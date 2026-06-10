@@ -72,6 +72,10 @@ struct NobodyWhoModel {
     use_gpu_if_available: bool,
 
     model: Option<Arc<llm::Model>>,
+    /// Serializes concurrent `load_model_detached` calls on this node so the model
+    /// is loaded into memory/GPU exactly once even when multiple consumer nodes
+    /// (e.g. two `NobodyWhoChat`s) call `start_worker()` simultaneously.
+    load_lock: Arc<tokio::sync::Mutex<()>>,
     base: Base<Node>,
 }
 
@@ -86,6 +90,7 @@ impl INode for NobodyWhoModel {
             projection_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
+            load_lock: Arc::new(tokio::sync::Mutex::new(())),
             base,
         }
     }
@@ -106,7 +111,20 @@ impl NobodyWhoModel {
     async fn load_model_detached(
         mut gd: Gd<Self>,
     ) -> Result<Arc<llm::Model>, errors::LoadModelError> {
-        // Fast path — brief immutable bind.
+        // Fast path — brief immutable bind, no lock acquisition when already cached.
+        if let Some(model) = gd.bind().model.as_ref() {
+            return Ok(Arc::clone(model));
+        }
+
+        // Slow path: serialize concurrent loads so we don't load the same model twice
+        // into GPU/RAM when multiple consumer nodes (e.g. two `NobodyWhoChat`s) call
+        // `start_worker()` simultaneously. Clone the Arc<Mutex> out so the bind drops
+        // before we await on lock acquisition.
+        let load_lock = gd.bind().load_lock.clone();
+        let _guard = load_lock.lock().await;
+
+        // Re-check after acquiring the lock — another task may have finished the load
+        // while we were waiting.
         if let Some(model) = gd.bind().model.as_ref() {
             return Ok(Arc::clone(model));
         }
