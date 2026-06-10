@@ -359,6 +359,9 @@ jobs:
             file: gemma-4-E2B-it-Q4_0.gguf
             url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf
             format: Gemma4
+          - name: LFM2.5 350M
+            url: https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/blob/main/LFM2.5-350M-Q4_0.gguf
+            format: LFM2.5
 
     steps:
       - uses: actions/checkout@v5
