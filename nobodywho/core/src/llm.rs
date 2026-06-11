@@ -140,30 +140,39 @@ impl Model {
     /// Classify the model based on its GGUF metadata.
     ///
     /// # Detection logic
-    /// 1. `<arch>.attention.causal` is `true` (or absent — autoregressive decoders typically
-    ///    omit it, defaulting to `true`) → [`ModelKind::Generative`].
-    ///    Autoregressive generation is biconditional with causal attention (each token must
-    ///    only see previous tokens), so this is both necessary and sufficient for `Chat`.
-    /// 2. Otherwise (`causal=false` — encoder-style) check `<arch>.pooling_type`:
-    ///    - `CLS` / `Mean` / `Last` → [`ModelKind::Embedding`].
-    ///    - `Rank` or `Unspecified` → [`ModelKind::Reranker`] (BGE-reranker-v2-m3 ships
-    ///      without explicit pooling metadata but has `cls.*` classifier tensors).
+    /// 1. `<arch>.pooling_type` is the strongest signal — an explicit pooling head or
+    ///    mode marker is unambiguous:
+    ///    - `Cls` / `Mean` / `Last` → [`ModelKind::Embedding`].
+    ///    - `Rank` → [`ModelKind::Reranker`].
+    /// 2. No pooling metadata → fall back to `<arch>.attention.causal`:
+    ///    - `true` (or absent — most chat decoders omit it) → [`ModelKind::Generative`].
+    ///      Autoregressive generation is biconditional with causal attention.
+    ///    - `false` → [`ModelKind::Reranker`] (BGE-reranker-v2-m3 ships without explicit
+    ///      pooling metadata but has `cls.*` classifier tensors and `causal=false`).
+    ///
+    /// Pooling beats causal because models like EmbeddingGemma are causal autoregressive
+    /// decoders adapted into embedders by adding a Mean pooling head — `causal` alone
+    /// would misclassify them as `Generative`.
     ///
     /// # What this catches
     /// - Loading a chat decoder into `CrossEncoder` (would otherwise crash in llama.cpp).
     /// - Loading a BGE-style reranker into `Chat` or `Encoder`.
-    /// - Loading an embedder into `Chat`.
+    /// - Loading an embedder into `Chat` (including EmbeddingGemma-style adapted decoders).
+    /// - Loading a logit-based reranker tagged with `pooling_type=Rank` into `Chat`.
     ///
     /// # Known holes
     /// - **Logit-based rerankers** (Qwen3-Reranker, etc.) are autoregressive decoders
-    ///   fine-tuned to emit a Yes/No token. GGUF-wise they're indistinguishable from a
-    ///   chat model → classified as `Generative`. Loading one into `CrossEncoder` returns
-    ///   `NotAReranker` with a help message pointing at this limitation.
+    ///   fine-tuned to emit a Yes/No token. Recent GGUF conversions tag them with
+    ///   `pooling_type=Rank` as a mode hint and are classified correctly. Older or
+    ///   hand-converted GGUFs without that marker remain indistinguishable from a chat
+    ///   model → classified as `Generative`. Loading such a model into `CrossEncoder`
+    ///   returns `NotAReranker` with a help message pointing at this limitation.
     /// - **Non-autoregressive generative models** (diffusion LMs like Dream, LLaDA) set
     ///   `causal=false` and have no pooling → classified as `Reranker`. nobodywho doesn't
     ///   support running these on any API path, so misuse fails at runtime instead.
     /// - **MLM-only BERT** (no pooling head, no rank head — rare in practice) would bucket
-    ///   as `Reranker`; CrossEncoder use would likely crash at inference time.
+    ///   as `Reranker` via the causal fallback; CrossEncoder use would likely crash at
+    ///   inference time.
     /// - **Encoder embedder shipped without `pooling_type`** would bucket as `Reranker`;
     ///   embedding extraction wouldn't work anyway without pooling metadata.
     ///
@@ -174,6 +183,25 @@ impl Model {
             return ModelKind::Generative;
         };
 
+        let pooling = self
+            .language_model
+            .meta_val_str(&format!("{arch}.pooling_type"))
+            .ok()
+            .and_then(|val| val.parse::<i32>().ok())
+            .map(LlamaPoolingType::from);
+
+        // Explicit pooling head/marker wins — strongest signal we have from GGUF.
+        if matches!(
+            pooling,
+            Some(LlamaPoolingType::Cls | LlamaPoolingType::Mean | LlamaPoolingType::Last)
+        ) {
+            return ModelKind::Embedding;
+        }
+        if matches!(pooling, Some(LlamaPoolingType::Rank)) {
+            return ModelKind::Reranker;
+        }
+
+        // No pooling hint — fall back to causal attention heuristic.
         let causal = self
             .language_model
             .meta_val_str(&format!("{arch}.attention.causal"))
@@ -182,20 +210,9 @@ impl Model {
             .unwrap_or(true);
 
         if causal {
-            return ModelKind::Generative;
-        }
-
-        let pooling = self
-            .language_model
-            .meta_val_str(&format!("{arch}.pooling_type"))
-            .ok()
-            .and_then(|val| val.parse::<i32>().ok())
-            .map(LlamaPoolingType::from)
-            .unwrap_or(LlamaPoolingType::Unspecified);
-
-        match pooling {
-            LlamaPoolingType::Unspecified | LlamaPoolingType::Rank => ModelKind::Reranker,
-            _ => ModelKind::Embedding,
+            ModelKind::Generative
+        } else {
+            ModelKind::Reranker
         }
     }
 
