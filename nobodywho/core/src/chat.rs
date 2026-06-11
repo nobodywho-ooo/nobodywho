@@ -1671,7 +1671,11 @@ impl Worker<'_, ChatWorker> {
                         grammar: tool_grammar.as_str().into(),
                     },
                 );
-                SamplerConfig::new(steps, self.extra.sampler_config.sample_step.clone())
+                SamplerConfig::new(
+                    steps,
+                    self.extra.sampler_config.sample_step.clone(),
+                    self.extra.sampler_config.seed,
+                )
             },
         );
 
