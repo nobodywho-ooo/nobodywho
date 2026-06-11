@@ -623,5 +623,4 @@ mod tests {
             .expect("legacy v2.2.0 JSON with mirostat_v1 (no seed field) should deserialize");
         assert!(matches!(cfg.sample_step, SampleStep::MirostatV1 { .. }));
     }
-
 }
