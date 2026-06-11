@@ -118,7 +118,7 @@ func test_sampler_builder():
 	self.allow_thinking = false
 	self.system_prompt = "You are a helpful assistant, capable of answering questions about the world."
 
-	var cfg = SamplerBuilder.new() \
+	var cfg = NobodyWhoSamplerBuilder.new() \
 		.top_k(40) \
 		.temperature(0.8) \
 		.seed(42) \

@@ -42,19 +42,19 @@ chat.set_sampler_preset_greedy()
 
 Presets cover the common cases, but when you want to chain multiple shift
 steps, set a seed for reproducible output, or use Mirostat, build a sampler
-with `SamplerBuilder`:
+with `NobodyWhoSamplerBuilder`:
 
 ```gdscript
-var cfg = SamplerBuilder.new() \
+var cfg = NobodyWhoSamplerBuilder.new() \
     .top_k(40) \
     .temperature(0.8) \
     .dist()
 chat.set_sampler_config(cfg)
 ```
 
-`SamplerBuilder` has two kinds of methods: **shift steps** that transform the
+`NobodyWhoSamplerBuilder` has two kinds of methods: **shift steps** that transform the
 probability distribution (returning the builder for further chaining) and
-**terminal steps** that finalize the chain into a `SamplerConfig`. Always end
+**terminal steps** that finalize the chain into a `NobodyWhoSamplerConfig`. Always end
 the chain with one of the terminals: `dist()`, `greedy()`, `mirostat_v1(...)`,
 or `mirostat_v2(...)`.
 
@@ -64,7 +64,7 @@ consumed by every random sampler in the chain — `dist`, `mirostat_v1`,
 default seed is used.
 
 ```gdscript
-var cfg = SamplerBuilder.new() \
+var cfg = NobodyWhoSamplerBuilder.new() \
     .top_k(40) \
     .temperature(0.8) \
     .seed(42) \

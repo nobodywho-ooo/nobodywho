@@ -1310,14 +1310,14 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
     }
 
-    /// Sets a custom sampler configuration built with `SamplerBuilder`.
+    /// Sets a custom sampler configuration built with `NobodyWhoSamplerBuilder`.
     ///
     /// Use this when the `set_sampler_preset_*` methods don't cover your
     /// use case (e.g. you want to chain multiple shift steps, set a seed,
-    /// or use Mirostat). See `SamplerBuilder` for the available steps.
+    /// or use Mirostat). See `NobodyWhoSamplerBuilder` for the available steps.
     ///
     /// ```gdscript
-    /// var cfg = SamplerBuilder.new() \
+    /// var cfg = NobodyWhoSamplerBuilder.new() \
     ///     .top_k(40) \
     ///     .temperature(0.8) \
     ///     .seed(42) \
@@ -1325,26 +1325,26 @@ impl NobodyWhoChat {
     /// chat.set_sampler_config(cfg)
     /// ```
     #[func]
-    fn set_sampler_config(&mut self, config: Gd<SamplerConfig>) {
+    fn set_sampler_config(&mut self, config: Gd<NobodyWhoSamplerConfig>) {
         let inner = config.bind().inner.clone();
         self.set_sampler_preset_impl(inner);
     }
 }
 
-/// A finalized sampler configuration produced by [`SamplerBuilder`].
+/// A finalized sampler configuration produced by [`NobodyWhoSamplerBuilder`].
 ///
-/// You don't construct this directly — get one from a `SamplerBuilder`
+/// You don't construct this directly — get one from a `NobodyWhoSamplerBuilder`
 /// terminal method (`.dist()`, `.greedy()`, `.mirostat_v1(...)`,
 /// `.mirostat_v2(...)`) and pass it to `NobodyWhoChat.set_sampler_config()`.
 #[derive(GodotClass)]
 #[class(no_init, base=RefCounted)]
-pub struct SamplerConfig {
+pub struct NobodyWhoSamplerConfig {
     inner: CoreSamplerConfig,
     base: Base<RefCounted>,
 }
 
 #[godot_api]
-impl SamplerConfig {}
+impl NobodyWhoSamplerConfig {}
 
 /// Builder for custom sampler chains.
 ///
@@ -1356,7 +1356,7 @@ impl SamplerConfig {}
 /// likely, etc.).
 ///
 /// ```gdscript
-/// var cfg = SamplerBuilder.new() \
+/// var cfg = NobodyWhoSamplerBuilder.new() \
 ///     .top_k(40) \
 ///     .temperature(0.8) \
 ///     .seed(42) \
@@ -1365,13 +1365,13 @@ impl SamplerConfig {}
 /// ```
 #[derive(GodotClass)]
 #[class(base=RefCounted)]
-pub struct SamplerBuilder {
+pub struct NobodyWhoSamplerBuilder {
     inner: nobodywho::sampler::SamplerBuilder,
     base: Base<RefCounted>,
 }
 
 #[godot_api]
-impl IRefCounted for SamplerBuilder {
+impl IRefCounted for NobodyWhoSamplerBuilder {
     fn init(base: Base<RefCounted>) -> Self {
         Self {
             inner: nobodywho::sampler::SamplerBuilder::new(),
@@ -1381,10 +1381,10 @@ impl IRefCounted for SamplerBuilder {
 }
 
 #[godot_api]
-impl SamplerBuilder {
+impl NobodyWhoSamplerBuilder {
     /// Keep only the top `k` most probable tokens. Typical values: 40-50.
     #[func]
-    fn top_k(&mut self, k: i32) -> Gd<SamplerBuilder> {
+    fn top_k(&mut self, k: i32) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self.inner.clone().shift(ShiftStep::TopK { top_k: k });
         self.to_gd()
     }
@@ -1392,7 +1392,7 @@ impl SamplerBuilder {
     /// Keep tokens whose cumulative probability is below `p`. Typical: 0.9-0.95.
     /// `min_keep` is the minimum number of tokens to always retain.
     #[func]
-    fn top_p(&mut self, p: f32, min_keep: u32) -> Gd<SamplerBuilder> {
+    fn top_p(&mut self, p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self
             .inner
             .clone()
@@ -1403,7 +1403,7 @@ impl SamplerBuilder {
     /// Keep tokens with probability above `min_p * (probability of most likely token)`.
     /// Typical `min_p`: 0.05-0.1. `min_keep` is the minimum number of tokens to always retain.
     #[func]
-    fn min_p(&mut self, min_p: f32, min_keep: u32) -> Gd<SamplerBuilder> {
+    fn min_p(&mut self, min_p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self
             .inner
             .clone()
@@ -1420,7 +1420,7 @@ impl SamplerBuilder {
         xtc_probability: f32,
         xtc_threshold: f32,
         min_keep: u32,
-    ) -> Gd<SamplerBuilder> {
+    ) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self.inner.clone().shift(ShiftStep::XTC {
             xtc_probability,
             xtc_threshold,
@@ -1432,7 +1432,7 @@ impl SamplerBuilder {
     /// Typical sampling: keeps tokens close to expected information content.
     /// Typical `typ_p`: 0.9. `min_keep` is the minimum number of tokens to always retain.
     #[func]
-    fn typical_p(&mut self, typ_p: f32, min_keep: u32) -> Gd<SamplerBuilder> {
+    fn typical_p(&mut self, typ_p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self
             .inner
             .clone()
@@ -1442,7 +1442,7 @@ impl SamplerBuilder {
 
     /// Temperature scaling. 0.0 = deterministic, 1.0 = unchanged, >1.0 = more random.
     #[func]
-    fn temperature(&mut self, temperature: f32) -> Gd<SamplerBuilder> {
+    fn temperature(&mut self, temperature: f32) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self
             .inner
             .clone()
@@ -1459,7 +1459,7 @@ impl SamplerBuilder {
         allowed_length: i32,
         penalty_last_n: i32,
         seq_breakers: PackedStringArray,
-    ) -> Gd<SamplerBuilder> {
+    ) -> Gd<NobodyWhoSamplerBuilder> {
         let seq_breakers: Vec<String> = seq_breakers
             .as_slice()
             .iter()
@@ -1486,7 +1486,7 @@ impl SamplerBuilder {
         penalty_repeat: f32,
         penalty_freq: f32,
         penalty_present: f32,
-    ) -> Gd<SamplerBuilder> {
+    ) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self.inner.clone().shift(ShiftStep::Penalties {
             penalty_last_n,
             penalty_repeat,
@@ -1500,16 +1500,16 @@ impl SamplerBuilder {
     /// `mirostat_v2`, and the `xtc` shift step). `greedy` ignores it.
     /// If unset, a default seed is used.
     #[func]
-    fn seed(&mut self, seed: u32) -> Gd<SamplerBuilder> {
+    fn seed(&mut self, seed: u32) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self.inner.clone().seed(seed);
         self.to_gd()
     }
 
     /// Terminal: sample from the distribution with weighted randomness.
     #[func]
-    fn dist(&self) -> Gd<SamplerConfig> {
+    fn dist(&self) -> Gd<NobodyWhoSamplerConfig> {
         let config = self.inner.clone().sample(SampleStep::Dist);
-        Gd::from_init_fn(|base| SamplerConfig {
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
             inner: config,
             base,
         })
@@ -1517,9 +1517,9 @@ impl SamplerBuilder {
 
     /// Terminal: always pick the most probable token (deterministic).
     #[func]
-    fn greedy(&self) -> Gd<SamplerConfig> {
+    fn greedy(&self) -> Gd<NobodyWhoSamplerConfig> {
         let config = self.inner.clone().sample(SampleStep::Greedy);
-        Gd::from_init_fn(|base| SamplerConfig {
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
             inner: config,
             base,
         })
@@ -1530,12 +1530,12 @@ impl SamplerBuilder {
     /// Typical `tau`: 3.0-5.0 (lower = more focused). Typical `eta`: 0.1.
     /// Typical `m`: 100 (number of candidates to consider).
     #[func]
-    fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> Gd<SamplerConfig> {
+    fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> Gd<NobodyWhoSamplerConfig> {
         let config = self
             .inner
             .clone()
             .sample(SampleStep::MirostatV1 { tau, eta, m });
-        Gd::from_init_fn(|base| SamplerConfig {
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
             inner: config,
             base,
         })
@@ -1544,12 +1544,12 @@ impl SamplerBuilder {
     /// Terminal: Mirostat v2 — simplified perplexity-controlled sampling.
     /// Typical `tau`: 3.0-5.0 (lower = more focused). Typical `eta`: 0.1.
     #[func]
-    fn mirostat_v2(&self, tau: f32, eta: f32) -> Gd<SamplerConfig> {
+    fn mirostat_v2(&self, tau: f32, eta: f32) -> Gd<NobodyWhoSamplerConfig> {
         let config = self
             .inner
             .clone()
             .sample(SampleStep::MirostatV2 { tau, eta });
-        Gd::from_init_fn(|base| SamplerConfig {
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
             inner: config,
             base,
         })
