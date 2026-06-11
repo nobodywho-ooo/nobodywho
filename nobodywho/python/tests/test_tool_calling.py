@@ -79,9 +79,9 @@ def add_list_of_vectors(list_of_vectors: list[list[int]]) -> str:
 
 
 @nobodywho.tool(
-    description="Returns the volume of a cube with the input dimenensions",
+    description="Returns the volume of a cube with the input dimensions",
     params={
-        "dimensions": "A map containing the numeric values for the width, heigth and depth of a cube."
+        "dimensions": "A map containing the numeric values for the width, height and depth of a cube."
     },
 )
 def calculate_volume(dimensions: dict[str, float]) -> str:
