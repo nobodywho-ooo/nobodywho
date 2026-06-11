@@ -33,7 +33,7 @@ class Chat:
     to use, whether to allow extended thinking, etc.
     See `ChatAsync` for the async version of this class.
     """
-    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: SamplerConfig = ..., allow_thinking: "bool | None" = None) -> "Chat":
+    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
         
@@ -43,7 +43,9 @@ class Chat:
             system_prompt: System message to guide the model's behavior. Defaults to empty string.
             template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
             tools: List of Tool instances the model can call. Defaults to empty list.
-            sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+            sampler: SamplerConfig for token selection. If not given, sampling settings
+                embedded in the model file (general.sampling.* metadata) are used when
+                present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
         
         Returns:
@@ -210,7 +212,7 @@ class ChatAsync:
     This is the async version of the `Chat` class.
     See the docs for the `Chat` class for more information.
     """
-    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: SamplerConfig = ..., allow_thinking: "bool | None" = None) -> "ChatAsync":
+    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
         
@@ -220,7 +222,9 @@ class ChatAsync:
             system_prompt: System message to guide the model's behavior. Defaults to empty string.
             template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
             tools: List of Tool instances the model can call. Defaults to empty list.
-            sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+            sampler: SamplerConfig for token selection. If not given, sampling settings
+                embedded in the model file (general.sampling.* metadata) are used when
+                present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
         
         Returns:

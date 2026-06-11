@@ -656,7 +656,9 @@ impl Chat {
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
-    ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///     sampler: SamplerConfig for token selection. If not given, sampling settings
+    ///         embedded in the model file (general.sampling.* metadata) are used when
+    ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
@@ -666,14 +668,14 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
-        sampler: SamplerConfig,
+        sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -696,13 +698,18 @@ impl Chat {
         }
 
         let build_result = py.detach(|| {
-            nobodywho::chat::ChatBuilder::new(nw_model)
+            let mut builder = nobodywho::chat::ChatBuilder::new(nw_model)
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt)
-                .with_sampler(sampler.sampler_config)
-                .build()
+                .with_system_prompt(system_prompt);
+            // When no sampler is given, leave it unset so the worker falls back
+            // to sampling settings embedded in the GGUF (general.sampling.*),
+            // and only then to the built-in default.
+            if let Some(s) = sampler {
+                builder = builder.with_sampler(s.sampler_config);
+            }
+            builder.build()
         });
         let chat_handle = build_result
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
@@ -1005,7 +1012,9 @@ impl ChatAsync {
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
-    ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///     sampler: SamplerConfig for token selection. If not given, sampling settings
+    ///         embedded in the model file (general.sampling.* metadata) are used when
+    ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
@@ -1015,14 +1024,14 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
-        sampler: SamplerConfig,
+        sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -1045,13 +1054,18 @@ impl ChatAsync {
         }
 
         let build_result = py.detach(|| {
-            nobodywho::chat::ChatBuilder::new(nw_model)
+            let mut builder = nobodywho::chat::ChatBuilder::new(nw_model)
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt)
-                .with_sampler(sampler.sampler_config)
-                .build_async()
+                .with_system_prompt(system_prompt);
+            // When no sampler is given, leave it unset so the worker falls back
+            // to sampling settings embedded in the GGUF (general.sampling.*),
+            // and only then to the built-in default.
+            if let Some(s) = sampler {
+                builder = builder.with_sampler(s.sampler_config);
+            }
+            builder.build_async()
         });
         let chat_handle = build_result
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
