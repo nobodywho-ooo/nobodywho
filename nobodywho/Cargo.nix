@@ -7269,7 +7269,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
           rev = "cc05d5cb60c5575cc9ae52ba8a9bcc7a36c3dad4";
-          sha256 = "00vyanc8fk78ss4f8504vkbnmf69xj6fv1zz7k2gqmkgqzg6wng6";
+          sha256 = "1x6bpps866b61k5bl2qz00gl9qa4klzpn45p00490gsgqx0xblyn";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -7349,7 +7349,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
           rev = "cc05d5cb60c5575cc9ae52ba8a9bcc7a36c3dad4";
-          sha256 = "00vyanc8fk78ss4f8504vkbnmf69xj6fv1zz7k2gqmkgqzg6wng6";
+          sha256 = "1x6bpps866b61k5bl2qz00gl9qa4klzpn45p00490gsgqx0xblyn";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
