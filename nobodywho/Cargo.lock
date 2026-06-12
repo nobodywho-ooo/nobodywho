@@ -2327,7 +2327,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.147"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=remove-openai-api-support#36c63115728e83dae297d7bc50f2b7e9d0bb1826"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=mtp-release-branch#cc05d5cb60c5575cc9ae52ba8a9bcc7a36c3dad4"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2342,7 +2342,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.147"
-source = "git+https://github.com/AsbjornOlling/llama-cpp-rs?branch=remove-openai-api-support#36c63115728e83dae297d7bc50f2b7e9d0bb1826"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=mtp-release-branch#cc05d5cb60c5575cc9ae52ba8a9bcc7a36c3dad4"
 dependencies = [
  "bindgen",
  "cc",
