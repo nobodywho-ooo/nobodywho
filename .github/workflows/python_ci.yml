@@ -360,8 +360,8 @@ jobs:
             url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf
             format: Gemma4
           - name: LFM2.5-VL 1.6B
-            file: LFM2.5-VL-1.6B-Q8_0.gguf
-            url: https://huggingface.co/NobodyWho/LFM2.5-VL-1.6B-GGUF/resolve/main/LFM2.5-VL-1.6B-Q8_0.gguf
+            file: LFM2.5-VL-1.6B-Q8_0-vendor-sampling.gguf
+            url: https://huggingface.co/NobodyWho/LFM2.5-VL-1.6B-GGUF/resolve/main/LFM2.5-VL-1.6B-Q8_0-vendor-sampling.gguf
             format: LFM2.5
 
     steps:
