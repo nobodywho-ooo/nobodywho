@@ -1,0 +1,13 @@
+{
+  "python": [
+    "index",
+    "downloading-models",
+    "chat",
+    "tool-calling",
+    "vision",
+    "sampling",
+    "streaming-and-async-api",
+    "embeddings-and-rag",
+    "logging-and-troubleshooting"
+  ]
+}
