@@ -7,9 +7,11 @@
 //! - FunctionGemma: `<start_function_call>call:name{param:<escape>val<escape>}<end_function_call>`
 //! - Gemma4: `<|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|>`
 //! - Ministral3: `[TOOL_CALLS][{"name": "...", "arguments": {...}}]`
+//! - LFM2: `<|tool_call_start|>[name(key=value, ...)]<|tool_call_end|>`
 
 mod functiongemma;
 mod gemma4;
+mod lfm2;
 mod ministral3;
 mod qwen3;
 mod qwen35_36;
@@ -23,6 +25,7 @@ use tracing::debug;
 
 pub use functiongemma::FunctionGemmaHandler;
 pub use gemma4::Gemma4Handler;
+pub use lfm2::Lfm2Handler;
 pub use ministral3::Ministral3Handler;
 pub use qwen3::Qwen3Handler;
 pub use qwen35_36::Qwen35_36Handler;
@@ -271,6 +274,7 @@ pub enum ToolFormat {
     FunctionGemma(FunctionGemmaHandler),
     Gemma4(Gemma4Handler),
     Ministral3(Ministral3Handler),
+    Lfm2(Lfm2Handler),
 }
 
 impl ToolFormat {
@@ -281,6 +285,7 @@ impl ToolFormat {
             ToolFormat::FunctionGemma(h) => h,
             ToolFormat::Gemma4(h) => h,
             ToolFormat::Ministral3(h) => h,
+            ToolFormat::Lfm2(h) => h,
         }
     }
 
@@ -367,6 +372,15 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
         return Ok(ToolFormat::Ministral3(Ministral3Handler));
     }
 
+    // Check for LFM2 markers
+    if template_str.contains("<|tool_call_start|>")
+        || template_str.contains("<|tool_list_start|>")
+        || template_str.contains("<|tool_response_start|>")
+    {
+        debug!("Detected LFM2 format from template markers");
+        return Ok(ToolFormat::Lfm2(Lfm2Handler));
+    }
+
     // Fall back to model metadata.
     if let Ok(arch) = model.meta_val_str("general.architecture") {
         debug!(architecture = %arch, "Checking model architecture for format hints");
@@ -379,12 +393,21 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
             debug!("Detected Qwen3 format from architecture");
             return Ok(ToolFormat::Qwen3(Qwen3Handler));
         }
+        if arch_lower.starts_with("lfm") {
+            debug!("Detected LFM2 format from architecture");
+            return Ok(ToolFormat::Lfm2(Lfm2Handler));
+        }
     }
 
     if let Ok(name) = model.meta_val_str("general.name") {
         debug!(model_name = %name, "Checking model name for format hints");
 
         let name_lower = name.to_lowercase();
+        if name_lower.contains("lfm") {
+            debug!("Detected LFM2 format from model name");
+            return Ok(ToolFormat::Lfm2(Lfm2Handler));
+        }
+
         if name_lower.contains("functiongemma") || name_lower.contains("function-gemma") {
             debug!("Detected FunctionGemma format from model name");
             return Ok(ToolFormat::FunctionGemma(FunctionGemmaHandler));
@@ -504,6 +527,7 @@ mod tests {
             ToolFormat::FunctionGemma(_) => "FunctionGemma",
             ToolFormat::Gemma4(_) => "Gemma4",
             ToolFormat::Ministral3(_) => "Ministral3",
+            ToolFormat::Lfm2(_) => "Lfm2",
         };
         eprintln!("detected handler     = {variant}");
     }
