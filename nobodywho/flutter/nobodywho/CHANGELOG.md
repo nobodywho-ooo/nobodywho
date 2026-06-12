@@ -1,3 +1,22 @@
+## 2.3.0
+
+### LFM2 tool calling (#564)
+
+Added support for the LiquidAI LFM2 model family's tool-calling format, so LFM2 models can now drive tool use.
+
+### Reproducible sampling with `seed` (#562)
+
+The sampler builder now exposes a `seed` parameter, giving you explicit, reproducible control over sampling randomness. Backed by an internal typestate refactor of the builder.
+
+### List cached models with `getCachedModels()` (#508)
+
+New function to list every cached `.gguf` model alongside its size on disk.
+
+### Fixes
+
+- **Render LFM2.5 chat templates (#563)** — LFM2.5 models previously failed to load because their chat templates use `{% generation %}` tags; these are now rewritten to a no-op so the templates render correctly.
+- **No more crashes when clearing setters on an empty chat (#559)** — Removed context syncing from the setters, fixing crashes when setting the system prompt or tools on an empty chat history.
+
 ## 2.2.0
 
 ### Improved error messages (#532)

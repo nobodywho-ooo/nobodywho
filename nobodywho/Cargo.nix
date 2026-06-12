@@ -8143,7 +8143,7 @@ rec {
       };
       "nobodywho" = rec {
         crateName = "nobodywho";
-        version = "2.2.0";
+        version = "2.3.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./core; };
         dependencies = [
@@ -8286,7 +8286,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "2.2.0";
+        version = "2.3.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -8334,7 +8334,7 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "9.3.0";
+        version = "9.4.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
@@ -8374,7 +8374,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "1.4.0";
+        version = "1.5.0";
         edition = "2021";
         crateBin = [
           {
