@@ -74,6 +74,10 @@ struct NobodyWhoModel {
     use_gpu_if_available: bool,
 
     model: Option<Arc<llm::Model>>,
+    /// Serializes concurrent `load_model_detached` calls on this node so the model
+    /// is loaded into memory/GPU exactly once even when multiple consumer nodes
+    /// (e.g. two `NobodyWhoChat`s) call `start_worker()` simultaneously.
+    load_lock: Arc<tokio::sync::Mutex<()>>,
     base: Base<Node>,
 }
 
@@ -88,6 +92,7 @@ impl INode for NobodyWhoModel {
             projection_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
+            load_lock: Arc::new(tokio::sync::Mutex::new(())),
             base,
         }
     }
@@ -108,7 +113,20 @@ impl NobodyWhoModel {
     async fn load_model_detached(
         mut gd: Gd<Self>,
     ) -> Result<Arc<llm::Model>, errors::LoadModelError> {
-        // Fast path — brief immutable bind.
+        // Fast path — brief immutable bind, no lock acquisition when already cached.
+        if let Some(model) = gd.bind().model.as_ref() {
+            return Ok(Arc::clone(model));
+        }
+
+        // Slow path: serialize concurrent loads so we don't load the same model twice
+        // into GPU/RAM when multiple consumer nodes (e.g. two `NobodyWhoChat`s) call
+        // `start_worker()` simultaneously. Clone the Arc<Mutex> out so the bind drops
+        // before we await on lock acquisition.
+        let load_lock = gd.bind().load_lock.clone();
+        let _guard = load_lock.lock().await;
+
+        // Re-check after acquiring the lock — another task may have finished the load
+        // while we were waiting.
         if let Some(model) = gd.bind().model.as_ref() {
             return Ok(Arc::clone(model));
         }
@@ -485,10 +503,11 @@ impl INode for NobodyWhoChat {
 
 #[godot_api]
 impl NobodyWhoChat {
-    /// Load the model and create the chat worker. All synchronous state reads happen
-    /// before this is spawned — the only `me.bind_mut()` here runs after the first
-    /// `.await`, by which point any calling `#[func]` method's `&mut self` borrow has
-    /// been released.
+    /// Load the model and create the chat worker. `me.bind_mut()` below must run
+    /// only after the outer `start_worker(&mut self)` borrow has been released —
+    /// `godot::task::spawn` polls inline, and if `load_model_detached` takes its
+    /// cache-hit fast path no real yield happens before the bind. `yield_now()`
+    /// forces a single executor round-trip so the outer borrow always drops first.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
         model_node: Gd<NobodyWhoModel>,
@@ -497,6 +516,8 @@ impl NobodyWhoChat {
         n_ctx: u32,
         allow_thinking: bool,
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
+        tokio::task::yield_now().await;
+
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
@@ -1779,13 +1800,15 @@ impl NobodyWhoEncoder {
     /// Emitted if loading the model (or setting up the encoder worker) failed.
     fn worker_failed(error: GString);
 
-    /// Load the model and create the encoder worker. The only `me.bind_mut()` here
-    /// runs after the first `.await`, by which point any calling `#[func]` method's
-    /// `&mut self` borrow has been released.
+    /// Load the model and create the encoder worker. `yield_now()` ensures the
+    /// outer `start_worker(&mut self)` borrow is released before `me.bind_mut()` runs;
+    /// see the NobodyWhoChat::load_and_store_worker docstring for the full rationale.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
         model_node: Gd<NobodyWhoModel>,
     ) -> Result<nobodywho::encoder::EncoderAsync, GString> {
+        tokio::task::yield_now().await;
+
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
@@ -1965,13 +1988,15 @@ impl NobodyWhoCrossEncoder {
     /// Emitted if loading the model (or setting up the crossencoder worker) failed.
     fn worker_failed(error: GString);
 
-    /// Load the model and create the crossencoder worker. The only `me.bind_mut()`
-    /// here runs after the first `.await`, by which point any calling `#[func]`
-    /// method's `&mut self` borrow has been released.
+    /// Load the model and create the crossencoder worker. `yield_now()` ensures the
+    /// outer `start_worker(&mut self)` borrow is released before `me.bind_mut()` runs;
+    /// see the NobodyWhoChat::load_and_store_worker docstring for the full rationale.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
         model_node: Gd<NobodyWhoModel>,
     ) -> Result<nobodywho::crossencoder::CrossEncoderAsync, GString> {
+        tokio::task::yield_now().await;
+
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
