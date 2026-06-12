@@ -38,6 +38,40 @@ Always pick the most probable token:
 chat.set_sampler_preset_greedy()
 ```
 
+## Defining your own samplers
+
+Presets cover the common cases, but when you want to chain multiple shift
+steps, set a seed for reproducible output, or use Mirostat, build a sampler
+with `NobodyWhoSamplerBuilder`:
+
+```gdscript
+var cfg = NobodyWhoSamplerBuilder.new() \
+    .top_k(40) \
+    .temperature(0.8) \
+    .dist()
+chat.set_sampler_config(cfg)
+```
+
+`NobodyWhoSamplerBuilder` has two kinds of methods: **shift steps** that transform the
+probability distribution (returning the builder for further chaining) and
+**terminal steps** that finalize the chain into a `NobodyWhoSamplerConfig`. Always end
+the chain with one of the terminals: `dist()`, `greedy()`, `mirostat_v1(...)`,
+or `mirostat_v2(...)`.
+
+For reproducible output, set the RNG seed anywhere in the chain. The seed is
+consumed by every random sampler in the chain — `dist`, `mirostat_v1`,
+`mirostat_v2`, and the `xtc` shift step. `greedy` ignores it. If unset, a
+default seed is used.
+
+```gdscript
+var cfg = NobodyWhoSamplerBuilder.new() \
+    .top_k(40) \
+    .temperature(0.8) \
+    .seed(42) \
+    .dist()
+chat.set_sampler_config(cfg)
+```
+
 ## Structured Output
 
 One of the most powerful features is constraining the model to produce output in a specific format. This gives you a hard guarantee that the output matches your format, rather than relying on the model to get it right on its own.

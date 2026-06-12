@@ -68,6 +68,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(ptr: bigint, tau: number, eta: number, m: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(ptr: bigint, tau: number, eta: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(ptr: bigint, penaltyLastN: number, penaltyRepeat: number, penaltyFreq: number, penaltyPresent: number, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(ptr: bigint, seed: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(ptr: bigint, temperature: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(ptr: bigint, topK: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(ptr: bigint, topP: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -187,6 +188,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p(): number;

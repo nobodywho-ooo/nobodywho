@@ -659,7 +659,7 @@ class SamplerBuilder:
         """
         Apply a GBNF grammar constraint to enforce structured output.
         
-        Deprecated: Use `SamplerBuilder.constrain()` with a `Constraint` object instead.
+        Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
         
         Args:
             grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
@@ -718,6 +718,11 @@ class SamplerBuilder:
             penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
             penalty_freq: Frequency penalty based on token occurrence count
             penalty_present: Presence penalty for any token that appeared before
+        """
+    def seed(self, /, seed: int) -> SamplerBuilder:
+        """
+        Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+        `greedy` ignores it. If unset, a default seed is used.
         """
     def temperature(self, /, temperature: float) -> SamplerBuilder:
         """

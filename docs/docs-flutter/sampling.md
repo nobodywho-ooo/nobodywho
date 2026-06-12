@@ -146,9 +146,23 @@ types of methods: ones which modify the distribution (returning again the instan
 So in order to have the sampler working properly and not giving you type errors, be careful
 to always end the chain with one of the sampling steps (e.g. `dist()`, `greedy()`, `mirostatV2()`, etc.).
 
+For reproducible output, set the RNG seed with `.seed(seed: value)` anywhere in the chain.
+It is consumed by every random sampler in the chain — `dist`, `mirostatV1`, `mirostatV2`,
+and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
+
+```dart
+final sampler = nobodywho.SamplerBuilder()
+    .temperature(temperature: 0.8)
+    .topK(topK: 5)
+    .seed(seed: 42)
+    .dist();
+```
+
 You can also change the sampler configuration on an existing chat instance:
 
-```dart continuation
+```dart
+final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+
 final sampler = nobodywho.SamplerBuilder()
     .temperature(temperature: 0.8)
     .topK(topK: 5)

@@ -15,31 +15,35 @@ annotation class SamplerDsl
  */
 @SamplerDsl
 class SamplerScope {
-    private val builder = SamplerBuilder()
+    private var builder = SamplerBuilder()
     private var result: SamplerConfig? = null
 
-    fun topK(topK: Int) { builder.topK(topK) }
-    fun topP(topP: Float, minKeep: UInt = 1u) { builder.topP(topP, minKeep) }
-    fun minP(minP: Float, minKeep: UInt = 1u) { builder.minP(minP, minKeep) }
-    fun temperature(temperature: Float) { builder.temperature(temperature) }
-    fun typicalP(typP: Float, minKeep: UInt = 1u) { builder.typicalP(typP, minKeep) }
-    fun xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt = 1u) { builder.xtc(xtcProbability, xtcThreshold, minKeep) }
-    fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder.grammar(grammar, triggerOn, root) }
+    fun topK(topK: Int) { builder = builder.topK(topK) }
+    fun topP(topP: Double, minKeep: Int = 1) { builder = builder.topP(topP.toFloat(), minKeep.toUInt()) }
+    fun minP(minP: Double, minKeep: Int = 1) { builder = builder.minP(minP.toFloat(), minKeep.toUInt()) }
+    fun temperature(temperature: Double) { builder = builder.temperature(temperature.toFloat()) }
+    fun typicalP(typP: Double, minKeep: Int = 1) { builder = builder.typicalP(typP.toFloat(), minKeep.toUInt()) }
+    fun xtc(xtcProbability: Double, xtcThreshold: Double, minKeep: Int = 1) { builder = builder.xtc(xtcProbability.toFloat(), xtcThreshold.toFloat(), minKeep.toUInt()) }
+    fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder = builder.grammar(grammar, triggerOn, root) }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostatV1`, `mirostatV2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    fun seed(value: Int) { builder = builder.seed(value.toUInt()) }
 
     fun dry(
-        multiplier: Float = 0.8f,
-        base: Float = 1.75f,
+        multiplier: Double = 0.8,
+        base: Double = 1.75,
         allowedLength: Int = 2,
         penaltyLastN: Int = -1,
         seqBreakers: List<String> = listOf("\n", ":", "\"", "*")
-    ) { builder.dry(multiplier, base, allowedLength, penaltyLastN, seqBreakers) }
+    ) { builder = builder.dry(multiplier.toFloat(), base.toFloat(), allowedLength, penaltyLastN, seqBreakers) }
 
     fun penalties(
         penaltyLastN: Int = 64,
-        penaltyRepeat: Float = 1.0f,
-        penaltyFreq: Float = 0.0f,
-        penaltyPresent: Float = 0.0f
-    ) { builder.penalties(penaltyLastN, penaltyRepeat, penaltyFreq, penaltyPresent) }
+        penaltyRepeat: Double = 1.0,
+        penaltyFreq: Double = 0.0,
+        penaltyPresent: Double = 0.0
+    ) { builder = builder.penalties(penaltyLastN, penaltyRepeat.toFloat(), penaltyFreq.toFloat(), penaltyPresent.toFloat()) }
 
     private fun setResult(config: SamplerConfig) {
         check(result == null) { "A terminal step was already called" }
@@ -48,8 +52,8 @@ class SamplerScope {
 
     fun dist() { setResult(builder.dist()) }
     fun greedy() { setResult(builder.greedy()) }
-    fun mirostatV1(tau: Float = 5.0f, eta: Float = 0.1f, m: Int = 100) { setResult(builder.mirostatV1(tau, eta, m)) }
-    fun mirostatV2(tau: Float = 5.0f, eta: Float = 0.1f) { setResult(builder.mirostatV2(tau, eta)) }
+    fun mirostatV1(tau: Double = 5.0, eta: Double = 0.1, m: Int = 100) { setResult(builder.mirostatV1(tau.toFloat(), eta.toFloat(), m)) }
+    fun mirostatV2(tau: Double = 5.0, eta: Double = 0.1) { setResult(builder.mirostatV2(tau.toFloat(), eta.toFloat())) }
 
     internal fun build(): SamplerConfig = result ?: builder.dist()
 }
@@ -60,8 +64,8 @@ class SamplerScope {
  * ```kotlin
  * val sampler = buildSampler {
  *     topK(40)
- *     temperature(0.8f)
- *     minP(0.05f)
+ *     temperature(0.8)
+ *     minP(0.05)
  *     dist()
  * }
  * ```

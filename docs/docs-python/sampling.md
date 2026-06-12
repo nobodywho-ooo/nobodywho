@@ -134,3 +134,11 @@ types of methods: ones which modify the distribution (returning again the instan
 So in order to have the sampler working properly and not giving you type errors, be careful
 to always end the chain with one of the sampling steps (e.g. `dist`, `greedy`, `mirostat_v2`, etc.).
 
+For reproducible output, set the RNG seed with `.seed(value)` anywhere in the chain.
+It is consumed by every random sampler in the chain — `dist`, `mirostat_v1`, `mirostat_v2`,
+and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
+
+```python
+sampler = SamplerBuilder().temperature(0.8).top_k(5).seed(42).dist()
+```
+

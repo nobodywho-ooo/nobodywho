@@ -763,7 +763,7 @@ impl RustCrossEncoder {
 
 #[derive(uniffi::Object)]
 pub struct SamplerConfig {
-    inner: nobodywho::sampler_config::SamplerConfig,
+    inner: nobodywho::sampler::SamplerConfig,
 }
 
 #[uniffi::export]
@@ -778,8 +778,8 @@ impl SamplerConfig {
     /// Deserialize a sampler configuration from a JSON string.
     #[uniffi::constructor]
     pub fn from_json(json_str: String) -> Result<Arc<Self>, NobodyWhoError> {
-        let inner: nobodywho::sampler_config::SamplerConfig = serde_json::from_str(&json_str)
-            .map_err(|e| NobodyWhoError::Error {
+        let inner: nobodywho::sampler::SamplerConfig =
+            serde_json::from_str(&json_str).map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })?;
         Ok(Arc::new(Self { inner }))
@@ -790,7 +790,7 @@ impl SamplerConfig {
 
 #[derive(uniffi::Object)]
 pub struct SamplerBuilder {
-    inner: nobodywho::sampler_config::SamplerConfig,
+    inner: nobodywho::sampler::SamplerBuilder,
 }
 
 #[uniffi::export]
@@ -799,7 +799,7 @@ impl SamplerBuilder {
     #[uniffi::constructor]
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            inner: nobodywho::sampler_config::SamplerConfig::default(),
+            inner: nobodywho::sampler::SamplerBuilder::new(),
         })
     }
 
@@ -811,7 +811,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::TopK { top_k }),
+                .shift(nobodywho::sampler::ShiftStep::TopK { top_k }),
         })
     }
 
@@ -821,7 +821,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep }),
+                .shift(nobodywho::sampler::ShiftStep::TopP { top_p, min_keep }),
         })
     }
 
@@ -831,7 +831,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep }),
+                .shift(nobodywho::sampler::ShiftStep::MinP { min_p, min_keep }),
         })
     }
 
@@ -841,7 +841,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::Temperature { temperature }),
+                .shift(nobodywho::sampler::ShiftStep::Temperature { temperature }),
         })
     }
 
@@ -856,11 +856,19 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::XTC {
+                .shift(nobodywho::sampler::ShiftStep::XTC {
                     xtc_probability,
                     xtc_threshold,
                     min_keep,
                 }),
+        })
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    pub fn seed(&self, seed: u32) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().seed(seed),
         })
     }
 
@@ -870,7 +878,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep }),
+                .shift(nobodywho::sampler::ShiftStep::TypicalP { typ_p, min_keep }),
         })
     }
 
@@ -888,7 +896,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::Grammar {
+                .shift(nobodywho::sampler::ShiftStep::Grammar {
                     grammar,
                     trigger_on,
                     root,
@@ -909,7 +917,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::DRY {
+                .shift(nobodywho::sampler::ShiftStep::DRY {
                     multiplier,
                     base,
                     allowed_length,
@@ -931,7 +939,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::Penalties {
+                .shift(nobodywho::sampler::ShiftStep::Penalties {
                     penalty_last_n,
                     penalty_repeat,
                     penalty_freq,
@@ -948,7 +956,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::Dist),
+                .sample(nobodywho::sampler::SampleStep::Dist),
         })
     }
 
@@ -958,7 +966,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::Greedy),
+                .sample(nobodywho::sampler::SampleStep::Greedy),
         })
     }
 
@@ -968,7 +976,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m }),
+                .sample(nobodywho::sampler::SampleStep::MirostatV1 { tau, eta, m }),
         })
     }
 
@@ -978,7 +986,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta }),
+                .sample(nobodywho::sampler::SampleStep::MirostatV2 { tau, eta }),
         })
     }
 }
@@ -991,7 +999,7 @@ impl SamplerBuilder {
 #[uniffi::export]
 pub fn sampler_preset_default() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerConfig::default(),
+        inner: nobodywho::sampler::SamplerConfig::default(),
     })
 }
 
@@ -999,7 +1007,7 @@ pub fn sampler_preset_default() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+        inner: nobodywho::sampler::SamplerPresets::top_k(top_k),
     })
 }
 
@@ -1007,7 +1015,7 @@ pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+        inner: nobodywho::sampler::SamplerPresets::top_p(top_p),
     })
 }
 
@@ -1015,7 +1023,7 @@ pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_greedy() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::greedy(),
+        inner: nobodywho::sampler::SamplerPresets::greedy(),
     })
 }
 
@@ -1023,7 +1031,7 @@ pub fn sampler_preset_greedy() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_temperature(temperature: f32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+        inner: nobodywho::sampler::SamplerPresets::temperature(temperature),
     })
 }
 
@@ -1031,7 +1039,7 @@ pub fn sampler_preset_temperature(temperature: f32) -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_dry() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::dry(),
+        inner: nobodywho::sampler::SamplerPresets::dry(),
     })
 }
 
@@ -1039,7 +1047,7 @@ pub fn sampler_preset_dry() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_constrain_with_json_schema(schema: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(schema),
+        inner: nobodywho::sampler::SamplerPresets::constrain_with_json_schema(schema),
     })
 }
 
@@ -1047,7 +1055,7 @@ pub fn sampler_preset_constrain_with_json_schema(schema: String) -> Arc<SamplerC
 #[uniffi::export]
 pub fn sampler_preset_constrain_with_regex(pattern: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
+        inner: nobodywho::sampler::SamplerPresets::constrain_with_regex(pattern),
     })
 }
 
@@ -1055,14 +1063,14 @@ pub fn sampler_preset_constrain_with_regex(pattern: String) -> Arc<SamplerConfig
 #[uniffi::export]
 pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
+        inner: nobodywho::sampler::SamplerPresets::constrain_with_grammar(grammar),
     })
 }
 
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::json(),
+        inner: nobodywho::sampler::SamplerPresets::json(),
     })
 }
 
@@ -1070,6 +1078,6 @@ pub fn sampler_preset_json() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_grammar(grammar: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+        inner: nobodywho::sampler::SamplerPresets::grammar(grammar),
     })
 }

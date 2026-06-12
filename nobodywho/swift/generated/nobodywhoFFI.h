@@ -526,6 +526,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(uint64_t p
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(uint64_t ptr, int32_t penalty_last_n, float penalty_repeat, float penalty_freq, float penalty_present, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_SEED
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_SEED
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(uint64_t ptr, uint32_t seed, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TEMPERATURE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TEMPERATURE
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(uint64_t ptr, float temperature, RustCallStatus *_Nonnull out_status
@@ -1188,6 +1193,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_PENALTIES
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_PENALTIES
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_SEED
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_SEED
+uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed(void
     
 );
 #endif

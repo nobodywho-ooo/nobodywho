@@ -407,6 +407,10 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double penaltyPresent,
   });
 
+  /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+  /// `greedy` ignores it. If unset, a default seed is used.
+  SamplerBuilder seed({required int seed});
+
   /// Apply temperature scaling to the probability distribution.
   ///
   /// Args:

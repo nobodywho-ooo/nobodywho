@@ -2657,6 +2657,11 @@ export interface SamplerBuilderInterface {
      */
     penalties(penaltyLastN: /*i32*/number, penaltyRepeat: /*f32*/number, penaltyFreq: /*f32*/number, penaltyPresent: /*f32*/number) : SamplerBuilderInterface;
     /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+    seed(seed: /*u32*/number) : SamplerBuilderInterface;
+    /**
      * Apply temperature scaling to the probability distribution.
      */
     temperature(temperature: /*f32*/number) : SamplerBuilderInterface;
@@ -2821,6 +2826,21 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
         FfiConverterFloat32.lower(penaltyRepeat),
         FfiConverterFloat32.lower(penaltyFreq),
         FfiConverterFloat32.lower(penaltyPresent),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+ seed(seed: /*u32*/number): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterUInt32.lower(seed),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -3329,6 +3349,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() !== 40767) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed() !== 25129) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature() !== 8456) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature");

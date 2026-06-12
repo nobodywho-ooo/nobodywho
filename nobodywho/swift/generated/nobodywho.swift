@@ -1792,6 +1792,12 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     func penalties(penaltyLastN: Int32, penaltyRepeat: Float, penaltyFreq: Float, penaltyPresent: Float)  -> SamplerBuilder
     
     /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+    func seed(seed: UInt32)  -> SamplerBuilder
+    
+    /**
      * Apply temperature scaling to the probability distribution.
      */
     func temperature(temperature: Float)  -> SamplerBuilder
@@ -1978,6 +1984,19 @@ open func penalties(penaltyLastN: Int32, penaltyRepeat: Float, penaltyFreq: Floa
         FfiConverterFloat.lower(penaltyRepeat),
         FfiConverterFloat.lower(penaltyFreq),
         FfiConverterFloat.lower(penaltyPresent),$0
+    )
+})
+}
+    
+    /**
+     * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+     * `greedy` ignores it. If unset, a default seed is used.
+     */
+open func seed(seed: UInt32) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(
+            self.uniffiCloneHandle(),
+        FfiConverterUInt32.lower(seed),$0
     )
 })
 }
@@ -3861,6 +3880,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties() != 40767) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed() != 25129) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature() != 8456) {

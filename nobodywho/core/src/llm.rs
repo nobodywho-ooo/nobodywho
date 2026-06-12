@@ -960,7 +960,7 @@ mod tests {
             cb(i, 10_000);
         }
         let n = count.load(Ordering::Relaxed);
-        assert!(n >= 1 && n <= 5, "expected 1–5 emits, got {}", n);
+        assert!((1..=5).contains(&n), "expected 1–5 emits, got {}", n);
     }
 
     #[test]

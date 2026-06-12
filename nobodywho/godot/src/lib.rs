@@ -1,7 +1,9 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message};
-use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
+use nobodywho::sampler::{
+    SampleStep, SamplerConfig as CoreSamplerConfig, SamplerPresets, ShiftStep,
+};
 use nobodywho::{errors, llm, tokenizer};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1204,7 +1206,7 @@ impl NobodyWhoChat {
         set_log_level(&level);
     }
 
-    fn set_sampler_preset_impl(&mut self, sampler: SamplerConfig) {
+    fn set_sampler_preset_impl(&mut self, sampler: CoreSamplerConfig) {
         // Sampler presets set before the worker is ready are dropped. Call sampler
         // preset setters after `worker_started` has fired (or after a successful
         // `ask()` auto-start completes).
@@ -1223,7 +1225,7 @@ impl NobodyWhoChat {
     /// This provides a balanced configuration suitable for most use cases.
     #[func]
     fn set_sampler_preset_default(&mut self) {
-        self.set_sampler_preset_impl(SamplerConfig::default());
+        self.set_sampler_preset_impl(CoreSamplerConfig::default());
     }
 
     /// Sets the sampler to use greedy sampling.
@@ -1272,24 +1274,24 @@ impl NobodyWhoChat {
     #[func]
     fn set_sampler_preset_constrain_with_json_schema(&mut self, schema: String) {
         self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(schema),
+            nobodywho::sampler::SamplerPresets::constrain_with_json_schema(schema),
         );
     }
 
     /// Constrains the model output to a regular expression via llguidance.
     #[func]
     fn set_sampler_preset_constrain_with_regex(&mut self, pattern: String) {
-        self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
-        );
+        self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_regex(
+            pattern,
+        ));
     }
 
     /// Constrains the model output using a Lark context-free grammar via llguidance.
     #[func]
     fn set_sampler_preset_constrain_with_grammar(&mut self, grammar: String) {
-        self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
-        );
+        self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_grammar(
+            grammar,
+        ));
     }
 
     /// Constrain output to valid JSON (any structure) using GBNF.
@@ -1306,6 +1308,251 @@ impl NobodyWhoChat {
     #[deprecated(note = "Use set_sampler_preset_constrain_with_grammar() instead")]
     fn set_sampler_preset_grammar(&mut self, grammar: String) {
         self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
+    }
+
+    /// Sets a custom sampler configuration built with `NobodyWhoSamplerBuilder`.
+    ///
+    /// Use this when the `set_sampler_preset_*` methods don't cover your
+    /// use case (e.g. you want to chain multiple shift steps, set a seed,
+    /// or use Mirostat). See `NobodyWhoSamplerBuilder` for the available steps.
+    ///
+    /// ```gdscript
+    /// var cfg = NobodyWhoSamplerBuilder.new() \
+    ///     .top_k(40) \
+    ///     .temperature(0.8) \
+    ///     .seed(42) \
+    ///     .dist()
+    /// chat.set_sampler_config(cfg)
+    /// ```
+    #[func]
+    fn set_sampler_config(&mut self, config: Gd<NobodyWhoSamplerConfig>) {
+        let inner = config.bind().inner.clone();
+        self.set_sampler_preset_impl(inner);
+    }
+}
+
+/// A finalized sampler configuration produced by [`NobodyWhoSamplerBuilder`].
+///
+/// You don't construct this directly — get one from a `NobodyWhoSamplerBuilder`
+/// terminal method (`.dist()`, `.greedy()`, `.mirostat_v1(...)`,
+/// `.mirostat_v2(...)`) and pass it to `NobodyWhoChat.set_sampler_config()`.
+#[derive(GodotClass)]
+#[class(no_init, base=RefCounted)]
+pub struct NobodyWhoSamplerConfig {
+    inner: CoreSamplerConfig,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl NobodyWhoSamplerConfig {}
+
+/// Builder for custom sampler chains.
+///
+/// A sampler chain consists of any number of probability-shifting steps,
+/// followed by exactly one terminal sampling step. Shift steps transform
+/// the probability distribution (e.g. `top_k(40)` zeros out all but the
+/// 40 most likely tokens). The terminal step picks a token from that
+/// distribution (`dist` = weighted random, `greedy` = always the most
+/// likely, etc.).
+///
+/// ```gdscript
+/// var cfg = NobodyWhoSamplerBuilder.new() \
+///     .top_k(40) \
+///     .temperature(0.8) \
+///     .seed(42) \
+///     .dist()
+/// chat.set_sampler_config(cfg)
+/// ```
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+pub struct NobodyWhoSamplerBuilder {
+    inner: nobodywho::sampler::SamplerBuilder,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl IRefCounted for NobodyWhoSamplerBuilder {
+    fn init(base: Base<RefCounted>) -> Self {
+        Self {
+            inner: nobodywho::sampler::SamplerBuilder::new(),
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoSamplerBuilder {
+    /// Keep only the top `k` most probable tokens. Typical values: 40-50.
+    #[func]
+    fn top_k(&mut self, k: i32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::TopK { top_k: k });
+        self.to_gd()
+    }
+
+    /// Keep tokens whose cumulative probability is below `p`. Typical: 0.9-0.95.
+    /// `min_keep` is the minimum number of tokens to always retain.
+    #[func]
+    fn top_p(&mut self, p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::TopP { top_p: p, min_keep });
+        self.to_gd()
+    }
+
+    /// Keep tokens with probability above `min_p * (probability of most likely token)`.
+    /// Typical `min_p`: 0.05-0.1. `min_keep` is the minimum number of tokens to always retain.
+    #[func]
+    fn min_p(&mut self, min_p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::MinP { min_p, min_keep });
+        self.to_gd()
+    }
+
+    /// XTC (eXclude Top Choices) — probabilistically excludes high-probability
+    /// tokens to increase diversity by sometimes forcing less obvious picks.
+    /// `min_keep` prevents excluding all tokens.
+    #[func]
+    fn xtc(
+        &mut self,
+        xtc_probability: f32,
+        xtc_threshold: f32,
+        min_keep: u32,
+    ) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::XTC {
+            xtc_probability,
+            xtc_threshold,
+            min_keep,
+        });
+        self.to_gd()
+    }
+
+    /// Typical sampling: keeps tokens close to expected information content.
+    /// Typical `typ_p`: 0.9. `min_keep` is the minimum number of tokens to always retain.
+    #[func]
+    fn typical_p(&mut self, typ_p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::TypicalP { typ_p, min_keep });
+        self.to_gd()
+    }
+
+    /// Temperature scaling. 0.0 = deterministic, 1.0 = unchanged, >1.0 = more random.
+    #[func]
+    fn temperature(&mut self, temperature: f32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::Temperature { temperature });
+        self.to_gd()
+    }
+
+    /// DRY (Don't Repeat Yourself) penalty to reduce repetitive output.
+    #[func]
+    fn dry(
+        &mut self,
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: PackedStringArray,
+    ) -> Gd<NobodyWhoSamplerBuilder> {
+        let seq_breakers: Vec<String> = seq_breakers
+            .as_slice()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        self.inner = self.inner.clone().shift(ShiftStep::DRY {
+            multiplier,
+            base,
+            allowed_length,
+            penalty_last_n,
+            seq_breakers,
+        });
+        self.to_gd()
+    }
+
+    /// Repetition penalties. `penalty_repeat` = 1.0 disables; >1.0 penalizes
+    /// recently seen tokens. `penalty_freq` scales with token occurrence count.
+    /// `penalty_present` is a flat penalty for any token that appeared before.
+    /// `penalty_last_n` is the window of recent tokens to consider (0 disables).
+    #[func]
+    fn penalties(
+        &mut self,
+        penalty_last_n: i32,
+        penalty_repeat: f32,
+        penalty_freq: f32,
+        penalty_present: f32,
+    ) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::Penalties {
+            penalty_last_n,
+            penalty_repeat,
+            penalty_freq,
+            penalty_present,
+        });
+        self.to_gd()
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`,
+    /// `mirostat_v2`, and the `xtc` shift step). `greedy` ignores it.
+    /// If unset, a default seed is used.
+    #[func]
+    fn seed(&mut self, seed: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().seed(seed);
+        self.to_gd()
+    }
+
+    /// Terminal: sample from the distribution with weighted randomness.
+    #[func]
+    fn dist(&self) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self.inner.clone().sample(SampleStep::Dist);
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
+    }
+
+    /// Terminal: always pick the most probable token (deterministic).
+    #[func]
+    fn greedy(&self) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self.inner.clone().sample(SampleStep::Greedy);
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
+    }
+
+    /// Terminal: Mirostat v1 — perplexity-controlled sampling. Dynamically
+    /// adjusts sampling to maintain a target "surprise" level.
+    /// Typical `tau`: 3.0-5.0 (lower = more focused). Typical `eta`: 0.1.
+    /// Typical `m`: 100 (number of candidates to consider).
+    #[func]
+    fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self
+            .inner
+            .clone()
+            .sample(SampleStep::MirostatV1 { tau, eta, m });
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
+    }
+
+    /// Terminal: Mirostat v2 — simplified perplexity-controlled sampling.
+    /// Typical `tau`: 3.0-5.0 (lower = more focused). Typical `eta`: 0.1.
+    #[func]
+    fn mirostat_v2(&self, tau: f32, eta: f32) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self
+            .inner
+            .clone()
+            .sample(SampleStep::MirostatV2 { tau, eta });
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
     }
 }
 

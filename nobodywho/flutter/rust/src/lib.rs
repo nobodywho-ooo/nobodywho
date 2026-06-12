@@ -700,7 +700,7 @@ fn dart_function_type_to_json_schema(
 )]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
-    sampler_config: nobodywho::sampler_config::SamplerConfig,
+    sampler_config: nobodywho::sampler::SamplerConfig,
 }
 
 impl SamplerConfig {
@@ -713,27 +713,21 @@ impl SamplerConfig {
     /// Deserialize a sampler configuration from a JSON string.
     #[flutter_rust_bridge::frb(sync)]
     pub fn from_json(json_str: &str) -> Result<Self, String> {
-        let sampler_config: nobodywho::sampler_config::SamplerConfig =
+        let sampler_config: nobodywho::sampler::SamplerConfig =
             serde_json::from_str(json_str).map_err(|e| e.to_string())?;
         Ok(Self { sampler_config })
     }
 }
 
-fn shift_step(
-    builder: SamplerBuilder,
-    step: nobodywho::sampler_config::ShiftStep,
-) -> SamplerBuilder {
+fn shift_step(builder: SamplerBuilder, step: nobodywho::sampler::ShiftStep) -> SamplerBuilder {
     SamplerBuilder {
-        sampler_config: builder.sampler_config.shift(step),
+        inner: builder.inner.shift(step),
     }
 }
 
-fn sample_step(
-    builder: SamplerBuilder,
-    step: nobodywho::sampler_config::SampleStep,
-) -> SamplerConfig {
+fn sample_step(builder: SamplerBuilder, step: nobodywho::sampler::SampleStep) -> SamplerConfig {
     SamplerConfig {
-        sampler_config: builder.sampler_config.sample(step),
+        sampler_config: builder.inner.sample(step),
     }
 }
 
@@ -749,7 +743,7 @@ fn sample_step(
 #[flutter_rust_bridge::frb(opaque)]
 #[derive(Clone)]
 pub struct SamplerBuilder {
-    sampler_config: nobodywho::sampler_config::SamplerConfig,
+    inner: nobodywho::sampler::SamplerBuilder,
 }
 
 impl SamplerBuilder {
@@ -757,7 +751,7 @@ impl SamplerBuilder {
     #[flutter_rust_bridge::frb(sync)]
     pub fn new() -> Self {
         Self {
-            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+            inner: nobodywho::sampler::SamplerBuilder::new(),
         }
     }
 
@@ -767,10 +761,7 @@ impl SamplerBuilder {
     ///     top_k: Number of top tokens to keep
     #[flutter_rust_bridge::frb(sync)]
     pub fn top_k(&self, top_k: i32) -> Self {
-        shift_step(
-            self.clone(),
-            nobodywho::sampler_config::ShiftStep::TopK { top_k },
-        )
+        shift_step(self.clone(), nobodywho::sampler::ShiftStep::TopK { top_k })
     }
 
     /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
@@ -782,7 +773,7 @@ impl SamplerBuilder {
     pub fn top_p(&self, top_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep },
+            nobodywho::sampler::ShiftStep::TopP { top_p, min_keep },
         )
     }
 
@@ -795,7 +786,7 @@ impl SamplerBuilder {
     pub fn min_p(&self, min_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep },
+            nobodywho::sampler::ShiftStep::MinP { min_p, min_keep },
         )
     }
 
@@ -810,12 +801,21 @@ impl SamplerBuilder {
     pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::XTC {
+            nobodywho::sampler::ShiftStep::XTC {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
             },
         )
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn seed(&self, seed: u32) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().seed(seed),
+        }
     }
 
     /// Typical sampling: keeps tokens close to expected information content.
@@ -827,7 +827,7 @@ impl SamplerBuilder {
     pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
+            nobodywho::sampler::ShiftStep::TypicalP { typ_p, min_keep },
         )
     }
 
@@ -839,7 +839,7 @@ impl SamplerBuilder {
     pub fn temperature(&self, temperature: f32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Temperature { temperature },
+            nobodywho::sampler::ShiftStep::Temperature { temperature },
         )
     }
 
@@ -852,7 +852,7 @@ impl SamplerBuilder {
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Grammar {
+            nobodywho::sampler::ShiftStep::Grammar {
                 grammar,
                 trigger_on,
                 root,
@@ -879,7 +879,7 @@ impl SamplerBuilder {
     ) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::DRY {
+            nobodywho::sampler::ShiftStep::DRY {
                 multiplier,
                 base,
                 allowed_length,
@@ -906,7 +906,7 @@ impl SamplerBuilder {
     ) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Penalties {
+            nobodywho::sampler::ShiftStep::Penalties {
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
@@ -921,7 +921,7 @@ impl SamplerBuilder {
     ///     A complete SamplerConfig ready to use
     #[flutter_rust_bridge::frb(sync)]
     pub fn dist(&self) -> SamplerConfig {
-        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Dist)
+        sample_step(self.clone(), nobodywho::sampler::SampleStep::Dist)
     }
 
     /// Always select the most probable token (deterministic).
@@ -930,7 +930,7 @@ impl SamplerBuilder {
     ///     A complete SamplerConfig ready to use
     #[flutter_rust_bridge::frb(sync)]
     pub fn greedy(&self) -> SamplerConfig {
-        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Greedy)
+        sample_step(self.clone(), nobodywho::sampler::SampleStep::Greedy)
     }
 
     /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
@@ -948,7 +948,7 @@ impl SamplerBuilder {
     pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
+            nobodywho::sampler::SampleStep::MirostatV1 { tau, eta, m },
         )
     }
 
@@ -966,7 +966,7 @@ impl SamplerBuilder {
     pub fn mirostat_v2(&self, tau: f32, eta: f32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
+            nobodywho::sampler::SampleStep::MirostatV2 { tau, eta },
         )
     }
 }
@@ -984,7 +984,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn default_sampler() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+            sampler_config: nobodywho::sampler::SamplerConfig::default(),
         }
     }
 
@@ -995,7 +995,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn top_k(top_k: i32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+            sampler_config: nobodywho::sampler::SamplerPresets::top_k(top_k),
         }
     }
 
@@ -1006,7 +1006,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn top_p(top_p: f32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+            sampler_config: nobodywho::sampler::SamplerPresets::top_p(top_p),
         }
     }
 
@@ -1014,7 +1014,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn greedy() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::greedy(),
+            sampler_config: nobodywho::sampler::SamplerPresets::greedy(),
         }
     }
 
@@ -1025,7 +1025,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+            sampler_config: nobodywho::sampler::SamplerPresets::temperature(temperature),
         }
     }
 
@@ -1033,7 +1033,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn dry() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::dry(),
+            sampler_config: nobodywho::sampler::SamplerPresets::dry(),
         }
     }
 
@@ -1041,9 +1041,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(
-                schema,
-            ),
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_json_schema(schema),
         }
     }
 
@@ -1051,9 +1049,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(
-                pattern,
-            ),
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_regex(pattern),
         }
     }
 
@@ -1061,9 +1057,7 @@ impl SamplerPresets {
     #[flutter_rust_bridge::frb(sync)]
     pub fn constrain_with_grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(
-                grammar,
-            ),
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_grammar(grammar),
         }
     }
 
@@ -1072,7 +1066,7 @@ impl SamplerPresets {
     #[allow(deprecated)]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
+            sampler_config: nobodywho::sampler::SamplerPresets::json(),
         }
     }
 
@@ -1082,7 +1076,7 @@ impl SamplerPresets {
     #[allow(deprecated)]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+            sampler_config: nobodywho::sampler::SamplerPresets::grammar(grammar),
         }
     }
 }
