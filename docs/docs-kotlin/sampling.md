@@ -146,31 +146,28 @@ val chat = Chat.fromPath(
 
 ### Available sampling steps
 
-Inside the `buildSampler` block, chain **configuration steps** (which modify the distribution) and end with a **terminal step** (which determines how to sample from it). The full set of steps:
+Inside `buildSampler { }`, call any of the **configuration steps** below (each reshapes the distribution), then one **terminal step** that picks the token. Most steps have defaults, so you only pass what you want to change.
 
-```kotlin
-buildSampler {
-    // Configuration steps — chain any number; applied in the order you call them:
-    topK(topK: Int)
-    topP(topP: Double, minKeep: Int = 1)
-    minP(minP: Double, minKeep: Int = 1)
-    typicalP(typP: Double, minKeep: Int = 1)
-    xtc(xtcProbability: Double, xtcThreshold: Double, minKeep: Int = 1)
-    temperature(temperature: Double)
-    penalties(penaltyLastN: Int = 64, penaltyRepeat: Double = 1.0, penaltyFreq: Double = 0.0, penaltyPresent: Double = 0.0) // repetition penalty, per token
-    dry(multiplier: Double = 0.8, base: Double = 1.75, allowedLength: Int = 2, penaltyLastN: Int = -1, seqBreakers: List<String> = listOf("\n", ":", "\"", "*")) // repetition penalty, for repeated phrases/sequences
-    seed(value: Int)
-    grammar(grammar: String, triggerOn: String? = null, root: String = "root") // deprecated: use the constrainWith* presets
+Configuration steps — call as many as you want, in order:
 
-    // Terminal steps — call at most one:
-    dist()
-    greedy()
-    mirostatV1(tau: Double = 5.0, eta: Double = 0.1, m: Int = 100)
-    mirostatV2(tau: Double = 5.0, eta: Double = 0.1)
-}
-```
+- `topK(40)` — keep only the 40 most likely tokens
+- `topP(0.95)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `minP(0.05)` — drop tokens below 5% of the most likely token's probability
+- `typicalP(0.9)` — keep tokens with "typical" information content
+- `xtc(0.5, 0.1)` — occasionally drop the top tokens for more variety
+- `temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `penalties(penaltyRepeat = 1.1)` — per-token repetition penalty (`penaltyRepeat` 1.0 = off)
+- `dry()` — penalty for repeated *phrases* (its defaults are a good start)
+- `seed(42)` — fix the RNG for reproducible output
+- `grammar(...)` — deprecated; use the `constrainWith*` presets above
 
-If no terminal step is called, `dist()` is used by default. Steps that take `minKeep` always keep at least that many candidate tokens, regardless of the cutoff.
+Terminal step — call at most one:
+
+- `dist()` — pick a token with weighted randomness (used by default if you omit it)
+- `greedy()` — always take the most likely token
+- `mirostatV1()` / `mirostatV2()` — steer output "surprise" toward a target
+
+`minKeep` (on the truncation steps) is the floor on how many tokens survive a cut.
 
 For reproducible output, set the RNG seed with `seed(value)` anywhere in the chain.
 It is consumed by every random sampler — `dist`, `mirostatV1`, `mirostatV2`, and the `xtc`

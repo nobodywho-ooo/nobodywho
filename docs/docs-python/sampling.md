@@ -144,28 +144,26 @@ sampler = SamplerBuilder().temperature(0.8).top_k(5).seed(42).dist()
 
 ### Available sampling steps
 
-The full set of steps you can chain on a `SamplerBuilder`:
+Pick any of the **shift steps** below (each reshapes the token distribution), then finish with one **terminal step** that picks the token — exactly like the `.temperature(0.8).top_k(5).dist()` chain above.
 
-```python notest
-class SamplerBuilder:
-    # Shift steps — chain any number; applied in the order you add them:
-    def top_k(top_k: int) -> SamplerBuilder: ...
-    def top_p(top_p: float, min_keep: int) -> SamplerBuilder: ...
-    def min_p(min_p: float, min_keep: int) -> SamplerBuilder: ...
-    def typical_p(typ_p: float, min_keep: int) -> SamplerBuilder: ...
-    def xtc(xtc_probability: float, xtc_threshold: float, min_keep: int) -> SamplerBuilder: ...
-    def temperature(temperature: float) -> SamplerBuilder: ...
-    def penalties(penalty_last_n: int, penalty_repeat: float, penalty_freq: float, penalty_present: float) -> SamplerBuilder: ...  # repetition penalty, per token
-    def dry(multiplier: float, base: float, allowed_length: int, penalty_last_n: int, seq_breakers: list[str]) -> SamplerBuilder: ...  # repetition penalty, for repeated phrases/sequences
-    def seed(seed: int) -> SamplerBuilder: ...
-    def grammar(grammar: str, trigger_on: str | None, root: str) -> SamplerBuilder: ...  # deprecated: use the constrain_with_* presets
+Shift steps — add as many as you want, applied in order:
 
-    # Sampling steps — end the chain with exactly one:
-    def dist() -> SamplerConfig: ...
-    def greedy() -> SamplerConfig: ...
-    def mirostat_v1(tau: float, eta: float, m: int) -> SamplerConfig: ...
-    def mirostat_v2(tau: float, eta: float) -> SamplerConfig: ...
-```
+- `.top_k(40)` — keep only the 40 most likely tokens
+- `.top_p(0.95, min_keep=1)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `.min_p(0.05, min_keep=1)` — drop tokens below 5% of the most likely token's probability
+- `.typical_p(0.9, min_keep=1)` — keep tokens with "typical" information content
+- `.xtc(0.5, 0.1, min_keep=1)` — occasionally drop the top tokens for more variety
+- `.temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `.penalties(64, 1.1, 0.0, 0.0)` — per-token repetition penalty: `last_n, repeat, freq, present` (`repeat` 1.0 = off)
+- `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, last_n, seq_breakers`
+- `.seed(42)` — fix the RNG for reproducible output
+- `.grammar(...)` — deprecated; use the `constrain_with_*` presets above
 
-Steps that take `min_keep` always keep at least that many candidate tokens, regardless of the cutoff (`1` is a sensible default).
+Terminal step — end the chain with exactly one:
+
+- `.dist()` — pick a token with weighted randomness (the usual choice)
+- `.greedy()` — always take the most likely token
+- `.mirostat_v1(5.0, 0.1, 100)` / `.mirostat_v2(5.0, 0.1)` — steer output "surprise" toward a target
+
+`min_keep` is the floor on how many tokens survive a cut (`1` is fine).
 

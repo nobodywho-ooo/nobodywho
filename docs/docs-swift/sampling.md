@@ -148,31 +148,28 @@ let sampler = SamplerBuilder().temperature(temperature: 0.8).topK(topK: 5).seed(
 
 ### Available sampling steps
 
-The full set of steps you can chain on a `SamplerBuilder`:
+Pick any of the **shift steps** below (each reshapes the token distribution), then finish with one **terminal step** that picks the token — exactly like the `.temperature(...).topK(...).dist()` chain above.
 
-```swift
-class SamplerBuilder {
-    // Shift steps — chain any number; applied in the order you add them:
-    func topK(topK: Int32) -> SamplerBuilder
-    func topP(topP: Float, minKeep: UInt32) -> SamplerBuilder
-    func minP(minP: Float, minKeep: UInt32) -> SamplerBuilder
-    func typicalP(typP: Float, minKeep: UInt32) -> SamplerBuilder
-    func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32) -> SamplerBuilder
-    func temperature(temperature: Float) -> SamplerBuilder
-    func penalties(penaltyLastN: Int32, penaltyRepeat: Float, penaltyFreq: Float, penaltyPresent: Float) -> SamplerBuilder // repetition penalty, per token
-    func dry(multiplier: Float, base: Float, allowedLength: Int32, penaltyLastN: Int32, seqBreakers: [String]) -> SamplerBuilder // repetition penalty, for repeated phrases/sequences
-    func seed(seed: UInt32) -> SamplerBuilder
-    func grammar(grammar: String, triggerOn: String?, root: String) -> SamplerBuilder // deprecated: use the constrainWith* presets
+Shift steps — add as many as you want, applied in order:
 
-    // Sampling steps — end the chain with exactly one:
-    func dist() -> SamplerConfig
-    func greedy() -> SamplerConfig
-    func mirostatV1(tau: Float, eta: Float, m: Int32) -> SamplerConfig
-    func mirostatV2(tau: Float, eta: Float) -> SamplerConfig
-}
-```
+- `.topK(topK: 40)` — keep only the 40 most likely tokens
+- `.topP(topP: 0.95, minKeep: 1)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `.minP(minP: 0.05, minKeep: 1)` — drop tokens below 5% of the most likely token's probability
+- `.typicalP(typP: 0.9, minKeep: 1)` — keep tokens with "typical" information content
+- `.xtc(xtcProbability: 0.5, xtcThreshold: 0.1, minKeep: 1)` — occasionally drop the top tokens for more variety
+- `.temperature(temperature: 0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `.penalties(penaltyLastN: 64, penaltyRepeat: 1.1, penaltyFreq: 0.0, penaltyPresent: 0.0)` — per-token repetition penalty (`penaltyRepeat` 1.0 = off)
+- `.dry(multiplier: 0.8, base: 1.75, allowedLength: 2, penaltyLastN: -1, seqBreakers: ["\n"])` — penalty for repeated *phrases*
+- `.seed(seed: 42)` — fix the RNG for reproducible output
+- `.grammar(...)` — deprecated; use the `constrainWith*` presets above
 
-Steps that take `minKeep` always keep at least that many candidate tokens, regardless of the cutoff (`1` is a sensible default).
+Terminal step — end the chain with exactly one:
+
+- `.dist()` — pick a token with weighted randomness (the usual choice)
+- `.greedy()` — always take the most likely token
+- `.mirostatV1(tau: 5.0, eta: 0.1, m: 100)` / `.mirostatV2(tau: 5.0, eta: 0.1)` — steer output "surprise" toward a target
+
+`minKeep` is the floor on how many tokens survive a cut (`1` is fine).
 
 You can also change the sampler configuration on an existing chat instance:
 

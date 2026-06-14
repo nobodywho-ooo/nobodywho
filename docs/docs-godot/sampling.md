@@ -74,28 +74,27 @@ chat.set_sampler_config(cfg)
 
 ### Available Sampling Steps
 
-The full set of steps you can chain on a `NobodyWhoSamplerBuilder`:
+Pick any of the **shift steps** below (each reshapes the token distribution), then finish with one **terminal step** that picks the token — exactly like the `.top_k(40).temperature(0.8).dist()` chain above.
 
-```gdscript
-# Shift steps — chain any number; applied in the order you add them:
-top_k(k: int)
-top_p(p: float, min_keep: int)
-min_p(min_p: float, min_keep: int)
-typical_p(typ_p: float, min_keep: int)
-xtc(xtc_probability: float, xtc_threshold: float, min_keep: int)
-temperature(temperature: float)
-penalties(penalty_last_n: int, penalty_repeat: float, penalty_freq: float, penalty_present: float)  # repetition penalty, per token
-dry(multiplier: float, base: float, allowed_length: int, penalty_last_n: int, seq_breakers: PackedStringArray)  # repetition penalty, for repeated phrases/sequences
-seed(seed: int)
+Shift steps — add as many as you want, applied in order:
 
-# Terminal steps — end the chain with exactly one:
-dist()
-greedy()
-mirostat_v1(tau: float, eta: float, m: int)
-mirostat_v2(tau: float, eta: float)
-```
+- `.top_k(40)` — keep only the 40 most likely tokens
+- `.top_p(0.95, 1)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `.min_p(0.05, 1)` — drop tokens below 5% of the most likely token's probability
+- `.typical_p(0.9, 1)` — keep tokens with "typical" information content
+- `.xtc(0.5, 0.1, 1)` — occasionally drop the top tokens for more variety
+- `.temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `.penalties(64, 1.1, 0.0, 0.0)` — per-token repetition penalty: `penalty_last_n, penalty_repeat, penalty_freq, penalty_present` (`penalty_repeat` 1.0 = off)
+- `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, penalty_last_n, seq_breakers`
+- `.seed(42)` — fix the RNG for reproducible output
 
-Steps that take `min_keep` always keep at least that many candidate tokens, regardless of the cutoff (`1` is a sensible default).
+Terminal step — end the chain with exactly one:
+
+- `.dist()` — pick a token with weighted randomness (the usual choice)
+- `.greedy()` — always take the most likely token
+- `.mirostat_v1(5.0, 0.1, 100)` / `.mirostat_v2(5.0, 0.1)` — steer output "surprise" toward a target
+
+`min_keep` is the floor on how many tokens survive a cut (`1` is fine).
 
 ## Structured Output
 
