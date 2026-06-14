@@ -158,6 +158,34 @@ final sampler = nobodywho.SamplerBuilder()
     .dist();
 ```
 
+### Available sampling steps
+
+The full set of steps you can chain on a `SamplerBuilder`:
+
+```dart
+class SamplerBuilder {
+  // Shift steps — chain any number; applied in the order you add them:
+  SamplerBuilder topK({required int topK});
+  SamplerBuilder topP({required double topP, required int minKeep});
+  SamplerBuilder minP({required double minP, required int minKeep});
+  SamplerBuilder typicalP({required double typP, required int minKeep});
+  SamplerBuilder xtc({required double xtcProbability, required double xtcThreshold, required int minKeep});
+  SamplerBuilder temperature({required double temperature});
+  SamplerBuilder penalties({required int penaltyLastN, required double penaltyRepeat, required double penaltyFreq, required double penaltyPresent}); // repetition penalty, per token
+  SamplerBuilder dry({required double multiplier, required double base, required int allowedLength, required int penaltyLastN, required List<String> seqBreakers}); // repetition penalty, for repeated phrases/sequences
+  SamplerBuilder seed({required int seed});
+  SamplerBuilder grammar({required String grammar, String? triggerOn, required String root}); // deprecated: use the constrainWith* presets
+
+  // Sampling steps — end the chain with exactly one:
+  SamplerConfig dist();
+  SamplerConfig greedy();
+  SamplerConfig mirostatV1({required double tau, required double eta, required int m});
+  SamplerConfig mirostatV2({required double tau, required double eta});
+}
+```
+
+Steps that take `minKeep` always keep at least that many candidate tokens, regardless of the cutoff (`1` is a sensible default).
+
 You can also change the sampler configuration on an existing chat instance:
 
 ```dart

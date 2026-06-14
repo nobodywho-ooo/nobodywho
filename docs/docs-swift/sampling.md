@@ -127,7 +127,7 @@ we provide the `SamplerBuilder` class:
 ```swift
 let chat = try await Chat.fromPath(
     modelPath: "/path/to/model.gguf",
-    sampler: SamplerBuilder().temperature(0.8).topK(5).dist()
+    sampler: SamplerBuilder().temperature(temperature: 0.8).topK(topK: 5).dist()
 )
 ```
 
@@ -143,12 +143,40 @@ It is consumed by every random sampler in the chain — `dist`, `mirostatV1`, `m
 and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
 
 ```swift
-let sampler = SamplerBuilder().temperature(0.8).topK(5).seed(seed: 42).dist()
+let sampler = SamplerBuilder().temperature(temperature: 0.8).topK(topK: 5).seed(seed: 42).dist()
 ```
+
+### Available sampling steps
+
+The full set of steps you can chain on a `SamplerBuilder`:
+
+```swift
+class SamplerBuilder {
+    // Shift steps — chain any number; applied in the order you add them:
+    func topK(topK: Int32) -> SamplerBuilder
+    func topP(topP: Float, minKeep: UInt32) -> SamplerBuilder
+    func minP(minP: Float, minKeep: UInt32) -> SamplerBuilder
+    func typicalP(typP: Float, minKeep: UInt32) -> SamplerBuilder
+    func xtc(xtcProbability: Float, xtcThreshold: Float, minKeep: UInt32) -> SamplerBuilder
+    func temperature(temperature: Float) -> SamplerBuilder
+    func penalties(penaltyLastN: Int32, penaltyRepeat: Float, penaltyFreq: Float, penaltyPresent: Float) -> SamplerBuilder // repetition penalty, per token
+    func dry(multiplier: Float, base: Float, allowedLength: Int32, penaltyLastN: Int32, seqBreakers: [String]) -> SamplerBuilder // repetition penalty, for repeated phrases/sequences
+    func seed(seed: UInt32) -> SamplerBuilder
+    func grammar(grammar: String, triggerOn: String?, root: String) -> SamplerBuilder // deprecated: use the constrainWith* presets
+
+    // Sampling steps — end the chain with exactly one:
+    func dist() -> SamplerConfig
+    func greedy() -> SamplerConfig
+    func mirostatV1(tau: Float, eta: Float, m: Int32) -> SamplerConfig
+    func mirostatV2(tau: Float, eta: Float) -> SamplerConfig
+}
+```
+
+Steps that take `minKeep` always keep at least that many candidate tokens, regardless of the cutoff (`1` is a sensible default).
 
 You can also change the sampler configuration on an existing chat instance:
 
 ```swift
-let sampler = SamplerBuilder().temperature(0.8).topK(5).dist()
+let sampler = SamplerBuilder().temperature(temperature: 0.8).topK(topK: 5).dist()
 try await chat.setSamplerConfig(sampler)
 ```

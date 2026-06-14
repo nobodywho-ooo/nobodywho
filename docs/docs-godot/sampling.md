@@ -72,6 +72,31 @@ var cfg = NobodyWhoSamplerBuilder.new() \
 chat.set_sampler_config(cfg)
 ```
 
+### Available Sampling Steps
+
+The full set of steps you can chain on a `NobodyWhoSamplerBuilder`:
+
+```gdscript
+# Shift steps — chain any number; applied in the order you add them:
+top_k(k: int)
+top_p(p: float, min_keep: int)
+min_p(min_p: float, min_keep: int)
+typical_p(typ_p: float, min_keep: int)
+xtc(xtc_probability: float, xtc_threshold: float, min_keep: int)
+temperature(temperature: float)
+penalties(penalty_last_n: int, penalty_repeat: float, penalty_freq: float, penalty_present: float)  # repetition penalty, per token
+dry(multiplier: float, base: float, allowed_length: int, penalty_last_n: int, seq_breakers: PackedStringArray)  # repetition penalty, for repeated phrases/sequences
+seed(seed: int)
+
+# Terminal steps — end the chain with exactly one:
+dist()
+greedy()
+mirostat_v1(tau: float, eta: float, m: int)
+mirostat_v2(tau: float, eta: float)
+```
+
+Steps that take `min_keep` always keep at least that many candidate tokens, regardless of the cutoff (`1` is a sensible default).
+
 ## Structured Output
 
 One of the most powerful features is constraining the model to produce output in a specific format. This gives you a hard guarantee that the output matches your format, rather than relying on the model to get it right on its own.

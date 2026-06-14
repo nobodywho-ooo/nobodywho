@@ -136,7 +136,7 @@ want to chain samplers, change more "advanced" parameters, etc. For that use cas
 we provide the `SamplerBuilder` class:
 
 ```typescript
-import { Chat, SamplerBuilder } from "react-native-nobodywho";
+import { Chat, SamplerBuilder, SamplerConfig } from "react-native-nobodywho";
 
 const chat = await Chat.fromPath({
   modelPath: "/path/to/model.gguf",
@@ -158,6 +158,34 @@ and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
 ```typescript
 const sampler = new SamplerBuilder().temperature(0.8).topK(5).seed(42).dist() as SamplerConfig;
 ```
+
+### Available sampling steps
+
+The full set of steps you can chain on a `SamplerBuilder`:
+
+```typescript
+class SamplerBuilder {
+  // Shift steps — chain any number; applied in the order you add them:
+  topK(topK: number): SamplerBuilder;
+  topP(topP: number, minKeep: number): SamplerBuilder;
+  minP(minP: number, minKeep: number): SamplerBuilder;
+  typicalP(typP: number, minKeep: number): SamplerBuilder;
+  xtc(xtcProbability: number, xtcThreshold: number, minKeep: number): SamplerBuilder;
+  temperature(temperature: number): SamplerBuilder;
+  penalties(penaltyLastN: number, penaltyRepeat: number, penaltyFreq: number, penaltyPresent: number): SamplerBuilder; // repetition penalty, per token
+  dry(multiplier: number, base: number, allowedLength: number, penaltyLastN: number, seqBreakers: string[]): SamplerBuilder; // repetition penalty, for repeated phrases/sequences
+  seed(seed: number): SamplerBuilder;
+  grammar(grammar: string, triggerOn: string | undefined, root: string): SamplerBuilder; // deprecated: use the constrainWith* presets
+
+  // Sampling steps — end the chain with exactly one:
+  dist(): SamplerConfig;
+  greedy(): SamplerConfig;
+  mirostatV1(tau: number, eta: number, m: number): SamplerConfig;
+  mirostatV2(tau: number, eta: number): SamplerConfig;
+}
+```
+
+Steps that take `minKeep` always keep at least that many candidate tokens, regardless of the cutoff (`1` is a sensible default).
 
 You can also change the sampler configuration on an existing chat instance:
 

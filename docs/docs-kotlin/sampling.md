@@ -144,13 +144,33 @@ val chat = Chat.fromPath(
 )
 ```
 
-Inside the `buildSampler` block, chain **configuration steps** (which modify the distribution) and end with a **terminal step** (which determines how to sample from it):
+### Available sampling steps
 
-Configuration steps: `topK`, `topP`, `minP`, `temperature`, `typicalP`, `xtc`, `grammar`, `dry`, `penalties`
+Inside the `buildSampler` block, chain **configuration steps** (which modify the distribution) and end with a **terminal step** (which determines how to sample from it). The full set of steps:
 
-Terminal steps: `dist()`, `greedy()`, `mirostatV1()`, `mirostatV2()`
+```kotlin
+buildSampler {
+    // Configuration steps — chain any number; applied in the order you call them:
+    topK(topK: Int)
+    topP(topP: Double, minKeep: Int = 1)
+    minP(minP: Double, minKeep: Int = 1)
+    typicalP(typP: Double, minKeep: Int = 1)
+    xtc(xtcProbability: Double, xtcThreshold: Double, minKeep: Int = 1)
+    temperature(temperature: Double)
+    penalties(penaltyLastN: Int = 64, penaltyRepeat: Double = 1.0, penaltyFreq: Double = 0.0, penaltyPresent: Double = 0.0) // repetition penalty, per token
+    dry(multiplier: Double = 0.8, base: Double = 1.75, allowedLength: Int = 2, penaltyLastN: Int = -1, seqBreakers: List<String> = listOf("\n", ":", "\"", "*")) // repetition penalty, for repeated phrases/sequences
+    seed(value: Int)
+    grammar(grammar: String, triggerOn: String? = null, root: String = "root") // deprecated: use the constrainWith* presets
 
-If no terminal step is called, `dist()` is used by default.
+    // Terminal steps — call at most one:
+    dist()
+    greedy()
+    mirostatV1(tau: Double = 5.0, eta: Double = 0.1, m: Int = 100)
+    mirostatV2(tau: Double = 5.0, eta: Double = 0.1)
+}
+```
+
+If no terminal step is called, `dist()` is used by default. Steps that take `minKeep` always keep at least that many candidate tokens, regardless of the cutoff.
 
 For reproducible output, set the RNG seed with `seed(value)` anywhere in the chain.
 It is consumed by every random sampler — `dist`, `mirostatV1`, `mirostatV2`, and the `xtc`
