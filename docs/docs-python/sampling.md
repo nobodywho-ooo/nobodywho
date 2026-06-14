@@ -127,12 +127,16 @@ Chat(
         .dist()
 )
 ```
-With `SamplerBuilder` you can chain multiple steps together and then select how do you
-want to sample from the distribution. Keep in mind, that `SamplerBuilder` provides two
-types of methods: ones which modify the distribution (returning again the instance of
-`SamplerBuilder`) and ones which sample from the distribution (returning `SamplerConfig`).
-So in order to have the sampler working properly and not giving you type errors, be careful
-to always end the chain with one of the sampling steps (e.g. `dist`, `greedy`, `mirostat_v2`, etc.).
+With `SamplerBuilder` you can chain multiple steps together and then select how you
+want to sample from the distribution. It provides two kinds of methods: **shift steps**
+that modify the distribution, and **terminal steps** that sample from it (`dist`, `greedy`,
+`mirostat_v1`, `mirostat_v2`). End the chain with a terminal step to choose how tokens are
+drawn — or omit it, and NobodyWho defaults to `dist()`:
+
+```python
+# the terminal step is optional — an unfinished builder defaults to dist()
+Chat("./model.gguf", sampler=SamplerBuilder().temperature(0.8).top_k(5))
+```
 
 For reproducible output, set the RNG seed with `.seed(value)` anywhere in the chain.
 It is consumed by every random sampler in the chain — `dist`, `mirostat_v1`, `mirostat_v2`,
@@ -159,7 +163,7 @@ Shift steps — add as many as you want, applied in order:
 - `.seed(42)` — fix the RNG for reproducible output
 - `.grammar(...)` — deprecated; use the `constrain_with_*` presets above
 
-Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
+Terminal step — optionally end the chain with one; if you omit it, `dist()` is used:
 
 - `.dist()` — pick a token with weighted randomness (the usual choice)
 - `.greedy()` — always take the most likely token

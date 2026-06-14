@@ -454,3 +454,36 @@ def test_constrain_with_grammar_gbnf(model):
     )
     response = chat.ask("Explain in detail why the sky appears blue.").completed()
     assert response in ("yes", "no"), f"Expected 'yes' or 'no', got: {response!r}"
+
+
+def test_sampler_builder_without_terminal_defaults_to_dist(model):
+    """An un-terminated SamplerBuilder is accepted wherever a sampler is expected
+    and is finalized with dist() — matching the same chain ending in .dist()."""
+    chat = nobodywho.Chat(
+        model,
+        # note: no .dist() — Chat finalizes the builder with dist() automatically
+        sampler=nobodywho.SamplerBuilder().temperature(0.8).top_k(5),
+        template_variables={"enable_thinking": False},
+    )
+    explicit = nobodywho.SamplerBuilder().temperature(0.8).top_k(5).dist()
+    assert chat.get_sampler_config().to_json() == explicit.to_json()
+
+
+def test_set_sampler_config_accepts_builder(model):
+    """set_sampler_config() also accepts an un-terminated SamplerBuilder."""
+    chat = nobodywho.Chat(model, template_variables={"enable_thinking": False})
+    chat.set_sampler_config(nobodywho.SamplerBuilder().temperature(0.5).top_k(10))
+    explicit = nobodywho.SamplerBuilder().temperature(0.5).top_k(10).dist()
+    assert chat.get_sampler_config().to_json() == explicit.to_json()
+
+
+@pytest.mark.asyncio
+async def test_async_chat_accepts_builder_without_terminal(model):
+    """ChatAsync also accepts an un-terminated SamplerBuilder, finalized with dist()."""
+    chat = nobodywho.ChatAsync(
+        model,
+        sampler=nobodywho.SamplerBuilder().temperature(0.8).top_k(5),
+        template_variables={"enable_thinking": False},
+    )
+    explicit = nobodywho.SamplerBuilder().temperature(0.8).top_k(5).dist()
+    assert (await chat.get_sampler_config()).to_json() == explicit.to_json()
