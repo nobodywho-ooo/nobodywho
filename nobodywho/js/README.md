@@ -422,15 +422,17 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
   wasm64 `unwinder_private_data_size` const — was fixed in
   [rust-lang/rust#156573](https://github.com/rust-lang/rust/pull/156573)
   (merged 2026-06-07; a nightly ≥ 2026-06-07 needs no rustlib patch). A
-  second, **pthread-specific** blocker remains until upstream: std's libc
+  second, **pthread-specific** blocker: std's libc
   hardcodes wasm32 pthread sizes, so `pthread_attr_init` overruns std's
-  `pthread_attr_t` on wasm64 and `std::thread::spawn` fails. The fix is
-  [rust-lang/libc#5156](https://github.com/rust-lang/libc/pull/5156); until
-  a nightly's std bumps to a libc that includes it, apply the one-time
-  rust-src `[patch]` documented under **Outstanding** (the build script
-  refuses to proceed without it). wasm32 stays the default — wasm64 pays a
-  download/load cost for 64-bit pointers — so reach for wasm64 only when a
-  model overflows 4 GiB.
+  `pthread_attr_t` on wasm64 and `std::thread::spawn` fails. The fix,
+  [rust-lang/libc#5156](https://github.com/rust-lang/libc/pull/5156), is
+  **merged upstream** (2026-06-14) — but unlike #156573 it lands in `libc`
+  (a crate std vendors), not in rust itself, so it only reaches `-Zbuild-std`
+  once a released libc carries it *and* a nightly's std bumps to that release.
+  Until then, apply the one-time rust-src `[patch]` documented under
+  **Outstanding** (the build script refuses to proceed without it). wasm32
+  stays the default — wasm64 pays a download/load cost for 64-bit pointers —
+  so reach for wasm64 only when a model overflows 4 GiB.
 - Browser COOP/COEP headers. Pthreads are enabled but require
   `Cross-Origin-Opener-Policy: same-origin` plus a
   `Cross-Origin-Embedder-Policy` header (`credentialless` is the
@@ -470,11 +472,15 @@ still work for text-only prompts — `chat.ask('hi')` is unchanged.
     `fs.readSync` caps a single read at 2^31-1 bytes).
     Consumed at build time via `$EMSDK_DIR` pointing at a local clone.
 
-- **Upstream the libc pthread-size fix ([rust-lang/libc#5156](https://github.com/rust-lang/libc/pull/5156)),
-  then drop the manual rust-src `[patch]` (wasm64 only).** libc hardcodes
-  wasm32 pthread type sizes for `*-emscripten`; on wasm64 `pthread_attr_t`
-  is 88 bytes (not 44), so `pthread_attr_init` overruns the buffer std's
-  `Thread::new` stack-allocates and `std::thread::spawn` fails. #5156 makes
+- **Drop the manual rust-src `[patch]` once the libc pthread-size fix
+  ([rust-lang/libc#5156](https://github.com/rust-lang/libc/pull/5156)) reaches std (wasm64 only).**
+  #5156 is **merged upstream** (2026-06-14, `rust-lang/libc` commit `8f9915f`,
+  stable-nominated), but not yet in a released libc — so std's vendored libc
+  doesn't carry it yet and the rust-src `[patch]` below stays until it does.
+  libc hardcodes wasm32 pthread type sizes for `*-emscripten`; on wasm64
+  `pthread_attr_t` is 88 bytes (not 44), so `pthread_attr_init` overruns the
+  buffer std's `Thread::new` stack-allocates and `std::thread::spawn` fails.
+  #5156 makes
   those sizes pointer-width-aware. The fix is needed **only by std's** libc:
   `-Zbuild-std` recompiles `std` from rust-src and resolves the sysroot's libc
   *separately* from this workspace, so a workspace `[patch]` would never reach

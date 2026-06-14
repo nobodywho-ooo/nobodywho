@@ -12,9 +12,10 @@
 #
 # Self-contained: reads the EXACT libc version std locks, downloads that source,
 # applies the 3-line #5156 fix, and patches rust-src to it. Idempotent — safe to
-# re-run; restore `library/Cargo.toml.wasm64-orig` to undo. Delete this whole
-# mechanism once a nightly's std bumps to a libc that already includes #5156
-# (the fix step then becomes a no-op).
+# re-run; restore `library/Cargo.toml.wasm64-orig` to undo. #5156 is merged
+# upstream (2026-06-14) but not yet in a released libc, so this is still
+# required; delete the whole mechanism once a nightly's std bumps to a libc
+# that already includes #5156 (the fix step then becomes a no-op).
 #
 # Override the patched-clone location with LIBC_PATCH_DIR (default /tmp/libc-wasm64).
 set -euo pipefail

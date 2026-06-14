@@ -43,7 +43,8 @@ js-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm
 web-sys = { git = "https://github.com/nobodywho-ooo/wasm-bindgen", branch = "wasm64-emscripten" }
 
 # No app-side libc [patch] here. The wasm64 pthread-size fix
-# (rust-lang/libc#5156) is needed only by STD's libc: std's `Thread::new`
+# (rust-lang/libc#5156 — merged upstream 2026-06-14, not yet in a released
+# libc) is needed only by STD's libc: std's `Thread::new`
 # overruns `pthread_attr_t` (44 vs 88 bytes on wasm64) and `std::thread::spawn`
 # fails. `-Zbuild-std` resolves the sysroot's libc separately from this
 # workspace, so the fix is injected into the nightly's rust-src
