@@ -146,9 +146,9 @@ val chat = Chat.fromPath(
 
 ### Available sampling steps
 
-Inside `buildSampler { }`, call any of the **configuration steps** below (each reshapes the distribution), then one **terminal step** that picks the token. Most steps have defaults, so you only pass what you want to change.
+Inside `buildSampler { }`, call any of the **shift steps** below (each reshapes the distribution), then one **terminal step** that picks the token. Most steps have defaults, so you only pass what you want to change.
 
-Configuration steps — call as many as you want, in order:
+Shift steps — call as many as you want, in order:
 
 - `topK(40)` — keep only the 40 most likely tokens
 - `topP(0.95)` — nucleus: keep the top tokens up to 95% of the probability mass
@@ -171,7 +171,7 @@ Terminal step — call at most one:
 
 For reproducible output, set the RNG seed with `seed(value)` anywhere in the chain.
 It is consumed by every random sampler — `dist`, `mirostatV1`, `mirostatV2`, and the `xtc`
-configuration step. `greedy` ignores it. If unset, a default seed is used.
+shift step. `greedy` ignores it. If unset, a default seed is used.
 
 ```kotlin
 val sampler = buildSampler {
