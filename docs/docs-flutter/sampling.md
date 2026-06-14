@@ -175,7 +175,7 @@ Shift steps — add as many as you want, applied in order:
 - `.seed(seed: 42)` — fix the RNG for reproducible output
 - `.grammar(...)` — deprecated; use the `constrainWith*` presets above
 
-Terminal step — end the chain with exactly one:
+Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
 
 - `.dist()` — pick a token with weighted randomness (the usual choice)
 - `.greedy()` — always take the most likely token
