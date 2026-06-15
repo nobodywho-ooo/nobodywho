@@ -20,7 +20,10 @@ def multimodal_model():
 @pytest.fixture
 def multimodal_chat(multimodal_model):
     return nobodywho.Chat(
-        multimodal_model, system_prompt="You are a helpful assistant.", template_variables={"enable_thinking": False}
+        multimodal_model,
+        system_prompt="You are a helpful assistant.",
+        template_variables={"enable_thinking": False},
+        sampler=nobodywho.SamplerPresets.greedy(),
     )
 
 
