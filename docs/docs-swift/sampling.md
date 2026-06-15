@@ -155,8 +155,8 @@ Shift steps — add as many as you want, applied in order:
 - `.topK(topK: 40)` — keep only the 40 most likely tokens
 - `.topP(topP: 0.95, minKeep: 1)` — nucleus: keep the top tokens up to 95% of the probability mass
 - `.minP(minP: 0.05, minKeep: 1)` — drop tokens below 5% of the most likely token's probability
-- `.typicalP(typP: 0.9, minKeep: 1)` — keep tokens with "typical" information content
-- `.xtc(xtcProbability: 0.5, xtcThreshold: 0.1, minKeep: 1)` — occasionally drop the top tokens for more variety
+- `.typicalP(typP: 0.9, minKeep: 1)` — keep tokens whose "surprise" is close to average, dropping both the too-predictable and the too-random ([locally typical sampling](https://arxiv.org/abs/2202.00666))
+- `.xtc(xtcProbability: 0.5, xtcThreshold: 0.1, minKeep: 1)` — "exclude top choices": occasionally drop the top tokens for more variety
 - `.temperature(temperature: 0.8)` — below 1.0 = more focused, above 1.0 = more random
 - `.penalties(penaltyLastN: 64, penaltyRepeat: 1.1, penaltyFreq: 0.0, penaltyPresent: 0.0)` — per-token repetition penalty (`penaltyRepeat` 1.0 = off)
 - `.dry(multiplier: 0.8, base: 1.75, allowedLength: 2, penaltyLastN: -1, seqBreakers: ["\n"])` — penalty for repeated *phrases*
