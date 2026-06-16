@@ -245,6 +245,10 @@ jobs:
           rustup target add ${{ matrix.target }} || true
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: "Clean cargo target"
+        run: cargo clean
+        working-directory: ./nobodywho
+
       - name: "Setup Rust nightly for tier 3 targets"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
         run: |

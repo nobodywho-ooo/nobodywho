@@ -202,6 +202,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: "Clean cargo target"
+        run: cargo clean
+        working-directory: ./nobodywho
       - run: brew install python@3.13 maturin
       - run: echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
       - name: "Build macos python wheel"
