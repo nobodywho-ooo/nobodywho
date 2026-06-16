@@ -198,12 +198,38 @@ class Chat:
         Raises:
             RuntimeError: If updating tools fails
         """
+    def stats(self, /) -> "ChatStats":
+        """
+        Get context usage statistics.
+        
+        Returns:
+            ChatStats with context_size and context_used fields
+        """
     def stop_generation(self, /) -> None:
         """
         Stop the current text generation immediately.
         
         This can be used to cancel an in-progress generation if the response is taking too long
         or is no longer needed.
+        """
+    def tokenize(self, /, prompt: "str | Prompt") -> "list[int | None]":
+        """
+        Tokenize a prompt and return token IDs.
+        
+        Text tokens are returned as integers. Media embedding slots (images, audio)
+        are returned as None — one None per context slot consumed.
+        
+        Note: tokenizing a prompt with images requires loading and processing those
+        images through the projection model, so it is not a free operation.
+        
+        Args:
+            prompt: The text or multimodal Prompt to tokenize
+        
+        Returns:
+            list[int | None] — token IDs for text, None for each media embedding slot
+        
+        Raises:
+            RuntimeError: If tokenization fails
         """
 
 @final
@@ -377,12 +403,55 @@ class ChatAsync:
         Raises:
             RuntimeError: If updating tools fails
         """
+    async def stats(self, /) -> "ChatStats":
+        """
+        Get context usage statistics.
+        
+        Returns:
+            ChatStats with context_size and context_used fields
+        """
     async def stop_generation(self, /) -> None:
         """
         Stop the current text generation immediately.
         
         This can be used to cancel an in-progress generation if the response is taking too long
         or is no longer needed.
+        """
+    async def tokenize(self, /, prompt: "str | Prompt") -> "list[int | None]":
+        """
+        Tokenize a prompt and return token IDs.
+        
+        Text tokens are returned as integers. Media embedding slots (images, audio)
+        are returned as None — one None per context slot consumed.
+        
+        Note: tokenizing a prompt with images requires loading and processing those
+        images through the projection model, so it is not a free operation.
+        
+        Args:
+            prompt: The text or multimodal Prompt to tokenize
+        
+        Returns:
+            list[int | None] — token IDs for text, None for each media embedding slot
+        
+        Raises:
+            RuntimeError: If tokenization fails
+        """
+
+@final
+class ChatStats:
+    """
+    Context usage statistics returned by `Chat.stats()` and `ChatAsync.stats()`.
+    """
+    def __repr__(self, /) -> str: ...
+    @property
+    def context_size(self, /) -> int:
+        """
+        The maximum number of tokens the context window can hold.
+        """
+    @property
+    def context_used(self, /) -> int:
+        """
+        The number of tokens currently used in the context (KV cache position).
         """
 
 @final
@@ -612,6 +681,11 @@ class Model:
         
         Raises:
             RuntimeError: If the model file cannot be loaded
+        """
+    @property
+    def max_ctx(self, /) -> int:
+        """
+        The maximum context size this model was trained with.
         """
 
 @final

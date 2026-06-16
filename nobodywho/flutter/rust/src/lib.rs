@@ -354,13 +354,10 @@ impl RustChat {
     }
 
     pub async fn get_stats(&self) -> Result<ChatStats, nobodywho::errors::GetterError> {
-        self.chat
-            .get_stats()
-            .await
-            .map(|s| ChatStats {
-                context_size: s.context_size,
-                context_used: s.context_used,
-            })
+        self.chat.get_stats().await.map(|s| ChatStats {
+            context_size: s.context_size,
+            context_used: s.context_used,
+        })
     }
 
     pub async fn set_tools(
