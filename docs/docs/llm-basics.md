@@ -31,11 +31,11 @@ Once you reach the context limit, you must either:
 - Summarize earlier parts of the conversation
 
 Currently NobodyWho resolves this issue automatically by removing old messages from the context.
-Having a larger context allows for longer and more complex conversations, but it also slows down the response time, as the model has to process a more tokens each time it generates a response.
+Having a larger context allows for longer and more complex conversations, but it also slows down the response time, as the model has to process more tokens each time it generates a response.
 
 ## Samplers
 
-LLMs don't output text directly. Instead, they generate a probability distribution over all possible next tokens. Since the model weigths are static after training, this means that the same input tokens always generate the same distribution. Depending on the use case however, there are many possible ways of choosing a next token from this distribution. This is configured using a **sampler**. A **sampler** splits the process of choosing a next token into two parts: Shiftingh the distribution and Sampling the distribution.
+LLMs don't output text directly. Instead, they generate a probability distribution over all possible next tokens. Since the model weights are static after training, this means that the same input tokens always generate the same distribution. Depending on the use case however, there are many possible ways of choosing a next token from this distribution. This is configured using a **sampler**. A **sampler** splits the process of choosing a next token into two parts: Shifting the distribution and Sampling the distribution.
 
 ### Shifting the Distribution
 Before sampling the distribution to get the next token, it is possible to adjust the distribution provided by the LLM to encourage certain behavior. Examples of these adjustments are:

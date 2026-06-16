@@ -37,11 +37,11 @@ You can also pass a full `https://` URL to download a model from any host.
 
 Of course, you can still pass a local file path if you prefer to manage model files yourself.
 
-We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho.
+We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho or to have a look to our [selection page](https://www.nobodywho.ai/models/).
 
-Once you're more familiar, you can also try models from [Bartowski](https://huggingface.co/bartowski) and [Unsloth](https://huggingface.co/unsloth/models).
+Once you're more familiar, you can also try models from [Unsloth](https://huggingface.co/unsloth/models).
 
-Broadly, almost any `.gguf` model on [Hugging Face](https://huggingface.co) should work, though some may fail due to formatting issues.
+Broadly, almost any `.gguf` model on [Hugging Face](https://huggingface.co) should work, though some may fail due to formatting issues, like the LFM models, that we have patched [here](https://huggingface.co/collections/NobodyWho/lfm-25).
 
 
 ## Understanding model file names

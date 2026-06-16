@@ -144,6 +144,7 @@ strong, b {
 
 .main-wrapper {
   max-width: 1400px;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -197,6 +198,12 @@ strong, b {
 
 [data-theme='dark'] .menu {
   background-color: var(--ifm-background-color);
+}
+
+[data-theme='dark'] .menu__link--active:not(.menu__link--sublist) {
+  color: var(--ifm-color-primary-lightest);
+  font-weight: 500;
+  --ifm-menu-color-background-active: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Right sidebar (TOC) ──────────────────────────────── */
@@ -255,6 +262,13 @@ code {
 }
 
 /* ── Tables ─────────────────────────────────────────────── */
+.markdown table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 [data-theme='dark'] table {
   --ifm-table-stripe-background: #080808;
   --ifm-table-border-color: #151515;
@@ -368,6 +382,12 @@ article img {
   display: flex !important;
   align-items: center;
   gap: 6px;
+}
+
+@media (max-width: 996px) {
+  .navbar__items .header-github-link {
+    display: none !important;
+  }
 }
 
 .header-github-link::before {
