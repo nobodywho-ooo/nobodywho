@@ -165,6 +165,12 @@ impl Model {
             ))),
         }
     }
+
+    /// The maximum context size this model was trained with.
+    #[getter]
+    pub fn max_ctx(&self) -> u32 {
+        self.model.max_ctx()
+    }
 }
 
 /// This type represents a `Model | str` from python
@@ -963,6 +969,23 @@ impl Chat {
         })
     }
 
+    /// Get context usage statistics.
+    ///
+    /// Returns:
+    ///     ChatStats with context_size and context_used fields
+    #[pyo3(signature = () -> "ChatStats")]
+    pub fn stats(&self, py: Python) -> PyResult<ChatStats> {
+        py.detach(|| {
+            self.handle()
+                .get_stats()
+                .map(|s| ChatStats {
+                    context_size: s.context_size,
+                    context_used: s.context_used,
+                })
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
     /// Get the current system prompt.
     ///
     /// Returns:
@@ -1306,6 +1329,22 @@ impl ChatAsync {
             .get_sampler_config()
             .await
             .map(|sampler_config| SamplerConfig { sampler_config })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Get context usage statistics.
+    ///
+    /// Returns:
+    ///     ChatStats with context_size and context_used fields
+    #[pyo3(signature = () -> "ChatStats")]
+    pub async fn stats(&self) -> PyResult<ChatStats> {
+        self.handle()
+            .get_stats()
+            .await
+            .map(|s| ChatStats {
+                context_size: s.context_size,
+                context_used: s.context_used,
+            })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
@@ -1836,6 +1875,25 @@ impl Tool {
         py: Python,
     ) -> PyResult<Py<PyAny>> {
         self.pyfunc.call(py, args, kwargs)
+    }
+}
+
+/// Context usage statistics returned by `Chat.stats()` and `ChatAsync.stats()`.
+#[pyclass(get_all)]
+pub struct ChatStats {
+    /// The maximum number of tokens the context window can hold.
+    pub context_size: u32,
+    /// The number of tokens currently used in the context (KV cache position).
+    pub context_used: u32,
+}
+
+#[pymethods]
+impl ChatStats {
+    fn __repr__(&self) -> String {
+        format!(
+            "ChatStats(context_size={}, context_used={})",
+            self.context_size, self.context_used
+        )
     }
 }
 
@@ -2649,6 +2707,8 @@ pub mod nobodywhopython {
     use super::Chat;
     #[pymodule_export]
     use super::ChatAsync;
+    #[pymodule_export]
+    use super::ChatStats;
     #[pymodule_export]
     use super::CrossEncoder;
     #[pymodule_export]

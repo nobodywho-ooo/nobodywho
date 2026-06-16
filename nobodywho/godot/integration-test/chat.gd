@@ -11,6 +11,7 @@ func run_test():
 	assert(await test_tool_call_underscores())
 	assert(await test_tool_remove())
 	assert(await test_sampler_builder())
+	assert(await test_stats())
 	return true
 
 func test_say():
@@ -129,6 +130,18 @@ func test_sampler_builder():
 	var response = await response_finished
 	print("✨ Got response: " + response)
 	assert("Copenhagen" in response)
+	return true
+
+
+func test_stats():
+	reset_context()
+	self.allow_thinking = false
+	ask("What is the capital of Denmark?")
+	await response_finished
+	var stats = await get_stats()
+	print("✨ Got stats: " + str(stats))
+	assert(stats["context_used"] > 0, "context_used should be > 0 after a response")
+	assert(stats["context_used"] <= stats["context_size"], "context_used should not exceed context_size")
 	return true
 
 

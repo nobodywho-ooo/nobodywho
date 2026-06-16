@@ -13,4 +13,5 @@ docs/.docusaurus/
 docs/apfel-grotezk-main/
 result
 target/
+nobodywho/swift/.build/
 .env

@@ -85,6 +85,13 @@ context_length = 8192
 
 **Context-shifting:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages - including the system message.
 
+To inspect how much of the context is currently in use, call `get_stats()`:
+
+```gdscript
+var stats = await get_stats()
+print("Using %d of %d tokens" % [stats["context_used"], stats["context_size"]])
+```
+
 ### Streaming Responses vs Waiting for Complete Output
 
 You have two main approaches for handling LLM responses, and choosing the right one depends on your use case:

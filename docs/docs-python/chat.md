@@ -93,6 +93,13 @@ chat.reset(system_prompt="New system prompt", tools=[])
 
 If you don't want to change the already set defaults (`system_prompt`, `tools`), but only reset the context, then go for `reset_history`.
 
+To inspect how much of the context is currently in use, call `.stats()`:
+
+```python continuation
+stats = chat.stats()
+print(f"Using {stats.context_used} of {stats.context_size} tokens")
+```
+
 ## Sharing model between contexts
 
 There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. With plain `Chat` this is not possible.

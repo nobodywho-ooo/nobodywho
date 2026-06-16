@@ -76,6 +76,7 @@ class Chat(
     suspend fun getTemplateVariables(): Map<String, Boolean> = inner.getTemplateVariables()
     suspend fun setSamplerConfig(sampler: SamplerConfig) = inner.setSamplerConfig(sampler)
     suspend fun getSamplerConfigJson(): String = inner.getSamplerConfigJson()
+    suspend fun getStats(): ChatStats = inner.getStats()
 
     /** Free the underlying Rust resources. */
     fun destroy() = inner.destroy()
