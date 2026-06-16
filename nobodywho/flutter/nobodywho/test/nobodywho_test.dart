@@ -699,4 +699,24 @@ void main() {
       expect(original.name, equals('original_tool')); // Original unchanged
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // STT (Whisper)
+  // ---------------------------------------------------------------------------
+  group('STT', () {
+    // Model: HuggingFace repo ID or local dir. Downloaded and cached on first run.
+    final whisperModel = Platform.environment['TEST_WHISPER_MODEL'] ??
+        'onnx-community/whisper-base';
+
+    // Audio file: "Hey Ron. Hey Billy." — shared asset in assets/.
+    final audioFile = '../../../../assets/sound.mp3';
+
+    test('transcribes audio file', () async {
+      final stt = nobodywho.RustStt.new_(source: whisperModel);
+      final stream = stt.transcribeFile(path: audioFile);
+      final text = await stream.completed();
+      expect(text.toLowerCase(), contains('ron'));
+      expect(text.toLowerCase(), contains('billy'));
+    });
+  });
 }

@@ -113,3 +113,48 @@ jobs:
           TEST_MULTIMODAL_MMPROJ: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
           LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_multimodal_test.dart --reporter expanded
+
+
+  flutter-stt-tests:
+    if: inputs.full_ci
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Vulkan dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: Setup Flutter SDK
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
+      - name: Build Flutter library
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-flutter --locked
+
+      - name: Download Whisper model
+        run: |
+          WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
+          mkdir -p models/whisper-base/onnx
+          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
+          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/decoder_model_merged.onnx" -o models/whisper-base/onnx/decoder_model_merged.onnx
+          curl -L --fail --progress-bar "$WHISPER_BASE/tokenizer.json"                 -o models/whisper-base/tokenizer.json
+          curl -L --fail --progress-bar "$WHISPER_BASE/generation_config.json"         -o models/whisper-base/generation_config.json
+          curl -L --fail --progress-bar "$WHISPER_BASE/config.json"                    -o models/whisper-base/config.json
+          curl -L --fail --progress-bar "$WHISPER_BASE/preprocessor_config.json"       -o models/whisper-base/preprocessor_config.json
+
+      - name: Run Flutter STT tests
+        working-directory: ./nobodywho/flutter/nobodywho
+        env:
+          TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
+          LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
+        run: flutter test test/nobodywho_test.dart --name "STT" --reporter expanded
