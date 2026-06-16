@@ -212,25 +212,6 @@ class Chat:
         This can be used to cancel an in-progress generation if the response is taking too long
         or is no longer needed.
         """
-    def tokenize(self, /, prompt: "str | Prompt") -> "list[int | None]":
-        """
-        Tokenize a prompt and return token IDs.
-        
-        Text tokens are returned as integers. Media embedding slots (images, audio)
-        are returned as None — one None per context slot consumed.
-        
-        Note: tokenizing a prompt with images requires loading and processing those
-        images through the projection model, so it is not a free operation.
-        
-        Args:
-            prompt: The text or multimodal Prompt to tokenize
-        
-        Returns:
-            list[int | None] — token IDs for text, None for each media embedding slot
-        
-        Raises:
-            RuntimeError: If tokenization fails
-        """
 
 @final
 class ChatAsync:
@@ -416,25 +397,6 @@ class ChatAsync:
         
         This can be used to cancel an in-progress generation if the response is taking too long
         or is no longer needed.
-        """
-    async def tokenize(self, /, prompt: "str | Prompt") -> "list[int | None]":
-        """
-        Tokenize a prompt and return token IDs.
-        
-        Text tokens are returned as integers. Media embedding slots (images, audio)
-        are returned as None — one None per context slot consumed.
-        
-        Note: tokenizing a prompt with images requires loading and processing those
-        images through the projection model, so it is not a free operation.
-        
-        Args:
-            prompt: The text or multimodal Prompt to tokenize
-        
-        Returns:
-            list[int | None] — token IDs for text, None for each media embedding slot
-        
-        Raises:
-            RuntimeError: If tokenization fails
         """
 
 @final
