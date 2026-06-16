@@ -106,6 +106,13 @@ To just clear the history without changing settings:
 chat.resetHistory()
 ```
 
+To inspect how much of the context is currently in use, call `getStats()`:
+
+```kotlin continuation
+val stats = chat.getStats()
+println("Using ${stats.contextUsed} of ${stats.contextSize} tokens")
+```
+
 ## GPU
 
 When loading a model, GPU acceleration is enabled by default:
