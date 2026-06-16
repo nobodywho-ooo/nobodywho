@@ -576,8 +576,10 @@ impl ChatHandle {
     /// slots are `None` (one per slot consumed in the context window).
     pub fn tokenize(&self, prompt: impl Promptable) -> Result<Vec<Option<i32>>, TokenizeError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard
-            .send(ChatMsg::Tokenize { prompt: prompt.to_prompt(), output_tx });
+        self.guard.send(ChatMsg::Tokenize {
+            prompt: prompt.to_prompt(),
+            output_tx,
+        });
         output_rx
             .blocking_recv()
             .ok_or(TokenizeError::WorkerTerminated)?
@@ -891,8 +893,10 @@ impl ChatHandleAsync {
         prompt: impl Promptable,
     ) -> Result<Vec<Option<i32>>, TokenizeError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard
-            .send(ChatMsg::Tokenize { prompt: prompt.to_prompt(), output_tx });
+        self.guard.send(ChatMsg::Tokenize {
+            prompt: prompt.to_prompt(),
+            output_tx,
+        });
         output_rx
             .recv()
             .await
@@ -1124,7 +1128,10 @@ impl std::fmt::Debug for ChatMsg {
             ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
             ChatMsg::Tokenize { prompt, .. } => f
                 .debug_struct("Tokenize")
-                .field("prompt", &prompt.to_string().chars().take(50).collect::<String>())
+                .field(
+                    "prompt",
+                    &prompt.to_string().chars().take(50).collect::<String>(),
+                )
                 .finish(),
         }
     }
