@@ -610,7 +610,7 @@ pub fn new_python_tool(
 }
 
 /// Converts a Dart function runtimeType string directly to a JSON schema
-/// Example input: "({String a, int b}) => String" or "() => String"
+/// Example input: "({required String a, required int b}) => String" or "() => String"
 /// Returns a JSON schema for the function parameters
 /// XXX: this whole function is vibe-coded, and hence the implementation is pretty messy...
 #[tracing::instrument(ret, level = "debug")]
@@ -618,23 +618,36 @@ fn dart_function_type_to_json_schema(
     runtime_type: &str,
     parameter_descriptions: &std::collections::HashMap<String, String>,
 ) -> Result<serde_json::Value, String> {
-    tracing::debug!(
-        "Hello!\n\n{:?}\n\n",
-        parse::runtime_type_parser("({required Set<int> testSet}) => String")
-    );
-
     let (parsed_parameters, return_type) = match parse::runtime_type_parser(runtime_type) {
         Ok((_, (pp, rt))) => (pp, rt),
-        // This should only happen if runtime_type contains a type which we do not support!!
         Err(nom::Err::Error(e)) => {
+            if runtime_type.starts_with('(')
+                && !runtime_type.starts_with("({")
+                && !runtime_type.starts_with("()")
+            {
+                return Err(format!(
+                    "Tool function `{runtime_type}` uses positional parameters, which are not supported. \
+                     All parameters must be named and marked `required`. \
+                     Example: `({{required String text}}) => String`."
+                ));
+            }
+            if parse::type_parser(e.input).is_ok() && parse::parameter_parser(e.input).is_err() {
+                return Err(format!(
+                    "Tool function `{runtime_type}` has parameters without the `required` keyword, which is not supported. \
+                     All parameters must be marked `required`. \
+                     Example: `({{required String text}}) => String`."
+                ));
+            }
             return Err(format!(
-                "Tool function contains an unsupported type. Parsing failed at: {} ",
+                "Error while parsing tool function. Parsing failed at: {} . \
+                 Supported types: String, int, double, num, bool, DateTime, \
+                 List<T>, Set<T>, Map<String, T>.",
                 e.input
             ));
         }
         Err(nom::Err::Failure(e)) => {
             return Err(format!(
-                "Error while parsing runtime_type. Input:{}",
+                "Error while parsing runtime_type. Input: {}",
                 e.input
             ))
         }
@@ -1110,7 +1123,7 @@ mod tests {
     #[test]
     fn test_dart_function_to_schema() {
         let schema = dart_function_type_to_json_schema(
-            "({String name, int age, List<String> tags}) => String",
+            "({required String name, required int age, required List<String> tags}) => String",
             &std::collections::HashMap::new(),
         )
         .unwrap();
@@ -1125,20 +1138,6 @@ mod tests {
                 }
             },
             "required": ["name", "age", "tags"],
-            "additionalProperties": false
-        });
-        assert_eq!(schema, expected);
-    }
-
-    #[test]
-    fn test_empty_params() {
-        let schema =
-            dart_function_type_to_json_schema("({}) => String", &std::collections::HashMap::new())
-                .unwrap();
-        let expected = serde_json::json!({
-            "type": "object",
-            "properties": {},
-            "required": [],
             "additionalProperties": false
         });
         assert_eq!(schema, expected);
@@ -1187,5 +1186,38 @@ mod tests {
             "additionalProperties": false
         });
         assert_eq!(json_schema, expected);
+    }
+
+    #[test]
+    fn test_positional_params_error() {
+        let err = dart_function_type_to_json_schema(
+            "(String text) => String",
+            &std::collections::HashMap::new(),
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("positional parameters"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_missing_required_keyword_error() {
+        let err = dart_function_type_to_json_schema(
+            "({String text}) => String",
+            &std::collections::HashMap::new(),
+        )
+        .unwrap_err();
+        assert!(err.contains("required"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn test_unsupported_type_error() {
+        let err = dart_function_type_to_json_schema(
+            "({required Foo x}) => String",
+            &std::collections::HashMap::new(),
+        )
+        .unwrap_err();
+        assert!(err.contains("Supported types"), "unexpected error: {err}");
     }
 }

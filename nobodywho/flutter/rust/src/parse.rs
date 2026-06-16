@@ -78,7 +78,7 @@ fn map_type(input: &str) -> IResult<&str, serde_json::Value> {
     .parse(input)
 }
 
-fn type_parser(input: &str) -> IResult<&str, serde_json::Value> {
+pub(crate) fn type_parser(input: &str) -> IResult<&str, serde_json::Value> {
     delimited(
         multispace0,
         alt((map_type, set_type, list_type, simple_type)),
@@ -102,7 +102,7 @@ fn parameter_name(input: &str) -> IResult<&str, &str> {
     recognize(nom::multi::many0(alt((alphanumeric1, tag("_"))))).parse(input)
 }
 
-fn parameter_parser(input: &str) -> IResult<&str, (&str, serde_json::Value)> {
+pub(crate) fn parameter_parser(input: &str) -> IResult<&str, (&str, serde_json::Value)> {
     map(
         preceded(tag("required").and(multispace0), type_parser)
             .and(preceded(multispace0, parameter_name)),
