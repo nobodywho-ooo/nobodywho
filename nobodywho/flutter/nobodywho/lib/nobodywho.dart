@@ -695,6 +695,9 @@ class Chat {
 
   Future<Map<String,bool>> getTemplateVariables() => _chat.getTemplateVariables();
 
+  /// Get token usage statistics for the current context.
+  Future<nobodywho.ChatStats> getStats() => _chat.getStats();
+
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();
 }
