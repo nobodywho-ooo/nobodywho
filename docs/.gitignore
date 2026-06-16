@@ -3,6 +3,7 @@
 
 # Production
 /build
+/site
 
 # Generated files
 .docusaurus
@@ -18,3 +19,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Python cache
+__pycache__/

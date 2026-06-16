@@ -1,6 +1,7 @@
 import {
   RustChat,
   SamplerConfig,
+  type ChatStats,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
 import { type Message, fromInternal, toInternal } from "./message";
@@ -153,6 +154,11 @@ export class Chat {
   /** Get the current sampler configuration as a JSON string. */
   async getSamplerConfigJson(): Promise<string> {
     return this._inner.getSamplerConfigJson();
+  }
+
+  /** Get context usage statistics. */
+  async getStats(): Promise<ChatStats> {
+    return this._inner.getStats();
   }
 
   /**

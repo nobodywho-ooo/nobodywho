@@ -134,4 +134,9 @@ public class Chat {
     public func getSamplerConfigJson() async throws -> String {
         return try await inner.getSamplerConfigJson()
     }
+
+    /// Get context usage statistics.
+    public func getStats() async throws -> ChatStats {
+        return try await inner.getStats()
+    }
 }

@@ -141,6 +141,11 @@ pub fn download_model(
     .map_err(|e| nobodywho::render_miette(&e))
 }
 
+pub struct ChatStats {
+    pub context_size: u32,
+    pub context_used: u32,
+}
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustChat {
     chat: nobodywho::chat::ChatHandleAsync,
@@ -346,6 +351,16 @@ impl RustChat {
         &self,
     ) -> Result<Option<String>, nobodywho::errors::GetterError> {
         self.chat.get_system_prompt().await
+    }
+
+    pub async fn get_stats(&self) -> Result<ChatStats, nobodywho::errors::GetterError> {
+        self.chat
+            .get_stats()
+            .await
+            .map(|s| ChatStats {
+                context_size: s.context_size,
+                context_used: s.context_used,
+            })
     }
 
     pub async fn set_tools(

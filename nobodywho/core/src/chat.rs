@@ -513,6 +513,15 @@ impl ChatHandle {
             ))
     }
 
+    /// Get context usage statistics.
+    pub fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetStats { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -802,6 +811,16 @@ impl ChatHandleAsync {
             ))
     }
 
+    /// Get context usage statistics.
+    pub async fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetStats { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -965,6 +984,11 @@ impl TokenStreamAsync {
     }
 }
 
+pub struct ChatStats {
+    pub context_size: u32,
+    pub context_used: u32,
+}
+
 enum ChatMsg {
     Ask {
         prompt: Prompt,
@@ -1016,6 +1040,9 @@ enum ChatMsg {
         messages: Vec<Message>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
+    GetStats {
+        output_tx: tokio::sync::mpsc::Sender<ChatStats>,
+    },
 }
 
 impl std::fmt::Debug for ChatMsg {
@@ -1064,6 +1091,7 @@ impl std::fmt::Debug for ChatMsg {
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
+            ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
         }
     }
 }
@@ -1159,6 +1187,13 @@ fn process_worker_msg(
         ChatMsg::GetSamplerConfig { output_tx } => {
             let sampler_config = worker_state.get_sampler_config();
             let _ = output_tx.blocking_send(sampler_config);
+        }
+        ChatMsg::GetStats { output_tx } => {
+            let stats = ChatStats {
+                context_size: worker_state.ctx.n_ctx(),
+                context_used: worker_state.n_past as u32,
+            };
+            let _ = output_tx.blocking_send(stats);
         }
     };
 

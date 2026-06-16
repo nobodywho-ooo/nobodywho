@@ -96,6 +96,20 @@ class IntegrationTest {
         assertEquals("pong", (toolResponse as Message.Tool).content)
     }
 
+    @Test
+    fun testStats() = runBlocking {
+        val modelPath = requireEnv("TEST_MODEL")
+        val model = Model.load(modelPath)
+        val chat = Chat(
+            model = model,
+            templateVariables = mapOf("enable_thinking" to false)
+        )
+        chat.ask("What is the capital of Denmark?").completed()
+        val stats = chat.getStats()
+        assertTrue("context_used should be > 0", stats.contextUsed > 0u)
+        assertTrue("context_used should not exceed context_size", stats.contextUsed <= stats.contextSize)
+    }
+
     @Test(timeout = 60_000)
     fun testSuspendToolDoesNotBlockCallerThread() = runBlocking {
         val modelPath = requireEnv("TEST_MODEL")
