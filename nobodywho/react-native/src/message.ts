@@ -74,7 +74,7 @@ export function toInternal(msg: Message): InternalMessage {
   } else if (msg.role === "assistant") {
     return new InternalMessage.Assistant({
       content: msg.content,
-      toolCalls: null,
+      toolCalls: undefined,
     });
   } else if (msg.role === "system") {
     return new InternalMessage.System({
