@@ -1,0 +1,76 @@
+---
+title: Downloading models
+description: How NobodyWho downloads, caches, and inspects GGUF models in Swift
+sidebar_position: 1
+---
+
+NobodyWho can either load a model from a path on disk or download it for you on first use, caching it for subsequent runs. This page covers the available model path formats, how to observe a download in progress, how to access gated/private models, and how to inspect what's already in the local cache.
+
+## Supported model path formats
+
+The `modelPath` argument to `Chat.fromPath` and `Model.downloadModel` accepts:
+
+| Form | Example | Notes |
+| ---- | ------- | ----- |
+| HuggingFace reference | `hf:owner/repo/file.gguf` | Downloaded and cached on first use |
+| HTTPS URL | `https://example.com/model.gguf` | Downloaded and cached on first use |
+| Local path | `./model.gguf` | Used as-is |
+
+The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
+
+## Tracking download progress
+
+When loading from a remote URL, pass a progress closure to `Chat.fromPath`. It receives `(downloaded, total)` byte counts and is not called for cached or local files.
+
+```swift
+let chat = try await Chat.fromPath(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+) { downloaded, total in
+    print("Downloaded \(downloaded)/\(total) bytes")
+}
+```
+
+## Downloading a gated model
+
+Some HuggingFace models are private or gated by a license you need to accept. In both cases you need to be authorized to download the model weights.
+
+You can manually download the GGUF file via your web browser and then point `Chat.fromPath` at the local path:
+
+```swift
+let chat = try await Chat.fromPath(modelPath: "./model.gguf")
+```
+
+Or use `Model.downloadModel` with an `Authorization` header:
+
+```swift
+import NobodyWho
+
+let modelPath = try await Model.downloadModel(
+    modelPath: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+    headers: ["Authorization": "Bearer your_hf_token"]
+)
+
+let chat = try await Chat.fromPath(modelPath: modelPath)
+```
+
+You can generate a HuggingFace token in [your account settings](https://huggingface.co/settings/tokens).
+
+## Inspecting the model cache
+
+`getCachedModels()` returns every `.gguf` model in NobodyWho's cache directory, paired with its size in bytes. This is the same cache used by `Model.downloadModel` and by `Chat.fromPath`'s `hf://` paths.
+
+```swift
+import NobodyWho
+
+let models = try getCachedModels()
+for model in models {
+    print("\(model.path): \(model.size) bytes")
+}
+```
+
+Each `CachedModel` has:
+
+- `path: String` — absolute path to the cached `.gguf` file
+- `size: UInt64` — size in bytes
+
+The array is empty if nothing has been downloaded yet. The call throws if the cache directory cannot be read.
