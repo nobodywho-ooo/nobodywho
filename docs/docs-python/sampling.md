@@ -142,3 +142,28 @@ and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
 sampler = SamplerBuilder().temperature(0.8).top_k(5).seed(42).dist()
 ```
 
+### Available sampling steps
+
+Pick any of the **shift steps** below (each reshapes the token distribution), then finish with one **terminal step** that picks the token — exactly like the `.temperature(0.8).top_k(5).dist()` chain above.
+
+Shift steps — add as many as you want, applied in order:
+
+- `.top_k(40)` — keep only the 40 most likely tokens
+- `.top_p(0.95, min_keep=1)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `.min_p(0.05, min_keep=1)` — drop tokens below 5% of the most likely token's probability
+- `.typical_p(0.9, min_keep=1)` — keep tokens whose "surprise" is close to average, dropping both the too-predictable and the too-random ([locally typical sampling](https://arxiv.org/abs/2202.00666))
+- `.xtc(0.5, 0.1, min_keep=1)` — "exclude top choices": occasionally drop the top tokens for more variety
+- `.temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `.penalties(64, 1.1, 0.0, 0.0)` — per-token repetition penalty: `last_n, repeat, freq, present` (`repeat` 1.0 = off)
+- `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, last_n, seq_breakers`
+- `.seed(42)` — fix the RNG for reproducible output
+- `.grammar(...)` — deprecated; use the `constrain_with_*` presets above
+
+Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
+
+- `.dist()` — pick a token with weighted randomness (the usual choice)
+- `.greedy()` — always take the most likely token
+- `.mirostat_v1(5.0, 0.1, 100)` / `.mirostat_v2(5.0, 0.1)` — steer output "surprise" toward a target
+
+`min_keep` is the floor on how many tokens survive a cut (`1` is fine).
+

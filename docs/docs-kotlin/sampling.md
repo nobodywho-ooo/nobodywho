@@ -144,17 +144,34 @@ val chat = Chat.fromPath(
 )
 ```
 
-Inside the `buildSampler` block, chain **configuration steps** (which modify the distribution) and end with a **terminal step** (which determines how to sample from it):
+### Available sampling steps
 
-Configuration steps: `topK`, `topP`, `minP`, `temperature`, `typicalP`, `xtc`, `grammar`, `dry`, `penalties`
+Inside `buildSampler { }`, call any of the **shift steps** below (each reshapes the distribution), then one **terminal step** that picks the token. Most steps have defaults, so you only pass what you want to change.
 
-Terminal steps: `dist()`, `greedy()`, `mirostatV1()`, `mirostatV2()`
+Shift steps — call as many as you want, in order:
 
-If no terminal step is called, `dist()` is used by default.
+- `topK(40)` — keep only the 40 most likely tokens
+- `topP(0.95)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `minP(0.05)` — drop tokens below 5% of the most likely token's probability
+- `typicalP(0.9)` — keep tokens whose "surprise" is close to average, dropping both the too-predictable and the too-random ([locally typical sampling](https://arxiv.org/abs/2202.00666))
+- `xtc(0.5, 0.1)` — "exclude top choices": occasionally drop the top tokens for more variety
+- `temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `penalties(penaltyRepeat = 1.1)` — per-token repetition penalty (`penaltyRepeat` 1.0 = off)
+- `dry()` — penalty for repeated *phrases* (its defaults are a good start)
+- `seed(42)` — fix the RNG for reproducible output
+- `grammar(...)` — deprecated; use the `constrainWith*` presets above
+
+Terminal step — call at most one:
+
+- `dist()` — pick a token with weighted randomness (used by default if you omit it)
+- `greedy()` — always take the most likely token
+- `mirostatV1()` / `mirostatV2()` — steer output "surprise" toward a target
+
+`minKeep` (on the truncation steps) is the floor on how many tokens survive a cut.
 
 For reproducible output, set the RNG seed with `seed(value)` anywhere in the chain.
 It is consumed by every random sampler — `dist`, `mirostatV1`, `mirostatV2`, and the `xtc`
-configuration step. `greedy` ignores it. If unset, a default seed is used.
+shift step. `greedy` ignores it. If unset, a default seed is used.
 
 ```kotlin
 val sampler = buildSampler {

@@ -127,7 +127,7 @@ we provide the `SamplerBuilder` class:
 ```swift
 let chat = try await Chat.fromPath(
     modelPath: "/path/to/model.gguf",
-    sampler: SamplerBuilder().temperature(0.8).topK(5).dist()
+    sampler: SamplerBuilder().temperature(temperature: 0.8).topK(topK: 5).dist()
 )
 ```
 
@@ -143,12 +143,37 @@ It is consumed by every random sampler in the chain — `dist`, `mirostatV1`, `m
 and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
 
 ```swift
-let sampler = SamplerBuilder().temperature(0.8).topK(5).seed(seed: 42).dist()
+let sampler = SamplerBuilder().temperature(temperature: 0.8).topK(topK: 5).seed(seed: 42).dist()
 ```
+
+### Available sampling steps
+
+Pick any of the **shift steps** below (each reshapes the token distribution), then finish with one **terminal step** that picks the token — exactly like the `.temperature(...).topK(...).dist()` chain above.
+
+Shift steps — add as many as you want, applied in order:
+
+- `.topK(topK: 40)` — keep only the 40 most likely tokens
+- `.topP(topP: 0.95, minKeep: 1)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `.minP(minP: 0.05, minKeep: 1)` — drop tokens below 5% of the most likely token's probability
+- `.typicalP(typP: 0.9, minKeep: 1)` — keep tokens whose "surprise" is close to average, dropping both the too-predictable and the too-random ([locally typical sampling](https://arxiv.org/abs/2202.00666))
+- `.xtc(xtcProbability: 0.5, xtcThreshold: 0.1, minKeep: 1)` — "exclude top choices": occasionally drop the top tokens for more variety
+- `.temperature(temperature: 0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `.penalties(penaltyLastN: 64, penaltyRepeat: 1.1, penaltyFreq: 0.0, penaltyPresent: 0.0)` — per-token repetition penalty (`penaltyRepeat` 1.0 = off)
+- `.dry(multiplier: 0.8, base: 1.75, allowedLength: 2, penaltyLastN: -1, seqBreakers: ["\n"])` — penalty for repeated *phrases*
+- `.seed(seed: 42)` — fix the RNG for reproducible output
+- `.grammar(...)` — deprecated; use the `constrainWith*` presets above
+
+Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
+
+- `.dist()` — pick a token with weighted randomness (the usual choice)
+- `.greedy()` — always take the most likely token
+- `.mirostatV1(tau: 5.0, eta: 0.1, m: 100)` / `.mirostatV2(tau: 5.0, eta: 0.1)` — steer output "surprise" toward a target
+
+`minKeep` is the floor on how many tokens survive a cut (`1` is fine).
 
 You can also change the sampler configuration on an existing chat instance:
 
 ```swift
-let sampler = SamplerBuilder().temperature(0.8).topK(5).dist()
+let sampler = SamplerBuilder().temperature(temperature: 0.8).topK(topK: 5).dist()
 try await chat.setSamplerConfig(sampler)
 ```

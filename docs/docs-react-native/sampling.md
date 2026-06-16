@@ -136,7 +136,7 @@ want to chain samplers, change more "advanced" parameters, etc. For that use cas
 we provide the `SamplerBuilder` class:
 
 ```typescript
-import { Chat, SamplerBuilder } from "react-native-nobodywho";
+import { Chat, SamplerBuilder, SamplerConfig } from "react-native-nobodywho";
 
 const chat = await Chat.fromPath({
   modelPath: "/path/to/model.gguf",
@@ -158,6 +158,31 @@ and the `xtc` shift step. `greedy` ignores it. If unset, a default seed is used.
 ```typescript
 const sampler = new SamplerBuilder().temperature(0.8).topK(5).seed(42).dist() as SamplerConfig;
 ```
+
+### Available sampling steps
+
+Pick any of the **shift steps** below (each reshapes the token distribution), then finish with one **terminal step** that picks the token — exactly like the `.temperature(0.8).topK(5).dist()` chain above.
+
+Shift steps — add as many as you want, applied in order:
+
+- `.topK(40)` — keep only the 40 most likely tokens
+- `.topP(0.95, 1)` — nucleus: keep the top tokens up to 95% of the probability mass
+- `.minP(0.05, 1)` — drop tokens below 5% of the most likely token's probability
+- `.typicalP(0.9, 1)` — keep tokens whose "surprise" is close to average, dropping both the too-predictable and the too-random ([locally typical sampling](https://arxiv.org/abs/2202.00666))
+- `.xtc(0.5, 0.1, 1)` — "exclude top choices": occasionally drop the top tokens for more variety
+- `.temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `.penalties(64, 1.1, 0.0, 0.0)` — per-token repetition penalty: `penaltyLastN, penaltyRepeat, penaltyFreq, penaltyPresent` (`penaltyRepeat` 1.0 = off)
+- `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowedLength, penaltyLastN, seqBreakers`
+- `.seed(42)` — fix the RNG for reproducible output
+- `.grammar(...)` — deprecated; use the `constrainWith*` presets above
+
+Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
+
+- `.dist()` — pick a token with weighted randomness (the usual choice)
+- `.greedy()` — always take the most likely token
+- `.mirostatV1(5.0, 0.1, 100)` / `.mirostatV2(5.0, 0.1)` — steer output "surprise" toward a target
+
+`minKeep` is the floor on how many tokens survive a cut (`1` is fine). Terminal steps return a `SamplerConfig`, so cast with `as SamplerConfig` as in the examples.
 
 You can also change the sampler configuration on an existing chat instance:
 
