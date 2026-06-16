@@ -1000,6 +1000,35 @@ impl Chat {
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
+
+    /// Tokenize a prompt and return token IDs.
+    ///
+    /// Text tokens are returned as integers. Media embedding slots (images, audio)
+    /// are returned as None — one None per context slot consumed.
+    ///
+    /// Note: tokenizing a prompt with images requires loading and processing those
+    /// images through the projection model, so it is not a free operation.
+    ///
+    /// Args:
+    ///     prompt: The text or multimodal Prompt to tokenize
+    ///
+    /// Returns:
+    ///     list[int | None] — token IDs for text, None for each media embedding slot
+    ///
+    /// Raises:
+    ///     RuntimeError: If tokenization fails
+    #[pyo3(signature = (prompt: "str | Prompt") -> "list[int | None]")]
+    pub fn tokenize(&self, prompt: PromptOrText, py: Python) -> PyResult<Vec<Option<i32>>> {
+        let nw_prompt = match prompt {
+            PromptOrText::Text(text) => nobodywho::tokenizer::Prompt::from(text),
+            PromptOrText::PromptObj(prompt_obj) => prompt_obj.borrow().prompt.clone(),
+        };
+        py.detach(|| {
+            self.handle()
+                .tokenize(nw_prompt)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
 }
 
 /// This is the async version of the `Chat` class.
@@ -1358,6 +1387,42 @@ impl ChatAsync {
     pub async fn get_system_prompt(&self) -> PyResult<Option<String>> {
         self.handle()
             .get_system_prompt()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Tokenize a prompt and return token IDs.
+    ///
+    /// Text tokens are returned as integers. Media embedding slots (images, audio)
+    /// are returned as None — one None per context slot consumed.
+    ///
+    /// Note: tokenizing a prompt with images requires loading and processing those
+    /// images through the projection model, so it is not a free operation.
+    ///
+    /// Args:
+    ///     prompt: The text or multimodal Prompt to tokenize
+    ///
+    /// Returns:
+    ///     list[int | None] — token IDs for text, None for each media embedding slot
+    ///
+    /// Raises:
+    ///     RuntimeError: If tokenization fails
+    #[pyo3(signature = (prompt: "str | Prompt") -> "list[int | None]")]
+    pub async fn tokenize(&self, prompt: Py<PyAny>) -> PyResult<Vec<Option<i32>>> {
+        let nw_prompt = Python::attach(|py| -> PyResult<nobodywho::tokenizer::Prompt> {
+            let bound = prompt.bind(py);
+            if let Ok(text) = bound.extract::<String>() {
+                Ok(nobodywho::tokenizer::Prompt::from(text))
+            } else if let Ok(p) = bound.cast::<crate::Prompt>() {
+                Ok(p.borrow().prompt.clone())
+            } else {
+                Err(pyo3::exceptions::PyTypeError::new_err(
+                    "prompt must be str or Prompt",
+                ))
+            }
+        })?;
+        self.handle()
+            .tokenize(nw_prompt)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }

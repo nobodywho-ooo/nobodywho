@@ -81,7 +81,7 @@ context_length = 8192
 ```
 
 
-**Trade-off:** Longer context = more memory usage. The general rule of thumb is to start with the default or less and only increase if you need the LLM to remember more.
+**Trade-off:** Longer context = more memory usage. The general rule of thumb is to start with the default or less and only increase if you need the LLM to remember more. You can check the maximum context size the model was trained with using `model_node.max_ctx()` — setting `context_length` above this value has no benefit.
 
 **Context-shifting:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages - including the system message.
 

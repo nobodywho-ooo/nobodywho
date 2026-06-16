@@ -256,6 +256,13 @@ pub async fn download_model(
     })?
 }
 
+#[uniffi::export]
+impl RustModel {
+    pub fn max_ctx(&self) -> u32 {
+        self.inner.max_ctx()
+    }
+}
+
 // ---------- ChatStats ----------
 
 #[derive(uniffi::Record, Clone)]
@@ -394,6 +401,38 @@ impl RustChat {
     pub async fn get_system_prompt(&self) -> Result<Option<String>, NobodyWhoError> {
         self.inner
             .get_system_prompt()
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
+    /// Tokenize a plain text string and return the token IDs.
+    pub async fn tokenize(&self, message: String) -> Result<Vec<Option<i32>>, NobodyWhoError> {
+        self.inner
+            .tokenize(message)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
+    /// Tokenize a multimodal prompt and return the token IDs.
+    /// Text tokens produce an integer ID; image/audio embedding slots produce null.
+    pub async fn tokenize_with_prompt(
+        &self,
+        parts: Vec<PromptPart>,
+    ) -> Result<Vec<Option<i32>>, NobodyWhoError> {
+        let mut prompt = nobodywho::tokenizer::Prompt::new();
+        for part in parts {
+            match part {
+                PromptPart::Text { content } => prompt.push_text(content),
+                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
+                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
+            }
+        }
+        self.inner
+            .tokenize(prompt)
             .await
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),

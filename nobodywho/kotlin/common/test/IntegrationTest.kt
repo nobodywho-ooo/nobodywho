@@ -97,6 +97,15 @@ class IntegrationTest {
     }
 
     @Test
+    fun testTokenize() = runBlocking {
+        val modelPath = requireEnv("TEST_MODEL")
+        val model = Model.load(modelPath)
+        val chat = Chat(model = model, templateVariables = mapOf("enable_thinking" to false))
+        val tokens = chat.tokenize("Hey!")
+        assertEquals(listOf<Int?>(18665, 0), tokens)
+    }
+
+    @Test
     fun testStats() = runBlocking {
         val modelPath = requireEnv("TEST_MODEL")
         val model = Model.load(modelPath)

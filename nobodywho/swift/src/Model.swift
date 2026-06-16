@@ -39,6 +39,12 @@ public class Model {
         return Model(inner: inner)
     }
 
+    /// The maximum context size this model was trained with.
+    /// Use this to avoid setting `contextSize` above what the model supports.
+    public var maxCtx: UInt32 {
+        inner.maxCtx()
+    }
+
     /// Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
     ///
     /// Use this when you need custom HTTP headers, e.g. for gated models that require

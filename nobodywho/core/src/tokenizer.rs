@@ -272,6 +272,20 @@ impl TokenizerChunks {
         (start, end)
     }
 
+    pub fn to_token_ids(&self) -> Vec<Option<i32>> {
+        self.chunks
+            .iter()
+            .flat_map(|chunk| -> Vec<Option<i32>> {
+                match chunk {
+                    TokenizerChunk::Text(tokens, _) => tokens.iter().map(|t| Some(t.0)).collect(),
+                    TokenizerChunk::Image(_, _) | TokenizerChunk::Audio(_, _) => {
+                        vec![None; chunk.n_tokens()]
+                    }
+                }
+            })
+            .collect()
+    }
+
     pub fn tail(&self, from_pos: usize) -> TokenizerChunks {
         if from_pos >= self.n_tokens() {
             return TokenizerChunks::new();

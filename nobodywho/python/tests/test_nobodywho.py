@@ -468,3 +468,7 @@ def test_constrain_with_grammar_gbnf(model):
     )
     response = chat.ask("Explain in detail why the sky appears blue.").completed()
     assert response in ("yes", "no"), f"Expected 'yes' or 'no', got: {response!r}"
+
+
+def test_tokenize(chat):
+    assert chat.tokenize("Hey!") == [18665, 0]
