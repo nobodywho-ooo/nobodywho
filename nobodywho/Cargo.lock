@@ -2327,8 +2327,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.150"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e82ec86fd73aaa7d8f4898cc4693410c217431506ba3237ea5c856127f49d84d"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=v0.1.150-watchos#2f5de95c2405a49350df5db11e113dd324cd639e"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2343,8 +2342,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.150"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f67dab3ed2b68e4fc4a42471eac73e128ed2ee97bd10de66ddcc609dd5d838a0"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=v0.1.150-watchos#2f5de95c2405a49350df5db11e113dd324cd639e"
 dependencies = [
  "bindgen",
  "cc",

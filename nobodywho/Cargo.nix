@@ -7265,7 +7265,12 @@ rec {
         crateName = "llama-cpp-2";
         version = "0.1.150";
         edition = "2021";
-        sha256 = "0kfq95zi4mn8lmz278vba0qp888c869ldk4q927pvaissxpwhbp8";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
+          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
+          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+        };
         libName = "llama_cpp_2";
         dependencies = [
           {
@@ -7336,14 +7341,19 @@ rec {
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "common" "llguidance" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
         version = "0.1.150";
         edition = "2021";
         links = "llama";
-        sha256 = "181qv3arsq6cvmkdw45xjzpd53hj7v3ylw94lk24z3mns8zanzgn";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
+          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
+          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+        };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
           {
@@ -7379,7 +7389,7 @@ rec {
           "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
