@@ -360,6 +360,16 @@ pub enum GetterError {
     GetterError(String),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum TokenizeError {
+    #[error("Worker terminated before processing tokenize request")]
+    WorkerTerminated,
+    #[error("Tokenization error: {0}")]
+    Tokenization(#[from] TokenizationError),
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
+}
+
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum ReadError {
     #[error("Could not add to batch: {0}")]

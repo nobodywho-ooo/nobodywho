@@ -206,6 +206,19 @@ impl NobodyWhoModel {
     }
 
     #[func]
+    /// Returns the maximum context size this model was trained with.
+    /// Returns -1 if the model has not been loaded yet.
+    fn max_ctx(&self) -> i64 {
+        match self.model.as_ref() {
+            Some(model) => model.max_ctx() as i64,
+            None => {
+                godot_error!("Attempted to get max_ctx, but model is not loaded yet.");
+                -1
+            }
+        }
+    }
+
+    #[func]
     /// Returns every cached .gguf model paired with its byte size.
     ///
     /// Each entry is a Dictionary with:
@@ -859,6 +872,75 @@ impl NobodyWhoChat {
         });
 
         // returns signal, so that you can `var stats = await get_stats()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
+    /// Tokenize a string or NobodyWhoPrompt and return the token IDs.
+    /// Returns a Signal that resolves to an Array where each element is an int (token ID)
+    /// or null (for image/audio embedding slots).
+    /// Usage: `var tokens = await tokenize("Hey!")`
+    fn tokenize(&mut self, message: Variant) -> Variant {
+        let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
+            text.to_string().to_prompt()
+        } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
+            prompt_node.bind().prompt.clone()
+        } else {
+            godot_error!(
+                "tokenize() requires a String or NobodyWhoPrompt, got {:?}",
+                message.get_type()
+            );
+            return Variant::nil();
+        };
+
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted to tokenize, but no worker is running. Returning nil.");
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "tokenize_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let token_ids = match chat_handle.tokenize(prompt).await {
+                Ok(ids) => ids,
+                Err(e) => {
+                    godot_error!("tokenize() failed: {}", e);
+                    emit_node.emit_signal(&signal_name_copy, &[]);
+                    return;
+                }
+            };
+
+            let result: Array<Variant> = token_ids
+                .into_iter()
+                .map(|t| match t {
+                    Some(id) => Variant::from(id as i64),
+                    None => Variant::nil(),
+                })
+                .collect();
+
+            match wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("tokenize() signal connect failed: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[Variant::from(result)]);
+        });
+
         Variant::from(godot::builtin::Signal::from_object_signal(
             &self.base_mut(),
             &signal_name,

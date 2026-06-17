@@ -90,6 +90,10 @@ impl Model {
     ///         final emit on completion. Not invoked for cached/local files.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+    pub fn max_ctx(&self) -> u32 {
+        self.model.max_ctx()
+    }
+
     #[flutter_rust_bridge::frb]
     pub fn load(
         model_path: &str,
@@ -351,6 +355,28 @@ impl RustChat {
         &self,
     ) -> Result<Option<String>, nobodywho::errors::GetterError> {
         self.chat.get_system_prompt().await
+    }
+
+    pub async fn tokenize(
+        &self,
+        message: String,
+    ) -> Result<Vec<Option<i32>>, nobodywho::errors::TokenizeError> {
+        self.chat.tokenize(message).await
+    }
+
+    pub async fn tokenize_with_prompt(
+        &self,
+        parts: Vec<PromptPart>,
+    ) -> Result<Vec<Option<i32>>, nobodywho::errors::TokenizeError> {
+        let mut prompt = nobodywho::tokenizer::Prompt::new();
+        for part in parts {
+            match part {
+                PromptPart::Text { content } => prompt.push_text(content),
+                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
+                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
+            }
+        }
+        self.chat.tokenize(prompt).await
     }
 
     pub async fn get_stats(&self) -> Result<ChatStats, nobodywho::errors::GetterError> {

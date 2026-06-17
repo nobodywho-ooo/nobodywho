@@ -26,7 +26,7 @@
 use crate::errors::{
     ChatWorkerError, ContextSyncError, DecodingError, GenerateResponseError, InitWorkerError,
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
-    WrappedResponseError,
+    TokenizeError, WrappedResponseError,
 };
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
@@ -571,6 +571,19 @@ impl ChatHandle {
                 "get_system_prompt".into(),
             ))
     }
+
+    /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
+    /// slots are `None` (one per slot consumed in the context window).
+    pub fn tokenize(&self, prompt: impl Promptable) -> Result<Vec<Option<i32>>, TokenizeError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::Tokenize {
+            prompt: prompt.to_prompt(),
+            output_tx,
+        });
+        output_rx
+            .blocking_recv()
+            .ok_or(TokenizeError::WorkerTerminated)?
+    }
 }
 
 /// Interact with a ChatWorker in an asynchronous manner.
@@ -872,6 +885,23 @@ impl ChatHandleAsync {
                 "get_system_prompt".into(),
             ))
     }
+
+    /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
+    /// slots are `None` (one per slot consumed in the context window).
+    pub async fn tokenize(
+        &self,
+        prompt: impl Promptable,
+    ) -> Result<Vec<Option<i32>>, TokenizeError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::Tokenize {
+            prompt: prompt.to_prompt(),
+            output_tx,
+        });
+        output_rx
+            .recv()
+            .await
+            .ok_or(TokenizeError::WorkerTerminated)?
+    }
 }
 
 /// A stream of tokens from the model.
@@ -1043,6 +1073,10 @@ enum ChatMsg {
     GetStats {
         output_tx: tokio::sync::mpsc::Sender<ChatStats>,
     },
+    Tokenize {
+        prompt: Prompt,
+        output_tx: tokio::sync::mpsc::Sender<Result<Vec<Option<i32>>, TokenizeError>>,
+    },
 }
 
 impl std::fmt::Debug for ChatMsg {
@@ -1092,6 +1126,13 @@ impl std::fmt::Debug for ChatMsg {
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
             ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
+            ChatMsg::Tokenize { prompt, .. } => f
+                .debug_struct("Tokenize")
+                .field(
+                    "prompt",
+                    &prompt.to_string().chars().take(50).collect::<String>(),
+                )
+                .finish(),
         }
     }
 }
@@ -1194,6 +1235,10 @@ fn process_worker_msg(
                 context_used: worker_state.n_past as u32,
             };
             let _ = output_tx.blocking_send(stats);
+        }
+        ChatMsg::Tokenize { prompt, output_tx } => {
+            let result = worker_state.tokenize(prompt);
+            let _ = output_tx.blocking_send(result);
         }
     };
 
@@ -2008,6 +2053,26 @@ impl Worker<'_, ChatWorker> {
 
     pub fn get_sampler_config(&self) -> SamplerConfig {
         self.extra.sampler_config.clone()
+    }
+
+    pub fn tokenize(&mut self, prompt: Prompt) -> Result<Vec<Option<i32>>, TokenizeError> {
+        let media_assets = prompt.extract_media_assets();
+        let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
+            media_assets
+                .iter()
+                .map(|part| match part {
+                    PromptPart::Image(path) => projection_model.load_image(path),
+                    PromptPart::Audio(path) => projection_model.load_audio(path),
+                    PromptPart::Text(_) => unreachable!(),
+                })
+                .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
+        } else {
+            vec![]
+        };
+
+        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
+        let chunks = self.tokenizer.tokenize(prompt.to_string(), bitmap_refs)?;
+        Ok(chunks.to_token_ids())
     }
 }
 

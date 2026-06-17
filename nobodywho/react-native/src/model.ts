@@ -61,6 +61,14 @@ export class Model {
   }
 
   /**
+   * The maximum context size this model was trained with.
+   * Use this to avoid setting `contextSize` above what the model supports.
+   */
+  get maxCtx(): number {
+    return Number((this._inner as any).maxCtx());
+  }
+
+  /**
    * Immediately free the underlying Rust resources (model weights, GPU memory).
    * After calling this, the Model instance is no longer usable.
    */

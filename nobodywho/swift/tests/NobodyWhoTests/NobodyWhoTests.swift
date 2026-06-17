@@ -99,6 +99,16 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertTrue(called)
     }
 
+    // MARK: - Tokenize
+
+    func testTokenize() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let chat = try Chat(model: model, templateVariables: ["enable_thinking": false])
+        let tokens = try await chat.tokenize(message: "Hey!")
+        XCTAssertEqual(tokens, [18665, 0])
+    }
+
     // MARK: - Stats
 
     func testStats() async throws {

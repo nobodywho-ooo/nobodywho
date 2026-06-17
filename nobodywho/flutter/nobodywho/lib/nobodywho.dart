@@ -695,6 +695,13 @@ class Chat {
 
   Future<Map<String,bool>> getTemplateVariables() => _chat.getTemplateVariables();
 
+  /// Tokenize a string and return the token IDs.
+  Future<List<int?>> tokenize(String message) => _chat.tokenize(message: message);
+
+  /// Tokenize a prompt with mixed content (text, images, audio) and return the token IDs.
+  Future<List<int?>> tokenizeWithPrompt(List<PromptPart> parts) =>
+      _chat.tokenizeWithPrompt(parts: _convertPromptParts(parts));
+
   /// Get token usage statistics for the current context.
   Future<nobodywho.ChatStats> getStats() => _chat.getStats();
 

@@ -64,6 +64,10 @@ class Model internal constructor(
         }
     }
 
+    /** The maximum context size this model was trained with.
+     *  Use this to avoid setting `contextSize` above what the model supports. */
+    val maxCtx: UInt get() = inner.maxCtx()
+
     /** Free the underlying Rust resources. */
     fun destroy() = inner.destroy()
     override fun close() { destroy() }

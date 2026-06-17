@@ -166,16 +166,6 @@ abstract class GetterError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
-  /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
-  /// or HTTPS URL. Remote models are downloaded and cached automatically.
-  ///
-  /// Args:
-  ///     model_path: Path or URL to a GGUF model file.
-  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
-  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
-  ///         final emit on completion. Not invoked for cached/local files.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
   static Future<Model> load({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
@@ -188,6 +178,18 @@ abstract class Model implements RustOpaqueInterface {
     useGpu: useGpu,
     projectionModelPath: projectionModelPath,
   );
+
+  /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
+  /// or HTTPS URL. Remote models are downloaded and cached automatically.
+  ///
+  /// Args:
+  ///     model_path: Path or URL to a GGUF model file.
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+  ///         final emit on completion. Not invoked for cached/local files.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+  Future<int> maxCtx();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
@@ -302,6 +304,10 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<void> setTools({required List<RustTool> tools});
 
   void stopGeneration();
+
+  Future<List<int?>> tokenize({required String message});
+
+  Future<List<int?>> tokenizeWithPrompt({required List<PromptPart> parts});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>
@@ -531,6 +537,9 @@ abstract class SamplerPresets implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
 abstract class SetterError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< TokenizeError>>
+abstract class TokenizeError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
 abstract class ToolCall implements RustOpaqueInterface {

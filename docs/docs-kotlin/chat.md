@@ -92,7 +92,7 @@ val chat = Chat.fromPath(
 )
 ```
 
-The default is `4096`. When the context fills up during a conversation, NobodyWho automatically shrinks it by removing old messages (keeping the system prompt and first user message).
+The default is `4096`. When the context fills up during a conversation, NobodyWho automatically shrinks it by removing old messages (keeping the system prompt and first user message). You can check the maximum context size the model was trained with using `model.maxCtx` — setting `contextSize` above this value has no benefit.
 
 To reset the context with a new system prompt and tools:
 
