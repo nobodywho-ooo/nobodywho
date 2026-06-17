@@ -2,6 +2,7 @@ pub mod chat;
 pub mod crossencoder;
 pub mod encoder;
 pub mod errors;
+pub(crate) mod inference;
 pub mod llm;
 pub mod memory;
 pub mod sampler;

@@ -24,27 +24,25 @@
 //!
 
 use crate::errors::{
-    ChatWorkerError, ContextSyncError, DecodingError, GenerateResponseError, InitWorkerError,
+    ChatWorkerError, ContextSyncError, InitWorkerError,
     MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
     TokenizeError, WrappedResponseError,
 };
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
-use crate::llm::{Worker, WorkerGuard, WriteOutput};
+use crate::inference::{wrap_respond, Generate};
+use crate::llm::{Worker, WorkerGuard};
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{
-    find_chunks_prefix_difference, ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk,
-    TokenizerChunks,
+    ChunkId, Prompt, PromptPart, Promptable, TokenizerChunks,
 };
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::mtmd::MtmdBitmap;
-use llama_cpp_2::sampling::LlamaSampler;
-use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::HashSet;
@@ -52,7 +50,7 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace, trace_span};
+use tracing::{debug, error, info};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
@@ -1334,6 +1332,12 @@ impl llm::PoolingType for ChatWorker {
     }
 }
 
+impl Generate for ChatWorker {
+    fn should_stop(&self) -> bool {
+        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 impl Worker<'_, ChatWorker> {
     fn new_chat_worker(
         model: &llm::Model,
@@ -1403,12 +1407,6 @@ impl Worker<'_, ChatWorker> {
         )
     }
 
-    fn should_stop(&self) -> bool {
-        self.extra
-            .should_stop
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
     pub fn add_system_message(&mut self, content: String) {
         self.extra.messages.push(Message::System { content });
     }
@@ -1446,35 +1444,9 @@ impl Worker<'_, ChatWorker> {
             chunks = self.render_as_chunks(true)?;
         }
 
-        let prefix_index = find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
-
-        // We should never try to sync with an empty render
-        debug_assert!(!chunks.is_empty());
-
-        // this call may remove more than just the tokens from prefix_index
-        // it updates self.n_past to indicate num of tokens in context
-        let old_n_past = self.n_past;
-        self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-
-        // Use n_past as the actual preserved prefix — may be 0 if a full reset was
-        // required (e.g. hybrid/recurrent models that don't support partial seq_rm).
-        let chunks_to_read = chunks.tail(self.n_past as usize);
-        if chunks_to_read.n_tokens() > 0 {
-            self.read_chunks(chunks_to_read, inference_lock_token)?;
-        } else if self.n_past < old_n_past {
-            // Truncate-only path: the KV cache was trimmed but no new tokens
-            // need to be appended. Re-decode the last remaining token to
-            // refresh the logits buffer, which would otherwise contain stale
-            // values from whatever the previous decode() call happened to be.
-            // llama.cpp requires strictly consecutive positions (Y = X + 1),
-            // so we must remove the last token from the KV cache before we
-            // can re-decode it.
-            self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
-            let refresh_tokens = chunks.tail(self.n_past as usize);
-            self.read_chunks(refresh_tokens, inference_lock_token)?;
-        }
-
-        self.extra.context.chunks = chunks;
+        let prev = self.extra.context.chunks.clone();
+        let new_chunks = self.sync_context(chunks, &prev, inference_lock_token)?;
+        self.extra.context.chunks = new_chunks;
         self.extra
             .context
             .garbage_collect_bitmaps(&self.extra.messages);
@@ -1573,124 +1545,6 @@ impl Worker<'_, ChatWorker> {
     // This is a safety meassure to prevent bugs from multiple
     // contexts with the same model. It might not be necessary
     // but assume it is.
-    pub fn generate_response_until_done<F>(
-        &mut self,
-        sampler_config: SamplerConfig,
-        mut respond: F,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, GenerateResponseError>
-    where
-        F: FnMut(WriteOutput),
-    {
-        // Token generation loop
-        info!("Worker writing until done");
-
-        // pre-allocating 4096 bytes for the response string
-        // 4096 is a very randomly chosen number. how does this affect performance?
-        let mut full_response: String = String::with_capacity(4096);
-        let mut tokens_written_until_now = TokenizerChunks::new();
-
-        // initialize sampler
-        // stateful samplers only live for one response
-        let mut sampler = sampler_config.to_stateful(self.ctx.model)?;
-
-        // init statefull decoder for split up tokens like emojis
-        let mut decoder = encoding_rs::UTF_8.new_decoder();
-
-        while !self.should_stop() {
-            // Check if the context is full
-            if self.n_past as u32 == self.ctx.n_ctx() {
-                self.context_shift()?;
-                self.sync_context_with_render(inference_lock_token)?;
-                self.read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
-                // do not update tokens_in_context as this is done later by ask
-            }
-
-            // Sample next token, no need to use sampler.accept as sample already accepts the token.
-            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
-            // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_token = self.sample_and_decode_next_token(&mut sampler)?;
-
-            tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
-
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
-                .ctx
-                .model
-                .token_to_piece_bytes(new_token, 8, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
-                }
-                x => x,
-            }?;
-
-            // Attempt to convert bytes to utf8 string.
-            let max_len = decoder
-                .max_utf8_buffer_length(token_bytes.len())
-                .unwrap_or(32);
-            let mut token_str = String::with_capacity(max_len);
-
-            // this is where the utf-8 decoder handles partial unicode
-            // it'll write whatever printable chars it can into `token_str`
-            // and retain partial codepoints for next decoding attempt
-            let (_result, _bytes_read, _had_errors) =
-                decoder.decode_to_string(&token_bytes, &mut token_str, false);
-
-            // XXX: this literal '<eos>' token match is a fucked hotfix for gemma4. it seems like
-            // some gemma4 models will emit a *wrong* eos token (doesn't match the expected format)
-            // after tool calls. This doesn't trigger the is_eog_token match in llama.cpp and
-            // causes a bad infinite generation loop.
-            // it seems like vllm also has a codepath to handle this specific case:
-            // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
-            let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
-
-            let has_eog = self.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
-            trace!(?new_token, ?token_str, ?has_eog);
-
-            if !has_eog {
-                full_response.push_str(&token_str);
-                trace!(?token_str, "Sending out token:");
-                respond(WriteOutput::Token(token_str.to_string()));
-            }
-
-            if has_eog {
-                break;
-            }
-        }
-
-        // we're done!
-        debug!(%full_response, "Sending out");
-        respond(WriteOutput::Done(full_response));
-        Ok(self)
-    }
-
-    fn sample_and_decode_next_token(
-        &mut self,
-        sampler: &mut LlamaSampler,
-    ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler");
-        let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
-
-        // batch of one
-        self.small_batch.clear();
-        self.small_batch.add(new_token, self.n_past, &[0], true)?;
-
-        // llm go brr
-        let decode_span = trace_span!("write decode", n_past = self.n_past);
-        let decode_guard = decode_span.enter();
-        self.ctx.decode(&mut self.small_batch)?;
-        drop(decode_guard);
-        self.n_past += 1; // keep count
-
-        Ok(new_token)
-    }
-
     pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
@@ -1874,7 +1728,17 @@ impl Worker<'_, ChatWorker> {
         let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
+        self.generate_response_until_done(
+            sampler,
+            wrapped_respond,
+            &inference_lock_token,
+            |worker, tokens_written, lock| {
+                worker.context_shift()?;
+                worker.sync_context_with_render(lock)?;
+                worker.read_chunks(tokens_written.clone(), lock)?;
+                Ok(())
+            },
+        )?;
 
         Ok(resp_receiver.recv()?)
     }
@@ -2076,40 +1940,6 @@ impl Worker<'_, ChatWorker> {
     }
 }
 
-/// wraps a response function in a closure to do two things:
-/// 1. save a copy of the response (using a channel) before sending it out
-/// 2. skip emitting once a tool_call_begin_token has been seen
-fn wrap_respond<F>(
-    respond: F,
-    tool_call_begin_token: Option<String>,
-) -> (
-    impl FnMut(llm::WriteOutput),
-    std::sync::mpsc::Receiver<String>,
-)
-where
-    F: Fn(llm::WriteOutput),
-{
-    let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
-    let mut emitting = true;
-
-    let wrapped_respond = move |x| {
-        match &x {
-            llm::WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
-                emitting = false;
-            }
-            llm::WriteOutput::Done(resp) => {
-                resp_sender
-                    .send(resp.clone())
-                    .expect("Failed sending response");
-            }
-            llm::WriteOutput::Token(_) | llm::WriteOutput::Error(_) => (),
-        }
-        if emitting {
-            respond(x)
-        }
-    };
-    (wrapped_respond, resp_receiver)
-}
 
 #[cfg(test)]
 mod tests {
