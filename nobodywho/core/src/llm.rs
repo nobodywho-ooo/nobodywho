@@ -862,11 +862,12 @@ where
     pub fn remove_all_tokens_from_index_from_ctx(
         &mut self,
         index: usize,
-    ) -> Result<(), KvCacheConversionError> {
+    ) -> Result<i32, KvCacheConversionError> {
         if self.n_past <= index as i32 {
-            return Ok(());
+            return Ok(0);
         }
 
+        let before = self.n_past;
         let seq_rm_success = self
             .ctx
             .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
@@ -884,7 +885,7 @@ where
             self.reset_context();
         }
 
-        Ok(())
+        Ok(before - self.n_past)
     }
 }
 

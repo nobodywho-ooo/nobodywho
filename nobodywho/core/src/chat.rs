@@ -27,9 +27,9 @@ use crate::errors::{
     ChatWorkerError, ContextSyncError, InitWorkerError, MultimodalError, RenderError, SayError,
     SelectTemplateError, SetToolsError, ShiftError, TokenizeError, WrappedResponseError,
 };
+use crate::inference::{acquire_inference_lock, GlobalInferenceLockToken};
 use crate::inference::{wrap_respond, Generate};
 use crate::llm;
-use crate::inference::{acquire_inference_lock, GlobalInferenceLockToken};
 use crate::llm::{Worker, WorkerGuard};
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::{SamplerConfig, ShiftStep};

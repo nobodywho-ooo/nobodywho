@@ -39,21 +39,17 @@ impl<'a, T: Generate + PoolingType> Worker<'a, T> {
 
         debug_assert!(!target.is_empty());
 
-        // remove_all_tokens_from_index_from_ctx may remove more tokens than prefix_index alone;
-        // it updates self.n_past to the count of tokens still in the KV cache afterward.
-        let old_n_past = self.n_past;
-        self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
+        let trimmed = self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
 
         let chunks_to_read = target.tail(self.n_past as usize);
         if chunks_to_read.n_tokens() > 0 {
             self.read_chunks(chunks_to_read, inference_lock_token)?;
-        } else if self.n_past < old_n_past {
+        } else if trimmed > 0 {
             // Truncate-only: KV cache was trimmed but no new tokens need appending.
             // Re-decode the last token to refresh stale logits — llama.cpp requires
             // consecutive positions so we must evict it before re-reading.
             self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
-            let refresh_tokens = target.tail(self.n_past as usize);
-            self.read_chunks(refresh_tokens, inference_lock_token)?;
+            self.read_chunks(target.tail(self.n_past as usize), inference_lock_token)?;
         }
 
         Ok(target)
