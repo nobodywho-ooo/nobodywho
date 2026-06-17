@@ -2,7 +2,6 @@ use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
 use indicatif::{ProgressBar, ProgressStyle};
-use lazy_static::lazy_static;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
 use llama_cpp_2::context::LlamaContext;
@@ -21,12 +20,7 @@ use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
 use tracing::{debug, debug_span, error, info, info_span, warn};
 
-#[derive(Debug)]
-pub(crate) struct GlobalInferenceLockToken;
-lazy_static! {
-    pub(crate) static ref GLOBAL_INFERENCE_LOCK: Mutex<GlobalInferenceLockToken> =
-        Mutex::new(GlobalInferenceLockToken);
-}
+pub(crate) use crate::inference::{acquire_inference_lock, GlobalInferenceLockToken};
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
@@ -750,8 +744,7 @@ where
 
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
+        let inference_lock_token = acquire_inference_lock();
         let chunks = self.tokenizer.tokenize(text, vec![])?;
         self.read_chunks(chunks, &inference_lock_token)
     }

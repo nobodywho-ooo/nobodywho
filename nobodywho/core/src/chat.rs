@@ -24,20 +24,17 @@
 //!
 
 use crate::errors::{
-    ChatWorkerError, ContextSyncError, InitWorkerError,
-    MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
-    TokenizeError, WrappedResponseError,
+    ChatWorkerError, ContextSyncError, InitWorkerError, MultimodalError, RenderError, SayError,
+    SelectTemplateError, SetToolsError, ShiftError, TokenizeError, WrappedResponseError,
 };
-use crate::llm;
-use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::inference::{wrap_respond, Generate};
+use crate::llm;
+use crate::inference::{acquire_inference_lock, GlobalInferenceLockToken};
 use crate::llm::{Worker, WorkerGuard};
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
-use crate::tokenizer::{
-    ChunkId, Prompt, PromptPart, Promptable, TokenizerChunks,
-};
+use crate::tokenizer::{ChunkId, Prompt, PromptPart, Promptable, TokenizerChunks};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
 use indexmap::IndexMap;
@@ -1444,7 +1441,7 @@ impl Worker<'_, ChatWorker> {
             chunks = self.render_as_chunks(true)?;
         }
 
-        let prev = self.extra.context.chunks.clone();
+        let prev = std::mem::take(&mut self.extra.context.chunks);
         let new_chunks = self.sync_context(chunks, &prev, inference_lock_token)?;
         self.extra.context.chunks = new_chunks;
         self.extra
@@ -1719,8 +1716,7 @@ impl Worker<'_, ChatWorker> {
         F: Fn(llm::WriteOutput) + Clone,
     {
         // Check how much of the current KVCache we can keep
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
+        let inference_lock_token = acquire_inference_lock();
         self.sync_context_with_render(&inference_lock_token)?;
 
         // wrap the response callback to keep a copy of the completed response
@@ -1939,7 +1935,6 @@ impl Worker<'_, ChatWorker> {
         Ok(chunks.to_token_ids())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
