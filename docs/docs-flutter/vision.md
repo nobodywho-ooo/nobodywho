@@ -55,11 +55,8 @@ final response = await chat.askWithPrompt(nobodywho.Prompt([
 
 ## In-memory media (no temp files)
 
-Use `ImageBytes` for encoded image bytes already in memory (PNG/JPEG/etc.
-from `rootBundle.load()`, `http.get().bodyBytes`, a Flutter canvas, etc.)
-and `AudioPcm` for 16-bit PCM samples (live microphone capture from
-`flutter_sound` / `mic_stream`, or after decoding an audio file yourself).
-Same sibling-class pattern exists in every other binding.
+`ImageBytes` accepts encoded image bytes already in memory (PNG/JPEG/etc.);
+`AudioPcm` accepts 16-bit PCM samples + sample rate.
 
 ```dart continuation
 await chat.resetHistory();
@@ -74,12 +71,9 @@ final response3 = await chat.askWithPrompt(nobodywho.Prompt([
 ```
 
 :::info Audio sample rate
-`AudioPcm` requires PCM samples to be at the **model's expected
-sample rate**. For every current audio-capable multimodal LLM (Gemma 4,
-Phi-4 multimodal, Qwen2-Audio, etc.) this is **16 kHz** — the default if you
-omit `sampleRate`. Most microphone APIs capture at 44.1 or 48 kHz; resample
-to 16 kHz before passing in. NobodyWho fails fast with a clear error if the
-rate doesn't match, rather than silently returning garbled transcriptions.
+`AudioPcm` expects samples at the model's expected rate — **16 kHz** for
+every current audio-capable multimodal LLM, also the default if you omit
+`sampleRate`. Resample to 16 kHz if your source is at a different rate.
 :::
 
 ## Tips for multimodality

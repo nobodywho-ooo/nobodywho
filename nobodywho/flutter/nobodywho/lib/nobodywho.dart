@@ -671,7 +671,7 @@ class Chat {
   /// response tokens.
   ///
   /// ```dart
-  /// chat.askWithPrompt(Prompt([TextPart("Describe this image"), ImagePart("photo.jpg")]))
+  /// chat.askWithPrompt(nobodywho.Prompt([nobodywho.Text("Describe this image"), nobodywho.Image("photo.jpg")]))
   /// ```
   TokenStream askWithPrompt(Prompt prompt) {
     return TokenStream._(

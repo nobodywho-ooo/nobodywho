@@ -53,6 +53,28 @@ val response = chat.ask(Prompt(
 println(response) // It's a dog!
 ```
 
+## In-memory media (no temp files)
+
+`Prompt.ImageBytes` accepts encoded image bytes already in memory
+(PNG/JPEG/etc.); `Prompt.AudioPcm` accepts 16-bit PCM samples + sample rate.
+
+```kotlin
+val pngBytes: ByteArray = context.assets.open("dog.png").readBytes()
+val pcmSamples: ShortArray = micCapture.takeNext()
+
+val response = chat.ask(Prompt(
+    Prompt.Text("Describe the image."),
+    Prompt.ImageBytes(pngBytes),
+    Prompt.AudioPcm(pcmSamples, sampleRate = 16000u),
+)).completed()
+```
+
+:::info Audio sample rate
+`Prompt.AudioPcm` expects samples at the model's expected rate — **16 kHz**
+for every current audio-capable multimodal LLM, also the default if you
+omit `sampleRate`. Resample to 16 kHz if your source is at a different rate.
+:::
+
 ## Tips for multimodality
 
 The format in which you supply the multimodal prompt can matter. If the model performs poorly, try changing the order of text and media, or adjusting descriptions:

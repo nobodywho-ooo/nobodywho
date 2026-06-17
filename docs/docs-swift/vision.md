@@ -63,6 +63,29 @@ let prompt = Prompt([
 let response = try await chat.ask(prompt).completed()
 ```
 
+## In-memory media (no temp files)
+
+`Prompt.imageBytes` accepts encoded image bytes already in memory
+(PNG/JPEG/etc.); `Prompt.audioPcm` accepts 16-bit PCM samples + sample rate.
+
+```swift
+let pngData: Data = try Data(contentsOf: imageURL)
+let pcmSamples: [Int16] = micCapture.takeNext()
+
+let prompt = Prompt([
+    Prompt.text("Describe the image."),
+    Prompt.imageBytes(pngData),
+    Prompt.audioPcm(samples: pcmSamples, sampleRate: 16000),
+])
+let response = try await chat.ask(prompt).completed()
+```
+
+:::info Audio sample rate
+`Prompt.audioPcm` expects samples at the model's expected rate — **16 kHz**
+for every current audio-capable multimodal LLM, also the default if you omit
+`sampleRate`. Resample to 16 kHz if your source is at a different rate.
+:::
+
 ## Tips for multimodality
 
 As with textual prompts, the format in which you supply the multimodal prompt can matter in certain

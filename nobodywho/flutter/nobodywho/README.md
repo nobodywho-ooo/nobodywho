@@ -240,9 +240,9 @@ final chat = nobodywho.Chat(
 );
 
 final response = await chat.askWithPrompt(nobodywho.Prompt([
-  nobodywho.TextPart("Tell me what you see in the image and what you hear in the audio."),
-  nobodywho.ImagePart("./dog.png"),
-  nobodywho.AudioPart("./sound.mp3"),
+  nobodywho.Text("Tell me what you see in the image and what you hear in the audio."),
+  nobodywho.Image("./dog.png"),
+  nobodywho.Audio("./sound.mp3"),
 ])).completed();
 ```
 
