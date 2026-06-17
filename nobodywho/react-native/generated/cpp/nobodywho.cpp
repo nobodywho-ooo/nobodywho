@@ -563,31 +563,26 @@ template <> struct Bridging<RustBuffer> {
 
   static jsi::Value toJs(jsi::Runtime &rt, std::shared_ptr<CallInvoker>,
                          RustBuffer buf) {
-    // View-handoff: hand JS a `Uint8Array` view aliasing the Rust-owned bytes
-    // (no boundary copy). The single mandatory copy now happens inside
-    // `converter.lift(view)` (string decode, byte-array `set`, field-by-field
-    // record reads). The codegen-emitted try/finally calls `rustbuffer_free`
-    // on the view after `lift` returns, releasing the Rust allocation.
-    //
-    // Capacity hint: Rust may return a buffer where `capacity > len`. The
-    // view's `byteLength` is `len` (so converters that decode the whole view
-    // see only the message bytes), but `rustbuffer_free` needs `capacity` to
-    // free correctly. We stash `capacity` on the view via a string-keyed
-    // property when it differs from `len`; the JSI `rustbufferFree` host
-    // function reads it back and falls back to `byteLength` for views from
-    // `rustbufferAlloc(n)` where `byteLength == capacity` already.
-    //
-    // CMutableBuffer is non-owning here: its destructor leaves `buf.data`
-    // alone. Only the codegen-emitted `rustbuffer_free` path frees it.
+    // We need to make a copy of the bytes from Rust's memory space into
+    // Javascripts memory space. We need to do this because the two languages
+    // manages memory very differently: a garbage collector needs to track all
+    // the memory at runtime, Rust is doing it all closer to compile time.
+    uint8_t *bytes = new uint8_t[buf.len];
+    std::memcpy(bytes, buf.data, buf.len);
+
+    // Construct an ArrayBuffer with copy of the bytes from the RustBuffer.
     auto payload = std::make_shared<uniffi_jsi::CMutableBuffer>(
-        buf.data, static_cast<size_t>(buf.len));
-    auto view =
-        uniffi_jsi::arraybufferToUint8Array(rt, jsi::ArrayBuffer(rt, payload));
-    if (buf.capacity != static_cast<uint64_t>(buf.len)) {
-      view.setProperty(rt, uniffi_jsi::kUbrnRustCapacity,
-                       jsi::Value(static_cast<double>(buf.capacity)));
-    }
-    return jsi::Value(rt, view);
+        uniffi_jsi::CMutableBuffer((uint8_t *)bytes, buf.len));
+    auto arrayBuffer = jsi::ArrayBuffer(rt, payload);
+
+    // Once we have a Javascript version, we no longer need the Rust version, so
+    // we can call into Rust to tell it it's okay to free that memory.
+    rustbuffer_free(buf);
+
+    // Finally, return the ArrayBuffer.
+    return uniffi_jsi::Bridging<jsi::ArrayBuffer>::arraybuffer_to_value(
+        rt, arrayBuffer);
+    ;
   }
 };
 
@@ -612,22 +607,8 @@ template <> struct Bridging<RustCallStatus> {
                          const jsi::Value &jsStatus) {
     auto statusObject = jsStatus.asObject(rt);
     if (status.error_buf.data != nullptr) {
-      // The error path is NOT wrapped in the codegen-emitted try/finally that
-      // covers normal returns: `errorBuf` is read by the runtime's call-status
-      // dispatcher (rust-call.ts) which throws straight to the user without
-      // ever calling `rustbuffer_free`. Switching this site to view-handoff
-      // would leak the Rust allocation, so we keep the copy semantics here:
-      // copy the bytes into a JS-owned ArrayBuffer and free the Rust buffer
-      // immediately. The errorBuf is small (a serialized error variant) and
-      // only allocated on the cold error path, so the boundary copy is cheap.
-      auto len = static_cast<size_t>(status.error_buf.len);
-      uint8_t *bytes = new uint8_t[len];
-      std::memcpy(bytes, status.error_buf.data, len);
-      auto payload = std::make_shared<uniffi_jsi::CMutableBuffer>(bytes, len);
-      auto view = uniffi_jsi::arraybufferToUint8Array(
-          rt, jsi::ArrayBuffer(rt, payload));
-      statusObject.setProperty(rt, "errorBuf", view);
-      Bridging<RustBuffer>::rustbuffer_free(status.error_buf);
+      auto rbuf = Bridging<RustBuffer>::toJs(rt, callInvoker, status.error_buf);
+      statusObject.setProperty(rt, "errorBuf", rbuf);
     }
     if (status.code != UNIFFI_CALL_STATUS_OK) {
       auto code =
@@ -1225,9 +1206,9 @@ template <> struct Bridging<UniffiForeignFutureResultU8> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint8_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1290,9 +1271,9 @@ template <> struct Bridging<UniffiForeignFutureResultI8> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int8_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1355,9 +1336,9 @@ template <> struct Bridging<UniffiForeignFutureResultU16> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint16_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1421,9 +1402,9 @@ template <> struct Bridging<UniffiForeignFutureResultI16> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int16_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1487,9 +1468,9 @@ template <> struct Bridging<UniffiForeignFutureResultU32> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint32_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1553,9 +1534,9 @@ template <> struct Bridging<UniffiForeignFutureResultI32> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int32_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1619,9 +1600,9 @@ template <> struct Bridging<UniffiForeignFutureResultU64> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<uint64_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1685,9 +1666,9 @@ template <> struct Bridging<UniffiForeignFutureResultI64> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<int64_t>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1751,9 +1732,9 @@ template <> struct Bridging<UniffiForeignFutureResultF32> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<float>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1817,9 +1798,9 @@ template <> struct Bridging<UniffiForeignFutureResultF64> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi_jsi::Bridging<double>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1883,9 +1864,9 @@ template <> struct Bridging<UniffiForeignFutureResultRustBuffer> {
 
     // Create the vtable from the js callbacks.
     rsObject.return_value = uniffi::nobodywho::Bridging<RustBuffer>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "return_value"));
+        rt, callInvoker, jsObject.getProperty(rt, "returnValue"));
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -1951,7 +1932,7 @@ template <> struct Bridging<UniffiForeignFutureResultVoid> {
 
     // Create the vtable from the js callbacks.
     rsObject.call_status = uniffi::nobodywho::Bridging<RustCallStatus>::fromJs(
-        rt, callInvoker, jsObject.getProperty(rt, "call_status"));
+        rt, callInvoker, jsObject.getProperty(rt, "callStatus"));
 
     return rsObject;
   }
@@ -2284,17 +2265,17 @@ struct Bridging<UniffiVTableCallbackInterfaceRustDownloadProgressCallback> {
         vtablecallbackinterfacerustdownloadprogresscallback::
             vtablecallbackinterfacerustdownloadprogresscallback::free::
                 makeCallbackFunction(rt, callInvoker,
-                                     jsObject.getProperty(rt, "uniffi_free"));
+                                     jsObject.getProperty(rt, "uniffiFree"));
     rsObject.uniffi_clone = uniffi::nobodywho::cb::callbackinterfaceclone::
         vtablecallbackinterfacerustdownloadprogresscallback::
             makeCallbackFunction(rt, callInvoker,
-                                 jsObject.getProperty(rt, "uniffi_clone"));
+                                 jsObject.getProperty(rt, "uniffiClone"));
     rsObject.on_download_progress = uniffi::nobodywho::cb::
         callbackinterfacerustdownloadprogresscallbackmethod0::
             vtablecallbackinterfacerustdownloadprogresscallback::
                 makeCallbackFunction(
                     rt, callInvoker,
-                    jsObject.getProperty(rt, "on_download_progress"));
+                    jsObject.getProperty(rt, "onDownloadProgress"));
 
     return rsObject;
   }
@@ -2589,10 +2570,10 @@ template <> struct Bridging<UniffiVTableCallbackInterfaceRustToolCallback> {
     rsObject.uniffi_free =
         uniffi::nobodywho::st::vtablecallbackinterfacerusttoolcallback::
             vtablecallbackinterfacerusttoolcallback::free::makeCallbackFunction(
-                rt, callInvoker, jsObject.getProperty(rt, "uniffi_free"));
+                rt, callInvoker, jsObject.getProperty(rt, "uniffiFree"));
     rsObject.uniffi_clone = uniffi::nobodywho::cb::callbackinterfaceclone::
         vtablecallbackinterfacerusttoolcallback::makeCallbackFunction(
-            rt, callInvoker, jsObject.getProperty(rt, "uniffi_clone"));
+            rt, callInvoker, jsObject.getProperty(rt, "uniffiClone"));
     rsObject.call =
         uniffi::nobodywho::cb::callbackinterfacerusttoolcallbackmethod0::
             vtablecallbackinterfacerusttoolcallback::makeCallbackFunction(
@@ -2639,39 +2620,27 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_internal_fn_func_ffi__string_to_byte_length(
                 rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_internal_fn_func_ffi__string_to_buffer"] =
+  props["ubrn_uniffi_internal_fn_func_ffi__string_to_arraybuffer"] =
       jsi::Function::createFromHostFunction(
           rt,
           jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_internal_fn_func_ffi__string_to_buffer"),
+              rt, "ubrn_uniffi_internal_fn_func_ffi__string_to_arraybuffer"),
           1,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_internal_fn_func_ffi__string_to_buffer(
+            return this->cpp_uniffi_internal_fn_func_ffi__string_to_arraybuffer(
                 rt, thisVal, args, count);
           });
-  props["ubrn_uniffi_internal_fn_func_ffi__string_from_buffer"] =
+  props["ubrn_uniffi_internal_fn_func_ffi__arraybuffer_to_string"] =
       jsi::Function::createFromHostFunction(
           rt,
           jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_internal_fn_func_ffi__string_from_buffer"),
+              rt, "ubrn_uniffi_internal_fn_func_ffi__arraybuffer_to_string"),
           1,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_internal_fn_func_ffi__string_from_buffer(
+            return this->cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(
                 rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_internal_fn_func_ffi__read_string_from_buffer"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_internal_fn_func_ffi__read_string_from_buffer"),
-          3,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_internal_fn_func_ffi__read_string_from_buffer(
-                    rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat"] =
       jsi::Function::createFromHostFunction(
@@ -4972,85 +4941,6 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_internal_fn_method_samplerconfig_ffi__bless_pointer(
                     rt, thisVal, args, count);
           });
-
-  // `rustbuffer_alloc(n)` -> Uint8Array view over Rust-owned memory of capacity
-  // `n`. `rustbuffer_free(view)` -> hands the underlying (ptr, capacity) back
-  // to the crate's `rustbuffer_free`. Together they let JS allocate buffers
-  // that the codegen-emitted lowering path can fill in place and ship to Rust
-  // without copying.
-  props["rustbuffer_alloc"] = jsi::Function::createFromHostFunction(
-      rt, jsi::PropNameID::forAscii(rt, "rustbuffer_alloc"), 1,
-      [](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-         size_t count) -> jsi::Value {
-        if (count < 1 || !args[0].isNumber()) {
-          throw jsi::JSError(rt, "rustbuffer_alloc expected a number argument");
-        }
-        double size = args[0].asNumber();
-        if (size < 0) {
-          throw jsi::JSError(rt, "rustbuffer_alloc: size must be non-negative");
-        }
-        if (size > INT32_MAX) {
-          throw jsi::JSError(rt, "rustbuffer_alloc: size exceeds INT32_MAX");
-        }
-        auto rb = uniffi::nobodywho::Bridging<RustBuffer>::rustbuffer_alloc(
-            static_cast<int32_t>(size));
-        if (rb.data == nullptr) {
-          throw jsi::JSError(rt,
-                             "rustbuffer_alloc failed: alloc returned null");
-        }
-        // Non-owning view over Rust-allocated memory; CMutableBuffer's
-        // destructor is the default and does not free `rb.data`. JS must call
-        // rustbuffer_free explicitly before dropping the reference.
-        auto payload = std::make_shared<uniffi_jsi::CMutableBuffer>(
-            rb.data, static_cast<size_t>(rb.capacity));
-        // Wrap as Uint8Array so JS can index/assign bytes directly.
-        return jsi::Value(rt, uniffi_jsi::arraybufferToUint8Array(
-                                  rt, jsi::ArrayBuffer(rt, payload)));
-      });
-
-  props["rustbuffer_free"] = jsi::Function::createFromHostFunction(
-      rt, jsi::PropNameID::forAscii(rt, "rustbuffer_free"), 1,
-      [](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-         size_t count) -> jsi::Value {
-        if (count < 1 || !args[0].isObject()) {
-          throw jsi::JSError(rt,
-                             "rustbuffer_free expected a Uint8Array argument");
-        }
-        auto view = args[0].asObject(rt);
-        auto byteLength =
-            static_cast<size_t>(view.getProperty(rt, "byteLength").asNumber());
-        // Empty views were never allocated by `rustbuffer_alloc`; nothing
-        // to free. Bail out before reading buffer/byteOffset/capacity to
-        // skip three JSI property traversals on the empty path.
-        if (byteLength == 0) {
-          return jsi::Value::undefined();
-        }
-        // Capacity resolution:
-        //   * For a view from `rustbuffer_alloc(n)`, `byteLength == n ==
-        //   capacity`,
-        //     and no `__ubrnRustCapacity` hint was set.
-        //   * For a view from a lift-handoff, the codegen-emitted
-        //     `Bridging<RustBuffer>::toJs` set `byteLength = len` and stashed
-        //     the original `capacity` on `__ubrnRustCapacity` whenever
-        //     `capacity != len`.
-        // So: prefer the hint, fall back to byteLength.
-        size_t capacity = byteLength;
-        if (view.hasProperty(rt, uniffi_jsi::kUbrnRustCapacity)) {
-          capacity = static_cast<size_t>(
-              view.getProperty(rt, uniffi_jsi::kUbrnRustCapacity).asNumber());
-        }
-        auto buffer = view.getPropertyAsObject(rt, "buffer").getArrayBuffer(rt);
-        auto byteOffset =
-            static_cast<size_t>(view.getProperty(rt, "byteOffset").asNumber());
-        // Honour byteOffset for safety (defensive; currently always 0).
-        RustBuffer rb{
-            .capacity = static_cast<uint64_t>(capacity),
-            .len = 0,
-            .data = buffer.data(rt) + byteOffset,
-        };
-        uniffi::nobodywho::Bridging<RustBuffer>::rustbuffer_free(rb);
-        return jsi::Value::undefined();
-      });
 }
 
 void NativeNobodywho::registerModule(
@@ -5069,7 +4959,7 @@ void NativeNobodywho::unregisterModule(jsi::Runtime &rt) {
 jsi::Value NativeNobodywho::get(jsi::Runtime &rt, const jsi::PropNameID &name) {
   try {
     return jsi::Value(rt, props.at(name.utf8(rt)));
-  } catch (std::out_of_range &) {
+  } catch (std::out_of_range &e) {
     return jsi::Value::undefined();
   }
 }
@@ -5116,24 +5006,18 @@ NativeNobodywho::cpp_uniffi_internal_fn_func_ffi__string_to_byte_length(
   return uniffi_jsi::Bridging<std::string>::string_to_bytelength(rt, args[0]);
 }
 
-jsi::Value NativeNobodywho::cpp_uniffi_internal_fn_func_ffi__string_to_buffer(
+jsi::Value
+NativeNobodywho::cpp_uniffi_internal_fn_func_ffi__string_to_arraybuffer(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
-  return uniffi_jsi::Bridging<std::string>::string_to_buffer(rt, args[0]);
-}
-
-jsi::Value NativeNobodywho::cpp_uniffi_internal_fn_func_ffi__string_from_buffer(
-    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-    size_t count) {
-  return uniffi_jsi::Bridging<std::string>::string_from_buffer(rt, args[0]);
+  return uniffi_jsi::Bridging<std::string>::string_to_arraybuffer(rt, args[0]);
 }
 
 jsi::Value
-NativeNobodywho::cpp_uniffi_internal_fn_func_ffi__read_string_from_buffer(
+NativeNobodywho::cpp_uniffi_internal_fn_func_ffi__arraybuffer_to_string(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
-  return uniffi_jsi::Bridging<std::string>::read_string_from_buffer(
-      rt, args[0], args[1], args[2]);
+  return uniffi_jsi::Bridging<std::string>::arraybuffer_to_string(rt, args[0]);
 }
 jsi::Value
 NativeNobodywho::cpp_uniffi_internal_fn_method_rustchat_ffi__bless_pointer(
