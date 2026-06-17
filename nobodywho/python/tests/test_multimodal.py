@@ -79,7 +79,7 @@ def test_image_description(multimodal_chat):
             nobodywho.Text(
                 "What animal is in this image? Short answer. Focus on the species, not the age or the breed."
             ),
-            nobodywho.Image(_read_bytes("img/penguin.png")),
+            nobodywho.ImageBytes(_read_bytes("img/penguin.png")),
         ]
     )
 
@@ -93,8 +93,8 @@ def test_image_description(multimodal_chat):
 def test_multiple_images(multimodal_chat):
     prompt = nobodywho.Prompt(
         [
-            nobodywho.Image(_read_bytes("img/penguin.png")),
-            nobodywho.Image(_read_bytes("img/dog.png")),
+            nobodywho.ImageBytes(_read_bytes("img/penguin.png")),
+            nobodywho.ImageBytes(_read_bytes("img/dog.png")),
             nobodywho.Text(
                 "What animals are in these images? Short answer. Focus on the species, not the age or the breed."
             ),
@@ -109,9 +109,9 @@ def test_multiple_images_interleaved(multimodal_chat):
     prompt = nobodywho.Prompt(
         [
             nobodywho.Text("What animal is in the first image?"),
-            nobodywho.Image(_read_bytes("img/penguin.png")),
+            nobodywho.ImageBytes(_read_bytes("img/penguin.png")),
             nobodywho.Text("What animal is in the second image?"),
-            nobodywho.Image(_read_bytes("img/dog.png")),
+            nobodywho.ImageBytes(_read_bytes("img/dog.png")),
             nobodywho.Text(
                 "Short answer. Focus on the species, not the age or the breed."
             ),
@@ -129,7 +129,7 @@ def test_image_recollection(multimodal_chat):
             nobodywho.Text(
                 "What animal is in this image? Short answer. Focus on the species, not the age or the breed."
             ),
-            nobodywho.Image(_read_bytes("img/dog.png")),
+            nobodywho.ImageBytes(_read_bytes("img/dog.png")),
         ]
     )
 
@@ -150,7 +150,7 @@ def test_audio_transcription_from_pcm(multimodal_chat):
     prompt = nobodywho.Prompt(
         [
             nobodywho.Text("Please transcribe this audio."),
-            nobodywho.Audio.from_pcm(samples, sample_rate),
+            nobodywho.AudioPcm(samples, sample_rate),
         ]
     )
     response = multimodal_chat.ask(prompt).completed()
@@ -162,8 +162,8 @@ def test_audio_pcm_and_image_bytes(multimodal_chat):
     prompt = nobodywho.Prompt(
         [
             nobodywho.Text("Please transcribe this audio and describe the image."),
-            nobodywho.Audio.from_pcm(samples, sample_rate),
-            nobodywho.Image(_read_bytes("img/dog.png")),
+            nobodywho.AudioPcm(samples, sample_rate),
+            nobodywho.ImageBytes(_read_bytes("img/dog.png")),
         ]
     )
     response = multimodal_chat.ask(prompt).completed()

@@ -3,15 +3,16 @@ import NobodyWhoGenerated
 
 /// A multimodal prompt composed of text, image, and audio parts.
 ///
-/// Image and audio parts can be supplied as a file-system path or as
-/// in-memory content (encoded image bytes / 16-bit PCM audio samples).
+/// `image` / `audio` reference files on disk. `imageBytes` accepts encoded
+/// image bytes already in memory (PNG/JPEG/etc.). `audioPcm` accepts 16-bit
+/// PCM samples + sample rate (typically 16 kHz, the default).
 ///
 /// ```swift
 /// let prompt = Prompt([
 ///     Prompt.text("Tell me what you see."),
-///     Prompt.image("./photo.png"),                       // from disk
-///     Prompt.image(data: pngData),                       // already in memory
-///     Prompt.audio(samples: pcm, sampleRate: 16000),     // mic capture
+///     Prompt.image("./photo.png"),
+///     Prompt.imageBytes(pngData),
+///     Prompt.audioPcm(samples: pcm, sampleRate: 16000),
 /// ])
 /// let stream = chat.ask(prompt)
 /// ```
@@ -33,7 +34,7 @@ public class Prompt {
     }
 
     /// Create an image part from in-memory encoded bytes (PNG, JPEG, etc.).
-    public static func image(data: Data) -> NobodyWhoGenerated.PromptPart {
+    public static func imageBytes(_ data: Data) -> NobodyWhoGenerated.PromptPart {
         return .imageBytes(data: data)
     }
 
@@ -45,7 +46,7 @@ public class Prompt {
     /// Create an audio part from in-memory 16-bit PCM samples + sample rate.
     /// Every current audio-capable multimodal LLM expects **16 kHz** — resample
     /// before passing in. Throws at `ask()` time if the rate doesn't match.
-    public static func audio(samples: [Int16], sampleRate: UInt32 = 16000) -> NobodyWhoGenerated.PromptPart {
+    public static func audioPcm(samples: [Int16], sampleRate: UInt32 = 16000) -> NobodyWhoGenerated.PromptPart {
         return .audioPcm(samples: samples, sampleRate: sampleRate)
     }
 }

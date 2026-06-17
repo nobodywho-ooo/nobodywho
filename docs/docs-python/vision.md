@@ -56,10 +56,13 @@ chat.ask(prompt).completed() # It's a dog and a penguin!
 
 ## In-memory media (no temp files)
 
-Both `Image` and `Audio` accept content that's already in memory, so you don't
-have to write to a temp file just to talk to the model.
+Use `ImageBytes` for an in-memory encoded image (PNG, JPEG, etc.) and
+`AudioPcm` for in-memory 16-bit PCM samples. Same sibling-class pattern
+exists in every other binding.
 
 ```python notest
+from nobodywho import AudioPcm, ImageBytes, Prompt, Text
+
 # Image from in-memory bytes (PNG, JPEG, BMP, GIF, etc.)
 # Use this when the image came from an HTTP response, an asset bundle, a
 # canvas you drew, a PIL.Image you encoded, etc.
@@ -68,7 +71,7 @@ png_bytes = requests.get("https://example.com/photo.png").content
 
 prompt = Prompt([
     Text("What animal is in this image?"),
-    Image(png_bytes),
+    ImageBytes(png_bytes),
 ])
 
 # Audio from in-memory PCM samples (16-bit signed integers)
@@ -82,7 +85,7 @@ with wave.open("./recording.wav", "rb") as wf:
 
 prompt = Prompt([
     Text("Please transcribe this audio."),
-    Audio.from_pcm(samples, sample_rate),
+    AudioPcm(samples, sample_rate),
 ])
 ```
 

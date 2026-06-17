@@ -121,7 +121,7 @@ final class NobodyWhoTests: XCTestCase {
         let chat = try Chat(model: model, systemPrompt: "Describe what you see briefly.")
 
         let prompt = Prompt([
-            Prompt.image(data: imageData),
+            Prompt.imageBytes(imageData),
             Prompt.text("What is in this image?"),
         ])
         let response = try await chat.ask(prompt).completed()

@@ -110,7 +110,7 @@ void main() {
       if (sharedModel == null) return;
       final chat = newChat(contextSize: 2048);
       final prompt = nobodywho.Prompt([
-        nobodywho.TextPart("What is the capital of France?"),
+        nobodywho.Text("What is the capital of France?"),
       ]);
       final response = await chat.askWithPrompt(prompt).completed();
       expect(response, contains("Paris"));
@@ -122,10 +122,10 @@ void main() {
       final bytes = await File(imagePath).readAsBytes();
       final chat = newChat();
       final prompt = nobodywho.Prompt([
-        nobodywho.TextPart(
+        nobodywho.Text(
           "Describe what animal is in this image in one word. Do not focus on the age of the animal.",
         ),
-        nobodywho.ImagePart.fromBytes(bytes),
+        nobodywho.ImageBytes(bytes),
       ]);
 
       final response = await chat.askWithPrompt(prompt).completed();
@@ -138,8 +138,8 @@ void main() {
       final wav = readWavAsPcm(audioPath);
       final chat = newChat();
       final prompt = nobodywho.Prompt([
-        nobodywho.TextPart("Please transcribe this audio."),
-        nobodywho.AudioPart.fromPcm(wav.samples, sampleRate: wav.sampleRate),
+        nobodywho.Text("Please transcribe this audio."),
+        nobodywho.AudioPcm(wav.samples, sampleRate: wav.sampleRate),
       ]);
 
       final response = await chat.askWithPrompt(prompt).completed();
@@ -152,10 +152,10 @@ void main() {
 
       final chat = newChat();
       final prompt = nobodywho.Prompt([
-        nobodywho.TextPart(
+        nobodywho.Text(
           "Describe what animal is in this image in one word. Do not focus on the age of the animal.",
         ),
-        nobodywho.ImagePart(imagePath),
+        nobodywho.Image(imagePath),
       ]);
 
       final response = await chat.askWithPrompt(prompt).completed();
