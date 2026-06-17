@@ -33,7 +33,7 @@ class Chat:
     to use, whether to allow extended thinking, etc.
     See `ChatAsync` for the async version of this class.
     """
-    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "Chat":
+    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: "SamplerConfig | SamplerBuilder | None" = None, allow_thinking: "bool | None" = None) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
         
@@ -147,7 +147,7 @@ class Chat:
             ValueError: If message format is invalid
             RuntimeError: If setting history fails
         """
-    def set_sampler_config(self, /, sampler: SamplerConfig) -> None:
+    def set_sampler_config(self, /, sampler: "SamplerConfig | SamplerBuilder") -> None:
         """
         Update the sampler configuration without resetting chat history.
         
@@ -212,7 +212,7 @@ class ChatAsync:
     This is the async version of the `Chat` class.
     See the docs for the `Chat` class for more information.
     """
-    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync":
+    def __new__(cls, /, model: "Model | os.PathLike | str", n_ctx: int = 4096, system_prompt: str | None = None, template_variables: "dict[str, bool]" = ..., tools: "list[Tool]" = ..., sampler: "SamplerConfig | SamplerBuilder | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
         
@@ -326,7 +326,7 @@ class ChatAsync:
             ValueError: If message format is invalid
             RuntimeError: If setting history fails
         """
-    async def set_sampler_config(self, /, sampler: SamplerConfig) -> None:
+    async def set_sampler_config(self, /, sampler: "SamplerConfig | SamplerBuilder") -> None:
         """
         Update the sampler configuration without resetting chat history.
         

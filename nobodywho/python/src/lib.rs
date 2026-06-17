@@ -668,14 +668,14 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | SamplerBuilder | None" = None, allow_thinking: "bool | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
-        sampler: Option<SamplerConfig>,
+        sampler: Option<SamplerConfigOrBuilder>,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -707,7 +707,7 @@ impl Chat {
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.
             if let Some(s) = sampler {
-                builder = builder.with_sampler(s.sampler_config);
+                builder = builder.with_sampler(s.into_config());
             }
             builder.build()
         });
@@ -939,10 +939,11 @@ impl Chat {
     ///
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be changed
-    pub fn set_sampler_config(&self, sampler: SamplerConfig, py: Python) -> PyResult<()> {
+    #[pyo3(signature = (sampler: "SamplerConfig | SamplerBuilder"))]
+    pub fn set_sampler_config(&self, sampler: SamplerConfigOrBuilder, py: Python) -> PyResult<()> {
         py.detach(|| {
             self.handle()
-                .set_sampler_config(sampler.sampler_config)
+                .set_sampler_config(sampler.into_config())
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
@@ -1024,14 +1025,14 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | SamplerBuilder | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
-        sampler: Option<SamplerConfig>,
+        sampler: Option<SamplerConfigOrBuilder>,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -1063,7 +1064,7 @@ impl ChatAsync {
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.
             if let Some(s) = sampler {
-                builder = builder.with_sampler(s.sampler_config);
+                builder = builder.with_sampler(s.into_config());
             }
             builder.build_async()
         });
@@ -1287,9 +1288,10 @@ impl ChatAsync {
     ///
     /// Raises:
     ///     RuntimeError: If the sampler config cannot be changed
-    pub async fn set_sampler_config(&self, sampler: SamplerConfig) -> PyResult<()> {
+    #[pyo3(signature = (sampler: "SamplerConfig | SamplerBuilder"))]
+    pub async fn set_sampler_config(&self, sampler: SamplerConfigOrBuilder) -> PyResult<()> {
         self.handle()
-            .set_sampler_config(sampler.sampler_config)
+            .set_sampler_config(sampler.into_config())
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
@@ -1675,6 +1677,26 @@ fn shift_step(builder: SamplerBuilder, step: nobodywho::sampler::ShiftStep) -> S
 fn sample_step(builder: SamplerBuilder, step: nobodywho::sampler::SampleStep) -> SamplerConfig {
     SamplerConfig {
         sampler_config: builder.inner.sample(step),
+    }
+}
+
+/// Represents a `SamplerConfig | SamplerBuilder` from Python.
+/// The intent is to let callers pass a builder chain directly without remembering to
+/// call a terminal step: a bare `SamplerBuilder` (no `dist`/`greedy`/`mirostat_*`
+/// called) is finalized with `dist()` — the default Kotlin's `buildSampler { }` uses.
+#[derive(FromPyObject)]
+pub enum SamplerConfigOrBuilder {
+    Config(SamplerConfig),
+    Builder(SamplerBuilder),
+}
+
+impl SamplerConfigOrBuilder {
+    fn into_config(self) -> nobodywho::sampler::SamplerConfig {
+        match self {
+            SamplerConfigOrBuilder::Config(config) => config.sampler_config,
+            // No terminal step was called; default to dist() (the SamplerBuilder.dist() path).
+            SamplerConfigOrBuilder::Builder(builder) => builder.dist().sampler_config,
+        }
     }
 }
 
