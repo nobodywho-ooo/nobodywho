@@ -10,6 +10,13 @@
  * This file is NOT generated — it is safe to edit.
  */
 
+// Side-effect import: forces ./index to evaluate at package load so
+// installRustCrate() and the generated bindings' initialize() run before any
+// FFI call. Without this, Metro's inlineRequires (release-only) defers ./index
+// until a lazy re-export is touched, and FFI calls throw
+// "Cannot read property 'ubrn_…' of undefined".
+import "./index";
+
 import { downloadModel as _downloadModel } from "../generated/ts/nobodywho";
 
 /**
