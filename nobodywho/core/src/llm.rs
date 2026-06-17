@@ -714,8 +714,7 @@ where
 
         let tokenizer = Tokenizer::new(&model.language_model, projection_model, add_bos);
 
-        let engine = InferenceEngine {
-            n_past: 0,
+        let engine = InferenceEngine::new(
             ctx,
             big_batch,
             small_batch,
@@ -723,7 +722,7 @@ where
             n_batch,
             tokenizer,
             use_embeddings,
-        };
+        );
         Ok(Worker { engine, extra })
     }
 
@@ -737,7 +736,7 @@ where
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let inference_lock_token = acquire_inference_lock();
-        let chunks = self.engine.tokenizer.tokenize(text, vec![])?;
+        let chunks = self.engine.tokenize(text, vec![])?;
         self.engine.read_chunks(chunks, &inference_lock_token)?;
         Ok(self)
     }

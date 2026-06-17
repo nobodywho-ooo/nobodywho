@@ -1227,7 +1227,7 @@ fn process_worker_msg(
         ChatMsg::GetStats { output_tx } => {
             let stats = ChatStats {
                 context_size: worker_state.engine.ctx.n_ctx(),
-                context_used: worker_state.engine.n_past as u32,
+                context_used: worker_state.engine.n_past(),
             };
             let _ = output_tx.blocking_send(stats);
         }
@@ -1567,7 +1567,7 @@ impl<'a> Chat<'a> {
 
         while !self.should_stop() {
             // Check if the context is full
-            if self.engine.n_past as u32 == self.engine.ctx.n_ctx() {
+            if self.engine.is_context_full() {
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
                 self.engine.read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
@@ -1654,18 +1654,14 @@ impl<'a> Chat<'a> {
             .map(|fmt| fmt.begin_token().to_string());
 
         let media_assets = prompt.extract_media_assets();
-        let bitmaps = if let Some(projection_model) = self.engine.projection_model.as_ref() {
-            media_assets
-                .iter()
-                .map(|part| match part {
-                    PromptPart::Image(path) => projection_model.load_image(path),
-                    PromptPart::Audio(path) => projection_model.load_audio(path),
-                    PromptPart::Text(_) => unreachable!(),
-                })
-                .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
-        } else {
-            vec![]
-        };
+        let bitmaps = media_assets
+            .iter()
+            .map(|part| match part {
+                PromptPart::Image(path) => self.engine.load_image(path),
+                PromptPart::Audio(path) => self.engine.load_audio(path),
+                PromptPart::Text(_) => unreachable!(),
+            })
+            .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
         debug!("Detected bitmaps: {:?}", bitmaps);
 
@@ -1794,7 +1790,7 @@ impl<'a> Chat<'a> {
             .flat_map(|msg| msg.assets())
             .filter_map(|asset| self.context.bitmaps.get(&asset.id))
             .collect();
-        Ok(self.engine.tokenizer.tokenize(rendered_chat, bitmaps)?)
+        Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
@@ -1996,21 +1992,17 @@ impl<'a> Chat<'a> {
 
     pub fn tokenize(&mut self, prompt: Prompt) -> Result<Vec<Option<i32>>, TokenizeError> {
         let media_assets = prompt.extract_media_assets();
-        let bitmaps = if let Some(projection_model) = self.engine.projection_model.as_ref() {
-            media_assets
-                .iter()
-                .map(|part| match part {
-                    PromptPart::Image(path) => projection_model.load_image(path),
-                    PromptPart::Audio(path) => projection_model.load_audio(path),
-                    PromptPart::Text(_) => unreachable!(),
-                })
-                .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
-        } else {
-            vec![]
-        };
+        let bitmaps = media_assets
+            .iter()
+            .map(|part| match part {
+                PromptPart::Image(path) => self.engine.load_image(path),
+                PromptPart::Audio(path) => self.engine.load_audio(path),
+                PromptPart::Text(_) => unreachable!(),
+            })
+            .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
         let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
-        let chunks = self.engine.tokenizer.tokenize(prompt.to_string(), bitmap_refs)?;
+        let chunks = self.engine.tokenize(prompt.to_string(), bitmap_refs)?;
         Ok(chunks.to_token_ids())
     }
 }

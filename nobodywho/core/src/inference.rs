@@ -1,10 +1,12 @@
 //! Generic inference pipeline, independent of chat history.
 
-use crate::errors::{ContextSyncError, DecodingError, ReadError};
+use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError};
 use crate::llm::{GlobalInferenceLockToken, WriteOutput, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
 };
+use llama_cpp_2::mtmd::MtmdBitmap;
+use std::path::Path;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_batch::LlamaBatch;
@@ -26,19 +28,40 @@ pub(crate) fn acquire_inference_lock() -> MutexGuard<'static, GlobalInferenceLoc
 /// crossencoder) and `Chat` own one of these.
 #[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
-    pub(crate) n_past: i32,
     pub(crate) ctx: LlamaContext<'a>,
-    pub(crate) big_batch: LlamaBatch<'a>,
-    pub(crate) small_batch: LlamaBatch<'a>,
-    pub(crate) projection_model: Option<&'a ProjectionModel>,
-    pub(crate) tokenizer: Tokenizer<'a>,
-    pub(crate) use_embeddings: bool,
+    projection_model: Option<&'a ProjectionModel>,
+    n_past: i32,
+    tokenizer: Tokenizer<'a>,
     // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
     // Used to guard against sending more tokens than the context can decode in one batch.
-    pub(crate) n_batch: usize,
+    n_batch: usize,
+    big_batch: LlamaBatch<'a>,
+    small_batch: LlamaBatch<'a>,
+    use_embeddings: bool,
 }
 
 impl<'a> InferenceEngine<'a> {
+    pub(crate) fn new(
+        ctx: LlamaContext<'a>,
+        big_batch: LlamaBatch<'a>,
+        small_batch: LlamaBatch<'a>,
+        projection_model: Option<&'a ProjectionModel>,
+        n_batch: usize,
+        tokenizer: Tokenizer<'a>,
+        use_embeddings: bool,
+    ) -> Self {
+        Self {
+            n_past: 0,
+            ctx,
+            big_batch,
+            small_batch,
+            projection_model,
+            n_batch,
+            tokenizer,
+            use_embeddings,
+        }
+    }
+
     #[tracing::instrument(level = "trace", skip(self))]
     pub(crate) fn reset_context(&mut self) -> &mut Self {
         self.ctx.clear_kv_cache();
@@ -211,6 +234,36 @@ impl<'a> InferenceEngine<'a> {
         }
 
         Ok(target)
+    }
+
+    pub(crate) fn n_past(&self) -> u32 {
+        self.n_past as u32
+    }
+
+    pub(crate) fn is_context_full(&self) -> bool {
+        self.n_past as u32 == self.ctx.n_ctx()
+    }
+
+    pub(crate) fn tokenize(
+        &self,
+        text: String,
+        bitmaps: Vec<&MtmdBitmap>,
+    ) -> Result<TokenizerChunks, crate::errors::TokenizationError> {
+        self.tokenizer.tokenize(text, bitmaps)
+    }
+
+    pub(crate) fn load_image(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
+        self.projection_model
+            .as_ref()
+            .ok_or(MultimodalError::ProjectionModelNotInitialized)?
+            .load_image(path)
+    }
+
+    pub(crate) fn load_audio(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
+        self.projection_model
+            .as_ref()
+            .ok_or(MultimodalError::ProjectionModelNotInitialized)?
+            .load_audio(path)
     }
 
     pub(crate) fn sample_and_decode_next_token(
