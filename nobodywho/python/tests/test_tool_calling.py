@@ -227,7 +227,9 @@ def test_set_tools(model):
     chat.reset_history()
 
     # Try to use new tool - should work
-    chat.ask("What's the weather in Copenhagen?").completed()
+    chat.ask(
+        "Please use the provided tool to find the weather in Copenhagen."
+    ).completed()
 
     history = chat.get_chat_history()
     tool_calls = get_tool_calls(history)
