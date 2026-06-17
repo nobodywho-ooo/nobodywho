@@ -296,6 +296,20 @@ def test_load_crossencoder_from_path():
     assert isinstance(new_encoder_async, nobodywho.CrossEncoderAsync)
 
 
+def test_stats(model):
+    n_ctx = 1024
+    chat = nobodywho.Chat(
+        model,
+        n_ctx=n_ctx,
+        template_variables={"enable_thinking": False},
+    )
+    chat.ask("What is the capital of Denmark?").completed()
+    stats = chat.stats()
+    assert stats.context_size == n_ctx
+    assert stats.context_used > 0
+    assert stats.context_used <= n_ctx
+
+
 def test_set_and_get_chat_history(chat):
     chat_history = [
         {"role": "user", "content": "What's 2 + 2?"},

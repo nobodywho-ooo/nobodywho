@@ -99,6 +99,18 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertTrue(called)
     }
 
+    // MARK: - Stats
+
+    func testStats() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let chat = try Chat(model: model, templateVariables: ["enable_thinking": false])
+        try await chat.ask("What is the capital of Denmark?").completed()
+        let stats = try await chat.getStats()
+        XCTAssertGreaterThan(stats.contextUsed, 0)
+        XCTAssertLessThanOrEqual(stats.contextUsed, stats.contextSize)
+    }
+
     // MARK: - Vision
 
     func testVision() async throws {

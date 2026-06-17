@@ -121,6 +121,10 @@ impl Model {
     /// from their GGUF metadata (giving `Unspecified`). Encoder-only models (BERT, nomic-bert,
     /// etc.) always have this key set to CLS, Mean, or similar — a reliable,
     /// architecture-agnostic signal that the model cannot generate text.
+    pub fn max_ctx(&self) -> u32 {
+        self.language_model.n_ctx_train()
+    }
+
     pub fn is_generative_model(&self) -> bool {
         let Ok(arch) = self.language_model.meta_val_str("general.architecture") else {
             return true;

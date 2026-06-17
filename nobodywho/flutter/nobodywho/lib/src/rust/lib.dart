@@ -242,6 +242,8 @@ abstract class RustChat implements RustOpaqueInterface {
 
   Future<SamplerConfig> getSamplerConfig();
 
+  Future<ChatStats> getStats();
+
   Future<String?> getSystemPrompt();
 
   Future<Map<String, bool>> getTemplateVariables();
@@ -543,6 +545,24 @@ abstract class ToolCall implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
 abstract class Value implements RustOpaqueInterface {}
+
+class ChatStats {
+  final int contextSize;
+  final int contextUsed;
+
+  const ChatStats({required this.contextSize, required this.contextUsed});
+
+  @override
+  int get hashCode => contextSize.hashCode ^ contextUsed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChatStats &&
+          runtimeType == other.runtimeType &&
+          contextSize == other.contextSize &&
+          contextUsed == other.contextUsed;
+}
 
 @freezed
 sealed class Message with _$Message {

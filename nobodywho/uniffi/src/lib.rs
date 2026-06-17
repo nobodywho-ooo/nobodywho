@@ -256,6 +256,14 @@ pub async fn download_model(
     })?
 }
 
+// ---------- ChatStats ----------
+
+#[derive(uniffi::Record, Clone)]
+pub struct ChatStats {
+    pub context_size: u32,
+    pub context_used: u32,
+}
+
 // ---------- RustChat ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `Chat`).
 
@@ -446,6 +454,20 @@ impl RustChat {
         self.inner
             .set_sampler_config(sampler.inner.clone())
             .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
+    /// Get context usage statistics.
+    pub async fn get_stats(&self) -> Result<ChatStats, NobodyWhoError> {
+        self.inner
+            .get_stats()
+            .await
+            .map(|s| ChatStats {
+                context_size: s.context_size,
+                context_used: s.context_used,
+            })
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })

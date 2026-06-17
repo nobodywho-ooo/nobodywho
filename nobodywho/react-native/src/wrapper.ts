@@ -65,6 +65,7 @@ export type {
   Asset,
   ToolCall,
   CachedModel,
+  ChatStats,
 } from "./index";
 
 // Ergonomic wrapper additions.

@@ -113,17 +113,19 @@ void main() {
         contextSize: 4096
       );
       await chat.resetContext(systemPrompt: "New system prompt", tools: []);
+      final stats = await chat.getStats();
+      print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
     });
 
-    test('chat.md:137', () async {
+    test('chat.md:144', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:141', () async {
+    test('chat.md:148', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:156', () async {
+    test('chat.md:163', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -142,7 +144,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:208', () async {
+    test('chat.md:215', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",

@@ -114,6 +114,13 @@ await chat.resetContext(systemPrompt: "New system prompt", tools: []);
 
 If you don't want to change the already set defaults (`systemPrompt`, `tools`), but only reset the context, then go for `resetHistory`.
 
+To inspect how much of the context is currently in use, call `getStats()`:
+
+```dart continuation
+final stats = await chat.getStats();
+print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
+```
+
 ## Sharing model between contexts
 
 There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. In this case you must load the model 
