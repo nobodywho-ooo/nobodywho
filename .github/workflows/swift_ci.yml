@@ -95,9 +95,9 @@ jobs:
           curl -L -o test-models/model.gguf \
             "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
           curl -L -o test-models/vision-model.gguf \
-            "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf"
+            "https://huggingface.co/NobodyWho/Google_Gemma4-E2B-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf"
           curl -L -o test-models/mmproj.gguf \
-            "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf"
+            "https://huggingface.co/NobodyWho/Google_Gemma4-E2B-GGUF/resolve/main/mmproj-BF16.gguf"
 
       - name: "Run integration tests"
         working-directory: ./nobodywho/swift

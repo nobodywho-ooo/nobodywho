@@ -103,13 +103,13 @@ jobs:
       - name: Download vision models
         run: |
           mkdir -p models
-          curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf -o models/google_gemma-4-E2B-it-Q4_K_M.gguf
-          curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf -o models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          curl -L --fail --progress-bar https://huggingface.co/NobodyWho/Google_Gemma4-E2B-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf -o models/gemma-4-E2B-it-Q4_K_M.gguf
+          curl -L --fail --progress-bar https://huggingface.co/NobodyWho/Google_Gemma4-E2B-GGUF/resolve/main/mmproj-BF16.gguf -o models/mmproj-BF16.gguf
 
       - name: Run Flutter multimodal tests
         working-directory: ./nobodywho/flutter/nobodywho
         env:
-          TEST_MULTIMODAL_MODEL: ${{ github.workspace }}/models/google_gemma-4-E2B-it-Q4_K_M.gguf
-          TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          TEST_MULTIMODAL_MODEL: ${{ github.workspace }}/models/gemma-4-E2B-it-Q4_K_M.gguf
+          TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-BF16.gguf
           LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_multimodal_test.dart --reporter expanded
