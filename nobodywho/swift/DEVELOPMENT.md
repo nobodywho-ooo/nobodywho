@@ -125,8 +125,8 @@ TEST_MODEL=/path/to/model.gguf swift test --filter NobodyWhoTests
 
 # Vision tests (requires vision model + mmproj)
 TEST_MODEL=/path/to/model.gguf \
-TEST_VISION_MODEL=/path/to/vision-model.gguf \
-TEST_MMPROJ=/path/to/mmproj.gguf \
+TEST_MULTIMODAL_MODEL=/path/to/vision-model.gguf \
+TEST_MMPROJ_MODEL=/path/to/mmproj.gguf \
 swift test --filter NobodyWhoTests
 ```
 

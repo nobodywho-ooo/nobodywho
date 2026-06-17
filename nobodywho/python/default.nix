@@ -80,7 +80,7 @@ EOF
   env.TEST_EMBEDDINGS_MODEL = models.TEST_EMBEDDINGS_MODEL;
   env.TEST_CROSSENCODER_MODEL = models.TEST_CROSSENCODER_MODEL;
   # not needed since we skip vision tests
-  # env.TEST_VISION_MODEL = models.TEST_VISION_MODEL;
+  # env.TEST_MULTIMODAL_MODEL = models.TEST_MULTIMODAL_MODEL;
   # env.TEST_MMPROJ_MODEL = models.TEST_MMPROJ_MODEL;
   # TODO: reintroduce vision tests when we can make them fast
 }

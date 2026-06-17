@@ -64,14 +64,15 @@ pub mod test_utils {
         std::env::var("TEST_CROSSENCODER_MODEL").unwrap_or_else(|_| "crossencoder.gguf".to_string())
     }
 
-    /// Get path to test multimodal projector from TEST_MMPROJ env var
+    /// Get path to test multimodal projector from `TEST_MMPROJ_MODEL` env var.
     pub fn test_mmproj_path() -> String {
-        std::env::var("TEST_MMPROJ").unwrap_or_else(|_| "mmproj.gguf".to_string())
+        std::env::var("TEST_MMPROJ_MODEL").unwrap_or_else(|_| "mmproj.gguf".to_string())
     }
 
-    /// Get path to test vision model from TEST_VISION_MODEL env var
-    pub fn test_vision_model_path() -> String {
-        std::env::var("TEST_VISION_MODEL").unwrap_or_else(|_| "vision-model.gguf".to_string())
+    /// Get path to test multimodal model from `TEST_MULTIMODAL_MODEL` env var.
+    pub fn test_multimodal_model_path() -> String {
+        std::env::var("TEST_MULTIMODAL_MODEL")
+            .unwrap_or_else(|_| "multimodal-model.gguf".to_string())
     }
 
     /// Load the test model with GPU acceleration if available
@@ -108,5 +109,26 @@ pub mod test_utils {
                 panic!("Failed to load crossencoder model from {}: {:?}", path, e)
             }),
         )
+    }
+
+    /// Load the test vision model together with its mmproj projector.
+    pub fn load_test_multimodal_model() -> Arc<Model> {
+        let model_path = test_multimodal_model_path();
+        let mmproj_path = test_mmproj_path();
+        Arc::new(
+            get_model(&model_path, true, Some(&mmproj_path), None).unwrap_or_else(|e| {
+                panic!(
+                    "Failed to load test vision model from {} with mmproj {}: {:?}",
+                    model_path, mmproj_path, e
+                )
+            }),
+        )
+    }
+
+    /// Path to a test image, configurable via the `TEST_IMAGE` env var.
+    /// Defaults to the penguin image bundled with the python tests.
+    pub fn test_image_path() -> String {
+        std::env::var("TEST_IMAGE")
+            .unwrap_or_else(|_| "../python/tests/img/penguin.png".to_string())
     }
 }

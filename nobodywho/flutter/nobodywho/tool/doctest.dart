@@ -248,7 +248,7 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
   buffer.writeln("      final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];");
   buffer.writeln("      final rerankerPath = Platform.environment['TEST_CROSSENCODER_MODEL'];");
   buffer.writeln("      final visionModelPath = Platform.environment['TEST_MULTIMODAL_MODEL'];");
-  buffer.writeln("      final mmprojPath = Platform.environment['TEST_MULTIMODAL_MMPROJ'];");
+  buffer.writeln("      final mmprojPath = Platform.environment['TEST_MMPROJ_MODEL'];");
   buffer.writeln();
   buffer.writeln("      if (modelPath != null && !File('./model.gguf').existsSync()) {");
   buffer.writeln("        Link('./model.gguf').createSync(modelPath);");
@@ -322,7 +322,7 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
       // Code has its own main - extract it as a separate function
       buffer.writeln("    test('$testDescription', () async {");
       if (needsVisionModel) {
-        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MMPROJ_MODEL'] == null) return;");
       }
       buffer.writeln("      await _doctest_$testIndex();");
       buffer.writeln("    });");
@@ -330,7 +330,7 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
       // Wrap inline code in a test
       buffer.writeln("    test('$testDescription', () async {");
       if (needsVisionModel) {
-        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+        buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MMPROJ_MODEL'] == null) return;");
       }
 
       // Remove imports and init calls from inline code (they're handled in setup)

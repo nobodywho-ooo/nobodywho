@@ -72,6 +72,35 @@ const response = await chat
   .completed();
 ```
 
+## In-memory media (no temp files)
+
+`Prompt.ImageBytes` accepts encoded image bytes already in memory
+(PNG/JPEG/etc.); `Prompt.AudioPcm` accepts 16-bit PCM samples + sample rate.
+
+```typescript
+const pngBytes = new Uint8Array(
+  await (await fetch("https://example.com/photo.png")).arrayBuffer(),
+);
+const pcmSamples: Int16Array = await micCapture.takeNext();
+
+const response = await chat
+  .ask(
+    new Prompt([
+      Prompt.Text("Describe the image."),
+      Prompt.ImageBytes(pngBytes),
+      Prompt.AudioPcm(pcmSamples, 16000),
+    ]),
+  )
+  .completed();
+```
+
+:::info Audio sample rate
+`Prompt.AudioPcm` expects samples at the model's expected rate — **16 kHz**
+for every current audio-capable multimodal LLM, also the default if you
+omit the second argument. Resample to 16 kHz if your source is at a
+different rate.
+:::
+
 ## Tips for multimodality
 
 As with textual prompts, the format in which you supply the multimodal prompt can matter in certain

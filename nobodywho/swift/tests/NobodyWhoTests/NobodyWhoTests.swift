@@ -8,8 +8,8 @@ import NobodyWho
 ///
 /// Environment variables (matching nobodywho/models.nix):
 /// - `TEST_MODEL` — path to a chat GGUF model (required)
-/// - `TEST_VISION_MODEL` — path to a vision GGUF model (optional, for vision test)
-/// - `TEST_MMPROJ` — path to a multimodal projector GGUF (optional, for vision test)
+/// - `TEST_MULTIMODAL_MODEL` — path to a vision GGUF model (optional, for vision test)
+/// - `TEST_MMPROJ_MODEL` — path to a multimodal projector GGUF (optional, for vision test)
 ///
 /// Run: TEST_MODEL=/path/to/model.gguf swift test --filter NobodyWhoTests
 
@@ -123,23 +123,43 @@ final class NobodyWhoTests: XCTestCase {
 
     // MARK: - Vision
 
-    func testVision() async throws {
-        let modelPath = try requireEnv("TEST_VISION_MODEL")
-        let mmprojPath = try requireEnv("TEST_MMPROJ")
-
-        // Use the test image from the python tests
-        let imagePath = URL(fileURLWithPath: #filePath)
+    private func sharedImagePath() -> String {
+        URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // tests/NobodyWhoTests
             .deletingLastPathComponent() // tests
             .deletingLastPathComponent() // swift
             .appendingPathComponent("../python/tests/img/dog.png")
             .standardized.path
+    }
+
+    func testVisionFromBytes() async throws {
+        // Primary path — image already in memory.
+        let modelPath = try requireEnv("TEST_MULTIMODAL_MODEL")
+        let mmprojPath = try requireEnv("TEST_MMPROJ_MODEL")
+
+        let imageData = try Data(contentsOf: URL(fileURLWithPath: sharedImagePath()))
 
         let model = try await Model.load(modelPath: modelPath, projectionModelPath: mmprojPath)
         let chat = try Chat(model: model, systemPrompt: "Describe what you see briefly.")
 
         let prompt = Prompt([
-            Prompt.image(imagePath),
+            Prompt.imageBytes(imageData),
+            Prompt.text("What is in this image?"),
+        ])
+        let response = try await chat.ask(prompt).completed()
+        XCTAssertFalse(response.isEmpty)
+    }
+
+    func testVisionFromPath() async throws {
+        // Legacy path-based API.
+        let modelPath = try requireEnv("TEST_MULTIMODAL_MODEL")
+        let mmprojPath = try requireEnv("TEST_MMPROJ_MODEL")
+
+        let model = try await Model.load(modelPath: modelPath, projectionModelPath: mmprojPath)
+        let chat = try Chat(model: model, systemPrompt: "Describe what you see briefly.")
+
+        let prompt = Prompt([
+            Prompt.image(sharedImagePath()),
             Prompt.text("What is in this image?"),
         ])
         let response = try await chat.ask(prompt).completed()

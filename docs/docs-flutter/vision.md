@@ -47,11 +47,34 @@ That is done through `askWithPrompt`, which accepts a `Prompt` containing a list
 
 ```dart continuation
 final response = await chat.askWithPrompt(nobodywho.Prompt([
-  nobodywho.TextPart("Tell me what you see in the image and what you hear in the audio."),
-  nobodywho.ImagePart("./dog.png"),
-  nobodywho.AudioPart("./sound.mp3"),
+  nobodywho.Text("Tell me what you see in the image and what you hear in the audio."),
+  nobodywho.Image("./dog.png"),
+  nobodywho.Audio("./sound.mp3"),
 ])).completed(); // It's a dog and a penguin!
 ```
+
+## In-memory media (no temp files)
+
+`ImageBytes` accepts encoded image bytes already in memory (PNG/JPEG/etc.);
+`AudioPcm` accepts 16-bit PCM samples + sample rate.
+
+```dart continuation
+await chat.resetHistory();
+final pngBytes = await File("./dog.png").readAsBytes();
+final samples = Int16List(16000); // one second of silence at 16 kHz, for shape
+
+final response3 = await chat.askWithPrompt(nobodywho.Prompt([
+  nobodywho.Text("Describe the image."),
+  nobodywho.ImageBytes(pngBytes),
+  nobodywho.AudioPcm(samples, sampleRate: 16000),
+])).completed();
+```
+
+:::info Audio sample rate
+`AudioPcm` expects samples at the model's expected rate — **16 kHz** for
+every current audio-capable multimodal LLM, also the default if you omit
+`sampleRate`. Resample to 16 kHz if your source is at a different rate.
+:::
 
 ## Tips for multimodality
 As with textual prompts, the format in which you supply the multimodal prompt can matter in certain
@@ -61,10 +84,10 @@ and the multimodal files, or the descriptions you supply. For example, the follo
 ```dart continuation
 await chat.resetHistory();
 final response2 = await chat.askWithPrompt(nobodywho.Prompt([
-  nobodywho.TextPart("Tell me what you see in the image."),
-  nobodywho.ImagePart("./dog.png"),
-  nobodywho.TextPart("Also tell me what you hear in the audio"),
-  nobodywho.AudioPart("./sound.mp3"),
+  nobodywho.Text("Tell me what you see in the image."),
+  nobodywho.Image("./dog.png"),
+  nobodywho.Text("Also tell me what you hear in the audio"),
+  nobodywho.Audio("./sound.mp3"),
 ])).completed();
 ```
 

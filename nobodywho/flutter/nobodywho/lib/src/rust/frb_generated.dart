@@ -3938,6 +3938,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  int dco_decode_i_16(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -4022,6 +4028,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Float32List;
+  }
+
+  @protected
+  Int16List dco_decode_list_prim_i_16_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Int16List;
   }
 
   @protected
@@ -4158,6 +4170,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         return PromptPart_Image(path: dco_decode_String(raw[1]));
       case 2:
         return PromptPart_Audio(path: dco_decode_String(raw[1]));
+      case 3:
+        return PromptPart_ImageBytes(
+          data: dco_decode_list_prim_u_8_strict(raw[1]),
+        );
+      case 4:
+        return PromptPart_AudioPcm(
+          samples: dco_decode_list_prim_i_16_strict(raw[1]),
+          sampleRate: dco_decode_u_32(raw[2]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -4891,6 +4912,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  int sse_decode_i_16(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt16();
+  }
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
@@ -5015,6 +5042,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getFloat32List(len_);
+  }
+
+  @protected
+  Int16List sse_decode_list_prim_i_16_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getInt16List(len_);
   }
 
   @protected
@@ -5229,6 +5263,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       case 2:
         var var_path = sse_decode_String(deserializer);
         return PromptPart_Audio(path: var_path);
+      case 3:
+        var var_data = sse_decode_list_prim_u_8_strict(deserializer);
+        return PromptPart_ImageBytes(data: var_data);
+      case 4:
+        var var_samples = sse_decode_list_prim_i_16_strict(deserializer);
+        var var_sampleRate = sse_decode_u_32(deserializer);
+        return PromptPart_AudioPcm(
+          samples: var_samples,
+          sampleRate: var_sampleRate,
+        );
       default:
         throw UnimplementedError('');
     }
@@ -6049,6 +6093,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_i_16(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt16(self);
+  }
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
@@ -6164,6 +6214,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putFloat32List(self);
+  }
+
+  @protected
+  void sse_encode_list_prim_i_16_strict(
+    Int16List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putInt16List(self);
   }
 
   @protected
@@ -6367,6 +6427,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       case PromptPart_Audio(path: final path):
         sse_encode_i_32(2, serializer);
         sse_encode_String(path, serializer);
+      case PromptPart_ImageBytes(data: final data):
+        sse_encode_i_32(3, serializer);
+        sse_encode_list_prim_u_8_strict(data, serializer);
+      case PromptPart_AudioPcm(
+        samples: final samples,
+        sampleRate: final sampleRate,
+      ):
+        sse_encode_i_32(4, serializer);
+        sse_encode_list_prim_i_16_strict(samples, serializer);
+        sse_encode_u_32(sampleRate, serializer);
     }
   }
 

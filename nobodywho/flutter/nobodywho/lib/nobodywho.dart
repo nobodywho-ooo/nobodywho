@@ -2,6 +2,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 export 'src/rust/lib.dart'
     hide
@@ -22,29 +23,61 @@ sealed class PromptPart {
   const PromptPart();
 }
 
-/// A text part of a prompt.
-final class TextPart extends PromptPart {
+/// A text prompt part.
+final class Text extends PromptPart {
   final String text;
-  const TextPart(this.text);
+  const Text(this.text);
 }
 
-/// An image part of a prompt, identified by file path.
-final class ImagePart extends PromptPart {
+/// An image prompt part: a file path on disk. For in-memory image bytes
+/// use [ImageBytes].
+final class Image extends PromptPart {
   final String path;
-  const ImagePart(this.path);
+  const Image(this.path);
+
+  @override
+  String toString() => 'Image($path)';
 }
 
-/// An audio part of a prompt, identified by file path.
-final class AudioPart extends PromptPart {
+/// An image prompt part: in-memory encoded bytes (PNG/JPEG/etc.). Use when
+/// the image is already in memory (HTTP response, asset bundle, canvas, etc.)
+/// and you don't want to write to a temp file.
+final class ImageBytes extends PromptPart {
+  final Uint8List bytes;
+  const ImageBytes(this.bytes);
+
+  @override
+  String toString() => 'ImageBytes(<${bytes.length} bytes>)';
+}
+
+/// An audio prompt part: a file path on disk. For in-memory 16-bit PCM
+/// samples use [AudioPcm].
+final class Audio extends PromptPart {
   final String path;
-  const AudioPart(this.path);
+  const Audio(this.path);
+
+  @override
+  String toString() => 'Audio($path)';
+}
+
+/// An audio prompt part: 16-bit PCM samples at the model's expected sample
+/// rate (typically 16 kHz). Use for live microphone capture
+/// (`flutter_sound` / `mic_stream`) or after decoding an audio file yourself.
+final class AudioPcm extends PromptPart {
+  final Int16List samples;
+  final int sampleRate;
+  const AudioPcm(this.samples, {this.sampleRate = 16000});
+
+  @override
+  String toString() =>
+      'AudioPcm(<${samples.length} samples @ $sampleRate Hz>)';
 }
 
 /// A multimodal prompt consisting of one or more [PromptPart]s (text, images, and/or audio).
 ///
 /// Example:
 /// ```dart
-/// final prompt = Prompt([TextPart("Describe this image:"), ImagePart("/path/to/img.jpg")]);
+/// final prompt = Prompt([Text("Describe this image:"), Image("/path/to/img.jpg")]);
 /// final stream = chat.ask(prompt);
 /// ```
 class Prompt {
@@ -53,14 +86,17 @@ class Prompt {
   const Prompt(this.parts);
 
   /// Convenience factory for text-only prompts.
-  factory Prompt.text(String text) => Prompt([TextPart(text)]);
+  factory Prompt.text(String text) => Prompt([Text(text)]);
 }
 
 List<nobodywho.PromptPart> _convertPromptParts(List<PromptPart> parts) {
   return parts.map((p) => switch (p) {
-    TextPart(:final text) => nobodywho.PromptPart.text(content: text),
-    ImagePart(:final path) => nobodywho.PromptPart.image(path: path),
-    AudioPart(:final path) => nobodywho.PromptPart.audio(path: path),
+    Text(:final text) => nobodywho.PromptPart.text(content: text),
+    Image(:final path) => nobodywho.PromptPart.image(path: path),
+    ImageBytes(:final bytes) => nobodywho.PromptPart.imageBytes(data: bytes),
+    Audio(:final path) => nobodywho.PromptPart.audio(path: path),
+    AudioPcm(:final samples, :final sampleRate) =>
+      nobodywho.PromptPart.audioPcm(samples: samples, sampleRate: sampleRate),
   }).toList();
 }
 
@@ -635,7 +671,7 @@ class Chat {
   /// response tokens.
   ///
   /// ```dart
-  /// chat.askWithPrompt(Prompt([TextPart("Describe this image"), ImagePart("photo.jpg")]))
+  /// chat.askWithPrompt(nobodywho.Prompt([nobodywho.Text("Describe this image"), nobodywho.Image("photo.jpg")]))
   /// ```
   TokenStream askWithPrompt(Prompt prompt) {
     return TokenStream._(

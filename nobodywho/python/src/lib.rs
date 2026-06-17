@@ -1989,10 +1989,8 @@ impl Text {
     }
 }
 
-/// An `Image` prompt part, used to build multimodal `Prompt`s.
-///
-/// Example:
-///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
+/// An `Image` prompt part: a path to a file on disk. For in-memory image
+/// bytes use [`ImageBytes`].
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Image {
@@ -2025,10 +2023,31 @@ impl Image {
     }
 }
 
-/// An `Audio` prompt part, used to build multimodal `Prompt`s.
-///
-/// Example:
-///     prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
+/// An `ImageBytes` prompt part: an in-memory encoded image buffer
+/// (PNG, JPEG, BMP, GIF, etc.). Use this when the image is already in memory
+/// — HTTP responses, asset bundles, generated content, sandboxed/serverless
+/// environments without usable `/tmp`, etc.
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct ImageBytes {
+    data: Vec<u8>,
+}
+
+#[pymethods]
+impl ImageBytes {
+    #[new]
+    #[pyo3(signature = (data: "bytes | bytearray") -> "ImageBytes")]
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("ImageBytes(<{} bytes>)", self.data.len())
+    }
+}
+
+/// An `Audio` prompt part: a path to an audio file on disk (WAV/MP3/FLAC).
+/// For in-memory PCM samples use [`AudioPcm`].
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Audio {
@@ -2061,6 +2080,38 @@ impl Audio {
     }
 }
 
+/// An `AudioPcm` prompt part: 16-bit signed PCM samples + sample rate.
+/// What microphone capture libraries deliver natively; also what you get
+/// after decoding an MP3 with `soundfile`/`librosa`. `sample_rate` must
+/// match the model's expected rate (typically 16 kHz — also the default);
+/// `ask()` raises `RuntimeError` if it doesn't.
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct AudioPcm {
+    samples: Vec<i16>,
+    sample_rate: u32,
+}
+
+#[pymethods]
+impl AudioPcm {
+    #[new]
+    #[pyo3(signature = (samples: "Sequence[int]", sample_rate: "int" = 16000) -> "AudioPcm")]
+    pub fn new(samples: Vec<i16>, sample_rate: u32) -> Self {
+        Self {
+            samples,
+            sample_rate,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "AudioPcm(<{} samples @ {} Hz>)",
+            self.samples.len(),
+            self.sample_rate
+        )
+    }
+}
+
 /// A multimodal prompt consisting of interleaved `Text`, `Image`, and `Audio` parts.
 ///
 /// Example:
@@ -2087,19 +2138,26 @@ impl Prompt {
             }
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
-                let image_ref = image_part.borrow();
-                prompt.push_image(image_ref.path.as_ref());
+                prompt.push_image(std::path::Path::new(&image_part.borrow().path));
+                continue;
+            }
+            if let Ok(image_bytes_part) = part.extract::<Bound<ImageBytes>>() {
+                prompt.push_image_bytes(image_bytes_part.borrow().data.clone());
                 continue;
             }
 
             if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
-                let audio_ref = audio_part.borrow();
-                prompt.push_audio(audio_ref.path.as_ref());
+                prompt.push_audio(std::path::Path::new(&audio_part.borrow().path));
+                continue;
+            }
+            if let Ok(audio_pcm_part) = part.extract::<Bound<AudioPcm>>() {
+                let pcm = audio_pcm_part.borrow();
+                prompt.push_audio_pcm(pcm.samples.clone(), pcm.sample_rate);
                 continue;
             }
 
             return Err(pyo3::exceptions::PyTypeError::new_err(
-                "Prompt parts must be Text(...), Image(...), or Audio(...)",
+                "Prompt parts must be Text, Image, ImageBytes, Audio, or AudioPcm",
             ));
         }
 
@@ -2769,6 +2827,8 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Audio;
     #[pymodule_export]
+    use super::AudioPcm;
+    #[pymodule_export]
     use super::Chat;
     #[pymodule_export]
     use super::ChatAsync;
@@ -2784,6 +2844,8 @@ pub mod nobodywhopython {
     use super::EncoderAsync;
     #[pymodule_export]
     use super::Image;
+    #[pymodule_export]
+    use super::ImageBytes;
     #[pymodule_export]
     use super::Model;
     #[pymodule_export]

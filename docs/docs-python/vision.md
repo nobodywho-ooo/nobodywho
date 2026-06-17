@@ -54,6 +54,35 @@ prompt = Prompt([
 chat.ask(prompt).completed() # It's a dog and a penguin!
 ```
 
+## In-memory media (no temp files)
+
+`ImageBytes` accepts encoded image bytes already in memory (PNG/JPEG/etc.);
+`AudioPcm` accepts 16-bit PCM samples + sample rate.
+
+```python notest
+from nobodywho import AudioPcm, ImageBytes, Prompt, Text
+import requests, wave, array
+
+png_bytes = requests.get("https://example.com/photo.png").content
+
+with wave.open("./recording.wav", "rb") as wf:
+    sample_rate = wf.getframerate()
+    samples = array.array("h")
+    samples.frombytes(wf.readframes(wf.getnframes()))
+
+prompt = Prompt([
+    Text("Describe the image and transcribe the audio."),
+    ImageBytes(png_bytes),
+    AudioPcm(samples, sample_rate),
+])
+```
+
+:::info Audio sample rate
+`AudioPcm` expects samples at the model's expected rate — **16 kHz** for
+every current audio-capable multimodal LLM, also the default if you omit
+`sample_rate`. Resample to 16 kHz if your source is at a different rate.
+:::
+
 ## Tips for multimodality
 As with textual prompts, the format in which you supply the multimodal prompt can matter in certain
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text

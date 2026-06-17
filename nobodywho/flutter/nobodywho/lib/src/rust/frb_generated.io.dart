@@ -417,6 +417,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   double dco_decode_f_32(dynamic raw);
 
   @protected
+  int dco_decode_i_16(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -457,6 +460,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
+  Int16List dco_decode_list_prim_i_16_strict(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
@@ -864,6 +870,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   double sse_decode_f_32(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_i_16(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -904,6 +913,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
+  Int16List sse_decode_list_prim_i_16_strict(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -1386,6 +1398,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_f_32(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_i_16(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -1436,6 +1451,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   @protected
   void sse_encode_list_prim_f_32_strict(
     Float32List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_i_16_strict(
+    Int16List self,
     SseSerializer serializer,
   );
 

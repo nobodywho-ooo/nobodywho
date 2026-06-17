@@ -24,7 +24,7 @@ void main() {
       final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];
       final rerankerPath = Platform.environment['TEST_CROSSENCODER_MODEL'];
       final visionModelPath = Platform.environment['TEST_MULTIMODAL_MODEL'];
-      final mmprojPath = Platform.environment['TEST_MULTIMODAL_MMPROJ'];
+      final mmprojPath = Platform.environment['TEST_MMPROJ_MODEL'];
 
       if (modelPath != null && !File('./model.gguf').existsSync()) {
         Link('./model.gguf').createSync(modelPath);
@@ -453,7 +453,7 @@ void main() {
     });
 
     test('vision.md:25', () async {
-      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
+      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MMPROJ_MODEL'] == null) return;
       final model = await nobodywho.Model.load(
         modelPath: "./multimodal-model.gguf",
         projectionModelPath: "./mmproj.gguf",
@@ -463,16 +463,25 @@ void main() {
         systemPrompt: "You are a helpful assistant, that can hear and see stuff!",
       );
       final response = await chat.askWithPrompt(nobodywho.Prompt([
-        nobodywho.TextPart("Tell me what you see in the image and what you hear in the audio."),
-        nobodywho.ImagePart("./dog.png"),
-        nobodywho.AudioPart("./sound.mp3"),
+        nobodywho.Text("Tell me what you see in the image and what you hear in the audio."),
+        nobodywho.Image("./dog.png"),
+        nobodywho.Audio("./sound.mp3"),
       ])).completed(); // It's a dog and a penguin!
       await chat.resetHistory();
+      final pngBytes = await File("./dog.png").readAsBytes();
+      final samples = Int16List(16000); // one second of silence at 16 kHz, for shape
+      
+      final response3 = await chat.askWithPrompt(nobodywho.Prompt([
+        nobodywho.Text("Describe the image."),
+        nobodywho.ImageBytes(pngBytes),
+        nobodywho.AudioPcm(samples, sampleRate: 16000),
+      ])).completed();
+      await chat.resetHistory();
       final response2 = await chat.askWithPrompt(nobodywho.Prompt([
-        nobodywho.TextPart("Tell me what you see in the image."),
-        nobodywho.ImagePart("./dog.png"),
-        nobodywho.TextPart("Also tell me what you hear in the audio"),
-        nobodywho.AudioPart("./sound.mp3"),
+        nobodywho.Text("Tell me what you see in the image."),
+        nobodywho.Image("./dog.png"),
+        nobodywho.Text("Also tell me what you hear in the audio"),
+        nobodywho.Audio("./sound.mp3"),
       ])).completed();
       final chat2 = nobodywho.Chat(
         model: model,

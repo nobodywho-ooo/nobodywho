@@ -15,14 +15,14 @@
     url = "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf";
     sha256 = "sha256-pDx8mxGkwVF+W/lRUZYOFiHRty96STNksB44bPGqodM=";
   };
-  TEST_VISION_MODEL = fetchurl {
-    name = "gemma-3-4b-it-Q4_K_M.gguf";
-    url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf";
-    sha256 = "sha256-BKQ6IujSAD3tpazCYvaOwQBfp2xzWpliqMdwQqdKfRk=";
+  TEST_MULTIMODAL_MODEL = fetchurl {
+    name = "google_gemma-4-E2B-it-Q4_K_M.gguf";
+    url = "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf";
+    sha256 = "sha256-tTEDQLOiPTFlXXEZ0QDV3xstjuF7PKiwojrX6etfpwU=";
   };
   TEST_MMPROJ_MODEL = fetchurl {
-    name = "mmproj-gemma-3-f16.gguf";
-    url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf";
-    sha256 = "sha256-cxGZ4BbsXyJ7gpP++DmJlHLg7kxRrfX55ctm9lWPoUI=";
+    name = "mmproj-google_gemma-4-E2B-it-f16.gguf";
+    url = "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf";
+    sha256 = "sha256-M5fy4VhZ0mjckXgukucMSFx3gESNV9Yi0UU3Q5AWj3E=";
   };
 }

@@ -597,4 +597,10 @@ sealed class PromptPart with _$PromptPart {
   const factory PromptPart.text({required String content}) = PromptPart_Text;
   const factory PromptPart.image({required String path}) = PromptPart_Image;
   const factory PromptPart.audio({required String path}) = PromptPart_Audio;
+  const factory PromptPart.imageBytes({required Uint8List data}) =
+      PromptPart_ImageBytes;
+  const factory PromptPart.audioPcm({
+    required Int16List samples,
+    required int sampleRate,
+  }) = PromptPart_AudioPcm;
 }

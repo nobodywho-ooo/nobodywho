@@ -44,11 +44,18 @@ impl From<String> for NobodyWhoError {
 // ---------- Prompt types ----------
 
 /// A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
+///
+/// `Image` / `Audio` reference a file on disk. `ImageBytes` accepts encoded
+/// image bytes (PNG/JPEG/etc.) already in memory. `AudioPcm` accepts
+/// pre-decoded 16-bit PCM samples at the model's expected sample rate
+/// (typically 16 kHz).
 #[derive(uniffi::Enum, Clone)]
 pub enum PromptPart {
     Text { content: String },
     Image { path: String },
     Audio { path: String },
+    ImageBytes { data: Vec<u8> },
+    AudioPcm { samples: Vec<i16>, sample_rate: u32 },
 }
 
 // ---------- Message types ----------
@@ -102,7 +109,14 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
                 .iter()
                 .map(|a| Asset {
                     id: a.id.clone(),
-                    path: a.path.to_string_lossy().to_string(),
+                    // Map None (asset came from in-memory media — push_image_bytes /
+                    // push_audio_pcm) to an empty string so the Kotlin/Swift
+                    // `Asset.path: String` API stays unchanged.
+                    path: a
+                        .path
+                        .as_ref()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_default(),
                 })
                 .collect(),
         },
@@ -138,7 +152,13 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Nobod
                 .iter()
                 .map(|a| nobodywho::chat::Asset {
                     id: a.id.clone(),
-                    path: PathBuf::from(&a.path),
+                    // Empty string from the UniFFI side means "no source path"
+                    // (in-memory media). Anything else is a real path.
+                    path: if a.path.is_empty() {
+                        None
+                    } else {
+                        Some(PathBuf::from(&a.path))
+                    },
                 })
                 .collect(),
         }),
@@ -323,8 +343,9 @@ impl RustChat {
 
     /// Send a multimodal prompt (text + images/audio) and get a token stream.
     ///
-    /// `parts` is an ordered list of `PromptPart` items.
-    /// Image and audio parts should contain a local file-system path.
+    /// `parts` is an ordered list of `PromptPart` items. `Image`/`Audio`
+    /// reference files on disk; `ImageBytes` accepts encoded image bytes in
+    /// memory; `AudioPcm` accepts pre-decoded 16-bit PCM samples + rate.
     pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Arc<RustTokenStream> {
         let mut prompt = nobodywho::tokenizer::Prompt::new();
         for part in parts {
@@ -332,6 +353,11 @@ impl RustChat {
                 PromptPart::Text { content } => prompt.push_text(content),
                 PromptPart::Image { path } => prompt.push_image(path.as_ref()),
                 PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
+                PromptPart::ImageBytes { data } => prompt.push_image_bytes(data),
+                PromptPart::AudioPcm {
+                    samples,
+                    sample_rate,
+                } => prompt.push_audio_pcm(samples, sample_rate),
             }
         }
         Arc::new(RustTokenStream {

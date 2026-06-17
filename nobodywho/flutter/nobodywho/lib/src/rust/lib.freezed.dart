@@ -542,13 +542,15 @@ extension PromptPartPatterns on PromptPart {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PromptPart_Text value)?  text,TResult Function( PromptPart_Image value)?  image,TResult Function( PromptPart_Audio value)?  audio,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PromptPart_Text value)?  text,TResult Function( PromptPart_Image value)?  image,TResult Function( PromptPart_Audio value)?  audio,TResult Function( PromptPart_ImageBytes value)?  imageBytes,TResult Function( PromptPart_AudioPcm value)?  audioPcm,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case PromptPart_Text() when text != null:
 return text(_that);case PromptPart_Image() when image != null:
 return image(_that);case PromptPart_Audio() when audio != null:
-return audio(_that);case _:
+return audio(_that);case PromptPart_ImageBytes() when imageBytes != null:
+return imageBytes(_that);case PromptPart_AudioPcm() when audioPcm != null:
+return audioPcm(_that);case _:
   return orElse();
 
 }
@@ -566,13 +568,15 @@ return audio(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PromptPart_Text value)  text,required TResult Function( PromptPart_Image value)  image,required TResult Function( PromptPart_Audio value)  audio,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PromptPart_Text value)  text,required TResult Function( PromptPart_Image value)  image,required TResult Function( PromptPart_Audio value)  audio,required TResult Function( PromptPart_ImageBytes value)  imageBytes,required TResult Function( PromptPart_AudioPcm value)  audioPcm,}){
 final _that = this;
 switch (_that) {
 case PromptPart_Text():
 return text(_that);case PromptPart_Image():
 return image(_that);case PromptPart_Audio():
-return audio(_that);}
+return audio(_that);case PromptPart_ImageBytes():
+return imageBytes(_that);case PromptPart_AudioPcm():
+return audioPcm(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -586,13 +590,15 @@ return audio(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PromptPart_Text value)?  text,TResult? Function( PromptPart_Image value)?  image,TResult? Function( PromptPart_Audio value)?  audio,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PromptPart_Text value)?  text,TResult? Function( PromptPart_Image value)?  image,TResult? Function( PromptPart_Audio value)?  audio,TResult? Function( PromptPart_ImageBytes value)?  imageBytes,TResult? Function( PromptPart_AudioPcm value)?  audioPcm,}){
 final _that = this;
 switch (_that) {
 case PromptPart_Text() when text != null:
 return text(_that);case PromptPart_Image() when image != null:
 return image(_that);case PromptPart_Audio() when audio != null:
-return audio(_that);case _:
+return audio(_that);case PromptPart_ImageBytes() when imageBytes != null:
+return imageBytes(_that);case PromptPart_AudioPcm() when audioPcm != null:
+return audioPcm(_that);case _:
   return null;
 
 }
@@ -609,12 +615,14 @@ return audio(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String content)?  text,TResult Function( String path)?  image,TResult Function( String path)?  audio,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String content)?  text,TResult Function( String path)?  image,TResult Function( String path)?  audio,TResult Function( Uint8List data)?  imageBytes,TResult Function( Int16List samples,  int sampleRate)?  audioPcm,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case PromptPart_Text() when text != null:
 return text(_that.content);case PromptPart_Image() when image != null:
 return image(_that.path);case PromptPart_Audio() when audio != null:
-return audio(_that.path);case _:
+return audio(_that.path);case PromptPart_ImageBytes() when imageBytes != null:
+return imageBytes(_that.data);case PromptPart_AudioPcm() when audioPcm != null:
+return audioPcm(_that.samples,_that.sampleRate);case _:
   return orElse();
 
 }
@@ -632,12 +640,14 @@ return audio(_that.path);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String content)  text,required TResult Function( String path)  image,required TResult Function( String path)  audio,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String content)  text,required TResult Function( String path)  image,required TResult Function( String path)  audio,required TResult Function( Uint8List data)  imageBytes,required TResult Function( Int16List samples,  int sampleRate)  audioPcm,}) {final _that = this;
 switch (_that) {
 case PromptPart_Text():
 return text(_that.content);case PromptPart_Image():
 return image(_that.path);case PromptPart_Audio():
-return audio(_that.path);}
+return audio(_that.path);case PromptPart_ImageBytes():
+return imageBytes(_that.data);case PromptPart_AudioPcm():
+return audioPcm(_that.samples,_that.sampleRate);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -651,12 +661,14 @@ return audio(_that.path);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String content)?  text,TResult? Function( String path)?  image,TResult? Function( String path)?  audio,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String content)?  text,TResult? Function( String path)?  image,TResult? Function( String path)?  audio,TResult? Function( Uint8List data)?  imageBytes,TResult? Function( Int16List samples,  int sampleRate)?  audioPcm,}) {final _that = this;
 switch (_that) {
 case PromptPart_Text() when text != null:
 return text(_that.content);case PromptPart_Image() when image != null:
 return image(_that.path);case PromptPart_Audio() when audio != null:
-return audio(_that.path);case _:
+return audio(_that.path);case PromptPart_ImageBytes() when imageBytes != null:
+return imageBytes(_that.data);case PromptPart_AudioPcm() when audioPcm != null:
+return audioPcm(_that.samples,_that.sampleRate);case _:
   return null;
 
 }
@@ -856,6 +868,140 @@ class _$PromptPart_AudioCopyWithImpl<$Res>
   return _then(PromptPart_Audio(
 path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
 as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PromptPart_ImageBytes extends PromptPart {
+  const PromptPart_ImageBytes({required this.data}): super._();
+  
+
+ final  Uint8List data;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PromptPart_ImageBytesCopyWith<PromptPart_ImageBytes> get copyWith => _$PromptPart_ImageBytesCopyWithImpl<PromptPart_ImageBytes>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PromptPart_ImageBytes&&const DeepCollectionEquality().equals(other.data, data));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(data));
+
+@override
+String toString() {
+  return 'PromptPart.imageBytes(data: $data)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PromptPart_ImageBytesCopyWith<$Res> implements $PromptPartCopyWith<$Res> {
+  factory $PromptPart_ImageBytesCopyWith(PromptPart_ImageBytes value, $Res Function(PromptPart_ImageBytes) _then) = _$PromptPart_ImageBytesCopyWithImpl;
+@useResult
+$Res call({
+ Uint8List data
+});
+
+
+
+
+}
+/// @nodoc
+class _$PromptPart_ImageBytesCopyWithImpl<$Res>
+    implements $PromptPart_ImageBytesCopyWith<$Res> {
+  _$PromptPart_ImageBytesCopyWithImpl(this._self, this._then);
+
+  final PromptPart_ImageBytes _self;
+  final $Res Function(PromptPart_ImageBytes) _then;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? data = null,}) {
+  return _then(PromptPart_ImageBytes(
+data: null == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
+as Uint8List,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class PromptPart_AudioPcm extends PromptPart {
+  const PromptPart_AudioPcm({required this.samples, required this.sampleRate}): super._();
+  
+
+ final  Int16List samples;
+ final  int sampleRate;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PromptPart_AudioPcmCopyWith<PromptPart_AudioPcm> get copyWith => _$PromptPart_AudioPcmCopyWithImpl<PromptPart_AudioPcm>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PromptPart_AudioPcm&&const DeepCollectionEquality().equals(other.samples, samples)&&(identical(other.sampleRate, sampleRate) || other.sampleRate == sampleRate));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(samples),sampleRate);
+
+@override
+String toString() {
+  return 'PromptPart.audioPcm(samples: $samples, sampleRate: $sampleRate)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $PromptPart_AudioPcmCopyWith<$Res> implements $PromptPartCopyWith<$Res> {
+  factory $PromptPart_AudioPcmCopyWith(PromptPart_AudioPcm value, $Res Function(PromptPart_AudioPcm) _then) = _$PromptPart_AudioPcmCopyWithImpl;
+@useResult
+$Res call({
+ Int16List samples, int sampleRate
+});
+
+
+
+
+}
+/// @nodoc
+class _$PromptPart_AudioPcmCopyWithImpl<$Res>
+    implements $PromptPart_AudioPcmCopyWith<$Res> {
+  _$PromptPart_AudioPcmCopyWithImpl(this._self, this._then);
+
+  final PromptPart_AudioPcm _self;
+  final $Res Function(PromptPart_AudioPcm) _then;
+
+/// Create a copy of PromptPart
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? samples = null,Object? sampleRate = null,}) {
+  return _then(PromptPart_AudioPcm(
+samples: null == samples ? _self.samples : samples // ignore: cast_nullable_to_non_nullable
+as Int16List,sampleRate: null == sampleRate ? _self.sampleRate : sampleRate // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

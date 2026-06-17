@@ -51,8 +51,8 @@
             export TEST_MODEL=${test-models.TEST_MODEL}
             export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
             export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
-
-
+            export TEST_MULTIMODAL_MODEL=${test-models.TEST_MULTIMODAL_MODEL}
+            export TEST_MMPROJ_MODEL=${test-models.TEST_MMPROJ_MODEL}
           '';
         };
 
