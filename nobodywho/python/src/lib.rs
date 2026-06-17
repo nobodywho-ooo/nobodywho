@@ -1866,50 +1866,111 @@ impl Text {
     }
 }
 
+/// Internal source for an image prompt part. Mirrors the core
+/// `PromptPart::Image` / `ImageBytes` split.
+#[derive(Clone)]
+enum ImageData {
+    Path(String),
+    Bytes(Vec<u8>),
+}
+
+/// Internal source for an audio prompt part. Mirrors the core
+/// `PromptPart::Audio` / `AudioPcm` split.
+#[derive(Clone)]
+enum AudioData {
+    Path(String),
+    Pcm { samples: Vec<i16>, sample_rate: u32 },
+}
+
 /// An `Image` prompt part, used to build multimodal `Prompt`s.
 ///
+/// The constructor accepts either a file path or an in-memory encoded image
+/// buffer (PNG, JPEG, BMP, GIF, etc.). The bytes form lets you skip writing
+/// to disk for images that are already in memory — HTTP responses, asset
+/// bundles, generated content, sandboxed/serverless environments without
+/// usable `/tmp`, etc.
+///
 /// Example:
+///     # From disk
 ///     prompt = Prompt([Text("Describe this"), Image("./img.jpg")])
+///     # From bytes already in memory
+///     prompt = Prompt([Text("Describe this"), Image(png_bytes)])
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Image {
-    path: String,
+    data: ImageData,
 }
 
 #[pymethods]
 impl Image {
     #[new]
-    #[pyo3(signature = (path: "os.PathLike | str") -> "Image")]
-    pub fn new(path: std::path::PathBuf) -> PyResult<Self> {
-        let path_str = path.to_str().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!(
-                "Path contains invalid UTF-8: {}",
-                path.display()
-            ))
-        })?;
-        Ok(Self {
-            path: path_str.to_string(),
-        })
+    #[pyo3(signature = (data: "os.PathLike | str | bytes | bytearray") -> "Image")]
+    pub fn new(data: &Bound<'_, PyAny>) -> PyResult<Self> {
+        // Try path-like first (str, PathLike) so that `Image("file.png")`
+        // routes to ImagePath rather than being misread as a 1-byte sequence.
+        if data.is_instance_of::<pyo3::types::PyString>() {
+            let s: String = data.extract()?;
+            return Ok(Self {
+                data: ImageData::Path(s),
+            });
+        }
+        if let Ok(path) = data.extract::<std::path::PathBuf>() {
+            let path_str = path.to_str().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Path contains invalid UTF-8: {}",
+                    path.display()
+                ))
+            })?;
+            return Ok(Self {
+                data: ImageData::Path(path_str.to_string()),
+            });
+        }
+        if let Ok(bytes) = data.extract::<Vec<u8>>() {
+            return Ok(Self {
+                data: ImageData::Bytes(bytes),
+            });
+        }
+        Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "Image expected a path (str / os.PathLike) or in-memory bytes/bytearray, got {}",
+            data.get_type().name()?,
+        )))
     }
 
+    /// File path, or `None` if this `Image` was constructed from in-memory bytes.
     #[getter]
-    pub fn path(&self) -> String {
-        self.path.clone()
+    pub fn path(&self) -> Option<String> {
+        match &self.data {
+            ImageData::Path(p) => Some(p.clone()),
+            ImageData::Bytes(_) => None,
+        }
     }
 
     fn __repr__(&self) -> String {
-        format!("Image({:?})", self.path)
+        match &self.data {
+            ImageData::Path(p) => format!("Image({:?})", p),
+            ImageData::Bytes(b) => format!("Image(<{} bytes>)", b.len()),
+        }
     }
 }
 
 /// An `Audio` prompt part, used to build multimodal `Prompt`s.
 ///
+/// The constructor accepts a file path only. For in-memory audio, use the
+/// `Audio.from_pcm(samples, sample_rate)` factory — give it 16-bit signed
+/// PCM samples (what microphone capture libraries deliver natively) at the
+/// model's expected rate (typically 16 kHz). Encoded WAV/MP3 in memory is
+/// not accepted; decode it externally first (via the `wave` stdlib module,
+/// `soundfile`, `librosa`, etc.) and pass the PCM samples.
+///
 /// Example:
-///     prompt = Prompt([Text("Transcribe this:"), Audio("./clip.wav")])
+///     # From disk
+///     prompt = Prompt([Text("Transcribe:"), Audio("./clip.wav")])
+///     # From microphone capture (i16 samples + sample rate)
+///     prompt = Prompt([Text("Transcribe:"), Audio.from_pcm(samples, 16000)])
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Audio {
-    path: String,
+    data: AudioData,
 }
 
 #[pymethods]
@@ -1924,17 +1985,44 @@ impl Audio {
             ))
         })?;
         Ok(Self {
-            path: path_str.to_string(),
+            data: AudioData::Path(path_str.to_string()),
         })
     }
 
+    /// Build an `Audio` from a sequence of 16-bit signed PCM samples + sample
+    /// rate. `samples` accepts anything pyo3 can extract as a `list[int]` —
+    /// a Python list, an `array.array('h')`, or a numpy int16 array.
+    ///
+    /// `sample_rate` must match the model's expected rate (typically 16 kHz);
+    /// `ask()` raises a `RuntimeError` if it doesn't.
+    #[staticmethod]
+    #[pyo3(signature = (samples: "Sequence[int]", sample_rate: "int" = 16000) -> "Audio")]
+    pub fn from_pcm(samples: Vec<i16>, sample_rate: u32) -> Self {
+        Self {
+            data: AudioData::Pcm {
+                samples,
+                sample_rate,
+            },
+        }
+    }
+
+    /// File path, or `None` if this `Audio` was constructed from PCM samples.
     #[getter]
-    pub fn path(&self) -> String {
-        self.path.clone()
+    pub fn path(&self) -> Option<String> {
+        match &self.data {
+            AudioData::Path(p) => Some(p.clone()),
+            AudioData::Pcm { .. } => None,
+        }
     }
 
     fn __repr__(&self) -> String {
-        format!("Audio({:?})", self.path)
+        match &self.data {
+            AudioData::Path(p) => format!("Audio({:?})", p),
+            AudioData::Pcm {
+                samples,
+                sample_rate,
+            } => format!("Audio(<{} samples @ {} Hz>)", samples.len(), sample_rate),
+        }
     }
 }
 
@@ -1965,13 +2053,22 @@ impl Prompt {
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
                 let image_ref = image_part.borrow();
-                prompt.push_image(image_ref.path.as_ref());
+                match &image_ref.data {
+                    ImageData::Path(p) => prompt.push_image(std::path::Path::new(p)),
+                    ImageData::Bytes(b) => prompt.push_image_bytes(b.clone()),
+                }
                 continue;
             }
 
             if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
                 let audio_ref = audio_part.borrow();
-                prompt.push_audio(audio_ref.path.as_ref());
+                match &audio_ref.data {
+                    AudioData::Path(p) => prompt.push_audio(std::path::Path::new(p)),
+                    AudioData::Pcm {
+                        samples,
+                        sample_rate,
+                    } => prompt.push_audio_pcm(samples.clone(), *sample_rate),
+                }
                 continue;
             }
 

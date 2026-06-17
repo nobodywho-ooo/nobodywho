@@ -24,7 +24,7 @@ void main() {
       final embeddingPath = Platform.environment['TEST_EMBEDDINGS_MODEL'];
       final rerankerPath = Platform.environment['TEST_CROSSENCODER_MODEL'];
       final visionModelPath = Platform.environment['TEST_MULTIMODAL_MODEL'];
-      final mmprojPath = Platform.environment['TEST_MULTIMODAL_MMPROJ'];
+      final mmprojPath = Platform.environment['TEST_MMPROJ_MODEL'];
 
       if (modelPath != null && !File('./model.gguf').existsSync()) {
         Link('./model.gguf').createSync(modelPath);
@@ -451,7 +451,7 @@ void main() {
     });
 
     test('vision.md:25', () async {
-      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
+      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MMPROJ_MODEL'] == null) return;
       final model = await nobodywho.Model.load(
         modelPath: "./multimodal-model.gguf",
         projectionModelPath: "./mmproj.gguf",

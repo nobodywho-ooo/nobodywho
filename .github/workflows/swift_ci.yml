@@ -95,14 +95,14 @@ jobs:
           curl -L -o test-models/model.gguf \
             "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
           curl -L -o test-models/vision-model.gguf \
-            "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
+            "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf"
           curl -L -o test-models/mmproj.gguf \
-            "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf"
+            "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf"
 
       - name: "Run integration tests"
         working-directory: ./nobodywho/swift
         env:
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
-          TEST_VISION_MODEL: ${{ github.workspace }}/test-models/vision-model.gguf
-          TEST_MMPROJ: ${{ github.workspace }}/test-models/mmproj.gguf
+          TEST_MULTIMODAL_MODEL: ${{ github.workspace }}/test-models/vision-model.gguf
+          TEST_MMPROJ_MODEL: ${{ github.workspace }}/test-models/mmproj.gguf
         run: swift test --filter NobodyWhoTests

@@ -1148,7 +1148,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 65089.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 62786.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722.toShort()) {
@@ -1514,6 +1514,29 @@ private class JavaLangRefCleanable(
 /**
  * @suppress
  */
+public object FfiConverterShort: FfiConverter<Short, Short> {
+    override fun lift(value: Short): Short {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Short {
+        return buf.getShort()
+    }
+
+    override fun lower(value: Short): Short {
+        return value
+    }
+
+    override fun allocationSize(value: Short) = 2UL
+
+    override fun write(value: Short, buf: ByteBuffer) {
+        buf.putShort(value)
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterUInt: FfiConverter<UInt, Int> {
     override fun lift(value: Int): UInt {
         return value.toUInt()
@@ -1683,6 +1706,25 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
     }
 }
 
+/**
+ * @suppress
+ */
+public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
+    override fun read(buf: ByteBuffer): ByteArray {
+        val len = buf.getInt()
+        val byteArr = ByteArray(len)
+        buf.get(byteArr)
+        return byteArr
+    }
+    override fun allocationSize(value: ByteArray): ULong {
+        return 4UL + value.size.toULong()
+    }
+    override fun write(value: ByteArray, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        buf.put(value)
+    }
+}
+
 
 // This template implements a class for working with a Rust struct via a handle
 // to the live Rust struct on the other side of the FFI.
@@ -1790,8 +1832,9 @@ public interface RustChatInterface {
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
-     * Image and audio parts should contain a local file-system path.
+     * `parts` is an ordered list of `PromptPart` items. `Image`/`Audio`
+     * reference files on disk; `ImageBytes` accepts encoded image bytes in
+     * memory; `AudioPcm` accepts pre-decoded 16-bit PCM samples + rate.
      */
     fun `askWithPrompt`(`parts`: List<PromptPart>): RustTokenStream
     
@@ -1985,8 +2028,9 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
-     * Image and audio parts should contain a local file-system path.
+     * `parts` is an ordered list of `PromptPart` items. `Image`/`Audio`
+     * reference files on disk; `ImageBytes` accepts encoded image bytes in
+     * memory; `AudioPcm` accepts pre-decoded 16-bit PCM samples + rate.
      */override fun `askWithPrompt`(`parts`: List<PromptPart>): RustTokenStream {
             return FfiConverterTypeRustTokenStream.lift(
     callWithHandle {
@@ -4958,6 +5002,11 @@ public object FfiConverterTypeNobodyWhoError : FfiConverterRustBuffer<NobodyWhoE
 
 /**
  * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
+ *
+ * `Image` / `Audio` reference a file on disk. `ImageBytes` accepts encoded
+ * image bytes (PNG/JPEG/etc.) already in memory. `AudioPcm` accepts
+ * pre-decoded 16-bit PCM samples at the model's expected sample rate
+ * (typically 16 kHz).
  */
 sealed class PromptPart {
     
@@ -4988,6 +5037,25 @@ sealed class PromptPart {
         companion object
     }
     
+    data class ImageBytes(
+        val `data`: kotlin.ByteArray) : PromptPart()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class AudioPcm(
+        val `samples`: List<kotlin.Short>, 
+        val `sampleRate`: kotlin.UInt) : PromptPart()
+        
+    {
+        
+
+        companion object
+    }
+    
 
     
     companion object
@@ -5007,6 +5075,13 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
                 )
             3 -> PromptPart.Audio(
                 FfiConverterString.read(buf),
+                )
+            4 -> PromptPart.ImageBytes(
+                FfiConverterByteArray.read(buf),
+                )
+            5 -> PromptPart.AudioPcm(
+                FfiConverterSequenceShort.read(buf),
+                FfiConverterUInt.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -5034,6 +5109,21 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
                 + FfiConverterString.allocationSize(value.`path`)
             )
         }
+        is PromptPart.ImageBytes -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterByteArray.allocationSize(value.`data`)
+            )
+        }
+        is PromptPart.AudioPcm -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterSequenceShort.allocationSize(value.`samples`)
+                + FfiConverterUInt.allocationSize(value.`sampleRate`)
+            )
+        }
     }
 
     override fun write(value: PromptPart, buf: ByteBuffer) {
@@ -5051,6 +5141,17 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
             is PromptPart.Audio -> {
                 buf.putInt(3)
                 FfiConverterString.write(value.`path`, buf)
+                Unit
+            }
+            is PromptPart.ImageBytes -> {
+                buf.putInt(4)
+                FfiConverterByteArray.write(value.`data`, buf)
+                Unit
+            }
+            is PromptPart.AudioPcm -> {
+                buf.putInt(5)
+                FfiConverterSequenceShort.write(value.`samples`, buf)
+                FfiConverterUInt.write(value.`sampleRate`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -5476,6 +5577,34 @@ public object FfiConverterOptionalMapStringString: FfiConverterRustBuffer<Map<ko
         } else {
             buf.put(1)
             FfiConverterMapStringString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceShort: FfiConverterRustBuffer<List<kotlin.Short>> {
+    override fun read(buf: ByteBuffer): List<kotlin.Short> {
+        val len = buf.getInt()
+        return List<kotlin.Short>(len) {
+            FfiConverterShort.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<kotlin.Short>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterShort.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<kotlin.Short>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterShort.write(it, buf)
         }
     }
 }

@@ -57,7 +57,12 @@ use tracing::{debug, error, info, trace, trace_span};
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
     pub id: String,
-    pub path: PathBuf,
+    /// File path the asset was loaded from. `None` when the asset came from an
+    /// in-memory buffer (`push_image_bytes`, `push_audio_pcm`). Older persisted
+    /// chat histories that stored a bare `PathBuf` deserialize cleanly through
+    /// the serde default.
+    #[serde(default)]
+    pub path: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -1631,10 +1636,12 @@ impl Worker<'_, ChatWorker> {
         let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
             media_assets
                 .iter()
-                .map(|part| match part {
-                    PromptPart::Image(path) => projection_model.load_image(path),
-                    PromptPart::Audio(path) => projection_model.load_audio(path),
-                    PromptPart::Text(_) => unreachable!(),
+                .map(|part| {
+                    // load_media returns None only for Text, and
+                    // extract_media_assets already filtered Text out.
+                    projection_model
+                        .load_media(part)
+                        .map(|opt| opt.expect("extract_media_assets filtered Text out"))
                 })
                 .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
         } else {
@@ -1650,7 +1657,10 @@ impl Worker<'_, ChatWorker> {
             .map(|(id, part)| Asset {
                 id: id.clone(),
                 path: match part {
-                    PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
+                    PromptPart::Image(path) | PromptPart::Audio(path) => {
+                        Some(path.to_path_buf())
+                    }
+                    PromptPart::ImageBytes(_) | PromptPart::AudioPcm { .. } => None,
                     PromptPart::Text(_) => unreachable!(),
                 },
             })
@@ -2877,4 +2887,140 @@ mod tests {
     }
 
     // Template rendering tests have been moved to template.rs module
+
+    // ===== Multimodal: in-memory media =====
+
+    /// Loading an image from `push_image_bytes` should produce the same bitmap
+    /// as loading the same file via `push_image`. This is the focused unit
+    /// check that the new ImageBytes dispatch reaches `MtmdBitmap::from_buffer`
+    /// and yields identical decoded pixel data.
+    #[test]
+    fn test_load_image_from_bytes_matches_path() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_multimodal_model();
+        let projection_model = model
+            .projection_model
+            .as_ref()
+            .expect("vision model should have a projection_model");
+
+        let image_path = test_utils::test_image_path();
+        let bytes = std::fs::read(&image_path)
+            .unwrap_or_else(|e| panic!("Failed to read test image {}: {e}", image_path));
+
+        let from_path = projection_model
+            .load_media(&PromptPart::Image(image_path.clone().into()))
+            .expect("loading image from path failed")
+            .expect("Image variant should produce a bitmap");
+        let from_bytes = projection_model
+            .load_media(&PromptPart::ImageBytes(bytes))
+            .expect("loading image from bytes failed")
+            .expect("ImageBytes variant should produce a bitmap");
+
+        assert_eq!(from_path.nx(), from_bytes.nx(), "image widths differ");
+        assert_eq!(from_path.ny(), from_bytes.ny(), "image heights differ");
+        assert_eq!(
+            from_path.data(),
+            from_bytes.data(),
+            "decoded pixel data differs"
+        );
+    }
+
+    /// End-to-end check: a `Prompt` whose image came from `push_image_bytes`
+    /// drives the full chat pipeline (template render, tokenize, decode).
+    #[test]
+    fn test_chat_with_image_bytes() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_multimodal_model();
+
+        let chat = ChatBuilder::new(model)
+            .with_context_size(4096)
+            .with_system_prompt(Some("You are a helpful assistant."))
+            .with_template_variable("enable_thinking".to_string(), false)
+            .with_sampler(SamplerPresets::greedy())
+            .build()
+            .expect("chat build failed");
+
+        let image_bytes = std::fs::read(test_utils::test_image_path())
+            .expect("test image should exist");
+
+        let mut prompt = crate::tokenizer::Prompt::new();
+        prompt.push_text(
+            "What animal is in this image? Short answer. Focus on the species, not the age or the breed.",
+        );
+        prompt.push_image_bytes(image_bytes);
+
+        let response = chat.ask(prompt).completed().expect("ask failed");
+        assert!(
+            response.to_lowercase().contains("penguin"),
+            "Expected 'penguin' in response, got: {response}"
+        );
+    }
+
+    /// Smoke test for `push_audio_pcm`: pushing silence at the model's
+    /// expected rate should build an `MtmdBitmap` without panic. We don't
+    /// assert on transcription content (silence transcribes to whatever the
+    /// model produces); just verifying the dispatch chain works.
+    #[test]
+    fn test_load_audio_from_pcm() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_multimodal_model();
+        let projection_model = model
+            .projection_model
+            .as_ref()
+            .expect("vision model should have a projection_model");
+
+        // Need the model's expected rate — skip if this model has no audio support.
+        let Some(rate) = projection_model.ctx.get_audio_sample_rate() else {
+            eprintln!("Skipping: test vision model does not support audio");
+            return;
+        };
+
+        // Half a second of silence is enough to exercise the conversion.
+        let samples: Vec<i16> = vec![0; (rate / 2) as usize];
+
+        let bitmap = projection_model
+            .load_media(&PromptPart::AudioPcm {
+                samples,
+                sample_rate: rate,
+            })
+            .expect("loading audio from PCM failed")
+            .expect("AudioPcm variant should produce a bitmap");
+
+        assert!(bitmap.is_audio(), "expected an audio bitmap");
+    }
+
+    /// `push_audio_pcm` with a sample rate that doesn't match the model
+    /// should fail with a clear error rather than silently produce garbage.
+    #[test]
+    fn test_load_audio_pcm_rejects_wrong_sample_rate() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_multimodal_model();
+        let projection_model = model
+            .projection_model
+            .as_ref()
+            .expect("vision model should have a projection_model");
+
+        let Some(rate) = projection_model.ctx.get_audio_sample_rate() else {
+            eprintln!("Skipping: test vision model does not support audio");
+            return;
+        };
+
+        let wrong_rate = rate.checked_mul(3).unwrap_or(48_000); // way off
+        let samples: Vec<i16> = vec![0; 1000];
+
+        let err = projection_model
+            .load_media(&PromptPart::AudioPcm {
+                samples,
+                sample_rate: wrong_rate,
+            })
+            .expect_err("wrong sample rate should be rejected");
+
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("expected rate")
+                && msg.contains(&rate.to_string())
+                && msg.contains(&wrong_rate.to_string()),
+            "Error should mention both rates; got: {msg}"
+        );
+    }
 }

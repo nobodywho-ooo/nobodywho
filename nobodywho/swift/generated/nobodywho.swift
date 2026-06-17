@@ -425,6 +425,22 @@ private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterInt16: FfiConverterPrimitive {
+    typealias FfiType = Int16
+    typealias SwiftType = Int16
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int16 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Int16, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -551,6 +567,24 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
+    }
+}
+
 
 
 
@@ -564,8 +598,9 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
-     * Image and audio parts should contain a local file-system path.
+     * `parts` is an ordered list of `PromptPart` items. `Image`/`Audio`
+     * reference files on disk; `ImageBytes` accepts encoded image bytes in
+     * memory; `AudioPcm` accepts pre-decoded 16-bit PCM samples + rate.
      */
     func askWithPrompt(parts: [PromptPart])  -> RustTokenStream
     
@@ -709,8 +744,9 @@ open func ask(message: String) -> RustTokenStream  {
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
-     * Image and audio parts should contain a local file-system path.
+     * `parts` is an ordered list of `PromptPart` items. `Image`/`Audio`
+     * reference files on disk; `ImageBytes` accepts encoded image bytes in
+     * memory; `AudioPcm` accepts pre-decoded 16-bit PCM samples + rate.
      */
 open func askWithPrompt(parts: [PromptPart]) -> RustTokenStream  {
     return try!  FfiConverterTypeRustTokenStream_lift(try! rustCall() {
@@ -2682,6 +2718,11 @@ public func FfiConverterTypeNobodyWhoError_lower(_ value: NobodyWhoError) -> Rus
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
  * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
+ *
+ * `Image` / `Audio` reference a file on disk. `ImageBytes` accepts encoded
+ * image bytes (PNG/JPEG/etc.) already in memory. `AudioPcm` accepts
+ * pre-decoded 16-bit PCM samples at the model's expected sample rate
+ * (typically 16 kHz).
  */
 
 public enum PromptPart: Equatable, Hashable {
@@ -2691,6 +2732,10 @@ public enum PromptPart: Equatable, Hashable {
     case image(path: String
     )
     case audio(path: String
+    )
+    case imageBytes(data: Data
+    )
+    case audioPcm(samples: [Int16], sampleRate: UInt32
     )
 
 
@@ -2720,6 +2765,12 @@ public struct FfiConverterTypePromptPart: FfiConverterRustBuffer {
         case 3: return .audio(path: try FfiConverterString.read(from: &buf)
         )
         
+        case 4: return .imageBytes(data: try FfiConverterData.read(from: &buf)
+        )
+        
+        case 5: return .audioPcm(samples: try FfiConverterSequenceInt16.read(from: &buf), sampleRate: try FfiConverterUInt32.read(from: &buf)
+        )
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -2741,6 +2792,17 @@ public struct FfiConverterTypePromptPart: FfiConverterRustBuffer {
         case let .audio(path):
             writeInt(&buf, Int32(3))
             FfiConverterString.write(path, into: &buf)
+            
+        
+        case let .imageBytes(data):
+            writeInt(&buf, Int32(4))
+            FfiConverterData.write(data, into: &buf)
+            
+        
+        case let .audioPcm(samples,sampleRate):
+            writeInt(&buf, Int32(5))
+            FfiConverterSequenceInt16.write(samples, into: &buf)
+            FfiConverterUInt32.write(sampleRate, into: &buf)
             
         }
     }
@@ -3237,6 +3299,31 @@ fileprivate struct FfiConverterOptionDictionaryStringString: FfiConverterRustBuf
         case 1: return try FfiConverterDictionaryStringString.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceInt16: FfiConverterRustBuffer {
+    typealias SwiftType = [Int16]
+
+    public static func write(_ value: [Int16], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterInt16.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Int16] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Int16]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterInt16.read(from: &buf))
+        }
+        return seq
     }
 }
 
@@ -3795,7 +3882,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 65089) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 62786) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {

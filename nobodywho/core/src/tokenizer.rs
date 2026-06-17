@@ -31,7 +31,10 @@ impl Display for Prompt {
             .iter()
             .map(|part| match part {
                 PromptPart::Text(text) => text.clone(),
-                PromptPart::Image(_) | PromptPart::Audio(_) => marker.to_string(),
+                PromptPart::Image(_)
+                | PromptPart::Audio(_)
+                | PromptPart::ImageBytes(_)
+                | PromptPart::AudioPcm { .. } => marker.to_string(),
             })
             .collect::<Vec<String>>()
             .join("");
@@ -67,12 +70,36 @@ impl Prompt {
         self.parts.push(PromptPart::Audio(audio_path.into()));
     }
 
+    /// Add an image from an in-memory encoded buffer (PNG, JPEG, BMP, GIF, etc.).
+    /// The buffer is decoded by stb_image inside llama.cpp. Lets callers skip
+    /// the temp-file round-trip when the image is already in memory (HTTP
+    /// response, asset bundle, generated content).
+    pub fn push_image_bytes(&mut self, data: Vec<u8>) {
+        self.parts.push(PromptPart::ImageBytes(data));
+    }
+
+    /// Add an audio clip from pre-decoded PCM samples.
+    ///
+    /// `samples` is interleaved 16-bit signed integers — what microphone
+    /// capture libraries (`cpal`, `portaudio`, `record_audio`, etc.) give you
+    /// natively. `sample_rate` must match the model's expected rate (typically
+    /// 16 kHz); the conversion to the float-PCM format `MtmdBitmap` wants is
+    /// done internally. If the rate doesn't match the model's, `ask()`
+    /// surfaces a `MultimodalError::LoadAudio`.
+    pub fn push_audio_pcm(&mut self, samples: Vec<i16>, sample_rate: u32) {
+        self.parts.push(PromptPart::AudioPcm {
+            samples,
+            sample_rate,
+        });
+    }
+
+    /// Paths of file-backed media assets, in order. Skips in-memory variants.
     pub fn extract_asset_paths(&self) -> Vec<&Path> {
         self.parts
             .iter()
             .filter_map(|part| match part {
                 PromptPart::Image(path) | PromptPart::Audio(path) => Some(path.as_path()),
-                PromptPart::Text(_) => None,
+                _ => None,
             })
             .collect()
     }
@@ -85,11 +112,48 @@ impl Prompt {
     }
 }
 
-#[derive(Clone, Debug)]
+/// One part of a multimodal prompt.
+///
+/// * `Image` / `Audio` — file on disk
+/// * `ImageBytes` — encoded image bytes (PNG/JPEG/etc.) in memory
+/// * `AudioPcm` — pre-decoded PCM samples + sample rate (typically from a
+///   microphone capture). There is no `AudioBytes` variant — encoded audio in
+///   memory should be decoded externally (via `symphonia`, `hound`, or similar)
+///   and passed as PCM. Mixing miniaudio's encoded-buffer path with our own
+///   PCM path would surface as silent format mismatches.
+#[derive(Clone)]
 pub(crate) enum PromptPart {
     Text(String),
     Image(PathBuf),
     Audio(PathBuf),
+    ImageBytes(Vec<u8>),
+    AudioPcm {
+        samples: Vec<i16>,
+        sample_rate: u32,
+    },
+}
+
+// Manual Debug — never dump the raw byte / PCM buffer in tracing logs (these
+// can be MB-sized for images / multi-second audio). Always print a length
+// summary instead.
+impl std::fmt::Debug for PromptPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PromptPart::Text(t) => f.debug_tuple("Text").field(t).finish(),
+            PromptPart::Image(p) => f.debug_tuple("Image").field(p).finish(),
+            PromptPart::Audio(p) => f.debug_tuple("Audio").field(p).finish(),
+            PromptPart::ImageBytes(b) => write!(f, "ImageBytes(<{} bytes>)", b.len()),
+            PromptPart::AudioPcm {
+                samples,
+                sample_rate,
+            } => write!(
+                f,
+                "AudioPcm {{ <{} samples @ {} Hz> }}",
+                samples.len(),
+                sample_rate
+            ),
+        }
+    }
 }
 
 pub trait Promptable {
@@ -405,32 +469,89 @@ impl ProjectionModel {
         }
     }
 
-    pub fn load_image(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
-        let p = path.to_string_lossy().into_owned();
-        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
-            MultimodalError::LoadImage {
-                path: p.clone(),
-                error: e.to_string(),
+    /// Build an `MtmdBitmap` for a media part of a [`Prompt`]. Returns `None`
+    /// for `PromptPart::Text` so callers can `?` through this without a
+    /// separate "is media" check.
+    pub(crate) fn load_media(
+        &self,
+        part: &PromptPart,
+    ) -> Result<Option<MtmdBitmap>, MultimodalError> {
+        match part {
+            PromptPart::Text(_) => Ok(None),
+
+            PromptPart::Image(path) => {
+                let p = path.to_string_lossy().into_owned();
+                info!(path = %p, "Loading image from file for MTMD");
+                let bm = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+                    MultimodalError::LoadImage {
+                        path: p,
+                        error: e.to_string(),
+                    }
+                })?;
+                Ok(Some(bm))
             }
-        })?;
-
-        info!(path = %p, "Loading image for MTMD");
-
-        Ok(bitmap)
-    }
-
-    pub fn load_audio(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
-        let p = path.to_string_lossy().into_owned();
-        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
-            MultimodalError::LoadAudio {
-                path: p.clone(),
-                error: e.to_string(),
+            PromptPart::ImageBytes(data) => {
+                info!(n_bytes = data.len(), "Loading image from in-memory buffer for MTMD");
+                let bm = MtmdBitmap::from_buffer(&self.ctx, data).map_err(|e| {
+                    MultimodalError::LoadImage {
+                        path: "<in-memory bytes>".to_string(),
+                        error: e.to_string(),
+                    }
+                })?;
+                Ok(Some(bm))
             }
-        })?;
 
-        info!(path = %p, "Loading audio for MTMD");
+            PromptPart::Audio(path) => {
+                let p = path.to_string_lossy().into_owned();
+                info!(path = %p, "Loading audio from file for MTMD");
+                let bm = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+                    MultimodalError::LoadAudio {
+                        path: p,
+                        error: e.to_string(),
+                    }
+                })?;
+                Ok(Some(bm))
+            }
+            PromptPart::AudioPcm {
+                samples,
+                sample_rate,
+            } => {
+                info!(
+                    n_samples = samples.len(),
+                    sample_rate,
+                    "Loading audio from PCM samples for MTMD"
+                );
 
-        Ok(bitmap)
+                // Reject sample-rate mismatches up front — silently feeding
+                // off-rate PCM into MtmdBitmap::from_audio_data would surface
+                // as garbled transcriptions much later.
+                if let Some(expected) = self.ctx.get_audio_sample_rate() {
+                    if expected != *sample_rate {
+                        return Err(MultimodalError::LoadAudio {
+                            path: format!("<PCM @ {} Hz>", sample_rate),
+                            error: format!(
+                                "audio PCM samples must be at the model's expected rate ({} Hz); got {} Hz. Resample before passing to push_audio_pcm.",
+                                expected, sample_rate
+                            ),
+                        });
+                    }
+                }
+
+                // i16 → f32 in [-1.0, 1.0] (standard PCM normalisation).
+                let f32_samples: Vec<f32> = samples
+                    .iter()
+                    .map(|s| (*s as f32) / (i16::MAX as f32))
+                    .collect();
+
+                let bm = MtmdBitmap::from_audio_data(&f32_samples).map_err(|e| {
+                    MultimodalError::LoadAudio {
+                        path: format!("<PCM @ {} Hz>", sample_rate),
+                        error: e.to_string(),
+                    }
+                })?;
+                Ok(Some(bm))
+            }
+        }
     }
 }
 

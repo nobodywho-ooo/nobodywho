@@ -54,6 +54,49 @@ prompt = Prompt([
 chat.ask(prompt).completed() # It's a dog and a penguin!
 ```
 
+## In-memory media (no temp files)
+
+Both `Image` and `Audio` accept content that's already in memory, so you don't
+have to write to a temp file just to talk to the model.
+
+```python notest
+# Image from in-memory bytes (PNG, JPEG, BMP, GIF, etc.)
+# Use this when the image came from an HTTP response, an asset bundle, a
+# canvas you drew, a PIL.Image you encoded, etc.
+import requests
+png_bytes = requests.get("https://example.com/photo.png").content
+
+prompt = Prompt([
+    Text("What animal is in this image?"),
+    Image(png_bytes),
+])
+
+# Audio from in-memory PCM samples (16-bit signed integers)
+# Use this for live microphone capture or after you've decoded an MP3 yourself
+# with soundfile / librosa / ffmpeg.
+import wave, array
+with wave.open("./recording.wav", "rb") as wf:
+    sample_rate = wf.getframerate()
+    samples = array.array("h")
+    samples.frombytes(wf.readframes(wf.getnframes()))
+
+prompt = Prompt([
+    Text("Please transcribe this audio."),
+    Audio.from_pcm(samples, sample_rate),
+])
+```
+
+:::info Audio sample rate
+`Audio.from_pcm` requires the PCM samples to be at the **model's expected sample rate**.
+For every current audio-capable multimodal LLM (Gemma 4, Phi-4 multimodal,
+Qwen2-Audio, etc.) this is **16 kHz** — that's also the default if you omit
+`sample_rate`. Microphone APIs (cpal, sounddevice, PyAudio) typically capture
+at 44.1 or 48 kHz; resample to 16 kHz with `librosa.resample` or
+`scipy.signal.resample_poly` before passing in. NobodyWho fails fast with a
+clear error if the rate doesn't match, rather than silently returning garbled
+transcriptions.
+:::
+
 ## Tips for multimodality
 As with textual prompts, the format in which you supply the multimodal prompt can matter in certain
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text

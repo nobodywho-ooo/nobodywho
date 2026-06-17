@@ -3922,6 +3922,13 @@ impl SseDecode for f32 {
     }
 }
 
+impl SseDecode for i16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_i16::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4010,6 +4017,18 @@ impl SseDecode for Vec<f32> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<f32>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<i16> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<i16>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -4213,6 +4232,18 @@ impl SseDecode for crate::PromptPart {
             2 => {
                 let mut var_path = <String>::sse_decode(deserializer);
                 return crate::PromptPart::Audio { path: var_path };
+            }
+            3 => {
+                let mut var_data = <Vec<u8>>::sse_decode(deserializer);
+                return crate::PromptPart::ImageBytes { data: var_data };
+            }
+            4 => {
+                let mut var_samples = <Vec<i16>>::sse_decode(deserializer);
+                let mut var_sampleRate = <u32>::sse_decode(deserializer);
+                return crate::PromptPart::AudioPcm {
+                    samples: var_samples,
+                    sample_rate: var_sampleRate,
+                };
             }
             _ => {
                 unimplemented!("");
@@ -4706,6 +4737,18 @@ impl flutter_rust_bridge::IntoDart for crate::PromptPart {
             crate::PromptPart::Audio { path } => {
                 [2.into_dart(), path.into_into_dart().into_dart()].into_dart()
             }
+            crate::PromptPart::ImageBytes { data } => {
+                [3.into_dart(), data.into_into_dart().into_dart()].into_dart()
+            }
+            crate::PromptPart::AudioPcm {
+                samples,
+                sample_rate,
+            } => [
+                4.into_dart(),
+                samples.into_into_dart().into_dart(),
+                sample_rate.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -5089,6 +5132,13 @@ impl SseEncode for f32 {
     }
 }
 
+impl SseEncode for i16 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_i16::<NativeEndian>(self).unwrap();
+    }
+}
+
 impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5169,6 +5219,16 @@ impl SseEncode for Vec<f32> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <f32>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<i16> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <i16>::sse_encode(item, serializer);
         }
     }
 }
@@ -5341,6 +5401,18 @@ impl SseEncode for crate::PromptPart {
             crate::PromptPart::Audio { path } => {
                 <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(path, serializer);
+            }
+            crate::PromptPart::ImageBytes { data } => {
+                <i32>::sse_encode(3, serializer);
+                <Vec<u8>>::sse_encode(data, serializer);
+            }
+            crate::PromptPart::AudioPcm {
+                samples,
+                sample_rate,
+            } => {
+                <i32>::sse_encode(4, serializer);
+                <Vec<i16>>::sse_encode(samples, serializer);
+                <u32>::sse_encode(sample_rate, serializer);
             }
             _ => {
                 unimplemented!("");

@@ -11,12 +11,18 @@ mod parse;
 pub use nobodywho::chat::Message;
 pub use nobodywho::tool_calling::ToolCall;
 
-/// A part of a multimodal prompt. Use [`PromptPart::Text`] for text,
-/// [`PromptPart::Image`] for images, and [`PromptPart::Audio`] for audio clips.
+/// A part of a multimodal prompt.
+///
+/// `Image` / `Audio` reference a file on disk. `ImageBytes` accepts encoded
+/// image bytes (PNG/JPEG/etc.) already in memory. `AudioPcm` accepts
+/// pre-decoded 16-bit PCM samples — what mic-capture libraries produce
+/// natively — at the model's expected sample rate (typically 16 kHz).
 pub enum PromptPart {
     Text { content: String },
     Image { path: String },
     Audio { path: String },
+    ImageBytes { data: Vec<u8> },
+    AudioPcm { samples: Vec<i16>, sample_rate: u32 },
 }
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
@@ -274,6 +280,11 @@ impl RustChat {
                 PromptPart::Text { content } => prompt.push_text(content),
                 PromptPart::Image { path } => prompt.push_image(path.as_ref()),
                 PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
+                PromptPart::ImageBytes { data } => prompt.push_image_bytes(data),
+                PromptPart::AudioPcm {
+                    samples,
+                    sample_rate,
+                } => prompt.push_audio_pcm(samples, sample_rate),
             }
         }
 

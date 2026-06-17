@@ -10,23 +10,49 @@ class TextPart {
   }
 }
 
-/** An image part of a multimodal prompt. */
+/** An image part: file path or in-memory encoded bytes. */
 class ImagePart {
   /** @internal */
   readonly _inner: PromptPart;
 
-  constructor(path: string) {
-    this._inner = new PromptPart.Image({ path });
+  constructor(source: string | Uint8Array | ArrayBuffer) {
+    if (typeof source === "string") {
+      this._inner = new PromptPart.Image({ path: source });
+    } else {
+      // Normalize to a fresh ArrayBuffer covering exactly the view's bytes —
+      // matches what the uniffi-react-native binding expects.
+      const buffer =
+        source instanceof ArrayBuffer
+          ? source
+          : source.buffer.slice(
+              source.byteOffset,
+              source.byteOffset + source.byteLength,
+            );
+      this._inner = new PromptPart.ImageBytes({ data: buffer });
+    }
   }
 }
 
-/** An audio part of a multimodal prompt. */
+/** An audio part: file path or in-memory 16-bit PCM samples + sample rate. */
 class AudioPart {
   /** @internal */
   readonly _inner: PromptPart;
 
-  constructor(path: string) {
-    this._inner = new PromptPart.Audio({ path });
+  constructor(
+    source: string | { samples: Int16Array | number[]; sampleRate?: number },
+  ) {
+    if (typeof source === "string") {
+      this._inner = new PromptPart.Audio({ path: source });
+    } else {
+      const samplesArr =
+        source.samples instanceof Int16Array
+          ? Array.from(source.samples)
+          : source.samples;
+      this._inner = new PromptPart.AudioPcm({
+        samples: samplesArr,
+        sampleRate: source.sampleRate ?? 16000,
+      });
+    }
   }
 }
 
@@ -35,13 +61,18 @@ type Part = TextPart | ImagePart | AudioPart;
 /**
  * A multimodal prompt composed of text, image, and audio parts.
  *
+ * Image and audio parts can be supplied as a file-system path or as in-memory
+ * content (encoded image bytes / 16-bit PCM audio samples). Every current
+ * audio-capable multimodal LLM expects **16 kHz** PCM — the default if you
+ * omit `sampleRate`.
+ *
  * @example
  * ```typescript
  * const prompt = new Prompt([
- *   Prompt.Text("Tell me what you see in the first image."),
- *   Prompt.Image("./dog.png"),
- *   Prompt.Text("Also tell me what you see in the second image."),
- *   Prompt.Image("./penguin.png"),
+ *   Prompt.Text("Describe the image."),
+ *   Prompt.Image("./dog.png"),                                 // from disk
+ *   Prompt.Image(pngBytes),                                    // in memory
+ *   Prompt.Audio({ samples: pcmSamples, sampleRate: 16000 }),  // mic capture
  * ]);
  *
  * const stream = chat.ask(prompt);
@@ -60,13 +91,18 @@ export class Prompt {
     return new TextPart(content);
   }
 
-  /** Create an image part from a file path. */
-  static Image(path: string): ImagePart {
-    return new ImagePart(path);
+  /** Create an image part: file path, `Uint8Array`, or `ArrayBuffer`. */
+  static Image(source: string | Uint8Array | ArrayBuffer): ImagePart {
+    return new ImagePart(source);
   }
 
-  /** Create an audio part from a file path. */
-  static Audio(path: string): AudioPart {
-    return new AudioPart(path);
+  /**
+   * Create an audio part: file path (string), or PCM samples object
+   * `{ samples, sampleRate? }`.
+   */
+  static Audio(
+    source: string | { samples: Int16Array | number[]; sampleRate?: number },
+  ): AudioPart {
+    return new AudioPart(source);
   }
 }

@@ -5,10 +5,16 @@ import uniffi.nobodywho.PromptPart
 /**
  * A multimodal prompt composed of text, image, and audio parts.
  *
+ * Image and audio parts can be supplied as a file-system path, or as
+ * in-memory content (encoded image bytes / 16-bit PCM audio samples) so you
+ * don't have to write to a temp file just to talk to the model.
+ *
  * ```kotlin
  * val prompt = Prompt(
  *     Prompt.Text("What do you see?"),
- *     Prompt.Image("./photo.png"),
+ *     Prompt.Image("./photo.png"),                     // from disk
+ *     Prompt.Image(pngBytes),                          // already in memory
+ *     Prompt.Audio(pcmSamples, sampleRate = 16000),    // mic capture
  * )
  * val stream = chat.ask(prompt)
  * ```
@@ -20,7 +26,22 @@ class Prompt(vararg parts: Part) {
 
     companion object {
         fun Text(content: String) = Part(PromptPart.Text(content))
+
+        /** Image part from a file-system path. */
         fun Image(path: String) = Part(PromptPart.Image(path))
+
+        /** Image part from in-memory encoded bytes (PNG, JPEG, etc.). */
+        fun Image(data: ByteArray) = Part(PromptPart.ImageBytes(data))
+
+        /** Audio part from a file-system path (WAV/MP3/FLAC). */
         fun Audio(path: String) = Part(PromptPart.Audio(path))
+
+        /**
+         * Audio part from in-memory 16-bit PCM samples + sample rate. Every
+         * current audio-capable multimodal LLM expects **16 kHz** — resample
+         * before passing in. Throws at `ask()` time if the rate doesn't match.
+         */
+        fun Audio(samples: ShortArray, sampleRate: UInt = 16000u) =
+            Part(PromptPart.AudioPcm(samples.toList(), sampleRate))
     }
 }

@@ -59,8 +59,8 @@ def pytest_markdown_docs_globals():
     if reranker_model_path and not RERANKER_SYMLINK.exists():
         os.symlink(reranker_model_path, RERANKER_SYMLINK)
 
-    # make symlink to TEST_VISION_MODEL, so we can use "./vision-model.gguf" literal in docs
-    vision_model_path = os.environ.get("TEST_VISION_MODEL")
+    # make symlink to TEST_MULTIMODAL_MODEL, so we can use "./vision-model.gguf" literal in docs
+    vision_model_path = os.environ.get("TEST_MULTIMODAL_MODEL")
     if vision_model_path and not VISION_MODEL_SYMLINK.exists():
         os.symlink(vision_model_path, VISION_MODEL_SYMLINK)
 

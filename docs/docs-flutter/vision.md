@@ -53,6 +53,36 @@ final response = await chat.askWithPrompt(nobodywho.Prompt([
 ])).completed(); // It's a dog and a penguin!
 ```
 
+## In-memory media (no temp files)
+
+Both `ImagePart` and `AudioPart` accept content that's already in memory, so
+you don't have to write to a temp file just to talk to the model. Use
+`ImagePart.fromBytes` for encoded image bytes (PNG/JPEG/etc. from
+`rootBundle.load()`, `http.get().bodyBytes`, a Flutter canvas, etc.) and
+`AudioPart.fromPcm` for 16-bit PCM samples (live microphone capture from
+`flutter_sound` / `mic_stream`, or after decoding an audio file yourself).
+
+```dart continuation
+await chat.resetHistory();
+final pngBytes = await File("./dog.png").readAsBytes();
+final samples = Int16List(16000); // one second of silence at 16 kHz, for shape
+
+final response3 = await chat.askWithPrompt(nobodywho.Prompt([
+  nobodywho.TextPart("Describe the image."),
+  nobodywho.ImagePart.fromBytes(pngBytes),
+  nobodywho.AudioPart.fromPcm(samples, sampleRate: 16000),
+])).completed();
+```
+
+:::info Audio sample rate
+`AudioPart.fromPcm` requires PCM samples to be at the **model's expected
+sample rate**. For every current audio-capable multimodal LLM (Gemma 4,
+Phi-4 multimodal, Qwen2-Audio, etc.) this is **16 kHz** — the default if you
+omit `sampleRate`. Most microphone APIs capture at 44.1 or 48 kHz; resample
+to 16 kHz before passing in. NobodyWho fails fast with a clear error if the
+rate doesn't match, rather than silently returning garbled transcriptions.
+:::
+
 ## Tips for multimodality
 As with textual prompts, the format in which you supply the multimodal prompt can matter in certain
 scenarios. If the model performs poorly, try to mess around with the order of supplying the text
