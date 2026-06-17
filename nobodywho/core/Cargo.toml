@@ -16,7 +16,6 @@ chrono = "0.4.39"
 
 llama-cpp-2 = { version = "0.1.150", default-features = false, features = [
     "openmp",
-    "android-static-stdcxx",
     "mtmd",
     "llguidance",
     "common",
@@ -46,6 +45,16 @@ walkdir = "2.5"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
+# Statically link the C++ stdlib (libc++) on Android so the produced shared
+# library is self-contained. This is Android-only on purpose: on Linux, the
+# `static-stdcxx` feature makes llama-cpp-rs's build.rs add the compiler's
+# static-archive dir (`emit_compiler_static_archive_search_path`) to the link
+# search path, which then resolves `-lgomp` to the non-PIC `libgomp.a` and
+# breaks linking the cdylib ("relocation R_X86_64_TPOFF32 against hidden symbol
+# `gomp_tls_data`"). Desktop keeps the dynamic libstdc++ it has always used.
+llama-cpp-2 = { version = "0.1.150", default-features = false, features = [
+    "android-static-stdcxx",
+] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
@@ -58,7 +67,6 @@ llama-cpp-2 = { version = "0.1.150", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",
-    "android-static-stdcxx",
     "llguidance",
     "common",
 ] }

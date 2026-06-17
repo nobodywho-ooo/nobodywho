@@ -7336,7 +7336,7 @@ rec {
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "llguidance" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -7379,7 +7379,7 @@ rec {
           "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "vulkan" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
@@ -8196,14 +8196,21 @@ rec {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
-            features = [ "openmp" "android-static-stdcxx" "mtmd" "llguidance" "common" ];
+            features = [ "openmp" "mtmd" "llguidance" "common" ];
           }
           {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("visionos" == target."os" or null)) && (!("watchos" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
-            features = [ "openmp" "vulkan" "mtmd" "android-static-stdcxx" "llguidance" "common" ];
+            features = [ "openmp" "vulkan" "mtmd" "llguidance" "common" ];
+          }
+          {
+            name = "llama-cpp-2";
+            packageId = "llama-cpp-2";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-static-stdcxx" ];
           }
           {
             name = "miette";
