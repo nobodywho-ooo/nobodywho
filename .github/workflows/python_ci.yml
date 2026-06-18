@@ -82,7 +82,11 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          vulkan_version: 1.4.304.0
+          # The new ggml-vulkan backend needs SPIRV-HeadersConfig.cmake, only
+          # bundled in the SDK from ~1.4.313+. Linux uses .0 (not the Windows
+          # job's .2): jakoch's ARM-Linux mirror (jakoch/vulkan-sdk-arm) only
+          # publishes 1.4.313.0, and 1.4.313.2 fails to download for arm64.
+          vulkan_version: 1.4.313.0
           cache: true
 
       - name: Install build dependencies
@@ -155,6 +159,11 @@ jobs:
     runs-on: windows-latest
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
+      # libgit2 (cargo's default git backend) ignores core.longpaths, so the deep
+      # llama.cpp tools/ui/ submodule paths exceed Windows' 260-char MAX_PATH even
+      # though LongPathsEnabled + core.longpaths are set below. Fetch with the git
+      # CLI instead, which honors core.longpaths and uses \\?\ extended paths.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -167,7 +176,12 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          vulkan_version: 1.4.304.0
+          # 1.4.313.2 matches llama.cpp's own Windows Vulkan CI. The newer
+          # ggml-vulkan backend does find_package(SPIRV-Headers CONFIG REQUIRED);
+          # SPIRV-HeadersConfig.cmake is only bundled in the SDK from ~1.4.313+,
+          # so 1.4.304.0 fails to configure. (Discovery uses the VULKAN_SDK env
+          # var this action sets; stripdown doesn't touch the cmake config.)
+          vulkan_version: 1.4.313.2
           install_runtime: false
           cache: true
           stripdown: true

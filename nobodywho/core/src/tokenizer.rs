@@ -383,6 +383,8 @@ impl ProjectionModel {
             n_threads,
             media_marker: CString::new(media_marker.to_string())
                 .expect("Failed to create CString for marker"),
+            image_min_tokens: -1, // -1 means 'use model default'
+            image_max_tokens: -1, // -1 means 'use model default'
         };
 
         match MtmdContext::init_from_file(&path.to_string_lossy(), parent_model, &mtmd_params) {
@@ -421,7 +423,7 @@ impl ProjectionModel {
 
     pub fn load_image(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
         let p = path.to_string_lossy().into_owned();
-        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str(), false).map_err(|e| {
             MultimodalError::LoadImage {
                 path: p.clone(),
                 error: e.to_string(),
@@ -435,7 +437,7 @@ impl ProjectionModel {
 
     pub fn load_audio(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {
         let p = path.to_string_lossy().into_owned();
-        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str()).map_err(|e| {
+        let bitmap = MtmdBitmap::from_file(&self.ctx, p.as_str(), false).map_err(|e| {
             MultimodalError::LoadAudio {
                 path: p.clone(),
                 error: e.to_string(),

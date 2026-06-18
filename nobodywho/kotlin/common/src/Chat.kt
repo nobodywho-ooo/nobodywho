@@ -1,6 +1,7 @@
 package ai.nobodywho
 
 import java.io.Closeable
+import uniffi.nobodywho.ChatStats
 import uniffi.nobodywho.RustChat as InternalRustChat
 import uniffi.nobodywho.SamplerConfig
 
@@ -77,6 +78,7 @@ class Chat(
     suspend fun setSamplerConfig(sampler: SamplerConfig) = inner.setSamplerConfig(sampler)
     suspend fun getSamplerConfigJson(): String = inner.getSamplerConfigJson()
     suspend fun getStats(): ChatStats = inner.getStats()
+    suspend fun tokenize(message: String): List<Int?> = inner.tokenize(message)
 
     /** Free the underlying Rust resources. */
     fun destroy() = inner.destroy()

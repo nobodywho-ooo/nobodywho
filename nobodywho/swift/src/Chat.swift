@@ -139,4 +139,9 @@ public class Chat {
     public func getStats() async throws -> ChatStats {
         return try await inner.getStats()
     }
+
+    /// Tokenize a message using the model's tokenizer.
+    public func tokenize(message: String) async throws -> [Int32?] {
+        return try await inner.tokenize(message: message)
+    }
 }
