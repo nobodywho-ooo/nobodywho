@@ -1,6 +1,7 @@
 package ai.nobodywho
 
 import java.io.Closeable
+import uniffi.nobodywho.ChatStats
 import uniffi.nobodywho.RustChat as InternalRustChat
 import uniffi.nobodywho.SamplerConfig
 
