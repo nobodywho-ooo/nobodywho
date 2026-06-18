@@ -10,14 +10,23 @@
  * This file is NOT generated — it is safe to edit.
  */
 
-// Side-effect import: forces ./index to evaluate at package load so
-// installRustCrate() and the generated bindings' initialize() run before any
-// FFI call. Without this, Metro's inlineRequires (release-only) defers ./index
-// until a lazy re-export is touched, and FFI calls throw
-// "Cannot read property 'ubrn_…' of undefined".
-import "./index";
+// Native crate install + bindings initialize. These run as side effects of
+// evaluating this module, which the React Native runtime is guaranteed to do
+// before any FFI call because wrapper.ts is the package main.
+//
+// The install logic was previously reached only through lazy re-exports from
+// ./index. In release mode Metro's inlineRequires defers lazy re-exports
+// until first use, so consumers whose first interaction was Model.load /
+// downloadModel / Chat never triggered ./index and FFI calls then threw
+// "Cannot read property 'ubrn_…' of undefined". Inlining the install here
+// removes the ./index indirection so this can't recur.
+import installer from "./NativeNobodywho";
+import nobodywhoDefault, {
+  downloadModel as _downloadModel,
+} from "../generated/ts/nobodywho";
 
-import { downloadModel as _downloadModel } from "../generated/ts/nobodywho";
+installer.installRustCrate();
+nobodywhoDefault.initialize();
 
 /**
  * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
@@ -66,14 +75,14 @@ export {
   SamplerConfig,
   cosineSimilarity,
   getCachedModels,
-} from "./index";
+} from "../generated/ts/nobodywho";
 
 export type {
   Asset,
   ToolCall,
   CachedModel,
   ChatStats,
-} from "./index";
+} from "../generated/ts/nobodywho";
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";
