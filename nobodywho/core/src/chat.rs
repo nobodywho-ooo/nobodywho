@@ -906,6 +906,12 @@ pub struct TokenStream {
 }
 
 impl TokenStream {
+    pub(crate) fn new_from_channel(
+        rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
+    ) -> Self {
+        Self::new(rx)
+    }
+
     fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
         Self {
             rx,

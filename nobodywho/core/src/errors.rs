@@ -744,6 +744,25 @@ pub enum SetToolsError {
     Render(#[from] RenderError),
 }
 
+// Translate errors
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+pub(crate) enum TranslateWorkerError {
+    #[error("Template render error: {0}")]
+    Render(#[from] minijinja::Error),
+
+    #[error("Tokenization error: {0}")]
+    Tokenize(#[from] TokenizationError),
+
+    #[error("Context sync error: {0}")]
+    #[diagnostic(transparent)]
+    Sync(#[from] ContextSyncError),
+
+    #[error("Generation error: {0}")]
+    #[diagnostic(transparent)]
+    Generate(#[from] GenerateResponseError),
+}
+
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompletionError {
     #[error("Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue).")]

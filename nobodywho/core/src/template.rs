@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use minijinja::{Environment, Template, Value};
 use regex::Regex;
+use serde::Serialize;
 use tracing::{debug, trace, warn};
 
 use crate::{chat::Message, errors::SelectTemplateError, tool_calling::Tool};
@@ -100,31 +101,7 @@ impl ChatTemplate {
         let add_generation_prompt = messages
             .last()
             .is_some_and(|msg| matches!(msg, Message::User { .. } | Message::Tool { .. }));
-
-        let template = self.get_template()?;
-
-        // Build context with all template variables merged in
-        // We build a Vec of (key, value) pairs and then create the context from it
-        let mut context_pairs: Vec<(String, Value)> = vec![
-            ("messages".to_string(), Value::from_serialize(messages)),
-            (
-                "add_generation_prompt".to_string(),
-                Value::from(add_generation_prompt),
-            ),
-            ("bos_token".to_string(), Value::from(self.bos_token.clone())),
-            ("eos_token".to_string(), Value::from(self.eos_token.clone())),
-            ("tools".to_string(), Value::from_serialize(&ctx.tools)),
-        ];
-
-        // Add all template variables
-        for (key, value) in &ctx.template_variables {
-            context_pairs.push((key.clone(), Value::from(*value)));
-        }
-
-        let merged_context = Value::from_iter(context_pairs);
-        let rendered_messages = template.render(merged_context)?;
-
-        Ok(rendered_messages)
+        self.render_raw(messages, ctx, add_generation_prompt)
     }
 
     /// given a chat history where the first two messages are from system and user
@@ -208,6 +185,40 @@ impl ChatTemplate {
         trace!(%result, "Rendered template:\n");
 
         Ok(result)
+    }
+
+    /// Render the template with arbitrary serializable messages.
+    ///
+    /// Unlike [`render`], this method does no Message-specific handling (no system-prompt
+    /// concatenation fallback). The caller supplies `add_generation_prompt` explicitly and
+    /// is responsible for constructing a message list that the template can accept.
+    pub fn render_raw<M: Serialize>(
+        &self,
+        messages: &[M],
+        ctx: &ChatTemplateContext,
+        add_generation_prompt: bool,
+    ) -> Result<String, minijinja::Error> {
+        let template = self.get_template()?;
+
+        let mut context_pairs: Vec<(String, Value)> = vec![
+            ("messages".to_string(), Value::from_serialize(messages)),
+            (
+                "add_generation_prompt".to_string(),
+                Value::from(add_generation_prompt),
+            ),
+            ("bos_token".to_string(), Value::from(self.bos_token.clone())),
+            ("eos_token".to_string(), Value::from(self.eos_token.clone())),
+            ("tools".to_string(), Value::from_serialize(&ctx.tools)),
+        ];
+
+        for (key, value) in &ctx.template_variables {
+            context_pairs.push((key.clone(), Value::from(*value)));
+        }
+
+        let merged_context = Value::from_iter(context_pairs);
+        let rendered = template.render(merged_context)?;
+        trace!(%rendered, "render_raw result:\n");
+        Ok(rendered)
     }
 }
 

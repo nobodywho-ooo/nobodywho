@@ -9,6 +9,7 @@ pub mod sampler;
 pub mod template;
 pub mod tokenizer;
 pub mod tool_calling;
+pub mod translate;
 
 /// Render a miette diagnostic to a plain-text string, including any `help` text,
 /// error codes, and related errors. Falls back to `to_string()` if rendering fails.
