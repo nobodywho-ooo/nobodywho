@@ -16,6 +16,7 @@ chrono = "0.4.39"
 
 llama-cpp-2 = { version = "0.1.150", default-features = false, features = [
     "openmp",
+    "android-static-stdcxx",
     "mtmd",
     "llguidance",
     "common",
@@ -43,15 +44,8 @@ ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 walkdir = "2.5"
 
-# Android links the C++ stdlib statically (the NDK's libc++, via a code path that
-# doesn't touch OpenMP). On desktop Linux, static stdc++ would drag gcc's static-lib
-# dir into the link search path, shadowing libgomp.so with the non-PIC libgomp.a and
-# breaking the linking of OpenMP into the cdylib bindings — so it's scoped to Android.
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
-llama-cpp-2 = { version = "0.1.150", default-features = false, features = [
-    "android-static-stdcxx",
-] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
@@ -64,6 +58,7 @@ llama-cpp-2 = { version = "0.1.150", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",
+    "android-static-stdcxx",
     "llguidance",
     "common",
 ] }
