@@ -5,14 +5,14 @@ use crate::llm::{GlobalInferenceLockToken, WriteOutput, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
 };
-use llama_cpp_2::mtmd::MtmdBitmap;
-use std::path::Path;
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::MutexGuard;
 use tracing::{debug, debug_span, trace, trace_span, warn};

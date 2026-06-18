@@ -1132,10 +1132,7 @@ impl std::fmt::Debug for ChatMsg {
     }
 }
 
-fn process_worker_msg(
-    worker_state: &mut Chat<'_>,
-    msg: ChatMsg,
-) -> Result<(), ChatWorkerError> {
+fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), ChatWorkerError> {
     info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Ask { prompt, output_tx } => {
@@ -1376,8 +1373,7 @@ impl<'a> Chat<'a> {
 
         // Build the low-level inference engine via the shared Worker constructor,
         // then take ownership of just the engine for the chat session.
-        let Worker { engine, extra: () } =
-            Worker::new_with_type(model, config.n_ctx, false, ())?;
+        let Worker { engine, extra: () } = Worker::new_with_type(model, config.n_ctx, false, ())?;
 
         Ok(Chat {
             engine,
@@ -1397,8 +1393,7 @@ impl<'a> Chat<'a> {
     }
 
     fn should_stop(&self) -> bool {
-        self.should_stop
-            .load(std::sync::atomic::Ordering::Relaxed)
+        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn add_system_message(&mut self, content: String) {
@@ -1443,7 +1438,9 @@ impl<'a> Chat<'a> {
 
         // Diff against the chunks currently in the KV cache and load only the new tail.
         let prev = std::mem::take(&mut self.context.chunks);
-        let new_chunks = self.engine.sync_context(chunks, &prev, inference_lock_token)?;
+        let new_chunks = self
+            .engine
+            .sync_context(chunks, &prev, inference_lock_token)?;
         self.context.chunks = new_chunks;
         self.context.garbage_collect_bitmaps(&self.messages);
 
@@ -1570,7 +1567,8 @@ impl<'a> Chat<'a> {
             if self.engine.is_context_full() {
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
-                self.engine.read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
+                self.engine
+                    .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
             }
 
@@ -1681,25 +1679,25 @@ impl<'a> Chat<'a> {
         self.add_user_message(prompt.to_string(), assets);
 
         // Modify sampler with tool grammar if we have tools
-        let sampler = self.tool_grammar.as_ref().map_or(
-            self.sampler_config.clone(),
-            |tool_grammar| {
-                let mut steps = self.sampler_config.steps.clone();
-                steps.insert(
-                    0,
-                    ShiftStep::Grammar {
-                        trigger_on: tool_call_begin.clone(),
-                        root: tool_grammar.root_name.to_string(),
-                        grammar: tool_grammar.as_str().into(),
-                    },
-                );
-                SamplerConfig::new(
-                    steps,
-                    self.sampler_config.sample_step.clone(),
-                    self.sampler_config.seed,
-                )
-            },
-        );
+        let sampler =
+            self.tool_grammar
+                .as_ref()
+                .map_or(self.sampler_config.clone(), |tool_grammar| {
+                    let mut steps = self.sampler_config.steps.clone();
+                    steps.insert(
+                        0,
+                        ShiftStep::Grammar {
+                            trigger_on: tool_call_begin.clone(),
+                            root: tool_grammar.root_name.to_string(),
+                            grammar: tool_grammar.as_str().into(),
+                        },
+                    );
+                    SamplerConfig::new(
+                        steps,
+                        self.sampler_config.sample_step.clone(),
+                        self.sampler_config.seed,
+                    )
+                });
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
@@ -1721,8 +1719,7 @@ impl<'a> Chat<'a> {
                     // this is just a stupid linear search
                     // but I think it's probably faster than something fancy as long as we have few tools
                     // /shrug I'm happy to be wrong
-                    let Some(tool) = self.tools.iter().find(|t| t.name == tool_call.name)
-                    else {
+                    let Some(tool) = self.tools.iter().find(|t| t.name == tool_call.name) else {
                         // in case the tool isn't found.
                         // I *think* this should be impossible, as long as the tool calling grammar
                         // works.

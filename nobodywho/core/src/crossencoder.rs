@@ -162,7 +162,8 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         // Get CLS and SEP tokens from the model (CLS = BOS per llama.cpp, the current CLS token is deprecated.)
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         let cls = self
-            .engine.ctx
+            .engine
+            .ctx
             .model
             .token_to_piece(self.engine.ctx.model.token_bos(), &mut decoder, true, None)
             .unwrap_or_else(|_| {
@@ -171,7 +172,8 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
             });
 
         let sep = self
-            .engine.ctx
+            .engine
+            .ctx
             .model
             .token_to_piece(self.engine.ctx.model.token_sep(), &mut decoder, true, None)
             .unwrap_or_else(|_| {
