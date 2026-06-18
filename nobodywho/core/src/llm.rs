@@ -1,25 +1,21 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
+use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::memory;
-use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
+use crate::tokenizer::{ProjectionModel, Tokenizer};
 use indicatif::{ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
-use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
-use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::mtmd::MtmdInputChunks;
-use llama_cpp_2::token::LlamaToken;
 use std::io::{Read, Write};
 use std::pin::pin;
-use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
-use tracing::{debug, debug_span, error, info, info_span, warn};
+use tracing::{debug, error, info, info_span, warn};
 
 #[derive(Debug)]
 pub(crate) struct GlobalInferenceLockToken;
@@ -639,17 +635,7 @@ fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> 
 
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
-    pub(crate) n_past: i32,
-    pub(crate) ctx: LlamaContext<'a>,
-    pub(crate) big_batch: LlamaBatch<'a>,
-    pub(crate) small_batch: LlamaBatch<'a>,
-    pub(crate) projection_model: Option<&'a ProjectionModel>,
-    pub(crate) tokenizer: Tokenizer<'a>,
-    pub(crate) use_embeddings: bool,
-    // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
-    // Used to guard against sending more tokens than the context can decode in one batch.
-    pub(crate) n_batch: usize,
-
+    pub(crate) engine: InferenceEngine<'a>,
     pub(crate) extra: S,
 }
 
@@ -657,9 +643,10 @@ pub trait PoolingType {
     fn pooling_type(&self) -> LlamaPoolingType;
 }
 
-impl<'a, T> PoolingType for Worker<'a, T> {
+/// Pooling type for a plain generative chat session (no pooling).
+impl PoolingType for () {
     fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::Unspecified
+        LlamaPoolingType::None
     }
 }
 
@@ -727,171 +714,31 @@ where
 
         let tokenizer = Tokenizer::new(&model.language_model, projection_model, add_bos);
 
-        let state = Worker {
-            n_past: 0,
+        let engine = InferenceEngine::new(
             ctx,
             big_batch,
             small_batch,
             projection_model,
             n_batch,
-            extra,
             tokenizer,
             use_embeddings,
-        };
-        Ok(state)
+        );
+        Ok(Worker { engine, extra })
     }
 
-    #[tracing::instrument(level = "trace", skip(self))]
+    /// Reset the KV cache and token count. Delegates to the inference engine.
     pub fn reset_context(&mut self) -> &mut Self {
-        self.ctx.clear_kv_cache();
-        self.n_past = 0;
+        self.engine.reset_context();
         self
     }
 
+    /// Tokenize `text` and read it into the context under the global inference lock.
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-        let chunks = self.tokenizer.tokenize(text, vec![])?;
-        self.read_chunks(chunks, &inference_lock_token)
-    }
-
-    pub fn read_chunks(
-        &mut self,
-        chunks: TokenizerChunks,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, ReadError> {
-        for chunk in chunks.into_iter() {
-            match chunk {
-                TokenizerChunk::Text(tokens, _) => {
-                    self.read_text_tokens(tokens, inference_lock_token)?;
-                }
-                TokenizerChunk::Image(embeddings, _) | TokenizerChunk::Audio(embeddings, _) => {
-                    self.read_media_embeddings(embeddings, inference_lock_token)?;
-                }
-            }
-        }
-
+        let inference_lock_token = acquire_inference_lock();
+        let chunks = self.engine.tokenize(text, vec![])?;
+        self.engine.read_chunks(chunks, &inference_lock_token)?;
         Ok(self)
-    }
-
-    #[tracing::instrument(level = "trace", skip(self))]
-    fn read_media_embeddings(
-        &mut self,
-        embeddings: Rc<MtmdInputChunks>,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, ReadError> {
-        let projection_model = self
-            .projection_model
-            .as_ref()
-            .ok_or(ReadError::ProjectionModelNotInitialized)?;
-
-        let n_tokens = embeddings.as_ref().total_tokens();
-        debug!(n_tokens, "Reading media embeddings:");
-
-        let decode_span = debug_span!("read media embeddings", n_tokens = n_tokens);
-        let decode_guard = decode_span.enter();
-        let n_ctx = self.ctx.n_ctx() as i32;
-        self.n_past = embeddings.eval_chunks(
-            &projection_model.ctx,
-            &self.ctx,
-            self.n_past,
-            0,
-            n_ctx,
-            true,
-        )?;
-
-        drop(decode_guard);
-        debug!(
-            "Completed read media embeddings operation, n_past: {}",
-            self.n_past
-        );
-
-        Ok(self)
-    }
-
-    // ---------- IMPORTANT ----------
-    // Should only be used under a global inference lock
-    // This is a safety meassure to prevent bugs from multiple
-    // contexts with the same model. It might not be necessary
-    // but assume it is.
-    #[tracing::instrument(level = "trace", skip(self))]
-    fn read_text_tokens(
-        &mut self,
-        tokens: Vec<LlamaToken>,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, ReadError> {
-        let n_tokens = tokens.len();
-        debug!(n_tokens, "Reading tokens:");
-
-        // can't read nothing
-        debug_assert!(!tokens.is_empty());
-
-        if n_tokens > self.n_batch {
-            return Err(ReadError::InputExceedsContext {
-                n_tokens,
-                n_ctx: self.n_batch,
-            });
-        }
-
-        {
-            debug!("Populating batch");
-            // make batch
-            self.big_batch.clear();
-            let seq_ids = &[0];
-            for (i, token) in (0..).zip(tokens.iter()) {
-                // For LLM workers only the last token's logits are needed (sampling).
-                // For encoder workers every token must be marked as an output so the
-                // pooling layer has hidden states to work with — otherwise llama.cpp
-                // logs "embeddings required but some input tokens were not marked as
-                // outputs -> overriding" and silently flips them on for us.
-                let output_logits = self.use_embeddings || i == n_tokens - 1;
-                self.big_batch
-                    .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
-            }
-        }
-
-        // llm go brr
-        let decode_span = debug_span!("read decode", n_tokens = n_tokens);
-        let decode_guard = decode_span.enter();
-        self.ctx.decode(&mut self.big_batch)?;
-        drop(decode_guard);
-        // brrr
-
-        self.n_past += tokens.len() as i32;
-
-        debug!("Completed read tokens operation, n_past: {}", self.n_past);
-
-        Ok(self)
-    }
-
-    #[tracing::instrument(level = "trace", skip(self))]
-    pub fn remove_all_tokens_from_index_from_ctx(
-        &mut self,
-        index: usize,
-    ) -> Result<(), KvCacheConversionError> {
-        if self.n_past <= index as i32 {
-            return Ok(());
-        }
-
-        let seq_rm_success = self
-            .ctx
-            .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
-
-        if seq_rm_success {
-            self.n_past = index as i32;
-        } else {
-            // Partial sequence removal is not supported by this model's memory type
-            // (e.g. hybrid models with recurrent components). Fall back to full reset.
-            warn!(
-                index,
-                n_past = self.n_past,
-                "Partial KV cache removal not supported, falling back to full context reset"
-            );
-            self.reset_context();
-        }
-
-        Ok(())
     }
 }
 

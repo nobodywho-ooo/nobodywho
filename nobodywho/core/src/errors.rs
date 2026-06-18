@@ -597,6 +597,9 @@ pub enum MultimodalError {
     #[error("Multimodal context not initialized. Use with_mmproj() when building ChatHandle.")]
     ContextNotInitialized,
 
+    #[error("Projection model not initialized. Use with_mmproj() when building ChatHandle.")]
+    ProjectionModelNotInitialized,
+
     #[error("Failed to set chunk ID for bitmap: {0}")]
     FailedToSetBitmapId(#[from] std::ffi::NulError),
 }
