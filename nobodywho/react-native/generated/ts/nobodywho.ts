@@ -564,6 +564,64 @@ const FfiConverterTypeCachedModel = (() => {
 })();
 
 
+export type ChatStats = {
+    contextSize: /*u32*/number,
+    contextUsed: /*u32*/number
+}
+
+/**
+ * Generated factory for {@link ChatStats} record objects.
+ */
+export const ChatStats = (() => {
+    const defaults = () => ({
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ChatStats, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link ChatStats}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link ChatStats}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<ChatStats>,
+
+    });
+})();
+
+const FfiConverterTypeChatStats = (() => {
+    type TypeName = ChatStats;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                contextSize: FfiConverterUInt32.read(from), 
+                contextUsed: FfiConverterUInt32.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterUInt32.write(value.contextSize, into);
+            FfiConverterUInt32.write(value.contextUsed, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterUInt32.allocationSize(value.contextSize) + 
+            FfiConverterUInt32.allocationSize(value.contextUsed);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
 /**
  * A pending tool call waiting for resolution from the language binding.
  */
@@ -1308,6 +1366,10 @@ export interface RustChatInterface {
      */
     getSamplerConfigJson(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string>;
     /**
+     * Get context usage statistics.
+     */
+    getStats(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<ChatStats>;
+    /**
      * Get the current system prompt.
      */
     getSystemPrompt(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<string | undefined>;
@@ -1347,6 +1409,15 @@ export interface RustChatInterface {
      * Stop the current generation.
      */
     stopGeneration() : void;
+    /**
+     * Tokenize a plain text string and return the token IDs.
+     */
+    tokenize(message: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*i32*/number | undefined>>;
+    /**
+     * Tokenize a multimodal prompt and return the token IDs.
+     * Text tokens produce an integer ID; image/audio embedding slots produce null.
+     */
+    tokenizeWithPrompt(parts: Array<PromptPart>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*i32*/number | undefined>>;
 }
 
 
@@ -1464,6 +1535,37 @@ async  getSamplerConfigJson(asyncOpts_?: { signal: AbortSignal }): Promise<strin
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             /*liftFunc:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Get context usage statistics.
+     */
+async  getStats(asyncOpts_?: { signal: AbortSignal }): Promise<ChatStats> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterTypeChatStats.lift.bind(FfiConverterTypeChatStats),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -1764,6 +1866,69 @@ async  setTools(tools: Array<RustToolInterface>, asyncOpts_?: { signal: AbortSig
             },
             /*liftString:*/ FfiConverterString.lift,
     );
+    }
+    
+    /**
+     * Tokenize a plain text string and return the token IDs.
+     */
+async  tokenize(message: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*i32*/number | undefined>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterString.lower(message)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayOptionalInt32.lift.bind(FfiConverterArrayOptionalInt32),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Tokenize a multimodal prompt and return the token IDs.
+     * Text tokens produce an integer ID; image/audio embedding slots produce null.
+     */
+async  tokenizeWithPrompt(parts: Array<PromptPart>, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*i32*/number | undefined>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterArrayTypePromptPart.lower(parts)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayOptionalInt32.lift.bind(FfiConverterArrayOptionalInt32),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
     }
     
 
@@ -2166,6 +2331,7 @@ const FfiConverterTypeRustEncoder =  new FfiConverterObject(uniffiTypeRustEncode
 
 export interface RustModelInterface {
     
+    maxCtx() : /*u32*/number;
 }
 
 
@@ -2183,6 +2349,16 @@ private constructor(pointer: UniffiHandle) {
 
     
 
+    
+ maxCtx(): /*u32*/number {
+    return FfiConverterUInt32.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(uniffiTypeRustModelObjectFactory.clonePointer(this), 
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
     
 
     /**
@@ -3130,6 +3306,10 @@ const FfiConverterTypeSamplerConfig =  new FfiConverterObject(uniffiTypeSamplerC
 const FfiConverterOptionalTypeRustDownloadProgressCallback = new FfiConverterOptional(FfiConverterTypeRustDownloadProgressCallback);
 
 
+// FfiConverter for /*i32*/number | undefined
+const FfiConverterOptionalInt32 = new FfiConverterOptional(FfiConverterInt32);
+
+
 // FfiConverter for PendingToolCall | undefined
 const FfiConverterOptionalTypePendingToolCall = new FfiConverterOptional(FfiConverterTypePendingToolCall);
 
@@ -3192,6 +3372,10 @@ const FfiConverterArrayTypePromptPart = new FfiConverterArray(FfiConverterTypePr
 
 // FfiConverter for Array<RustToolInterface>
 const FfiConverterArrayTypeRustTool = new FfiConverterArray(FfiConverterTypeRustTool);
+
+
+// FfiConverter for Array</*i32*/number | undefined>
+const FfiConverterArrayOptionalInt32 = new FfiConverterArray(FfiConverterOptionalInt32);
 
 
 // FfiConverter for Array<RustToolInterface> | undefined
@@ -3272,6 +3456,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json() !== 33078) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() !== 59932) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() !== 57727) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt");
     }
@@ -3302,6 +3489,12 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation() !== 24711) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize() !== 52520) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() !== 60528) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank() !== 55500) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank");
     }
@@ -3310,6 +3503,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() !== 52601) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() !== 52004) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() !== 26060) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed");
@@ -3408,6 +3604,7 @@ export default Object.freeze({
   converters: {
     FfiConverterTypeAsset,
     FfiConverterTypeCachedModel,
+    FfiConverterTypeChatStats,
     FfiConverterTypeMessage,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePendingToolCall,

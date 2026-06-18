@@ -7263,13 +7263,13 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.147";
+        version = "0.1.150";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "d28302ac554598a62f43e88a60dc4cda20d924b4";
-          sha256 = "00vyanc8fk78ss4f8504vkbnmf69xj6fv1zz7k2gqmkgqzg6wng6";
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
+          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
+          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -7295,7 +7295,6 @@ rec {
             name = "llguidance";
             packageId = "llguidance";
             optional = true;
-            features = [ "lark" ];
           }
           {
             name = "thiserror";
@@ -7324,32 +7323,36 @@ rec {
         features = {
           "android-shared-stdcxx" = [ "llama-cpp-sys-2/shared-stdcxx" ];
           "android-static-stdcxx" = [ "llama-cpp-sys-2/static-stdcxx" ];
+          "common" = [ "llama-cpp-sys-2/common" ];
           "cuda" = [ "llama-cpp-sys-2/cuda" ];
           "cuda-no-vmm" = [ "cuda" "llama-cpp-sys-2/cuda-no-vmm" ];
-          "default" = [ "openmp" "android-shared-stdcxx" ];
+          "default" = [ "openmp" "android-shared-stdcxx" "common" ];
           "dynamic-backends" = [ "llama-cpp-sys-2/dynamic-backends" ];
           "dynamic-link" = [ "llama-cpp-sys-2/dynamic-link" ];
           "llguidance" = [ "dep:llguidance" "dep:toktrie" ];
           "metal" = [ "llama-cpp-sys-2/metal" ];
           "mtmd" = [ "llama-cpp-sys-2/mtmd" ];
+          "opencl" = [ "llama-cpp-sys-2/opencl" ];
           "openmp" = [ "llama-cpp-sys-2/openmp" ];
           "rocm" = [ "llama-cpp-sys-2/rocm" ];
+          "static-openmp" = [ "llama-cpp-sys-2/static-openmp" ];
+          "static-stdcxx" = [ "llama-cpp-sys-2/static-stdcxx" ];
           "system-ggml" = [ "llama-cpp-sys-2/system-ggml" ];
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "llguidance" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.147";
+        version = "0.1.150";
         edition = "2021";
         links = "llama";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/marek-hradil/llama-cpp-rs";
-          rev = "d28302ac554598a62f43e88a60dc4cda20d924b4";
-          sha256 = "00vyanc8fk78ss4f8504vkbnmf69xj6fv1zz7k2gqmkgqzg6wng6";
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
+          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
+          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -7381,10 +7384,12 @@ rec {
         ];
         features = {
           "cuda-no-vmm" = [ "cuda" ];
+          "default" = [ "common" ];
           "dynamic-backends" = [ "dynamic-link" ];
+          "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
@@ -8201,14 +8206,21 @@ rec {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
-            features = [ "openmp" "android-static-stdcxx" "mtmd" "llguidance" ];
+            features = [ "openmp" "mtmd" "llguidance" "common" ];
           }
           {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("visionos" == target."os" or null)) && (!("watchos" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
-            features = [ "openmp" "vulkan" "mtmd" "android-static-stdcxx" "llguidance" ];
+            features = [ "openmp" "vulkan" "mtmd" "llguidance" "common" ];
+          }
+          {
+            name = "llama-cpp-2";
+            packageId = "llama-cpp-2";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-static-stdcxx" ];
           }
           {
             name = "miette";
