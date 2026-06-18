@@ -1657,9 +1657,7 @@ impl Worker<'_, ChatWorker> {
             .map(|(id, part)| Asset {
                 id: id.clone(),
                 path: match part {
-                    PromptPart::Image(path) | PromptPart::Audio(path) => {
-                        Some(path.to_path_buf())
-                    }
+                    PromptPart::Image(path) | PromptPart::Audio(path) => Some(path.to_path_buf()),
                     PromptPart::ImageBytes(_) | PromptPart::AudioPcm { .. } => None,
                     PromptPart::Text(_) => unreachable!(),
                 },
@@ -2889,72 +2887,12 @@ mod tests {
     // Template rendering tests have been moved to template.rs module
 
     // ===== Multimodal: in-memory media =====
-
-    /// Loading an image from `push_image_bytes` should produce the same bitmap
-    /// as loading the same file via `push_image`. This is the focused unit
-    /// check that the new ImageBytes dispatch reaches `MtmdBitmap::from_buffer`
-    /// and yields identical decoded pixel data.
-    #[test]
-    fn test_load_image_from_bytes_matches_path() {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_multimodal_model();
-        let projection_model = model
-            .projection_model
-            .as_ref()
-            .expect("vision model should have a projection_model");
-
-        let image_path = test_utils::test_image_path();
-        let bytes = std::fs::read(&image_path)
-            .unwrap_or_else(|e| panic!("Failed to read test image {}: {e}", image_path));
-
-        let from_path = projection_model
-            .load_media(&PromptPart::Image(image_path.clone().into()))
-            .expect("loading image from path failed")
-            .expect("Image variant should produce a bitmap");
-        let from_bytes = projection_model
-            .load_media(&PromptPart::ImageBytes(bytes))
-            .expect("loading image from bytes failed")
-            .expect("ImageBytes variant should produce a bitmap");
-
-        assert_eq!(from_path.nx(), from_bytes.nx(), "image widths differ");
-        assert_eq!(from_path.ny(), from_bytes.ny(), "image heights differ");
-        assert_eq!(
-            from_path.data(),
-            from_bytes.data(),
-            "decoded pixel data differs"
-        );
-    }
-
-    /// End-to-end check: a `Prompt` whose image came from `push_image_bytes`
-    /// drives the full chat pipeline (template render, tokenize, decode).
-    #[test]
-    fn test_chat_with_image_bytes() {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_multimodal_model();
-
-        let chat = ChatBuilder::new(model)
-            .with_context_size(4096)
-            .with_system_prompt(Some("You are a helpful assistant."))
-            .with_template_variable("enable_thinking".to_string(), false)
-            .with_sampler(SamplerPresets::greedy())
-            .build()
-            .expect("chat build failed");
-
-        let image_bytes = std::fs::read(test_utils::test_image_path())
-            .expect("test image should exist");
-
-        let mut prompt = crate::tokenizer::Prompt::new();
-        prompt.push_text(
-            "What animal is in this image? Short answer. Focus on the species, not the age or the breed.",
-        );
-        prompt.push_image_bytes(image_bytes);
-
-        let response = chat.ask(prompt).completed().expect("ask failed");
-        assert!(
-            response.to_lowercase().contains("penguin"),
-            "Expected 'penguin' in response, got: {response}"
-        );
-    }
+    //
+    // Image-bytes coverage lives in the python multimodal tests
+    // (`python/tests/test_multimodal.py`), which exercise the same
+    // `MtmdBitmap::from_buffer` path via PyO3 and have access to the test
+    // image fixture. Audio PCM tests stay here because they synthesise
+    // samples in code — no file fixture needed.
 
     /// Smoke test for `push_audio_pcm`: pushing silence at the model's
     /// expected rate should build an `MtmdBitmap` without panic. We don't

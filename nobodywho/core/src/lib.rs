@@ -124,11 +124,4 @@ pub mod test_utils {
             }),
         )
     }
-
-    /// Path to a test image, configurable via the `TEST_IMAGE` env var.
-    /// Defaults to the penguin image bundled with the python tests.
-    pub fn test_image_path() -> String {
-        std::env::var("TEST_IMAGE")
-            .unwrap_or_else(|_| "../python/tests/img/penguin.png".to_string())
-    }
 }

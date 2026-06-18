@@ -127,10 +127,7 @@ pub(crate) enum PromptPart {
     Image(PathBuf),
     Audio(PathBuf),
     ImageBytes(Vec<u8>),
-    AudioPcm {
-        samples: Vec<i16>,
-        sample_rate: u32,
-    },
+    AudioPcm { samples: Vec<i16>, sample_rate: u32 },
 }
 
 // Manual Debug — never dump the raw byte / PCM buffer in tracing logs (these
@@ -491,7 +488,10 @@ impl ProjectionModel {
                 Ok(Some(bm))
             }
             PromptPart::ImageBytes(data) => {
-                info!(n_bytes = data.len(), "Loading image from in-memory buffer for MTMD");
+                info!(
+                    n_bytes = data.len(),
+                    "Loading image from in-memory buffer for MTMD"
+                );
                 let bm = MtmdBitmap::from_buffer(&self.ctx, data).map_err(|e| {
                     MultimodalError::LoadImage {
                         path: "<in-memory bytes>".to_string(),
@@ -518,8 +518,7 @@ impl ProjectionModel {
             } => {
                 info!(
                     n_samples = samples.len(),
-                    sample_rate,
-                    "Loading audio from PCM samples for MTMD"
+                    sample_rate, "Loading audio from PCM samples for MTMD"
                 );
 
                 // Reject sample-rate mismatches up front — silently feeding
