@@ -197,8 +197,6 @@ jobs:
   mac-os-build:
     if: inputs.full_ci
     runs-on: [self-hosted, macOS, ARM64]
-    env:
-      CARGO_TARGET_DIR: /tmp/nobodywho-python-macos
     strategy:
       fail-fast: false
     steps:
@@ -206,6 +204,11 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: brew install python@3.13 maturin
       - run: echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
+      - name: "Clean target dir"
+        # Self-hosted runners persist the workspace between runs; clean to avoid stale build artifacts.
+        run: cargo clean
+        working-directory: ./nobodywho
+
       - name: "Build macos python wheel"
         run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
@@ -214,7 +217,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_macos
-          path: ${{ env.CARGO_TARGET_DIR }}/wheels/nobodywho*.whl
+          path: ./nobodywho/target/wheels/nobodywho*.whl
 
   linux-pytest:
     if: inputs.full_ci

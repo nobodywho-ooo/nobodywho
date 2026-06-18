@@ -189,8 +189,6 @@ jobs:
   cargo-build-macos:
     if: inputs.full_ci
     runs-on: [self-hosted, macOS, ARM64]
-    env:
-      CARGO_TARGET_DIR: /tmp/nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
     strategy:
       fail-fast: false
       matrix:
@@ -260,6 +258,11 @@ jobs:
           channel: stable
           version: 3.35.5
 
+      - name: "Clean target dir"
+        # Self-hosted runners persist the workspace between runs; clean to avoid stale build artifacts.
+        run: cargo clean
+        working-directory: ./nobodywho
+
       - name: "Build (stable targets)"
         if: "!contains(matrix.target, 'visionos') && !contains(matrix.target, 'watchos')"
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
@@ -276,15 +279,15 @@ jobs:
         run: |
           if [ "${{ matrix.integration }}" = "uniffi" ]; then
             # Static library (.a) for xcframeworks (React Native, Swift)
-            cp $CARGO_TARGET_DIR/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
             # Dynamic library (.dylib) for macOS desktop JNA (Kotlin JVM)
-            if [ -f $CARGO_TARGET_DIR/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ]; then
-              cp $CARGO_TARGET_DIR/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
+            if [ -f ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ]; then
+              cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
                 ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
             fi
           else
-            cp $CARGO_TARGET_DIR/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
+            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
           fi
 
