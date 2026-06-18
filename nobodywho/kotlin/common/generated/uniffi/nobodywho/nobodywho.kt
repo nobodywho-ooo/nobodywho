@@ -723,6 +723,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
@@ -743,11 +745,17 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(
     ): Short
@@ -841,6 +849,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(`ptr`: 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(`ptr`: Long,
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(`ptr`: Long,
+): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(`ptr`: Long,
@@ -861,6 +871,10 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(`ptr`: Long,`t
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize(`ptr`: Long,`message`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,
+): Long
 external fun uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -883,6 +897,8 @@ external fun uniffi_nobodywho_uniffi_fn_clone_rustmodel(`handle`: Long,uniffi_ou
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+external fun uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Int
 external fun uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rusttokenstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1157,6 +1173,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json() != 33078.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats() != 59932.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt() != 57727.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1187,6 +1206,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation() != 24711.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize() != 52520.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() != 60528.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank() != 55500.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1194,6 +1219,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() != 26060.toShort()) {
@@ -1806,6 +1834,11 @@ public interface RustChatInterface {
     suspend fun `getSamplerConfigJson`(): kotlin.String
     
     /**
+     * Get context usage statistics.
+     */
+    suspend fun `getStats`(): ChatStats
+    
+    /**
      * Get the current system prompt.
      */
     suspend fun `getSystemPrompt`(): kotlin.String?
@@ -1854,6 +1887,17 @@ public interface RustChatInterface {
      * Stop the current generation.
      */
     fun `stopGeneration`()
+    
+    /**
+     * Tokenize a plain text string and return the token IDs.
+     */
+    suspend fun `tokenize`(`message`: kotlin.String): List<kotlin.Int?>
+    
+    /**
+     * Tokenize a multimodal prompt and return the token IDs.
+     * Text tokens produce an integer ID; image/audio embedding slots produce null.
+     */
+    suspend fun `tokenizeWithPrompt`(`parts`: List<PromptPart>): List<kotlin.Int?>
     
     companion object
 }
@@ -2043,6 +2087,30 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterString.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Get context usage statistics.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `getStats`() : ChatStats {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeChatStats.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -2285,6 +2353,55 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     }
     
     
+
+    
+    /**
+     * Tokenize a plain text string and return the token IDs.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `tokenize`(`message`: kotlin.String) : List<kotlin.Int?> {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize(
+                uniffiHandle,
+                FfiConverterString.lower(`message`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceOptionalInt.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Tokenize a multimodal prompt and return the token IDs.
+     * Text tokens produce an integer ID; image/audio embedding slots produce null.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `tokenizeWithPrompt`(`parts`: List<PromptPart>) : List<kotlin.Int?> {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(
+                uniffiHandle,
+                FfiConverterSequenceTypePromptPart.lower(`parts`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceOptionalInt.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
 
     
 
@@ -3008,6 +3125,8 @@ public object FfiConverterTypeRustEncoder: FfiConverter<RustEncoder, Long> {
 //
 public interface RustModelInterface {
     
+    fun `maxCtx`(): kotlin.UInt
+    
     companion object
 }
 
@@ -3106,6 +3225,19 @@ open class RustModel: Disposable, AutoCloseable, RustModelInterface
             UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rustmodel(handle, status)
         }
     }
+
+    override fun `maxCtx`(): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
 
     
 
@@ -4662,6 +4794,42 @@ public object FfiConverterTypeCachedModel: FfiConverterRustBuffer<CachedModel> {
 
 
 
+data class ChatStats (
+    var `contextSize`: kotlin.UInt
+    , 
+    var `contextUsed`: kotlin.UInt
+    
+){
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeChatStats: FfiConverterRustBuffer<ChatStats> {
+    override fun read(buf: ByteBuffer): ChatStats {
+        return ChatStats(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ChatStats) = (
+            FfiConverterUInt.allocationSize(value.`contextSize`) +
+            FfiConverterUInt.allocationSize(value.`contextUsed`)
+    )
+
+    override fun write(value: ChatStats, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`contextSize`, buf)
+            FfiConverterUInt.write(value.`contextUsed`, buf)
+    }
+}
+
+
+
 /**
  * A pending tool call waiting for resolution from the language binding.
  */
@@ -5230,6 +5398,38 @@ public object FfiConverterOptionalUInt: FfiConverterRustBuffer<kotlin.UInt?> {
 /**
  * @suppress
  */
+public object FfiConverterOptionalInt: FfiConverterRustBuffer<kotlin.Int?> {
+    override fun read(buf: ByteBuffer): kotlin.Int? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterInt.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Int?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterInt.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.Int?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterInt.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
     override fun read(buf: ByteBuffer): kotlin.String? {
         if (buf.get().toInt() == 0) {
@@ -5728,6 +5928,34 @@ public object FfiConverterSequenceTypePromptPart: FfiConverterRustBuffer<List<Pr
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypePromptPart.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceOptionalInt: FfiConverterRustBuffer<List<kotlin.Int?>> {
+    override fun read(buf: ByteBuffer): List<kotlin.Int?> {
+        val len = buf.getInt()
+        return List<kotlin.Int?>(len) {
+            FfiConverterOptionalInt.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<kotlin.Int?>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterOptionalInt.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<kotlin.Int?>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterOptionalInt.write(it, buf)
         }
     }
 }

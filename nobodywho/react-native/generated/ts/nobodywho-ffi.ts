@@ -25,6 +25,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(ptr: bigint, parts: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(ptr: bigint): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(ptr: bigint, systemPrompt: Uint8Array, tools: Uint8Array): bigint;
@@ -35,6 +36,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(ptr: bigint, name: Uint8Array, value: number): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(ptr: bigint, tools: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize(ptr: bigint, message: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(ptr: bigint, parts: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(model: bigint, contextSize: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -46,6 +49,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(ptr: bigint, text: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): number;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rusttokenstream(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(ptr: bigint): bigint;
@@ -162,6 +166,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(): number;
@@ -172,9 +177,12 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_tools(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json(): number;
