@@ -7265,7 +7265,12 @@ rec {
         crateName = "llama-cpp-2";
         version = "0.1.150";
         edition = "2021";
-        sha256 = "0kfq95zi4mn8lmz278vba0qp888c869ldk4q927pvaissxpwhbp8";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
+          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
+          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+        };
         libName = "llama_cpp_2";
         dependencies = [
           {
@@ -7343,7 +7348,12 @@ rec {
         version = "0.1.150";
         edition = "2021";
         links = "llama";
-        sha256 = "181qv3arsq6cvmkdw45xjzpd53hj7v3ylw94lk24z3mns8zanzgn";
+        workspace_member = null;
+        src = pkgs.fetchgit {
+          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
+          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
+          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+        };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
           {
@@ -8196,14 +8206,21 @@ rec {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
-            features = [ "openmp" "android-static-stdcxx" "mtmd" "llguidance" "common" ];
+            features = [ "openmp" "mtmd" "llguidance" "common" ];
           }
           {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("visionos" == target."os" or null)) && (!("watchos" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
-            features = [ "openmp" "vulkan" "mtmd" "android-static-stdcxx" "llguidance" "common" ];
+            features = [ "openmp" "vulkan" "mtmd" "llguidance" "common" ];
+          }
+          {
+            name = "llama-cpp-2";
+            packageId = "llama-cpp-2";
+            usesDefaultFeatures = false;
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-static-stdcxx" ];
           }
           {
             name = "miette";
