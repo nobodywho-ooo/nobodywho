@@ -564,6 +564,88 @@ impl CrossEncoder {
     }
 }
 
+#[flutter_rust_bridge::frb(opaque)]
+pub struct RustTranslator {
+    handle: nobodywho::translate::TranslateHandleAsync,
+}
+
+impl RustTranslator {
+    /// Create a translator for a given source/target language pair from an already-loaded model.
+    ///
+    /// Args:
+    ///     model: A loaded translation model (e.g. TranslateGemma).
+    ///     source: BCP-47 source language code (e.g. "en", "de", "fr").
+    ///     target: BCP-47 target language code.
+    ///     context_size: Context size for the translator. Defaults to 4096.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new(
+        model: &Model,
+        source: String,
+        target: String,
+        #[frb(default = 4096)] context_size: u32,
+    ) -> Result<Self, String> {
+        let handle = nobodywho::translate::TranslateHandleAsync::new(
+            Arc::clone(&model.model),
+            source,
+            target,
+            context_size,
+        )
+        .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
+    }
+
+    /// Load a translation model from a local path, HuggingFace path, or HTTPS URL and
+    /// create a translator for the given language pair.
+    ///
+    /// Args:
+    ///     model_path: Path or URL to a GGUF translation model file.
+    ///     source: BCP-47 source language code (e.g. "en", "de", "fr").
+    ///     target: BCP-47 target language code.
+    ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+    ///         remote model is being downloaded. Throttled to ~10 Hz. Not invoked for
+    ///         cached/local files.
+    ///     context_size: Context size for the translator. Defaults to 4096.
+    ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+    #[flutter_rust_bridge::frb]
+    pub fn from_path(
+        model_path: &str,
+        source: String,
+        target: String,
+        #[frb(default = "noopOnDownloadProgress")] on_download_progress: impl Fn(i64, i64) -> DartFnFuture<()>
+            + Send
+            + Sync
+            + 'static,
+        #[frb(default = 4096)] context_size: u32,
+        #[frb(default = true)] use_gpu: bool,
+    ) -> Result<Self, String> {
+        let model = nobodywho::llm::get_model(
+            model_path,
+            use_gpu,
+            None,
+            Some(wrap_progress(on_download_progress)),
+        )
+        .map_err(|e| nobodywho::render_miette(&e))?;
+        let handle = nobodywho::translate::TranslateHandleAsync::new(
+            Arc::new(model),
+            source,
+            target,
+            context_size,
+        )
+        .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
+    }
+
+    /// Translate the given text.
+    ///
+    /// Returns a [RustTokenStream] that yields translation tokens as they are generated.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn translate(&self, text: String) -> RustTokenStream {
+        RustTokenStream {
+            stream: self.handle.translate(text),
+        }
+    }
+}
+
 #[flutter_rust_bridge::frb(sync)]
 pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)

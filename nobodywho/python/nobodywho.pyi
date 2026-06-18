@@ -1040,6 +1040,85 @@ class Tool(typing.Generic[T]):
     """
     def __call__(self, /, *args, **kwargs) -> "T": ...
 
+@final
+class Translator:
+    """
+    `Translator` provides one-shot translation using a TranslateGemma-compatible model.
+    
+    Each `Translator` instance is bound to a single language pair (source → target).
+    Calls to `translate()` are stateless — context is reset before each translation.
+    
+    Usage:
+        translator = Translator("./translate-gemma.gguf", source="en", target="dk")
+        result = translator.translate("Hello, how are you?").completed()
+    
+        for token in translator.translate("Hello, how are you?"):
+            print(token, end="")
+    
+        model = Model("./translate-gemma.gguf")
+        translator = Translator(model, source="en", target="dk")
+    """
+    def __new__(cls, /, model: "Model | os.PathLike | str", *, source: "str", target: "str", n_ctx: int = 4096) -> "Translator":
+        """
+        Create a new Translator instance.
+        
+        Args:
+            model: A translation model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
+            source: Source language code (e.g. "en", "de", "fr")
+            target: Target language code (e.g. "en", "de", "fr")
+            n_ctx: Context size (maximum sequence length). Defaults to 4096.
+        
+        Returns:
+            A Translator instance
+        
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
+    def translate(self, /, text: "str") -> "TokenStream":
+        """
+        Translate the given text.
+        
+        Returns a `TokenStream` that yields translation tokens as they are generated.
+        
+        Args:
+            text: The text to translate.
+        
+        Returns:
+            A TokenStream
+        """
+
+@final
+class TranslatorAsync:
+    """
+    Async variant of `Translator`. See `Translator` for details.
+    """
+    def __new__(cls, /, model: "Model | os.PathLike | str", *, source: "str", target: "str", n_ctx: int = 4096) -> "TranslatorAsync":
+        """
+        Create a new TranslatorAsync instance.
+        
+        Args:
+            model: A translation model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
+            source: Source language code (e.g. "en", "de", "fr")
+            target: Target language code (e.g. "en", "de", "fr")
+            n_ctx: Context size (maximum sequence length). Defaults to 4096.
+        
+        Returns:
+            A TranslatorAsync instance
+        
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
+    def translate(self, /, text: "str") -> "TokenStreamAsync":
+        """
+        Translate the given text asynchronously.
+        
+        Args:
+            text: The text to translate.
+        
+        Returns:
+            A TokenStreamAsync
+        """
+
 def bash_tool(max_commands: int | None = None) -> Tool:
     """
     Create a bash interpreter tool that the LLM can use to run bash snippets.

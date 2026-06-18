@@ -145,4 +145,14 @@ final class NobodyWhoTests: XCTestCase {
         let response = try await chat.ask(prompt).completed()
         XCTAssertFalse(response.isEmpty)
     }
+
+    // MARK: - Translator
+
+    func testTranslator() async throws {
+        let modelPath = try requireEnv("TEST_TRANSLATE_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let translator = try Translator(model: model, source: "en", target: "da")
+        let result = try await translator.translate("Hello, how are you?").completed()
+        XCTAssertTrue(result.contains("Hej"), "Expected 'Hej' in translation, got: \(result)")
+    }
 }

@@ -7,6 +7,7 @@ export 'src/rust/lib.dart'
     hide
         RustChat, // Users should use Chat
         RustTokenStream, // Users should use TokenStream
+        RustTranslator, // Users should use Translator
         RustTool, // Users should use Tool
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
@@ -750,4 +751,73 @@ class SamplerPresets {
   @Deprecated('Use constrainWithGrammar() instead. It accepts both Lark and GBNF strings.')
   static nobodywho.SamplerConfig grammar({required String grammar}) =>
       nobodywho.SamplerPresets.grammar(grammar: grammar);
+}
+
+/// A stateless one-shot translator using a TranslateGemma-compatible model.
+///
+/// Each [Translator] is bound to a single language pair ([source] → [target]).
+/// Calls to [translate] are stateless — context is reset before each translation.
+///
+/// ```dart
+/// final translator = await Translator.fromPath(
+///   modelPath: "translate-gemma.gguf",
+///   source: "en",
+///   target: "da",
+/// );
+/// final result = await translator.translate("Hello, how are you?").completed();
+/// ```
+class Translator {
+  final nobodywho.RustTranslator _translator;
+
+  Translator._(this._translator);
+
+  /// Create a translator from an already-loaded [model].
+  ///
+  /// - [source]: BCP-47 source language code (e.g. "en", "de", "fr").
+  /// - [target]: BCP-47 target language code.
+  /// - [contextSize]: Maximum context size in tokens. Defaults to 4096.
+  factory Translator({
+    required nobodywho.Model model,
+    required String source,
+    required String target,
+    int contextSize = 4096,
+  }) {
+    final translator = nobodywho.RustTranslator(
+      model: model,
+      source: source,
+      target: target,
+      contextSize: contextSize,
+    );
+    return Translator._(translator);
+  }
+
+  /// Create a translator directly from a model path.
+  ///
+  /// [onDownloadProgress] is invoked while a remote model is being downloaded.
+  static Future<Translator> fromPath({
+    required String modelPath,
+    required String source,
+    required String target,
+    bool useGpu = true,
+    int contextSize = 4096,
+    void Function(int downloaded, int total)? onDownloadProgress,
+  }) async {
+    final progressFn = onDownloadProgress != null
+        ? (int d, int t) async => onDownloadProgress(d, t)
+        : nobodywho.noopOnDownloadProgress;
+    final translator = await nobodywho.RustTranslator.fromPath(
+      modelPath: modelPath,
+      source: source,
+      target: target,
+      onDownloadProgress: progressFn,
+      contextSize: contextSize,
+      useGpu: useGpu,
+    );
+    return Translator._(translator);
+  }
+
+  /// Translate [text] and return a [TokenStream] of the translation.
+  TokenStream translate(String text) {
+    return TokenStream._(_translator.translate(text: text));
+  }
 }

@@ -1782,6 +1782,159 @@ fn sample_step(builder: SamplerBuilder, step: nobodywho::sampler::SampleStep) ->
     }
 }
 
+/// `Translator` provides one-shot translation using a TranslateGemma-compatible model.
+///
+/// Each `Translator` instance is bound to a single language pair (source → target).
+/// Calls to `translate()` are stateless — context is reset before each translation.
+///
+/// Usage:
+///     translator = Translator("./translate-gemma.gguf", source="en", target="dk")
+///     result = translator.translate("Hello, how are you?").completed()
+///
+///     for token in translator.translate("Hello, how are you?"):
+///         print(token, end="")
+///
+///     model = Model("./translate-gemma.gguf")
+///     translator = Translator(model, source="en", target="dk")
+#[pyclass]
+pub struct Translator {
+    handle: Option<nobodywho::translate::TranslateHandle>,
+}
+
+impl Translator {
+    fn handle(&self) -> &nobodywho::translate::TranslateHandle {
+        self.handle.as_ref().expect("Translator used after drop")
+    }
+}
+
+impl Drop for Translator {
+    fn drop(&mut self) {
+        let handle = self.handle.take();
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
+}
+
+#[pymethods]
+impl Translator {
+    /// Create a new Translator instance.
+    ///
+    /// Args:
+    ///     model: A translation model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
+    ///     source: Source language code (e.g. "en", "de", "fr")
+    ///     target: Target language code (e.g. "en", "de", "fr")
+    ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
+    ///
+    /// Returns:
+    ///     A Translator instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[new]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", *, source: "str", target: "str", n_ctx = 4096) -> "Translator")]
+    pub fn new(
+        model: ModelOrPath,
+        source: String,
+        target: String,
+        n_ctx: u32,
+        py: Python<'_>,
+    ) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let handle = py.detach(|| {
+            nobodywho::translate::TranslateHandle::new(nw_model, source, target, n_ctx)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+        })?;
+        Ok(Self {
+            handle: Some(handle),
+        })
+    }
+
+    /// Translate the given text.
+    ///
+    /// Returns a `TokenStream` that yields translation tokens as they are generated.
+    ///
+    /// Args:
+    ///     text: The text to translate.
+    ///
+    /// Returns:
+    ///     A TokenStream
+    #[pyo3(signature = (text: "str") -> "TokenStream")]
+    pub fn translate(&self, text: &str) -> TokenStream {
+        TokenStream {
+            stream: self.handle().translate(text),
+        }
+    }
+}
+
+/// Async variant of `Translator`. See `Translator` for details.
+#[pyclass]
+pub struct TranslatorAsync {
+    handle: Option<nobodywho::translate::TranslateHandleAsync>,
+}
+
+impl TranslatorAsync {
+    fn handle(&self) -> &nobodywho::translate::TranslateHandleAsync {
+        self.handle
+            .as_ref()
+            .expect("TranslatorAsync used after drop")
+    }
+}
+
+impl Drop for TranslatorAsync {
+    fn drop(&mut self) {
+        let handle = self.handle.take();
+        Python::attach(|py| py.detach(|| drop(handle)));
+    }
+}
+
+#[pymethods]
+impl TranslatorAsync {
+    /// Create a new TranslatorAsync instance.
+    ///
+    /// Args:
+    ///     model: A translation model (Model instance, local path, `huggingface:` path, or `https://` URL to a GGUF file)
+    ///     source: Source language code (e.g. "en", "de", "fr")
+    ///     target: Target language code (e.g. "en", "de", "fr")
+    ///     n_ctx: Context size (maximum sequence length). Defaults to 4096.
+    ///
+    /// Returns:
+    ///     A TranslatorAsync instance
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[new]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", *, source: "str", target: "str", n_ctx = 4096) -> "TranslatorAsync")]
+    pub fn new(
+        model: ModelOrPath,
+        source: String,
+        target: String,
+        n_ctx: u32,
+        py: Python<'_>,
+    ) -> PyResult<Self> {
+        let nw_model = model.get_inner_model()?;
+        let handle = py.detach(|| {
+            nobodywho::translate::TranslateHandleAsync::new(nw_model, source, target, n_ctx)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+        })?;
+        Ok(Self {
+            handle: Some(handle),
+        })
+    }
+
+    /// Translate the given text asynchronously.
+    ///
+    /// Args:
+    ///     text: The text to translate.
+    ///
+    /// Returns:
+    ///     A TokenStreamAsync
+    #[pyo3(signature = (text: "str") -> "TokenStreamAsync")]
+    pub fn translate(&self, text: &str) -> TokenStreamAsync {
+        TokenStreamAsync {
+            stream: Arc::new(tokio::sync::Mutex::new(self.handle().translate(text))),
+        }
+    }
+}
+
 /// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
 /// `SamplerConfig` from some pre-defined sampler chain.
 /// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
@@ -2802,4 +2955,8 @@ pub mod nobodywhopython {
     use super::TokenStreamAsync;
     #[pymodule_export]
     use super::Tool;
+    #[pymodule_export]
+    use super::Translator;
+    #[pymodule_export]
+    use super::TranslatorAsync;
 }

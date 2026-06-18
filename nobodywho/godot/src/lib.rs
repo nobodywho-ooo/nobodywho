@@ -2059,6 +2059,220 @@ impl NobodyWhoEncoder {
 
 #[derive(GodotClass)]
 #[class(base=Node)]
+/// NobodyWhoTranslator is a stateless one-shot translation node powered by a
+/// TranslateGemma-compatible model.
+///
+/// Each translator is bound to a fixed language pair ([source_lang_code] → [target_lang_code]).
+/// Each `translate()` call resets the context, so calls are fully independent.
+///
+/// Connect to `response_updated` to stream tokens as they arrive, or `response_finished`
+/// to receive the complete translation once generation ends.
+///
+/// Example:
+///
+/// ```
+/// extends NobodyWhoTranslator
+///
+/// func _ready():
+///     self.model_node = get_node("../TranslatorModel")
+///     self.source_lang_code = "en"
+///     self.target_lang_code = "da"
+///
+///     translate("Hello, how are you?")
+///     var result = await response_finished
+///     print("Translation: " + result)
+/// ```
+///
+struct NobodyWhoTranslator {
+    #[export]
+    /// The model node to use for translation.
+    model_node: Option<Gd<NobodyWhoModel>>,
+
+    #[export]
+    /// BCP-47 source language code (e.g. "en", "de", "fr").
+    source_lang_code: GString,
+
+    #[export]
+    /// BCP-47 target language code (e.g. "en", "de", "fr").
+    target_lang_code: GString,
+
+    #[export]
+    /// Maximum number of tokens for the translation context. Higher values use more VRAM.
+    context_length: u32,
+
+    translate_handle: Option<nobodywho::translate::TranslateHandleAsync>,
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoTranslator {
+    fn init(base: Base<Node>) -> Self {
+        Self {
+            model_node: None,
+            source_lang_code: GString::from("en"),
+            target_lang_code: GString::from("en"),
+            context_length: 4096,
+            translate_handle: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoTranslator {
+    #[signal]
+    /// Emitted once the translation worker has finished loading and is ready.
+    fn worker_started();
+
+    #[signal]
+    /// Emitted if loading the model (or setting up the translation worker) failed.
+    fn worker_failed(error: GString);
+
+    #[signal]
+    /// Emitted for each token as it is generated during translation.
+    fn response_updated(token: GString);
+
+    #[signal]
+    /// Emitted when translation is complete. Carries the full translated text.
+    fn response_finished(text: GString);
+
+    /// Load the model and create the translate worker. `yield_now()` ensures the
+    /// outer `start_worker(&mut self)` borrow is released before `me.bind_mut()` runs.
+    async fn load_and_store_worker(
+        mut me: Gd<Self>,
+        model_node: Gd<NobodyWhoModel>,
+        source: String,
+        target: String,
+        n_ctx: u32,
+    ) -> Result<nobodywho::translate::TranslateHandleAsync, GString> {
+        tokio::task::yield_now().await;
+
+        let model = NobodyWhoModel::load_model_detached(model_node)
+            .await
+            .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
+
+        let handle = nobodywho::translate::TranslateHandleAsync::new(model, source, target, n_ctx)
+            .map_err(|e| GString::from(e.to_string().as_str()))?;
+
+        let mut b = me.bind_mut();
+        if let Some(existing) = &b.translate_handle {
+            Ok(existing.clone())
+        } else {
+            b.translate_handle = Some(handle.clone());
+            Ok(handle)
+        }
+    }
+
+    #[func]
+    /// Starts the translation worker asynchronously: loads (or downloads) the model on a
+    /// background thread, then creates the translate worker.
+    ///
+    /// **Returns immediately.** Connect to `worker_started` to know when the worker is
+    /// ready, or `worker_failed(error)` for load errors. Calls to `translate()` before
+    /// the worker is ready auto-start it.
+    fn start_worker(&mut self) {
+        if self.translate_handle.is_some() {
+            self.signals().worker_started().emit();
+            return;
+        }
+
+        let Some(model_node) = self.model_node.clone() else {
+            let err = GString::from("Model node was not set");
+            godot_error!("Error starting translator worker: {}", err);
+            self.signals().worker_failed().emit(&err);
+            return;
+        };
+
+        let source = self.source_lang_code.to_string();
+        let target = self.target_lang_code.to_string();
+        let n_ctx = self.context_length;
+        let me = self.to_gd();
+        godot::task::spawn(async move {
+            let me_emit = me.clone();
+            match Self::load_and_store_worker(me, model_node, source, target, n_ctx).await {
+                Ok(_) => me_emit.signals().worker_started().emit(),
+                Err(e) => {
+                    godot_error!("Error starting translator: {}", e);
+                    me_emit.signals().worker_failed().emit(&e);
+                }
+            }
+        });
+    }
+
+    #[func]
+    /// Translate the given text. Emits `response_updated` for each token and
+    /// `response_finished` (with the full translation) when done.
+    ///
+    /// If the worker has not been started yet, `translate` will auto-start it.
+    fn translate(&mut self, text: String) {
+        let existing_handle = self.translate_handle.clone();
+        let load_config = if existing_handle.is_none() {
+            godot_warn!("Translator worker was not started yet, starting now... Call `start_worker()` ahead of time to avoid waiting.");
+            let Some(model_node) = self.model_node.clone() else {
+                let err = GString::from("Model node was not set");
+                godot_error!("translate() dropped: {}", err);
+                self.signals().worker_failed().emit(&err);
+                return;
+            };
+            Some((
+                model_node,
+                self.source_lang_code.to_string(),
+                self.target_lang_code.to_string(),
+                self.context_length,
+            ))
+        } else {
+            None
+        };
+
+        let me = self.to_gd();
+        let emit_node = me.clone();
+        godot::task::spawn(async move {
+            let translate_handle = match existing_handle {
+                Some(h) => h,
+                None => {
+                    let (model_node, source, target, n_ctx) =
+                        load_config.expect("load_config set when no existing handle");
+                    match Self::load_and_store_worker(me, model_node, source, target, n_ctx).await {
+                        Ok(h) => h,
+                        Err(e) => {
+                            godot_error!("translate() dropped: {}", e);
+                            emit_node.signals().worker_failed().emit(&e);
+                            return;
+                        }
+                    }
+                }
+            };
+
+            let mut generation_channel = translate_handle.translate_channel(text);
+            while let Some(out) = generation_channel.recv().await {
+                match out {
+                    nobodywho::llm::WriteOutput::Token(tok) => emit_node
+                        .signals()
+                        .response_updated()
+                        .emit(&GString::from(tok.as_str())),
+                    nobodywho::llm::WriteOutput::Done(resp) => emit_node
+                        .signals()
+                        .response_finished()
+                        .emit(&GString::from(resp.as_str())),
+                    nobodywho::llm::WriteOutput::Error(e) => {
+                        let errmsg = nobodywho::render_miette(e.as_ref());
+                        godot_error!("Error during translation: {}", errmsg);
+                        emit_node.signals().worker_failed().emit(&errmsg);
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    #[func]
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
+}
+
+#[derive(GodotClass)]
+#[class(base=Node)]
 /// The CrossEncoder node is used to rank documents based on their relevance to a query.
 /// This is useful for document retrieval and information retrieval tasks.
 ///

@@ -2,7 +2,7 @@
  * NobodyWho — React Native bindings for local LLM inference.
  *
  * This is the public entry point. It re-exports the public API:
- * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, Tool, TokenStream, Prompt
+ * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, Translator, Tool, TokenStream, Prompt
  * - Direct re-exports: SamplerBuilder, SamplerConfig
  * - Types: Message, Asset, ToolCall
  * - Utilities: SamplerPresets, cosineSimilarity, downloadModel
@@ -43,6 +43,7 @@ export { Model } from "./model";
 export { Chat } from "./chat";
 export { Encoder } from "./encoder";
 export { CrossEncoder } from "./cross_encoder";
+export { Translator } from "./translator";
 export { Prompt } from "./prompt";
 export { Tool } from "./tool";
 export { TokenStream } from "./streaming";

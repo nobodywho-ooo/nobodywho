@@ -135,6 +135,11 @@ public class Chat {
         return try await inner.getSamplerConfigJson()
     }
 
+    /// Tokenize a message string, returning token IDs.
+    public func tokenize(message: String) async throws -> [Int32?] {
+        return try await inner.tokenize(message: message)
+    }
+
     /// Get context usage statistics.
     public func getStats() async throws -> ChatStats {
         return try await inner.getStats()

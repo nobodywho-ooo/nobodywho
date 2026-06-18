@@ -169,4 +169,14 @@ class IntegrationTest {
         assertNotNull("Suspend tool should have been called", toolResponse)
         assertEquals("slow async pong", (toolResponse as Message.Tool).content)
     }
+
+    @Test
+    fun testTranslator() = runBlocking {
+        val modelPath = requireEnv("TEST_TRANSLATE_MODEL")
+        val model = Model.load(modelPath)
+        val translator = Translator(model = model, source = "en", target = "da")
+        val result = translator.translate("Hello, how are you?").completed()
+        assertTrue("Translation result should contain 'Hej'", result.contains("Hej"))
+        translator.destroy()
+    }
 }

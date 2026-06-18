@@ -17,6 +17,14 @@ def model():
     return nobodywho.Model(model_path)
 
 
+@pytest.fixture(scope="module")
+def translate_model():
+    model_path = os.environ.get("TEST_TRANSLATE_MODEL")
+    if not model_path:
+        pytest.skip("TEST_TRANSLATE_MODEL environment variable is not set")
+    return nobodywho.Model(model_path)
+
+
 @pytest.fixture
 def chat(model):
     return nobodywho.Chat(
@@ -472,3 +480,12 @@ def test_constrain_with_grammar_gbnf(model):
 
 def test_tokenize(chat):
     assert chat.tokenize("Hey!") == [18665, 0]
+
+
+@pytest.mark.asyncio
+async def test_translator(translate_model):
+    translator = nobodywho.TranslatorAsync(
+        translate_model, source="en", target="da"
+    )
+    result = await translator.translate("Hello, how are you?").completed()
+    assert "Hej" in result

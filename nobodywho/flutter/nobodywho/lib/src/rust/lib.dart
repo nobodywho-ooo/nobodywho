@@ -325,6 +325,62 @@ abstract class RustTool implements RustOpaqueInterface {
   String getSchemaJson();
 }
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTranslator>>
+abstract class RustTranslator implements RustOpaqueInterface {
+  /// Load a translation model from a local path, HuggingFace path, or HTTPS URL and
+  /// create a translator for the given language pair.
+  ///
+  /// Args:
+  ///     model_path: Path or URL to a GGUF translation model file.
+  ///     source: BCP-47 source language code (e.g. "en", "de", "fr").
+  ///     target: BCP-47 target language code.
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz. Not invoked for
+  ///         cached/local files.
+  ///     context_size: Context size for the translator. Defaults to 4096.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  static Future<RustTranslator> fromPath({
+    required String modelPath,
+    required String source,
+    required String target,
+    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
+        noopOnDownloadProgress,
+    int contextSize = 4096,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateRustTranslatorFromPath(
+    modelPath: modelPath,
+    source: source,
+    target: target,
+    onDownloadProgress: onDownloadProgress,
+    contextSize: contextSize,
+    useGpu: useGpu,
+  );
+
+  /// Create a translator for a given source/target language pair from an already-loaded model.
+  ///
+  /// Args:
+  ///     model: A loaded translation model (e.g. TranslateGemma).
+  ///     source: BCP-47 source language code (e.g. "en", "de", "fr").
+  ///     target: BCP-47 target language code.
+  ///     context_size: Context size for the translator. Defaults to 4096.
+  factory RustTranslator({
+    required Model model,
+    required String source,
+    required String target,
+    int contextSize = 4096,
+  }) => NobodyWho.instance.api.crateRustTranslatorNew(
+    model: model,
+    source: source,
+    target: target,
+    contextSize: contextSize,
+  );
+
+  /// Translate the given text.
+  ///
+  /// Returns a [RustTokenStream] that yields translation tokens as they are generated.
+  RustTokenStream translate({required String text});
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Sample from the probability distribution (weighted random selection).

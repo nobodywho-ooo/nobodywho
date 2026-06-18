@@ -737,6 +737,44 @@ impl RustEncoder {
     }
 }
 
+// ---------- RustTranslator ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Translator`).
+
+#[derive(uniffi::Object)]
+pub struct RustTranslator {
+    inner: nobodywho::translate::TranslateHandleAsync,
+}
+
+#[uniffi::export]
+impl RustTranslator {
+    /// Create a new translator for the given source and target language codes.
+    #[uniffi::constructor]
+    pub fn new(
+        model: &RustModel,
+        source: String,
+        target: String,
+        context_size: Option<u32>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
+        let handle = nobodywho::translate::TranslateHandleAsync::new(
+            Arc::clone(&model.inner),
+            source,
+            target,
+            context_size.unwrap_or(4096),
+        )
+        .map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })?;
+        Ok(Arc::new(Self { inner: handle }))
+    }
+
+    /// Translate the given text, returning a token stream for the translation.
+    pub fn translate(&self, text: String) -> Arc<RustTokenStream> {
+        Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(self.inner.translate(text)),
+        })
+    }
+}
+
 /// Compute the cosine similarity between two vectors.
 #[uniffi::export]
 pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {

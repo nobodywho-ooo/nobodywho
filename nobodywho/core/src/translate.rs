@@ -57,11 +57,12 @@ impl<'a> Translate<'a> {
         source_lang_code: String,
         target_lang_code: String,
         should_stop: Arc<AtomicBool>,
+        n_ctx: u32,
     ) -> Result<Self, InitWorkerError> {
         let template = select_template(&model.language_model, false)?;
         let sampler_config = read_sampler_from_metadata(&model.language_model).unwrap_or_default();
 
-        let Worker { engine, extra: () } = Worker::new_with_type(model, 4096, false, ())?;
+        let Worker { engine, extra: () } = Worker::new_with_type(model, n_ctx, false, ())?;
 
         Ok(Self {
             engine,
@@ -192,6 +193,7 @@ impl TranslateHandle {
         model: Arc<llm::Model>,
         source: String,
         target: String,
+        n_ctx: u32,
     ) -> Result<Self, InitWorkerError> {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
         let (init_tx, init_rx) = std::sync::mpsc::channel::<Result<(), InitWorkerError>>();
@@ -199,7 +201,7 @@ impl TranslateHandle {
         let should_stop_clone = Arc::clone(&should_stop);
 
         let join_handle = std::thread::spawn(move || {
-            let result = Translate::new(&model, source, target, should_stop_clone);
+            let result = Translate::new(&model, source, target, should_stop_clone, n_ctx);
             let mut worker = match result {
                 Ok(w) => {
                     let _ = init_tx.send(Ok(()));
@@ -250,6 +252,7 @@ impl TranslateHandle {
 // TranslateHandleAsync — async API
 // ---------------------------------------------------------------------------
 
+#[derive(Clone)]
 pub struct TranslateHandleAsync {
     guard: Arc<WorkerGuard<TranslateMsg>>,
 }
@@ -259,8 +262,9 @@ impl TranslateHandleAsync {
         model: Arc<llm::Model>,
         source: String,
         target: String,
+        n_ctx: u32,
     ) -> Result<Self, InitWorkerError> {
-        let handle = TranslateHandle::new(model, source, target)?;
+        let handle = TranslateHandle::new(model, source, target, n_ctx)?;
         Ok(Self {
             guard: Arc::new(handle.guard),
         })
@@ -273,5 +277,20 @@ impl TranslateHandleAsync {
             output_tx,
         });
         TokenStreamAsync::new(output_rx)
+    }
+
+    /// Like `translate`, but exposes the raw `WriteOutput` channel instead of a
+    /// `TokenStreamAsync`. Useful for integrations (e.g. Godot) that consume
+    /// `Token` / `Done` / `Error` variants directly.
+    pub fn translate_channel(
+        &self,
+        text: impl Into<String>,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<WriteOutput> {
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(TranslateMsg::Translate {
+            text: text.into(),
+            output_tx,
+        });
+        output_rx
     }
 }

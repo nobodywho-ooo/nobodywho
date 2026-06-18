@@ -711,4 +711,23 @@ void main() {
       expect(original.name, equals('original_tool')); // Original unchanged
     });
   });
+
+  group('Translator', () {
+    final translateModelPath = Platform.environment["TEST_TRANSLATE_MODEL"];
+
+    setUpAll(() async {
+      await nobodywho.NobodyWho.init();
+    });
+
+    test('translate en to da', () async {
+      final translator = await nobodywho.Translator.fromPath(
+          modelPath: translateModelPath!, source: 'en', target: 'da');
+      final result =
+          await translator.translate('Hello, how are you?').completed();
+      expect(result, contains('Hej'));
+    });
+  },
+      skip: Platform.environment["TEST_TRANSLATE_MODEL"] == null
+          ? 'TEST_TRANSLATE_MODEL not set'
+          : null);
 }
