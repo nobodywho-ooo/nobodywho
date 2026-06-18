@@ -1,7 +1,7 @@
 //! Generic inference pipeline, independent of chat history.
 
 use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError};
-use crate::llm::{GlobalInferenceLockToken, WriteOutput, GLOBAL_INFERENCE_LOCK};
+use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
 };
@@ -284,35 +284,4 @@ impl<'a> InferenceEngine<'a> {
 
         Ok(new_token)
     }
-}
-
-/// Wraps a respond callback to capture the completed response and suppress tokens after
-/// `tool_call_begin_token`.
-pub(crate) fn wrap_respond<F>(
-    respond: F,
-    tool_call_begin_token: Option<String>,
-) -> (impl FnMut(WriteOutput), std::sync::mpsc::Receiver<String>)
-where
-    F: Fn(WriteOutput),
-{
-    let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
-    let mut emitting = true;
-
-    let wrapped_respond = move |x| {
-        match &x {
-            WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
-                emitting = false;
-            }
-            WriteOutput::Done(resp) => {
-                resp_sender
-                    .send(resp.clone())
-                    .expect("Failed sending response");
-            }
-            WriteOutput::Token(_) | WriteOutput::Error(_) => (),
-        }
-        if emitting {
-            respond(x)
-        }
-    };
-    (wrapped_respond, resp_receiver)
 }

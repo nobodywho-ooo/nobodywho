@@ -28,7 +28,7 @@ use crate::errors::{
     RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError, TokenizeError,
     WrappedResponseError,
 };
-use crate::inference::{acquire_inference_lock, wrap_respond, InferenceEngine};
+use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
 use crate::sampler::read_sampler_from_metadata;
@@ -1790,6 +1790,38 @@ impl<'a> Chat<'a> {
         Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
     }
 
+    fn wrap_respond<F>(
+        respond: F,
+        tool_call_begin_token: Option<String>,
+    ) -> (
+        impl FnMut(llm::WriteOutput),
+        std::sync::mpsc::Receiver<String>,
+    )
+    where
+        F: Fn(llm::WriteOutput),
+    {
+        let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
+        let mut emitting = true;
+
+        let wrapped_respond = move |x| {
+            match &x {
+                llm::WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
+                    emitting = false;
+                }
+                llm::WriteOutput::Done(resp) => {
+                    resp_sender
+                        .send(resp.clone())
+                        .expect("Failed sending response");
+                }
+                llm::WriteOutput::Token(_) | llm::WriteOutput::Error(_) => (),
+            }
+            if emitting {
+                respond(x)
+            }
+        };
+        (wrapped_respond, resp_receiver)
+    }
+
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
         sampler: SamplerConfig,
@@ -1805,7 +1837,8 @@ impl<'a> Chat<'a> {
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
-        let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
+        let (wrapped_respond, resp_receiver) =
+            Self::wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
         self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
