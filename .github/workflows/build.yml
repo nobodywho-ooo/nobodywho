@@ -280,26 +280,41 @@ jobs:
         working-directory: ./nobodywho
 
       # ort-sys has no prebuilt for x86_64-apple-darwin (pyke only ships aarch64 Apple).
-      # Pull Microsoft's official tgz so static linking finds libonnxruntime.a.
-      # Version must match ort-sys's pyke distribution (ms@1.24.2 — see ort-sys/build/download/dist.txt).
-      - name: "Fetch ONNX Runtime for x86_64-apple-darwin"
+      # Microsoft no longer ships x86_64 macOS prebuilts as of ORT 1.20+ (Intel Mac EOL).
+      # Build from source. ~15 min on Apple Silicon; cached by ORT version.
+      - name: "Cache ONNX Runtime macOS x86_64 build"
         if: matrix.target == 'x86_64-apple-darwin'
-        id: ort-macos-x64
+        id: cache-ort-macos-x64
+        uses: actions/cache@v5
+        with:
+          path: /tmp/ort-macos-x64-build
+          key: ort-macos-x64-v1.24.2
+
+      - name: "Build ONNX Runtime for x86_64-apple-darwin"
+        if: matrix.target == 'x86_64-apple-darwin' && steps.cache-ort-macos-x64.outputs.cache-hit != 'true'
         run: |
-          ORT_VERSION=1.24.2
-          ORT_DIR="$RUNNER_TEMP/ort-macos-x64"
-          mkdir -p "$ORT_DIR"
-          curl -L --fail -o /tmp/onnxruntime.tgz \
-            "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-osx-x86_64-${ORT_VERSION}.tgz"
-          tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C "$ORT_DIR"
-          echo "ort_dir=$ORT_DIR/lib" >> "$GITHUB_OUTPUT"
+          git clone --recursive https://github.com/microsoft/onnxruntime --branch v1.24.2 --depth 1 /tmp/ort-src-macos-x64
+          cd /tmp/ort-src-macos-x64
+          # --compile_no_warning_as_error: ORT 1.24.2 AVX2 MLAS kernel has an OOB
+          # array access caught by clang -Warray-bounds (ms upstream bug).
+          # CMAKE_DISABLE_FIND_PACKAGE_Protobuf: force ORT to use its bundled protobuf
+          # (matches the prebuilt protoc it downloads); otherwise CMake may pick up a
+          # newer system protobuf and the generated .pb.cc files won't link.
+          python3 tools/ci_build/build.py \
+            --build_dir /tmp/ort-macos-x64-build \
+            --config Release --skip_tests --skip_submodule_sync \
+            --apple_sysroot macosx --osx_arch x86_64 \
+            --apple_deploy_target 11.0 \
+            --parallel \
+            --compile_no_warning_as_error \
+            --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF CMAKE_DISABLE_FIND_PACKAGE_Protobuf=ON
 
       - name: "Build (stable targets)"
         if: "!contains(matrix.target, 'visionos') && !contains(matrix.target, 'watchos')"
         # ORT_LIB_PATH only set for x86_64-apple-darwin; other Apple targets use pyke prebuilts or xcframework.
         run: |
           if [ "${{ matrix.target }}" = "x86_64-apple-darwin" ]; then
-            export ORT_LIB_PATH="${{ steps.ort-macos-x64.outputs.ort_dir }}"
+            export ORT_LIB_PATH=/tmp/ort-macos-x64-build/Release
           fi
           cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
