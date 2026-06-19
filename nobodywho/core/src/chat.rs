@@ -1811,7 +1811,8 @@ impl<'a> Chat<'a> {
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
-        let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
+        let (wrapped_respond, resp_receiver) =
+            wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
         self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;

@@ -10,7 +10,23 @@
  * This file is NOT generated — it is safe to edit.
  */
 
-import { downloadModel as _downloadModel } from "../generated/ts/nobodywho";
+// Native crate install + bindings initialize. These run as side effects of
+// evaluating this module, which the React Native runtime is guaranteed to do
+// before any FFI call because wrapper.ts is the package main.
+//
+// The install logic was previously reached only through lazy re-exports from
+// ./index. In release mode Metro's inlineRequires defers lazy re-exports
+// until first use, so consumers whose first interaction was Model.load /
+// downloadModel / Chat never triggered ./index and FFI calls then threw
+// "Cannot read property 'ubrn_…' of undefined". Inlining the install here
+// removes the ./index indirection so this can't recur.
+import installer from "./NativeNobodywho";
+import nobodywhoDefault, {
+  downloadModel as _downloadModel,
+} from "../generated/ts/nobodywho";
+
+installer.installRustCrate();
+nobodywhoDefault.initialize();
 
 /**
  * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
@@ -60,14 +76,14 @@ export {
   SamplerConfig,
   cosineSimilarity,
   getCachedModels,
-} from "./index";
+} from "../generated/ts/nobodywho";
 
 export type {
   Asset,
   ToolCall,
   CachedModel,
   ChatStats,
-} from "./index";
+} from "../generated/ts/nobodywho";
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";

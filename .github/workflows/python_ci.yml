@@ -218,6 +218,11 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: brew install python@3.13 maturin
       - run: echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
+      - name: "Clean target dir"
+        # Self-hosted runners persist the workspace between runs; clean to avoid stale build artifacts.
+        run: cargo clean
+        working-directory: ./nobodywho
+
       - name: "Build macos python wheel"
         run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python

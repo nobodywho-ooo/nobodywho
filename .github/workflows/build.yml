@@ -274,6 +274,11 @@ jobs:
           channel: stable
           version: 3.35.5
 
+      - name: "Clean target dir"
+        # Self-hosted runners persist the workspace between runs; clean to avoid stale build artifacts.
+        run: cargo clean
+        working-directory: ./nobodywho
+
       - name: "Build (stable targets)"
         if: "!contains(matrix.target, 'visionos') && !contains(matrix.target, 'watchos')"
         run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
