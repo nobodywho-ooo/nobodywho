@@ -268,13 +268,13 @@ jobs:
           rustup +nightly component add rust-src
 
       # ORT's build.py uses `match` statements; needs Python 3.10+. Self-hosted mac
-      # runner's default python3 may be older. Only set up when we're actually
-      # building ORT from source.
+      # runner's default python3 may be older. setup-python fails on self-hosted
+      # (writes to /Users/runner which doesn't exist), so install via brew.
       - name: "Setup Python for ORT source build"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos') || matrix.target == 'x86_64-apple-darwin'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+        run: |
+          brew install python@3.13
+          echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
 
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
