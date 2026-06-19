@@ -267,6 +267,15 @@ jobs:
           rustup toolchain install nightly
           rustup +nightly component add rust-src
 
+      # ORT's build.py uses `match` statements; needs Python 3.10+. Self-hosted mac
+      # runner's default python3 may be older. Only set up when we're actually
+      # building ORT from source.
+      - name: "Setup Python for ORT source build"
+        if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos') || matrix.target == 'x86_64-apple-darwin'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
         uses: flutter-actions/setup-flutter@v4
@@ -293,28 +302,36 @@ jobs:
       - name: "Build ONNX Runtime for x86_64-apple-darwin"
         if: matrix.target == 'x86_64-apple-darwin' && steps.cache-ort-macos-x64.outputs.cache-hit != 'true'
         run: |
+          rm -rf /tmp/ort-src-macos-x64
           git clone --recursive https://github.com/microsoft/onnxruntime --branch v1.24.2 --depth 1 /tmp/ort-src-macos-x64
           cd /tmp/ort-src-macos-x64
-          # --compile_no_warning_as_error: ORT 1.24.2 AVX2 MLAS kernel has an OOB
-          # array access caught by clang -Warray-bounds (ms upstream bug).
-          # CMAKE_DISABLE_FIND_PACKAGE_Protobuf: force ORT to use its bundled protobuf
-          # (matches the prebuilt protoc it downloads); otherwise CMake may pick up a
-          # newer system protobuf and the generated .pb.cc files won't link.
+          # --build_apple_framework: merges all internal libs + deps (abseil, protobuf, re2, onnx)
+          # into a single onnxruntime.framework/onnxruntime archive. We copy it as libonnxruntime.a
+          # so ort-sys takes its single-file fast path; no fragile per-dep search-path matching.
+          # --compile_no_warning_as_error: ORT 1.24.2 AVX2 MLAS kernel has a dead-code OOB array
+          # access caught by clang -Warray-bounds (the existing #pragma suppression doesn't
+          # activate because the header forgot to #include onnxruntime_config.h).
+          # CMAKE_DISABLE_FIND_PACKAGE_Protobuf: force ORT to use its bundled protobuf (matches
+          # the prebuilt protoc it downloads); otherwise system protobuf may mismatch.
           python3 tools/ci_build/build.py \
             --build_dir /tmp/ort-macos-x64-build \
             --config Release --skip_tests --skip_submodule_sync \
+            --build_apple_framework --macos MacOSX \
             --apple_sysroot macosx --osx_arch x86_64 \
             --apple_deploy_target 11.0 \
-            --parallel \
+            --use_xcode --parallel \
             --compile_no_warning_as_error \
             --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF CMAKE_DISABLE_FIND_PACKAGE_Protobuf=ON
+          mkdir -p /tmp/ort-macos-x64-build/lib
+          cp /tmp/ort-macos-x64-build/Release/Release-macosx/static_framework/onnxruntime.framework/onnxruntime \
+            /tmp/ort-macos-x64-build/lib/libonnxruntime.a
 
       - name: "Build (stable targets)"
         if: "!contains(matrix.target, 'visionos') && !contains(matrix.target, 'watchos')"
         # ORT_LIB_PATH only set for x86_64-apple-darwin; other Apple targets use pyke prebuilts or xcframework.
         run: |
           if [ "${{ matrix.target }}" = "x86_64-apple-darwin" ]; then
-            export ORT_LIB_PATH=/tmp/ort-macos-x64-build/Release
+            export ORT_LIB_PATH=/tmp/ort-macos-x64-build/lib
           fi
           cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
@@ -347,14 +364,22 @@ jobs:
           else
             SYSROOT=xros
           fi
+          rm -rf /tmp/ort-src
           git clone --recursive https://github.com/microsoft/onnxruntime --branch v1.24.2 --depth 1 /tmp/ort-src
           cd /tmp/ort-src
+          # --build_apple_framework merges all libs+deps into onnxruntime.framework/onnxruntime;
+          # we copy that as libonnxruntime.a so ort-sys takes its single-file fast path.
           python3 tools/ci_build/build.py \
             --build_dir /tmp/ort-visionos-build \
             --config Release --skip_tests --skip_submodule_sync \
+            --build_apple_framework \
             --visionos --apple_sysroot "$SYSROOT" \
             --apple_deploy_target 1.0 --osx_arch arm64 \
-            --use_xcode --parallel
+            --use_xcode --parallel \
+            --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF
+          mkdir -p /tmp/ort-visionos-build/lib
+          cp /tmp/ort-visionos-build/Release/Release-${SYSROOT}/static_framework/onnxruntime.framework/onnxruntime \
+            /tmp/ort-visionos-build/lib/libonnxruntime.a
 
       # watchOS uses --visionos with an overriding toolchain + cmake defines.
       # Patch: ORT's providers_shared cmake guard excludes Darwin|iOS|visionOS|tvOS but forgot watchOS.
@@ -366,11 +391,15 @@ jobs:
           else
             SYSROOT=watchos
           fi
+          rm -rf /tmp/ort-src-watchos
           git clone --recursive https://github.com/microsoft/onnxruntime --branch v1.24.2 --depth 1 /tmp/ort-src-watchos
           cd /tmp/ort-src-watchos
-          # Add watchOS to the platform exclusion regex so providers_shared isn't built.
+          # ORT's CMake has two Apple-platform regexes that forgot watchOS:
+          # 1. providers_shared exclusion (don't build the dynamic provider host on Apple non-macOS)
+          # 2. apple_framework eligibility (which platforms can be packaged as .framework)
           sed -i.bak 's#"Darwin|iOS|visionOS|tvOS"#"Darwin|iOS|visionOS|tvOS|watchOS"#' \
-            cmake/onnxruntime_providers_cpu.cmake
+            cmake/onnxruntime_providers_cpu.cmake \
+            cmake/onnxruntime.cmake
           # Custom toolchain forcing CMAKE_SYSTEM_NAME=watchOS.
           cat > cmake/onnxruntime_watchos.toolchain.cmake <<'EOF'
           set(CMAKE_SYSTEM_NAME watchOS CACHE STRING "" FORCE)
@@ -384,6 +413,7 @@ jobs:
           python3 tools/ci_build/build.py \
             --build_dir /tmp/ort-watchos-build \
             --config Release --skip_tests --skip_submodule_sync \
+            --build_apple_framework \
             --visionos \
             --visionos_toolchain_file ../cmake/onnxruntime_watchos.toolchain.cmake \
             --apple_sysroot "$SYSROOT" \
@@ -391,24 +421,19 @@ jobs:
             --use_xcode \
             --cmake_extra_defines CMAKE_SYSTEM_NAME=watchOS CMAKE_MACOSX_BUNDLE=OFF onnxruntime_BUILD_UNIT_TESTS=OFF \
             --parallel
+          mkdir -p /tmp/ort-watchos-build/lib
+          cp /tmp/ort-watchos-build/Release/Release-${SYSROOT}/static_framework/onnxruntime.framework/onnxruntime \
+            /tmp/ort-watchos-build/lib/libonnxruntime.a
 
       - name: "Build (nightly tier 3 targets)"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
-        # `Release-{xros,xrsimulator,watchos,watchsimulator}` is Xcode's per-configuration subdir;
-        # ort-sys finds the static libs there and _deps via base.parent()/_deps.
+        # ORT_LIB_PATH points at a dir containing a single merged libonnxruntime.a
+        # produced by --build_apple_framework. ort-sys takes its single-file fast path.
         run: |
           if [[ "${{ matrix.target }}" == *"visionos"* ]]; then
-            if [[ "${{ matrix.target }}" == *"-sim" ]]; then
-              export ORT_LIB_PATH=/tmp/ort-visionos-build/Release/Release-xrsimulator
-            else
-              export ORT_LIB_PATH=/tmp/ort-visionos-build/Release/Release-xros
-            fi
+            export ORT_LIB_PATH=/tmp/ort-visionos-build/lib
           elif [[ "${{ matrix.target }}" == *"watchos"* ]]; then
-            if [[ "${{ matrix.target }}" == *"-sim" ]]; then
-              export ORT_LIB_PATH=/tmp/ort-watchos-build/Release/Release-watchsimulator
-            else
-              export ORT_LIB_PATH=/tmp/ort-watchos-build/Release/Release-watchos
-            fi
+            export ORT_LIB_PATH=/tmp/ort-watchos-build/lib
           fi
           cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: ./nobodywho
