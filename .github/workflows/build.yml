@@ -274,16 +274,128 @@ jobs:
           channel: stable
           version: 3.35.5
 
+      - name: "Clean target dir"
+        # Self-hosted runners persist the workspace between runs; clean to avoid stale build artifacts.
+        run: cargo clean
+        working-directory: ./nobodywho
+
+      # ort-sys has no prebuilt for x86_64-apple-darwin (pyke only ships aarch64 Apple).
+      # Pull Microsoft's official tgz so static linking finds libonnxruntime.a.
+      # Version must match ort-sys's pyke distribution (ms@1.24.2 — see ort-sys/build/download/dist.txt).
+      - name: "Fetch ONNX Runtime for x86_64-apple-darwin"
+        if: matrix.target == 'x86_64-apple-darwin'
+        id: ort-macos-x64
+        run: |
+          ORT_VERSION=1.24.2
+          ORT_DIR="$RUNNER_TEMP/ort-macos-x64"
+          mkdir -p "$ORT_DIR"
+          curl -L --fail -o /tmp/onnxruntime.tgz \
+            "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-osx-x86_64-${ORT_VERSION}.tgz"
+          tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C "$ORT_DIR"
+          echo "ort_dir=$ORT_DIR/lib" >> "$GITHUB_OUTPUT"
+
       - name: "Build (stable targets)"
         if: "!contains(matrix.target, 'visionos') && !contains(matrix.target, 'watchos')"
-        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        # ORT_LIB_PATH only set for x86_64-apple-darwin; other Apple targets use pyke prebuilts or xcframework.
+        run: |
+          if [ "${{ matrix.target }}" = "x86_64-apple-darwin" ]; then
+            export ORT_LIB_PATH="${{ steps.ort-macos-x64.outputs.ort_dir }}"
+          fi
+          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
           IPHONEOS_DEPLOYMENT_TARGET: "18.5"
 
+      # visionOS / watchOS have no prebuilt ORT anywhere — build from source with Microsoft's build.py.
+      # ~17 min on Apple Silicon; cached by ORT version + target so reruns hit the cache.
+      - name: "Cache ONNX Runtime visionOS build"
+        if: contains(matrix.target, 'visionos')
+        id: cache-ort-visionos
+        uses: actions/cache@v5
+        with:
+          path: /tmp/ort-visionos-build
+          key: ort-visionos-v1.24.2-${{ contains(matrix.target, '-sim') && 'sim' || 'device' }}
+
+      - name: "Cache ONNX Runtime watchOS build"
+        if: contains(matrix.target, 'watchos')
+        id: cache-ort-watchos
+        uses: actions/cache@v5
+        with:
+          path: /tmp/ort-watchos-build
+          key: ort-watchos-v1.24.2-${{ contains(matrix.target, '-sim') && 'sim' || 'device' }}
+
+      - name: "Build ONNX Runtime for visionOS"
+        if: contains(matrix.target, 'visionos') && steps.cache-ort-visionos.outputs.cache-hit != 'true'
+        run: |
+          if [[ "${{ matrix.target }}" == *"-sim" ]]; then
+            SYSROOT=xrsimulator
+          else
+            SYSROOT=xros
+          fi
+          git clone --recursive https://github.com/microsoft/onnxruntime --branch v1.24.2 --depth 1 /tmp/ort-src
+          cd /tmp/ort-src
+          python3 tools/ci_build/build.py \
+            --build_dir /tmp/ort-visionos-build \
+            --config Release --skip_tests --skip_submodule_sync \
+            --visionos --apple_sysroot "$SYSROOT" \
+            --apple_deploy_target 1.0 --osx_arch arm64 \
+            --use_xcode --parallel
+
+      # watchOS uses --visionos with an overriding toolchain + cmake defines.
+      # Patch: ORT's providers_shared cmake guard excludes Darwin|iOS|visionOS|tvOS but forgot watchOS.
+      - name: "Build ONNX Runtime for watchOS"
+        if: contains(matrix.target, 'watchos') && steps.cache-ort-watchos.outputs.cache-hit != 'true'
+        run: |
+          if [[ "${{ matrix.target }}" == *"-sim" ]]; then
+            SYSROOT=watchsimulator
+          else
+            SYSROOT=watchos
+          fi
+          git clone --recursive https://github.com/microsoft/onnxruntime --branch v1.24.2 --depth 1 /tmp/ort-src-watchos
+          cd /tmp/ort-src-watchos
+          # Add watchOS to the platform exclusion regex so providers_shared isn't built.
+          sed -i.bak 's#"Darwin|iOS|visionOS|tvOS"#"Darwin|iOS|visionOS|tvOS|watchOS"#' \
+            cmake/onnxruntime_providers_cpu.cmake
+          # Custom toolchain forcing CMAKE_SYSTEM_NAME=watchOS.
+          cat > cmake/onnxruntime_watchos.toolchain.cmake <<'EOF'
+          set(CMAKE_SYSTEM_NAME watchOS CACHE STRING "" FORCE)
+          set(CMAKE_SYSTEM_PROCESSOR arm64 CACHE STRING "" FORCE)
+          if (NOT DEFINED CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM AND NOT DEFINED CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY)
+            set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
+          endif()
+          set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES "YES")
+          set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES")
+          EOF
+          python3 tools/ci_build/build.py \
+            --build_dir /tmp/ort-watchos-build \
+            --config Release --skip_tests --skip_submodule_sync \
+            --visionos \
+            --visionos_toolchain_file ../cmake/onnxruntime_watchos.toolchain.cmake \
+            --apple_sysroot "$SYSROOT" \
+            --apple_deploy_target 11.0 --osx_arch arm64 \
+            --use_xcode \
+            --cmake_extra_defines CMAKE_SYSTEM_NAME=watchOS CMAKE_MACOSX_BUNDLE=OFF onnxruntime_BUILD_UNIT_TESTS=OFF \
+            --parallel
+
       - name: "Build (nightly tier 3 targets)"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
-        run: cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        # `Release-{xros,xrsimulator,watchos,watchsimulator}` is Xcode's per-configuration subdir;
+        # ort-sys finds the static libs there and _deps via base.parent()/_deps.
+        run: |
+          if [[ "${{ matrix.target }}" == *"visionos"* ]]; then
+            if [[ "${{ matrix.target }}" == *"-sim" ]]; then
+              export ORT_LIB_PATH=/tmp/ort-visionos-build/Release/Release-xrsimulator
+            else
+              export ORT_LIB_PATH=/tmp/ort-visionos-build/Release/Release-xros
+            fi
+          elif [[ "${{ matrix.target }}" == *"watchos"* ]]; then
+            if [[ "${{ matrix.target }}" == *"-sim" ]]; then
+              export ORT_LIB_PATH=/tmp/ort-watchos-build/Release/Release-watchsimulator
+            else
+              export ORT_LIB_PATH=/tmp/ort-watchos-build/Release/Release-watchos
+            fi
+          fi
+          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: ./nobodywho
 
       - name: "Rename built file"
@@ -541,8 +653,30 @@ jobs:
           channel: stable
           version: 3.35.5
 
+      # ort-sys has no prebuilt for x86_64-linux-android (pyke only ships arm64).
+      # Pull Microsoft's official Android AAR (which has x86_64) and point ort-sys at it.
+      # Version must match ort-sys's pyke distribution (ms@1.24.2 — see ort-sys/build/download/dist.txt).
+      - name: "Fetch ONNX Runtime for x86_64-linux-android"
+        if: matrix.target == 'x86_64-linux-android'
+        id: ort-android
+        run: |
+          ORT_VERSION=1.24.2
+          ORT_DIR="$RUNNER_TEMP/ort-android-x86_64/lib"
+          mkdir -p "$ORT_DIR"
+          curl -L --fail -o /tmp/onnxruntime.aar \
+            "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/${ORT_VERSION}/onnxruntime-android-${ORT_VERSION}.aar"
+          unzip -j -o /tmp/onnxruntime.aar 'jni/x86_64/libonnxruntime.so' -d "$ORT_DIR"
+          echo "ort_dir=$ORT_DIR" >> "$GITHUB_OUTPUT"
+
       - name: "Compile for android"
-        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        # ORT_LIB_PATH/ORT_PREFER_DYNAMIC_LINK only set when ort-android step ran (x86_64);
+        # exporting them empty on arm64 would put ort-sys into manual-link mode with no path.
+        run: |
+          if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
+            export ORT_LIB_PATH="${{ steps.ort-android.outputs.ort_dir }}"
+            export ORT_PREFER_DYNAMIC_LINK=1
+          fi
+          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
@@ -572,9 +706,15 @@ jobs:
             cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
           fi
+          # x86_64 Android links dynamically against libonnxruntime.so — ship it alongside.
+          if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
+            cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
+          fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+            ./libonnxruntime.so

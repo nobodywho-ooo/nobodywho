@@ -4,6 +4,7 @@ version = "2.3.0"
 edition = "2021"
 
 [dependencies]
+misaki-rs = { git = "https://github.com/MicheleYin/misaki-rs", branch = "main", default-features = false }
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 miette = { version = "5", features = ["fancy"] }
@@ -42,6 +43,8 @@ indexmap = "2.13.0"
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 walkdir = "2.5"
+hound = "3"
+safetensors = "0.5"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
@@ -55,9 +58,25 @@ libc = "0.2"
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "v0.1.150-watchos", default-features = false, features = [
     "android-static-stdcxx",
 ] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
+
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["cuda"] }
+
+[dependencies.espeak-ng]
+version = "0.1.2"
+default-features = false
+features = [
+    "bundled-data-en",
+    "bundled-data-es",
+    "bundled-data-fr",
+    "bundled-data-it",
+    "bundled-data-pt",
+]
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets

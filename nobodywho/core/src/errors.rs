@@ -435,6 +435,40 @@ pub enum EncoderWorkerError {
     Encode(String),
 }
 
+// HuggingFace download errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum HuggingFaceError {
+    #[error("invalid model source {0:?}: must be an existing directory or `owner/repo`")]
+    InvalidSource(String),
+
+    #[error("download failed: {0}")]
+    Download(String),
+}
+
+// TTS errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum TtsError {
+    #[error("Error initializing TTS: {0}")]
+    Init(String),
+
+    #[error("Error during synthesis: {0}")]
+    Synthesis(String),
+
+    #[error("ONNX Runtime error: {0}")]
+    Ort(#[from] ort::Error),
+
+    #[error("WAV encoding: {0}")]
+    Wav(#[from] hound::Error),
+}
+
+impl From<HuggingFaceError> for TtsError {
+    fn from(e: HuggingFaceError) -> Self {
+        TtsError::Init(e.to_string())
+    }
+}
+
 // ChatWorker errors
 
 #[derive(thiserror::Error, Debug)]
