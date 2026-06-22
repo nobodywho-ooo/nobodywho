@@ -218,12 +218,12 @@ return tool(_that.name,_that.content);case _:
 
 
 class Message_User extends Message {
-  const Message_User({required this.content, final  List<Asset> assets = const []}): _assets = assets,super._();
+  const Message_User({required this.content, required final  List<Asset> assets}): _assets = assets,super._();
   
 
 @override final  String content;
  final  List<Asset> _assets;
-@JsonKey() List<Asset> get assets {
+ List<Asset> get assets {
   if (_assets is EqualUnmodifiableListView) return _assets;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_assets);
@@ -292,12 +292,12 @@ as List<Asset>,
 
 
 class Message_Assistant extends Message {
-  const Message_Assistant({required this.content, final  List<ToolCall>? toolCalls = null}): _toolCalls = toolCalls,super._();
+  const Message_Assistant({required this.content, final  List<ToolCall>? toolCalls}): _toolCalls = toolCalls,super._();
   
 
 @override final  String content;
  final  List<ToolCall>? _toolCalls;
-@JsonKey() List<ToolCall>? get toolCalls {
+ List<ToolCall>? get toolCalls {
   final value = _toolCalls;
   if (value == null) return null;
   if (_toolCalls is EqualUnmodifiableListView) return _toolCalls;

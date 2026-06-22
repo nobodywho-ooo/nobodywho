@@ -6,7 +6,7 @@ use minijinja::{Environment, Template, Value};
 use regex::Regex;
 use tracing::{debug, trace, warn};
 
-use crate::{chat::Message, errors::SelectTemplateError, tool_calling::Tool};
+use crate::{chat::Message, chat::MessageContent, errors::SelectTemplateError, tool_calling::Tool};
 
 fn strftime_now(format_str: &str) -> String {
     chrono::Local::now().format(format_str).to_string()
@@ -143,7 +143,10 @@ impl ChatTemplate {
                 assets: second_assets,
             }, rest @ ..] => {
                 let new_first_message = Message::User {
-                    content: format!("{}\n\n{}", first_content, second_content),
+                    content: MessageContent::Text(format!(
+                        "{}\n\n{}",
+                        first_content, second_content
+                    )),
                     assets: second_assets.clone(),
                 };
                 let new_messages = vec![new_first_message]

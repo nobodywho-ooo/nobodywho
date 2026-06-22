@@ -395,15 +395,21 @@ impl NobodyWhoDownloader {
 /// chat.ask(prompt)
 /// ```
 struct NobodyWhoPrompt {
-    prompt: tokenizer::Prompt,
+    parts: Vec<tokenizer::PromptPart>,
     base: Base<RefCounted>,
+}
+
+impl NobodyWhoPrompt {
+    fn to_prompt(&self) -> tokenizer::Prompt {
+        tokenizer::Prompt::new(self.parts.clone())
+    }
 }
 
 #[godot_api]
 impl IRefCounted for NobodyWhoPrompt {
     fn init(base: Base<RefCounted>) -> Self {
         Self {
-            prompt: tokenizer::Prompt::new(),
+            parts: vec![],
             base,
         }
     }
@@ -414,7 +420,7 @@ impl NobodyWhoPrompt {
     #[func]
     /// Appends a text segment to this prompt.
     fn add_text(&mut self, text: String) {
-        self.prompt.push_text(text);
+        self.parts.push(tokenizer::PromptPart::Text(text));
     }
 
     #[func]
@@ -424,7 +430,7 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.prompt.push_image(globalized.as_ref());
+        self.parts.push(tokenizer::PromptPart::Image(globalized.into()));
     }
 
     #[func]
@@ -434,7 +440,7 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.prompt.push_audio(globalized.as_ref());
+        self.parts.push(tokenizer::PromptPart::Audio(globalized.into()));
     }
 }
 
@@ -649,7 +655,7 @@ impl NobodyWhoChat {
         let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
             text.to_string().to_prompt()
         } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
-            prompt_node.bind().prompt.clone()
+            prompt_node.bind().to_prompt()
         } else {
             godot_error!(
                 "ask() requires a String or NobodyWhoPrompt, got {:?}",
@@ -887,7 +893,7 @@ impl NobodyWhoChat {
         let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
             text.to_string().to_prompt()
         } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
-            prompt_node.bind().prompt.clone()
+            prompt_node.bind().to_prompt()
         } else {
             godot_error!(
                 "tokenize() requires a String or NobodyWhoPrompt, got {:?}",

@@ -3597,30 +3597,6 @@ fn wire__crate__tool_call_arguments_json_impl(
     )
 }
 
-// Section: static_checks
-
-#[allow(clippy::unnecessary_literal_unwrap)]
-const _: fn() = || match None::<crate::Message>.unwrap() {
-    crate::Message::User { content, assets } => {
-        let _: String = content;
-        let _: Vec<Asset> = assets;
-    }
-    crate::Message::Assistant {
-        content,
-        tool_calls,
-    } => {
-        let _: String = content;
-        let _: Option<Vec<ToolCall>> = tool_calls;
-    }
-    crate::Message::System { content } => {
-        let _: String = content;
-    }
-    crate::Message::Tool { name, content } => {
-        let _: String = name;
-        let _: String = content;
-    }
-};
-
 // Section: related_funcs
 
 fn decode_DartFn_Inputs_String_Output_String_AnyhowException(
@@ -4966,9 +4942,9 @@ impl flutter_rust_bridge::IntoIntoDart<crate::ChatStats> for crate::ChatStats {
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Message> {
+impl flutter_rust_bridge::IntoDart for crate::Message {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
+        match self {
             crate::Message::User { content, assets } => [
                 0.into_dart(),
                 content.into_into_dart().into_dart(),
@@ -4999,10 +4975,10 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::Message> {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<crate::Message> {}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::Message>> for crate::Message {
-    fn into_into_dart(self) -> FrbWrapper<crate::Message> {
-        self.into()
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::Message {}
+impl flutter_rust_bridge::IntoIntoDart<crate::Message> for crate::Message {
+    fn into_into_dart(self) -> crate::Message {
+        self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -5803,14 +5779,14 @@ mod io {
     pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -6085,14 +6061,14 @@ mod web {
     pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>::increment_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]
     pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

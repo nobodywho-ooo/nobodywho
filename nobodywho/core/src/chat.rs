@@ -40,8 +40,9 @@ use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::token::LlamaToken;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cmp::min;
+use std::fmt;
 use std::collections::HashSet;
 use std::hash::Hasher;
 use std::path::PathBuf;
@@ -55,11 +56,57 @@ pub struct Asset {
     pub path: PathBuf,
 }
 
+/// The content of a user message — either plain text or a raw JSON value.
+///
+/// Serializes transparently: `Text` becomes a JSON string, `Json` becomes the
+/// raw JSON value (array, object, etc.). This lets chat templates that expect
+/// `content: [{"type": "translate", ...}]` receive the actual array rather than
+/// a stringified version of it.
+#[derive(Clone, Debug)]
+pub enum MessageContent {
+    Text(String),
+    Json(serde_json::Value),
+}
+
+impl Serialize for MessageContent {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            MessageContent::Text(t) => t.serialize(s),
+            MessageContent::Json(v) => v.serialize(s),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageContent {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = serde_json::Value::deserialize(d)?;
+        Ok(match v {
+            serde_json::Value::String(s) => MessageContent::Text(s),
+            other => MessageContent::Json(other),
+        })
+    }
+}
+
+impl fmt::Display for MessageContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MessageContent::Text(t) => write!(f, "{t}"),
+            MessageContent::Json(v) => write!(f, "{v}"),
+        }
+    }
+}
+
+impl From<String> for MessageContent {
+    fn from(s: String) -> Self {
+        MessageContent::Text(s)
+    }
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum Message {
     User {
-        content: String,
+        content: MessageContent,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         assets: Vec<Asset>,
     },
@@ -108,12 +155,12 @@ impl Message {
         )
     }
 
-    pub fn content(&self) -> &str {
+    pub fn content(&self) -> String {
         match self {
-            Message::User { content, .. }
-            | Message::Assistant { content, .. }
+            Message::User { content, .. } => content.to_string(),
+            Message::Assistant { content, .. }
             | Message::System { content, .. }
-            | Message::Tool { content, .. } => content,
+            | Message::Tool { content, .. } => content.clone(),
         }
     }
 
@@ -126,7 +173,7 @@ impl Message {
 
     pub fn new_user(content: String) -> Self {
         Self::User {
-            content,
+            content: MessageContent::Text(content),
             assets: vec![],
         }
     }
@@ -1404,8 +1451,8 @@ impl<'a> Chat<'a> {
         self.messages.push(Message::new_assistant(content));
     }
 
-    pub fn add_user_message(&mut self, content: String, assets: Vec<Asset>) {
-        self.messages.push(Message::User { content, assets });
+    pub fn add_user_message(&mut self, content: impl Into<MessageContent>, assets: Vec<Asset>) {
+        self.messages.push(Message::User { content: content.into(), assets });
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
@@ -1651,6 +1698,8 @@ impl<'a> Chat<'a> {
             .as_ref()
             .map(|fmt| fmt.begin_token().to_string());
 
+        let prompt_text = prompt.to_string();
+
         let media_assets = prompt.extract_media_assets();
         let bitmaps = media_assets
             .iter()
@@ -1676,7 +1725,11 @@ impl<'a> Chat<'a> {
             })
             .collect::<Vec<_>>();
 
-        self.add_user_message(prompt.to_string(), assets);
+        let content = match prompt {
+            Prompt::Json(v) => MessageContent::Json(v),
+            Prompt::Parts(_) => MessageContent::Text(prompt_text),
+        };
+        self.add_user_message(content, assets);
 
         // Modify sampler with tool grammar if we have tools
         let sampler =
@@ -2383,7 +2436,7 @@ mod tests {
             ));
         }
 
-        worker.add_user_message("Hello!".into(), vec![]);
+        worker.add_user_message("Hello!".to_string(), vec![]);
 
         // Check that we have many messages before shift
         let messages_before = worker.messages.len();
@@ -2408,7 +2461,7 @@ mod tests {
 
         if let Message::System { content, .. } = &messages_after[0] {
             assert!(
-                content.contains("helpful assistant"),
+                content.to_string().contains("helpful assistant"),
                 "System prompt should be preserved"
             );
         }
@@ -2432,7 +2485,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("Hello!"),
+                content.to_string().contains("Hello!"),
                 "Last user message should be preserved"
             );
         }
@@ -2510,7 +2563,7 @@ mod tests {
             }
         }
 
-        worker.add_user_message("Final question!".into(), vec![]);
+        worker.add_user_message("Final question!".to_string(), vec![]);
 
         // Check that we have many messages before shift
         let messages_before = worker.messages.len();
@@ -2546,7 +2599,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("Final question!"),
+                content.to_string().contains("Final question!"),
                 "Last user message should be preserved"
             );
         }
@@ -2649,7 +2702,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("new question"),
+                content.to_string().contains("new question"),
                 "Last user message should be preserved"
             );
         }
@@ -2729,7 +2782,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("What is"),
+                content.to_string().contains("What is"),
                 "Last user message should be preserved"
             );
         }
