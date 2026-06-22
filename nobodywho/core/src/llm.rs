@@ -2,8 +2,7 @@ use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::huggingface::{download_model_from_hf, download_model_from_url};
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::memory;
-use crate::tokenizer::{ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks};
-use indicatif::{ProgressBar, ProgressStyle};
+use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -11,15 +10,10 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::mtmd::MtmdInputChunks;
-use llama_cpp_2::token::LlamaToken;
-use std::io::{Read, Write};
 use std::pin::pin;
-use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
-use std::time::Duration;
-use tracing::{debug, debug_span, error, info, info_span, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
+use tracing::{debug, error, info, info_span, warn};
 
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
 // `nobodywho::llm::*`. The implementations now live in `crate::huggingface`.
