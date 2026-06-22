@@ -197,6 +197,11 @@ abstract class Model implements RustOpaqueInterface {
 abstract class RustChat implements RustOpaqueInterface {
   RustTokenStream ask(String message);
 
+  /// Send a raw JSON prompt and get a stream of response tokens.
+  /// The JSON string is parsed and passed as a structured content field.
+  /// Called by the Dart SDK layer — the json argument is always valid JSON.
+  RustTokenStream askWithJsonPrompt({required String json});
+
   /// Send a multimodal prompt (text + images) and get a stream of response tokens.
   ///
   /// Args:
