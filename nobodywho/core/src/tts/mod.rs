@@ -89,7 +89,7 @@ impl Tts {
         let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
         std::thread::spawn(move || {
             while let Ok((text, response_tx)) = msg_rx.recv() {
-                let result = backend::synthesize_sync(backend.as_mut(), &text);
+                let result = backend.synthesize(&text);
                 if response_tx.blocking_send(result).is_err() {
                     tracing::warn!("TTS caller dropped before result could be delivered");
                 }
@@ -105,20 +105,20 @@ impl Tts {
         let (response_tx, response_rx) = tokio::sync::mpsc::channel(1);
         self.msg_tx
             .send((text, response_tx))
-            .map_err(|e| TtsError::Synthesis(format!("tts worker stopped: {e}")))?;
+            .map_err(|_| TtsError::WorkerDead)?;
         Ok(response_rx)
     }
 
     pub fn synthesize(&self, text: impl Into<String>) -> Result<Vec<u8>, TtsError> {
         self.enqueue(text.into())?
             .blocking_recv()
-            .ok_or_else(|| TtsError::Synthesis("tts worker dropped response sender".into()))?
+            .ok_or(TtsError::WorkerDead)?
     }
 
     pub async fn synthesize_async(&self, text: impl Into<String>) -> Result<Vec<u8>, TtsError> {
         self.enqueue(text.into())?
             .recv()
             .await
-            .ok_or_else(|| TtsError::Synthesis("tts worker dropped response sender".into()))?
+            .ok_or(TtsError::WorkerDead)?
     }
 }

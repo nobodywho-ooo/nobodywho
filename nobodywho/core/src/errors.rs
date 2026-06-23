@@ -448,25 +448,154 @@ pub enum HuggingFaceError {
 
 // TTS errors
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum TtsError {
-    #[error("Error initializing TTS: {0}")]
-    Init(String),
+    // ── Config / language ────────────────────────────────────────────
+    #[error("Language {language:?} is not supported")]
+    #[diagnostic(
+        code(nobodywho::tts_unsupported_language),
+        help("Supported languages: {supported}")
+    )]
+    UnsupportedLanguage { language: String, supported: String },
 
-    #[error("Error during synthesis: {0}")]
-    Synthesis(String),
+    // ── Voice safetensors loading ────────────────────────────────────
+    #[error("Could not read voice {voice:?}")]
+    #[diagnostic(code(nobodywho::tts_voice_read))]
+    VoiceRead {
+        voice: String,
+        #[source]
+        source: std::io::Error,
+    },
 
-    #[error("ONNX Runtime error: {0}")]
+    #[error("Could not parse voice {voice:?}")]
+    #[diagnostic(code(nobodywho::tts_voice_parse))]
+    VoiceParse {
+        voice: String,
+        #[source]
+        source: safetensors::SafeTensorError,
+    },
+
+    #[error("Voice {voice:?} is missing the `style` tensor")]
+    #[diagnostic(code(nobodywho::tts_voice_no_style))]
+    VoiceMissingStyle {
+        voice: String,
+        #[source]
+        source: safetensors::SafeTensorError,
+    },
+
+    #[error("Voice {voice:?} `style` has dtype {dtype:?}, expected F32")]
+    #[diagnostic(code(nobodywho::tts_voice_bad_dtype))]
+    VoiceBadDtype {
+        voice: String,
+        dtype: safetensors::Dtype,
+    },
+
+    #[error("Voice {voice:?} `style` has shape {shape:?}, expected [rows, {style_dim}] with rows >= 2")]
+    #[diagnostic(code(nobodywho::tts_voice_bad_shape))]
+    VoiceBadShape {
+        voice: String,
+        shape: Vec<usize>,
+        style_dim: usize,
+    },
+
+    // ── config.json / vocab ──────────────────────────────────────────
+    #[error("Could not open kokoro config {path}")]
+    #[diagnostic(code(nobodywho::tts_config_open))]
+    ConfigOpen {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Could not parse kokoro config {path}")]
+    #[diagnostic(code(nobodywho::tts_config_parse))]
+    ConfigParse {
+        path: String,
+        #[source]
+        source: serde_json::Error,
+    },
+
+    #[error("Kokoro vocab is empty in {path}")]
+    #[diagnostic(code(nobodywho::tts_vocab_empty))]
+    VocabEmpty { path: String },
+
+    // ── espeak setup ─────────────────────────────────────────────────
+    #[error("Could not create espeak data dir")]
+    #[diagnostic(code(nobodywho::tts_espeak_data_dir))]
+    EspeakDataDir {
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Could not install bundled espeak language {lang:?} to {dir}")]
+    #[diagnostic(code(nobodywho::tts_espeak_install_lang))]
+    EspeakInstallLanguage {
+        lang: String,
+        dir: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Could not initialize espeak translator")]
+    #[diagnostic(code(nobodywho::tts_espeak_init))]
+    EspeakInit {
+        #[source]
+        source: espeak_ng::Error,
+    },
+
+    // ── phonemization ────────────────────────────────────────────────
+    #[error("Espeak phonemization failed")]
+    #[diagnostic(code(nobodywho::tts_espeak_phonemize))]
+    EspeakPhonemize {
+        #[source]
+        source: espeak_ng::Error,
+    },
+
+    #[error("Espeak phonemization failed for OOV word {word:?}")]
+    #[diagnostic(code(nobodywho::tts_espeak_oov))]
+    EspeakOov {
+        word: String,
+        #[source]
+        source: espeak_ng::Error,
+    },
+
+    #[error("Misaki g2p failed")]
+    #[diagnostic(code(nobodywho::tts_misaki_g2p))]
+    MisakiG2p {
+        #[source]
+        source: misaki_rs::g2p::G2PError,
+    },
+
+    // ── Output validation ────────────────────────────────────────────
+    #[error("Text produced no phonemes")]
+    #[diagnostic(code(nobodywho::tts_no_phonemes))]
+    NoPhonemes,
+
+    #[error("No phonemes mapped to vocab IDs")]
+    #[diagnostic(code(nobodywho::tts_no_vocab_match))]
+    NoVocabMatch,
+
+    #[error("Input is {count} phonemes; max {max}")]
+    #[diagnostic(
+        code(nobodywho::tts_too_many_phonemes),
+        help("Chunking is not yet implemented — break the text into shorter pieces.")
+    )]
+    TooManyPhonemes { count: usize, max: usize },
+
+    // ── Worker thread plumbing ───────────────────────────────────────
+    #[error("TTS worker thread is no longer running")]
+    #[diagnostic(code(nobodywho::tts_worker_dead))]
+    WorkerDead,
+
+    // ── External error pass-through ──────────────────────────────────
+    #[error("ONNX Runtime error")]
     Ort(#[from] ort::Error),
 
-    #[error("WAV encoding: {0}")]
+    #[error("WAV encoding failed")]
     Wav(#[from] hound::Error),
-}
 
-impl From<HuggingFaceError> for TtsError {
-    fn from(e: HuggingFaceError) -> Self {
-        TtsError::Init(e.to_string())
-    }
+    #[error("Model download failed")]
+    HuggingFace(#[from] HuggingFaceError),
 }
 
 // ChatWorker errors
