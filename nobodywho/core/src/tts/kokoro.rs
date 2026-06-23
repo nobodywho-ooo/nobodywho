@@ -21,13 +21,13 @@ use crate::errors::TtsError;
 use crate::tts::backend::TtsBackendImpl;
 use crate::tts::{ort_util, TtsDevice, DEFAULT_SAMPLE_RATE};
 use espeak_ng::Translator;
+use misaki_rs::{language::Language, G2P};
 use ort::session::Session;
 use ort::value::Tensor;
 use safetensors::tensor::{Dtype, SafeTensors};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info};
-use misaki_rs::{language::Language, G2P};
 
 const STYLE_DIM: usize = 256;
 const SUPPORTED_LANGS: &[&str] = &["en-us", "en-gb", "es", "fr", "it", "pt-br"];
@@ -307,8 +307,7 @@ impl Phonemizer {
                             source,
                         }
                     })?;
-                token.phonemes =
-                    Some(MisakiPhonemes::from_espeak(&ipa, self.dialect).into_inner());
+                token.phonemes = Some(MisakiPhonemes::from_espeak(&ipa, self.dialect).into_inner());
             }
         }
         Ok(())
@@ -384,11 +383,7 @@ impl KokoroBackend {
     /// upstream's `KModel.forward` — our ONNX export captures only the
     /// `forward_with_tokens` path. See
     /// https://github.com/hexgrad/kokoro/blob/main/kokoro/model.py#L130
-    fn run_model(
-        &mut self,
-        phoneme_ids: Vec<i64>,
-        style: Vec<f32>,
-    ) -> Result<Vec<f32>, TtsError> {
+    fn run_model(&mut self, phoneme_ids: Vec<i64>, style: Vec<f32>) -> Result<Vec<f32>, TtsError> {
         let n_phonemes = phoneme_ids.len();
         let tokens = Self::wrap_bos_eos(phoneme_ids);
         let token_len = tokens.len();
@@ -494,12 +489,13 @@ impl KokoroVoice {
                 voice: voice.into(),
                 source,
             })?;
-        let style_tensor = safetensors
-            .tensor("style")
-            .map_err(|source| TtsError::VoiceMissingStyle {
-                voice: voice.into(),
-                source,
-            })?;
+        let style_tensor =
+            safetensors
+                .tensor("style")
+                .map_err(|source| TtsError::VoiceMissingStyle {
+                    voice: voice.into(),
+                    source,
+                })?;
         let rows = Self::validate_style_shape(&style_tensor, voice)?;
         Ok(Self {
             style: Self::decode_style_rows(&style_tensor),

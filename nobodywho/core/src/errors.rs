@@ -490,7 +490,9 @@ pub enum TtsError {
         dtype: safetensors::Dtype,
     },
 
-    #[error("Voice {voice:?} `style` has shape {shape:?}, expected [rows, {style_dim}] with rows >= 2")]
+    #[error(
+        "Voice {voice:?} `style` has shape {shape:?}, expected [rows, {style_dim}] with rows >= 2"
+    )]
     #[diagnostic(code(nobodywho::tts_voice_bad_shape))]
     VoiceBadShape {
         voice: String,
