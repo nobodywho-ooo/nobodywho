@@ -1,0 +1,170 @@
+name: "Build ONNX Runtime from source"
+description: >
+  Builds Microsoft's ONNX Runtime for Apple targets that pyke doesn't ship
+  prebuilts for (x86_64-apple-darwin, visionOS device + sim, watchOS device
+  + sim). Uses --build_apple_framework so the result is a single merged
+  libonnxruntime.a that ort-sys picks up via its single-file fast path.
+
+  Cached by target + ORT version — rebuilds only happen when the ORT
+  version bumps or the cache is evicted.
+
+inputs:
+  target:
+    description: "Rust target triple (e.g. aarch64-apple-visionos)"
+    required: true
+  ort_version:
+    description: "ONNX Runtime release tag to build"
+    required: false
+    default: "v1.24.2"
+
+outputs:
+  lib_path:
+    description: "Directory containing libonnxruntime.a — set as ORT_LIB_PATH for cargo."
+    value: ${{ steps.export.outputs.lib_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: "Derive build parameters"
+      id: params
+      shell: bash
+      run: |
+        # Map Rust target → ORT build flags. Each platform has its own
+        # sysroot, deploy target, and (sometimes) cmake patches.
+        case "${{ inputs.target }}" in
+          x86_64-apple-darwin)
+            # ORT 1.24.2 AVX2 MLAS kernel has a dead-code OOB array access caught
+            # by clang -Warray-bounds — the existing #pragma suppression doesn't
+            # activate because the header forgot to #include onnxruntime_config.h.
+            # CMAKE_DISABLE_FIND_PACKAGE_Protobuf forces ORT to use its bundled
+            # protobuf (matches the prebuilt protoc); a newer system protobuf
+            # would mismatch the generated .pb.cc files.
+            cat >> "$GITHUB_OUTPUT" <<EOF
+        platform=macos
+        sysroot=macosx
+        deploy_target=11.0
+        extra_args=--macos MacOSX --compile_no_warning_as_error
+        cmake_extras=onnxruntime_BUILD_UNIT_TESTS=OFF CMAKE_DISABLE_FIND_PACKAGE_Protobuf=ON
+        static_subdir=Release-macosx
+        patch_watchos=false
+        EOF
+            ;;
+          aarch64-apple-visionos)
+            cat >> "$GITHUB_OUTPUT" <<EOF
+        platform=visionos
+        sysroot=xros
+        deploy_target=1.0
+        extra_args=--visionos --use_xcode
+        cmake_extras=onnxruntime_BUILD_UNIT_TESTS=OFF
+        static_subdir=Release-xros
+        patch_watchos=false
+        EOF
+            ;;
+          aarch64-apple-visionos-sim)
+            cat >> "$GITHUB_OUTPUT" <<EOF
+        platform=visionos
+        sysroot=xrsimulator
+        deploy_target=1.0
+        extra_args=--visionos --use_xcode
+        cmake_extras=onnxruntime_BUILD_UNIT_TESTS=OFF
+        static_subdir=Release-xrsimulator
+        patch_watchos=false
+        EOF
+            ;;
+          aarch64-apple-watchos)
+            # watchOS uses --visionos with an overriding toolchain. Two ORT cmake
+            # files forgot watchOS in their platform-allow regex; we patch both.
+            cat >> "$GITHUB_OUTPUT" <<EOF
+        platform=watchos
+        sysroot=watchos
+        deploy_target=11.0
+        extra_args=--visionos --visionos_toolchain_file ../cmake/onnxruntime_watchos.toolchain.cmake --use_xcode
+        cmake_extras=CMAKE_SYSTEM_NAME=watchOS CMAKE_MACOSX_BUNDLE=OFF onnxruntime_BUILD_UNIT_TESTS=OFF
+        static_subdir=Release-watchos
+        patch_watchos=true
+        EOF
+            ;;
+          aarch64-apple-watchos-sim)
+            cat >> "$GITHUB_OUTPUT" <<EOF
+        platform=watchos
+        sysroot=watchsimulator
+        deploy_target=11.0
+        extra_args=--visionos --visionos_toolchain_file ../cmake/onnxruntime_watchos.toolchain.cmake --use_xcode
+        cmake_extras=CMAKE_SYSTEM_NAME=watchOS CMAKE_MACOSX_BUNDLE=OFF onnxruntime_BUILD_UNIT_TESTS=OFF
+        static_subdir=Release-watchsimulator
+        patch_watchos=true
+        EOF
+            ;;
+          *)
+            echo "::error::build-ort: unsupported target '${{ inputs.target }}'"
+            exit 1
+            ;;
+        esac
+
+    - name: "Cache ORT build"
+      id: cache
+      uses: actions/cache@v5
+      with:
+        path: ${{ runner.temp }}/ort-${{ inputs.target }}-build
+        key: ort-${{ inputs.target }}-${{ inputs.ort_version }}
+
+    - name: "Build ORT from source"
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        SRC_DIR: ${{ runner.temp }}/ort-src-${{ inputs.target }}
+        BUILD_DIR: ${{ runner.temp }}/ort-${{ inputs.target }}-build
+        STATIC_SUBDIR: ${{ steps.params.outputs.static_subdir }}
+      run: |
+        rm -rf "$SRC_DIR"
+        git clone --recursive https://github.com/microsoft/onnxruntime \
+          --branch "${{ inputs.ort_version }}" --depth 1 "$SRC_DIR"
+        cd "$SRC_DIR"
+
+        if [[ "${{ steps.params.outputs.patch_watchos }}" == "true" ]]; then
+          # ORT's CMake has two Apple-platform regexes that forgot watchOS:
+          # 1. providers_shared exclusion (don't build the dynamic provider host)
+          # 2. apple_framework eligibility (which platforms can be packaged)
+          sed -i.bak 's#"Darwin|iOS|visionOS|tvOS"#"Darwin|iOS|visionOS|tvOS|watchOS"#' \
+            cmake/onnxruntime_providers_cpu.cmake \
+            cmake/onnxruntime.cmake
+          cat > cmake/onnxruntime_watchos.toolchain.cmake <<'EOF'
+        set(CMAKE_SYSTEM_NAME watchOS CACHE STRING "" FORCE)
+        set(CMAKE_SYSTEM_PROCESSOR arm64 CACHE STRING "" FORCE)
+        if (NOT DEFINED CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM AND NOT DEFINED CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY)
+          set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
+        endif()
+        set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES "YES")
+        set(CMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES")
+        EOF
+        fi
+
+        # --build_apple_framework merges all libs + deps (abseil, protobuf, re2,
+        # onnx) into a single onnxruntime.framework/onnxruntime archive. We
+        # copy it as libonnxruntime.a so ort-sys takes its single-file fast
+        # path; no fragile per-dep search-path matching.
+        # Derive --osx_arch from the Rust target prefix.
+        case "${{ inputs.target }}" in
+          x86_64-*) OSX_ARCH=x86_64 ;;
+          *)        OSX_ARCH=arm64 ;;
+        esac
+
+        python3 tools/ci_build/build.py \
+          --build_dir "$BUILD_DIR" \
+          --config Release --skip_tests --skip_submodule_sync \
+          --build_apple_framework \
+          --apple_sysroot "${{ steps.params.outputs.sysroot }}" \
+          --apple_deploy_target "${{ steps.params.outputs.deploy_target }}" \
+          --osx_arch "$OSX_ARCH" \
+          --parallel \
+          ${{ steps.params.outputs.extra_args }} \
+          --cmake_extra_defines ${{ steps.params.outputs.cmake_extras }}
+
+        mkdir -p "$BUILD_DIR/lib"
+        cp "$BUILD_DIR/Release/$STATIC_SUBDIR/static_framework/onnxruntime.framework/onnxruntime" \
+          "$BUILD_DIR/lib/libonnxruntime.a"
+
+    - name: "Export lib path"
+      id: export
+      shell: bash
+      run: echo "lib_path=${{ runner.temp }}/ort-${{ inputs.target }}-build/lib" >> "$GITHUB_OUTPUT"
