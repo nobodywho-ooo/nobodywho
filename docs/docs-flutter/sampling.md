@@ -60,16 +60,7 @@ final answer = await chat.ask("Is the sky blue?").completed();
 ### JSON schema
 
 In some use-cases it might be useful to let the LLM generate JSON output.
-This could be done either in the simple way, just enforcing any JSON by the preset:
-```dart
-final chat = await nobodywho.Chat.fromPath(
-  modelPath: './model.gguf',
-  sampler: nobodywho.SamplerPresets.json(),
-);
-```
-
-Or utilizing JSON schemas to really force the LLM to give you the specific object shapes
-that you want:
+Use `constrainWithJsonSchema` to enforce a specific JSON shape:
 ```dart
 final chat = await nobodywho.Chat.fromPath(
   modelPath: './model.gguf',

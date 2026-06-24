@@ -585,7 +585,7 @@ sealed class Message with _$Message {
 
   const factory Message.user({
     required String content,
-    required List<Asset> assets,
+    @Default(const []) List<Asset> assets,
   }) = Message_User;
   const factory Message.assistant({
     required String content,

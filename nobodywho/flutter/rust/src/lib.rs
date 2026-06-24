@@ -10,9 +10,11 @@ mod parse;
 
 pub use nobodywho::tool_calling::ToolCall;
 
+#[flutter_rust_bridge::frb]
 pub enum Message {
     User {
         content: String,
+        #[frb(default = "const []")]
         assets: Vec<nobodywho::chat::Asset>,
     },
     Assistant {
