@@ -1,4 +1,5 @@
 use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
+use std::path::PathBuf;
 
 // Memory errors
 
@@ -123,8 +124,74 @@ pub enum LoadModelError {
     )]
     DownloadNotFound { url: String },
 
-    #[error("Failed to download model: {0}")]
-    DownloadError(String),
+    #[error("Failed to download model: unexpected HTTP status {status} for {url}")]
+    #[diagnostic(code(nobodywho::download_http_status))]
+    DownloadHttpStatus { url: String, status: u16 },
+
+    #[error("HTTP request failed: {url}")]
+    #[diagnostic(code(nobodywho::download_http_request))]
+    HttpRequest {
+        url: String,
+        #[source]
+        source: ureq::Error,
+    },
+
+    #[error("Path traversal detected: {path:?} contains '..'")]
+    #[diagnostic(
+        code(nobodywho::download_path_traversal),
+        help("Model paths must not contain '..' — sanitize the input before passing it in.")
+    )]
+    PathTraversal { path: PathBuf },
+
+    #[error("Failed to create cache directory {path:?}")]
+    #[diagnostic(code(nobodywho::download_create_cache_dir))]
+    CreateCacheDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Failed to create temporary download file {path:?}")]
+    #[diagnostic(code(nobodywho::download_create_temp_file))]
+    CreateTempFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Read error while downloading {url}")]
+    #[diagnostic(code(nobodywho::download_read))]
+    ReadDownload {
+        url: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Write error while downloading to {path:?}")]
+    #[diagnostic(code(nobodywho::download_write))]
+    WriteDownload {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Download incomplete from {url}: got {got}/{expected} bytes")]
+    #[diagnostic(code(nobodywho::download_incomplete))]
+    IncompleteDownload {
+        url: String,
+        got: u64,
+        expected: u64,
+    },
+
+    #[error("Failed to rename {from:?} to {to:?}")]
+    #[diagnostic(code(nobodywho::download_rename_temp))]
+    RenameTempFile {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error("Could not determine cache directory: {0}")]
     CacheDir(#[from] GetCacheDirError),
 }
@@ -188,7 +255,10 @@ impl LoadModelError {
             404 => LoadModelError::DownloadNotFound {
                 url: url.to_owned(),
             },
-            _ => LoadModelError::DownloadError(format!("http status: {status}")),
+            _ => LoadModelError::DownloadHttpStatus {
+                url: url.to_owned(),
+                status,
+            },
         }
     }
 
@@ -437,13 +507,50 @@ pub enum EncoderWorkerError {
 
 // HuggingFace download errors
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum HuggingFaceError {
     #[error("invalid model source {0:?}: must be an existing directory or `owner/repo`")]
+    #[diagnostic(code(nobodywho::hf_invalid_source))]
     InvalidSource(String),
 
-    #[error("download failed: {0}")]
-    Download(String),
+    #[error("Could not determine cache directory")]
+    CacheDir(#[from] GetCacheDirError),
+
+    #[error("Failed to list HuggingFace repo tree for {repo:?}")]
+    #[diagnostic(code(nobodywho::hf_list_repo_tree))]
+    ListRepoTree {
+        repo: String,
+        #[source]
+        source: ureq::Error,
+    },
+
+    #[error("Failed to read HuggingFace repo tree response for {repo:?}")]
+    #[diagnostic(code(nobodywho::hf_read_repo_tree))]
+    ReadRepoTree {
+        repo: String,
+        #[source]
+        source: ureq::Error,
+    },
+
+    #[error("Failed to parse HuggingFace repo tree response for {repo:?}")]
+    #[diagnostic(code(nobodywho::hf_parse_repo_tree))]
+    ParseRepoTree {
+        repo: String,
+        #[source]
+        source: serde_json::Error,
+    },
+
+    #[error("HuggingFace repo {repo:?}@{revision} has no files")]
+    #[diagnostic(code(nobodywho::hf_empty_repo))]
+    EmptyRepo { repo: String, revision: String },
+
+    #[error("Failed to download entry {path:?} from HuggingFace repo")]
+    #[diagnostic(code(nobodywho::hf_download_entry))]
+    DownloadEntry {
+        path: String,
+        #[source]
+        source: Box<LoadModelError>,
+    },
 }
 
 // TTS errors
