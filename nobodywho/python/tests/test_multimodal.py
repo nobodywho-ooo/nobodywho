@@ -118,14 +118,15 @@ def test_image_recollection(multimodal_chat):
     assert "orange" in response2.lower()
 
 
-
 def test_audio_transcription(multimodal_chat):
     """Test that the model can transcribe audio"""
     audio_path = os.path.join(os.path.dirname(__file__), "audio/sound_16k.wav")
-    prompt = nobodywho.Prompt([
-        nobodywho.Text("Please transcribe this audio."),
-        nobodywho.Audio(audio_path),
-    ])
+    prompt = nobodywho.Prompt(
+        [
+            nobodywho.Text("Please transcribe this audio."),
+            nobodywho.Audio(audio_path),
+        ]
+    )
     response = multimodal_chat.ask(prompt).completed()
     assert "billy" in response.lower()
 
@@ -134,12 +135,14 @@ def test_audio_transcription_and_image_ingestion(multimodal_chat):
     """Test that the model can transcribe audio"""
     audio_path = os.path.join(os.path.dirname(__file__), "audio/sound_16k.wav")
     image_path = os.path.join(os.path.dirname(__file__), "img/dog.png")
-    prompt = nobodywho.Prompt([
-        nobodywho.Text("Please transcribe this audio and describe the image."),
-        nobodywho.Audio(audio_path),
-        nobodywho.Image(image_path),
-    ])
+    prompt = nobodywho.Prompt(
+        [
+            nobodywho.Text("Please transcribe this audio and describe the image."),
+            nobodywho.Audio(audio_path),
+            nobodywho.Image(image_path),
+        ]
+    )
     response = multimodal_chat.ask(prompt).completed()
-    assert "billy" in response.lower() and ("dog" in response.lower() or "retriever" in response.lower())
-
-
+    assert "billy" in response.lower() and (
+        "dog" in response.lower() or "retriever" in response.lower()
+    )

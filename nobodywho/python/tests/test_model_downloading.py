@@ -72,9 +72,7 @@ def test_cached_model_loads_offline():
         assert isinstance(model, nobodywho.Model)
     except RuntimeError as e:
         if "Failed to download" in str(e) or "network" in str(e).lower():
-            pytest.fail(
-                f"Model load made a network request despite being cached: {e}"
-            )
+            pytest.fail(f"Model load made a network request despite being cached: {e}")
         raise
 
 

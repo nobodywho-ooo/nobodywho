@@ -19,12 +19,17 @@ keywords = ["AI", "LLM", "Large Language Models", "Inference", "Tool calling", "
 features = ["pyo3/extension-module"]
 module-name = "nobodywho"
 
+[tool.uv]
+exclude-newer = "2 weeks"
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
     "pytest-asyncio>=1.3.0",
     "pytest-markdown-docs>=0.9.0",
     "pytest-stub>=1.1.0",
+    "ruff>=0.15.16",
+    "ty>=0.0.47",
 ]
 
 [tool.pytest.ini_options]

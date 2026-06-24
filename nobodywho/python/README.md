@@ -6,6 +6,7 @@ Creating virtual-env with `uv` should be enough.
 uv venv
 uv sync
 ```
+We ignore packages published in the last two weeks for security reasons. (You know).
 
 ## Building
 
@@ -14,10 +15,11 @@ When building the library, use `maturin` to perform the conversion:
 ```
 maturin develop --uv
 ```
-Also, don't forget to create the Python type stubs (which unfortunately have to be generated separately):
+Also, don't forget to create and format the Python type stubs (which unfortunately have to be generated separately):
 ```
 cargo build
 cargo run --bin make_stubs
+uv run ruff format nobodywho.pyi
 ```
 Then you should be able to run `nobodywho`:
 ```
@@ -25,6 +27,16 @@ Then you should be able to run `nobodywho`:
 > python
 >>> import nobodywho
 ...
+```
+
+## Static checks
+
+Run formatting, linting, and type checking from this directory:
+
+```shell
+uv run ruff format --check
+uv run ruff check
+uv run ty check
 ```
 
 ## Testing
