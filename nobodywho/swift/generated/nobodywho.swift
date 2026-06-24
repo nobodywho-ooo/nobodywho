@@ -562,6 +562,14 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     func ask(message: String)  -> RustTokenStream
     
     /**
+     * Send a JSON-encoded prompt and get a token stream.
+     *
+     * `json` must be a valid JSON string. The wrapper layer is responsible for
+     * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+     */
+    func askWithJsonPrompt(json: String) throws  -> RustTokenStream
+    
+    /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
      * `parts` is an ordered list of `PromptPart` items.
@@ -718,6 +726,21 @@ open func ask(message: String) -> RustTokenStream  {
     uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
             self.uniffiCloneHandle(),
         FfiConverterString.lower(message),$0
+    )
+})
+}
+    
+    /**
+     * Send a JSON-encoded prompt and get a token stream.
+     *
+     * `json` must be a valid JSON string. The wrapper layer is responsible for
+     * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+     */
+open func askWithJsonPrompt(json: String)throws  -> RustTokenStream  {
+    return try  FfiConverterTypeRustTokenStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(json),$0
     )
 })
 }
@@ -3981,6 +4004,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 63877) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 65089) {

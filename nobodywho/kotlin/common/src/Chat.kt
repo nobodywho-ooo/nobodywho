@@ -58,7 +58,10 @@ class Chat(
     fun ask(message: String) = TokenStream(inner.ask(message))
 
     /** Send a multimodal prompt and get a token stream. */
-    fun ask(prompt: Prompt) = TokenStream(inner.askWithPrompt(prompt.parts))
+    fun ask(prompt: Prompt): TokenStream {
+        prompt.jsonString?.let { return TokenStream(inner.askWithJsonPrompt(it)) }
+        return TokenStream(inner.askWithPrompt(prompt.parts!!))
+    }
 
     fun stopGeneration() = inner.stopGeneration()
     suspend fun resetContext(systemPrompt: String? = null, tools: List<Tool>? = null) =

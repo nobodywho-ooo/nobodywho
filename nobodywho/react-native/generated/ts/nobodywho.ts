@@ -1351,6 +1351,13 @@ export interface RustChatInterface {
      */
     ask(message: string) : RustTokenStreamInterface;
     /**
+     * Send a JSON-encoded prompt and get a token stream.
+     *
+     * `json` must be a valid JSON string. The wrapper layer is responsible for
+     * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+     */
+    askWithJsonPrompt(json: string)  /*throws*/: RustTokenStreamInterface;
+    /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
      * `parts` is an ordered list of `PromptPart` items.
@@ -1462,6 +1469,25 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(uniffiTypeRustChatObjectFactory.clonePointer(this), 
         FfiConverterString.lower(message),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Send a JSON-encoded prompt and get a token stream.
+     *
+     * `json` must be a valid JSON string. The wrapper layer is responsible for
+     * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+     */
+ askWithJsonPrompt(json: string): RustTokenStreamInterface /*throws*/ {
+    return FfiConverterTypeRustTokenStream.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(uniffiTypeRustChatObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(json),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -3446,6 +3472,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() !== 53575) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() !== 63877) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !== 65089) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt");

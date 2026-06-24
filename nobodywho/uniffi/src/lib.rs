@@ -51,37 +51,6 @@ pub enum PromptPart {
     Audio { path: String },
 }
 
-// ---------- Prompt ----------
-
-#[derive(uniffi::Object)]
-pub struct Prompt {
-    inner: nobodywho::tokenizer::Prompt,
-}
-
-#[uniffi::export]
-impl Prompt {
-    #[uniffi::constructor]
-    pub fn from_parts(parts: Vec<PromptPart>) -> Arc<Self> {
-        let inner = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
-            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
-            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
-            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
-        }));
-        Arc::new(Self { inner })
-    }
-
-    #[uniffi::constructor]
-    pub fn from_json(json: String) -> Result<Arc<Self>, NobodyWhoError> {
-        let value: serde_json::Value =
-            serde_json::from_str(&json).map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })?;
-        Ok(Arc::new(Self {
-            inner: nobodywho::tokenizer::Prompt::from_json(value),
-        }))
-    }
-}
-
 // ---------- Message types ----------
 // Mirror types for core Message/Asset/ToolCall.
 // Needed because core types contain PathBuf and serde_json::Value
@@ -367,11 +336,22 @@ impl RustChat {
         })
     }
 
-    /// Send a pre-built `Prompt` (text parts, image parts, or raw JSON) and get a token stream.
-    pub fn ask_prompt(&self, prompt: Arc<Prompt>) -> Arc<RustTokenStream> {
-        Arc::new(RustTokenStream {
-            inner: tokio::sync::Mutex::new(self.inner.ask(prompt.inner.clone())),
-        })
+    /// Send a JSON-encoded prompt and get a token stream.
+    ///
+    /// `json` must be a valid JSON string. The wrapper layer is responsible for
+    /// serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+    pub fn ask_with_json_prompt(
+        &self,
+        json: String,
+    ) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
+        let value: serde_json::Value =
+            serde_json::from_str(&json).map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+        let prompt = nobodywho::tokenizer::Prompt::from_json(value);
+        Ok(Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
+        }))
     }
 
     /// Stop the current generation.
