@@ -69,7 +69,7 @@ jobs:
 
   tests:
     if: inputs.full_ci
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: warp-macos-15-arm64-6x
     steps:
       - uses: actions/checkout@v5
 

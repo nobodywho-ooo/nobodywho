@@ -265,7 +265,7 @@ jobs:
   # Create GitHub Release with xcframework, then push to nobodywho-swift mirror repo.
   create-github-release-swift:
     if: startsWith(github.ref, 'refs/tags/nobodywho-swift-')
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: warp-macos-15-arm64-6x
     permissions:
       contents: write
     steps:
