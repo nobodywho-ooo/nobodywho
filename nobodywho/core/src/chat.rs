@@ -42,8 +42,8 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cmp::min;
-use std::fmt;
 use std::collections::HashSet;
+use std::fmt;
 use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -1452,7 +1452,10 @@ impl<'a> Chat<'a> {
     }
 
     pub fn add_user_message(&mut self, content: impl Into<MessageContent>, assets: Vec<Asset>) {
-        self.messages.push(Message::User { content: content.into(), assets });
+        self.messages.push(Message::User {
+            content: content.into(),
+            assets,
+        });
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {

@@ -24,10 +24,7 @@ pub(crate) fn acquire_inference_lock() -> MutexGuard<'static, GlobalInferenceLoc
 pub(crate) fn wrap_respond<F>(
     respond: F,
     tool_call_begin_token: Option<String>,
-) -> (
-    impl FnMut(WriteOutput),
-    std::sync::mpsc::Receiver<String>,
-)
+) -> (impl FnMut(WriteOutput), std::sync::mpsc::Receiver<String>)
 where
     F: Fn(WriteOutput),
 {

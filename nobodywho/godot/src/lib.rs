@@ -305,7 +305,7 @@ impl NobodyWhoDownloader {
     #[signal]
     fn download_failed(error: GString);
 
-    async fn download_detached(mut gd: Gd<Self>) -> Result<String, String> {
+    async fn download_detached(gd: Gd<Self>) -> Result<String, String> {
         let (path, headers) = {
             let b = gd.bind();
             let path = resolve_godot_path(&b.model_path);
@@ -396,12 +396,17 @@ impl NobodyWhoDownloader {
 /// ```
 struct NobodyWhoPrompt {
     parts: Vec<tokenizer::PromptPart>,
+    json_value: Option<serde_json::Value>,
     base: Base<RefCounted>,
 }
 
 impl NobodyWhoPrompt {
     fn to_prompt(&self) -> tokenizer::Prompt {
-        tokenizer::Prompt::new(self.parts.clone())
+        if let Some(ref v) = self.json_value {
+            tokenizer::Prompt::from_json(v.clone())
+        } else {
+            tokenizer::Prompt::new(self.parts.clone())
+        }
     }
 }
 
@@ -410,8 +415,36 @@ impl IRefCounted for NobodyWhoPrompt {
     fn init(base: Base<RefCounted>) -> Self {
         Self {
             parts: vec![],
+            json_value: None,
             base,
         }
+    }
+}
+
+fn variant_to_json(v: &Variant) -> serde_json::Value {
+    match v.get_type() {
+        VariantType::NIL => serde_json::Value::Null,
+        VariantType::BOOL => serde_json::Value::Bool(v.to::<bool>()),
+        VariantType::INT => serde_json::Value::Number(v.to::<i64>().into()),
+        VariantType::FLOAT => serde_json::Number::from_f64(v.to::<f64>())
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        VariantType::STRING | VariantType::STRING_NAME => {
+            serde_json::Value::String(v.to::<GString>().to_string())
+        }
+        VariantType::ARRAY => {
+            let arr = v.to::<Array<Variant>>();
+            serde_json::Value::Array(arr.iter_shared().map(|e| variant_to_json(&e)).collect())
+        }
+        VariantType::DICTIONARY => {
+            let dict = v.to::<VarDictionary>();
+            let map = dict
+                .iter_shared()
+                .map(|(k, val)| (k.to::<GString>().to_string(), variant_to_json(&val)))
+                .collect();
+            serde_json::Value::Object(map)
+        }
+        _ => serde_json::Value::Null,
     }
 }
 
@@ -430,7 +463,8 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.parts.push(tokenizer::PromptPart::Image(globalized.into()));
+        self.parts
+            .push(tokenizer::PromptPart::Image(globalized.into()));
     }
 
     #[func]
@@ -440,7 +474,19 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.parts.push(tokenizer::PromptPart::Audio(globalized.into()));
+        self.parts
+            .push(tokenizer::PromptPart::Audio(globalized.into()));
+    }
+
+    #[func]
+    /// Creates a NobodyWhoPrompt from a JSON-compatible Godot value (Dictionary, Array, etc.).
+    fn from_json(data: Variant) -> Gd<NobodyWhoPrompt> {
+        let value = variant_to_json(&data);
+        Gd::from_init_fn(|base| NobodyWhoPrompt {
+            parts: vec![],
+            json_value: Some(value),
+            base,
+        })
     }
 }
 

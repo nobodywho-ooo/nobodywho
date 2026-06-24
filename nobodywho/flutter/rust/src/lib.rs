@@ -35,7 +35,10 @@ impl From<nobodywho::chat::Message> for Message {
                 content: content.to_string(),
                 assets,
             },
-            nobodywho::chat::Message::Assistant { content, tool_calls } => Message::Assistant {
+            nobodywho::chat::Message::Assistant {
+                content,
+                tool_calls,
+            } => Message::Assistant {
                 content,
                 tool_calls,
             },
@@ -52,7 +55,10 @@ impl From<Message> for nobodywho::chat::Message {
                 content: nobodywho::chat::MessageContent::Text(content),
                 assets,
             },
-            Message::Assistant { content, tool_calls } => nobodywho::chat::Message::Assistant {
+            Message::Assistant {
+                content,
+                tool_calls,
+            } => nobodywho::chat::Message::Assistant {
                 content,
                 tool_calls,
             },
@@ -319,8 +325,25 @@ impl RustChat {
         }
     }
 
+    /// Send a raw JSON prompt and get a stream of response tokens.
+    /// The JSON string is parsed and passed as a structured content field.
+    /// Called by the Dart SDK layer — the json argument is always valid JSON.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn ask_with_json_prompt(&self, json: String) -> RustTokenStream {
+        let value: serde_json::Value = serde_json::from_str(&json)
+            .expect("ask_with_json_prompt: invalid JSON (this is a bug in the SDK)");
+        RustTokenStream {
+            stream: self
+                .chat
+                .ask(nobodywho::tokenizer::Prompt::from_json(value)),
+        }
+    }
+
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
-        self.chat.get_chat_history().await.map(|msgs| msgs.into_iter().map(Message::from).collect())
+        self.chat
+            .get_chat_history()
+            .await
+            .map(|msgs| msgs.into_iter().map(Message::from).collect())
     }
 
     pub async fn set_chat_history(
@@ -328,7 +351,12 @@ impl RustChat {
         messages: Vec<Message>,
     ) -> Result<(), nobodywho::errors::SetterError> {
         self.chat
-            .set_chat_history(messages.into_iter().map(nobodywho::chat::Message::from).collect())
+            .set_chat_history(
+                messages
+                    .into_iter()
+                    .map(nobodywho::chat::Message::from)
+                    .collect(),
+            )
             .await
     }
 
