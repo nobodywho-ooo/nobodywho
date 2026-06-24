@@ -272,6 +272,11 @@ jobs:
       # (writes to /Users/runner which doesn't exist), so install via brew.
       - name: "Setup Python for ORT source build"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos') || matrix.target == 'x86_64-apple-darwin'
+        env:
+          # Self-hosted brew was not installed via the official installer, so
+          # `brew update` fails with `update-report should not be called
+          # directly!`. Skip auto-update — the formula is already pinned.
+          HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
           brew install python@3.13
           echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
