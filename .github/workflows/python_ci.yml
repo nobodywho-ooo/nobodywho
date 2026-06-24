@@ -28,28 +28,39 @@ jobs:
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
           uv venv && uv sync
 
+      - name: Format check
+        working-directory: ./nobodywho/python
+        run: uv run ruff format --check
+
+      - name: Lint check
+        working-directory: ./nobodywho/python
+        run: uv run ruff check
+
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
         run: cargo build && cargo run --bin make_stubs
 
-      - name: Lint check
+      - name: Format generated stubs
         working-directory: ./nobodywho/python
-        run: uvx ruff check
+        run: uv run ruff format nobodywho.pyi
 
-      - name: Check for uncommitted changes
+      - name: Check generated stubs
         working-directory: ./nobodywho/python
         run: |
-          if git diff --quiet; then
+          if git diff --quiet -- nobodywho.pyi; then
             echo "✅ Generated stubs are up to date"
           else
-            echo "❌ Generated stubs are outdated. Run the generator and commit results."
-            git --no-pager diff
+            echo "❌ Generated stubs are outdated. Run:"
+            echo "   cargo build"
+            echo "   cargo run --bin make_stubs"
+            echo "   uv run ruff format nobodywho.pyi"
+            git --no-pager diff -- nobodywho.pyi
             exit 1
           fi
 
       - name: Type check
         working-directory: ./nobodywho/python
-        run: uvx ty check
+        run: uv run ty check
 
   linux-build:
     if: inputs.full_ci

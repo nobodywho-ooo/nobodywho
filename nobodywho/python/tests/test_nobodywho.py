@@ -410,12 +410,14 @@ def test_constrain_with_json_schema(model):
 
     chat = nobodywho.Chat(
         model,
-        sampler=nobodywho.SamplerPresets.constrain_with_json_schema({
-            "type": "object",
-            "properties": {"answer": {"type": "string"}},
-            "required": ["answer"],
-            "additionalProperties": False,
-        }),
+        sampler=nobodywho.SamplerPresets.constrain_with_json_schema(
+            {
+                "type": "object",
+                "properties": {"answer": {"type": "string"}},
+                "required": ["answer"],
+                "additionalProperties": False,
+            }
+        ),
         template_variables={"enable_thinking": False},
     )
     # Without a constraint the model would produce a multi-sentence prose explanation.
