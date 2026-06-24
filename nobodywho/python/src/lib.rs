@@ -2114,6 +2114,7 @@ impl Prompt {
     }
 
     #[staticmethod]
+    #[pyo3(signature = (data: "object") -> "Prompt")]
     pub fn from_json(py: Python<'_>, data: Py<PyAny>) -> PyResult<Self> {
         let json_module = py.import("json")?;
         let json_str: String = json_module
