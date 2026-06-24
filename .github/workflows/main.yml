@@ -22,6 +22,9 @@ jobs:
   linting:
     uses: ./.github/workflows/linting.yml
 
+  regen_checks:
+    uses: ./.github/workflows/regen_checks.yml
+
   python_ci:
     uses: ./.github/workflows/python_ci.yml
     with:
@@ -29,12 +32,6 @@ jobs:
 
   build:
     uses: ./.github/workflows/build.yml
-    with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-
-  react_native_ci:
-    needs: [build]
-    uses: ./.github/workflows/react_native_ci.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
@@ -59,7 +56,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/nobodywho-')
-    needs: [linting, build, test, python_ci, react_native_ci, swift_ci, kotlin_ci]
+    needs: [linting, regen_checks, build, test, python_ci, swift_ci, kotlin_ci]
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}

@@ -1,0 +1,188 @@
+name: "regen_checks"
+
+# Verifies that committed generated bindings (Swift, Kotlin, React Native) are
+# up to date with the Rust source. A single `build-uniffi-host` job compiles
+# the uniffi crate + uniffi-bindgen binary once; three downstream jobs (one per
+# binding language) download that artifact and run their language-specific
+# generator. Separate jobs surface which binding is stale in the run summary.
+
+on: workflow_call
+
+permissions:
+  contents: read
+
+jobs:
+  build-uniffi-host:
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-uniffi-host-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-uniffi-host-
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install Vulkan build dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+
+      - name: "Build uniffi crate and uniffi-bindgen"
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-uniffi --locked
+
+      - name: "Stage artifact"
+        run: |
+          mkdir -p uniffi-host-out
+          cp nobodywho/target/debug/libnobodywho_uniffi.so uniffi-host-out/
+          cp nobodywho/target/debug/uniffi-bindgen uniffi-host-out/
+
+      - name: "Upload uniffi host artifact"
+        uses: actions/upload-artifact@v5
+        with:
+          name: uniffi-host
+          path: uniffi-host-out/
+
+  swift-bindings-check:
+    needs: build-uniffi-host
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download uniffi host artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: uniffi-host
+          path: ./uniffi-host
+
+      - name: "Install Vulkan runtime"
+        # uniffi-bindgen dlopen's libnobodywho_uniffi.so, which links libvulkan.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1
+
+      - name: "Generate Swift bindings"
+        run: |
+          chmod +x ./uniffi-host/uniffi-bindgen
+          ./uniffi-host/uniffi-bindgen generate \
+            --library ./uniffi-host/libnobodywho_uniffi.so \
+            --language swift \
+            --out-dir nobodywho/swift/generated
+
+      - name: "Verify committed Swift bindings are up to date"
+        working-directory: ./nobodywho/swift
+        run: |
+          if git diff --exit-code generated/; then
+            echo "Generated Swift bindings are up to date"
+          else
+            echo "ERROR: Committed Swift bindings are out of date."
+            echo "Run the binding generation command and commit the results:"
+            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
+            echo "  cargo run --bin uniffi-bindgen -- generate \\"
+            echo "    --library target/debug/libnobodywho_uniffi.so \\"
+            echo "    --language swift --out-dir swift/generated"
+            exit 1
+          fi
+
+  kotlin-bindings-check:
+    needs: build-uniffi-host
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download uniffi host artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: uniffi-host
+          path: ./uniffi-host
+
+      - name: "Install Vulkan runtime"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1
+
+      - name: "Generate Kotlin bindings"
+        run: |
+          chmod +x ./uniffi-host/uniffi-bindgen
+          ./uniffi-host/uniffi-bindgen generate \
+            --library ./uniffi-host/libnobodywho_uniffi.so \
+            --language kotlin \
+            --out-dir nobodywho/kotlin/common/generated
+
+      - name: "Verify committed Kotlin bindings are up to date"
+        working-directory: ./nobodywho/kotlin
+        run: |
+          if git diff --exit-code common/generated/; then
+            echo "Generated Kotlin bindings are up to date"
+          else
+            echo "ERROR: Committed Kotlin bindings are out of date."
+            echo "Run the binding generation command and commit the results:"
+            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
+            echo "  cargo run --bin uniffi-bindgen -- generate \\"
+            echo "    --library target/debug/libnobodywho_uniffi.so \\"
+            echo "    --language kotlin --out-dir kotlin/common/generated"
+            exit 1
+          fi
+
+  react-native-bindings-check:
+    needs: build-uniffi-host
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download uniffi host artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: uniffi-host
+          path: ./uniffi-host
+
+      - name: "Install Vulkan runtime"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: "Install react-native npm dependencies"
+        working-directory: ./nobodywho/react-native
+        run: npm install
+
+      - name: "Generate React Native bindings"
+        working-directory: ./nobodywho
+        run: |
+          npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
+            --library \
+            --ts-dir react-native/generated/ts \
+            --cpp-dir react-native/generated/cpp \
+            ${{ github.workspace }}/uniffi-host/libnobodywho_uniffi.so
+
+      - name: "Verify committed React Native bindings are up to date"
+        working-directory: ./nobodywho/react-native
+        run: |
+          if git diff --exit-code generated/; then
+            echo "Generated React Native bindings are up to date"
+          else
+            echo "ERROR: Committed React Native bindings are out of date."
+            echo "Run the binding generation command and commit the results:"
+            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
+            echo "  npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \\"
+            echo "    --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp \\"
+            echo "    target/debug/libnobodywho_uniffi.so"
+            exit 1
+          fi
