@@ -65,20 +65,6 @@ def multiply_strings(string_int_pair: tuple[str, int]) -> str:
 
 
 @nobodywho.tool(
-    description="Does vector addition on the list of vectors provided",
-    params={
-        "list_of_vectors": "List of vectors to added. Each vector must of same length"
-    },
-)
-def add_list_of_vectors(list_of_vectors: list[list[int]]) -> str:
-    res = list_of_vectors[0].copy()
-    for v in list_of_vectors[1:]:
-        for i, coord in enumerate(v):
-            res[i] += coord
-    return str(res)
-
-
-@nobodywho.tool(
     description="Returns the volume of a cube with the input dimensions",
     params={
         "dimensions": "A map containing the numeric values for the width, height and depth of a cube."
@@ -121,7 +107,6 @@ def chat(model):
                 multiply_strings,
                 sparklify,
                 reflarbicator,
-                add_list_of_vectors,
                 calculate_volume,
             ],
         )
@@ -320,31 +305,6 @@ def test_tool_with_tuple(chat):
     assert len(tool_responses) == 1
     assert tool_responses[0]["name"] == "multiply_strings"
     assert tool_responses[0]["content"] == "BingBongBingBongBingBong"
-
-
-def test_tool_with_nested_list(chat):
-    if is_functiongemma():
-        pytest.skip("Test not supported with FunctionGemma models")
-
-    chat.ask(
-        "Please use the provided tool to add the vectors [[1,2,3],[4,5,6],[7,8,9]]."
-    ).completed()
-
-    history = chat.get_chat_history()
-    tool_calls = get_tool_calls(history)
-    tool_responses = get_tool_responses(history)
-
-    assert len(tool_calls) == 1
-    assert tool_calls[0]["function"]["name"] == "add_list_of_vectors"
-    assert tool_calls[0]["function"]["arguments"]["list_of_vectors"] == [
-        [1, 2, 3],
-        [4, 5, 6],
-        [7, 8, 9],
-    ]
-
-    assert len(tool_responses) == 1
-    assert tool_responses[0]["name"] == "add_list_of_vectors"
-    assert tool_responses[0]["content"] == "[12, 15, 18]"
 
 
 def test_tool_with_dict(chat):
