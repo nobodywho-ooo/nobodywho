@@ -300,17 +300,20 @@ fn stream_to_temp(
     let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
 
     loop {
-        let n = reader.read(&mut buf).map_err(|source| LoadModelError::ReadDownload {
-            url: url.to_owned(),
-            source,
-        })?;
+        let n = reader
+            .read(&mut buf)
+            .map_err(|source| LoadModelError::ReadDownload {
+                url: url.to_owned(),
+                source,
+            })?;
         if n == 0 {
             break;
         }
-        file.write_all(&buf[..n]).map_err(|source| LoadModelError::WriteDownload {
-            path: tmp_path.to_path_buf(),
-            source,
-        })?;
+        file.write_all(&buf[..n])
+            .map_err(|source| LoadModelError::WriteDownload {
+                path: tmp_path.to_path_buf(),
+                source,
+            })?;
         downloaded += n as u64;
 
         progress(downloaded, content_length);
