@@ -82,45 +82,109 @@ jobs:
             echo "| after | \`${{ github.event.after || '(empty)' }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # paths-filter only makes sense on PRs and pushes that have a diff base.
-      # For merge_group / workflow_dispatch / tag pushes we force the full
-      # surface in the decide step below, so the dorny outputs aren't read.
+      # Compute the changed-file list ourselves with `git diff`. We tried
+      # dorny/paths-filter v3 first but it silently kept returning the full
+      # PR diff on synchronize events even with `base:` set to the previous
+      # push SHA and `fetch-depth: 0` on the checkout. Bypassing it removes
+      # the unknown.
       #
-      # `base:` selects what we diff against:
-      #   - draft PR on a synchronize event → ${{ github.event.before }}, so we
-      #     only diff the latest push (cheap iteration mode while in draft).
-      #   - non-draft PR, or PR open / ready_for_review / labeled → empty,
-      #     which makes dorny default to the PR base branch (full PR diff).
-      #   - push to main → empty, dorny diffs against the parent commit.
-      - name: "Detect changed paths (PRs and main pushes)"
-        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-        uses: dorny/paths-filter@v3
+      # Diff base by event:
+      #   - draft PR + synchronize + non-empty `before`: base = before SHA
+      #       (cheap last-push diff while iterating in draft).
+      #   - draft PR + any other action (opened, labeled, ready_for_review[*],
+      #       edited): no meaningful "last push" — leave base empty, no diff.
+      #       Always-on jobs and label-driven `everything=true` still work.
+      #   - non-draft PR: base = PR base SHA → full PR diff + cascade.
+      #   - push to main: base = github.event.before of the push.
+      #   - merge_group / workflow_dispatch / tag push: skip (decide step
+      #       forces everything=true).
+      #
+      # [*] ready_for_review flips pull_request.draft to false, so it falls
+      #     into the non-draft branch.
+      - name: "Detect changed paths"
         id: paths
-        with:
-          base: ${{ (github.event.pull_request.draft && github.event.before) || '' }}
-          filters: |
-            workflows:
-              - '.github/workflows/**'
-            cargo_lock:
-              - 'nobodywho/Cargo.lock'
-            core:
-              - 'nobodywho/core/**'
-            uniffi:
-              - 'nobodywho/uniffi/**'
-            python:
-              - 'nobodywho/python/**'
-            godot:
-              - 'nobodywho/godot/**'
-            flutter:
-              - 'nobodywho/flutter/**'
-            swift:
-              - 'nobodywho/swift/**'
-            kotlin:
-              - 'nobodywho/kotlin/**'
-            react_native:
-              - 'nobodywho/react-native/**'
-            docs:
-              - 'docs/**'
+        run: |
+          set -uo pipefail
+
+          BASE=""
+          HEAD=""
+
+          case "${{ github.event_name }}" in
+            pull_request)
+              DRAFT="${{ github.event.pull_request.draft }}"
+              ACTION="${{ github.event.action }}"
+              EVT_BEFORE="${{ github.event.before }}"
+              PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+              PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+              if [[ "$DRAFT" == "true" ]]; then
+                if [[ "$ACTION" == "synchronize" ]] && [[ -n "$EVT_BEFORE" ]]; then
+                  BASE="$EVT_BEFORE"
+                  HEAD="$PR_HEAD_SHA"
+                fi
+                # else: draft non-synchronize → leave BASE empty, no buckets
+              else
+                BASE="$PR_BASE_SHA"
+                HEAD="$PR_HEAD_SHA"
+              fi
+              ;;
+            push)
+              if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+                BASE="${{ github.event.before }}"
+                HEAD="${{ github.event.after }}"
+              fi
+              ;;
+          esac
+
+          if [[ -n "$BASE" ]] && [[ -n "$HEAD" ]]; then
+            echo "Diffing $BASE..$HEAD"
+            CHANGED="$(git diff --name-only "$BASE..$HEAD" 2>&1)"
+            git_rc=$?
+            if [[ $git_rc -ne 0 ]]; then
+              echo "::warning::git diff failed (exit $git_rc); treating as no changes"
+              CHANGED=""
+            fi
+          else
+            echo "No diff base; treating as no changes"
+            CHANGED=""
+          fi
+
+          echo "---- Changed files ----"
+          if [[ -z "$CHANGED" ]]; then echo "(none)"; else echo "$CHANGED"; fi
+          echo "-----------------------"
+
+          contains() {
+            [[ -n "$CHANGED" ]] && echo "$CHANGED" | grep -qE "$1"
+          }
+          out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+
+          # Emit one p_* per filter, mirroring the names the decide step reads.
+          contains '^\.github/workflows/'    && out workflows    true || out workflows    false
+          contains '^nobodywho/Cargo\.lock$' && out cargo_lock   true || out cargo_lock   false
+          contains '^nobodywho/core/'        && out core         true || out core         false
+          contains '^nobodywho/uniffi/'      && out uniffi       true || out uniffi       false
+          contains '^nobodywho/python/'      && out python       true || out python       false
+          contains '^nobodywho/godot/'       && out godot        true || out godot        false
+          contains '^nobodywho/flutter/'     && out flutter      true || out flutter      false
+          contains '^nobodywho/swift/'       && out swift        true || out swift        false
+          contains '^nobodywho/kotlin/'      && out kotlin       true || out kotlin       false
+          contains '^nobodywho/react-native/' && out react_native true || out react_native false
+          contains '^docs/'                  && out docs         true || out docs         false
+
+          {
+            echo "## Path detection"
+            echo
+            echo "Base: \`${BASE:-(none)}\`  ·  Head: \`${HEAD:-(none)}\`"
+            echo
+            if [[ -z "$CHANGED" ]]; then
+              echo "Changed files: _none_"
+            else
+              echo "Changed files:"
+              echo
+              echo '```'
+              echo "$CHANGED"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: "Decide which buckets to run"
         id: decide
