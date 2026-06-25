@@ -48,7 +48,39 @@ jobs:
       run_docs:          ${{ steps.decide.outputs.run_docs }}
       run_release:       ${{ steps.decide.outputs.run_release }}
     steps:
+      # fetch-depth: 0 is required for dorny/paths-filter to be able to
+      # `git diff` against an arbitrary base SHA (we pass github.event.before
+      # for draft PRs). With the default shallow clone (depth 1) the base
+      # commit is unreachable, dorny silently falls back to its API mode
+      # (which returns the full PR diff) and our draft-mode last-push diff
+      # stops working.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Diagnostic line: surfaces what the event, action, and base SHA were
+      # so the next time draft-mode CI behaves oddly we can read it directly
+      # from the job summary instead of guessing.
+      - name: "Echo event diagnostics"
+        run: |
+          echo "event:    ${{ github.event_name }}"
+          echo "action:   ${{ github.event.action }}"
+          echo "ref:      ${{ github.ref }}"
+          echo "draft:    ${{ github.event.pull_request.draft }}"
+          echo "before:   ${{ github.event.before }}"
+          echo "after:    ${{ github.event.after }}"
+          {
+            echo "## Event diagnostics"
+            echo
+            echo "| field | value |"
+            echo "|---|---|"
+            echo "| event | \`${{ github.event_name }}\` |"
+            echo "| action | \`${{ github.event.action }}\` |"
+            echo "| ref | \`${{ github.ref }}\` |"
+            echo "| draft | \`${{ github.event.pull_request.draft }}\` |"
+            echo "| before | \`${{ github.event.before || '(empty)' }}\` |"
+            echo "| after | \`${{ github.event.after || '(empty)' }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # paths-filter only makes sense on PRs and pushes that have a diff base.
       # For merge_group / workflow_dispatch / tag pushes we force the full
