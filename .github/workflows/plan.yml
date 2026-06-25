@@ -53,11 +53,19 @@ jobs:
       # paths-filter only makes sense on PRs and pushes that have a diff base.
       # For merge_group / workflow_dispatch / tag pushes we force the full
       # surface in the decide step below, so the dorny outputs aren't read.
+      #
+      # `base:` selects what we diff against:
+      #   - draft PR on a synchronize event → ${{ github.event.before }}, so we
+      #     only diff the latest push (cheap iteration mode while in draft).
+      #   - non-draft PR, or PR open / ready_for_review / labeled → empty,
+      #     which makes dorny default to the PR base branch (full PR diff).
+      #   - push to main → empty, dorny diffs against the parent commit.
       - name: "Detect changed paths (PRs and main pushes)"
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         uses: dorny/paths-filter@v3
         id: paths
         with:
+          base: ${{ (github.event.pull_request.draft && github.event.before) || '' }}
           filters: |
             workflows:
               - '.github/workflows/**'
@@ -143,12 +151,29 @@ jobs:
           # Cargo.lock change: any Rust binding could be affected.
           if [[ "$p_cargo_lock" == "true" ]]; then everything=true; fi
 
+          # ---- draft-PR mode ----------------------------------------------
+          # On a draft PR we run cheap mode: paths-filter already diffs the
+          # last push only (see the dorny step's `base:` input), and we
+          # disable the cross-bucket cascade rules so a one-off core touch
+          # doesn't drag every binding into CI on subsequent pushes.
+          # Marking the PR ready-for-review re-triggers CI with the full
+          # cumulative diff + cascade.
+          is_draft_pr=false
+          if [[ "$EVENT" == "pull_request" && "$IS_DRAFT" == "true" ]]; then
+            is_draft_pr=true
+          fi
+
           # ---- cascading scopes --------------------------------------------
           # core/** is shared by every binding — cascade to all of them.
-          core_cascade="$p_core"
-          # uniffi/** is shared by swift+kotlin+react-native (regen is always-on
-          # and covers the bindings-regen aspect on its own).
-          uniffi_cascade="$p_uniffi"
+          # uniffi/** is shared by swift+kotlin+react-native.
+          # Both cascades disabled in draft mode.
+          if $is_draft_pr; then
+            core_cascade=false
+            uniffi_cascade=false
+          else
+            core_cascade="$p_core"
+            uniffi_cascade="$p_uniffi"
+          fi
 
           # ---- per-bucket decisions ----------------------------------------
           run_rust_core=$(any "$everything" "$core_cascade")
@@ -196,7 +221,7 @@ jobs:
           {
             echo "## CI Plan"
             echo
-            echo "Event: \`$EVENT\`  ·  Ref: \`$REF\`  ·  full-everything: \`$everything\`"
+            echo "Event: \`$EVENT\`  ·  Ref: \`$REF\`  ·  draft-mode: \`$is_draft_pr\`  ·  full-everything: \`$everything\`"
             echo
             echo "| bucket | run? |"
             echo "|---|---|"

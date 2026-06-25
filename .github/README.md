@@ -31,8 +31,10 @@ Two cascade rules:
 
 | trigger | what runs |
 |---|---|
-| PR opened/updated | path-filtered buckets only |
-| PR with `full-ci` label | every bucket (sticky; remove label to revert) |
+| **Draft PR** opened/updated | only the bucket(s) touched by *the latest push*, no cascade |
+| **Non-draft PR** opened/updated | bucket(s) touched by *the whole PR diff* + cross-bucket cascade (core → all bindings, uniffi → swift/kotlin/RN) |
+| PR marked **ready-for-review** | re-runs CI in non-draft mode (full diff + cascade) |
+| PR with `full-ci` label | every bucket (sticky; remove label to revert) — overrides draft mode |
 | PR comment `/full-ci` | one-shot full run via `workflow_dispatch` (see `full_ci_comment.yml`) |
 | PR with `test:python-models` label | adds the 6-model matrix on top of path-filtered |
 | Push to `main` | every bucket (post-merge canonical run) + docs deploy |
@@ -40,6 +42,12 @@ Two cascade rules:
 | Merge queue (`merge_group`) | every bucket against the merged tree |
 | `workflow_dispatch` (Actions UI) | every bucket if `full_ci=true`, else lint+regen only |
 | `[skip ci]` in commit message | nothing (GitHub native) |
+
+### Why draft vs non-draft matters
+
+While a PR is **draft**, paths-filter compares only the latest push (`before..after`), and cascade rules are disabled. This lets you push messy core changes without dragging every binding's CI into every iteration. When you flip the PR to **ready-for-review**, CI re-runs with the full cumulative PR diff and the cross-bucket cascade — that's the real verification before merge queue picks it up.
+
+Merge queue refuses to queue drafts, so a draft can't sneak into `main` on the lighter draft-mode CI.
 
 Concurrency: PR runs cancel each other (new push kills stale CI). `merge_group`, `main` pushes, tags, and dispatches always run to completion.
 
