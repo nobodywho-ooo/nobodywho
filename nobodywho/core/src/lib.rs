@@ -2,7 +2,7 @@ pub mod chat;
 pub mod crossencoder;
 pub mod encoder;
 pub mod errors;
-pub(crate) mod huggingface;
+pub mod huggingface;
 pub mod inference;
 pub mod llm;
 pub mod memory;
