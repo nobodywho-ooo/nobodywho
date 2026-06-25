@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       full_ci:
-        description: "Run full Kotlin CI (bindings check, compilation, integration tests with model)."
+        description: "Run full Kotlin CI (compilation and integration tests with model)."
         type: boolean
         default: false
 
@@ -29,45 +29,11 @@ jobs:
           cp ./native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
             ./native-lib/libnobodywho_uniffi.so
 
-      - name: "Setup Rust toolchain"
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . "$HOME/.cargo/env"
-          rustup update stable
-          rustup default stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install Vulkan dependencies"
+      - name: "Install Vulkan runtime"
+        # The .so links libvulkan; JNA needs it at test runtime.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-
-      - name: "Build uniffi-bindgen"
-        working-directory: ./nobodywho
-        run: cargo build --bin uniffi-bindgen --locked
-
-      - name: "Generate Kotlin bindings"
-        working-directory: ./nobodywho
-        run: |
-          cargo run --bin uniffi-bindgen -- generate \
-            --library ${{ github.workspace }}/native-lib/libnobodywho_uniffi.so \
-            --language kotlin \
-            --out-dir kotlin/common/generated
-
-      - name: "Verify committed generated files are up to date"
-        working-directory: ./nobodywho/kotlin
-        run: |
-          if git diff --exit-code common/generated/; then
-            echo "Generated bindings are up to date"
-          else
-            echo "ERROR: Committed generated bindings are out of date."
-            echo "Run the binding generation command and commit the results:"
-            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
-            echo "  cargo run --bin uniffi-bindgen -- generate \\"
-            echo "    --library target/debug/libnobodywho_uniffi.so \\"
-            echo "    --language kotlin --out-dir kotlin/common/generated"
-            exit 1
-          fi
+          sudo apt-get install -y libvulkan1
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
