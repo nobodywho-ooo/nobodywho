@@ -1108,6 +1108,45 @@ class Tool(typing.Generic[T]):
     """
     def __call__(self, /, *args, **kwargs) -> "T": ...
 
+@final
+class Tts:
+    """
+    `Tts` synthesizes speech to WAV bytes.
+    """
+    def __new__(
+        cls,
+        /,
+        source: "os.PathLike | str",
+        backend: "typing.Literal['kokoro', 'supertonic']" = "kokoro",
+        voice: str | None = None,
+        language: str | None = None,
+        speed: float | None = None,
+        steps: int | None = None,
+        silence_duration: float | None = None,
+        device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
+    ) -> "Tts":
+        """
+        Create a TTS synthesizer.
+
+        Args:
+            source: Local model directory or HuggingFace repo ID.
+            backend: "kokoro" or "supertonic". Defaults to "kokoro".
+            voice: Voice name. Backend default is used when omitted.
+            language: Language code. Backend default is used when omitted.
+            speed: Speaking speed. Backend default is used when omitted.
+            steps: Supertonic denoising steps. Ignored by Kokoro.
+            silence_duration: Supertonic silence between chunks in seconds.
+            device: "auto", "cpu", or "cuda". Defaults to "auto".
+        """
+    def synthesize(self, /, text: str) -> bytes:
+        """
+        Synthesize text and return WAV bytes.
+        """
+    async def synthesize_async(self, /, text: str) -> bytes:
+        """
+        Synthesize text asynchronously and return WAV bytes.
+        """
+
 def bash_tool(max_commands: int | None = None) -> Tool:
     """
     Create a bash interpreter tool that the LLM can use to run bash snippets.

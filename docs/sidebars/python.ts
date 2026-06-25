@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
     'sampling',
     'streaming-and-async-api',
     'embeddings-and-rag',
+    'text-to-speech',
     'logging-and-troubleshooting',
   ],
 };

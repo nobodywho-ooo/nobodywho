@@ -2756,9 +2756,11 @@ dependencies = [
  "minijinja-contrib",
  "misaki-rs",
  "monty",
+ "ndarray",
  "nom 8.0.0",
  "ort",
  "rand 0.9.4",
+ "rand_distr",
  "regex",
  "safetensors",
  "serde",
@@ -2768,6 +2770,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "tracing-subscriber",
+ "unicode-normalization",
  "ureq",
  "walkdir",
 ]
@@ -2972,6 +2975,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
+ "libm",
 ]
 
 [[package]]
@@ -3487,6 +3491,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 dependencies = [
  "getrandom 0.3.4",
+]
+
+[[package]]
+name = "rand_distr"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8615d50dcf34fa31f7ab52692afec947c4dd0ab803cc87cb3b0b4570ff7463"
+dependencies = [
+ "num-traits",
+ "rand 0.9.4",
 ]
 
 [[package]]
@@ -5350,7 +5364,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

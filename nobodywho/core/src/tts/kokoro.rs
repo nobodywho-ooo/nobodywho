@@ -548,15 +548,34 @@ impl KokoroVoice {
     }
 }
 
+/// Configuration for a Kokoro TTS model.
+///
+/// Build one with [`KokoroConfig::new`] and then override fields as needed.
+/// `voice` and `language` must agree (see the language/voice table in the TTS docs).
 #[derive(Clone, Debug)]
 pub struct KokoroConfig {
+    /// HuggingFace repo id (`owner/repo`) or path to a local model directory.
     pub source: String,
+
+    /// Voice name. Must match a voice available for the chosen `language`
+    /// (e.g. `af_heart` for `en-us`, `bf_emma` for `en-gb`, `ff_siwis` for `fr`).
+    /// Defaults to `bf_emma`.
     pub voice: String,
+
+    /// Language code. Must agree with `voice` (e.g. `en-us`, `en-gb`, `es`, `fr`,
+    /// `it`, `pt-br`). Japanese (`ja`) and Chinese (`zh`) are not supported.
+    /// Defaults to `en-gb`.
     pub language: String,
+
+    /// Speech speed multiplier. Values greater than `1.0` speed the audio up,
+    /// less than `1.0` slow it down. Defaults to `1.0`.
     pub speed: f32,
 }
 
 impl KokoroConfig {
+    /// Create a config with defaults for the given `source`.
+    ///
+    /// `source` is a HuggingFace repo id (`owner/repo`) or a local model directory.
     pub fn new(source: impl AsRef<str>) -> Self {
         Self {
             source: source.as_ref().to_string(),
