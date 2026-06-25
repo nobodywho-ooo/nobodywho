@@ -75,12 +75,16 @@ jobs:
           sudo apt-get install -y libvulkan1
 
       - name: "Generate Swift bindings"
+        # Run inside the cargo workspace so uniffi-bindgen's `cargo metadata`
+        # lookup (still invoked under --library for package-level config) finds
+        # nobodywho/Cargo.toml. Without this it errors at the repo root.
+        working-directory: ./nobodywho
         run: |
-          chmod +x ./uniffi-host/uniffi-bindgen
-          ./uniffi-host/uniffi-bindgen generate \
-            --library ./uniffi-host/libnobodywho_uniffi.so \
+          chmod +x ../uniffi-host/uniffi-bindgen
+          ../uniffi-host/uniffi-bindgen generate \
+            --library ../uniffi-host/libnobodywho_uniffi.so \
             --language swift \
-            --out-dir nobodywho/swift/generated
+            --out-dir swift/generated
 
       - name: "Verify committed Swift bindings are up to date"
         working-directory: ./nobodywho/swift
@@ -115,12 +119,13 @@ jobs:
           sudo apt-get install -y libvulkan1
 
       - name: "Generate Kotlin bindings"
+        working-directory: ./nobodywho
         run: |
-          chmod +x ./uniffi-host/uniffi-bindgen
-          ./uniffi-host/uniffi-bindgen generate \
-            --library ./uniffi-host/libnobodywho_uniffi.so \
+          chmod +x ../uniffi-host/uniffi-bindgen
+          ../uniffi-host/uniffi-bindgen generate \
+            --library ../uniffi-host/libnobodywho_uniffi.so \
             --language kotlin \
-            --out-dir nobodywho/kotlin/common/generated
+            --out-dir kotlin/common/generated
 
       - name: "Verify committed Kotlin bindings are up to date"
         working-directory: ./nobodywho/kotlin
