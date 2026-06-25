@@ -1,19 +1,15 @@
 name: "swift_ci"
 
-on:
-  workflow_call:
-    inputs:
-      full_ci:
-        description: "Run full Swift CI (integration tests with model)."
-        type: boolean
-        default: false
+# Gated by main.yml on needs.plan.outputs.run_swift — the workflow itself
+# unconditionally runs its single job when invoked.
+
+on: workflow_call
 
 permissions:
   contents: read
 
 jobs:
   tests:
-    if: inputs.full_ci
     runs-on: warp-macos-15-arm64-6x
     steps:
       - uses: actions/checkout@v5

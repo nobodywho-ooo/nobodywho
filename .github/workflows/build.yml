@@ -2,14 +2,55 @@ name: "Build"
 on:
   workflow_call:
     inputs:
-      full_ci:
-        description: "Run full build matrix (all platforms, all targets, all profiles)."
+      run_godot:
+        description: "Build godot integration."
+        type: boolean
+        default: false
+      run_flutter:
+        description: "Build flutter integration + xcframework."
+        type: boolean
+        default: false
+      run_swift:
+        description: "Build uniffi for Apple targets + swift xcframework."
+        type: boolean
+        default: false
+      run_kotlin:
+        description: "Build uniffi for desktop + android (kotlin consumer)."
+        type: boolean
+        default: false
+      run_react_native:
+        description: "Build uniffi for iOS + android + RN xcframework."
         type: boolean
         default: false
 
 jobs:
+  # Compute which Rust integrations need to be built. Every platform matrix
+  # below uses this list as its integration axis, so a swift-only PR only
+  # builds `uniffi`, a godot-only PR only builds `godot`, etc.
+  matrix-gen:
+    runs-on: ubuntu-latest
+    outputs:
+      integrations: ${{ steps.gen.outputs.integrations }}
+    steps:
+      - id: gen
+        run: |
+          ints=()
+          [[ "${{ inputs.run_godot }}"   == "true" ]] && ints+=('"godot"')   || true
+          [[ "${{ inputs.run_flutter }}" == "true" ]] && ints+=('"flutter"') || true
+          if [[ "${{ inputs.run_swift }}"        == "true" ]] || \
+             [[ "${{ inputs.run_kotlin }}"       == "true" ]] || \
+             [[ "${{ inputs.run_react_native }}" == "true" ]]; then
+            ints+=('"uniffi"')
+          fi
+          IFS=,
+          echo "integrations=[${ints[*]}]" >> "$GITHUB_OUTPUT"
+
   cargo-build-linux:
-    if: inputs.full_ci
+    needs: matrix-gen
+    # Linux artifacts feed godot, flutter, and kotlin (desktop JNA). Swift
+    # and React Native don't consume Linux builds, so a swift-only or
+    # RN-only run skips this job entirely.
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
     strategy:
       fail-fast: false
       matrix:
@@ -19,10 +60,7 @@ jobs:
         profile:
           - "debug"
           - "release"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
         exclude:
           # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
           - integration: "flutter"
@@ -94,7 +132,9 @@ jobs:
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
   cargo-build-windows:
-    if: inputs.full_ci
+    needs: matrix-gen
+    # Windows artifacts feed godot, flutter, and kotlin (desktop JNA).
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -104,10 +144,7 @@ jobs:
         profile:
           - "debug"
           - "release"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
         exclude:
           # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
           - integration: "flutter"
@@ -203,7 +240,9 @@ jobs:
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
   cargo-build-macos:
-    if: inputs.full_ci
+    needs: matrix-gen
+    # macOS artifacts feed every consumer (godot, flutter, swift, kotlin, RN).
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_kotlin || inputs.run_react_native
     runs-on: warp-macos-15-arm64-6x
     strategy:
       fail-fast: false
@@ -220,10 +259,7 @@ jobs:
         profile:
           - "debug"
           - "release"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
         exclude:
           # uniffi doesn't need macOS x86_64 (Intel Macs are EOL)
           - integration: "uniffi"
@@ -312,7 +348,7 @@ jobs:
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
   build-flutter-xcframework:
-    if: inputs.full_ci
+    if: inputs.run_flutter
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -391,7 +427,7 @@ jobs:
 
   # builds an xcframework containing static libraries for React Native iOS
   build-react-native-xcframework:
-    if: inputs.full_ci
+    if: inputs.run_react_native
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -427,7 +463,7 @@ jobs:
 
   # builds an xcframework containing static libraries + headers for Swift SPM
   build-swift-xcframework:
-    if: inputs.full_ci
+    if: inputs.run_swift
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -481,7 +517,10 @@ jobs:
           path: ./NobodyWhoNative.xcframework.zip
 
   cargo-build-android:
-    if: inputs.full_ci
+    needs: matrix-gen
+    # Android artifacts feed godot, flutter, kotlin, and React Native.
+    # Swift never consumes Android.
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_react_native
     runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
@@ -492,10 +531,7 @@ jobs:
         profile:
           - "debug"
           - "release"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
         exclude:
           # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
           - integration: "flutter"

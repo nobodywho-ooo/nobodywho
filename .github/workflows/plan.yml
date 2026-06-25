@@ -1,0 +1,213 @@
+name: "plan"
+
+# Reads event, labels, and changed paths and emits a `run_*` boolean per CI
+# bucket. Every other workflow gates on these outputs. This is the only place
+# that knows about routing — child workflows just consume their input.
+
+on:
+  workflow_call:
+    inputs:
+      dispatch_full_ci:
+        description: "True when main.yml was invoked via workflow_dispatch with full_ci=true."
+        type: boolean
+        default: false
+    outputs:
+      run_rust_core:
+        value: ${{ jobs.plan.outputs.run_rust_core }}
+      run_python:
+        value: ${{ jobs.plan.outputs.run_python }}
+      run_python_models:
+        value: ${{ jobs.plan.outputs.run_python_models }}
+      run_godot:
+        value: ${{ jobs.plan.outputs.run_godot }}
+      run_flutter:
+        value: ${{ jobs.plan.outputs.run_flutter }}
+      run_swift:
+        value: ${{ jobs.plan.outputs.run_swift }}
+      run_kotlin:
+        value: ${{ jobs.plan.outputs.run_kotlin }}
+      run_react_native:
+        value: ${{ jobs.plan.outputs.run_react_native }}
+      run_docs:
+        value: ${{ jobs.plan.outputs.run_docs }}
+      run_release:
+        value: ${{ jobs.plan.outputs.run_release }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      run_rust_core:     ${{ steps.decide.outputs.run_rust_core }}
+      run_python:        ${{ steps.decide.outputs.run_python }}
+      run_python_models: ${{ steps.decide.outputs.run_python_models }}
+      run_godot:         ${{ steps.decide.outputs.run_godot }}
+      run_flutter:       ${{ steps.decide.outputs.run_flutter }}
+      run_swift:         ${{ steps.decide.outputs.run_swift }}
+      run_kotlin:        ${{ steps.decide.outputs.run_kotlin }}
+      run_react_native:  ${{ steps.decide.outputs.run_react_native }}
+      run_docs:          ${{ steps.decide.outputs.run_docs }}
+      run_release:       ${{ steps.decide.outputs.run_release }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # paths-filter only makes sense on PRs and pushes that have a diff base.
+      # For merge_group / workflow_dispatch / tag pushes we force the full
+      # surface in the decide step below, so the dorny outputs aren't read.
+      - name: "Detect changed paths (PRs and main pushes)"
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        uses: dorny/paths-filter@v3
+        id: paths
+        with:
+          filters: |
+            workflows:
+              - '.github/workflows/**'
+            cargo_lock:
+              - 'nobodywho/Cargo.lock'
+            core:
+              - 'nobodywho/core/**'
+            uniffi:
+              - 'nobodywho/uniffi/**'
+            python:
+              - 'nobodywho/python/**'
+            godot:
+              - 'nobodywho/godot/**'
+            flutter:
+              - 'nobodywho/flutter/**'
+            swift:
+              - 'nobodywho/swift/**'
+            kotlin:
+              - 'nobodywho/kotlin/**'
+            react_native:
+              - 'nobodywho/react-native/**'
+            docs:
+              - 'docs/**'
+
+      - name: "Decide which buckets to run"
+        id: decide
+        env:
+          EVENT:            ${{ github.event_name }}
+          REF:              ${{ github.ref }}
+          IS_DRAFT:         ${{ github.event.pull_request.draft }}
+          LABELS:           ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          DISPATCH_FULL_CI: ${{ inputs.dispatch_full_ci }}
+          P_WORKFLOWS:      ${{ steps.paths.outputs.workflows }}
+          P_CARGO_LOCK:     ${{ steps.paths.outputs.cargo_lock }}
+          P_CORE:           ${{ steps.paths.outputs.core }}
+          P_UNIFFI:         ${{ steps.paths.outputs.uniffi }}
+          P_PYTHON:         ${{ steps.paths.outputs.python }}
+          P_GODOT:          ${{ steps.paths.outputs.godot }}
+          P_FLUTTER:        ${{ steps.paths.outputs.flutter }}
+          P_SWIFT:          ${{ steps.paths.outputs.swift }}
+          P_KOTLIN:         ${{ steps.paths.outputs.kotlin }}
+          P_RN:             ${{ steps.paths.outputs.react_native }}
+          P_DOCS:           ${{ steps.paths.outputs.docs }}
+        run: |
+          set -euo pipefail
+
+          # Returns "true" if any positional arg equals "true".
+          any() {
+            for v in "$@"; do
+              if [[ "$v" == "true" ]]; then echo true; return; fi
+            done
+            echo false
+          }
+          has_label() { echo "${LABELS:-[]}" | grep -q "\"$1\""; }
+
+          # Normalize dorny outputs (may be empty when the step was skipped).
+          p_workflows="${P_WORKFLOWS:-false}"
+          p_cargo_lock="${P_CARGO_LOCK:-false}"
+          p_core="${P_CORE:-false}"
+          p_uniffi="${P_UNIFFI:-false}"
+          p_python="${P_PYTHON:-false}"
+          p_godot="${P_GODOT:-false}"
+          p_flutter="${P_FLUTTER:-false}"
+          p_swift="${P_SWIFT:-false}"
+          p_kotlin="${P_KOTLIN:-false}"
+          p_rn="${P_RN:-false}"
+          p_docs="${P_DOCS:-false}"
+
+          # ---- "run everything" conditions ---------------------------------
+          everything=false
+          # Push to main: full surface (this is the post-merge canonical run).
+          if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then everything=true; fi
+          # Release tag: full surface, then release.yml fires.
+          if [[ "$REF" == refs/tags/nobodywho-* ]]; then everything=true; fi
+          # Merge queue: full surface against the would-be merged tree.
+          if [[ "$EVENT" == "merge_group" ]]; then everything=true; fi
+          # workflow_dispatch with full_ci checked.
+          if [[ "$DISPATCH_FULL_CI" == "true" ]]; then everything=true; fi
+          # `full-ci` label on the PR.
+          if has_label "full-ci"; then everything=true; fi
+          # CI infra changes: safety net — verify everything still works.
+          if [[ "$p_workflows" == "true" ]]; then everything=true; fi
+          # Cargo.lock change: any Rust binding could be affected.
+          if [[ "$p_cargo_lock" == "true" ]]; then everything=true; fi
+
+          # ---- cascading scopes --------------------------------------------
+          # core/** is shared by every binding — cascade to all of them.
+          core_cascade="$p_core"
+          # uniffi/** is shared by swift+kotlin+react-native (regen is always-on
+          # and covers the bindings-regen aspect on its own).
+          uniffi_cascade="$p_uniffi"
+
+          # ---- per-bucket decisions ----------------------------------------
+          run_rust_core=$(any "$everything" "$core_cascade")
+          run_python=$(any "$everything" "$core_cascade" "$p_python")
+          run_godot=$(any "$everything" "$core_cascade" "$p_godot")
+          run_flutter=$(any "$everything" "$core_cascade" "$p_flutter")
+          run_swift=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_swift")
+          run_kotlin=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_kotlin")
+          run_react_native=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_rn")
+
+          # python_models: heavy 6-model matrix. On main / full-ci / explicit label.
+          run_python_models=false
+          if [[ "$everything" == "true" ]] || has_label "test:python-models"; then
+            run_python_models=true
+          fi
+
+          # The model matrix consumes the python wheel, so force-on the python
+          # wheel build/test bucket whenever the model matrix is requested.
+          if [[ "$run_python_models" == "true" ]]; then
+            run_python=true
+          fi
+
+          # docs: rebuild whenever docs/** changed, or on a full run.
+          run_docs=$(any "$everything" "$p_docs")
+
+          # release: only on a release tag.
+          run_release=false
+          if [[ "$REF" == refs/tags/nobodywho-* ]]; then run_release=true; fi
+
+          # ---- emit --------------------------------------------------------
+          {
+            echo "run_rust_core=$run_rust_core"
+            echo "run_python=$run_python"
+            echo "run_python_models=$run_python_models"
+            echo "run_godot=$run_godot"
+            echo "run_flutter=$run_flutter"
+            echo "run_swift=$run_swift"
+            echo "run_kotlin=$run_kotlin"
+            echo "run_react_native=$run_react_native"
+            echo "run_docs=$run_docs"
+            echo "run_release=$run_release"
+          } >> "$GITHUB_OUTPUT"
+
+          # ---- run summary -------------------------------------------------
+          {
+            echo "## CI Plan"
+            echo
+            echo "Event: \`$EVENT\`  ·  Ref: \`$REF\`  ·  full-everything: \`$everything\`"
+            echo
+            echo "| bucket | run? |"
+            echo "|---|---|"
+            echo "| rust_core | $run_rust_core |"
+            echo "| python | $run_python |"
+            echo "| python_models | $run_python_models |"
+            echo "| godot | $run_godot |"
+            echo "| flutter | $run_flutter |"
+            echo "| swift | $run_swift |"
+            echo "| kotlin | $run_kotlin |"
+            echo "| react_native | $run_react_native |"
+            echo "| docs | $run_docs |"
+            echo "| release | $run_release |"
+          } >> "$GITHUB_STEP_SUMMARY"
