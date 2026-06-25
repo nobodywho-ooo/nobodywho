@@ -1,6 +1,6 @@
 # TTS
 
-Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) — a lightweight model that produces 24 kHz audio.
+Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Supertonic](https://huggingface.co/Supertone/supertonic-3) ONNX backends.
 
 ## Quick start
 
@@ -14,9 +14,26 @@ std::fs::write("out.wav", wav)?;
 
 The model is downloaded from HuggingFace on first use and cached locally. Pass a local directory path instead of a repo ID to skip the download.
 
-## Voices and languages
+## Supertonic
 
-Set `voice` and `language` together — they must agree.
+Supertonic models use a directory with `onnx/` model files and `voice_styles/` JSON files. Passing an unknown voice returns a `MissingVoice` error listing the voices present in the model dir.
+
+The upstream [Supertone/supertonic-3](https://huggingface.co/Supertone/supertonic-3) repo ships voices `F1`–`F5` and `M1`–`M5`.
+
+```rust
+use nobodywho::tts::{SupertonicConfig, Tts, TtsConfig};
+
+let mut cfg = SupertonicConfig::new("Supertone/supertonic-3");
+cfg.language = "en".into();
+cfg.voice = "M1".into();
+
+let tts = Tts::new(TtsConfig::Supertonic(cfg))?;
+let wav = tts.synthesize("Hello from NobodyWho!")?;
+```
+
+## Kokoro voices and languages
+
+For Kokoro, set `voice` and `language` together — they must agree.
 
 | Language | `language` | Example voices |
 |----------|------------|----------------|

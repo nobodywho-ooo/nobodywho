@@ -12,8 +12,6 @@
 //! ```
 //!
 //! ```no_run
-//! // American English using [`Tts::synthesize_async`]:
-//!
 //! # use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut cfg = KokoroConfig::new("NobodyWho/Kokoro-82M");
@@ -21,24 +19,82 @@
 //! cfg.language = "en-us".into();
 //! cfg.speed = 1.1;
 //! let tts = Tts::new(TtsConfig::Kokoro(cfg))?;
+//! let wav = tts.synthesize("Hello!")?;
+//! # let _ = wav;
+//! # Ok(())
+//! # }
 //! ```
 
 mod backend;
 mod kokoro;
 mod ort_util;
+mod supertonic;
 
 use crate::errors::TtsError;
 pub use kokoro::KokoroConfig;
-use std::sync::mpsc;
+use std::{str::FromStr, sync::mpsc};
+pub use supertonic::SupertonicConfig;
+
+const KNOWN_KOKORO_SOURCES: &[&str] = &["NobodyWho/Kokoro-82M", "hexgrad/Kokoro-82M"];
+const KNOWN_SUPERTONIC_SOURCES: &[&str] = &["Supertone/supertonic-3"];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TtsBackendKind {
+    Kokoro,
+    Supertonic,
+}
+
+impl TtsBackendKind {
+    pub fn infer_from_source(source: &str) -> Option<Self> {
+        if matches_known_source(source, KNOWN_KOKORO_SOURCES) {
+            Some(Self::Kokoro)
+        } else if matches_known_source(source, KNOWN_SUPERTONIC_SOURCES) {
+            Some(Self::Supertonic)
+        } else {
+            None
+        }
+    }
+}
+
+impl FromStr for TtsBackendKind {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "kokoro" => Ok(Self::Kokoro),
+            "supertonic" => Ok(Self::Supertonic),
+            _ => Err(()),
+        }
+    }
+}
+
+fn matches_known_source(source: &str, known_sources: &[&str]) -> bool {
+    known_sources
+        .iter()
+        .any(|known_source| source.eq_ignore_ascii_case(known_source))
+}
 
 #[derive(Clone, Debug)]
 pub enum TtsConfig {
     Kokoro(KokoroConfig),
+    Supertonic(SupertonicConfig),
 }
 
 impl TtsConfig {
+    pub fn from_source(source: impl AsRef<str>, backend: Option<TtsBackendKind>) -> Option<Self> {
+        let source = source.as_ref();
+        match backend.or_else(|| TtsBackendKind::infer_from_source(source))? {
+            TtsBackendKind::Kokoro => Some(Self::kokoro(source)),
+            TtsBackendKind::Supertonic => Some(Self::supertonic(source)),
+        }
+    }
+
     pub fn kokoro(source: impl AsRef<str>) -> Self {
         Self::Kokoro(KokoroConfig::new(source))
+    }
+
+    pub fn supertonic(source: impl AsRef<str>) -> Self {
+        Self::Supertonic(SupertonicConfig::new(source))
     }
 }
 
