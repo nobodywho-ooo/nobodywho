@@ -22,6 +22,11 @@ pkgs.mkShell {
     pkgs.clang
     pkgs.rustup
 
+    # openssl-sys (pulled in transitively, e.g. by reqwest for huggingface downloads)
+    # needs pkg-config to locate the openssl dev libraries.
+    pkgs.pkg-config
+    pkgs.openssl
+
     # these are the dependencies required by llama.cpp to build for vulkan
     # (these packages were discovered by looking at the nix source code in ggerganov/llama.cpp)
     pkgs.vulkan-headers

@@ -1,4 +1,5 @@
 use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
+use std::path::PathBuf;
 
 // Memory errors
 
@@ -123,8 +124,74 @@ pub enum LoadModelError {
     )]
     DownloadNotFound { url: String },
 
-    #[error("Failed to download model: {0}")]
-    DownloadError(String),
+    #[error("Failed to download model: unexpected HTTP status {status} for {url}")]
+    #[diagnostic(code(nobodywho::download_http_status))]
+    DownloadHttpStatus { url: String, status: u16 },
+
+    #[error("HTTP request failed: {url}")]
+    #[diagnostic(code(nobodywho::download_http_request))]
+    HttpRequest {
+        url: String,
+        #[source]
+        source: ureq::Error,
+    },
+
+    #[error("Path traversal detected: {path:?} contains '..'")]
+    #[diagnostic(
+        code(nobodywho::download_path_traversal),
+        help("Model paths must not contain '..' — sanitize the input before passing it in.")
+    )]
+    PathTraversal { path: PathBuf },
+
+    #[error("Failed to create cache directory {path:?}")]
+    #[diagnostic(code(nobodywho::download_create_cache_dir))]
+    CreateCacheDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Failed to create temporary download file {path:?}")]
+    #[diagnostic(code(nobodywho::download_create_temp_file))]
+    CreateTempFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Read error while downloading {url}")]
+    #[diagnostic(code(nobodywho::download_read))]
+    ReadDownload {
+        url: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Write error while downloading to {path:?}")]
+    #[diagnostic(code(nobodywho::download_write))]
+    WriteDownload {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Download incomplete from {url}: got {got}/{expected} bytes")]
+    #[diagnostic(code(nobodywho::download_incomplete))]
+    IncompleteDownload {
+        url: String,
+        got: u64,
+        expected: u64,
+    },
+
+    #[error("Failed to rename {from:?} to {to:?}")]
+    #[diagnostic(code(nobodywho::download_rename_temp))]
+    RenameTempFile {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error("Could not determine cache directory: {0}")]
     CacheDir(#[from] GetCacheDirError),
 }
@@ -188,7 +255,10 @@ impl LoadModelError {
             404 => LoadModelError::DownloadNotFound {
                 url: url.to_owned(),
             },
-            _ => LoadModelError::DownloadError(format!("http status: {status}")),
+            _ => LoadModelError::DownloadHttpStatus {
+                url: url.to_owned(),
+                status,
+            },
         }
     }
 
@@ -433,6 +503,208 @@ pub enum EncoderWorkerError {
 
     #[error("Error encoding: {0}")]
     Encode(String),
+}
+
+// HuggingFace download errors
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+pub enum HuggingFaceError {
+    #[error("invalid model source {0:?}: must be an existing directory or `owner/repo`")]
+    #[diagnostic(code(nobodywho::hf_invalid_source))]
+    InvalidSource(String),
+
+    #[error("Could not determine cache directory")]
+    CacheDir(#[from] GetCacheDirError),
+
+    #[error("Failed to list HuggingFace repo tree for {repo:?}")]
+    #[diagnostic(code(nobodywho::hf_list_repo_tree))]
+    ListRepoTree {
+        repo: String,
+        #[source]
+        source: ureq::Error,
+    },
+
+    #[error("Failed to read HuggingFace repo tree response for {repo:?}")]
+    #[diagnostic(code(nobodywho::hf_read_repo_tree))]
+    ReadRepoTree {
+        repo: String,
+        #[source]
+        source: ureq::Error,
+    },
+
+    #[error("Failed to parse HuggingFace repo tree response for {repo:?}")]
+    #[diagnostic(code(nobodywho::hf_parse_repo_tree))]
+    ParseRepoTree {
+        repo: String,
+        #[source]
+        source: serde_json::Error,
+    },
+
+    #[error("HuggingFace repo {repo:?}@{revision} has no files")]
+    #[diagnostic(code(nobodywho::hf_empty_repo))]
+    EmptyRepo { repo: String, revision: String },
+
+    #[error("Failed to download entry {path:?} from HuggingFace repo")]
+    #[diagnostic(code(nobodywho::hf_download_entry))]
+    DownloadEntry {
+        path: String,
+        #[source]
+        source: Box<LoadModelError>,
+    },
+}
+
+// TTS errors
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+pub enum TtsError {
+    // ── Config / language ────────────────────────────────────────────
+    #[error("Language {language:?} is not supported")]
+    #[diagnostic(
+        code(nobodywho::tts_unsupported_language),
+        help("Supported languages: {supported}")
+    )]
+    UnsupportedLanguage { language: String, supported: String },
+
+    // ── Voice safetensors loading ────────────────────────────────────
+    #[error("Could not read voice {voice:?}")]
+    #[diagnostic(code(nobodywho::tts_voice_read))]
+    VoiceRead {
+        voice: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Could not parse voice {voice:?}")]
+    #[diagnostic(code(nobodywho::tts_voice_parse))]
+    VoiceParse {
+        voice: String,
+        #[source]
+        source: safetensors::SafeTensorError,
+    },
+
+    #[error("Voice {voice:?} is missing the `style` tensor")]
+    #[diagnostic(code(nobodywho::tts_voice_no_style))]
+    VoiceMissingStyle {
+        voice: String,
+        #[source]
+        source: safetensors::SafeTensorError,
+    },
+
+    #[error("Voice {voice:?} `style` has dtype {dtype:?}, expected F32")]
+    #[diagnostic(code(nobodywho::tts_voice_bad_dtype))]
+    VoiceBadDtype {
+        voice: String,
+        dtype: safetensors::Dtype,
+    },
+
+    #[error(
+        "Voice {voice:?} `style` has shape {shape:?}, expected [rows, {style_dim}] with rows >= 2"
+    )]
+    #[diagnostic(code(nobodywho::tts_voice_bad_shape))]
+    VoiceBadShape {
+        voice: String,
+        shape: Vec<usize>,
+        style_dim: usize,
+    },
+
+    // ── config.json / vocab ──────────────────────────────────────────
+    #[error("Could not open kokoro config {path}")]
+    #[diagnostic(code(nobodywho::tts_config_open))]
+    ConfigOpen {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Could not parse kokoro config {path}")]
+    #[diagnostic(code(nobodywho::tts_config_parse))]
+    ConfigParse {
+        path: String,
+        #[source]
+        source: serde_json::Error,
+    },
+
+    #[error("Kokoro vocab is empty in {path}")]
+    #[diagnostic(code(nobodywho::tts_vocab_empty))]
+    VocabEmpty { path: String },
+
+    // ── espeak setup ─────────────────────────────────────────────────
+    #[error("Could not create espeak data dir")]
+    #[diagnostic(code(nobodywho::tts_espeak_data_dir))]
+    EspeakDataDir {
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Could not install bundled espeak language {lang:?} to {dir}")]
+    #[diagnostic(code(nobodywho::tts_espeak_install_lang))]
+    EspeakInstallLanguage {
+        lang: String,
+        dir: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Could not initialize espeak translator")]
+    #[diagnostic(code(nobodywho::tts_espeak_init))]
+    EspeakInit {
+        #[source]
+        source: espeak_ng::Error,
+    },
+
+    // ── phonemization ────────────────────────────────────────────────
+    #[error("Espeak phonemization failed")]
+    #[diagnostic(code(nobodywho::tts_espeak_phonemize))]
+    EspeakPhonemize {
+        #[source]
+        source: espeak_ng::Error,
+    },
+
+    #[error("Espeak phonemization failed for OOV word {word:?}")]
+    #[diagnostic(code(nobodywho::tts_espeak_oov))]
+    EspeakOov {
+        word: String,
+        #[source]
+        source: espeak_ng::Error,
+    },
+
+    #[error("Misaki g2p failed")]
+    #[diagnostic(code(nobodywho::tts_misaki_g2p))]
+    MisakiG2p {
+        #[source]
+        source: misaki_rs::g2p::G2PError,
+    },
+
+    // ── Output validation ────────────────────────────────────────────
+    #[error("Text produced no phonemes")]
+    #[diagnostic(code(nobodywho::tts_no_phonemes))]
+    NoPhonemes,
+
+    #[error("No phonemes mapped to vocab IDs")]
+    #[diagnostic(code(nobodywho::tts_no_vocab_match))]
+    NoVocabMatch,
+
+    #[error("Input is {count} phonemes; max {max}")]
+    #[diagnostic(
+        code(nobodywho::tts_too_many_phonemes),
+        help("Chunking is not yet implemented — break the text into shorter pieces.")
+    )]
+    TooManyPhonemes { count: usize, max: usize },
+
+    // ── Worker thread plumbing ───────────────────────────────────────
+    #[error("TTS worker thread is no longer running")]
+    #[diagnostic(code(nobodywho::tts_worker_dead))]
+    WorkerDead,
+
+    // ── External error pass-through ──────────────────────────────────
+    #[error("ONNX Runtime error")]
+    Ort(#[from] ort::Error),
+
+    #[error("WAV encoding failed")]
+    Wav(#[from] hound::Error),
+
+    #[error("Model download failed")]
+    HuggingFace(#[from] HuggingFaceError),
 }
 
 // ChatWorker errors
