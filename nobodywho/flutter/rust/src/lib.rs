@@ -8,8 +8,67 @@ use std::sync::Arc;
 mod frb_generated;
 mod parse;
 
-pub use nobodywho::chat::Message;
 pub use nobodywho::tool_calling::ToolCall;
+
+#[flutter_rust_bridge::frb]
+pub enum Message {
+    User {
+        content: String,
+        #[frb(default = "const []")]
+        assets: Vec<nobodywho::chat::Asset>,
+    },
+    Assistant {
+        content: String,
+        tool_calls: Option<Vec<ToolCall>>,
+    },
+    System {
+        content: String,
+    },
+    Tool {
+        name: String,
+        content: String,
+    },
+}
+
+impl From<nobodywho::chat::Message> for Message {
+    fn from(msg: nobodywho::chat::Message) -> Self {
+        match msg {
+            nobodywho::chat::Message::User { content, assets } => Message::User {
+                content: content.to_string(),
+                assets,
+            },
+            nobodywho::chat::Message::Assistant {
+                content,
+                tool_calls,
+            } => Message::Assistant {
+                content,
+                tool_calls,
+            },
+            nobodywho::chat::Message::System { content } => Message::System { content },
+            nobodywho::chat::Message::Tool { name, content } => Message::Tool { name, content },
+        }
+    }
+}
+
+impl From<Message> for nobodywho::chat::Message {
+    fn from(msg: Message) -> Self {
+        match msg {
+            Message::User { content, assets } => nobodywho::chat::Message::User {
+                content: nobodywho::chat::MessageContent::Text(content),
+                assets,
+            },
+            Message::Assistant {
+                content,
+                tool_calls,
+            } => nobodywho::chat::Message::Assistant {
+                content,
+                tool_calls,
+            },
+            Message::System { content } => nobodywho::chat::Message::System { content },
+            Message::Tool { name, content } => nobodywho::chat::Message::Tool { name, content },
+        }
+    }
+}
 
 /// A part of a multimodal prompt. Use [`PromptPart::Text`] for text,
 /// [`PromptPart::Image`] for images, and [`PromptPart::Audio`] for audio clips.
@@ -52,26 +111,6 @@ pub struct _ToolCall {
 #[flutter_rust_bridge::frb(sync)]
 pub fn tool_call_arguments_json(tool_call: &ToolCall) -> Result<String, String> {
     serde_json::to_string(&tool_call.arguments).map_err(|e| e.to_string())
-}
-#[flutter_rust_bridge::frb(mirror(Message))]
-pub enum _Message {
-    User {
-        content: String,
-        #[frb(default = "const []")]
-        assets: Vec<Asset>,
-    },
-    Assistant {
-        content: String,
-        #[frb(default = "null")]
-        tool_calls: Option<Vec<ToolCall>>,
-    },
-    System {
-        content: String,
-    },
-    Tool {
-        name: String,
-        content: String,
-    },
 }
 
 #[flutter_rust_bridge::frb(opaque)]
@@ -277,29 +316,50 @@ impl RustChat {
     ///     parts: List of PromptPart (text or image) making up the prompt
     #[flutter_rust_bridge::frb(sync)]
     pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> RustTokenStream {
-        let mut prompt = nobodywho::tokenizer::Prompt::new();
-        for part in parts {
-            match part {
-                PromptPart::Text { content } => prompt.push_text(content),
-                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
-                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
-            }
-        }
+        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
+            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
+            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
+            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
+        }));
 
         RustTokenStream {
             stream: self.chat.ask(prompt),
         }
     }
 
+    /// Send a raw JSON prompt and get a stream of response tokens.
+    /// The JSON string is parsed and passed as a structured content field.
+    /// Called by the Dart SDK layer — the json argument is always valid JSON.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn ask_with_json_prompt(&self, json: String) -> RustTokenStream {
+        let value: serde_json::Value = serde_json::from_str(&json)
+            .expect("ask_with_json_prompt: invalid JSON (this is a bug in the SDK)");
+        RustTokenStream {
+            stream: self
+                .chat
+                .ask(nobodywho::tokenizer::Prompt::from_json(value)),
+        }
+    }
+
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
-        self.chat.get_chat_history().await
+        self.chat
+            .get_chat_history()
+            .await
+            .map(|msgs| msgs.into_iter().map(Message::from).collect())
     }
 
     pub async fn set_chat_history(
         &self,
         messages: Vec<Message>,
     ) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat.set_chat_history(messages).await
+        self.chat
+            .set_chat_history(
+                messages
+                    .into_iter()
+                    .map(nobodywho::chat::Message::from)
+                    .collect(),
+            )
+            .await
     }
 
     pub async fn set_sampler_config(
@@ -368,14 +428,11 @@ impl RustChat {
         &self,
         parts: Vec<PromptPart>,
     ) -> Result<Vec<Option<i32>>, nobodywho::errors::TokenizeError> {
-        let mut prompt = nobodywho::tokenizer::Prompt::new();
-        for part in parts {
-            match part {
-                PromptPart::Text { content } => prompt.push_text(content),
-                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
-                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
-            }
-        }
+        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
+            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
+            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
+            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
+        }));
         self.chat.tokenize(prompt).await
     }
 

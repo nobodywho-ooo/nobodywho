@@ -717,6 +717,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(
@@ -842,6 +844,8 @@ external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_
 external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`ptr`: Long,`json`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1162,6 +1166,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 63877.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 65089.toShort()) {
@@ -1816,6 +1823,14 @@ public interface RustChatInterface {
     fun `ask`(`message`: kotlin.String): RustTokenStream
     
     /**
+     * Send a JSON-encoded prompt and get a token stream.
+     *
+     * `json` must be a valid JSON string. The wrapper layer is responsible for
+     * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+     */
+    fun `askWithJsonPrompt`(`json`: kotlin.String): RustTokenStream
+    
+    /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
      * `parts` is an ordered list of `PromptPart` items.
@@ -2019,6 +2034,26 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
         it,
         FfiConverterString.lower(`message`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Send a JSON-encoded prompt and get a token stream.
+     *
+     * `json` must be a valid JSON string. The wrapper layer is responsible for
+     * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+     */
+    @Throws(NobodyWhoException::class)override fun `askWithJsonPrompt`(`json`: kotlin.String): RustTokenStream {
+            return FfiConverterTypeRustTokenStream.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
+        it,
+        FfiConverterString.lower(`json`),_status)
 }
     }
     )

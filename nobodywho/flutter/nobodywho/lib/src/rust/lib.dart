@@ -9,6 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`, `wrap_progress`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -81,7 +82,7 @@ RustTool newPythonTool({
   maxRecursionDepth: maxRecursionDepth,
 );
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>
 abstract class Asset implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
@@ -195,6 +196,11 @@ abstract class Model implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
 abstract class RustChat implements RustOpaqueInterface {
   RustTokenStream ask(String message);
+
+  /// Send a raw JSON prompt and get a stream of response tokens.
+  /// The JSON string is parsed and passed as a structured content field.
+  /// Called by the Dart SDK layer — the json argument is always valid JSON.
+  RustTokenStream askWithJsonPrompt({required String json});
 
   /// Send a multimodal prompt (text + images) and get a stream of response tokens.
   ///
@@ -583,7 +589,7 @@ sealed class Message with _$Message {
   }) = Message_User;
   const factory Message.assistant({
     required String content,
-    @Default(null) List<ToolCall>? toolCalls,
+    List<ToolCall>? toolCalls,
   }) = Message_Assistant;
   const factory Message.system({required String content}) = Message_System;
   const factory Message.tool({required String name, required String content}) =

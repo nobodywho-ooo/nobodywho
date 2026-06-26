@@ -295,6 +295,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, Rus
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask(uint64_t ptr, RustBuffer message, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(uint64_t ptr, RustBuffer json, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_PROMPT
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_PROMPT
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(uint64_t ptr, RustBuffer parts, RustCallStatus *_Nonnull out_status
@@ -1039,6 +1044,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt(void
     
 );
 #endif

@@ -19,56 +19,55 @@ use tracing::{info, warn};
 use crate::{errors::MultimodalError, errors::TokenizationError};
 
 #[derive(Clone, Debug)]
-pub struct Prompt {
-    parts: Vec<PromptPart>,
+pub enum Prompt {
+    Parts(Vec<PromptPart>),
+    Json(serde_json::Value),
 }
 
 impl Display for Prompt {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let marker = llama_cpp_2::mtmd::mtmd_default_marker();
-        let result = self
-            .parts
-            .iter()
-            .map(|part| match part {
-                PromptPart::Text(text) => text.clone(),
-                PromptPart::Image(_) | PromptPart::Audio(_) => marker.to_string(),
-            })
-            .collect::<Vec<String>>()
-            .join("");
-
-        write!(f, "{}", result)
+        match self {
+            Prompt::Json(v) => write!(f, "{v}"),
+            Prompt::Parts(parts) => {
+                let marker = llama_cpp_2::mtmd::mtmd_default_marker();
+                let result = parts
+                    .iter()
+                    .map(|part| match part {
+                        PromptPart::Text(text) => text.clone(),
+                        PromptPart::Image(_) | PromptPart::Audio(_) => marker.to_string(),
+                    })
+                    .collect::<Vec<String>>()
+                    .join("");
+                write!(f, "{result}")
+            }
+        }
     }
 }
 
 impl Default for Prompt {
     fn default() -> Self {
-        Self::new()
+        Prompt::Parts(vec![])
     }
 }
 
 impl Prompt {
-    pub fn new() -> Self {
-        Self { parts: vec![] }
+    pub fn new(ps: impl IntoIterator<Item = PromptPart>) -> Self {
+        Prompt::parts(ps)
     }
 
-    pub fn push_text(&mut self, text: impl Into<String>) {
-        if let Some(PromptPart::Text(last_text)) = self.parts.last_mut() {
-            last_text.push_str(&text.into());
-        } else {
-            self.parts.push(PromptPart::Text(text.into()));
-        }
+    pub fn parts(parts: impl IntoIterator<Item = PromptPart>) -> Self {
+        Prompt::Parts(Prompt::merge_adjecent_texts(parts))
     }
 
-    pub fn push_image(&mut self, image_path: &Path) {
-        self.parts.push(PromptPart::Image(image_path.into()));
-    }
-
-    pub fn push_audio(&mut self, audio_path: &Path) {
-        self.parts.push(PromptPart::Audio(audio_path.into()));
+    pub fn from_json(value: serde_json::Value) -> Self {
+        Prompt::Json(value)
     }
 
     pub fn extract_asset_paths(&self) -> Vec<&Path> {
-        self.parts
+        let Prompt::Parts(parts) = self else {
+            return vec![];
+        };
+        parts
             .iter()
             .filter_map(|part| match part {
                 PromptPart::Image(path) | PromptPart::Audio(path) => Some(path.as_path()),
@@ -78,15 +77,30 @@ impl Prompt {
     }
 
     pub(crate) fn extract_media_assets(&self) -> Vec<&PromptPart> {
-        self.parts
+        let Prompt::Parts(parts) = self else {
+            return vec![];
+        };
+        parts
             .iter()
             .filter(|part| !matches!(part, PromptPart::Text(_)))
             .collect()
     }
+
+    fn merge_adjecent_texts(parts: impl IntoIterator<Item = PromptPart>) -> Vec<PromptPart> {
+        parts.into_iter().fold(vec![], |mut acc, part| {
+            match (&mut acc.last_mut(), &part) {
+                (Some(PromptPart::Text(last)), PromptPart::Text(next)) => {
+                    last.push_str(next);
+                }
+                _ => acc.push(part),
+            }
+            acc
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum PromptPart {
+pub enum PromptPart {
     Text(String),
     Image(PathBuf),
     Audio(PathBuf),
@@ -98,9 +112,7 @@ pub trait Promptable {
 
 impl Promptable for String {
     fn to_prompt(&self) -> Prompt {
-        Prompt {
-            parts: vec![PromptPart::Text(self.clone())],
-        }
+        Prompt::parts([PromptPart::Text(self.clone())])
     }
 }
 
@@ -112,25 +124,19 @@ impl Promptable for Prompt {
 
 impl Promptable for &str {
     fn to_prompt(&self) -> Prompt {
-        Prompt {
-            parts: vec![PromptPart::Text(self.to_string())],
-        }
+        Prompt::parts([PromptPart::Text(self.to_string())])
     }
 }
 
 impl From<String> for Prompt {
     fn from(s: String) -> Self {
-        Prompt {
-            parts: vec![PromptPart::Text(s)],
-        }
+        Prompt::parts([PromptPart::Text(s)])
     }
 }
 
 impl From<&str> for Prompt {
     fn from(s: &str) -> Self {
-        Prompt {
-            parts: vec![PromptPart::Text(s.to_string())],
-        }
+        Prompt::parts([PromptPart::Text(s.to_string())])
     }
 }
 

@@ -320,13 +320,6 @@ void main() {
     test('sampling.md:64', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
-        sampler: nobodywho.SamplerPresets.json(),
-      );
-    });
-
-    test('sampling.md:73', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: './model.gguf',
         sampler: nobodywho.SamplerPresets.constrainWithJsonSchema(schema: {
           'type': 'object',
           'properties': {
@@ -341,7 +334,7 @@ void main() {
       final person = jsonDecode(response); // always valid JSON matching the schema
     });
 
-    test('sampling.md:97', () async {
+    test('sampling.md:88', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           start: record (NEWLINE record)* NEWLINE?
           record: field ("," field)*
@@ -350,7 +343,7 @@ void main() {
       """);
     });
 
-    test('sampling.md:107', () async {
+    test('sampling.md:98', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           file   ::= record (newline record)* newline?
           record ::= field ("," field)*
@@ -359,7 +352,7 @@ void main() {
       """);
     });
 
-    test('sampling.md:131', () async {
+    test('sampling.md:122', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         sampler: nobodywho.SamplerBuilder()
@@ -369,7 +362,7 @@ void main() {
       );
     });
 
-    test('sampling.md:153', () async {
+    test('sampling.md:144', () async {
       final sampler = nobodywho.SamplerBuilder()
           .temperature(temperature: 0.8)
           .topK(topK: 5)
@@ -377,7 +370,7 @@ void main() {
           .dist();
     });
 
-    test('sampling.md:188', () async {
+    test('sampling.md:179', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       
       final sampler = nobodywho.SamplerBuilder()

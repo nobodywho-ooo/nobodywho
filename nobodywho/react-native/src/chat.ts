@@ -86,7 +86,10 @@ export class Chat {
     if (typeof message === "string") {
       return new TokenStream(this._inner.ask(message));
     }
-    return new TokenStream(this._inner.askWithPrompt(message._parts));
+    if (message._jsonString !== null) {
+      return new TokenStream(this._inner.askWithJsonPrompt(message._jsonString!));
+    }
+    return new TokenStream(this._inner.askWithPrompt(message._parts!));
   }
 
   /** Stop the current generation. */

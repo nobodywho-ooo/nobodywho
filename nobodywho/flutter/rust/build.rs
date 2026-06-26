@@ -21,7 +21,7 @@ fn main() {
         rust_input: Some("crate".to_string()),
         rust_root: Some(".".to_string()),
         rust_preamble: Some(
-            "use flutter_rust_bridge::Rust2DartSendError;\nuse nobodywho::errors::*;\nuse nobodywho::chat::Message;\nuse serde_json::Value;".to_string(),
+            "use flutter_rust_bridge::Rust2DartSendError;\nuse nobodywho::errors::*;\nuse serde_json::Value;".to_string(),
         ),
         dart_output: Some("../nobodywho/lib/src/rust".to_string()),
         dart_entrypoint_class_name: Some("NobodyWho".to_string()),

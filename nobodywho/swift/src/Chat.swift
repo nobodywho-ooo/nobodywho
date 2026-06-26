@@ -68,8 +68,11 @@ public class Chat {
     }
 
     /// Send a multimodal prompt and get a token stream.
-    public func ask(_ prompt: Prompt) -> TokenStream {
-        return TokenStream(inner.askWithPrompt(parts: prompt.parts))
+    public func ask(_ prompt: Prompt) throws -> TokenStream {
+        if let json = prompt.jsonString {
+            return TokenStream(try inner.askWithJsonPrompt(json: json))
+        }
+        return TokenStream(inner.askWithPrompt(parts: prompt.parts!))
     }
 
     /// Stop the current generation.

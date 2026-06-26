@@ -2065,6 +2065,7 @@ impl Audio {
 ///
 /// Example:
 ///     prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
+///     prompt = Prompt.from_json({"role": "user", "content": "Hello"})
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Prompt {
@@ -2076,25 +2077,29 @@ impl Prompt {
     #[new]
     #[pyo3(signature = (parts: "list[Text | Image | Audio]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
     pub fn new(parts: Vec<Py<PyAny>>, py: Python) -> PyResult<Self> {
-        let mut prompt = nobodywho::tokenizer::Prompt::new();
+        let mut core_parts = Vec::new();
 
         for part in parts {
             let part = part.bind(py);
 
             if let Ok(text_part) = part.extract::<Bound<Text>>() {
-                prompt.push_text(text_part.borrow().text.clone());
+                core_parts.push(nobodywho::tokenizer::PromptPart::Text(
+                    text_part.borrow().text.clone(),
+                ));
                 continue;
             }
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
-                let image_ref = image_part.borrow();
-                prompt.push_image(image_ref.path.as_ref());
+                core_parts.push(nobodywho::tokenizer::PromptPart::Image(
+                    image_part.borrow().path.clone().into(),
+                ));
                 continue;
             }
 
             if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
-                let audio_ref = audio_part.borrow();
-                prompt.push_audio(audio_ref.path.as_ref());
+                core_parts.push(nobodywho::tokenizer::PromptPart::Audio(
+                    audio_part.borrow().path.clone().into(),
+                ));
                 continue;
             }
 
@@ -2103,7 +2108,23 @@ impl Prompt {
             ));
         }
 
-        Ok(Self { prompt })
+        Ok(Self {
+            prompt: nobodywho::tokenizer::Prompt::new(core_parts),
+        })
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (data: "object") -> "Prompt")]
+    pub fn from_json(py: Python<'_>, data: Py<PyAny>) -> PyResult<Self> {
+        let json_module = py.import("json")?;
+        let json_str: String = json_module
+            .call_method1("dumps", (data.bind(py),))?
+            .extract()?;
+        let value: serde_json::Value = serde_json::from_str(&json_str)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(Self {
+            prompt: nobodywho::tokenizer::Prompt::from_json(value),
+        })
     }
 }
 

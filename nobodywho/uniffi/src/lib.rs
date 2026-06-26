@@ -97,7 +97,7 @@ pub enum Message {
 fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
     match m {
         nobodywho::chat::Message::User { content, assets } => Message::User {
-            content: content.clone(),
+            content: content.to_string(),
             assets: assets
                 .iter()
                 .map(|a| Asset {
@@ -133,7 +133,7 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
 fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, NobodyWhoError> {
     match m {
         Message::User { content, assets } => Ok(nobodywho::chat::Message::User {
-            content: content.clone(),
+            content: nobodywho::chat::MessageContent::Text(content.clone()),
             assets: assets
                 .iter()
                 .map(|a| nobodywho::chat::Asset {
@@ -326,17 +326,32 @@ impl RustChat {
     /// `parts` is an ordered list of `PromptPart` items.
     /// Image and audio parts should contain a local file-system path.
     pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Arc<RustTokenStream> {
-        let mut prompt = nobodywho::tokenizer::Prompt::new();
-        for part in parts {
-            match part {
-                PromptPart::Text { content } => prompt.push_text(content),
-                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
-                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
-            }
-        }
+        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
+            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
+            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
+            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
+        }));
         Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
         })
+    }
+
+    /// Send a JSON-encoded prompt and get a token stream.
+    ///
+    /// `json` must be a valid JSON string. The wrapper layer is responsible for
+    /// serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+    pub fn ask_with_json_prompt(
+        &self,
+        json: String,
+    ) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
+        let value: serde_json::Value =
+            serde_json::from_str(&json).map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+        let prompt = nobodywho::tokenizer::Prompt::from_json(value);
+        Ok(Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
+        }))
     }
 
     /// Stop the current generation.
@@ -423,14 +438,11 @@ impl RustChat {
         &self,
         parts: Vec<PromptPart>,
     ) -> Result<Vec<Option<i32>>, NobodyWhoError> {
-        let mut prompt = nobodywho::tokenizer::Prompt::new();
-        for part in parts {
-            match part {
-                PromptPart::Text { content } => prompt.push_text(content),
-                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
-                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
-            }
-        }
+        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
+            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
+            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
+            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
+        }));
         self.inner
             .tokenize(prompt)
             .await
