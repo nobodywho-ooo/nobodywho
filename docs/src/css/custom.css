@@ -296,6 +296,12 @@ article img {
 }
 
 /* ── Links ──────────────────────────────────────────────── */
+.markdown a:not(.button):not(.hash-link) {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: 1px;
+}
+
 [data-theme='dark'] a {
   color: var(--ifm-color-primary);
 }
@@ -346,6 +352,17 @@ article img {
 }
 
 /* ── Version dropdown ──────────────────────────────────── */
+.sidebar-version-select {
+  color: var(--ifm-font-color-base) !important;
+  background-color: var(--ifm-background-surface-color) !important;
+  border-color: var(--ifm-toc-border-color) !important;
+}
+
+.sidebar-version-select option {
+  color: var(--ifm-font-color-base);
+  background-color: var(--ifm-background-surface-color);
+}
+
 [data-theme='dark'] .sidebar-version-select {
   color: #fff !important;
   background-color: #111 !important;
