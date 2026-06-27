@@ -296,6 +296,12 @@ article img {
 }
 
 /* ── Links ──────────────────────────────────────────────── */
+.markdown a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: 1px;
+}
+
 [data-theme='dark'] a {
   color: var(--ifm-color-primary);
 }
