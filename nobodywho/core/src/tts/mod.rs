@@ -12,8 +12,6 @@
 //! ```
 //!
 //! ```no_run
-//! // American English using [`Tts::synthesize_async`]:
-//!
 //! # use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut cfg = KokoroConfig::new("NobodyWho/Kokoro-82M");
@@ -21,24 +19,35 @@
 //! cfg.language = "en-us".into();
 //! cfg.speed = 1.1;
 //! let tts = Tts::new(TtsConfig::Kokoro(cfg))?;
+//! let wav = tts.synthesize("Hello!")?;
+//! # let _ = wav;
+//! # Ok(())
+//! # }
 //! ```
 
 mod backend;
 mod kokoro;
 mod ort_util;
+mod supertonic;
 
 use crate::errors::TtsError;
 pub use kokoro::KokoroConfig;
 use std::sync::mpsc;
+pub use supertonic::SupertonicConfig;
 
 #[derive(Clone, Debug)]
 pub enum TtsConfig {
     Kokoro(KokoroConfig),
+    Supertonic(SupertonicConfig),
 }
 
 impl TtsConfig {
     pub fn kokoro(source: impl AsRef<str>) -> Self {
         Self::Kokoro(KokoroConfig::new(source))
+    }
+
+    pub fn supertonic(source: impl AsRef<str>) -> Self {
+        Self::Supertonic(SupertonicConfig::new(source))
     }
 }
 
