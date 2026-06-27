@@ -1189,6 +1189,30 @@ impl SamplerPresets {
     }
 }
 
+#[cfg(target_os = "android")]
+fn init_android_logging() {
+    use std::sync::Once;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        if let Ok(android_layer) = tracing_android::layer("nobodywho") {
+            tracing_subscriber::registry()
+                .with(android_layer)
+                .with(tracing_subscriber::filter::LevelFilter::DEBUG)
+                .try_init()
+                .ok();
+        }
+        // also init plain log -> android_logger for any direct log::info! callers
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(log::LevelFilter::Debug)
+                .with_tag("nobodywho_log"),
+        );
+        log::info!("NobodyWho Flutter logging initialized (tracing-android -> logcat)");
+    });
+}
+
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     // send llamacpp logs into tracing
@@ -1197,18 +1221,24 @@ pub fn init_app() {
     // send logs to the appropriate places for android, ios and wasm
     flutter_rust_bridge::setup_default_user_utils();
 
-    let log_level = if cfg!(debug_assertions) {
-        tracing::Level::DEBUG
-    } else {
-        tracing::Level::INFO
-    };
+    #[cfg(target_os = "android")]
+    init_android_logging();
 
-    tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-        .try_init()
-        .ok();
+    #[cfg(not(target_os = "android"))]
+    {
+        let log_level = if cfg!(debug_assertions) {
+            tracing::Level::DEBUG
+        } else {
+            tracing::Level::INFO
+        };
+
+        tracing_subscriber::fmt()
+            .with_max_level(log_level)
+            .with_timer(tracing_subscriber::fmt::time::uptime())
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .try_init()
+            .ok();
+    }
 }
 
 #[cfg(test)]
