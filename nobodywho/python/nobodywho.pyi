@@ -741,8 +741,52 @@ class Prompt:
 
     Example:
         prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
+        prompt = Prompt.from_json({"role": "user", "content": "Hello"})
     """
     def __new__(cls, /, parts: "list[Text | Image | Audio]" = ...) -> "Prompt": ...
+    @staticmethod
+    def from_json(data: "object") -> "Prompt": ...
+
+@final
+class STT:
+    """
+    `STT` transcribes speech to text using a Whisper ONNX model.
+
+    `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
+    a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
+    omit or pass `None` to auto-detect.
+
+    Example::
+
+        stt = nobodywho.STT("onnx-community/whisper-base")
+        text = stt.transcribe_file("recording.mp3").completed()
+
+        # Or stream tokens:
+        for piece in stt.transcribe_file("recording.mp3"):
+            print(piece, end="", flush=True)
+    """
+    def __new__(cls, /, source: str, language: str | None = None) -> STT: ...
+    def transcribe_file(self, /, path: str) -> TokenStream:
+        """
+        Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
+        """
+    def transcribe_pcm(
+        self, /, samples: Sequence[int], sample_rate: int
+    ) -> TokenStream:
+        """
+        Transcribe raw i16 PCM samples from a microphone. Returns a `TokenStream`.
+        """
+
+@final
+class STTAsync:
+    """
+    `STTAsync` is the async variant of `STT`.
+    """
+    def __new__(cls, /, source: str, language: str | None = None) -> STTAsync: ...
+    def transcribe_file(self, /, path: str) -> TokenStreamAsync: ...
+    def transcribe_pcm(
+        self, /, samples: Sequence[int], sample_rate: int
+    ) -> TokenStreamAsync: ...
 
 @final
 class SamplerBuilder:
@@ -1043,59 +1087,25 @@ class Text:
 @final
 class TokenStream:
     """
-    `TokenStream` represents an in-progress text completion. It is the return value of `Chat.ask`.
-    You can iterate over the tokens in a `TokenStream` using the normal python iterator protocol,
-    or by explicitly calling the `.next_token()` method.
-    If you want to wait for the entire response to be generated, you can call `.completed()`.
-    Also see `TokenStreamAsync`, for an async version of this class.
+    `TokenStream` is returned by `Chat.ask`, `STT.transcribe_file`, and `STT.transcribe_pcm`.
+    Iterate over it token-by-token or call `.completed()` for the full text at once.
+    Also see `TokenStreamAsync` for the async variant.
     """
     def __iter__(self, /) -> TokenStream: ...
     def __next__(self, /) -> str: ...
-    def completed(self, /) -> str:
-        """
-        Wait for the entire response to be generated and return it as a single string.
-        This blocks until generation is complete.
-
-        Returns:
-            The complete generated text.
-
-        Raises:
-            RuntimeError: If generation fails.
-        """
-    def next_token(self, /) -> str | None:
-        """
-        Get the next token from the stream. Blocks until a token is available.
-
-        Returns:
-            The next token as a string, or None if the stream has ended.
-        """
+    def completed(self, /) -> str: ...
+    def next_token(self, /) -> str | None: ...
 
 @final
 class TokenStreamAsync:
     """
-    `TokenStreamAsync` is the async variant of the `TokenStream` class.
-    It has the same methods as `TokenStream`, but all methods must be awaited.
-    This class also supports async iteration using `async for token in stream:` syntax.
+    `TokenStreamAsync` is the async variant of `TokenStream`.
+    Supports `await stream.next_token()`, `await stream.completed()`, and `async for token in stream`.
     """
     def __aiter__(self, /) -> TokenStreamAsync: ...
     def __anext__(self, /) -> typing.Awaitable[str]: ...
-    async def completed(self, /) -> str:
-        """
-        Wait for the entire response to be generated and return it as a single string.
-
-        Returns:
-            The complete generated text.
-
-        Raises:
-            RuntimeError: If generation fails.
-        """
-    async def next_token(self, /) -> str | None:
-        """
-        Get the next token from the stream asynchronously.
-
-        Returns:
-            The next token as a string, or None if the stream has ended.
-        """
+    async def completed(self, /) -> str: ...
+    async def next_token(self, /) -> str | None: ...
 
 @final
 class Tool(typing.Generic[T]):
