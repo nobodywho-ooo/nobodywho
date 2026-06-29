@@ -98,12 +98,6 @@ let
           '';
         };
 
-        ort-sys = attrs: {
-          env.ORT_LIB_PATH = "${pkgs.onnxruntime}/lib";
-          env.ORT_PREFER_DYNAMIC_LINK = "1";
-          buildInputs = [ pkgs.onnxruntime ];
-        };
-
         espeak-rs-sys = attrs: {
           nativeBuildInputs = [
             cmake
