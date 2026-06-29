@@ -100,25 +100,19 @@ void main() {
       ]);
     });
 
-    test('chat.md:79', () async {
-      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-      final prompt = nobodywho.Prompt.fromJson({"role": "user", "content": "Hello"});
-      final response = await chat.askWithPrompt(prompt).completed();
-    });
-
-    test('chat.md:89', () async {
+    test('chat.md:90', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       final tokenIds = await chat.tokenize("Count these tokens");
     });
 
-    test('chat.md:101', () async {
+    test('chat.md:102', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:117', () async {
+    test('chat.md:118', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
@@ -128,15 +122,15 @@ void main() {
       print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
     });
 
-    test('chat.md:163', () async {
+    test('chat.md:164', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:167', () async {
+    test('chat.md:168', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:182', () async {
+    test('chat.md:183', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -155,7 +149,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:234', () async {
+    test('chat.md:235', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
@@ -282,11 +276,11 @@ void main() {
     });
 
     test('embeddings-and-rag.md:166', () async {
-      await _doctest_19();
+      await _doctest_18();
     });
 
     test('embeddings-and-rag.md:216', () async {
-      await _doctest_20();
+      await _doctest_19();
     });
 
     test('embeddings-and-rag.md:263', () async {
@@ -489,7 +483,7 @@ void main() {
 }
 
 // Extracted from embeddings-and-rag.md:166
-Future<void> _doctest_19() async {
+Future<void> _doctest_18() async {
   // Initialize the cross-encoder for document ranking
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
@@ -530,7 +524,7 @@ Future<void> _doctest_19() async {
 }
 
 // Extracted from embeddings-and-rag.md:216
-Future<void> _doctest_20() async {
+Future<void> _doctest_19() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');

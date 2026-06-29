@@ -80,6 +80,7 @@ If a model's chat template expects structured JSON content, create a `Prompt` fr
 final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
 final prompt = nobodywho.Prompt.fromJson({"role": "user", "content": "Hello"});
 final response = await chat.askWithPrompt(prompt).completed();
+// ...
 ```
 
 ## Tokenization
