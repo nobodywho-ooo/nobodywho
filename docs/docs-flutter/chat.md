@@ -77,10 +77,10 @@ await chat.setChatHistory([
 If a model's chat template expects structured JSON content, create a `Prompt` from JSON and pass it to `askWithPrompt()`:
 
 ```dart
+// doctest: skip - requires a model whose chat template accepts structured JSON content
 final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
 final prompt = nobodywho.Prompt.fromJson({"role": "user", "content": "Hello"});
 final response = await chat.askWithPrompt(prompt).completed();
-// ...
 ```
 
 ## Tokenization
