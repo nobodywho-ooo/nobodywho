@@ -57,7 +57,7 @@ function VersionSelector() {
           borderRadius: '6px',
           border: '1px solid var(--ifm-toc-border-color)',
           backgroundColor: 'var(--ifm-background-surface-color)',
-          color: '#fff',
+          color: 'var(--ifm-font-color-base)',
           cursor: 'pointer',
           appearance: 'auto',
         }}
