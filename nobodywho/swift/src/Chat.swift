@@ -68,8 +68,11 @@ public class Chat {
     }
 
     /// Send a multimodal prompt and get a token stream.
-    public func ask(_ prompt: Prompt) -> TokenStream {
-        return TokenStream(inner.askWithPrompt(parts: prompt.parts))
+    public func ask(_ prompt: Prompt) throws -> TokenStream {
+        if let json = prompt.jsonString {
+            return TokenStream(try inner.askWithJsonPrompt(json: json))
+        }
+        return TokenStream(inner.askWithPrompt(parts: prompt.parts!))
     }
 
     /// Stop the current generation.
@@ -133,5 +136,15 @@ public class Chat {
     /// Get the current sampler configuration as a JSON string.
     public func getSamplerConfigJson() async throws -> String {
         return try await inner.getSamplerConfigJson()
+    }
+
+    /// Get context usage statistics.
+    public func getStats() async throws -> ChatStats {
+        return try await inner.getStats()
+    }
+
+    /// Tokenize a message using the model's tokenizer.
+    public func tokenize(message: String) async throws -> [Int32?] {
+        return try await inner.tokenize(message: message)
     }
 }

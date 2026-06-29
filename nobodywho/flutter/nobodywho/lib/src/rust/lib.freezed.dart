@@ -292,12 +292,12 @@ as List<Asset>,
 
 
 class Message_Assistant extends Message {
-  const Message_Assistant({required this.content, final  List<ToolCall>? toolCalls = null}): _toolCalls = toolCalls,super._();
+  const Message_Assistant({required this.content, final  List<ToolCall>? toolCalls}): _toolCalls = toolCalls,super._();
   
 
 @override final  String content;
  final  List<ToolCall>? _toolCalls;
-@JsonKey() List<ToolCall>? get toolCalls {
+ List<ToolCall>? get toolCalls {
   final value = _toolCalls;
   if (value == null) return null;
   if (_toolCalls is EqualUnmodifiableListView) return _toolCalls;

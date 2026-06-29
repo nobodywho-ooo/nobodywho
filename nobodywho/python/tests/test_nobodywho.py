@@ -296,6 +296,20 @@ def test_load_crossencoder_from_path():
     assert isinstance(new_encoder_async, nobodywho.CrossEncoderAsync)
 
 
+def test_stats(model):
+    n_ctx = 1024
+    chat = nobodywho.Chat(
+        model,
+        n_ctx=n_ctx,
+        template_variables={"enable_thinking": False},
+    )
+    chat.ask("What is the capital of Denmark?").completed()
+    stats = chat.stats()
+    assert stats.context_size == n_ctx
+    assert stats.context_used > 0
+    assert stats.context_used <= n_ctx
+
+
 def test_set_and_get_chat_history(chat):
     chat_history = [
         {"role": "user", "content": "What's 2 + 2?"},
@@ -396,12 +410,14 @@ def test_constrain_with_json_schema(model):
 
     chat = nobodywho.Chat(
         model,
-        sampler=nobodywho.SamplerPresets.constrain_with_json_schema({
-            "type": "object",
-            "properties": {"answer": {"type": "string"}},
-            "required": ["answer"],
-            "additionalProperties": False,
-        }),
+        sampler=nobodywho.SamplerPresets.constrain_with_json_schema(
+            {
+                "type": "object",
+                "properties": {"answer": {"type": "string"}},
+                "required": ["answer"],
+                "additionalProperties": False,
+            }
+        ),
         template_variables={"enable_thinking": False},
     )
     # Without a constraint the model would produce a multi-sentence prose explanation.
@@ -454,3 +470,7 @@ def test_constrain_with_grammar_gbnf(model):
     )
     response = chat.ask("Explain in detail why the sky appears blue.").completed()
     assert response in ("yes", "no"), f"Expected 'yes' or 'no', got: {response!r}"
+
+
+def test_tokenize(chat):
+    assert chat.tokenize("Hey!") == [18665, 0]

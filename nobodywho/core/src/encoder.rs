@@ -111,7 +111,7 @@ impl<'a> Worker<'a, EncoderWorker> {
     }
 
     pub fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
-        Ok(self.ctx.embeddings_seq_ith(0)?.to_vec())
+        Ok(self.engine.ctx.embeddings_seq_ith(0)?.to_vec())
     }
 }
 

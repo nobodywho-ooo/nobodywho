@@ -45,14 +45,21 @@ type Part = TextPart | ImagePart | AudioPart;
  * ]);
  *
  * const stream = chat.ask(prompt);
+ *
+ * // JSON-structured prompt
+ * const jsonPrompt = Prompt.fromJson({ role: "user", content: "Hello" });
+ * const stream = chat.ask(jsonPrompt);
  * ```
  */
 export class Prompt {
   /** @internal */
-  readonly _parts: PromptPart[];
+  readonly _parts: PromptPart[] | null;
+  /** @internal */
+  readonly _jsonString: string | null;
 
   constructor(parts: Part[]) {
     this._parts = parts.map((p) => p._inner);
+    this._jsonString = null;
   }
 
   /** Create a text part. */
@@ -68,5 +75,12 @@ export class Prompt {
   /** Create an audio part from a file path. */
   static Audio(path: string): AudioPart {
     return new AudioPart(path);
+  }
+
+  /** Create a prompt from any JSON-serializable value (object, array, string, etc.). */
+  static fromJson(data: unknown): Prompt {
+    const p: Prompt = Object.create(Prompt.prototype);
+    Object.assign(p, { _parts: null, _jsonString: JSON.stringify(data) });
+    return p;
   }
 }

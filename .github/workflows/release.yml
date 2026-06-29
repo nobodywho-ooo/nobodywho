@@ -10,15 +10,23 @@ on:
         required: true
       SWIFT_MIRROR_TOKEN:
         required: true
+      MAVEN_CENTRAL_USERNAME:
+        required: false
+      MAVEN_CENTRAL_PASSWORD:
+        required: false
+      MAVEN_SIGNING_KEY:
+        required: false
+      MAVEN_SIGNING_PASSWORD:
+        required: false
 
 jobs:
   godot-distributable:
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
   
         - name: "Download all build artifacts"
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v5
           with:
             path: ./artifacts
   
@@ -31,7 +39,7 @@ jobs:
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
         - name: "Upload zipped godot build artifacts"
-          uses: actions/upload-artifact@v4
+          uses: actions/upload-artifact@v5
           with:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
@@ -39,10 +47,10 @@ jobs:
   create-github-release-godot:
     needs: [godot-distributable]
     if: startsWith(github.ref, 'refs/tags/nobodywho-godot-')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - name: "Download build artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-godot-all-platforms
           path: ./nobodywho-release-godot
@@ -52,18 +60,18 @@ jobs:
         run: zip -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test-publish-wheels:
-      runs-on: ubuntu-latest
+      runs-on: warp-ubuntu-latest-x64-2x
       if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
       steps:
         - name: Download all wheels
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v5
           with:
             pattern: nobodywho_python_*
             merge-multiple: true
@@ -98,11 +106,11 @@ jobs:
       [
         test-publish-wheels
       ]
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-2x
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho_python_*
           merge-multiple: true
@@ -128,10 +136,10 @@ jobs:
   create-github-release-python:
     needs: [publish-wheels]
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - name: "Download all Python wheels"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho_python_*
           merge-multiple: true
@@ -141,7 +149,7 @@ jobs:
         run: ls -la ./nobodywho-python-release/
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-python-release/*
         env:
@@ -149,14 +157,14 @@ jobs:
 
   create-github-release-flutter:
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write # Required to create github release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download all Flutter artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-flutter-*
           merge-multiple: true
@@ -176,7 +184,7 @@ jobs:
           fi
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-flutter-release/*
         env:
@@ -194,24 +202,24 @@ jobs:
   # Create GitHub Release with native binaries, then publish to npm.
   create-github-release-react-native:
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write
     steps:
       - name: "Download Android ARM64 artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-aarch64-linux-android-release
           path: ./nobodywho-react-native-release
 
       - name: "Download Android x86_64 artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-x86_64-linux-android-release
           path: ./nobodywho-react-native-release
 
       - name: "Download iOS XCFramework"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
@@ -223,7 +231,7 @@ jobs:
           ls -la
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./nobodywho-react-native-release/*
         env:
@@ -232,12 +240,12 @@ jobs:
   publish-react-native-npm:
     needs: [create-github-release-react-native]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Setup Node.js"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -257,20 +265,20 @@ jobs:
   # Create GitHub Release with xcframework, then push to nobodywho-swift mirror repo.
   create-github-release-swift:
     if: startsWith(github.ref, 'refs/tags/nobodywho-swift-')
-    runs-on: macos-15
+    runs-on: warp-macos-15-arm64-6x
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download Swift XCFramework"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-swift-xcframework
           path: ./release
 
       - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: ./release/NobodyWhoNative.xcframework.zip
         env:
@@ -308,3 +316,91 @@ jobs:
           git tag "${VERSION}"
           git push origin main --force
           git push origin "${VERSION}"
+
+  # Build AAR + JAR with native libs, create GitHub Release, publish to Maven Central.
+  create-github-release-kotlin:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-kotlin-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download all uniffi release artifacts"
+        uses: actions/download-artifact@v5
+        with:
+          pattern: nobodywho-uniffi-*-release
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: "List artifacts"
+        run: ls -la artifacts/
+
+      # Place Android native libs for AAR
+      - name: "Setup Android jniLibs"
+        run: |
+          mkdir -p nobodywho/kotlin/android/build/jniLibs/{arm64-v8a,x86_64}
+          cp artifacts/libnobodywho-uniffi-aarch64-linux-android-release.so \
+            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-x86_64-linux-android-release.so \
+            nobodywho/kotlin/android/build/jniLibs/x86_64/libnobodywho_uniffi.so
+
+      # Place desktop native libs for JVM JAR (JNA layout)
+      - name: "Setup JVM native libs"
+        run: |
+          mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64}
+          cp artifacts/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
+            nobodywho/kotlin/jvm/src/main/resources/linux-x86-64/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-aarch64-unknown-linux-gnu-release.so \
+            nobodywho/kotlin/jvm/src/main/resources/linux-aarch64/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-aarch64-apple-darwin-release.dylib \
+            nobodywho/kotlin/jvm/src/main/resources/darwin-aarch64/libnobodywho_uniffi.dylib
+          cp artifacts/libnobodywho-uniffi-x86_64-pc-windows-msvc-release.dll \
+            nobodywho/kotlin/jvm/src/main/resources/win32-x86-64/nobodywho_uniffi.dll
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      # Set version from tag
+      - name: "Set version"
+        run: |
+          VERSION=${GITHUB_REF_NAME#nobodywho-kotlin-v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: "Build AAR and JAR"
+        working-directory: ./nobodywho/kotlin
+        run: |
+          ./gradlew :android:assembleRelease :jvm:jar \
+            -Pversion=${{ env.VERSION }}
+
+      - name: "Collect release artifacts"
+        run: |
+          mkdir -p release
+          cp nobodywho/kotlin/android/build/outputs/aar/android-release.aar \
+            release/nobodywho-android-${{ env.VERSION }}.aar
+          cp nobodywho/kotlin/jvm/build/libs/jvm-${{ env.VERSION }}.jar \
+            release/nobodywho-${{ env.VERSION }}.jar
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Publish to Maven Central"
+        working-directory: ./nobodywho/kotlin
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+        run: ./gradlew publishAggregationToCentralPortal -Pversion=${{ env.VERSION }}

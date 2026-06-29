@@ -44,6 +44,17 @@ def test_download_model_chat():
 
 
 @pytest.mark.network
+def test_get_cached_models_includes_downloaded_model():
+    """After downloading a model, get_cached_models() lists it with a nonzero size."""
+    nobodywho.Model(HF_MODEL)  # ensure cached
+
+    cached = nobodywho.get_cached_models()
+    assert isinstance(cached, list)
+    assert all(isinstance(p, str) and isinstance(s, int) for p, s in cached)
+    assert any(p.endswith("Qwen_Qwen3-0.6B-Q4_K_M.gguf") and s > 0 for p, s in cached)
+
+
+@pytest.mark.network
 def test_cached_model_loads_offline():
     """After a model has been downloaded, it can be loaded without internet.
 
@@ -61,9 +72,7 @@ def test_cached_model_loads_offline():
         assert isinstance(model, nobodywho.Model)
     except RuntimeError as e:
         if "Failed to download" in str(e) or "network" in str(e).lower():
-            pytest.fail(
-                f"Model load made a network request despite being cached: {e}"
-            )
+            pytest.fail(f"Model load made a network request despite being cached: {e}")
         raise
 
 

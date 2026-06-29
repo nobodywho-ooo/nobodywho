@@ -1,0 +1,64 @@
+name: "kotlin_ci"
+
+on:
+  workflow_call:
+    inputs:
+      full_ci:
+        description: "Run full Kotlin CI (compilation and integration tests with model)."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: inputs.full_ci
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download uniffi Linux x86_64 artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-x86_64-unknown-linux-gnu-release
+          path: ./native-lib
+
+      - name: "Rename native lib for JNA"
+        run: |
+          cp ./native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
+            ./native-lib/libnobodywho_uniffi.so
+
+      - name: "Install Vulkan runtime"
+        # The .so links libvulkan; JNA needs it at test runtime.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - name: "Compile Kotlin modules"
+        working-directory: ./nobodywho/kotlin
+        run: ./gradlew :nobodywho-core:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
+
+      - name: "Download test model"
+        run: |
+          mkdir -p test-models
+          curl -L -o test-models/model.gguf \
+            "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+
+      - name: "Run tests"
+        working-directory: ./nobodywho/kotlin
+        env:
+          NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
+          TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
+        run: ./gradlew :nobodywho-core:test

@@ -28,6 +28,37 @@ final class NobodyWhoTests: XCTestCase {
         return value
     }
 
+    // MARK: - Download
+
+    func testDownloadModel() async throws {
+        let modelUrl = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+
+        // First download to discover the cache path, then delete to force a fresh download
+        let cachedPath = try await Model.downloadModel(modelPath: modelUrl)
+        try FileManager.default.removeItem(atPath: cachedPath)
+
+        var progressCalled = false
+        let localPath = try await Model.downloadModel(modelPath: modelUrl) { downloaded, total in
+            progressCalled = true
+            XCTAssertLessThanOrEqual(downloaded, total)
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: localPath))
+        let attrs = try FileManager.default.attributesOfItem(atPath: localPath)
+        XCTAssertGreaterThan(attrs[.size] as? UInt64 ?? 0, 0)
+        XCTAssertTrue(progressCalled, "Progress callback should have been called")
+    }
+
+    // MARK: - Cached models
+
+    func testGetCachedModels() throws {
+        // Just verify the FFI bridge works — the cache may be empty on CI.
+        let models = try getCachedModels()
+        for m in models {
+            XCTAssertFalse(m.path.isEmpty)
+            XCTAssertGreaterThan(m.size, 0)
+        }
+    }
+
     // MARK: - Chat (completion, streaming, tools)
 
     func testChat() async throws {
@@ -66,6 +97,28 @@ final class NobodyWhoTests: XCTestCase {
         try await chat.resetContext(systemPrompt: "Use the ping tool now.", tools: [pingTool])
         let _ = try await chat.ask("Ping the server").completed()
         XCTAssertTrue(called)
+    }
+
+    // MARK: - Tokenize
+
+    func testTokenize() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let chat = try Chat(model: model, templateVariables: ["enable_thinking": false])
+        let tokens = try await chat.tokenize(message: "Hey!")
+        XCTAssertEqual(tokens, [18665, 0])
+    }
+
+    // MARK: - Stats
+
+    func testStats() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let chat = try Chat(model: model, templateVariables: ["enable_thinking": false])
+        try await chat.ask("What is the capital of Denmark?").completed()
+        let stats = try await chat.getStats()
+        XCTAssertGreaterThan(stats.contextUsed, 0)
+        XCTAssertLessThanOrEqual(stats.contextUsed, stats.contextSize)
     }
 
     // MARK: - Vision

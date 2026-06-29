@@ -1,9 +1,10 @@
 [package]
 name = "nobodywho"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2021"
 
 [dependencies]
+misaki-rs = { git = "https://github.com/MicheleYin/misaki-rs", branch = "main", default-features = false }
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 miette = { version = "5", features = ["fancy"] }
@@ -13,11 +14,12 @@ monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
 bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
-llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "v0.1.150-watchos", default-features = false, features = [
     "openmp",
-    "android-static-stdcxx",
     "mtmd",
     "llguidance",
+    "common",
 ] }
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = [
@@ -40,6 +42,7 @@ ahash = "0.8.12"
 indexmap = "2.13.0"
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
+walkdir = "2.5"
 hound = "3"
 safetensors = "0.5"
 # STT audio pipeline
@@ -51,25 +54,44 @@ tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
-ort = { version = "2.0.0-rc.12", default-features = true, features = ["ndarray", "api-20"] }
+# Statically link the C++ stdlib (libc++) on Android so the produced shared
+# library is self-contained. This is Android-only on purpose: on Linux, the
+# `static-stdcxx` feature makes llama-cpp-rs's build.rs add the compiler's
+# static-archive dir (`emit_compiler_static_archive_search_path`) to the link
+# search path, which then resolves `-lgomp` to the non-PIC `libgomp.a` and
+# breaks linking the cdylib ("relocation R_X86_64_TPOFF32 against hidden symbol
+# `gomp_tls_data`"). Desktop keeps the dynamic libstdc++ it has always used.
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "v0.1.150-watchos", default-features = false, features = [
+    "android-static-stdcxx",
+] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
-ort = { version = "2.0.0-rc.12", default-features = true, features = ["cuda"] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
+
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["cuda"] }
 
 [dependencies.espeak-ng]
 version = "0.1.2"
 default-features = false
-features = ["bundled-data-en"]
+features = [
+    "bundled-data-en",
+    "bundled-data-es",
+    "bundled-data-fr",
+    "bundled-data-it",
+    "bundled-data-pt",
+]
 
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
 # (except watchOS which has no Metal support — handled in llama-cpp-rs build.rs).
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "visionos"), not(target_os = "watchos"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/marek-hradil/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "v0.1.150-watchos", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",
-    "android-static-stdcxx",
     "llguidance",
+    "common",
 ] }

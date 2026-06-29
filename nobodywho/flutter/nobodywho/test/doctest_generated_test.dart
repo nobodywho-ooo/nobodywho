@@ -77,16 +77,16 @@ void main() {
       }
     });
 
-    test('chat.md:17', () async {
+    test('chat.md:16', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
     });
 
-    test('chat.md:23', () async {
+    test('chat.md:22', () async {
       final model = await nobodywho.Model.load(modelPath: "./model.gguf");
       final chat = nobodywho.Chat(model : model);
     });
 
-    test('chat.md:34', () async {
+    test('chat.md:33', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       final response = chat.ask("Is water wet?");
       await for (final token in response) {
@@ -100,30 +100,32 @@ void main() {
       ]);
     });
 
-    test('chat.md:83', () async {
+    test('chat.md:82', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:99', () async {
+    test('chat.md:98', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
       );
       await chat.resetContext(systemPrompt: "New system prompt", tools: []);
+      final stats = await chat.getStats();
+      print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
     });
 
-    test('chat.md:138', () async {
+    test('chat.md:144', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:142', () async {
+    test('chat.md:148', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:157', () async {
+    test('chat.md:163', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -142,7 +144,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:208', () async {
+    test('chat.md:215', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
@@ -150,13 +152,44 @@ void main() {
       );
     });
 
-    test('embeddings-and-rag.md:22', () async {
+    test('downloading-models.md:25', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        onDownloadProgress: (downloaded, total) {
+          print('$downloaded / $total bytes');
+        },
+      );
+    });
+
+    test('downloading-models.md:40', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+      );
+    });
+
+    test('downloading-models.md:48', () async {
+      final modelPath = await nobodywho.downloadModel(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        headers: {'Authorization': 'Bearer your_hf_token'},
+      );
+      
+      final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
+    });
+
+    test('downloading-models.md:65', () async {
+      final models = nobodywho.getCachedModels();
+      for (final (path, size) in models) {
+        print('$path: ${size ~/ BigInt.from(1024 * 1024)} MiB');
+      }
+    });
+
+    test('embeddings-and-rag.md:21', () async {
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       final embedding = await encoder.encode(text: "What is the weather like?");
       print("Vector with ${embedding.length} dimensions");
     });
 
-    test('embeddings-and-rag.md:36', () async {
+    test('embeddings-and-rag.md:35', () async {
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       final query = await encoder.encode(text: "How do I reset my password?");
@@ -176,7 +209,7 @@ void main() {
       print("Document 2 similarity: ${similarity2.toStringAsFixed(3)}");  // Lower score
     });
 
-    test('embeddings-and-rag.md:63', () async {
+    test('embeddings-and-rag.md:62', () async {
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       // Your knowledge base
@@ -215,7 +248,7 @@ void main() {
       print("Similarity score: ${maxSimilarity.toStringAsFixed(3)}");
     });
 
-    test('embeddings-and-rag.md:128', () async {
+    test('embeddings-and-rag.md:127', () async {
       // Download a reranking model like bge-reranker-v2-m3-Q8_0.gguf
       final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
       
@@ -237,30 +270,30 @@ void main() {
       }
     });
 
-    test('embeddings-and-rag.md:167', () async {
-      await _doctest_13();
+    test('embeddings-and-rag.md:166', () async {
+      await _doctest_17();
     });
 
-    test('embeddings-and-rag.md:217', () async {
-      await _doctest_14();
+    test('embeddings-and-rag.md:216', () async {
+      await _doctest_18();
     });
 
-    test('embeddings-and-rag.md:264', () async {
+    test('embeddings-and-rag.md:263', () async {
       // For longer documents, increase context size
       final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
       
       final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
     });
 
-    test('index.md:16', () async {
+    test('index.md:15', () async {
       
     });
 
-    test('index.md:23', () async {
+    test('index.md:22', () async {
       
     });
 
-    test('index.md:38', () async {
+    test('index.md:37', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
       );
@@ -268,38 +301,14 @@ void main() {
       print(msg); // Yes, indeed, water is wet!
     });
 
-    test('index.md:55', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: './model.gguf',
-      );
-    });
-
-    test('index.md:62', () async {
-      final modelPath = await nobodywho.downloadModel(
-        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-        headers: {'Authorization': 'Bearer your_hf_token'},
-      );
-      
-      final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
-    });
-
-    test('index.md:79', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-        onDownloadProgress: (downloaded, total) {
-          print('$downloaded / $total bytes');
-        },
-      );
-    });
-
-    test('sampling.md:15', () async {
+    test('sampling.md:14', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         sampler: nobodywho.SamplerPresets.temperature(temperature: 0.2)
       );
     });
 
-    test('sampling.md:52', () async {
+    test('sampling.md:51', () async {
       // Force the model to answer with exactly "yes" or "no"
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
@@ -308,14 +317,7 @@ void main() {
       final answer = await chat.ask("Is the sky blue?").completed();
     });
 
-    test('sampling.md:65', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: './model.gguf',
-        sampler: nobodywho.SamplerPresets.json(),
-      );
-    });
-
-    test('sampling.md:74', () async {
+    test('sampling.md:64', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
         sampler: nobodywho.SamplerPresets.constrainWithJsonSchema(schema: {
@@ -332,7 +334,7 @@ void main() {
       final person = jsonDecode(response); // always valid JSON matching the schema
     });
 
-    test('sampling.md:98', () async {
+    test('sampling.md:88', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           start: record (NEWLINE record)* NEWLINE?
           record: field ("," field)*
@@ -341,7 +343,7 @@ void main() {
       """);
     });
 
-    test('sampling.md:108', () async {
+    test('sampling.md:98', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           file   ::= record (newline record)* newline?
           record ::= field ("," field)*
@@ -350,7 +352,7 @@ void main() {
       """);
     });
 
-    test('sampling.md:131', () async {
+    test('sampling.md:122', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         sampler: nobodywho.SamplerBuilder()
@@ -358,6 +360,19 @@ void main() {
             .topK(topK: 5)
             .dist()
       );
+    });
+
+    test('sampling.md:144', () async {
+      final sampler = nobodywho.SamplerBuilder()
+          .temperature(temperature: 0.8)
+          .topK(topK: 5)
+          .seed(seed: 42)
+          .dist();
+    });
+
+    test('sampling.md:179', () async {
+      final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
+      
       final sampler = nobodywho.SamplerBuilder()
           .temperature(temperature: 0.8)
           .topK(topK: 5)
@@ -374,6 +389,10 @@ void main() {
           final area = math.pi * radius * radius;
           return "Circle with radius $radius has area ${area.toStringAsFixed(2)}";
         }
+      );
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: './model.gguf',
+        tools: [circleAreaTool]
       );
     });
 
@@ -426,7 +445,7 @@ void main() {
       );
     });
 
-    test('vision.md:26', () async {
+    test('vision.md:25', () async {
       if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
       final model = await nobodywho.Model.load(
         modelPath: "./multimodal-model.gguf",
@@ -458,8 +477,8 @@ void main() {
   });
 }
 
-// Extracted from embeddings-and-rag.md:167
-Future<void> _doctest_13() async {
+// Extracted from embeddings-and-rag.md:166
+Future<void> _doctest_17() async {
   // Initialize the cross-encoder for document ranking
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');
 
@@ -499,8 +518,8 @@ Future<void> _doctest_13() async {
   print(response);
 }
 
-// Extracted from embeddings-and-rag.md:217
-Future<void> _doctest_14() async {
+// Extracted from embeddings-and-rag.md:216
+Future<void> _doctest_18() async {
   final encoder = await nobodywho.Encoder.fromPath(modelPath: './embedding-model.gguf');
   
   final crossencoder = await nobodywho.CrossEncoder.fromPath(modelPath: './reranker-model.gguf');

@@ -13,11 +13,11 @@ permissions:
 
 jobs:
   static-checks:
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
 
@@ -28,28 +28,39 @@ jobs:
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
           uv venv && uv sync
 
+      - name: Format check
+        working-directory: ./nobodywho/python
+        run: uv run ruff format --check
+
+      - name: Lint check
+        working-directory: ./nobodywho/python
+        run: uv run ruff check
+
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
         run: cargo build && cargo run --bin make_stubs
 
-      - name: Lint check
+      - name: Format generated stubs
         working-directory: ./nobodywho/python
-        run: uvx ruff check
+        run: uv run ruff format nobodywho.pyi
 
-      - name: Check for uncommitted changes
+      - name: Check generated stubs
         working-directory: ./nobodywho/python
         run: |
-          if git diff --quiet; then
+          if git diff --quiet -- nobodywho.pyi; then
             echo "✅ Generated stubs are up to date"
           else
-            echo "❌ Generated stubs are outdated. Run the generator and commit results."
-            git --no-pager diff
+            echo "❌ Generated stubs are outdated. Run:"
+            echo "   cargo build"
+            echo "   cargo run --bin make_stubs"
+            echo "   uv run ruff format nobodywho.pyi"
+            git --no-pager diff -- nobodywho.pyi
             exit 1
           fi
 
       - name: Type check
         working-directory: ./nobodywho/python
-        run: uvx ty check
+        run: uv run ty check
 
   linux-build:
     if: inputs.full_ci
@@ -60,19 +71,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x]
         include:
-          - runner: ubuntu-24.04
+          - runner: warp-ubuntu-latest-x64-4x
             manylinux_target: manylinux_2_34_x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: warp-ubuntu-latest-arm64-4x
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust
         run: |
@@ -82,7 +93,11 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          vulkan_version: 1.4.304.0
+          # The new ggml-vulkan backend needs SPIRV-HeadersConfig.cmake, only
+          # bundled in the SDK from ~1.4.313+. Linux uses .0 (not the Windows
+          # job's .2): jakoch's ARM-Linux mirror (jakoch/vulkan-sdk-arm) only
+          # publishes 1.4.313.0, and 1.4.313.2 fails to download for arm64.
+          vulkan_version: 1.4.313.0
           cache: true
 
       - name: Install build dependencies
@@ -91,7 +106,7 @@ jobs:
           pip3 install maturin auditwheel
 
       - name: Setup Vulkan SDK (manual for ARM64)
-        if: matrix.runner == 'ubuntu-24.04-arm'
+        if: matrix.runner == 'warp-ubuntu-latest-arm64-4x'
         run: |
           SDK_VERSION="1.4.304.0"
           SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
@@ -140,7 +155,7 @@ jobs:
         run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_linux_${{ matrix.manylinux_target }}
           path: ./wheelhouse/nobodywho*.whl
@@ -155,8 +170,13 @@ jobs:
     runs-on: windows-latest
     env:
       RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
+      # libgit2 (cargo's default git backend) ignores core.longpaths, so the deep
+      # llama.cpp tools/ui/ submodule paths exceed Windows' 260-char MAX_PATH even
+      # though LongPathsEnabled + core.longpaths are set below. Fetch with the git
+      # CLI instead, which honors core.longpaths and uses \\?\ extended paths.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
@@ -167,7 +187,12 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          vulkan_version: 1.4.304.0
+          # 1.4.313.2 matches llama.cpp's own Windows Vulkan CI. The newer
+          # ggml-vulkan backend does find_package(SPIRV-Headers CONFIG REQUIRED);
+          # SPIRV-HeadersConfig.cmake is only bundled in the SDK from ~1.4.313+,
+          # so 1.4.304.0 fails to configure. (Discovery uses the VULKAN_SDK env
+          # var this action sets; stripdown doesn't touch the cmake config.)
+          vulkan_version: 1.4.313.2
           install_runtime: false
           cache: true
           stripdown: true
@@ -189,7 +214,7 @@ jobs:
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
       - name: "Upload wheel artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
           path: C:/target/wheels/nobodywho*.whl
@@ -200,7 +225,7 @@ jobs:
     strategy:
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: actions/setup-python@v6
         with:
@@ -211,7 +236,7 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_macos
           path: ./nobodywho/target/wheels/nobodywho*.whl
@@ -219,15 +244,15 @@ jobs:
   linux-pytest:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
       - name: Download wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -275,15 +300,15 @@ jobs:
   linux-multimodal-tests:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
       - name: Download wheel
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -310,17 +335,17 @@ jobs:
 
   linux-model-downloading-tests:
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
 
       - name: Download wheel artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -346,7 +371,7 @@ jobs:
   linux-tool-calling-tests:
     if: inputs.full_ci
     needs: [linux-build]
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
       matrix:
@@ -371,17 +396,21 @@ jobs:
             file: gemma-4-E2B-it-Q4_0.gguf
             url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf
             format: Gemma4
+          - name: LFM2.5-VL 1.6B
+            file: LFM2.5-VL-1.6B-Q8_0-vendor-sampling.gguf
+            url: https://huggingface.co/NobodyWho/LFM2.5-VL-1.6B-GGUF/resolve/main/LFM2.5-VL-1.6B-Q8_0-vendor-sampling.gguf
+            format: LFM2.5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
 
       - name: Download wheel artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
@@ -424,7 +453,7 @@ jobs:
       fail-fast: false
       matrix:
         model: [Qwen, Gemma]
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x]
         include:
           - model: Qwen
             model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
@@ -434,18 +463,18 @@ jobs:
             model_name: google_gemma-3-4b-it-Q4_1.gguf
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
-          - runner: ubuntu-24.04
+          - runner: warp-ubuntu-latest-x64-4x
             manylinux_target: manylinux_2_34_x86_64
-          - runner: ubuntu-24.04-arm
+          - runner: warp-ubuntu-latest-arm64-4x
             manylinux_target: manylinux_2_34_aarch64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: "Download wheel"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_linux_${{ matrix.manylinux_target }}
           path: ./wheels
@@ -484,12 +513,12 @@ jobs:
             target: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: "Download wheel"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
           path: ./wheels
@@ -501,9 +530,9 @@ jobs:
 
       - name: Download models
         run: |
-          mkdir -p D:/a/nobodywho/nobodywho/windows/nobodywho_python/models
+          mkdir -p ${{ github.workspace }}/windows/nobodywho_python/models
           pip install -U "huggingface_hub"
-          Invoke-WebRequest ${{ matrix.model_link }} -OutFile "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name}}"
+          Invoke-WebRequest ${{ matrix.model_link }} -OutFile "${{ github.workspace }}/windows/nobodywho_python/models/${{ matrix.model_name}}"
 
       # uncomment this to get an interactive shell on the github runner
       # - name: Debug with sshx
@@ -516,7 +545,7 @@ jobs:
       - name: Run small model in python
         run: |
           maturinvenv/Scripts/activate
-          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "D:/a/nobodywho/nobodywho/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "D:/a/nobodywho/nobodywho/windows/nobodywho_python/models/${{ matrix.model_name }}"
+          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "${{ github.workspace }}/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "${{ github.workspace }}/windows/nobodywho_python/models/${{ matrix.model_name }}"
 
   mac-os-pip-install-test:
     if: inputs.full_ci
@@ -532,13 +561,13 @@ jobs:
             model_iterations: 10
             model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: "Download wheel"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
 
       - name: Install wheel
         run: |

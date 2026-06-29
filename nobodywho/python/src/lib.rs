@@ -165,6 +165,12 @@ impl Model {
             ))),
         }
     }
+
+    /// The maximum context size this model was trained with.
+    #[getter]
+    pub fn max_ctx(&self) -> u32 {
+        self.model.max_ctx()
+    }
 }
 
 /// This type represents a `Model | str` from python
@@ -736,7 +742,9 @@ impl Chat {
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
-    ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///     sampler: SamplerConfig for token selection. If not given, sampling settings
+    ///         embedded in the model file (general.sampling.* metadata) are used when
+    ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
@@ -746,14 +754,14 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
-        sampler: SamplerConfig,
+        sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -776,13 +784,18 @@ impl Chat {
         }
 
         let build_result = py.detach(|| {
-            nobodywho::chat::ChatBuilder::new(nw_model)
+            let mut builder = nobodywho::chat::ChatBuilder::new(nw_model)
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt)
-                .with_sampler(sampler.sampler_config)
-                .build()
+                .with_system_prompt(system_prompt);
+            // When no sampler is given, leave it unset so the worker falls back
+            // to sampling settings embedded in the GGUF (general.sampling.*),
+            // and only then to the built-in default.
+            if let Some(s) = sampler {
+                builder = builder.with_sampler(s.sampler_config);
+            }
+            builder.build()
         });
         let chat_handle = build_result
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
@@ -1036,6 +1049,23 @@ impl Chat {
         })
     }
 
+    /// Get context usage statistics.
+    ///
+    /// Returns:
+    ///     ChatStats with context_size and context_used fields
+    #[pyo3(signature = () -> "ChatStats")]
+    pub fn stats(&self, py: Python) -> PyResult<ChatStats> {
+        py.detach(|| {
+            self.handle()
+                .get_stats()
+                .map(|s| ChatStats {
+                    context_size: s.context_size,
+                    context_used: s.context_used,
+                })
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
     /// Get the current system prompt.
     ///
     /// Returns:
@@ -1047,6 +1077,35 @@ impl Chat {
         py.detach(|| {
             self.handle()
                 .get_system_prompt()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
+    /// Tokenize a prompt and return token IDs.
+    ///
+    /// Text tokens are returned as integers. Media embedding slots (images, audio)
+    /// are returned as None — one None per context slot consumed.
+    ///
+    /// Note: tokenizing a prompt with images requires loading and processing those
+    /// images through the projection model, so it is not a free operation.
+    ///
+    /// Args:
+    ///     prompt: The text or multimodal Prompt to tokenize
+    ///
+    /// Returns:
+    ///     list[int | None] — token IDs for text, None for each media embedding slot
+    ///
+    /// Raises:
+    ///     RuntimeError: If tokenization fails
+    #[pyo3(signature = (prompt: "str | Prompt") -> "list[int | None]")]
+    pub fn tokenize(&self, prompt: PromptOrText, py: Python) -> PyResult<Vec<Option<i32>>> {
+        let nw_prompt = match prompt {
+            PromptOrText::Text(text) => nobodywho::tokenizer::Prompt::from(text),
+            PromptOrText::PromptObj(prompt_obj) => prompt_obj.borrow().prompt.clone(),
+        };
+        py.detach(|| {
+            self.handle()
+                .tokenize(nw_prompt)
                 .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
         })
     }
@@ -1085,7 +1144,9 @@ impl ChatAsync {
     ///     system_prompt: System message to guide the model's behavior. Defaults to empty string.
     ///     template_variables: Dict of template variables to pass to the chat template (e.g., {"enable_thinking": True}). Defaults to empty dict.
     ///     tools: List of Tool instances the model can call. Defaults to empty list.
-    ///     sampler: SamplerConfig for token selection. Defaults to SamplerConfig.default().
+    ///     sampler: SamplerConfig for token selection. If not given, sampling settings
+    ///         embedded in the model file (general.sampling.* metadata) are used when
+    ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
@@ -1095,14 +1156,14 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler = SamplerConfig::default(), allow_thinking: "bool | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
         system_prompt: Option<&str>,
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
-        sampler: SamplerConfig,
+        sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -1125,13 +1186,18 @@ impl ChatAsync {
         }
 
         let build_result = py.detach(|| {
-            nobodywho::chat::ChatBuilder::new(nw_model)
+            let mut builder = nobodywho::chat::ChatBuilder::new(nw_model)
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt)
-                .with_sampler(sampler.sampler_config)
-                .build_async()
+                .with_system_prompt(system_prompt);
+            // When no sampler is given, leave it unset so the worker falls back
+            // to sampling settings embedded in the GGUF (general.sampling.*),
+            // and only then to the built-in default.
+            if let Some(s) = sampler {
+                builder = builder.with_sampler(s.sampler_config);
+            }
+            builder.build_async()
         });
         let chat_handle = build_result
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
@@ -1375,6 +1441,22 @@ impl ChatAsync {
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    /// Get context usage statistics.
+    ///
+    /// Returns:
+    ///     ChatStats with context_size and context_used fields
+    #[pyo3(signature = () -> "ChatStats")]
+    pub async fn stats(&self) -> PyResult<ChatStats> {
+        self.handle()
+            .get_stats()
+            .await
+            .map(|s| ChatStats {
+                context_size: s.context_size,
+                context_used: s.context_used,
+            })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     /// Get the current system prompt.
     ///
     /// Returns:
@@ -1385,6 +1467,42 @@ impl ChatAsync {
     pub async fn get_system_prompt(&self) -> PyResult<Option<String>> {
         self.handle()
             .get_system_prompt()
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Tokenize a prompt and return token IDs.
+    ///
+    /// Text tokens are returned as integers. Media embedding slots (images, audio)
+    /// are returned as None — one None per context slot consumed.
+    ///
+    /// Note: tokenizing a prompt with images requires loading and processing those
+    /// images through the projection model, so it is not a free operation.
+    ///
+    /// Args:
+    ///     prompt: The text or multimodal Prompt to tokenize
+    ///
+    /// Returns:
+    ///     list[int | None] — token IDs for text, None for each media embedding slot
+    ///
+    /// Raises:
+    ///     RuntimeError: If tokenization fails
+    #[pyo3(signature = (prompt: "str | Prompt") -> "list[int | None]")]
+    pub async fn tokenize(&self, prompt: Py<PyAny>) -> PyResult<Vec<Option<i32>>> {
+        let nw_prompt = Python::attach(|py| -> PyResult<nobodywho::tokenizer::Prompt> {
+            let bound = prompt.bind(py);
+            if let Ok(text) = bound.extract::<String>() {
+                Ok(nobodywho::tokenizer::Prompt::from(text))
+            } else if let Ok(p) = bound.cast::<crate::Prompt>() {
+                Ok(p.borrow().prompt.clone())
+            } else {
+                Err(pyo3::exceptions::PyTypeError::new_err(
+                    "prompt must be str or Prompt",
+                ))
+            }
+        })?;
+        self.handle()
+            .tokenize(nw_prompt)
             .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
@@ -1455,7 +1573,7 @@ fn download_model(
 #[pyclass(from_py_object)]
 #[derive(Clone, Default)]
 pub struct SamplerConfig {
-    sampler_config: nobodywho::sampler_config::SamplerConfig,
+    sampler_config: nobodywho::sampler::SamplerConfig,
 }
 
 #[pymethods]
@@ -1484,9 +1602,8 @@ impl SamplerConfig {
     ///     ValueError: If the JSON is invalid or doesn't represent a valid sampler configuration
     #[staticmethod]
     pub fn from_json(json_str: &str) -> PyResult<Self> {
-        let sampler_config: nobodywho::sampler_config::SamplerConfig =
-            serde_json::from_str(json_str)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        let sampler_config: nobodywho::sampler::SamplerConfig = serde_json::from_str(json_str)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         Ok(Self { sampler_config })
     }
 
@@ -1507,7 +1624,7 @@ impl SamplerConfig {
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct SamplerBuilder {
-    sampler_config: nobodywho::sampler_config::SamplerConfig,
+    inner: nobodywho::sampler::SamplerBuilder,
 }
 
 impl Default for SamplerBuilder {
@@ -1522,7 +1639,7 @@ impl SamplerBuilder {
     #[new]
     pub fn new() -> Self {
         Self {
-            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+            inner: nobodywho::sampler::SamplerBuilder::new(),
         }
     }
 
@@ -1531,10 +1648,7 @@ impl SamplerBuilder {
     /// Args:
     ///     top_k: Number of top tokens to keep
     pub fn top_k(&self, top_k: i32) -> Self {
-        shift_step(
-            self.clone(),
-            nobodywho::sampler_config::ShiftStep::TopK { top_k },
-        )
+        shift_step(self.clone(), nobodywho::sampler::ShiftStep::TopK { top_k })
     }
 
     /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
@@ -1545,7 +1659,7 @@ impl SamplerBuilder {
     pub fn top_p(&self, top_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep },
+            nobodywho::sampler::ShiftStep::TopP { top_p, min_keep },
         )
     }
 
@@ -1557,7 +1671,7 @@ impl SamplerBuilder {
     pub fn min_p(&self, min_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep },
+            nobodywho::sampler::ShiftStep::MinP { min_p, min_keep },
         )
     }
 
@@ -1571,12 +1685,20 @@ impl SamplerBuilder {
     pub fn xtc(&self, xtc_probability: f32, xtc_threshold: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::XTC {
+            nobodywho::sampler::ShiftStep::XTC {
                 xtc_probability,
                 xtc_threshold,
                 min_keep,
             },
         )
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    pub fn seed(&self, seed: u32) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().seed(seed),
+        }
     }
 
     /// Typical sampling: keeps tokens close to expected information content.
@@ -1587,13 +1709,13 @@ impl SamplerBuilder {
     pub fn typical_p(&self, typ_p: f32, min_keep: u32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep },
+            nobodywho::sampler::ShiftStep::TypicalP { typ_p, min_keep },
         )
     }
 
     /// Apply a GBNF grammar constraint to enforce structured output.
     ///
-    /// Deprecated: Use `SamplerBuilder.constrain()` with a `Constraint` object instead.
+    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     ///
     /// Args:
     ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
@@ -1604,7 +1726,7 @@ impl SamplerBuilder {
     pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Grammar {
+            nobodywho::sampler::ShiftStep::Grammar {
                 grammar,
                 trigger_on,
                 root,
@@ -1630,7 +1752,7 @@ impl SamplerBuilder {
     ) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::DRY {
+            nobodywho::sampler::ShiftStep::DRY {
                 multiplier,
                 base,
                 allowed_length,
@@ -1656,7 +1778,7 @@ impl SamplerBuilder {
     ) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Penalties {
+            nobodywho::sampler::ShiftStep::Penalties {
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
@@ -1672,7 +1794,7 @@ impl SamplerBuilder {
     pub fn temperature(&self, temperature: f32) -> Self {
         shift_step(
             self.clone(),
-            nobodywho::sampler_config::ShiftStep::Temperature { temperature },
+            nobodywho::sampler::ShiftStep::Temperature { temperature },
         )
     }
 
@@ -1681,7 +1803,7 @@ impl SamplerBuilder {
     /// Returns:
     ///     A complete SamplerConfig ready to use
     pub fn dist(&self) -> SamplerConfig {
-        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Dist)
+        sample_step(self.clone(), nobodywho::sampler::SampleStep::Dist)
     }
 
     /// Always select the most probable token (deterministic).
@@ -1689,7 +1811,7 @@ impl SamplerBuilder {
     /// Returns:
     ///     A complete SamplerConfig ready to use
     pub fn greedy(&self) -> SamplerConfig {
-        sample_step(self.clone(), nobodywho::sampler_config::SampleStep::Greedy)
+        sample_step(self.clone(), nobodywho::sampler::SampleStep::Greedy)
     }
 
     /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
@@ -1706,7 +1828,7 @@ impl SamplerBuilder {
     pub fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m },
+            nobodywho::sampler::SampleStep::MirostatV1 { tau, eta, m },
         )
     }
 
@@ -1723,26 +1845,20 @@ impl SamplerBuilder {
     pub fn mirostat_v2(&self, tau: f32, eta: f32) -> SamplerConfig {
         sample_step(
             self.clone(),
-            nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta },
+            nobodywho::sampler::SampleStep::MirostatV2 { tau, eta },
         )
     }
 }
 
-fn shift_step(
-    builder: SamplerBuilder,
-    step: nobodywho::sampler_config::ShiftStep,
-) -> SamplerBuilder {
+fn shift_step(builder: SamplerBuilder, step: nobodywho::sampler::ShiftStep) -> SamplerBuilder {
     SamplerBuilder {
-        sampler_config: builder.sampler_config.shift(step),
+        inner: builder.inner.shift(step),
     }
 }
 
-fn sample_step(
-    builder: SamplerBuilder,
-    step: nobodywho::sampler_config::SampleStep,
-) -> SamplerConfig {
+fn sample_step(builder: SamplerBuilder, step: nobodywho::sampler::SampleStep) -> SamplerConfig {
     SamplerConfig {
-        sampler_config: builder.sampler_config.sample(step),
+        sampler_config: builder.inner.sample(step),
     }
 }
 
@@ -1759,7 +1875,7 @@ impl SamplerPresets {
     #[allow(clippy::should_implement_trait)]
     pub fn default() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerConfig::default(),
+            sampler_config: nobodywho::sampler::SamplerConfig::default(),
         }
     }
 
@@ -1770,7 +1886,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn top_k(top_k: i32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+            sampler_config: nobodywho::sampler::SamplerPresets::top_k(top_k),
         }
     }
 
@@ -1781,7 +1897,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn top_p(top_p: f32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+            sampler_config: nobodywho::sampler::SamplerPresets::top_p(top_p),
         }
     }
 
@@ -1789,7 +1905,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn greedy() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::greedy(),
+            sampler_config: nobodywho::sampler::SamplerPresets::greedy(),
         }
     }
 
@@ -1800,7 +1916,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+            sampler_config: nobodywho::sampler::SamplerPresets::temperature(temperature),
         }
     }
 
@@ -1808,7 +1924,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn dry() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::dry(),
+            sampler_config: nobodywho::sampler::SamplerPresets::dry(),
         }
     }
 
@@ -1828,7 +1944,7 @@ impl SamplerPresets {
                 .extract::<String>()?
         };
         Ok(SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_json_schema(
                 schema_str,
             ),
         })
@@ -1841,9 +1957,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(
-                pattern,
-            ),
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_regex(pattern),
         }
     }
 
@@ -1854,9 +1968,7 @@ impl SamplerPresets {
     #[staticmethod]
     pub fn constrain_with_grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(
-                grammar,
-            ),
+            sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_grammar(grammar),
         }
     }
 
@@ -1867,7 +1979,7 @@ impl SamplerPresets {
     #[allow(deprecated)]
     pub fn json() -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::json(),
+            sampler_config: nobodywho::sampler::SamplerPresets::json(),
         }
     }
 
@@ -1876,7 +1988,7 @@ impl SamplerPresets {
     #[allow(deprecated)]
     pub fn grammar(grammar: String) -> SamplerConfig {
         SamplerConfig {
-            sampler_config: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+            sampler_config: nobodywho::sampler::SamplerPresets::grammar(grammar),
         }
     }
 }
@@ -1908,6 +2020,25 @@ impl Tool {
         py: Python,
     ) -> PyResult<Py<PyAny>> {
         self.pyfunc.call(py, args, kwargs)
+    }
+}
+
+/// Context usage statistics returned by `Chat.stats()` and `ChatAsync.stats()`.
+#[pyclass(get_all)]
+pub struct ChatStats {
+    /// The maximum number of tokens the context window can hold.
+    pub context_size: u32,
+    /// The number of tokens currently used in the context (KV cache position).
+    pub context_used: u32,
+}
+
+#[pymethods]
+impl ChatStats {
+    fn __repr__(&self) -> String {
+        format!(
+            "ChatStats(context_size={}, context_used={})",
+            self.context_size, self.context_used
+        )
     }
 }
 
@@ -2014,6 +2145,7 @@ impl Audio {
 ///
 /// Example:
 ///     prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
+///     prompt = Prompt.from_json({"role": "user", "content": "Hello"})
 #[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Prompt {
@@ -2025,25 +2157,29 @@ impl Prompt {
     #[new]
     #[pyo3(signature = (parts: "list[Text | Image | Audio]" = Vec::<Py<PyAny>>::new()) -> "Prompt")]
     pub fn new(parts: Vec<Py<PyAny>>, py: Python) -> PyResult<Self> {
-        let mut prompt = nobodywho::tokenizer::Prompt::new();
+        let mut core_parts = Vec::new();
 
         for part in parts {
             let part = part.bind(py);
 
             if let Ok(text_part) = part.extract::<Bound<Text>>() {
-                prompt.push_text(text_part.borrow().text.clone());
+                core_parts.push(nobodywho::tokenizer::PromptPart::Text(
+                    text_part.borrow().text.clone(),
+                ));
                 continue;
             }
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
-                let image_ref = image_part.borrow();
-                prompt.push_image(image_ref.path.as_ref());
+                core_parts.push(nobodywho::tokenizer::PromptPart::Image(
+                    image_part.borrow().path.clone().into(),
+                ));
                 continue;
             }
 
             if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
-                let audio_ref = audio_part.borrow();
-                prompt.push_audio(audio_ref.path.as_ref());
+                core_parts.push(nobodywho::tokenizer::PromptPart::Audio(
+                    audio_part.borrow().path.clone().into(),
+                ));
                 continue;
             }
 
@@ -2052,7 +2188,23 @@ impl Prompt {
             ));
         }
 
-        Ok(Self { prompt })
+        Ok(Self {
+            prompt: nobodywho::tokenizer::Prompt::new(core_parts),
+        })
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (data: "object") -> "Prompt")]
+    pub fn from_json(py: Python<'_>, data: Py<PyAny>) -> PyResult<Self> {
+        let json_module = py.import("json")?;
+        let json_str: String = json_module
+            .call_method1("dumps", (data.bind(py),))?
+            .extract()?;
+        let value: serde_json::Value = serde_json::from_str(&json_str)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+        Ok(Self {
+            prompt: nobodywho::tokenizer::Prompt::from_json(value),
+        })
     }
 }
 
@@ -2539,6 +2691,22 @@ fn json_value_to_py<'py>(
     }
 }
 
+/// Returns every cached .gguf model paired with its byte size.
+///
+/// Returns:
+///     list[tuple[str, int]]: each entry is (absolute path, size in bytes).
+///
+/// Raises:
+///     RuntimeError: If the cache directory cannot be read
+#[pyfunction]
+fn get_cached_models() -> PyResult<Vec<(String, usize)>> {
+    nobodywho::llm::get_cached_models()
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?
+        .into_iter()
+        .map(|(path, size)| Ok((path.to_string_lossy().into_owned(), size)))
+        .collect()
+}
+
 #[pymodule(name = "nobodywho")]
 pub mod nobodywhopython {
     use pyo3::prelude::*;
@@ -2694,6 +2862,8 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::download_model;
     #[pymodule_export]
+    use super::get_cached_models;
+    #[pymodule_export]
     use super::python_tool;
     #[pymodule_export]
     use super::tool;
@@ -2707,6 +2877,8 @@ pub mod nobodywhopython {
     use super::Chat;
     #[pymodule_export]
     use super::ChatAsync;
+    #[pymodule_export]
+    use super::ChatStats;
     #[pymodule_export]
     use super::CrossEncoder;
     #[pymodule_export]

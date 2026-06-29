@@ -13,37 +13,29 @@ permissions:
   deployments: write
 jobs:
   deploy-pages:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          enable-cache: true
-          cache-dependency-glob: "docs/uv.lock"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: "docs/pyproject.toml"
+          node-version: 20
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
         working-directory: ./docs
-        run: uv sync
+        run: npm ci
 
       - name: Build documentation
         working-directory: ./docs
-        run: uv run mkdocs build
-
-      - name: "DEBUG: list files in docs/site"
-        run: ls -la ./docs/site/
+        run: npm run build
 
       - name: Deploy to cloudflare pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./docs/site/ --project-name=nobodywho-docs
-          # Optional: Enable this if you want to have GitHub Deployments triggered
+          command: pages deploy ./docs/build/ --project-name=nobodywho-docs
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

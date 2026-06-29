@@ -49,11 +49,25 @@ final class AudioPart extends PromptPart {
 /// ```
 class Prompt {
   final List<PromptPart> parts;
+  final String? _jsonString;
 
-  const Prompt(this.parts);
+  const Prompt(this.parts) : _jsonString = null;
+
+  Prompt._json(this._jsonString) : parts = const [];
 
   /// Convenience factory for text-only prompts.
   factory Prompt.text(String text) => Prompt([TextPart(text)]);
+
+  /// Create a prompt from a native Dart object (Map, List, or any JSON-encodable value).
+  ///
+  /// The value is serialized to JSON and passed to the model as structured content,
+  /// so the chat template receives it as an object rather than a plain string.
+  ///
+  /// Example:
+  /// ```dart
+  /// final prompt = Prompt.fromJson([{"type": "text", "source_lang_code": "en", "target_lang_code": "da", "text": "Hello"}]);
+  /// ```
+  factory Prompt.fromJson(dynamic data) => Prompt._json(jsonEncode(data));
 }
 
 List<nobodywho.PromptPart> _convertPromptParts(List<PromptPart> parts) {
@@ -638,6 +652,9 @@ class Chat {
   /// chat.askWithPrompt(Prompt([TextPart("Describe this image"), ImagePart("photo.jpg")]))
   /// ```
   TokenStream askWithPrompt(Prompt prompt) {
+    if (prompt._jsonString case final json?) {
+      return TokenStream._(_chat.askWithJsonPrompt(json: json));
+    }
     return TokenStream._(
       _chat.askWithPrompt(parts: _convertPromptParts(prompt.parts)),
     );
@@ -694,6 +711,16 @@ class Chat {
       _chat.setTemplateVariables(variables: variables);
 
   Future<Map<String,bool>> getTemplateVariables() => _chat.getTemplateVariables();
+
+  /// Tokenize a string and return the token IDs.
+  Future<List<int?>> tokenize(String message) => _chat.tokenize(message: message);
+
+  /// Tokenize a prompt with mixed content (text, images, audio) and return the token IDs.
+  Future<List<int?>> tokenizeWithPrompt(List<PromptPart> parts) =>
+      _chat.tokenizeWithPrompt(parts: _convertPromptParts(parts));
+
+  /// Get token usage statistics for the current context.
+  Future<nobodywho.ChatStats> getStats() => _chat.getStats();
 
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();

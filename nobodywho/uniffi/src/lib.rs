@@ -97,7 +97,7 @@ pub enum Message {
 fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
     match m {
         nobodywho::chat::Message::User { content, assets } => Message::User {
-            content: content.clone(),
+            content: content.to_string(),
             assets: assets
                 .iter()
                 .map(|a| Asset {
@@ -133,7 +133,7 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
 fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, NobodyWhoError> {
     match m {
         Message::User { content, assets } => Ok(nobodywho::chat::Message::User {
-            content: content.clone(),
+            content: nobodywho::chat::MessageContent::Text(content.clone()),
             assets: assets
                 .iter()
                 .map(|a| nobodywho::chat::Asset {
@@ -240,17 +240,35 @@ pub async fn download_model(
     init_logging();
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = on_download_progress.map(wrap_progress);
-    tokio::task::spawn_blocking(move || {
-        nobodywho::llm::download_model(&model_path, headers_vec, progress)
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = nobodywho::llm::download_model(&model_path, headers_vec, progress)
             .map(|p| p.to_string_lossy().into_owned())
             .map_err(|e| NobodyWhoError::Error {
                 message: nobodywho::render_miette(&e),
-            })
-    })
-    .await
-    .map_err(|e| NobodyWhoError::Error {
-        message: e.to_string(), // JoinError, not a miette diagnostic
+            });
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "Download thread terminated unexpectedly".into(),
     })?
+}
+
+#[uniffi::export]
+impl RustModel {
+    pub fn max_ctx(&self) -> u32 {
+        self.inner.max_ctx()
+    }
+}
+
+// ---------- ChatStats ----------
+
+#[derive(uniffi::Record, Clone)]
+pub struct ChatStats {
+    pub context_size: u32,
+    pub context_used: u32,
 }
 
 // ---------- RustChat ----------
@@ -308,17 +326,32 @@ impl RustChat {
     /// `parts` is an ordered list of `PromptPart` items.
     /// Image and audio parts should contain a local file-system path.
     pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Arc<RustTokenStream> {
-        let mut prompt = nobodywho::tokenizer::Prompt::new();
-        for part in parts {
-            match part {
-                PromptPart::Text { content } => prompt.push_text(content),
-                PromptPart::Image { path } => prompt.push_image(path.as_ref()),
-                PromptPart::Audio { path } => prompt.push_audio(path.as_ref()),
-            }
-        }
+        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
+            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
+            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
+            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
+        }));
         Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
         })
+    }
+
+    /// Send a JSON-encoded prompt and get a token stream.
+    ///
+    /// `json` must be a valid JSON string. The wrapper layer is responsible for
+    /// serializing native objects (dicts, arrays, etc.) to JSON before calling this.
+    pub fn ask_with_json_prompt(
+        &self,
+        json: String,
+    ) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
+        let value: serde_json::Value =
+            serde_json::from_str(&json).map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+        let prompt = nobodywho::tokenizer::Prompt::from_json(value);
+        Ok(Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
+        }))
     }
 
     /// Stop the current generation.
@@ -389,6 +422,35 @@ impl RustChat {
             })
     }
 
+    /// Tokenize a plain text string and return the token IDs.
+    pub async fn tokenize(&self, message: String) -> Result<Vec<Option<i32>>, NobodyWhoError> {
+        self.inner
+            .tokenize(message)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
+    /// Tokenize a multimodal prompt and return the token IDs.
+    /// Text tokens produce an integer ID; image/audio embedding slots produce null.
+    pub async fn tokenize_with_prompt(
+        &self,
+        parts: Vec<PromptPart>,
+    ) -> Result<Vec<Option<i32>>, NobodyWhoError> {
+        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
+            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
+            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
+            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
+        }));
+        self.inner
+            .tokenize(prompt)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
     /// Set the system prompt.
     pub async fn set_system_prompt(
         &self,
@@ -443,6 +505,20 @@ impl RustChat {
         self.inner
             .set_sampler_config(sampler.inner.clone())
             .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
+    /// Get context usage statistics.
+    pub async fn get_stats(&self) -> Result<ChatStats, NobodyWhoError> {
+        self.inner
+            .get_stats()
+            .await
+            .map(|s| ChatStats {
+                context_size: s.context_size,
+                context_used: s.context_used,
+            })
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })
@@ -748,6 +824,28 @@ pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
     nobodywho::encoder::cosine_similarity(&a, &b)
 }
 
+/// A cached `.gguf` model and its on-disk size.
+#[derive(uniffi::Record, Clone)]
+pub struct CachedModel {
+    pub path: String,
+    pub size: u64,
+}
+
+/// Returns every cached `.gguf` model paired with its byte size.
+#[uniffi::export]
+pub fn get_cached_models() -> Result<Vec<CachedModel>, NobodyWhoError> {
+    let models = nobodywho::llm::get_cached_models().map_err(|e| NobodyWhoError::Error {
+        message: e.to_string(),
+    })?;
+    Ok(models
+        .into_iter()
+        .map(|(path, size)| CachedModel {
+            path: path.to_string_lossy().into_owned(),
+            size: size as u64,
+        })
+        .collect())
+}
+
 // ---------- RustCrossEncoder ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `CrossEncoder`).
 
@@ -807,7 +905,7 @@ impl RustCrossEncoder {
 
 #[derive(uniffi::Object)]
 pub struct SamplerConfig {
-    inner: nobodywho::sampler_config::SamplerConfig,
+    inner: nobodywho::sampler::SamplerConfig,
 }
 
 #[uniffi::export]
@@ -822,8 +920,8 @@ impl SamplerConfig {
     /// Deserialize a sampler configuration from a JSON string.
     #[uniffi::constructor]
     pub fn from_json(json_str: String) -> Result<Arc<Self>, NobodyWhoError> {
-        let inner: nobodywho::sampler_config::SamplerConfig = serde_json::from_str(&json_str)
-            .map_err(|e| NobodyWhoError::Error {
+        let inner: nobodywho::sampler::SamplerConfig =
+            serde_json::from_str(&json_str).map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })?;
         Ok(Arc::new(Self { inner }))
@@ -834,7 +932,7 @@ impl SamplerConfig {
 
 #[derive(uniffi::Object)]
 pub struct SamplerBuilder {
-    inner: nobodywho::sampler_config::SamplerConfig,
+    inner: nobodywho::sampler::SamplerBuilder,
 }
 
 #[uniffi::export]
@@ -843,7 +941,7 @@ impl SamplerBuilder {
     #[uniffi::constructor]
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            inner: nobodywho::sampler_config::SamplerConfig::default(),
+            inner: nobodywho::sampler::SamplerBuilder::new(),
         })
     }
 
@@ -855,7 +953,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::TopK { top_k }),
+                .shift(nobodywho::sampler::ShiftStep::TopK { top_k }),
         })
     }
 
@@ -865,7 +963,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::TopP { top_p, min_keep }),
+                .shift(nobodywho::sampler::ShiftStep::TopP { top_p, min_keep }),
         })
     }
 
@@ -875,7 +973,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::MinP { min_p, min_keep }),
+                .shift(nobodywho::sampler::ShiftStep::MinP { min_p, min_keep }),
         })
     }
 
@@ -885,7 +983,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::Temperature { temperature }),
+                .shift(nobodywho::sampler::ShiftStep::Temperature { temperature }),
         })
     }
 
@@ -900,11 +998,19 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::XTC {
+                .shift(nobodywho::sampler::ShiftStep::XTC {
                     xtc_probability,
                     xtc_threshold,
                     min_keep,
                 }),
+        })
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+    /// `greedy` ignores it. If unset, a default seed is used.
+    pub fn seed(&self, seed: u32) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().seed(seed),
         })
     }
 
@@ -914,7 +1020,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::TypicalP { typ_p, min_keep }),
+                .shift(nobodywho::sampler::ShiftStep::TypicalP { typ_p, min_keep }),
         })
     }
 
@@ -932,7 +1038,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::Grammar {
+                .shift(nobodywho::sampler::ShiftStep::Grammar {
                     grammar,
                     trigger_on,
                     root,
@@ -953,7 +1059,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::DRY {
+                .shift(nobodywho::sampler::ShiftStep::DRY {
                     multiplier,
                     base,
                     allowed_length,
@@ -975,7 +1081,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .shift(nobodywho::sampler_config::ShiftStep::Penalties {
+                .shift(nobodywho::sampler::ShiftStep::Penalties {
                     penalty_last_n,
                     penalty_repeat,
                     penalty_freq,
@@ -992,7 +1098,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::Dist),
+                .sample(nobodywho::sampler::SampleStep::Dist),
         })
     }
 
@@ -1002,7 +1108,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::Greedy),
+                .sample(nobodywho::sampler::SampleStep::Greedy),
         })
     }
 
@@ -1012,7 +1118,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::MirostatV1 { tau, eta, m }),
+                .sample(nobodywho::sampler::SampleStep::MirostatV1 { tau, eta, m }),
         })
     }
 
@@ -1022,7 +1128,7 @@ impl SamplerBuilder {
             inner: self
                 .inner
                 .clone()
-                .sample(nobodywho::sampler_config::SampleStep::MirostatV2 { tau, eta }),
+                .sample(nobodywho::sampler::SampleStep::MirostatV2 { tau, eta }),
         })
     }
 }
@@ -1035,7 +1141,7 @@ impl SamplerBuilder {
 #[uniffi::export]
 pub fn sampler_preset_default() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerConfig::default(),
+        inner: nobodywho::sampler::SamplerConfig::default(),
     })
 }
 
@@ -1043,7 +1149,7 @@ pub fn sampler_preset_default() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::top_k(top_k),
+        inner: nobodywho::sampler::SamplerPresets::top_k(top_k),
     })
 }
 
@@ -1051,7 +1157,7 @@ pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::top_p(top_p),
+        inner: nobodywho::sampler::SamplerPresets::top_p(top_p),
     })
 }
 
@@ -1059,7 +1165,7 @@ pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_greedy() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::greedy(),
+        inner: nobodywho::sampler::SamplerPresets::greedy(),
     })
 }
 
@@ -1067,7 +1173,7 @@ pub fn sampler_preset_greedy() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_temperature(temperature: f32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::temperature(temperature),
+        inner: nobodywho::sampler::SamplerPresets::temperature(temperature),
     })
 }
 
@@ -1075,7 +1181,7 @@ pub fn sampler_preset_temperature(temperature: f32) -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_dry() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::dry(),
+        inner: nobodywho::sampler::SamplerPresets::dry(),
     })
 }
 
@@ -1083,7 +1189,7 @@ pub fn sampler_preset_dry() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_constrain_with_json_schema(schema: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(schema),
+        inner: nobodywho::sampler::SamplerPresets::constrain_with_json_schema(schema),
     })
 }
 
@@ -1091,7 +1197,7 @@ pub fn sampler_preset_constrain_with_json_schema(schema: String) -> Arc<SamplerC
 #[uniffi::export]
 pub fn sampler_preset_constrain_with_regex(pattern: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
+        inner: nobodywho::sampler::SamplerPresets::constrain_with_regex(pattern),
     })
 }
 
@@ -1099,14 +1205,14 @@ pub fn sampler_preset_constrain_with_regex(pattern: String) -> Arc<SamplerConfig
 #[uniffi::export]
 pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
+        inner: nobodywho::sampler::SamplerPresets::constrain_with_grammar(grammar),
     })
 }
 
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::json(),
+        inner: nobodywho::sampler::SamplerPresets::json(),
     })
 }
 
@@ -1114,6 +1220,6 @@ pub fn sampler_preset_json() -> Arc<SamplerConfig> {
 #[uniffi::export]
 pub fn sampler_preset_grammar(grammar: String) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
-        inner: nobodywho::sampler_config::SamplerPresets::grammar(grammar),
+        inner: nobodywho::sampler::SamplerPresets::grammar(grammar),
     })
 }

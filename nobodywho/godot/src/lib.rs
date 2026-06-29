@@ -1,7 +1,9 @@
 use godot::classes::{INode, ProjectSettings};
 use godot::prelude::*;
 use nobodywho::chat::{ChatConfig, Message};
-use nobodywho::sampler_config::{SamplerConfig, SamplerPresets};
+use nobodywho::sampler::{
+    SampleStep, SamplerConfig as CoreSamplerConfig, SamplerPresets, ShiftStep,
+};
 use nobodywho::{errors, llm, tokenizer};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -72,6 +74,10 @@ struct NobodyWhoModel {
     use_gpu_if_available: bool,
 
     model: Option<Arc<llm::Model>>,
+    /// Serializes concurrent `load_model_detached` calls on this node so the model
+    /// is loaded into memory/GPU exactly once even when multiple consumer nodes
+    /// (e.g. two `NobodyWhoChat`s) call `start_worker()` simultaneously.
+    load_lock: Arc<tokio::sync::Mutex<()>>,
     base: Base<Node>,
 }
 
@@ -86,6 +92,7 @@ impl INode for NobodyWhoModel {
             projection_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
+            load_lock: Arc::new(tokio::sync::Mutex::new(())),
             base,
         }
     }
@@ -106,7 +113,20 @@ impl NobodyWhoModel {
     async fn load_model_detached(
         mut gd: Gd<Self>,
     ) -> Result<Arc<llm::Model>, errors::LoadModelError> {
-        // Fast path — brief immutable bind.
+        // Fast path — brief immutable bind, no lock acquisition when already cached.
+        if let Some(model) = gd.bind().model.as_ref() {
+            return Ok(Arc::clone(model));
+        }
+
+        // Slow path: serialize concurrent loads so we don't load the same model twice
+        // into GPU/RAM when multiple consumer nodes (e.g. two `NobodyWhoChat`s) call
+        // `start_worker()` simultaneously. Clone the Arc<Mutex> out so the bind drops
+        // before we await on lock acquisition.
+        let load_lock = gd.bind().load_lock.clone();
+        let _guard = load_lock.lock().await;
+
+        // Re-check after acquiring the lock — another task may have finished the load
+        // while we were waiting.
         if let Some(model) = gd.bind().model.as_ref() {
             return Ok(Arc::clone(model));
         }
@@ -186,6 +206,48 @@ impl NobodyWhoModel {
     }
 
     #[func]
+    /// Returns the maximum context size this model was trained with.
+    /// Returns -1 if the model has not been loaded yet.
+    fn max_ctx(&self) -> i64 {
+        match self.model.as_ref() {
+            Some(model) => model.max_ctx() as i64,
+            None => {
+                godot_error!("Attempted to get max_ctx, but model is not loaded yet.");
+                -1
+            }
+        }
+    }
+
+    #[func]
+    /// Returns every cached .gguf model paired with its byte size.
+    ///
+    /// Each entry is a Dictionary with:
+    /// - "path": String absolute path to the cached model file
+    /// - "size": int size in bytes of that file
+    ///
+    /// Returns nil on error (also logged via godot_error!).
+    fn get_cached_models() -> Variant {
+        match nobodywho::llm::get_cached_models() {
+            Ok(models) => {
+                let arr: Array<Variant> = models
+                    .into_iter()
+                    .map(|(path, size)| {
+                        let mut dict = VarDictionary::new();
+                        dict.set("path", GString::from(path.to_string_lossy().as_ref()));
+                        dict.set("size", size as i64);
+                        Variant::from(dict)
+                    })
+                    .collect();
+                Variant::from(arr)
+            }
+            Err(e) => {
+                godot_error!("Failed to get cached models: {}", e);
+                Variant::nil()
+            }
+        }
+    }
+
+    #[func]
     /// Sets the (global) log level of NobodyWho.
     /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
     fn set_log_level(level: String) {
@@ -243,7 +305,7 @@ impl NobodyWhoDownloader {
     #[signal]
     fn download_failed(error: GString);
 
-    async fn download_detached(mut gd: Gd<Self>) -> Result<String, String> {
+    async fn download_detached(gd: Gd<Self>) -> Result<String, String> {
         let (path, headers) = {
             let b = gd.bind();
             let path = resolve_godot_path(&b.model_path);
@@ -333,17 +395,56 @@ impl NobodyWhoDownloader {
 /// chat.ask(prompt)
 /// ```
 struct NobodyWhoPrompt {
-    prompt: tokenizer::Prompt,
+    parts: Vec<tokenizer::PromptPart>,
+    json_value: Option<serde_json::Value>,
     base: Base<RefCounted>,
+}
+
+impl NobodyWhoPrompt {
+    fn to_prompt(&self) -> tokenizer::Prompt {
+        if let Some(ref v) = self.json_value {
+            tokenizer::Prompt::from_json(v.clone())
+        } else {
+            tokenizer::Prompt::new(self.parts.clone())
+        }
+    }
 }
 
 #[godot_api]
 impl IRefCounted for NobodyWhoPrompt {
     fn init(base: Base<RefCounted>) -> Self {
         Self {
-            prompt: tokenizer::Prompt::new(),
+            parts: vec![],
+            json_value: None,
             base,
         }
+    }
+}
+
+fn variant_to_json(v: &Variant) -> serde_json::Value {
+    match v.get_type() {
+        VariantType::NIL => serde_json::Value::Null,
+        VariantType::BOOL => serde_json::Value::Bool(v.to::<bool>()),
+        VariantType::INT => serde_json::Value::Number(v.to::<i64>().into()),
+        VariantType::FLOAT => serde_json::Number::from_f64(v.to::<f64>())
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        VariantType::STRING | VariantType::STRING_NAME => {
+            serde_json::Value::String(v.to::<GString>().to_string())
+        }
+        VariantType::ARRAY => {
+            let arr = v.to::<Array<Variant>>();
+            serde_json::Value::Array(arr.iter_shared().map(|e| variant_to_json(&e)).collect())
+        }
+        VariantType::DICTIONARY => {
+            let dict = v.to::<VarDictionary>();
+            let map = dict
+                .iter_shared()
+                .map(|(k, val)| (k.to::<GString>().to_string(), variant_to_json(&val)))
+                .collect();
+            serde_json::Value::Object(map)
+        }
+        _ => serde_json::Value::Null,
     }
 }
 
@@ -352,7 +453,7 @@ impl NobodyWhoPrompt {
     #[func]
     /// Appends a text segment to this prompt.
     fn add_text(&mut self, text: String) {
-        self.prompt.push_text(text);
+        self.parts.push(tokenizer::PromptPart::Text(text));
     }
 
     #[func]
@@ -362,7 +463,8 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.prompt.push_image(globalized.as_ref());
+        self.parts
+            .push(tokenizer::PromptPart::Image(globalized.into()));
     }
 
     #[func]
@@ -372,7 +474,19 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.prompt.push_audio(globalized.as_ref());
+        self.parts
+            .push(tokenizer::PromptPart::Audio(globalized.into()));
+    }
+
+    #[func]
+    /// Creates a NobodyWhoPrompt from a JSON-compatible Godot value (Dictionary, Array, etc.).
+    fn from_json(data: Variant) -> Gd<NobodyWhoPrompt> {
+        let value = variant_to_json(&data);
+        Gd::from_init_fn(|base| NobodyWhoPrompt {
+            parts: vec![],
+            json_value: Some(value),
+            base,
+        })
     }
 }
 
@@ -454,10 +568,11 @@ impl INode for NobodyWhoChat {
 
 #[godot_api]
 impl NobodyWhoChat {
-    /// Load the model and create the chat worker. All synchronous state reads happen
-    /// before this is spawned — the only `me.bind_mut()` here runs after the first
-    /// `.await`, by which point any calling `#[func]` method's `&mut self` borrow has
-    /// been released.
+    /// Load the model and create the chat worker. `me.bind_mut()` below must run
+    /// only after the outer `start_worker(&mut self)` borrow has been released —
+    /// `godot::task::spawn` polls inline, and if `load_model_detached` takes its
+    /// cache-hit fast path no real yield happens before the bind. `yield_now()`
+    /// forces a single executor round-trip so the outer borrow always drops first.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
         model_node: Gd<NobodyWhoModel>,
@@ -466,6 +581,8 @@ impl NobodyWhoChat {
         n_ctx: u32,
         allow_thinking: bool,
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
+        tokio::task::yield_now().await;
+
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
@@ -584,7 +701,7 @@ impl NobodyWhoChat {
         let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
             text.to_string().to_prompt()
         } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
-            prompt_node.bind().prompt.clone()
+            prompt_node.bind().to_prompt()
         } else {
             godot_error!(
                 "ask() requires a String or NobodyWhoPrompt, got {:?}",
@@ -760,6 +877,122 @@ impl NobodyWhoChat {
         });
 
         // returns signal, so that you can `var msgs = await get_chat_history()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
+    fn get_stats(&mut self) -> Variant {
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted to get stats, but no worker is running. Returning nil.");
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "get_stats_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let Ok(stats) = chat_handle.get_stats().await else {
+                error!("Chat worker died while waiting for get_stats.");
+                emit_node.emit_signal(&signal_name_copy, &[]);
+                return;
+            };
+
+            let mut dict = VarDictionary::new();
+            let _ = dict.insert("context_size", stats.context_size as i64);
+            let _ = dict.insert("context_used", stats.context_used as i64);
+
+            match wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("Failed getting stats: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[Variant::from(dict)]);
+        });
+
+        // returns signal, so that you can `var stats = await get_stats()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
+    /// Tokenize a string or NobodyWhoPrompt and return the token IDs.
+    /// Returns a Signal that resolves to an Array where each element is an int (token ID)
+    /// or null (for image/audio embedding slots).
+    /// Usage: `var tokens = await tokenize("Hey!")`
+    fn tokenize(&mut self, message: Variant) -> Variant {
+        let prompt: tokenizer::Prompt = if let Ok(text) = message.try_to::<GString>() {
+            text.to_string().to_prompt()
+        } else if let Ok(prompt_node) = message.try_to::<Gd<NobodyWhoPrompt>>() {
+            prompt_node.bind().to_prompt()
+        } else {
+            godot_error!(
+                "tokenize() requires a String or NobodyWhoPrompt, got {:?}",
+                message.get_type()
+            );
+            return Variant::nil();
+        };
+
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!("Attempted to tokenize, but no worker is running. Returning nil.");
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "tokenize_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let token_ids = match chat_handle.tokenize(prompt).await {
+                Ok(ids) => ids,
+                Err(e) => {
+                    godot_error!("tokenize() failed: {}", e);
+                    emit_node.emit_signal(&signal_name_copy, &[]);
+                    return;
+                }
+            };
+
+            let result: Array<Variant> = token_ids
+                .into_iter()
+                .map(|t| match t {
+                    Some(id) => Variant::from(id as i64),
+                    None => Variant::nil(),
+                })
+                .collect();
+
+            match wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("tokenize() signal connect failed: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[Variant::from(result)]);
+        });
+
         Variant::from(godot::builtin::Signal::from_object_signal(
             &self.base_mut(),
             &signal_name,
@@ -1175,7 +1408,7 @@ impl NobodyWhoChat {
         set_log_level(&level);
     }
 
-    fn set_sampler_preset_impl(&mut self, sampler: SamplerConfig) {
+    fn set_sampler_preset_impl(&mut self, sampler: CoreSamplerConfig) {
         // Sampler presets set before the worker is ready are dropped. Call sampler
         // preset setters after `worker_started` has fired (or after a successful
         // `ask()` auto-start completes).
@@ -1194,7 +1427,7 @@ impl NobodyWhoChat {
     /// This provides a balanced configuration suitable for most use cases.
     #[func]
     fn set_sampler_preset_default(&mut self) {
-        self.set_sampler_preset_impl(SamplerConfig::default());
+        self.set_sampler_preset_impl(CoreSamplerConfig::default());
     }
 
     /// Sets the sampler to use greedy sampling.
@@ -1243,24 +1476,24 @@ impl NobodyWhoChat {
     #[func]
     fn set_sampler_preset_constrain_with_json_schema(&mut self, schema: String) {
         self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_json_schema(schema),
+            nobodywho::sampler::SamplerPresets::constrain_with_json_schema(schema),
         );
     }
 
     /// Constrains the model output to a regular expression via llguidance.
     #[func]
     fn set_sampler_preset_constrain_with_regex(&mut self, pattern: String) {
-        self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_regex(pattern),
-        );
+        self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_regex(
+            pattern,
+        ));
     }
 
     /// Constrains the model output using a Lark context-free grammar via llguidance.
     #[func]
     fn set_sampler_preset_constrain_with_grammar(&mut self, grammar: String) {
-        self.set_sampler_preset_impl(
-            nobodywho::sampler_config::SamplerPresets::constrain_with_grammar(grammar),
-        );
+        self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_grammar(
+            grammar,
+        ));
     }
 
     /// Constrain output to valid JSON (any structure) using GBNF.
@@ -1277,6 +1510,251 @@ impl NobodyWhoChat {
     #[deprecated(note = "Use set_sampler_preset_constrain_with_grammar() instead")]
     fn set_sampler_preset_grammar(&mut self, grammar: String) {
         self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
+    }
+
+    /// Sets a custom sampler configuration built with `NobodyWhoSamplerBuilder`.
+    ///
+    /// Use this when the `set_sampler_preset_*` methods don't cover your
+    /// use case (e.g. you want to chain multiple shift steps, set a seed,
+    /// or use Mirostat). See `NobodyWhoSamplerBuilder` for the available steps.
+    ///
+    /// ```gdscript
+    /// var cfg = NobodyWhoSamplerBuilder.new() \
+    ///     .top_k(40) \
+    ///     .temperature(0.8) \
+    ///     .seed(42) \
+    ///     .dist()
+    /// chat.set_sampler_config(cfg)
+    /// ```
+    #[func]
+    fn set_sampler_config(&mut self, config: Gd<NobodyWhoSamplerConfig>) {
+        let inner = config.bind().inner.clone();
+        self.set_sampler_preset_impl(inner);
+    }
+}
+
+/// A finalized sampler configuration produced by [`NobodyWhoSamplerBuilder`].
+///
+/// You don't construct this directly — get one from a `NobodyWhoSamplerBuilder`
+/// terminal method (`.dist()`, `.greedy()`, `.mirostat_v1(...)`,
+/// `.mirostat_v2(...)`) and pass it to `NobodyWhoChat.set_sampler_config()`.
+#[derive(GodotClass)]
+#[class(no_init, base=RefCounted)]
+pub struct NobodyWhoSamplerConfig {
+    inner: CoreSamplerConfig,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl NobodyWhoSamplerConfig {}
+
+/// Builder for custom sampler chains.
+///
+/// A sampler chain consists of any number of probability-shifting steps,
+/// followed by exactly one terminal sampling step. Shift steps transform
+/// the probability distribution (e.g. `top_k(40)` zeros out all but the
+/// 40 most likely tokens). The terminal step picks a token from that
+/// distribution (`dist` = weighted random, `greedy` = always the most
+/// likely, etc.).
+///
+/// ```gdscript
+/// var cfg = NobodyWhoSamplerBuilder.new() \
+///     .top_k(40) \
+///     .temperature(0.8) \
+///     .seed(42) \
+///     .dist()
+/// chat.set_sampler_config(cfg)
+/// ```
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+pub struct NobodyWhoSamplerBuilder {
+    inner: nobodywho::sampler::SamplerBuilder,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl IRefCounted for NobodyWhoSamplerBuilder {
+    fn init(base: Base<RefCounted>) -> Self {
+        Self {
+            inner: nobodywho::sampler::SamplerBuilder::new(),
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoSamplerBuilder {
+    /// Keep only the top `k` most probable tokens. Typical values: 40-50.
+    #[func]
+    fn top_k(&mut self, k: i32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::TopK { top_k: k });
+        self.to_gd()
+    }
+
+    /// Keep tokens whose cumulative probability is below `p`. Typical: 0.9-0.95.
+    /// `min_keep` is the minimum number of tokens to always retain.
+    #[func]
+    fn top_p(&mut self, p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::TopP { top_p: p, min_keep });
+        self.to_gd()
+    }
+
+    /// Keep tokens with probability above `min_p * (probability of most likely token)`.
+    /// Typical `min_p`: 0.05-0.1. `min_keep` is the minimum number of tokens to always retain.
+    #[func]
+    fn min_p(&mut self, min_p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::MinP { min_p, min_keep });
+        self.to_gd()
+    }
+
+    /// XTC (eXclude Top Choices) — probabilistically excludes high-probability
+    /// tokens to increase diversity by sometimes forcing less obvious picks.
+    /// `min_keep` prevents excluding all tokens.
+    #[func]
+    fn xtc(
+        &mut self,
+        xtc_probability: f32,
+        xtc_threshold: f32,
+        min_keep: u32,
+    ) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::XTC {
+            xtc_probability,
+            xtc_threshold,
+            min_keep,
+        });
+        self.to_gd()
+    }
+
+    /// Typical sampling: keeps tokens close to expected information content.
+    /// Typical `typ_p`: 0.9. `min_keep` is the minimum number of tokens to always retain.
+    #[func]
+    fn typical_p(&mut self, typ_p: f32, min_keep: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::TypicalP { typ_p, min_keep });
+        self.to_gd()
+    }
+
+    /// Temperature scaling. 0.0 = deterministic, 1.0 = unchanged, >1.0 = more random.
+    #[func]
+    fn temperature(&mut self, temperature: f32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self
+            .inner
+            .clone()
+            .shift(ShiftStep::Temperature { temperature });
+        self.to_gd()
+    }
+
+    /// DRY (Don't Repeat Yourself) penalty to reduce repetitive output.
+    #[func]
+    fn dry(
+        &mut self,
+        multiplier: f32,
+        base: f32,
+        allowed_length: i32,
+        penalty_last_n: i32,
+        seq_breakers: PackedStringArray,
+    ) -> Gd<NobodyWhoSamplerBuilder> {
+        let seq_breakers: Vec<String> = seq_breakers
+            .as_slice()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        self.inner = self.inner.clone().shift(ShiftStep::DRY {
+            multiplier,
+            base,
+            allowed_length,
+            penalty_last_n,
+            seq_breakers,
+        });
+        self.to_gd()
+    }
+
+    /// Repetition penalties. `penalty_repeat` = 1.0 disables; >1.0 penalizes
+    /// recently seen tokens. `penalty_freq` scales with token occurrence count.
+    /// `penalty_present` is a flat penalty for any token that appeared before.
+    /// `penalty_last_n` is the window of recent tokens to consider (0 disables).
+    #[func]
+    fn penalties(
+        &mut self,
+        penalty_last_n: i32,
+        penalty_repeat: f32,
+        penalty_freq: f32,
+        penalty_present: f32,
+    ) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::Penalties {
+            penalty_last_n,
+            penalty_repeat,
+            penalty_freq,
+            penalty_present,
+        });
+        self.to_gd()
+    }
+
+    /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`,
+    /// `mirostat_v2`, and the `xtc` shift step). `greedy` ignores it.
+    /// If unset, a default seed is used.
+    #[func]
+    fn seed(&mut self, seed: u32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().seed(seed);
+        self.to_gd()
+    }
+
+    /// Terminal: sample from the distribution with weighted randomness.
+    #[func]
+    fn dist(&self) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self.inner.clone().sample(SampleStep::Dist);
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
+    }
+
+    /// Terminal: always pick the most probable token (deterministic).
+    #[func]
+    fn greedy(&self) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self.inner.clone().sample(SampleStep::Greedy);
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
+    }
+
+    /// Terminal: Mirostat v1 — perplexity-controlled sampling. Dynamically
+    /// adjusts sampling to maintain a target "surprise" level.
+    /// Typical `tau`: 3.0-5.0 (lower = more focused). Typical `eta`: 0.1.
+    /// Typical `m`: 100 (number of candidates to consider).
+    #[func]
+    fn mirostat_v1(&self, tau: f32, eta: f32, m: i32) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self
+            .inner
+            .clone()
+            .sample(SampleStep::MirostatV1 { tau, eta, m });
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
+    }
+
+    /// Terminal: Mirostat v2 — simplified perplexity-controlled sampling.
+    /// Typical `tau`: 3.0-5.0 (lower = more focused). Typical `eta`: 0.1.
+    #[func]
+    fn mirostat_v2(&self, tau: f32, eta: f32) -> Gd<NobodyWhoSamplerConfig> {
+        let config = self
+            .inner
+            .clone()
+            .sample(SampleStep::MirostatV2 { tau, eta });
+        Gd::from_init_fn(|base| NobodyWhoSamplerConfig {
+            inner: config,
+            base,
+        })
     }
 }
 
@@ -1503,13 +1981,15 @@ impl NobodyWhoEncoder {
     /// Emitted if loading the model (or setting up the encoder worker) failed.
     fn worker_failed(error: GString);
 
-    /// Load the model and create the encoder worker. The only `me.bind_mut()` here
-    /// runs after the first `.await`, by which point any calling `#[func]` method's
-    /// `&mut self` borrow has been released.
+    /// Load the model and create the encoder worker. `yield_now()` ensures the
+    /// outer `start_worker(&mut self)` borrow is released before `me.bind_mut()` runs;
+    /// see the NobodyWhoChat::load_and_store_worker docstring for the full rationale.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
         model_node: Gd<NobodyWhoModel>,
     ) -> Result<nobodywho::encoder::EncoderAsync, GString> {
+        tokio::task::yield_now().await;
+
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
@@ -1689,13 +2169,15 @@ impl NobodyWhoCrossEncoder {
     /// Emitted if loading the model (or setting up the crossencoder worker) failed.
     fn worker_failed(error: GString);
 
-    /// Load the model and create the crossencoder worker. The only `me.bind_mut()`
-    /// here runs after the first `.await`, by which point any calling `#[func]`
-    /// method's `&mut self` borrow has been released.
+    /// Load the model and create the crossencoder worker. `yield_now()` ensures the
+    /// outer `start_worker(&mut self)` borrow is released before `me.bind_mut()` runs;
+    /// see the NobodyWhoChat::load_and_store_worker docstring for the full rationale.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
         model_node: Gd<NobodyWhoModel>,
     ) -> Result<nobodywho::crossencoder::CrossEncoderAsync, GString> {
+        tokio::task::yield_now().await;
+
         let model = NobodyWhoModel::load_model_detached(model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;

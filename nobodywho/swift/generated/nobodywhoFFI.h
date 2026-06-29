@@ -295,6 +295,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, Rus
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask(uint64_t ptr, RustBuffer message, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(uint64_t ptr, RustBuffer json, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_PROMPT
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK_WITH_PROMPT
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(uint64_t ptr, RustBuffer parts, RustCallStatus *_Nonnull out_status
@@ -308,6 +313,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(uint64_t pt
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_SAMPLER_CONFIG_JSON
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_SAMPLER_CONFIG_JSON
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(uint64_t ptr
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_STATS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_STATS
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(uint64_t ptr
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_SYSTEM_PROMPT
@@ -358,6 +368,16 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(uint64_t ptr, Rust
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_STOP_GENERATION
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_STOP_GENERATION
 void uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_TOKENIZE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_TOKENIZE
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize(uint64_t ptr, RustBuffer message
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_TOKENIZE_WITH_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_TOKENIZE_WITH_PROMPT
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(uint64_t ptr, RustBuffer parts
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTCROSSENCODER
@@ -413,6 +433,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_clone_rustmodel(uint64_t handle, RustCallSta
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTMODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTMODEL
 void uniffi_nobodywho_uniffi_fn_free_rustmodel(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTMODEL_MAX_CTX
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTMODEL_MAX_CTX
+uint32_t uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTTOKENSTREAM
@@ -526,6 +551,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(uint64_t p
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(uint64_t ptr, int32_t penalty_last_n, float penalty_repeat, float penalty_freq, float penalty_present, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_SEED
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_SEED
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(uint64_t ptr, uint32_t seed, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TEMPERATURE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TEMPERATURE
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(uint64_t ptr, float temperature, RustCallStatus *_Nonnull out_status
@@ -589,6 +619,12 @@ float uniffi_nobodywho_uniffi_fn_func_cosine_similarity(RustBuffer a, RustBuffer
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_DOWNLOAD_MODEL
 uint64_t uniffi_nobodywho_uniffi_fn_func_download_model(RustBuffer model_path, RustBuffer headers, RustBuffer on_download_progress
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_GET_CACHED_MODELS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_GET_CACHED_MODELS
+RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(RustCallStatus *_Nonnull out_status
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
@@ -927,6 +963,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_download_model(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_GET_CACHED_MODELS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_GET_CACHED_MODELS
+uint16_t uniffi_nobodywho_uniffi_checksum_func_get_cached_models(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_MODEL
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model(void
@@ -1005,6 +1047,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK_WITH_JSON_PROMPT
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK_WITH_PROMPT
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_ASK_WITH_PROMPT
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(void
@@ -1020,6 +1068,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_GET_SAMPLER_CONFIG_JSON
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_GET_SAMPLER_CONFIG_JSON
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_GET_STATS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_GET_STATS
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats(void
     
 );
 #endif
@@ -1083,6 +1137,18 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_stop_generation(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_TOKENIZE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_TOKENIZE
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_TOKENIZE_WITH_PROMPT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_TOKENIZE_WITH_PROMPT
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCROSSENCODER_RANK
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCROSSENCODER_RANK
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(void
@@ -1098,6 +1164,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTMODEL_MAX_CTX
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTMODEL_MAX_CTX
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(void
     
 );
 #endif
@@ -1176,6 +1248,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_PENALTIES
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_PENALTIES
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_SEED
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_SEED
+uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed(void
     
 );
 #endif

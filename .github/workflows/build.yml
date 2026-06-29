@@ -22,24 +22,27 @@ jobs:
         integration:
           - "godot"
           - "flutter"
+          - "uniffi"
         exclude:
           # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
           - integration: "flutter"
             profile: "debug"
+          - integration: "uniffi"
+            profile: "debug"
         include:
           - target: x86_64-unknown-linux-gnu
-            runner: ubuntu-24.04
+            runner: warp-ubuntu-latest-x64-4x
           - target: aarch64-unknown-linux-gnu
-            runner: ubuntu-24.04-arm
+            runner: warp-ubuntu-latest-arm64-4x
 
     runs-on: ${{ matrix.runner }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'ubuntu-24.04' && '-C target-cpu=x86-64-v3' || '' }}
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo
@@ -85,7 +88,7 @@ jobs:
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
@@ -104,20 +107,28 @@ jobs:
         integration:
           - "godot"
           - "flutter"
+          - "uniffi"
         exclude:
           # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
           - integration: "flutter"
+            profile: "debug"
+          - integration: "uniffi"
             profile: "debug"
     env:
       RUSTFLAGS: >-
         -l Advapi32
         -C target-cpu=x86-64-v3
+      # Fetch git deps + submodules with the git CLI instead of libgit2. libgit2
+      # ignores core.longpaths, so the deeply nested llama.cpp tools/ui/ paths
+      # blow past Windows' 260-char MAX_PATH during the submodule checkout. The
+      # git CLI honors core.longpaths (set below) and uses \\?\ extended paths.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo
@@ -134,7 +145,14 @@ jobs:
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
-          vulkan_version: 1.3.296.0
+          # 1.4.313.2 matches llama.cpp's own Windows Vulkan CI. The newer
+          # ggml-vulkan backend does find_package(SPIRV-Headers CONFIG REQUIRED)
+          # (llama.cpp PR #22009 / #23215), and SPIRV-HeadersConfig.cmake is only
+          # bundled in the SDK from ~1.4.313+. Older SDKs (1.3.296, 1.4.304) lack
+          # it, so configure fails. Discovery works via the VULKAN_SDK env var
+          # this action sets. stripdown only deletes Demos/Helpers/Licenses/etc.,
+          # never the cmake config, so it's safe to keep.
+          vulkan_version: 1.4.313.2
           cache: true
           install_runtime: true
           stripdown: true
@@ -153,6 +171,10 @@ jobs:
         # move things into a shortly-named dir in the root, because windows is made by fuckwits who think limiting paths to 260 chars is ok
         run: |
           mv ./nobodywho/* C:/
+          # Allow >260-char paths so cargo's git CLI can check out the deep
+          # llama.cpp tools/ui/ submodule files (see CARGO_NET_GIT_FETCH_WITH_CLI).
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+          git config --system core.longpaths true
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
           cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
@@ -173,7 +195,7 @@ jobs:
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
 
       - name: "Upload build artifacts"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           path: |
@@ -203,7 +225,7 @@ jobs:
           - "flutter"
           - "uniffi"
         exclude:
-          # uniffi needs iOS/macOS/visionOS/watchOS targets, but not macOS x86_64
+          # uniffi doesn't need macOS x86_64 (Intel Macs are EOL)
           - integration: "uniffi"
             target: "x86_64-apple-darwin"
           # godot and flutter only support macOS and iOS
@@ -229,7 +251,7 @@ jobs:
           - integration: "uniffi"
             profile: "debug"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: "Setup Rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -245,6 +267,20 @@ jobs:
           rustup toolchain install nightly
           rustup +nightly component add rust-src
 
+      # ORT's build.py uses `match` statements; needs Python 3.10+. Self-hosted mac
+      # runner's default python3 may be older. setup-python fails on self-hosted
+      # (writes to /Users/runner which doesn't exist), so install via brew.
+      - name: "Setup Python for ORT source build"
+        if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos') || matrix.target == 'x86_64-apple-darwin'
+        env:
+          # Self-hosted brew was not installed via the official installer, so
+          # `brew update` fails with `update-report should not be called
+          # directly!`. Skip auto-update — the formula is already pinned.
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          brew install python@3.13
+          echo "/opt/homebrew/opt/python@3.13/libexec/bin" >> $GITHUB_PATH
+
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
         uses: flutter-actions/setup-flutter@v4
@@ -252,31 +288,58 @@ jobs:
           channel: stable
           version: 3.35.5
 
+      - name: "Clean target dir"
+        # Self-hosted runners persist the workspace between runs; clean to avoid stale build artifacts.
+        run: cargo clean
+        working-directory: ./nobodywho
+
+      # Build ORT for targets where pyke ships no prebuilts: x86_64 macOS
+      # (MS dropped Intel Mac in 1.20+) and visionOS/watchOS device + sim
+      # (no upstream prebuilts anywhere). The action caches by target+version,
+      # so reruns hit the cache.
+      - name: "Build ONNX Runtime"
+        if: matrix.target == 'x86_64-apple-darwin' || contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
+        id: ort
+        uses: ./.github/actions/build-ort
+        with:
+          target: ${{ matrix.target }}
+
       - name: "Build (stable targets)"
         if: "!contains(matrix.target, 'visionos') && !contains(matrix.target, 'watchos')"
-        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        run: |
+          if [ -n "${{ steps.ort.outputs.lib_path }}" ]; then
+            export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
+          fi
+          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
           IPHONEOS_DEPLOYMENT_TARGET: "18.5"
 
       - name: "Build (nightly tier 3 targets)"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
-        run: cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+        run: |
+          export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
+          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: ./nobodywho
 
       - name: "Rename built file"
         run: |
           if [ "${{ matrix.integration }}" = "uniffi" ]; then
-            # React Native needs static libraries (.a)
+            # Static library (.a) for xcframeworks (React Native, Swift)
             cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+            # Dynamic library (.dylib) for macOS desktop JNA (Kotlin JVM)
+            if [ -f ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ]; then
+              cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
+                ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+            fi
           else
             cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
           fi
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
           # wildcard path to match both .dylib and .a
@@ -289,10 +352,10 @@ jobs:
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download all build artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-flutter-*-apple-*
           merge-multiple: true
@@ -357,7 +420,7 @@ jobs:
         run: zip -y -r nobodywho_flutter.xcframework.zip nobodywho_flutter.xcframework
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
@@ -368,10 +431,10 @@ jobs:
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download uniffi iOS artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-uniffi-*-apple-ios*-release
           merge-multiple: true
@@ -393,7 +456,7 @@ jobs:
         run: zip -y -r NobodywhoFramework.xcframework.zip NobodywhoFramework.xcframework
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-react-native-xcframework
           path: ./NobodywhoFramework.xcframework.zip
@@ -401,13 +464,13 @@ jobs:
   # builds an xcframework containing static libraries + headers for Swift SPM
   build-swift-xcframework:
     if: inputs.full_ci
-    runs-on: macos-15
+    runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download uniffi Apple artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-uniffi-*-apple-*-release
           merge-multiple: true
@@ -448,14 +511,14 @@ jobs:
         run: zip -y -r NobodyWhoNative.xcframework.zip NobodyWhoNative.xcframework
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-swift-xcframework
           path: ./NobodyWhoNative.xcframework.zip
 
   cargo-build-android:
     if: inputs.full_ci
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
       matrix:
@@ -476,10 +539,10 @@ jobs:
           - integration: "uniffi"
             profile: "debug"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo
@@ -514,8 +577,30 @@ jobs:
           channel: stable
           version: 3.35.5
 
+      # ort-sys has no prebuilt for x86_64-linux-android (pyke only ships arm64).
+      # Pull Microsoft's official Android AAR (which has x86_64) and point ort-sys at it.
+      # Version must match ort-sys's pyke distribution (ms@1.24.2 — see ort-sys/build/download/dist.txt).
+      - name: "Fetch ONNX Runtime for x86_64-linux-android"
+        if: matrix.target == 'x86_64-linux-android'
+        id: ort-android
+        run: |
+          ORT_VERSION=1.24.2
+          ORT_DIR="$RUNNER_TEMP/ort-android-x86_64/lib"
+          mkdir -p "$ORT_DIR"
+          curl -L --fail -o /tmp/onnxruntime.aar \
+            "https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/${ORT_VERSION}/onnxruntime-android-${ORT_VERSION}.aar"
+          unzip -j -o /tmp/onnxruntime.aar 'jni/x86_64/libonnxruntime.so' -d "$ORT_DIR"
+          echo "ort_dir=$ORT_DIR" >> "$GITHUB_OUTPUT"
+
       - name: "Compile for android"
-        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        # ORT_LIB_PATH/ORT_PREFER_DYNAMIC_LINK only set when ort-android step ran (x86_64);
+        # exporting them empty on arm64 would put ort-sys into manual-link mode with no path.
+        run: |
+          if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
+            export ORT_LIB_PATH="${{ steps.ort-android.outputs.ort_dir }}"
+            export ORT_PREFER_DYNAMIC_LINK=1
+          fi
+          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
@@ -545,9 +630,15 @@ jobs:
             cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
           fi
+          # x86_64 Android links dynamically against libonnxruntime.so — ship it alongside.
+          if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
+            cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
+          fi
 
       - name: "Upload build artifact"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+            ./libonnxruntime.so

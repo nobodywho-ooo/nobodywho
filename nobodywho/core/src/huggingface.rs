@@ -1,18 +1,6 @@
 //! Download infrastructure and HuggingFace Hub helpers.
-//!
-//! This module owns:
-//! - the [`DownloadProgressCallback`] type and the two stock implementations
-//!   ([`default_progress_callback`] for terminal use, [`throttled_progress_callback`]
-//!   for FFI-bound callers),
-//! - the platform-aware download cache directory ([`get_cache_dir`]),
-//! - the generic streaming [`download_file`] helper,
-//! - HuggingFace-specific URL building and single-file download
-//!   ([`hf_resolve_url`], [`download_model_from_hf`]),
-//! - a higher-level [`Source`] / [`parse`] / [`resolve`] API for "whole model
-//!   directory" workflows like TTS, which mirror an entire HF repo into the
-//!   cache on first use.
 
-use crate::errors::{HuggingFaceError, LoadModelError};
+use crate::errors::{GetCacheDirError, GetCachedModelsError, HuggingFaceError, LoadModelError};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -114,31 +102,52 @@ where
 /// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
 ///
 /// On other platforms, uses the `dirs` crate to find the standard cache directory.
-pub(crate) fn get_cache_dir() -> Result<PathBuf, LoadModelError> {
+pub(crate) fn get_cache_dir() -> Result<PathBuf, GetCacheDirError> {
     let base = get_platform_cache_dir()?;
     Ok(base.join("nobodywho").join("models"))
 }
 
+/// Every `.gguf` model in the nobodywho cache, paired with its byte size.
+pub fn get_cached_models() -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError> {
+    let cache_dir = get_cache_dir()?;
+    if !cache_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    walkdir::WalkDir::new(&cache_dir)
+        .into_iter()
+        .filter(|res| match res {
+            Ok(e) => {
+                e.file_type().is_file()
+                    && e.path()
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .is_some_and(|s| s.eq_ignore_ascii_case("gguf"))
+            }
+            Err(_) => true,
+        })
+        .map(|res| {
+            let entry = res?;
+            let len = entry.metadata()?.len() as usize;
+            Ok((entry.into_path(), len))
+        })
+        .collect()
+}
+
 #[cfg(target_os = "android")]
-fn get_platform_cache_dir() -> Result<PathBuf, LoadModelError> {
+fn get_platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
     // Read the package name from /proc/self/cmdline. This file contains the process
     // name as a null-terminated string. On Android this is the package name
     // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
     // (e.g. "com.example.app:remote").
-    let cmdline = std::fs::read("/proc/self/cmdline").map_err(|e| {
-        LoadModelError::DownloadError(format!("Failed to read /proc/self/cmdline: {e}"))
-    })?;
+    let cmdline = std::fs::read("/proc/self/cmdline")?;
 
     let package_name = cmdline
         .split(|&b| b == 0)
         .next()
         .and_then(|bytes| std::str::from_utf8(bytes).ok())
         .map(|s| s.split(':').next().unwrap_or(s))
-        .ok_or_else(|| {
-            LoadModelError::DownloadError(
-                "Could not determine Android package name from /proc/self/cmdline".into(),
-            )
-        })?;
+        .ok_or(GetCacheDirError::NoPackageName)?;
 
     // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
     //   uid = user_id * 100000 + app_id
@@ -153,9 +162,8 @@ fn get_platform_cache_dir() -> Result<PathBuf, LoadModelError> {
 }
 
 #[cfg(not(target_os = "android"))]
-fn get_platform_cache_dir() -> Result<PathBuf, LoadModelError> {
-    dirs::cache_dir()
-        .ok_or_else(|| LoadModelError::DownloadError("Could not determine cache directory".into()))
+fn get_platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
+    dirs::cache_dir().ok_or(GetCacheDirError::NoCacheDir)
 }
 
 // =========================================================================
@@ -172,38 +180,71 @@ pub(crate) fn download_file(
     progress: &DownloadProgressCallback,
     headers: &[(String, String)],
 ) -> Result<(), LoadModelError> {
-    for component in target_path.components() {
-        if component == std::path::Component::ParentDir {
-            return Err(LoadModelError::DownloadError(
-                "Path traversal detected: '..' is not allowed in model paths".into(),
-            ));
-        }
-    }
+    validate_no_traversal(target_path)?;
 
     if target_path.exists() {
         info!("Using cached file: {}", target_path.display());
         return Ok(());
     }
 
-    // Create parent directories
-    if let Some(parent) = target_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            LoadModelError::DownloadError(format!(
-                "Failed to create cache directory {}: {e}",
-                parent.display()
-            ))
-        })?;
-    }
-
+    ensure_parent_dir(target_path)?;
     info!("Downloading {} -> {}", url, target_path.display());
 
+    let (mut reader, content_length) = open_http_stream(url, headers)?;
+    let tmp_path = make_temp_path(target_path);
+
+    if let Err(e) = stream_to_temp(&mut reader, url, &tmp_path, content_length, progress) {
+        if let Err(cleanup_err) = std::fs::remove_file(&tmp_path) {
+            warn!(
+                "Failed to clean up temp file {}: {cleanup_err}",
+                tmp_path.display()
+            );
+        }
+        return Err(e);
+    }
+
+    finalize_rename(&tmp_path, target_path)?;
+    info!("Download complete: {}", target_path.display());
+    Ok(())
+}
+
+fn validate_no_traversal(path: &Path) -> Result<(), LoadModelError> {
+    for component in path.components() {
+        if component == std::path::Component::ParentDir {
+            return Err(LoadModelError::PathTraversal {
+                path: path.to_path_buf(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn ensure_parent_dir(path: &Path) -> Result<(), LoadModelError> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+    std::fs::create_dir_all(parent).map_err(|source| LoadModelError::CreateCacheDir {
+        path: parent.to_path_buf(),
+        source,
+    })
+}
+
+/// Send the request and return a streaming reader plus the parsed
+/// `Content-Length` (0 means "unknown" — see comment below).
+fn open_http_stream(
+    url: &str,
+    headers: &[(String, String)],
+) -> Result<(Box<dyn Read>, u64), LoadModelError> {
     let mut request = ureq::get(url);
     for (name, value) in headers {
         request = request.header(name.as_str(), value.as_str());
     }
     let response = request.call().map_err(|e| match e {
         ureq::Error::StatusCode(status) => LoadModelError::from_http_status(url, status),
-        e => LoadModelError::DownloadError(format!("HTTP request failed: {e}")),
+        source => LoadModelError::HttpRequest {
+            url: url.to_owned(),
+            source,
+        },
     })?;
 
     // Content-Length is missing for many text/JSON responses served via chunked
@@ -226,77 +267,82 @@ pub(crate) fn download_file(
         info!("Download size: unknown (no Content-Length)");
     }
 
-    // Write to a temp file first, then rename — avoids partial files on failure.
-    let tmp_path = target_path.with_file_name(format!(
+    Ok((Box::new(response.into_body().into_reader()), content_length))
+}
+
+// Write to a temp file first, then rename — avoids partial files on failure.
+fn make_temp_path(target_path: &Path) -> PathBuf {
+    target_path.with_file_name(format!(
         "{}.{:x}.part",
         target_path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy(),
         rand::random::<u32>(),
-    ));
+    ))
+}
 
-    let download_result: Result<(), LoadModelError> = (|| {
-        let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
-            LoadModelError::DownloadError(format!(
-                "Failed to create temp file {}: {e}",
-                tmp_path.display()
-            ))
+fn stream_to_temp(
+    reader: &mut dyn Read,
+    url: &str,
+    tmp_path: &Path,
+    content_length: u64,
+    progress: &DownloadProgressCallback,
+) -> Result<(), LoadModelError> {
+    let mut file =
+        std::fs::File::create(tmp_path).map_err(|source| LoadModelError::CreateTempFile {
+            path: tmp_path.to_path_buf(),
+            source,
         })?;
 
-        let body = response.into_body();
-        let mut reader = body.into_reader();
-        let mut downloaded: u64 = 0;
-        let mut last_logged_pct: u64 = 0;
-        let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
+    let mut downloaded: u64 = 0;
+    let mut last_logged_pct: u64 = 0;
+    let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
 
-        loop {
-            let n = reader.read(&mut buf).map_err(|e| {
-                LoadModelError::DownloadError(format!("Read error during download: {e}"))
+    loop {
+        let n = reader
+            .read(&mut buf)
+            .map_err(|source| LoadModelError::ReadDownload {
+                url: url.to_owned(),
+                source,
             })?;
-            if n == 0 {
-                break;
-            }
-            file.write_all(&buf[..n]).map_err(|e| {
-                LoadModelError::DownloadError(format!("Write error during download: {e}"))
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n])
+            .map_err(|source| LoadModelError::WriteDownload {
+                path: tmp_path.to_path_buf(),
+                source,
             })?;
-            downloaded += n as u64;
+        downloaded += n as u64;
 
-            progress(downloaded, content_length);
+        progress(downloaded, content_length);
 
-            if let Some(pct) = (downloaded * 100).checked_div(content_length) {
-                if pct >= last_logged_pct + 5 {
-                    info!("Download progress: {pct}% ({downloaded}/{content_length} bytes)");
-                    last_logged_pct = pct;
-                }
+        if let Some(pct) = (downloaded * 100).checked_div(content_length) {
+            if pct >= last_logged_pct + 5 {
+                info!("Download progress: {pct}% ({downloaded}/{content_length} bytes)");
+                last_logged_pct = pct;
             }
         }
-        if content_length > 0 && downloaded != content_length {
-            return Err(LoadModelError::DownloadError(format!(
-                "Download incomplete: got {downloaded}/{content_length} bytes"
-            )));
-        }
-        Ok(())
-    })();
-
-    if download_result.is_err() {
-        if let Err(e) = std::fs::remove_file(&tmp_path) {
-            warn!("Failed to clean up temp file {}: {e}", tmp_path.display());
-        }
-        return download_result;
     }
-
-    // Rename temp file to final path
-    std::fs::rename(&tmp_path, target_path).map_err(|e| {
-        LoadModelError::DownloadError(format!(
-            "Failed to rename temp file to {}: {e}",
-            target_path.display()
-        ))
-    })?;
-
-    info!("Download complete: {}", target_path.display());
+    if content_length > 0 && downloaded != content_length {
+        return Err(LoadModelError::IncompleteDownload {
+            url: url.to_owned(),
+            got: downloaded,
+            expected: content_length,
+        });
+    }
     Ok(())
 }
+
+fn finalize_rename(tmp: &Path, target: &Path) -> Result<(), LoadModelError> {
+    std::fs::rename(tmp, target).map_err(|source| LoadModelError::RenameTempFile {
+        from: tmp.to_path_buf(),
+        to: target.to_path_buf(),
+        source,
+    })
+}
+
 
 /// Download a single file from a generic HTTP(S) URL into the cache and return
 /// the local path. Cache keyed by the URL's path components.
@@ -410,23 +456,30 @@ fn download_repo(
     revision: &str,
     progress: &DownloadProgressCallback,
 ) -> Result<PathBuf, HuggingFaceError> {
-    let cache_dir = get_cache_dir()
-        .map_err(|e| HuggingFaceError::Download(format!("locate cache dir: {e}")))?
-        .join(owner)
-        .join(repo);
+    let cache_dir = get_cache_dir()?.join(owner).join(repo);
+    let repo_id = format!("{owner}/{repo}");
 
     let tree_url =
         format!("https://huggingface.co/api/models/{owner}/{repo}/tree/{revision}?recursive=true");
     let body = ureq::get(&tree_url)
         .call()
-        .map_err(|e| HuggingFaceError::Download(format!("HF tree list ({owner}/{repo}): {e}")))?
+        .map_err(|source| HuggingFaceError::ListRepoTree {
+            repo: repo_id.clone(),
+            source,
+        })?
         .body_mut()
         .read_to_string()
-        .map_err(|e| HuggingFaceError::Download(format!("read HF tree response: {e}")))?;
-    let entries: Vec<HfTreeEntry> = serde_json::from_str(&body)
-        .map_err(|e| HuggingFaceError::Download(format!("parse HF tree response: {e}")))?;
+        .map_err(|source| HuggingFaceError::ReadRepoTree {
+            repo: repo_id.clone(),
+            source,
+        })?;
+    let entries: Vec<HfTreeEntry> =
+        serde_json::from_str(&body).map_err(|source| HuggingFaceError::ParseRepoTree {
+            repo: repo_id.clone(),
+            source,
+        })?;
 
-    // Skip dotfiles (e.g. `.gitattributes`) — git metadata, no runtime value.
+    // Skip dotfiles (e.g. `.gitattributes`)
     let files: Vec<String> = entries
         .into_iter()
         .filter(|e| e.kind == "file")
@@ -434,16 +487,21 @@ fn download_repo(
         .filter(|p| !is_dotfile(p))
         .collect();
     if files.is_empty() {
-        return Err(HuggingFaceError::Download(format!(
-            "HF repo {owner}/{repo}@{revision} has no files"
-        )));
+        return Err(HuggingFaceError::EmptyRepo {
+            repo: repo_id,
+            revision: revision.to_string(),
+        });
     }
 
     for path in &files {
         let url = hf_resolve_url(owner, repo, revision, path);
         let target = cache_dir.join(path);
-        download_file(&url, &target, progress, &[])
-            .map_err(|e| HuggingFaceError::Download(format!("{path}: {e}")))?;
+        download_file(&url, &target, progress, &[]).map_err(|source| {
+            HuggingFaceError::DownloadEntry {
+                path: path.clone(),
+                source: Box::new(source),
+            }
+        })?;
     }
 
     Ok(cache_dir)

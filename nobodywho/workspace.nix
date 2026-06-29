@@ -55,7 +55,47 @@ let
             mesa
           ];
 
+        };
 
+        ort-sys = attrs: {
+          env.ORT_LIB_PATH = "${pkgs.onnxruntime}/lib";
+          env.ORT_PREFER_DYNAMIC_LINK = "1";
+          buildInputs = [ pkgs.onnxruntime ];
+        };
+
+        # XXX: this is a mildly crazy hack that the clanker came up with in order to
+        #      fix nix builds that depend on pyo3. It seems like some environment
+        #      variables aren't being passed into the build properly, so we re-set it here
+        #
+        # The machine-written comment says:
+        # pyo3 0.29 moved Python interpreter-config resolution into pyo3-ffi's
+        # build script, which exports the config to dependent build scripts over
+        # cargo's `links` metadata channel. pyo3's build script then reads it from
+        # the `DEP_<links>_PYO3_CONFIG` env var (`DEP_PYTHON_PYO3_CONFIG` for
+        # pyo3-ffi, `DEP_PYO3_PYTHON_PYO3_CONFIG` for pyo3 itself).
+        #
+        # nixpkgs' buildRustCrate derives that env-var prefix from the *crate name*
+        # instead of the crate's `links` value (see configure-crate.nix: CRATENAME).
+        # pyo3-ffi (links = "python") and pyo3 (links = "pyo3-python") are the rare
+        # crates where the two differ, so buildRustCrate emits the config under
+        # DEP_PYO3_FFI_* / DEP_PYO3_* and pyo3 never finds it, panicking with
+        # "`pyo3_build_config::get()` requires a direct dependency on `pyo3` or
+        # `pyo3-ffi`". We bridge the names by appending an alias to the `env` file
+        # that each crate installs and its dependents source.
+        pyo3-ffi = attrs: {
+          postConfigure = ''
+            if [ -f target/env ]; then
+              echo '[ -n "$DEP_PYO3_FFI_PYO3_CONFIG" ] && export DEP_PYTHON_PYO3_CONFIG="$DEP_PYO3_FFI_PYO3_CONFIG"' >> target/env
+            fi
+          '';
+        };
+
+        pyo3 = attrs: {
+          postConfigure = ''
+            if [ -f target/env ]; then
+              echo '[ -n "$DEP_PYO3_PYO3_CONFIG" ] && export DEP_PYO3_PYTHON_PYO3_CONFIG="$DEP_PYO3_PYO3_CONFIG"' >> target/env
+            fi
+          '';
         };
 
         ort-sys = attrs: {

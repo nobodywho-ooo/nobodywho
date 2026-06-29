@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       full_ci:
-        description: "Run full Swift CI (integration tests with model). If false, only macro tests and binding generation check run."
+        description: "Run full Swift CI (integration tests with model)."
         type: boolean
         default: false
 
@@ -12,69 +12,14 @@ permissions:
   contents: read
 
 jobs:
-  generate-and-check:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: "Cache Cargo Home"
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo
-            nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-host-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-host-
-
-      - name: "Setup rust toolchain"
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . "$HOME/.cargo/env"
-          rustup update stable
-          rustup default stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install Vulkan dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-
-      - name: "Build uniffi crate for host"
-        working-directory: ./nobodywho
-        run: cargo build -p nobodywho-uniffi --locked
-
-      - name: "Generate Swift bindings"
-        working-directory: ./nobodywho
-        run: |
-          cargo run --bin uniffi-bindgen -- generate \
-            --library target/debug/libnobodywho_uniffi.so \
-            --language swift \
-            --out-dir swift/generated
-
-      - name: "Verify committed generated files are up to date"
-        working-directory: ./nobodywho/swift
-        run: |
-          if git diff --exit-code generated/; then
-            echo "Generated bindings are up to date"
-          else
-            echo "ERROR: Committed generated bindings are out of date."
-            echo "Run the binding generation command and commit the results:"
-            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
-            echo "  cargo run --bin uniffi-bindgen -- generate \\"
-            echo "    --library target/debug/libnobodywho_uniffi.so \\"
-            echo "    --language swift --out-dir swift/generated"
-            exit 1
-          fi
-
   tests:
     if: inputs.full_ci
     runs-on: warp-macos-15-arm64-6x
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: "Download xcframework artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nobodywho-swift-xcframework
           path: ./xcframework-zip

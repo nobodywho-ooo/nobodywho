@@ -170,6 +170,18 @@ void main() {
       expect(response, contains("Copenhagen"));
     });
 
+    test('Tokenize test', () async {
+      final tokens = await chat!.tokenize("Hey!");
+      expect(tokens, equals([18665, 0]));
+    });
+
+    test('Stats test', () async {
+      await chat!.ask("What is the capital of Denmark?").completed();
+      final stats = await chat!.getStats();
+      expect(stats.contextUsed, greaterThan(0));
+      expect(stats.contextUsed, lessThanOrEqualTo(stats.contextSize));
+    });
+
     test('Tool calling test', () async {
       final responseStream = chat!.ask(
         "Can you please sparklify the string 'Foopdoop'?",

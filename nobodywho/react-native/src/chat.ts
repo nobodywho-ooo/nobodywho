@@ -1,6 +1,7 @@
 import {
   RustChat,
   SamplerConfig,
+  type ChatStats,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
 import { type Message, fromInternal, toInternal } from "./message";
@@ -85,7 +86,10 @@ export class Chat {
     if (typeof message === "string") {
       return new TokenStream(this._inner.ask(message));
     }
-    return new TokenStream(this._inner.askWithPrompt(message._parts));
+    if (message._jsonString !== null) {
+      return new TokenStream(this._inner.askWithJsonPrompt(message._jsonString!));
+    }
+    return new TokenStream(this._inner.askWithPrompt(message._parts!));
   }
 
   /** Stop the current generation. */
@@ -125,6 +129,15 @@ export class Chat {
     return this._inner.getSystemPrompt();
   }
 
+  /** Tokenize a text message or multimodal prompt and return the token IDs.
+   * Each element is a token ID (number) for text, or null for image/audio embedding slots. */
+  async tokenize(message: string | Prompt): Promise<(number | null)[]> {
+    if (typeof message === "string") {
+      return this._inner.tokenize(message);
+    }
+    return this._inner.tokenizeWithPrompt(message._parts);
+  }
+
   /** Set the system prompt. */
   async setSystemPrompt(systemPrompt: string | undefined): Promise<void> {
     return this._inner.setSystemPrompt(systemPrompt);
@@ -153,6 +166,11 @@ export class Chat {
   /** Get the current sampler configuration as a JSON string. */
   async getSamplerConfigJson(): Promise<string> {
     return this._inner.getSamplerConfigJson();
+  }
+
+  /** Get context usage statistics. */
+  async getStats(): Promise<ChatStats> {
+    return this._inner.getStats();
   }
 
   /**

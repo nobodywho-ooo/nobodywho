@@ -121,7 +121,7 @@ final circleAreaTool = nobodywho.Tool(
   }
 );
 
-final getWeatherTool = AiTool(
+final getWeatherTool = nobodywho.Tool(
   name: "get_weather",
   description: "Get the weather of a city",
   function: ({required String city}) async {

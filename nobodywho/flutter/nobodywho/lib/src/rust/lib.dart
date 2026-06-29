@@ -9,6 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`, `wrap_progress`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -48,6 +49,12 @@ Future<String> downloadModel({
 double cosineSimilarity({required List<double> a, required List<double> b}) =>
     NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
 
+/// Returns every cached .gguf model paired with its byte size.
+///
+/// Each entry is (absolute path, size in bytes).
+List<(String, BigInt)> getCachedModels() =>
+    NobodyWho.instance.api.crateGetCachedModels();
+
 RustTool newToolImpl({
   required FutureOr<String> Function(String) function,
   required String name,
@@ -75,7 +82,7 @@ RustTool newPythonTool({
   maxRecursionDepth: maxRecursionDepth,
 );
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Asset>>
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>
 abstract class Asset implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
@@ -160,16 +167,6 @@ abstract class GetterError implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
-  /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
-  /// or HTTPS URL. Remote models are downloaded and cached automatically.
-  ///
-  /// Args:
-  ///     model_path: Path or URL to a GGUF model file.
-  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
-  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
-  ///         final emit on completion. Not invoked for cached/local files.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
   static Future<Model> load({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
@@ -182,11 +179,28 @@ abstract class Model implements RustOpaqueInterface {
     useGpu: useGpu,
     projectionModelPath: projectionModelPath,
   );
+
+  /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
+  /// or HTTPS URL. Remote models are downloaded and cached automatically.
+  ///
+  /// Args:
+  ///     model_path: Path or URL to a GGUF model file.
+  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+  ///         final emit on completion. Not invoked for cached/local files.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+  Future<int> maxCtx();
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
 abstract class RustChat implements RustOpaqueInterface {
   RustTokenStream ask(String message);
+
+  /// Send a raw JSON prompt and get a stream of response tokens.
+  /// The JSON string is parsed and passed as a structured content field.
+  /// Called by the Dart SDK layer — the json argument is always valid JSON.
+  RustTokenStream askWithJsonPrompt({required String json});
 
   /// Send a multimodal prompt (text + images) and get a stream of response tokens.
   ///
@@ -235,6 +249,8 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<List<Message>> getChatHistory();
 
   Future<SamplerConfig> getSamplerConfig();
+
+  Future<ChatStats> getStats();
 
   Future<String?> getSystemPrompt();
 
@@ -294,6 +310,10 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<void> setTools({required List<RustTool> tools});
 
   void stopGeneration();
+
+  Future<List<int?>> tokenize({required String message});
+
+  Future<List<int?>> tokenizeWithPrompt({required List<PromptPart> parts});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTT>>
@@ -433,6 +453,10 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double penaltyPresent,
   });
 
+  /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+  /// `greedy` ignores it. If unset, a default seed is used.
+  SamplerBuilder seed({required int seed});
+
   /// Apply temperature scaling to the probability distribution.
   ///
   /// Args:
@@ -552,6 +576,9 @@ abstract class SamplerPresets implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
 abstract class SetterError implements RustOpaqueInterface {}
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< TokenizeError>>
+abstract class TokenizeError implements RustOpaqueInterface {}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
 abstract class ToolCall implements RustOpaqueInterface {
   Value get arguments;
@@ -566,6 +593,24 @@ abstract class ToolCall implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
 abstract class Value implements RustOpaqueInterface {}
 
+class ChatStats {
+  final int contextSize;
+  final int contextUsed;
+
+  const ChatStats({required this.contextSize, required this.contextUsed});
+
+  @override
+  int get hashCode => contextSize.hashCode ^ contextUsed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChatStats &&
+          runtimeType == other.runtimeType &&
+          contextSize == other.contextSize &&
+          contextUsed == other.contextUsed;
+}
+
 @freezed
 sealed class Message with _$Message {
   const Message._();
@@ -576,7 +621,7 @@ sealed class Message with _$Message {
   }) = Message_User;
   const factory Message.assistant({
     required String content,
-    @Default(null) List<ToolCall>? toolCalls,
+    List<ToolCall>? toolCalls,
   }) = Message_Assistant;
   const factory Message.system({required String content}) = Message_System;
   const factory Message.tool({required String name, required String content}) =

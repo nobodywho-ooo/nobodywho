@@ -22,6 +22,9 @@ jobs:
   linting:
     uses: ./.github/workflows/linting.yml
 
+  regen_checks:
+    uses: ./.github/workflows/regen_checks.yml
+
   python_ci:
     uses: ./.github/workflows/python_ci.yml
     with:
@@ -32,14 +35,15 @@ jobs:
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
-  react_native_ci:
-    uses: ./.github/workflows/react_native_ci.yml
-    with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
-
   swift_ci:
     needs: [build]
     uses: ./.github/workflows/swift_ci.yml
+    with:
+      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+
+  kotlin_ci:
+    needs: [build]
+    uses: ./.github/workflows/kotlin_ci.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
@@ -52,13 +56,17 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/nobodywho-')
-    needs: [linting, build, test, python_ci, react_native_ci, swift_ci]
+    needs: [linting, regen_checks, build, test, python_ci, swift_ci, kotlin_ci]
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
       PYPI_AUTH_TOKEN: ${{ secrets.PYPI_AUTH_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       SWIFT_MIRROR_TOKEN: ${{ secrets.SWIFT_MIRROR_TOKEN }}
+      MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      MAVEN_SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
+      MAVEN_SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
 
   docs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages'

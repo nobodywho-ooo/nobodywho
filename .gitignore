@@ -7,9 +7,11 @@
 .claude
 python_dev_envs/
 checkpoints/
-docs/site/
-docs/__pycache__
+docs/build/
+docs/node_modules/
+docs/.docusaurus/
+docs/apfel-grotezk-main/
 result
 target/
-.build/
+nobodywho/swift/.build/
 .env

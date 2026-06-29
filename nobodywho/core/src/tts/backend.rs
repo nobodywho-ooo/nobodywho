@@ -1,12 +1,29 @@
 use crate::errors::TtsError;
 use crate::huggingface;
-use crate::onnx::Device as TtsDevice;
-use crate::tts::{backends, TtsConfig};
+use crate::tts::{kokoro, TtsConfig, TtsDevice};
 use std::time::Instant;
 use tracing::info;
 
 pub(super) trait TtsBackendImpl: Send {
-    fn synthesize_raw(&mut self, text: &str) -> Result<(Vec<f32>, u32), TtsError>;
+    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError>;
+    fn sample_rate(&self) -> u32;
+
+    /// Synthesize `text` and encode the resulting PCM as a WAV byte buffer.
+    /// Default implementation; backends typically don't need to override.
+    fn synthesize(&mut self, text: &str) -> Result<Vec<u8>, TtsError> {
+        let synth_start = Instant::now();
+        let samples = self.synthesize_raw(text)?;
+        let sample_rate = self.sample_rate();
+
+        info!(
+            n_samples = samples.len(),
+            duration_secs = samples.len() as f32 / sample_rate as f32,
+            elapsed = ?synth_start.elapsed(),
+            "Synthesized audio"
+        );
+
+        encode_wav(&samples, sample_rate)
+    }
 }
 
 pub(super) fn load_backend(
@@ -17,35 +34,17 @@ pub(super) fn load_backend(
         TtsConfig::Kokoro(config) => {
             let init_start = Instant::now();
             let model_dir = huggingface::resolve(huggingface::parse(&config.source)?)?;
-            let backend = backends::KokoroBackend::new(
+            let backend = kokoro::KokoroBackend::new(
                 &model_dir,
                 &config.voice,
                 &config.language,
                 config.speed,
                 device,
-                config.espeak_data_dir.as_deref(),
             )?;
             info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TTS");
             Ok(Box::new(backend))
         }
     }
-}
-
-pub(super) fn synthesize_sync(
-    backend: &mut dyn TtsBackendImpl,
-    text: &str,
-) -> Result<Vec<u8>, TtsError> {
-    let synth_start = Instant::now();
-    let (samples, sample_rate) = backend.synthesize_raw(text)?;
-
-    info!(
-        n_samples = samples.len(),
-        duration_secs = samples.len() as f32 / sample_rate as f32,
-        elapsed = ?synth_start.elapsed(),
-        "Synthesized audio"
-    );
-
-    encode_wav(&samples, sample_rate)
 }
 
 fn encode_wav(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, TtsError> {

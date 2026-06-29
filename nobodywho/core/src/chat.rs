@@ -24,35 +24,31 @@
 //!
 
 use crate::errors::{
-    ChatWorkerError, ContextSyncError, DecodingError, GenerateResponseError, InitWorkerError,
-    MultimodalError, RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError,
+    ChatWorkerError, ContextSyncError, GenerateResponseError, InitWorkerError, MultimodalError,
+    RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError, TokenizeError,
     WrappedResponseError,
 };
+use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
-use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
-use crate::llm::{Worker, WorkerGuard, WriteOutput};
-use crate::sampler_config::read_sampler_from_metadata;
-use crate::sampler_config::{SamplerConfig, ShiftStep};
+use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
+use crate::sampler::read_sampler_from_metadata;
+use crate::sampler::{SamplerConfig, ShiftStep};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
-use crate::tokenizer::{
-    find_chunks_prefix_difference, ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk,
-    TokenizerChunks,
-};
+use crate::tokenizer::{ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk, TokenizerChunks};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
 use ahash::AHasher;
 use indexmap::IndexMap;
-use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::mtmd::MtmdBitmap;
-use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cmp::min;
 use std::collections::HashSet;
+use std::fmt;
 use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace, trace_span};
+use tracing::{debug, error, info, trace};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
@@ -60,11 +56,57 @@ pub struct Asset {
     pub path: PathBuf,
 }
 
+/// The content of a user message — either plain text or a raw JSON value.
+///
+/// Serializes transparently: `Text` becomes a JSON string, `Json` becomes the
+/// raw JSON value (array, object, etc.). This lets chat templates that expect
+/// `content: [{"type": "translate", ...}]` receive the actual array rather than
+/// a stringified version of it.
+#[derive(Clone, Debug)]
+pub enum MessageContent {
+    Text(String),
+    Json(serde_json::Value),
+}
+
+impl Serialize for MessageContent {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            MessageContent::Text(t) => t.serialize(s),
+            MessageContent::Json(v) => v.serialize(s),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageContent {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = serde_json::Value::deserialize(d)?;
+        Ok(match v {
+            serde_json::Value::String(s) => MessageContent::Text(s),
+            other => MessageContent::Json(other),
+        })
+    }
+}
+
+impl fmt::Display for MessageContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MessageContent::Text(t) => write!(f, "{t}"),
+            MessageContent::Json(v) => write!(f, "{v}"),
+        }
+    }
+}
+
+impl From<String> for MessageContent {
+    fn from(s: String) -> Self {
+        MessageContent::Text(s)
+    }
+}
+
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum Message {
     User {
-        content: String,
+        content: MessageContent,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         assets: Vec<Asset>,
     },
@@ -113,12 +155,12 @@ impl Message {
         )
     }
 
-    pub fn content(&self) -> &str {
+    pub fn content(&self) -> String {
         match self {
-            Message::User { content, .. }
-            | Message::Assistant { content, .. }
+            Message::User { content, .. } => content.to_string(),
+            Message::Assistant { content, .. }
             | Message::System { content, .. }
-            | Message::Tool { content, .. } => content,
+            | Message::Tool { content, .. } => content.clone(),
         }
     }
 
@@ -131,7 +173,7 @@ impl Message {
 
     pub fn new_user(content: String) -> Self {
         Self::User {
-            content,
+            content: MessageContent::Text(content),
             assets: vec![],
         }
     }
@@ -306,7 +348,7 @@ impl ChatHandle {
         let should_stop_clone = Arc::clone(&should_stop);
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let worker = Chat::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(w) => {
                     let _ = init_tx.send(Ok(()));
@@ -513,6 +555,15 @@ impl ChatHandle {
             ))
     }
 
+    /// Get context usage statistics.
+    pub fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetStats { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -562,6 +613,19 @@ impl ChatHandle {
                 "get_system_prompt".into(),
             ))
     }
+
+    /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
+    /// slots are `None` (one per slot consumed in the context window).
+    pub fn tokenize(&self, prompt: impl Promptable) -> Result<Vec<Option<i32>>, TokenizeError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::Tokenize {
+            prompt: prompt.to_prompt(),
+            output_tx,
+        });
+        output_rx
+            .blocking_recv()
+            .ok_or(TokenizeError::WorkerTerminated)?
+    }
 }
 
 /// Interact with a ChatWorker in an asynchronous manner.
@@ -582,7 +646,7 @@ impl ChatHandleAsync {
         let should_stop_clone = Arc::clone(&should_stop);
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_chat_worker(&model, config, should_stop_clone);
+            let worker = Chat::new_chat_worker(&model, config, should_stop_clone);
             let mut worker_state = match worker {
                 Ok(w) => {
                     let _ = init_tx.send(Ok(()));
@@ -802,6 +866,16 @@ impl ChatHandleAsync {
             ))
     }
 
+    /// Get context usage statistics.
+    pub async fn get_stats(&self) -> Result<ChatStats, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetStats { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -853,6 +927,23 @@ impl ChatHandleAsync {
                 "get_system_prompt".into(),
             ))
     }
+
+    /// Tokenize a prompt and return token IDs. Text tokens are `Some(id)`, media embedding
+    /// slots are `None` (one per slot consumed in the context window).
+    pub async fn tokenize(
+        &self,
+        prompt: impl Promptable,
+    ) -> Result<Vec<Option<i32>>, TokenizeError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::Tokenize {
+            prompt: prompt.to_prompt(),
+            output_tx,
+        });
+        output_rx
+            .recv()
+            .await
+            .ok_or(TokenizeError::WorkerTerminated)?
+    }
 }
 
 /// A stream of tokens from the model.
@@ -886,6 +977,11 @@ fn forward_write_output(
         }
     });
     new_rx
+}
+
+pub struct ChatStats {
+    pub context_size: u32,
+    pub context_used: u32,
 }
 
 enum ChatMsg {
@@ -939,6 +1035,13 @@ enum ChatMsg {
         messages: Vec<Message>,
         output_tx: tokio::sync::mpsc::Sender<()>,
     },
+    GetStats {
+        output_tx: tokio::sync::mpsc::Sender<ChatStats>,
+    },
+    Tokenize {
+        prompt: Prompt,
+        output_tx: tokio::sync::mpsc::Sender<Result<Vec<Option<i32>>, TokenizeError>>,
+    },
 }
 
 impl std::fmt::Debug for ChatMsg {
@@ -987,18 +1090,23 @@ impl std::fmt::Debug for ChatMsg {
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
+            ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
+            ChatMsg::Tokenize { prompt, .. } => f
+                .debug_struct("Tokenize")
+                .field(
+                    "prompt",
+                    &prompt.to_string().chars().take(50).collect::<String>(),
+                )
+                .finish(),
         }
     }
 }
 
-fn process_worker_msg(
-    worker_state: &mut Worker<'_, ChatWorker>,
-    msg: ChatMsg,
-) -> Result<(), ChatWorkerError> {
+fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), ChatWorkerError> {
     info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Ask { prompt, output_tx } => {
-            let should_stop = Arc::clone(&worker_state.extra.should_stop);
+            let should_stop = Arc::clone(&worker_state.should_stop);
             let error_tx = output_tx.clone();
             let callback = move |out| {
                 if output_tx.send(out).is_err() {
@@ -1083,6 +1191,17 @@ fn process_worker_msg(
             let sampler_config = worker_state.get_sampler_config();
             let _ = output_tx.blocking_send(sampler_config);
         }
+        ChatMsg::GetStats { output_tx } => {
+            let stats = ChatStats {
+                context_size: worker_state.engine.ctx.n_ctx(),
+                context_used: worker_state.engine.n_past(),
+            };
+            let _ = output_tx.blocking_send(stats);
+        }
+        ChatMsg::Tokenize { prompt, output_tx } => {
+            let result = worker_state.tokenize(prompt);
+            let _ = output_tx.blocking_send(result);
+        }
     };
 
     Ok(())
@@ -1159,7 +1278,10 @@ impl ChatContext {
     }
 }
 
-struct ChatWorker {
+/// A chat session: owns an [`InferenceEngine`] plus all the conversational state
+/// (messages, tools, template, sampler config).
+struct Chat<'a> {
+    engine: InferenceEngine<'a>,
     should_stop: Arc<AtomicBool>,
     tool_grammar: Option<gbnf::GbnfGrammar>,
     tool_format: Option<ToolFormat>,
@@ -1171,18 +1293,12 @@ struct ChatWorker {
     context: ChatContext,
 }
 
-impl llm::PoolingType for ChatWorker {
-    fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::None
-    }
-}
-
-impl Worker<'_, ChatWorker> {
+impl<'a> Chat<'a> {
     fn new_chat_worker(
-        model: &llm::Model,
+        model: &'a llm::Model,
         config: ChatConfig,
         should_stop: Arc<AtomicBool>,
-    ) -> Result<Worker<'_, ChatWorker>, InitWorkerError> {
+    ) -> Result<Chat<'a>, InitWorkerError> {
         if !model.is_generative_model() {
             let architecture = model
                 .language_model
@@ -1225,54 +1341,55 @@ impl Worker<'_, ChatWorker> {
             None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
         };
 
-        Worker::new_with_type(
-            model,
-            config.n_ctx,
-            false,
-            ChatWorker {
-                should_stop,
-                tool_grammar: grammar,
-                tool_format,
-                sampler_config,
-                messages: match config.system_prompt {
-                    Some(msg) => vec![Message::System { content: msg }],
-                    None => vec![],
-                },
-                chat_template: template,
-                template_variables: config.template_variables,
-                tools: config.tools,
-                context: ChatContext::new(),
+        // Build the low-level inference engine via the shared Worker constructor,
+        // then take ownership of just the engine for the chat session.
+        let Worker { engine, extra: () } = Worker::new_with_type(model, config.n_ctx, false, ())?;
+
+        Ok(Chat {
+            engine,
+            should_stop,
+            tool_grammar: grammar,
+            tool_format,
+            sampler_config,
+            messages: match config.system_prompt {
+                Some(msg) => vec![Message::System { content: msg }],
+                None => vec![],
             },
-        )
+            chat_template: template,
+            template_variables: config.template_variables,
+            tools: config.tools,
+            context: ChatContext::new(),
+        })
     }
 
     fn should_stop(&self) -> bool {
-        self.extra
-            .should_stop
-            .load(std::sync::atomic::Ordering::Relaxed)
+        self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn add_system_message(&mut self, content: String) {
-        self.extra.messages.push(Message::System { content });
+        self.messages.push(Message::System { content });
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
-        self.extra.messages.push(Message::new_assistant(content));
+        self.messages.push(Message::new_assistant(content));
     }
 
-    pub fn add_user_message(&mut self, content: String, assets: Vec<Asset>) {
-        self.extra.messages.push(Message::User { content, assets });
+    pub fn add_user_message(&mut self, content: impl Into<MessageContent>, assets: Vec<Asset>) {
+        self.messages.push(Message::User {
+            content: content.into(),
+            assets,
+        });
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
-        self.extra.messages.push(Message::Assistant {
+        self.messages.push(Message::Assistant {
             content: "".into(),
             tool_calls: Some(tool_calls),
         });
     }
 
     pub fn add_tool_resp(&mut self, name: String, content: String) {
-        self.extra.messages.push(Message::Tool { name, content });
+        self.messages.push(Message::Tool { name, content });
     }
 
     /// Compare tokens from a template-rendered chat history with the tokens in the LLM's context,
@@ -1284,51 +1401,29 @@ impl Worker<'_, ChatWorker> {
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
         let mut chunks = self.render_as_chunks(true)?;
-        if chunks.n_tokens() > self.ctx.n_ctx() as usize {
+        if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
             self.context_shift()?;
             chunks = self.render_as_chunks(true)?;
         }
 
-        let prefix_index = find_chunks_prefix_difference(&self.extra.context.chunks, &chunks);
-
         // We should never try to sync with an empty render
         debug_assert!(!chunks.is_empty());
 
-        // this call may remove more than just the tokens from prefix_index
-        // it updates self.n_past to indicate num of tokens in context
-        let old_n_past = self.n_past;
-        self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-
-        // Use n_past as the actual preserved prefix — may be 0 if a full reset was
-        // required (e.g. hybrid/recurrent models that don't support partial seq_rm).
-        let chunks_to_read = chunks.tail(self.n_past as usize);
-        if chunks_to_read.n_tokens() > 0 {
-            self.read_chunks(chunks_to_read, inference_lock_token)?;
-        } else if self.n_past < old_n_past {
-            // Truncate-only path: the KV cache was trimmed but no new tokens
-            // need to be appended. Re-decode the last remaining token to
-            // refresh the logits buffer, which would otherwise contain stale
-            // values from whatever the previous decode() call happened to be.
-            // llama.cpp requires strictly consecutive positions (Y = X + 1),
-            // so we must remove the last token from the KV cache before we
-            // can re-decode it.
-            self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
-            let refresh_tokens = chunks.tail(self.n_past as usize);
-            self.read_chunks(refresh_tokens, inference_lock_token)?;
-        }
-
-        self.extra.context.chunks = chunks;
-        self.extra
-            .context
-            .garbage_collect_bitmaps(&self.extra.messages);
+        // Diff against the chunks currently in the KV cache and load only the new tail.
+        let prev = std::mem::take(&mut self.context.chunks);
+        let new_chunks = self
+            .engine
+            .sync_context(chunks, &prev, inference_lock_token)?;
+        self.context.chunks = new_chunks;
+        self.context.garbage_collect_bitmaps(&self.messages);
 
         Ok(())
     }
 
     fn context_shift(&mut self) -> Result<(), ShiftError> {
         info!("Context shift happens!");
-        let target_token_size = (self.ctx.n_ctx() / 2) as usize;
-        let mut messages = self.extra.messages.clone();
+        let target_token_size = (self.engine.ctx.n_ctx() / 2) as usize;
+        let mut messages = self.messages.clone();
 
         // Find indices to preserve
         let system_end = if messages[0].is_system() { 1 } else { 0 };
@@ -1385,7 +1480,7 @@ impl Worker<'_, ChatWorker> {
             last_deletable_index -= messages_deleted;
         }
 
-        self.extra.messages = messages;
+        self.messages = messages;
         Ok(())
     }
 
@@ -1435,35 +1530,37 @@ impl Worker<'_, ChatWorker> {
 
         // initialize sampler
         // stateful samplers only live for one response
-        let mut sampler = sampler_config.to_stateful(self.ctx.model)?;
+        let mut sampler = sampler_config.to_stateful(self.engine.ctx.model)?;
 
         // init statefull decoder for split up tokens like emojis
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
         while !self.should_stop() {
             // Check if the context is full
-            if self.n_past as u32 == self.ctx.n_ctx() {
+            if self.engine.is_context_full() {
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
-                self.read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
+                self.engine
+                    .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
             }
 
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_token = self.sample_and_decode_next_token(&mut sampler)?;
+            let new_token = self.engine.sample_and_decode_next_token(&mut sampler)?;
 
             tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
 
             // Attempt to convert token(s) to bytes
             let token_bytes = match self
+                .engine
                 .ctx
                 .model
                 .token_to_piece_bytes(new_token, 8, true, None)
             {
                 Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.ctx.model.token_to_piece_bytes(
+                    self.engine.ctx.model.token_to_piece_bytes(
                         new_token,
                         (-i).try_into().expect("Error buffer size is positive"),
                         true,
@@ -1493,7 +1590,7 @@ impl Worker<'_, ChatWorker> {
             // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
             let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
 
-            let has_eog = self.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
+            let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
             trace!(?new_token, ?token_str, ?has_eog);
 
             if !has_eog {
@@ -1513,60 +1610,35 @@ impl Worker<'_, ChatWorker> {
         Ok(self)
     }
 
-    fn sample_and_decode_next_token(
-        &mut self,
-        sampler: &mut LlamaSampler,
-    ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler");
-        let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
-
-        // batch of one
-        self.small_batch.clear();
-        self.small_batch.add(new_token, self.n_past, &[0], true)?;
-
-        // llm go brr
-        let decode_span = trace_span!("write decode", n_past = self.n_past);
-        let decode_guard = decode_span.enter();
-        self.ctx.decode(&mut self.small_batch)?;
-        drop(decode_guard);
-        self.n_past += 1; // keep count
-
-        Ok(new_token)
-    }
-
     pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
         // reset the stop flag
-        self.extra
-            .should_stop
+        self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
         // Get the tool call begin token from the format if tools are configured
         let tool_call_begin = self
-            .extra
             .tool_format
             .as_ref()
             .map(|fmt| fmt.begin_token().to_string());
 
+        let prompt_text = prompt.to_string();
+
         let media_assets = prompt.extract_media_assets();
-        let bitmaps = if let Some(projection_model) = self.projection_model.as_ref() {
-            media_assets
-                .iter()
-                .map(|part| match part {
-                    PromptPart::Image(path) => projection_model.load_image(path),
-                    PromptPart::Audio(path) => projection_model.load_audio(path),
-                    PromptPart::Text(_) => unreachable!(),
-                })
-                .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?
-        } else {
-            vec![]
-        };
+        let bitmaps = media_assets
+            .iter()
+            .map(|part| match part {
+                PromptPart::Image(path) => self.engine.load_image(path),
+                PromptPart::Audio(path) => self.engine.load_audio(path),
+                PromptPart::Text(_) => unreachable!(),
+            })
+            .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
         debug!("Detected bitmaps: {:?}", bitmaps);
 
-        let bitmap_ids = self.extra.context.add_bitmaps(bitmaps)?;
+        let bitmap_ids = self.context.add_bitmaps(bitmaps)?;
         let assets = bitmap_ids
             .iter()
             .zip(media_assets.iter())
@@ -1579,22 +1651,32 @@ impl Worker<'_, ChatWorker> {
             })
             .collect::<Vec<_>>();
 
-        self.add_user_message(prompt.to_string(), assets);
+        let content = match prompt {
+            Prompt::Json(v) => MessageContent::Json(v),
+            Prompt::Parts(_) => MessageContent::Text(prompt_text),
+        };
+        self.add_user_message(content, assets);
 
         // Modify sampler with tool grammar if we have tools
-        let sampler = self.extra.tool_grammar.as_ref().map_or(
-            self.extra.sampler_config.clone(),
-            |tool_grammar| {
-                self.extra
-                    .sampler_config
-                    .clone()
-                    .prepend(ShiftStep::Grammar {
-                        trigger_on: tool_call_begin.clone(),
-                        root: tool_grammar.root_name.to_string(),
-                        grammar: tool_grammar.as_str().into(),
-                    })
-            },
-        );
+        let sampler =
+            self.tool_grammar
+                .as_ref()
+                .map_or(self.sampler_config.clone(), |tool_grammar| {
+                    let mut steps = self.sampler_config.steps.clone();
+                    steps.insert(
+                        0,
+                        ShiftStep::Grammar {
+                            trigger_on: tool_call_begin.clone(),
+                            root: tool_grammar.root_name.to_string(),
+                            grammar: tool_grammar.as_str().into(),
+                        },
+                    );
+                    SamplerConfig::new(
+                        steps,
+                        self.sampler_config.sample_step.clone(),
+                        self.sampler_config.seed,
+                    )
+                });
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
@@ -1605,7 +1687,7 @@ impl Worker<'_, ChatWorker> {
 
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
-        if let Some(tool_format) = self.extra.tool_format.clone() {
+        if let Some(tool_format) = self.tool_format.clone() {
             while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
                 debug!(?tool_calls, "Got tool calls:");
 
@@ -1616,8 +1698,7 @@ impl Worker<'_, ChatWorker> {
                     // this is just a stupid linear search
                     // but I think it's probably faster than something fancy as long as we have few tools
                     // /shrug I'm happy to be wrong
-                    let Some(tool) = self.extra.tools.iter().find(|t| t.name == tool_call.name)
-                    else {
+                    let Some(tool) = self.tools.iter().find(|t| t.name == tool_call.name) else {
                         // in case the tool isn't found.
                         // I *think* this should be impossible, as long as the tool calling grammar
                         // works.
@@ -1653,7 +1734,7 @@ impl Worker<'_, ChatWorker> {
             .is_none_or(|t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
-        self.extra.context.chunks = self.render_as_chunks(true)?;
+        self.context.chunks = self.render_as_chunks(true)?;
 
         Ok(self)
     }
@@ -1662,34 +1743,30 @@ impl Worker<'_, ChatWorker> {
     /// That is for avoiding the render will concat system message with the first user message.
     /// Otherwise please handle stuff.
     fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
-        let messages = &self.extra.messages;
+        let messages = &self.messages;
         let template_context = ChatTemplateContext::new(
-            self.extra.template_variables.clone(),
-            if self.extra.tools.is_empty() {
+            self.template_variables.clone(),
+            if self.tools.is_empty() {
                 None
             } else {
-                Some(self.extra.tools.clone())
+                Some(self.tools.clone())
             },
         );
 
         let rendered_chat = if handled {
-            self.extra
-                .chat_template
-                .render(messages, &template_context)?
+            self.chat_template.render(messages, &template_context)?
         } else {
-            self.extra
-                .chat_template
+            self.chat_template
                 .render_unhandled(messages, &template_context)?
         };
 
         let bitmaps: Vec<&MtmdBitmap> = self
-            .extra
             .messages
             .iter()
             .flat_map(|msg| msg.assets())
-            .filter_map(|asset| self.extra.context.bitmaps.get(&asset.id))
+            .filter_map(|asset| self.context.bitmaps.get(&asset.id))
             .collect();
-        Ok(self.tokenizer.tokenize(rendered_chat, bitmaps)?)
+        Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
@@ -1702,13 +1779,13 @@ impl Worker<'_, ChatWorker> {
         F: Fn(llm::WriteOutput) + Clone,
     {
         // Check how much of the current KVCache we can keep
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
+        let inference_lock_token = acquire_inference_lock();
         self.sync_context_with_render(&inference_lock_token)?;
 
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
-        let (wrapped_respond, resp_receiver) = wrap_respond(respond.clone(), tool_call_begin_token);
+        let (wrapped_respond, resp_receiver) =
+            crate::inference::wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
         self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
@@ -1721,14 +1798,14 @@ impl Worker<'_, ChatWorker> {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), SelectTemplateError> {
-        self.reset_context();
+        self.engine.reset_context();
 
         // Detect tool format if not already detected and tools are provided
-        if !tools.is_empty() && self.extra.tool_format.is_none() {
-            match detect_tool_format(self.ctx.model) {
+        if !tools.is_empty() && self.tool_format.is_none() {
+            match detect_tool_format(self.engine.ctx.model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
-                    self.extra.tool_format = Some(format);
+                    self.tool_format = Some(format);
                 }
                 Err(e) => {
                     debug!(error = %e, "Failed to detect tool format, tools will not work");
@@ -1736,8 +1813,8 @@ impl Worker<'_, ChatWorker> {
             }
         }
 
-        self.extra.tool_grammar = if !tools.is_empty() {
-            if let Some(ref format) = self.extra.tool_format {
+        self.tool_grammar = if !tools.is_empty() {
+            if let Some(ref format) = self.tool_format {
                 match format.generate_grammar(&tools) {
                     Ok(g) => Some(g),
                     Err(e) => {
@@ -1751,9 +1828,9 @@ impl Worker<'_, ChatWorker> {
         } else {
             None
         };
-        self.extra.tools = tools;
-        self.extra.messages = Vec::new();
-        self.extra.context = ChatContext::new();
+        self.tools = tools;
+        self.messages = Vec::new();
+        self.context = ChatContext::new();
         if let Some(sys_msg) = system_prompt {
             self.add_system_message(sys_msg);
         }
@@ -1766,7 +1843,7 @@ impl Worker<'_, ChatWorker> {
         name: String,
         value: bool,
     ) -> Result<(), ChatWorkerError> {
-        self.extra.template_variables.insert(name, value);
+        self.template_variables.insert(name, value);
         Ok(())
     }
 
@@ -1775,17 +1852,17 @@ impl Worker<'_, ChatWorker> {
         &mut self,
         variables: std::collections::HashMap<String, bool>,
     ) -> Result<(), ChatWorkerError> {
-        self.extra.template_variables = variables;
+        self.template_variables = variables;
         Ok(())
     }
 
     /// Get all template variables.
     pub fn get_template_variables(&self) -> std::collections::HashMap<String, bool> {
-        self.extra.template_variables.clone()
+        self.template_variables.clone()
     }
 
     pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) {
-        self.extra.sampler_config = sampler_config;
+        self.sampler_config = sampler_config;
     }
 
     pub fn set_system_prompt(
@@ -1795,35 +1872,29 @@ impl Worker<'_, ChatWorker> {
         match system_prompt {
             Some(sys_msg) => {
                 let system_message = Message::System { content: sys_msg };
-                if self.extra.messages.is_empty() {
-                    self.extra.messages.push(system_message);
-                } else if self.extra.messages[0].is_system() {
-                    self.extra.messages[0] = system_message;
+                if self.messages.is_empty() {
+                    self.messages.push(system_message);
+                } else if self.messages[0].is_system() {
+                    self.messages[0] = system_message;
                 } else {
-                    self.extra.messages.insert(0, system_message);
+                    self.messages.insert(0, system_message);
                 }
             }
             None => {
-                if !self.extra.messages.is_empty() && self.extra.messages[0].is_system() {
-                    self.extra.messages.remove(0);
+                if !self.messages.is_empty() && self.messages[0].is_system() {
+                    self.messages.remove(0);
                 }
             }
         }
-
-        // Reuse cached prefix
-
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-        self.sync_context_with_render(&inference_lock_token)?;
 
         Ok(())
     }
 
     pub fn get_system_prompt(&self) -> Option<String> {
-        if self.extra.messages.is_empty() {
+        if self.messages.is_empty() {
             return None;
         };
-        match &self.extra.messages[0] {
+        match &self.messages[0] {
             Message::System { content } => Some(content.clone()),
             _ => None,
         }
@@ -1831,11 +1902,11 @@ impl Worker<'_, ChatWorker> {
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
         // Detect tool format if not already detected and tools are provided
-        if !tools.is_empty() && self.extra.tool_format.is_none() {
-            match detect_tool_format(self.ctx.model) {
+        if !tools.is_empty() && self.tool_format.is_none() {
+            match detect_tool_format(self.engine.ctx.model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
-                    self.extra.tool_format = Some(format);
+                    self.tool_format = Some(format);
                 }
                 Err(e) => {
                     debug!(error = %e, "Failed to detect tool format, tools will not work");
@@ -1843,8 +1914,8 @@ impl Worker<'_, ChatWorker> {
             }
         }
 
-        self.extra.tool_grammar = if !tools.is_empty() {
-            if let Some(ref format) = self.extra.tool_format {
+        self.tool_grammar = if !tools.is_empty() {
+            if let Some(ref format) = self.tool_format {
                 match format.generate_grammar(&tools) {
                     Ok(g) => Some(g),
                     Err(e) => {
@@ -1858,27 +1929,21 @@ impl Worker<'_, ChatWorker> {
         } else {
             None
         };
-        self.extra.tools = tools;
+        self.tools = tools;
 
-        self.extra.chat_template = select_template(self.ctx.model, !self.extra.tools.is_empty())?;
-
-        // Reuse cached prefix
-
-        let _gil_guard = GLOBAL_INFERENCE_LOCK.lock();
-        let inference_lock_token = _gil_guard.unwrap();
-        self.sync_context_with_render(&inference_lock_token)?;
+        self.chat_template = select_template(self.engine.ctx.model, !self.tools.is_empty())?;
 
         Ok(())
     }
 
     pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ContextSyncError> {
         // get system prompt, if it is there
-        let system_msg: Option<Message> = match self.extra.messages.as_slice() {
+        let system_msg: Option<Message> = match self.messages.as_slice() {
             [msg @ Message::System { .. }, ..] => Some(msg.clone()),
             _ => None,
         };
 
-        self.extra.messages = system_msg.into_iter().chain(messages).collect();
+        self.messages = system_msg.into_iter().chain(messages).collect();
 
         // We used to call sync_context_with_render here but this can
         // crash as some chat templates will attempt to access fields on
@@ -1886,64 +1951,43 @@ impl Worker<'_, ChatWorker> {
         // sync with an empty render and we only render when there are
         // messages present in the history.
 
-        self.extra
-            .context
-            .garbage_collect_bitmaps(&self.extra.messages);
+        self.context.garbage_collect_bitmaps(&self.messages);
 
         Ok(())
     }
 
     pub fn get_chat_history(&self) -> Vec<Message> {
-        match self.extra.messages.as_slice() {
+        match self.messages.as_slice() {
             [Message::System { .. }, rest @ ..] => rest.to_vec(),
-            _ => self.extra.messages.clone(),
+            _ => self.messages.clone(),
         }
     }
 
     pub fn get_sampler_config(&self) -> SamplerConfig {
-        self.extra.sampler_config.clone()
+        self.sampler_config.clone()
     }
-}
 
-/// wraps a response function in a closure to do two things:
-/// 1. save a copy of the response (using a channel) before sending it out
-/// 2. skip emitting once a tool_call_begin_token has been seen
-fn wrap_respond<F>(
-    respond: F,
-    tool_call_begin_token: Option<String>,
-) -> (
-    impl FnMut(llm::WriteOutput),
-    std::sync::mpsc::Receiver<String>,
-)
-where
-    F: Fn(llm::WriteOutput),
-{
-    let (resp_sender, resp_receiver) = std::sync::mpsc::channel();
-    let mut emitting = true;
+    pub fn tokenize(&mut self, prompt: Prompt) -> Result<Vec<Option<i32>>, TokenizeError> {
+        let media_assets = prompt.extract_media_assets();
+        let bitmaps = media_assets
+            .iter()
+            .map(|part| match part {
+                PromptPart::Image(path) => self.engine.load_image(path),
+                PromptPart::Audio(path) => self.engine.load_audio(path),
+                PromptPart::Text(_) => unreachable!(),
+            })
+            .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
-    let wrapped_respond = move |x| {
-        match &x {
-            llm::WriteOutput::Token(tok) if tool_call_begin_token.as_ref() == Some(tok) => {
-                emitting = false;
-            }
-            llm::WriteOutput::Done(resp) => {
-                resp_sender
-                    .send(resp.clone())
-                    .expect("Failed sending response");
-            }
-            llm::WriteOutput::Token(_) | llm::WriteOutput::Error(_) => (),
-        }
-        if emitting {
-            respond(x)
-        }
-    };
-    (wrapped_respond, resp_receiver)
+        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
+        let chunks = self.engine.tokenize(prompt.to_string(), bitmap_refs)?;
+        Ok(chunks.to_token_ids())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sampler_config::SamplerPresets;
+    use crate::sampler::SamplerPresets;
     use crate::test_utils;
 
     // Helper function to verify message structure is valid
@@ -1996,7 +2040,7 @@ mod tests {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 n_ctx: 1024,
@@ -2032,7 +2076,7 @@ mod tests {
     fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 system_prompt: Some("You're a dog. End all responses with 'woof'".into()),
@@ -2074,7 +2118,7 @@ mod tests {
     fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 system_prompt: Some("You are a counter, only outputting numbers".into()),
@@ -2083,7 +2127,7 @@ mod tests {
             },
             Arc::new(AtomicBool::new(false)),
         )?;
-        let should_stop = worker.extra.should_stop.clone();
+        let should_stop = worker.should_stop.clone();
 
         // ensure that the generationworker resets the flag when creating a new response.
         should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -2180,7 +2224,7 @@ mod tests {
     fn test_tool_chat() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 system_prompt: Some("You're a helpful assistant.".into()),
@@ -2209,7 +2253,7 @@ mod tests {
 
         let result = receiver.recv().unwrap();
         println!("{}", result);
-        println!("{}", worker.extra.tool_grammar.unwrap().as_str());
+        println!("{}", worker.tool_grammar.unwrap().as_str());
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
     }
@@ -2218,7 +2262,7 @@ mod tests {
     fn test_multi_tool_call() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 tools: vec![test_tool(), dkk_exchange_rate()],
@@ -2269,6 +2313,26 @@ mod tests {
     }
 
     #[test]
+    fn test_setters_on_empty_history_do_not_crash() {
+        // Rendering the chat template with neither a system prompt nor any messages
+        // would crash, so set_system_prompt(None) and set_tools(..) on an empty
+        // history must not immediately sync the context — only the next ask() should.
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(512)
+            .build()
+            .expect("chat build failed in test");
+
+        chat.set_system_prompt(None).unwrap();
+        assert_eq!(chat.get_system_prompt().unwrap(), None);
+
+        chat.set_tools(vec![]).unwrap();
+        chat.set_tools(vec![test_tool()]).unwrap();
+
+        assert!(chat.get_chat_history().unwrap().is_empty());
+    }
+
+    #[test]
     fn test_context_shift() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
@@ -2276,7 +2340,7 @@ mod tests {
         // Use a very small context size to force shifting
         let n_ctx = 512;
         let n_messages = 8;
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 n_ctx,
@@ -2298,10 +2362,10 @@ mod tests {
             ));
         }
 
-        worker.add_user_message("Hello!".into(), vec![]);
+        worker.add_user_message("Hello!".to_string(), vec![]);
 
         // Check that we have many messages before shift
-        let messages_before = worker.extra.messages.len();
+        let messages_before = worker.messages.len();
         assert!(
             messages_before > 6,
             "Should have more than 6 messages before shift"
@@ -2310,9 +2374,9 @@ mod tests {
         // Trigger context shift
         worker.context_shift()?;
 
-        println!("{:?}", worker.extra.messages);
+        println!("{:?}", worker.messages);
 
-        let messages_after = worker.extra.messages.clone();
+        let messages_after = worker.messages.clone();
 
         // Verify essential messages are preserved:
         // 1. System prompt should be first
@@ -2323,7 +2387,7 @@ mod tests {
 
         if let Message::System { content, .. } = &messages_after[0] {
             assert!(
-                content.contains("helpful assistant"),
+                content.to_string().contains("helpful assistant"),
                 "System prompt should be preserved"
             );
         }
@@ -2347,7 +2411,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("Hello!"),
+                content.to_string().contains("Hello!"),
                 "Last user message should be preserved"
             );
         }
@@ -2388,7 +2452,7 @@ mod tests {
         // Use a very small context size to force shifting
         let n_ctx = 1024;
         let n_messages = 10;
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 n_ctx,
@@ -2425,18 +2489,18 @@ mod tests {
             }
         }
 
-        worker.add_user_message("Final question!".into(), vec![]);
+        worker.add_user_message("Final question!".to_string(), vec![]);
 
         // Check that we have many messages before shift
-        let messages_before = worker.extra.messages.len();
+        let messages_before = worker.messages.len();
         println!("Messages before shift: {}", messages_before);
 
         // Trigger context shift
         worker.context_shift()?;
 
-        println!("{:?}", worker.extra.messages);
+        println!("{:?}", worker.messages);
 
-        let messages_after = worker.extra.messages.clone();
+        let messages_after = worker.messages.clone();
 
         // Verify essential messages are preserved:
         // 1. System prompt should be first
@@ -2461,7 +2525,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("Final question!"),
+                content.to_string().contains("Final question!"),
                 "Last user message should be preserved"
             );
         }
@@ -2502,7 +2566,7 @@ mod tests {
         let n_messages = 14;
         // n_messages is chosen by trial and error. This exactly fills up the
         // the context so much that the next user message cannot be read and a context shift happens.
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 system_prompt: Some("You are a helpful assistant.".into()),
@@ -2521,7 +2585,7 @@ mod tests {
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
-        let messages_before_shift = worker.extra.messages.len();
+        let messages_before_shift = worker.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2538,7 +2602,7 @@ mod tests {
         )?;
 
         let _response = receiver.recv()?;
-        let messages_after = worker.extra.messages.clone();
+        let messages_after = worker.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
 
@@ -2564,7 +2628,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("new question"),
+                content.to_string().contains("new question"),
                 "Last user message should be preserved"
             );
         }
@@ -2585,7 +2649,7 @@ mod tests {
         // the context so much that the next assistant message cannot be fully written.
         // The same is true for n_ctx. It needs to be large enough to where n_ctx/2 is large enough
         // to contain the response but also small enough to fill easily and test wihtout being to slow.
-        let mut worker = Worker::new_chat_worker(
+        let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
                 n_ctx: 768, // Use a small context size to force shifting
@@ -2604,7 +2668,7 @@ mod tests {
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
-        let messages_before_shift = worker.extra.messages.len();
+        let messages_before_shift = worker.messages.len();
         println!("Messages before shift: {}", messages_before_shift);
 
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -2618,7 +2682,7 @@ mod tests {
         worker.ask("What is 10 * 10?".into(), f)?;
 
         let _response = receiver.recv()?;
-        let messages_after = worker.extra.messages.clone();
+        let messages_after = worker.messages.clone();
 
         println!("Messages after operation: {}", messages_after.len());
 
@@ -2644,7 +2708,7 @@ mod tests {
 
         if let Some(Message::User { content, .. }) = last_user {
             assert!(
-                content.contains("What is"),
+                content.to_string().contains("What is"),
                 "Last user message should be preserved"
             );
         }

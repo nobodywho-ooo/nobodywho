@@ -145,7 +145,7 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         // For crossencodering, all tokens have embeddings enabled (logits=true) but only the final token's
         // embedding contains the relevance score. embeddings_seq_ith(0) gets the sequence's embedding
         // vector, and embeddings[0] extracts the classification score from the final token.
-        let embeddings = self.ctx.embeddings_seq_ith(0)?;
+        let embeddings = self.engine.ctx.embeddings_seq_ith(0)?;
 
         if !embeddings.is_empty() {
             Ok(embeddings[0])
@@ -162,18 +162,20 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         // Get CLS and SEP tokens from the model (CLS = BOS per llama.cpp, the current CLS token is deprecated.)
         let mut decoder = encoding_rs::UTF_8.new_decoder();
         let cls = self
+            .engine
             .ctx
             .model
-            .token_to_piece(self.ctx.model.token_bos(), &mut decoder, true, None)
+            .token_to_piece(self.engine.ctx.model.token_bos(), &mut decoder, true, None)
             .unwrap_or_else(|_| {
                 warn!("Failed to convert BOS/CLS token to string, using fallback");
                 "<s>".to_string()
             });
 
         let sep = self
+            .engine
             .ctx
             .model
-            .token_to_piece(self.ctx.model.token_sep(), &mut decoder, true, None)
+            .token_to_piece(self.engine.ctx.model.token_sep(), &mut decoder, true, None)
             .unwrap_or_else(|_| {
                 warn!("Failed to convert SEP token to string, using fallback");
                 "</s>".to_string()
