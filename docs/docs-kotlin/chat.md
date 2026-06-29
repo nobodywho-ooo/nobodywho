@@ -51,23 +51,6 @@ val fullResponse = chat.ask("Is water wet?").completed()
 
 All messages and responses are stored in the `Chat`, so the next `ask()` remembers the conversation.
 
-## Structured prompts
-
-If a model's chat template expects structured JSON content, create a `Prompt` from JSON and pass it to `ask()`:
-
-```kotlin
-val prompt = Prompt.fromJson(mapOf("role" to "user", "content" to "Hello"))
-val response = chat.ask(prompt).completed()
-```
-
-## Tokenization
-
-Use `tokenize()` to inspect how a text prompt maps to token IDs:
-
-```kotlin
-val tokenIds = chat.tokenize("Count these tokens")
-```
-
 ## Chat history
 
 Inspect the messages inside the `Chat`:

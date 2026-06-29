@@ -58,25 +58,6 @@ const fullResponse = await response.completed();
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `chat.ask()`, it will remember the previous messages.
 
-## Structured prompts
-
-If a model's chat template expects structured JSON content, create a `Prompt` from JSON and pass it to `ask()`:
-
-```typescript
-import { Prompt } from "react-native-nobodywho";
-
-const prompt = Prompt.fromJson({ role: "user", content: "Hello" });
-const response = await chat.ask(prompt).completed();
-```
-
-## Tokenization
-
-Use `tokenize()` to inspect how a text or multimodal prompt maps to token IDs. Media embedding slots are returned as `null`.
-
-```typescript
-const tokenIds = await chat.tokenize("Count these tokens");
-```
-
 ## Chat history
 
 If you want to inspect the messages inside the `Chat` object, you can use `getChatHistory`.

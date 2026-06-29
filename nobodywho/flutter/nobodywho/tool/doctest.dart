@@ -179,11 +179,6 @@ bool shouldSkipCodeBlock(String code) {
     return true;
   }
 
-  // Skip explicitly marked examples.
-  if (trimmed.contains('doctest: skip')) {
-    return true;
-  }
-
   // Skip if it contains obvious comments indicating it's not runnable
   if (trimmed.contains('// ...')) {
     return true;

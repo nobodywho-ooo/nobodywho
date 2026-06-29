@@ -12,7 +12,7 @@ In the following sections, we talk about which configuration options it has, and
 The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a response.
 
 ```python
-from nobodywho import Chat, Prompt, TokenStream
+from nobodywho import Chat, TokenStream
 chat = Chat("./model.gguf")
 response: TokenStream = chat.ask("Is water wet?")
 ```
@@ -35,23 +35,6 @@ full_response: str = response.completed()
 ```
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `Chat.ask()`, it will remember the previous messages.
-
-## Structured prompts
-
-If a model's chat template expects structured JSON content, create a `Prompt` from JSON and pass it to `ask()`:
-
-```python continuation
-prompt = Prompt.from_json({"role": "user", "content": "Hello"})
-response = chat.ask(prompt).completed()
-```
-
-## Tokenization
-
-Use `tokenize()` to inspect how a text or multimodal prompt maps to token IDs. Media embedding slots are returned as `None`.
-
-```python continuation
-token_ids = chat.tokenize("Count these tokens")
-```
 
 ## Chat history
 

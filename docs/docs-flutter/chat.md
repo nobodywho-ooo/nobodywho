@@ -72,26 +72,6 @@ await chat.setChatHistory([
 ]);
 ```
 
-## Structured prompts
-
-If a model's chat template expects structured JSON content, create a `Prompt` from JSON and pass it to `askWithPrompt()`:
-
-```dart
-// doctest: skip - requires a model whose chat template accepts structured JSON content
-final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-final prompt = nobodywho.Prompt.fromJson({"role": "user", "content": "Hello"});
-final response = await chat.askWithPrompt(prompt).completed();
-```
-
-## Tokenization
-
-Use `tokenize()` to inspect how a text prompt maps to token IDs. For mixed text, image, or audio prompts, use `tokenizeWithPrompt()`; media embedding slots are returned as `null`.
-
-```dart
-final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
-final tokenIds = await chat.tokenize("Count these tokens");
-```
-
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.
