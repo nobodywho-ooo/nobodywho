@@ -2505,83 +2505,153 @@ impl NobodyWhoSTT {
     fn transcription_finished(text: GString);
 
     #[signal]
+    /// Emitted once the model has loaded and is ready for transcription.
+    fn worker_started();
+
+    #[signal]
     /// Emitted if loading the model or transcription fails.
     fn worker_failed(error: GString);
 
-    fn ensure_stt(&mut self) -> Result<nobodywho::stt::Stt, GString> {
-        if let Some(stt) = &self.stt {
-            return Ok(stt.clone());
+    #[func]
+    /// Download and initialise the Whisper model asynchronously. Returns immediately.
+    /// Connect to `worker_started` before calling `transcribe_file` / `transcribe_pcm`.
+    fn start_worker(&mut self) {
+        if self.stt.is_some() {
+            self.signals().worker_started().emit();
+            return;
         }
+
         let source = self.model_path.to_string();
         if source.is_empty() {
-            return Err(GString::from("model_path is not set"));
+            let err = GString::from("model_path is not set");
+            godot_error!("{}", err);
+            self.signals().worker_failed().emit(&err);
+            return;
         }
+
         let language: Option<String> = {
             let s = self.language.to_string();
-            if s.is_empty() { None } else { Some(s) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
         };
-        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
-        cfg.language = language;
-        let stt = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
-            .map_err(|e| GString::from(e.to_string().as_str()))?;
-        self.stt = Some(stt.clone());
-        Ok(stt)
+
+        let mut me = self.to_gd();
+        godot::task::spawn(async move {
+            tokio::task::yield_now().await;
+
+            let result = tokio::task::spawn_blocking(move || {
+                let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+                cfg.language = language;
+                nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
+            })
+            .await;
+
+            match result {
+                Ok(Ok(stt)) => {
+                    me.bind_mut().stt = Some(stt);
+                    me.signals().worker_started().emit();
+                }
+                Ok(Err(e)) => {
+                    let msg = GString::from(e.to_string().as_str());
+                    godot_error!("Failed to start STT worker: {}", msg);
+                    me.signals().worker_failed().emit(&msg);
+                }
+                Err(e) => {
+                    let msg = GString::from(format!("STT worker task panicked: {e}").as_str());
+                    godot_error!("{}", msg);
+                    me.signals().worker_failed().emit(&msg);
+                }
+            }
+        });
     }
 
-    fn spawn_transcription(emit_node: Gd<Self>, stt: nobodywho::stt::Stt, input: TranscriptionInput) {
+    fn spawn_transcription(
+        emit_node: Gd<Self>,
+        stt: nobodywho::stt::Stt,
+        input: TranscriptionInput,
+    ) {
         godot::task::spawn(async move {
             let stream_result = match input {
                 TranscriptionInput::File(path) => stt.transcribe_file_stream_async(path),
-                TranscriptionInput::Pcm { samples, sample_rate } => {
-                    stt.transcribe_pcm_stream_async(samples, sample_rate)
-                }
+                TranscriptionInput::Pcm {
+                    samples,
+                    sample_rate,
+                } => stt.transcribe_pcm_stream_async(samples, sample_rate),
             };
             let mut stream = match stream_result {
                 Ok(s) => s,
                 Err(e) => {
-                    emit_node.signals().worker_failed().emit(&GString::from(e.to_string().as_str()));
+                    emit_node
+                        .signals()
+                        .worker_failed()
+                        .emit(&GString::from(e.to_string().as_str()));
                     return;
                 }
             };
             loop {
                 match stream.next_token().await {
-                    Ok(Some(piece)) => emit_node.signals().transcription_updated().emit(&GString::from(piece.as_str())),
+                    Ok(Some(piece)) => emit_node
+                        .signals()
+                        .transcription_updated()
+                        .emit(&GString::from(piece.as_str())),
                     Ok(None) => break,
                     Err(e) => {
-                        emit_node.signals().worker_failed().emit(&GString::from(e.to_string().as_str()));
+                        emit_node
+                            .signals()
+                            .worker_failed()
+                            .emit(&GString::from(e.to_string().as_str()));
                         return;
                     }
                 }
             }
             let full = stream.completed().await.unwrap_or_default();
-            emit_node.signals().transcription_finished().emit(&GString::from(full.as_str()));
+            emit_node
+                .signals()
+                .transcription_finished()
+                .emit(&GString::from(full.as_str()));
         });
     }
 
     #[func]
-    /// Transcribe an audio file (WAV / MP3 / FLAC). Downloads the model on first call.
+    /// Transcribe an audio file (WAV / MP3 / FLAC). Call `start_worker()` and wait for
+    /// `worker_started` before calling this.
     fn transcribe_file(&mut self, path: String) {
-        let stt = match self.ensure_stt() {
-            Ok(s) => s,
-            Err(e) => { self.signals().worker_failed().emit(&e); return; }
+        let Some(stt) = self.stt.clone() else {
+            let err = GString::from("STT worker not started. Call start_worker() first.");
+            godot_error!("{}", err);
+            self.signals().worker_failed().emit(&err);
+            return;
         };
         Self::spawn_transcription(self.to_gd(), stt, TranscriptionInput::File(path));
     }
 
     #[func]
     /// Transcribe raw i16 PCM samples (e.g. from a microphone).
-    /// `samples` is a `PackedByteArray` of interleaved i16 samples.
+    /// `samples` is a `PackedByteArray` of interleaved little-endian i16 samples.
     /// `sample_rate` is the capture rate in Hz (e.g. 44100).
     fn transcribe_pcm(&mut self, samples: PackedByteArray, sample_rate: u32) {
-        let stt = match self.ensure_stt() {
-            Ok(s) => s,
-            Err(e) => { self.signals().worker_failed().emit(&e); return; }
+        let Some(stt) = self.stt.clone() else {
+            let err = GString::from("STT worker not started. Call start_worker() first.");
+            godot_error!("{}", err);
+            self.signals().worker_failed().emit(&err);
+            return;
         };
         let bytes = samples.to_vec();
-        let samples_i16: Vec<i16> = bytes.chunks_exact(2)
+        let samples_i16: Vec<i16> = bytes
+            .chunks_exact(2)
             .map(|b| i16::from_le_bytes([b[0], b[1]]))
             .collect();
-        Self::spawn_transcription(self.to_gd(), stt, TranscriptionInput::Pcm { samples: samples_i16, sample_rate });
+        Self::spawn_transcription(
+            self.to_gd(),
+            stt,
+            TranscriptionInput::Pcm {
+                samples: samples_i16,
+                sample_rate,
+            },
+        );
     }
 }
 

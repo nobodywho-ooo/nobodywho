@@ -234,23 +234,35 @@ impl STT {
     pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
         let mut cfg = nobodywho::stt::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
-        let stt = py.detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+        let stt = py
+            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self { stt })
     }
 
     /// Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
     pub fn transcribe_file(&self, path: &str, py: Python) -> PyResult<TokenStream> {
-        let stream = py.detach(|| self.stt.transcribe_file_stream(path))
+        let stream = py
+            .detach(|| self.stt.transcribe_file_stream(path))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        Ok(TokenStream { inner: SyncStreamInner::Stt(stream) })
+        Ok(TokenStream {
+            inner: SyncStreamInner::Stt(stream),
+        })
     }
 
     /// Transcribe raw i16 PCM samples from a microphone. Returns a `TokenStream`.
-    pub fn transcribe_pcm(&self, samples: Vec<i16>, sample_rate: u32, py: Python) -> PyResult<TokenStream> {
-        let stream = py.detach(|| self.stt.transcribe_pcm_stream(samples, sample_rate))
+    pub fn transcribe_pcm(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+        py: Python,
+    ) -> PyResult<TokenStream> {
+        let stream = py
+            .detach(|| self.stt.transcribe_pcm_stream(samples, sample_rate))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        Ok(TokenStream { inner: SyncStreamInner::Stt(stream) })
+        Ok(TokenStream {
+            inner: SyncStreamInner::Stt(stream),
+        })
     }
 }
 
@@ -267,21 +279,34 @@ impl STTAsync {
     pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
         let mut cfg = nobodywho::stt::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
-        let stt = py.detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+        let stt = py
+            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self { stt })
     }
 
     pub fn transcribe_file(&self, path: String) -> PyResult<TokenStreamAsync> {
-        let stream = self.stt.transcribe_file_stream_async(path)
+        let stream = self
+            .stt
+            .transcribe_file_stream_async(path)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        Ok(TokenStreamAsync { inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))) })
+        Ok(TokenStreamAsync {
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+        })
     }
 
-    pub fn transcribe_pcm(&self, samples: Vec<i16>, sample_rate: u32) -> PyResult<TokenStreamAsync> {
-        let stream = self.stt.transcribe_pcm_stream_async(samples, sample_rate)
+    pub fn transcribe_pcm(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+    ) -> PyResult<TokenStreamAsync> {
+        let stream = self
+            .stt
+            .transcribe_pcm_stream_async(samples, sample_rate)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-        Ok(TokenStreamAsync { inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))) })
+        Ok(TokenStreamAsync {
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+        })
     }
 }
 
@@ -299,13 +324,13 @@ impl SyncStreamInner {
     fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
             Self::Chat(s) => s.next_token().map_err(|e| render_miette(&e)),
-            Self::Stt(s)  => s.next_token().map_err(|e| e.to_string()),
+            Self::Stt(s) => s.next_token().map_err(|e| e.to_string()),
         }
     }
     fn completed(&mut self) -> Result<String, String> {
         match self {
             Self::Chat(s) => s.completed().map_err(|e| render_miette(&e)),
-            Self::Stt(s)  => s.completed().map_err(|e| e.to_string()),
+            Self::Stt(s) => s.completed().map_err(|e| e.to_string()),
         }
     }
 }
@@ -320,13 +345,13 @@ impl AsyncStreamInner {
     async fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
             Self::Chat(s) => s.next_token().await.map_err(|e| render_miette(&e)),
-            Self::Stt(s)  => s.next_token().await.map_err(|e| e.to_string()),
+            Self::Stt(s) => s.next_token().await.map_err(|e| e.to_string()),
         }
     }
     async fn completed(&mut self) -> Result<String, String> {
         match self {
             Self::Chat(s) => s.completed().await.map_err(|e| render_miette(&e)),
-            Self::Stt(s)  => s.completed().await.map_err(|e| e.to_string()),
+            Self::Stt(s) => s.completed().await.map_err(|e| e.to_string()),
         }
     }
 }
@@ -351,7 +376,9 @@ impl TokenStream {
             .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 
-    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
 
     pub fn __next__(&mut self, py: Python) -> PyResult<Option<String>> {
         py.detach(|| self.inner.next_token())
@@ -369,16 +396,26 @@ pub struct TokenStreamAsync {
 #[pymethods]
 impl TokenStreamAsync {
     pub async fn next_token(&mut self) -> PyResult<Option<String>> {
-        self.inner.lock().await.next_token().await
+        self.inner
+            .lock()
+            .await
+            .next_token()
+            .await
             .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 
     pub async fn completed(&mut self) -> PyResult<String> {
-        self.inner.lock().await.completed().await
+        self.inner
+            .lock()
+            .await
+            .completed()
+            .await
             .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 
-    pub fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> { slf }
+    pub fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
 
     pub fn __anext__<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyAny>> {
         let locals = pyo3_async_runtimes::TaskLocals::with_running_loop(py)?.copy_context(py)?;
@@ -386,8 +423,8 @@ impl TokenStreamAsync {
         pyo3_async_runtimes::tokio::future_into_py_with_locals(py, locals, async move {
             match inner.lock().await.next_token().await {
                 Ok(Some(t)) => Ok(t),
-                Ok(None)    => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
-                Err(e)      => Err(pyo3::exceptions::PyRuntimeError::new_err(e)),
+                Ok(None) => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
+                Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e)),
             }
         })
     }
@@ -821,7 +858,9 @@ impl Chat {
             }
         };
 
-        TokenStream { inner: SyncStreamInner::Chat(stream) }
+        TokenStream {
+            inner: SyncStreamInner::Chat(stream),
+        }
     }
 
     /// Reset the conversation with a new system prompt and tools. Clears all chat history.
@@ -2868,10 +2907,6 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::tool;
     #[pymodule_export]
-    use super::STT;
-    #[pymodule_export]
-    use super::STTAsync;
-    #[pymodule_export]
     use super::Audio;
     #[pymodule_export]
     use super::Chat;
@@ -2894,6 +2929,8 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Prompt;
     #[pymodule_export]
+    use super::STTAsync;
+    #[pymodule_export]
     use super::SamplerBuilder;
     #[pymodule_export]
     use super::SamplerConfig;
@@ -2907,4 +2944,6 @@ pub mod nobodywhopython {
     use super::TokenStreamAsync;
     #[pymodule_export]
     use super::Tool;
+    #[pymodule_export]
+    use super::STT;
 }

@@ -557,18 +557,27 @@ impl RustSTT {
     pub fn new(source: String, language: Option<String>) -> Result<Arc<Self>, NobodyWhoError> {
         let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
         cfg.language = language;
-        let inner = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
-            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
+        let inner =
+            nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)).map_err(|e| {
+                NobodyWhoError::Error {
+                    message: e.to_string(),
+                }
+            })?;
         Ok(Arc::new(Self { inner }))
     }
 
     /// Start transcribing an audio file (WAV / MP3 / FLAC).
     /// Returns a `RustSTTStream` to consume tokens as they are generated.
     pub fn transcribe_file(&self, path: String) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
-        let stream = self.inner
-            .transcribe_file_stream_async(path)
-            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
-        Ok(Arc::new(RustSTTStream { inner: tokio::sync::Mutex::new(stream) }))
+        let stream =
+            self.inner
+                .transcribe_file_stream_async(path)
+                .map_err(|e| NobodyWhoError::Error {
+                    message: e.to_string(),
+                })?;
+        Ok(Arc::new(RustSTTStream {
+            inner: tokio::sync::Mutex::new(stream),
+        }))
     }
 
     /// Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
@@ -578,10 +587,15 @@ impl RustSTT {
         samples: Vec<i16>,
         sample_rate: u32,
     ) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
-        let stream = self.inner
+        let stream = self
+            .inner
             .transcribe_pcm_stream_async(samples, sample_rate)
-            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })?;
-        Ok(Arc::new(RustSTTStream { inner: tokio::sync::Mutex::new(stream) }))
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+        Ok(Arc::new(RustSTTStream {
+            inner: tokio::sync::Mutex::new(stream),
+        }))
     }
 }
 
@@ -597,14 +611,26 @@ pub struct RustSTTStream {
 impl RustSTTStream {
     /// Get the next transcript token. Returns `None` when transcription is complete.
     pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
-        self.inner.lock().await.next_token().await
-            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })
+        self.inner
+            .lock()
+            .await
+            .next_token()
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Wait for transcription to finish and return the full transcript.
     pub async fn completed(&self) -> Result<String, NobodyWhoError> {
-        self.inner.lock().await.completed().await
-            .map_err(|e| NobodyWhoError::Error { message: e.to_string() })
+        self.inner
+            .lock()
+            .await
+            .completed()
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 }
 

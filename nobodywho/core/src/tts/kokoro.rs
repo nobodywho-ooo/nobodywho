@@ -19,7 +19,7 @@
 
 use crate::errors::TtsError;
 use crate::tts::backend::TtsBackendImpl;
-use crate::tts::{ort_util, TtsDevice, DEFAULT_SAMPLE_RATE};
+use crate::tts::{TtsDevice, DEFAULT_SAMPLE_RATE};
 use espeak_ng::Translator;
 use misaki_rs::{language::Language, G2P};
 use ort::session::Session;
@@ -205,7 +205,8 @@ impl KokoroBackend {
         speed: f32,
         device: TtsDevice,
     ) -> Result<Self, TtsError> {
-        let session = ort_util::load_session(&model_dir.join("model.onnx"), device)?;
+        let session = crate::onnx::load_session(&model_dir.join("model.onnx"), device)
+            .map_err(TtsError::Ort)?;
         let vocab = Self::load_vocab(&model_dir.join("config.json"))?;
         let voice = KokoroVoice::load(&model_dir.join("voices"), voice_name)?;
 

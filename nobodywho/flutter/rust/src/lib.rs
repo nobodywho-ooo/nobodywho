@@ -541,7 +541,9 @@ impl RustSTT {
     /// Transcribe an audio file (WAV / MP3 / FLAC).
     #[flutter_rust_bridge::frb(sync)]
     pub fn transcribe_file(&self, path: String) -> Result<RustSTTStream, String> {
-        let stream = self.stt.transcribe_file_stream_async(path)
+        let stream = self
+            .stt
+            .transcribe_file_stream_async(path)
             .map_err(|e| e.to_string())?;
         Ok(RustSTTStream { stream })
     }
@@ -554,7 +556,9 @@ impl RustSTT {
         samples: Vec<i16>,
         sample_rate: u32,
     ) -> Result<RustSTTStream, String> {
-        let stream = self.stt.transcribe_pcm_stream_async(samples, sample_rate)
+        let stream = self
+            .stt
+            .transcribe_pcm_stream_async(samples, sample_rate)
             .map_err(|e| e.to_string())?;
         Ok(RustSTTStream { stream })
     }

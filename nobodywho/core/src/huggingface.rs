@@ -343,7 +343,6 @@ fn finalize_rename(tmp: &Path, target: &Path) -> Result<(), LoadModelError> {
     })
 }
 
-
 /// Download a single file from a generic HTTP(S) URL into the cache and return
 /// the local path. Cache keyed by the URL's path components.
 pub(crate) fn download_model_from_url(

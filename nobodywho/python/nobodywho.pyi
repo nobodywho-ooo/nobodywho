@@ -741,11 +741,8 @@ class Prompt:
 
     Example:
         prompt = Prompt([Text("Tell me what's in the image"), Image("./img.jpg")])
-        prompt = Prompt.from_json({"role": "user", "content": "Hello"})
     """
     def __new__(cls, /, parts: "list[Text | Image | Audio]" = ...) -> "Prompt": ...
-    @staticmethod
-    def from_json(data: "object") -> "Prompt": ...
 
 @final
 class SamplerBuilder:
