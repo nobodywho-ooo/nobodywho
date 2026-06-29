@@ -390,7 +390,7 @@ void main() {
           return "Circle with radius $radius has area ${area.toStringAsFixed(2)}";
         }
       );
-      final chat = nobodywho.Chat.fromPath(
+      final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
         tools: [circleAreaTool]
       );

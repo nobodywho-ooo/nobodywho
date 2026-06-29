@@ -15,7 +15,7 @@ For reliable tool calling, we recommend trying the [Qwen](https://huggingface.co
 ## Declaring a tool
 
 A tool can be created from any Dart function that returns a `String` or `Future<String>`.
-To perform the conversion, you simply need to use the `describeTool()` function. To get
+To define one, pass the function to `Tool()` with a name and description. To get
 a good sense of how such a tool can look like, consider this geometry example:
 
 ```dart
@@ -36,7 +36,7 @@ As you can see, every `Tool()` call needs a function, a name, and a description
 of what such tool does. To let your LLM use it, simply add it when creating `Chat`:
 
 ```dart continuation
-final chat = nobodywho.Chat.fromPath(
+final chat = await nobodywho.Chat.fromPath(
   modelPath: './model.gguf',
   tools: [circleAreaTool]
 );

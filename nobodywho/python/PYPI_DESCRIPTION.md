@@ -32,7 +32,7 @@ pip install nobodywho
 
 ## Documentation
 
-Full documentation available at: https://nobodywho-ooo.github.io/nobodywho/
+Full documentation available at: https://docs.nobodywho.ooo/python/
 
 ## License
 
