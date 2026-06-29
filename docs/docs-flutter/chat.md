@@ -55,6 +55,23 @@ final fullResponse = await response.completed();
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `Chat.ask()`, it will remember the previous messages.
 
+## Structured prompts
+
+If a model's chat template expects structured JSON content, create a `Prompt` from JSON and pass it to `askWithPrompt()`:
+
+```dart
+final prompt = nobodywho.Prompt.fromJson({"role": "user", "content": "Hello"});
+final response = await chat.askWithPrompt(prompt).completed();
+```
+
+## Tokenization
+
+Use `tokenize()` to inspect how a text prompt maps to token IDs. For mixed text, image, or audio prompts, use `tokenizeWithPrompt()`; media embedding slots are returned as `null`.
+
+```dart
+final tokenIds = await chat.tokenize("Count these tokens");
+```
+
 ## Chat history
 
 If you want to inspect the messages inside the `Chat` object, you can use `getChatHistory`.

@@ -92,6 +92,23 @@ let fullResponse = try await response.completed()
 
 All of your messages and the model's responses are stored in the `Chat` object, so the next time you call `chat.ask()`, it will remember the previous messages.
 
+## Structured prompts
+
+If a model's chat template expects structured JSON content, create a `Prompt` from JSON and pass it to `ask()`:
+
+```swift
+let prompt = try Prompt.fromJson(["role": "user", "content": "Hello"])
+let response = try await chat.ask(prompt).completed()
+```
+
+## Tokenization
+
+Use `tokenize(message:)` to inspect how a text prompt maps to token IDs:
+
+```swift
+let tokenIds = try await chat.tokenize(message: "Count these tokens")
+```
+
 ## Stopping generation
 
 If you need to cancel the model's response while it is still generating (for example, when the user taps a "Stop" button), call `stopGeneration()`:

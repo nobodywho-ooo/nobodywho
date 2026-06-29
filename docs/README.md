@@ -1,6 +1,6 @@
 # NobodyWho Documentation
 
-Built with [Docusaurus 3](https://docusaurus.io/). Each binding (Python, Swift, React Native, Flutter, Godot) has its own docs instance with independent versioning.
+Built with [Docusaurus 3](https://docusaurus.io/). Each binding (Kotlin, Python, Swift, React Native, Flutter, Godot) has its own docs instance with independent versioning.
 
 ## Development
 
@@ -17,6 +17,7 @@ npm run serve    # Serve the production build locally
 ```
 docs/
   docs/                  # Shared docs (Overview, LLM Basics, Model Selection)
+  docs-kotlin/           # Kotlin binding docs
   docs-python/           # Python binding docs
   docs-swift/            # Swift binding docs
   docs-react-native/     # React Native binding docs
@@ -45,11 +46,12 @@ The "latest release" per binding is declared in `docusaurus.config.ts`:
 
 ```ts
 const latestReleases: Record<string, string> = {
-  python: '1.4.0',
-  swift: '2.0.1',
-  'react-native': '2.2.0',
-  flutter: '2.2.0',
-  godot: '9.3.0',
+  kotlin: '2.0.0',
+  python: '1.5.0',
+  swift: '2.1.0',
+  'react-native': '2.3.0',
+  flutter: '2.3.0',
+  godot: '9.4.0',
 };
 ```
 
