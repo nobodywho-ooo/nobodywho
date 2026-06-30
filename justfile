@@ -7,7 +7,7 @@ clippy:
     cd nobodywho/core && cargo clippy --no-deps -- -D warnings
 
 regen-python:
-    cd nobodywho/python && cargo build && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi
+    cd nobodywho/python && maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
 
 regen-flutter:
     cd nobodywho/flutter/nobodywho && dart run tool/doctest.dart ../../../docs/docs-flutter --generate-only
