@@ -1,19 +1,33 @@
 #!/bin/bash
-set -e
 
+recipes=(fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze godot-build)
 pids=()
-just fmt & pids+=($!)
-just clippy & pids+=($!)
-just regen-python & pids+=($!)
-just regen-flutter & pids+=($!)
-just ruff & pids+=($!)
-just regen-uniffi & pids+=($!)
-just flutter-analyze & pids+=($!)
-just godot-build & pids+=($!)
+logs=()
 
-failed=0
-for pid in "${pids[@]}"; do
-    wait "$pid" || failed=1
+for recipe in "${recipes[@]}"; do
+    log=$(mktemp)
+    logs+=("$log")
+    just "$recipe" >"$log" 2>&1 &
+    pids+=($!)
 done
 
-exit $failed
+failed=()
+for i in "${!pids[@]}"; do
+    if ! wait "${pids[$i]}"; then
+        failed+=("${recipes[$i]}")
+    fi
+done
+
+for log in "${logs[@]}"; do
+    rm -f "$log"
+done
+
+if [ ${#failed[@]} -eq 0 ]; then
+    echo "✓ all checks passed"
+    exit 0
+else
+    echo "✗ failed: ${failed[*]}"
+    echo ""
+    echo "Run 'just <recipe>' to see the full output."
+    exit 1
+fi
