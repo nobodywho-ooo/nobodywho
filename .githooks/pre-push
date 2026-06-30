@@ -1,3 +1,19 @@
-#!/bin/sh
+#!/bin/bash
 set -e
-just --parallel check
+
+pids=()
+just fmt & pids+=($!)
+just clippy & pids+=($!)
+just regen-python & pids+=($!)
+just regen-flutter & pids+=($!)
+just ruff & pids+=($!)
+just regen-uniffi & pids+=($!)
+just flutter-analyze & pids+=($!)
+just godot-build & pids+=($!)
+
+failed=0
+for pid in "${pids[@]}"; do
+    wait "$pid" || failed=1
+done
+
+exit $failed
