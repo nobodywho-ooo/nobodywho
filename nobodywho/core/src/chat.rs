@@ -1281,6 +1281,20 @@ impl ChatContext {
     }
 }
 
+/// Build a stateful sampler chain that includes a Lark llguidance step at the
+/// front. Used to pre-build the tool-calling sampler at session init so we
+/// don't pay the ~1s `LlamaSampler::llguidance` cost on every activation.
+fn build_tool_sampler(
+    config: &SamplerConfig,
+    lark: &str,
+    model: &llama_cpp_2::model::LlamaModel,
+) -> Result<llama_cpp_2::sampling::LlamaSampler, crate::errors::SamplerError> {
+    let mut steps = config.steps.clone();
+    steps.insert(0, ShiftStep::Lark(lark.to_string()));
+    let with_grammar = SamplerConfig::new(steps, config.sample_step.clone(), config.seed);
+    with_grammar.to_stateful(model)
+}
+
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
 struct Chat<'a> {
@@ -1294,6 +1308,14 @@ struct Chat<'a> {
     /// extraction. Built by `ToolFormatHandler::to_lark`.
     tool_grammar: Option<String>,
     tool_format: Option<ToolFormat>,
+    /// Pre-built sampler chain that includes the llguidance Lark step.
+    /// Built once at session init (and rebuilt when sampler/tool config
+    /// changes) so we avoid paying the ~1s `LlamaSampler::llguidance` cost
+    /// per activation. At the start of every generation it is `reset()` to
+    /// initial state; when the begin token is observed mid-stream we
+    /// `accept_many(begin_token_ids)` to fast-forward the matcher past the
+    /// trigger and start sampling through it.
+    tool_sampler: Option<llama_cpp_2::sampling::LlamaSampler>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     template_variables: std::collections::HashMap<String, bool>,
@@ -1350,6 +1372,18 @@ impl<'a> Chat<'a> {
             None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
         };
 
+        // Pre-build the with-grammar sampler chain. We accept the ~1s cost of
+        // `LlamaSampler::llguidance` here (during session setup) rather than
+        // per activation, since llama-cpp-rs's `create_llg_sampler` rebuilds
+        // the tokenizer environment from scratch on every call.
+        let tool_sampler = tool_grammar
+            .as_ref()
+            .and_then(|lark| {
+                build_tool_sampler(&sampler_config, lark, &model.language_model)
+                    .inspect_err(|e| debug!(error = %e, "Failed to pre-build tool sampler"))
+                    .ok()
+            });
+
         // Build the low-level inference engine via the shared Worker constructor,
         // then take ownership of just the engine for the chat session.
         let Worker { engine, extra: () } = Worker::new_with_type(model, config.n_ctx, false, ())?;
@@ -1359,6 +1393,7 @@ impl<'a> Chat<'a> {
             should_stop,
             tool_grammar,
             tool_format,
+            tool_sampler,
             sampler_config,
             messages: match config.system_prompt {
                 Some(msg) => vec![Message::System { content: msg }],
@@ -1537,22 +1572,26 @@ impl<'a> Chat<'a> {
         let mut full_response: String = String::with_capacity(4096);
         let mut tokens_written_until_now = TokenizerChunks::new();
 
-        // initialize sampler
-        // stateful samplers only live for one response
-        let mut sampler = sampler_config.to_stateful(self.engine.ctx.model)?;
+        // Initial sampler — no tool grammar. The expensive llguidance step
+        // lives on the pre-built `self.tool_sampler` and is only switched in
+        // when the begin token appears in the streamed output. `to_stateful`
+        // without the Lark step is cheap (<1ms).
+        let mut base_sampler = sampler_config.to_stateful(self.engine.ctx.model)?;
 
-        // Phase 2 dynamic chain: if a tool-call grammar is configured for this
-        // session, keep it OUT of the chain initially so EOS works normally
-        // when the model just wants to chat. When the begin token appears in
-        // the streamed output we rebuild the sampler with the Lark step at
-        // the front of the chain and fast-forward it past the begin token via
-        // `accept_many`, so the grammar matcher is in the right state for the
-        // next sampled token.
-        let pending_tool_activation: Option<(String, String, Vec<LlamaToken>)> = self
-            .tool_grammar
+        // Reset the pre-built tool sampler so its grammar matcher and any
+        // stateful sub-samplers (Dist RNG, etc.) start fresh for this run.
+        if let Some(ts) = self.tool_sampler.as_mut() {
+            ts.reset();
+        }
+
+        // Capture begin-token text + its token-id sequence once, so when we
+        // detect the trigger we can fast-forward the pre-built sampler past
+        // those tokens without doing string→token conversion mid-loop.
+        let pending_tool_activation: Option<(String, Vec<LlamaToken>)> = self
+            .tool_format
             .as_ref()
-            .and_then(|lark| {
-                let format = self.tool_format.as_ref()?;
+            .filter(|_| self.tool_sampler.is_some())
+            .and_then(|format| {
                 let begin_token = format.begin_token().to_string();
                 let tokens = self
                     .engine
@@ -1560,7 +1599,7 @@ impl<'a> Chat<'a> {
                     .model
                     .str_to_token(&begin_token, llama_cpp_2::model::AddBos::Never)
                     .ok()?;
-                Some((begin_token, lark.clone(), tokens))
+                Some((begin_token, tokens))
             });
         let mut grammar_activated = false;
 
@@ -1580,7 +1619,19 @@ impl<'a> Chat<'a> {
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_token = self.engine.sample_and_decode_next_token(&mut sampler)?;
+            //
+            // After activation we delegate to `self.tool_sampler` (pre-built
+            // at session init), so we don't pay the ~1s
+            // `LlamaSampler::llguidance` cost mid-stream.
+            let new_token = if grammar_activated {
+                let ts = self
+                    .tool_sampler
+                    .as_mut()
+                    .expect("tool_sampler must exist when grammar_activated is true");
+                self.engine.sample_and_decode_next_token(ts)?
+            } else {
+                self.engine.sample_and_decode_next_token(&mut base_sampler)?
+            };
 
             tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
 
@@ -1634,26 +1685,25 @@ impl<'a> Chat<'a> {
             // Dynamic tool-grammar activation. The begin token has just
             // finished being emitted iff `full_response` now ends with it
             // (covers both the single-token and multi-token-spanning cases).
+            // We don't rebuild the sampler here — `self.tool_sampler` was
+            // pre-built at session init. We only fast-forward its grammar
+            // matcher past the begin-token tokens so it's positioned at the
+            // tool-call body for the next sample.
             if !grammar_activated {
-                if let Some((begin_token, lark, begin_tokens)) = pending_tool_activation.as_ref() {
+                if let Some((begin_token, begin_tokens)) = pending_tool_activation.as_ref() {
                     if full_response.ends_with(begin_token.as_str()) {
-                        let mut steps = sampler_config.steps.clone();
-                        steps.insert(0, ShiftStep::Lark(lark.clone()));
-                        let activated_config = SamplerConfig::new(
-                            steps,
-                            sampler_config.sample_step.clone(),
-                            sampler_config.seed,
-                        );
-                        let mut new_sampler =
-                            activated_config.to_stateful(self.engine.ctx.model)?;
-                        // Fast-forward the new grammar past the begin-token
-                        // bytes the model has already emitted, so its matcher
-                        // is positioned at the tool-call body for the next
-                        // sample.
-                        new_sampler.accept_many(begin_tokens.iter());
-                        sampler = new_sampler;
+                        let activate_start = std::time::Instant::now();
+                        let ts = self
+                            .tool_sampler
+                            .as_mut()
+                            .expect("tool_sampler must exist when pending_tool_activation is Some");
+                        ts.accept_many(begin_tokens.iter());
                         grammar_activated = true;
-                        debug!(begin_token = %begin_token, "Activated tool-call grammar");
+                        info!(
+                            begin_token = %begin_token,
+                            total_ms = activate_start.elapsed().as_millis(),
+                            "Activated tool-call grammar"
+                        );
                     }
                 }
             }
@@ -1873,6 +1923,11 @@ impl<'a> Chat<'a> {
         } else {
             None
         };
+        self.tool_sampler = self.tool_grammar.as_ref().and_then(|lark| {
+            build_tool_sampler(&self.sampler_config, lark, self.engine.ctx.model)
+                .inspect_err(|e| debug!(error = %e, "Failed to pre-build tool sampler"))
+                .ok()
+        });
         self.tools = tools;
         self.messages = Vec::new();
         self.context = ChatContext::new();
@@ -1908,6 +1963,12 @@ impl<'a> Chat<'a> {
 
     pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) {
         self.sampler_config = sampler_config;
+        // The pre-built tool sampler embeds the previous config — rebuild it.
+        self.tool_sampler = self.tool_grammar.as_ref().and_then(|lark| {
+            build_tool_sampler(&self.sampler_config, lark, self.engine.ctx.model)
+                .inspect_err(|e| debug!(error = %e, "Failed to pre-build tool sampler"))
+                .ok()
+        });
     }
 
     pub fn set_system_prompt(
@@ -1974,6 +2035,11 @@ impl<'a> Chat<'a> {
         } else {
             None
         };
+        self.tool_sampler = self.tool_grammar.as_ref().and_then(|lark| {
+            build_tool_sampler(&self.sampler_config, lark, self.engine.ctx.model)
+                .inspect_err(|e| debug!(error = %e, "Failed to pre-build tool sampler"))
+                .ok()
+        });
         self.tools = tools;
 
         self.chat_template = select_template(self.engine.ctx.model, !self.tools.is_empty())?;
@@ -2262,6 +2328,57 @@ mod tests {
 
                 "Exchange rate not available".into()
             }),
+        }
+    }
+
+    /// Temporary benchmark: time three sequential tool-calling turns on the
+    /// same worker. With the pre-built tool sampler (Phase 2 Option B), only
+    /// the FIRST turn should include the ~1s `LlamaSampler::llguidance` cost
+    /// — the next two should activate the grammar in microseconds.
+    /// Without pre-build, every turn would pay ~1s of activation latency.
+    #[test]
+    #[ignore = "manual perf benchmark — run with `cargo test bench_pre_built_sampler_amortization -- --ignored --nocapture`"]
+    fn bench_pre_built_sampler_amortization() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let setup_start = std::time::Instant::now();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You're a helpful assistant.".into()),
+                n_ctx: 4096,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+        let setup_ms = setup_start.elapsed().as_millis();
+        eprintln!("[bench] worker setup: {setup_ms} ms");
+
+        // Three distinct prompts that should each elicit a tool call.
+        let prompts = [
+            "What's the temperature in Copenhagen?",
+            "Now check the temperature in Beijing.",
+            "And one more: temperature in Copenhagen again, please.",
+        ];
+
+        for (i, prompt) in prompts.iter().enumerate() {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let f = move |x| {
+                if let llm::WriteOutput::Done(resp) = x {
+                    sender.send(resp).unwrap();
+                }
+            };
+            let turn_start = std::time::Instant::now();
+            worker.ask((*prompt).into(), f).expect("ask failed");
+            let _ = receiver.recv().unwrap();
+            eprintln!(
+                "[bench] turn {} ({} chars): {} ms",
+                i + 1,
+                prompt.len(),
+                turn_start.elapsed().as_millis()
+            );
         }
     }
 
