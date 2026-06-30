@@ -961,9 +961,12 @@ fn forward_write_output(
 ) -> tokio::sync::mpsc::UnboundedReceiver<crate::stream::StreamOutput<crate::errors::CompletionError>>
 {
     let (tx, new_rx) = tokio::sync::mpsc::unbounded_channel();
-    tokio::spawn(async move {
+    // Use std::thread::spawn so this is callable from non-Tokio threads (e.g. the
+    // Flutter Rust Bridge sync dispatcher).  blocking_recv() is safe here because
+    // this thread is not inside any async executor.
+    std::thread::spawn(move || {
         let mut rx = rx;
-        while let Some(output) = rx.recv().await {
+        while let Some(output) = rx.blocking_recv() {
             let item = match output {
                 llm::WriteOutput::Token(t) => crate::stream::StreamOutput::Token(t),
                 llm::WriteOutput::Done(s) => crate::stream::StreamOutput::Done(s),
