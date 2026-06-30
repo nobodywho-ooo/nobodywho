@@ -5,7 +5,7 @@
 .direnv/
 .DS_Store
 .claude/*
-!.claude/skills/
+!.claude/skills
 !.claude/commands/
 python_dev_envs/
 checkpoints/
