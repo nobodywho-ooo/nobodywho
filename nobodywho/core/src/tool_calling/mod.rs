@@ -264,6 +264,26 @@ pub trait ToolFormatHandler {
 
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
+
+    /// Build a Lark grammar describing the tool call shape, for use with
+    /// `LlamaSampler::llguidance(_, "lark", _)`.
+    ///
+    /// The grammar starts at the tool-call body — i.e., its entry rule
+    /// includes the begin token as its first literal. It does **not** include
+    /// a lazy preamble: Lark/llguidance has no equivalent of llama.cpp's
+    /// `grammar_lazy` external trigger words, and a `[suffix=...]` preamble
+    /// would block EOS while waiting for the trigger to appear. Optional
+    /// activation is instead handled by the chat layer, which only inserts
+    /// this grammar into the sampler chain after detecting the begin token
+    /// in the streamed output.
+    ///
+    /// The default implementation converts `generate_grammar(tools)` via
+    /// `gbnf::gbnf_to_lark`, honoring the per-handler entry rule name.
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        let gbnf = self.generate_grammar(tools)?;
+        gbnf::gbnf_to_lark::gbnf_to_lark_with_entry(gbnf.as_str(), &gbnf.root_name)
+            .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))
+    }
 }
 
 /// Enum representing different tool calling formats.
@@ -299,6 +319,10 @@ impl ToolFormat {
 
     pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
         self.handler().generate_grammar(tools)
+    }
+
+    pub fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        self.handler().to_lark(tools)
     }
 
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
@@ -445,6 +469,67 @@ mod tests {
         let format = ToolFormat::Qwen3(Qwen3Handler);
         assert_eq!(format.begin_token(), "<tool_call>");
         assert_eq!(format.end_token(), "</tool_call>");
+    }
+
+    fn weather_tool() -> Tool {
+        Tool {
+            name: "get_weather".to_string(),
+            description: "Get weather".to_string(),
+            json_schema: json!({
+                "type": "object",
+                "properties": { "city": {"type": "string"} },
+                "required": ["city"]
+            }),
+            function: Arc::new(|_| String::new()),
+        }
+    }
+
+    #[test]
+    fn to_lark_produces_valid_lark_for_all_handlers() {
+        // For each handler, to_lark() should produce a Lark grammar starting
+        // with the `%llguidance` header and a `start:` rule whose body
+        // contains a reference to the format's begin token (either as a Lark
+        // string literal or as a `<...>` special-token reference, depending
+        // on how the per-handler grammar represents it).
+        let tool = weather_tool();
+        let cases: &[(ToolFormat, &str)] = &[
+            (ToolFormat::Qwen3(Qwen3Handler), "<tool_call>"),
+            (ToolFormat::Qwen35_36(Qwen35_36Handler), "<tool_call>"),
+            (ToolFormat::FunctionGemma(FunctionGemmaHandler), "<start_function_call>"),
+            (ToolFormat::Gemma4(Gemma4Handler), "<|tool_call>"),
+            (ToolFormat::Ministral3(Ministral3Handler), "[TOOL_CALLS]"),
+            (ToolFormat::Lfm2(Lfm2Handler), "<|tool_call_start|>"),
+        ];
+
+        for (fmt, trigger) in cases {
+            let lark = fmt.to_lark(&[tool.clone()]).unwrap_or_else(|e| {
+                panic!("to_lark failed for {:?}: {}", fmt, e)
+            });
+            assert!(
+                lark.starts_with("%llguidance {}"),
+                "{:?}: missing llguidance header:\n{}",
+                fmt,
+                lark
+            );
+            assert!(
+                lark.contains("\nstart:"),
+                "{:?}: missing start: rule:\n{}",
+                fmt,
+                lark
+            );
+            // The begin token should appear somewhere in the grammar body —
+            // either as a literal (`"..."`) or as a special-token reference
+            // (`<...>`). For literal handlers we check the quoted form; for
+            // Gemma4 (which uses TokenRef::ByString) the converter emits the
+            // bare `<...>` form.
+            let token_in_lark = lark.contains(&format!("\"{}\"", trigger))
+                || lark.contains(trigger);
+            assert!(
+                token_in_lark,
+                "{:?}: trigger {:?} not found in grammar:\n{}",
+                fmt, trigger, lark
+            );
+        }
     }
 
     #[test]

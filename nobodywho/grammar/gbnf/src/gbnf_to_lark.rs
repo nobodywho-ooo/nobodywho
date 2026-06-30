@@ -31,6 +31,9 @@ enum Node {
     Literal(String),
     Regex(String),
     RuleRef(String),
+    /// A llama.cpp GBNF token reference (`<name>` or `<[42]>`), optionally
+    /// negated (`!<name>`). Maps to Lark `<name>` / `~<name>` syntax.
+    SpecialToken { name: String, negated: bool },
     Repetition {
         node: Box<Node>,
         min: u32,
@@ -74,7 +77,9 @@ impl Node {
 
     fn is_terminal(&self, terminal_names: &HashSet<String>) -> bool {
         match self {
-            Node::Literal(_) | Node::Regex(_) => true,
+            // Special tokens resolve to specific vocab token IDs — treat as
+            // terminal so they can participate in lexer-level Lark rules.
+            Node::Literal(_) | Node::Regex(_) | Node::SpecialToken { .. } => true,
             Node::RuleRef(name) => terminal_names.contains(name),
             Node::Repetition { node, .. } => node.is_terminal(terminal_names),
             Node::Sequence(nodes) | Node::Alternative(nodes) => {
@@ -86,7 +91,10 @@ impl Node {
     fn rename_refs(&mut self, old: &str, new: &str) {
         match self {
             Node::RuleRef(name) if name == old => *name = new.to_string(),
-            Node::RuleRef(_) | Node::Literal(_) | Node::Regex(_) => {}
+            Node::RuleRef(_)
+            | Node::Literal(_)
+            | Node::Regex(_)
+            | Node::SpecialToken { .. } => {}
             Node::Repetition { node, .. } => node.rename_refs(old, new),
             Node::Sequence(nodes) | Node::Alternative(nodes) => {
                 for n in nodes.iter_mut() {
@@ -103,7 +111,7 @@ impl Node {
                     *name = new.clone();
                 }
             }
-            Node::Literal(_) | Node::Regex(_) => {}
+            Node::Literal(_) | Node::Regex(_) | Node::SpecialToken { .. } => {}
             Node::Repetition { node, .. } => node.apply_rename_map(map),
             Node::Sequence(nodes) | Node::Alternative(nodes) => {
                 for n in nodes.iter_mut() {
@@ -123,7 +131,7 @@ impl Node {
                     )));
                 }
             }
-            Node::Literal(_) | Node::Regex(_) => {}
+            Node::Literal(_) | Node::Regex(_) | Node::SpecialToken { .. } => {}
             Node::Repetition { node, .. } => node.validate_refs(known)?,
             Node::Sequence(nodes) | Node::Alternative(nodes) => {
                 for n in nodes {
@@ -140,6 +148,13 @@ impl Node {
             Node::Literal(s) => format!("\"{}\"", s),
             Node::Regex(rx) => format!("/{}/", rx),
             Node::RuleRef(name) => name.clone(),
+            Node::SpecialToken { name, negated } => {
+                if *negated {
+                    format!("~<{}>", name)
+                } else {
+                    format!("<{}>", name)
+                }
+            }
             Node::Repetition { node, min, max } => {
                 let inner = node.to_lark();
                 let inner = if node.is_atomic() {
@@ -355,6 +370,41 @@ impl Parser {
         Ok(Node::Regex(r))
     }
 
+    /// Parse a special-token reference: `<name>` (e.g. `<|"|>`, `<[42]>`).
+    ///
+    /// Both llama.cpp GBNF and Lark/llguidance use this syntax to denote a
+    /// specific vocab token — the bytes between the angle brackets are the
+    /// token's name in the model's vocab (or `[N]` / `[N-M]` for token-id
+    /// ranges). At sampler-init time it's resolved to one (or a range of)
+    /// token IDs and used as a single-token constraint. We just pass the
+    /// inner bytes through unchanged. `negated` reflects a leading `!`
+    /// already consumed by the caller (rendered as `~<name>` in Lark).
+    fn parse_special_token(&mut self, negated: bool) -> Result<Node, GbnfToLarkError> {
+        if self.current() != Some('<') {
+            return Err(self.err("Expected '<'"));
+        }
+        self.advance(1);
+        let start = self.pos;
+        while let Some(c) = self.current() {
+            if c == '>' {
+                break;
+            }
+            if c == '<' || c.is_whitespace() {
+                return Err(self.err("Invalid character in token reference"));
+            }
+            self.advance(1);
+        }
+        if self.current() != Some('>') {
+            return Err(self.err("Unterminated token reference (expected '>')"));
+        }
+        let name: String = self.chars[start..self.pos].iter().collect();
+        self.advance(1);
+        if name.is_empty() {
+            return Err(self.err("Empty token reference"));
+        }
+        Ok(Node::SpecialToken { name, negated })
+    }
+
     fn parse_literal(&mut self) -> Result<Node, GbnfToLarkError> {
         if self.current() != Some('"') {
             return Err(self.err("Expected '\"'"));
@@ -445,6 +495,13 @@ impl Parser {
                 Some('.') => {
                     nodes.push(Node::Regex(".".to_string()));
                     self.advance(1);
+                }
+                // GBNF token reference: <name> or <[42]>
+                Some('<') => nodes.push(self.parse_special_token(false)?),
+                // GBNF negated token reference: !<name>
+                Some('!') if self.chars.get(self.pos + 1) == Some(&'<') => {
+                    self.advance(1);
+                    nodes.push(self.parse_special_token(true)?);
                 }
                 Some(c) if Self::is_word_char(c) => {
                     let name = self.parse_name()?;
@@ -583,7 +640,7 @@ fn to_lark_name(name: &str, is_terminal: bool) -> String {
     }
 }
 
-fn resolve(rules: &mut [Rule]) -> Result<(), GbnfToLarkError> {
+fn resolve(rules: &mut [Rule], entry_name: &str) -> Result<(), GbnfToLarkError> {
     // 1. Assign declaration order; simplify AST
     for (i, rule) in rules.iter_mut().enumerate() {
         rule.order = i;
@@ -596,14 +653,16 @@ fn resolve(rules: &mut [Rule]) -> Result<(), GbnfToLarkError> {
         rule.body.validate_refs(&known_names)?;
     }
 
-    // 3. Rename "root" → "start"; update all refs
-    let root_idx = rules
-        .iter()
-        .position(|r| r.name == "root")
-        .ok_or_else(|| GbnfToLarkError::ResolutionError("No 'root' rule found".to_string()))?;
-    rules[root_idx].name = "start".to_string();
-    for rule in rules.iter_mut() {
-        rule.body.rename_refs("root", "start");
+    // 3. Rename the entry rule to "start"; update all refs.
+    // If entry_name is already "start", there's nothing to do at this step.
+    if entry_name != "start" {
+        let entry_idx = rules.iter().position(|r| r.name == entry_name).ok_or_else(|| {
+            GbnfToLarkError::ResolutionError(format!("Entry rule '{}' not found", entry_name))
+        })?;
+        rules[entry_idx].name = "start".to_string();
+        for rule in rules.iter_mut() {
+            rule.body.rename_refs(entry_name, "start");
+        }
     }
 
     // 4. Terminal detection fixpoint (skip "start")
@@ -638,11 +697,24 @@ fn resolve(rules: &mut [Rule]) -> Result<(), GbnfToLarkError> {
 
 // ===== Public functions =====
 
-/// Convert a GBNF grammar string to Lark syntax.
+/// Convert a GBNF grammar string to Lark syntax, treating the rule literally
+/// named `"root"` as the entry point (the llama.cpp GBNF convention).
+///
+/// If your grammar uses a different entry rule name, use
+/// [`gbnf_to_lark_with_entry`] instead.
 pub fn gbnf_to_lark(text: &str) -> Result<String, GbnfToLarkError> {
+    gbnf_to_lark_with_entry(text, "root")
+}
+
+/// Convert a GBNF grammar string to Lark syntax, using `entry_name` as the
+/// entry rule (renamed to `start` in the output).
+pub fn gbnf_to_lark_with_entry(
+    text: &str,
+    entry_name: &str,
+) -> Result<String, GbnfToLarkError> {
     let mut parser = Parser::new(text);
     let mut rules = parser.parse_all()?;
-    resolve(&mut rules)?;
+    resolve(&mut rules, entry_name)?;
     rules.sort_by_key(|r| r.order);
 
     let mut out = String::from("%llguidance {}\n\n");
@@ -826,6 +898,31 @@ mod tests {
         let result = gbnf_to_lark("foo ::= \"bar\"");
         assert!(matches!(result, Err(GbnfToLarkError::ResolutionError(_))));
         assert!(result.unwrap_err().to_string().contains("root"));
+    }
+
+    #[test]
+    fn test_custom_entry_rule_renamed_to_start() {
+        // Grammar with a non-"root" entry rule, plus a "root" rule that should
+        // remain untouched (this is the shape tool-calling handlers produce
+        // when they wrap a JSON sub-grammar whose own entry is "root").
+        let gbnf = "superroot ::= toolcall\ntoolcall ::= \"<\" root \">\"\nroot ::= [a-z]+";
+        let lark = gbnf_to_lark_with_entry(gbnf, "superroot").unwrap();
+        assert!(lark.contains("start:"), "expected start: rule:\n{}", lark);
+        // The leftover "root" rule must not collide with the Lark entry.
+        assert!(
+            lark.contains("ROOT") || lark.contains("root"),
+            "leftover root rule should survive:\n{}",
+            lark
+        );
+        // start must reference what was originally "superroot"'s body.
+        assert!(lark.contains("TOOLCALL") || lark.contains("toolcall"));
+    }
+
+    #[test]
+    fn test_custom_entry_missing_errors() {
+        let result = gbnf_to_lark_with_entry("foo ::= \"bar\"", "superroot");
+        assert!(matches!(result, Err(GbnfToLarkError::ResolutionError(_))));
+        assert!(result.unwrap_err().to_string().contains("superroot"));
     }
 
     #[test]

@@ -1286,7 +1286,13 @@ impl ChatContext {
 struct Chat<'a> {
     engine: InferenceEngine<'a>,
     should_stop: Arc<AtomicBool>,
-    tool_grammar: Option<gbnf::GbnfGrammar>,
+    /// Tool-calling grammar in Lark format (with a lazy preamble that lets
+    /// the model produce free-form text up to the begin token, then
+    /// constrains the tool call). Fed to llguidance via `ShiftStep::Lark`.
+    /// `None` when no tools are configured or grammar generation failed; in
+    /// that case the model generates freely and we fall back to text-level
+    /// extraction. Built by `ToolFormatHandler::to_lark`.
+    tool_grammar: Option<String>,
     tool_format: Option<ToolFormat>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
@@ -1313,14 +1319,14 @@ impl<'a> Chat<'a> {
         let template = select_template(&model.language_model, !config.tools.is_empty())?;
 
         // Only detect tool calling format if tools are provided
-        let (tool_format, grammar) = if !config.tools.is_empty() {
+        let (tool_format, tool_grammar) = if !config.tools.is_empty() {
             match detect_tool_format(&model.language_model) {
                 Ok(format) => {
                     debug!(format = ?format, "Detected tool calling format");
 
-                    let grammar = match format.generate_grammar(&config.tools) {
+                    let grammar = match format.to_lark(&config.tools) {
                         Ok(g) => {
-                            debug!(grammar = %g.as_str(), root = %g.root_name, "Generated tool calling grammar");
+                            debug!(grammar = %g, "Generated tool calling grammar (Lark)");
                             Some(g)
                         }
                         Err(e) => {
@@ -1351,7 +1357,7 @@ impl<'a> Chat<'a> {
         Ok(Chat {
             engine,
             should_stop,
-            tool_grammar: grammar,
+            tool_grammar,
             tool_format,
             sampler_config,
             messages: match config.system_prompt {
@@ -1535,6 +1541,29 @@ impl<'a> Chat<'a> {
         // stateful samplers only live for one response
         let mut sampler = sampler_config.to_stateful(self.engine.ctx.model)?;
 
+        // Phase 2 dynamic chain: if a tool-call grammar is configured for this
+        // session, keep it OUT of the chain initially so EOS works normally
+        // when the model just wants to chat. When the begin token appears in
+        // the streamed output we rebuild the sampler with the Lark step at
+        // the front of the chain and fast-forward it past the begin token via
+        // `accept_many`, so the grammar matcher is in the right state for the
+        // next sampled token.
+        let pending_tool_activation: Option<(String, String, Vec<LlamaToken>)> = self
+            .tool_grammar
+            .as_ref()
+            .and_then(|lark| {
+                let format = self.tool_format.as_ref()?;
+                let begin_token = format.begin_token().to_string();
+                let tokens = self
+                    .engine
+                    .ctx
+                    .model
+                    .str_to_token(&begin_token, llama_cpp_2::model::AddBos::Never)
+                    .ok()?;
+                Some((begin_token, lark.clone(), tokens))
+            });
+        let mut grammar_activated = false;
+
         // init statefull decoder for split up tokens like emojis
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
@@ -1602,6 +1631,33 @@ impl<'a> Chat<'a> {
                 respond(WriteOutput::Token(token_str.to_string()));
             }
 
+            // Dynamic tool-grammar activation. The begin token has just
+            // finished being emitted iff `full_response` now ends with it
+            // (covers both the single-token and multi-token-spanning cases).
+            if !grammar_activated {
+                if let Some((begin_token, lark, begin_tokens)) = pending_tool_activation.as_ref() {
+                    if full_response.ends_with(begin_token.as_str()) {
+                        let mut steps = sampler_config.steps.clone();
+                        steps.insert(0, ShiftStep::Lark(lark.clone()));
+                        let activated_config = SamplerConfig::new(
+                            steps,
+                            sampler_config.sample_step.clone(),
+                            sampler_config.seed,
+                        );
+                        let mut new_sampler =
+                            activated_config.to_stateful(self.engine.ctx.model)?;
+                        // Fast-forward the new grammar past the begin-token
+                        // bytes the model has already emitted, so its matcher
+                        // is positioned at the tool-call body for the next
+                        // sample.
+                        new_sampler.accept_many(begin_tokens.iter());
+                        sampler = new_sampler;
+                        grammar_activated = true;
+                        debug!(begin_token = %begin_token, "Activated tool-call grammar");
+                    }
+                }
+            }
+
             if has_eog {
                 break;
             }
@@ -1660,26 +1716,12 @@ impl<'a> Chat<'a> {
         };
         self.add_user_message(content, assets);
 
-        // Modify sampler with tool grammar if we have tools
-        let sampler =
-            self.tool_grammar
-                .as_ref()
-                .map_or(self.sampler_config.clone(), |tool_grammar| {
-                    let mut steps = self.sampler_config.steps.clone();
-                    steps.insert(
-                        0,
-                        ShiftStep::Grammar {
-                            trigger_on: tool_call_begin.clone(),
-                            root: tool_grammar.root_name.to_string(),
-                            grammar: tool_grammar.as_str().into(),
-                        },
-                    );
-                    SamplerConfig::new(
-                        steps,
-                        self.sampler_config.sample_step.clone(),
-                        self.sampler_config.seed,
-                    )
-                });
+        // The tool-call grammar is NOT pre-injected into the chain. Lark/
+        // llguidance has no "trigger word" mechanism, so an always-on grammar
+        // would block EOS when the model just wants to chat. Instead the
+        // grammar is added dynamically inside `generate_response_until_done`
+        // the moment the begin token appears in the streamed output.
+        let sampler = self.sampler_config.clone();
 
         // get the finished response
         let mut response: String = self.wrapped_update_context_and_generate_response(
@@ -1818,7 +1860,7 @@ impl<'a> Chat<'a> {
 
         self.tool_grammar = if !tools.is_empty() {
             if let Some(ref format) = self.tool_format {
-                match format.generate_grammar(&tools) {
+                match format.to_lark(&tools) {
                     Ok(g) => Some(g),
                     Err(e) => {
                         debug!(error = %e, "Failed to generate grammar from tools");
@@ -1919,7 +1961,7 @@ impl<'a> Chat<'a> {
 
         self.tool_grammar = if !tools.is_empty() {
             if let Some(ref format) = self.tool_format {
-                match format.generate_grammar(&tools) {
+                match format.to_lark(&tools) {
                     Ok(g) => Some(g),
                     Err(e) => {
                         debug!(error = %e, "Failed to generate grammar from tools");
@@ -2256,7 +2298,7 @@ mod tests {
 
         let result = receiver.recv().unwrap();
         println!("{}", result);
-        println!("{}", worker.tool_grammar.unwrap().as_str());
+        println!("{}", worker.tool_grammar.as_deref().unwrap_or(""));
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
     }
