@@ -4,7 +4,9 @@
 .envrc
 .direnv/
 .DS_Store
-.claude
+.claude/*
+!.claude/skills
+!.claude/commands/
 python_dev_envs/
 checkpoints/
 docs/build/
