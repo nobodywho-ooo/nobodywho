@@ -75,7 +75,8 @@ String addTwoNumbers({required double a, required double b}) {
 
 void main() {
   group('A group of tests', () {
-    final modelPath = Platform.environment["TEST_MODEL"]!;
+    final modelPath = Platform.environment["TEST_MODEL"];
+    if (modelPath == null) return; // skip all LLM tests if no model provided
     nobodywho.Chat? chat;
 
     setUpAll(() async {
