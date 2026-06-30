@@ -10,8 +10,8 @@ readme = "PYPI_DESCRIPTION.md"
 requires-python = ">=3.10"
 urls = {Homepage = "https://nobodywho.ooo/", Documentation = "https://docs.nobodywho.ooo/", Repository = "https://github.com/nobodywho-ooo/nobodywho"}
 license = { text = "EUPL-1.2" }
-keywords = ["AI", "LLM", "Large Language Models", "Inference", "Tool calling", "Local LLM", "Local Inference", 
-"On-device AI", "SLM", "Edge AI","Realtime LLM", "Sustainable AI", "Inference engine", "Inference library", "Local AI"]
+keywords = ["AI", "LLM", "Large Language Models", "Inference", "Tool calling", "Local LLM", "Local Inference",
+"On-device AI", "SLM", "Edge AI", "Realtime LLM", "Sustainable AI", "Inference engine", "Inference library", "Local AI"]
 
 
 [tool.maturin]
@@ -24,6 +24,7 @@ exclude-newer = "2 weeks"
 
 [dependency-groups]
 dev = [
+    "maturin>=1.0,<2.0",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.3.0",
     "pytest-markdown-docs>=0.9.0",
@@ -39,8 +40,6 @@ pythonpath = ["."]
 # Don't capture stdout/stderr so IO (prints, logs, progress bars) shows in real time
 # confcutdir via addopts (not valid in ini_options) - limits conftest discovery to repo root
 addopts = "-s --confcutdir=../.."
-# Allow conftest.py discovery up to the repository root
-confcutdir = "../.."
 markers = [
     "network: marks tests that require network access (deselect with '-m \"not network\"')",
 ]

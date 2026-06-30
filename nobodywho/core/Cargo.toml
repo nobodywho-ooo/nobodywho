@@ -45,6 +45,11 @@ indicatif = "0.18"
 walkdir = "2.5"
 hound = "3"
 safetensors = "0.5"
+ndarray = "0.17"
+rand_distr = "0.5"
+unicode-normalization = "0.1"
+emojis = "0.9.0"
+unicode-segmentation = "1.13.3"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
