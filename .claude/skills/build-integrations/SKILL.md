@@ -1,16 +1,18 @@
-# Build Integrations
+---
+name: build-integrations
+description: Wire up a finished core Rust feature across all nobodywho language bindings, regenerate all generated files, and verify everything passes CI checks. Use when the user asks to build, propagate, or integrate a feature (e.g. TTS, STT, Encoder) across Python, Godot, Flutter, Swift, Kotlin, or React Native.
+compatibility: Designed for Claude Code. Requires cargo, nix, uv, and npx on PATH.
+---
 
 Wire up a finished core Rust feature across all nobodywho language bindings, regenerate all generated files, and verify everything passes CI checks.
 
-**Usage:** `/build-integrations <feature>` — e.g. `/build-integrations TTS` or `/build-integrations STT`
-
-The feature name (`$ARGUMENTS`) should match the module name in `nobodywho/core/src/lib.rs`.
+The feature name is taken from the user's invocation message (e.g. "TTS", "STT"). It should match a module name in `nobodywho/core/src/`.
 
 ---
 
 ## Step 1 — Discover the feature surface
 
-Read `nobodywho/core/src/lib.rs` to find the module for `$ARGUMENTS`. Read its public API (structs, methods, signatures) from the module's source.
+Run `ls nobodywho/core/src` to list available modules and identify the one matching the requested feature. Read its public API (structs, methods, signatures) from the module's source.
 
 Then read `nobodywho/uniffi/src/lib.rs` to identify what is already bridged and what is missing.
 
