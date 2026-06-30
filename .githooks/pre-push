@@ -5,7 +5,7 @@ pids=()
 logs=()
 
 for recipe in "${recipes[@]}"; do
-    echo "  → $recipe"
+    echo "⏳ $recipe"
     log=$(mktemp)
     logs+=("$log")
     just "$recipe" >"$log" 2>&1 &
@@ -16,7 +16,10 @@ echo ""
 
 failed=()
 for i in "${!pids[@]}"; do
-    if ! wait "${pids[$i]}"; then
+    if wait "${pids[$i]}"; then
+        echo "✅ ${recipes[$i]}"
+    else
+        echo "❌ ${recipes[$i]}"
         failed+=("${recipes[$i]}")
     fi
 done
@@ -25,11 +28,12 @@ for log in "${logs[@]}"; do
     rm -f "$log"
 done
 
+echo ""
 if [ ${#failed[@]} -eq 0 ]; then
-    echo "✓ all checks passed"
+    echo "✅ all checks passed"
     exit 0
 else
-    echo "✗ failed: ${failed[*]}"
+    echo "❌ failed: ${failed[*]}"
     echo ""
     echo "Run 'just <recipe>' to see the full output."
     exit 1
