@@ -48,6 +48,7 @@ flutter.buildFlutterApplication {
     export TEST_MODEL="${models.TEST_MODEL}"
     export TEST_EMBEDDINGS_MODEL="${models.TEST_EMBEDDINGS_MODEL}"
     export TEST_CROSSENCODER_MODEL="${models.TEST_CROSSENCODER_MODEL}"
+    export TEST_WHISPER_MODEL="${models.TEST_WHISPER_MODEL}"
 
     flutter test --fail-fast test/
 

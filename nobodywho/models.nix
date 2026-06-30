@@ -1,4 +1,4 @@
-{ fetchurl }:
+{ fetchurl, runCommand }:
 {
   TEST_MODEL = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
@@ -25,4 +25,36 @@
     url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf";
     sha256 = "sha256-cxGZ4BbsXyJ7gpP++DmJlHLg7kxRrfX55ctm9lWPoUI=";
   };
+
+  # onnx-community/whisper-base — multi-file ONNX repo assembled into a local dir.
+  # The Rust backend expects: onnx/encoder_model.onnx, onnx/decoder_model_merged.onnx,
+  # tokenizer.json, config.json, generation_config.json.
+  TEST_WHISPER_MODEL = runCommand "whisper-base-model" { } ''
+    mkdir -p $out/onnx
+    cp ${fetchurl {
+      name = "encoder_model.onnx";
+      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/encoder_model.onnx";
+      sha256 = "sha256-qfO3UoM7SeiA3ske5bbZNhEr58PqB8IhAkukk0OfRv4=";
+    }} $out/onnx/encoder_model.onnx
+    cp ${fetchurl {
+      name = "decoder_model_merged.onnx";
+      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model_merged.onnx";
+      sha256 = "sha256-UUkDdEuxtFgD7Fca+ZsxEQSRxvd7ChVIJYZplfsSS3M=";
+    }} $out/onnx/decoder_model_merged.onnx
+    cp ${fetchurl {
+      name = "tokenizer.json";
+      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/tokenizer.json";
+      sha256 = "sha256-J/xHa/5/FymUgL4ic/wGCOTVqZq6KrXexTdLRILRpWY=";
+    }} $out/tokenizer.json
+    cp ${fetchurl {
+      name = "config.json";
+      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/config.json";
+      sha256 = "sha256-9NBgj32RgWbafts+GI3l7xv+cNmALnhdJx/YgRHpz0s=";
+    }} $out/config.json
+    cp ${fetchurl {
+      name = "generation_config.json";
+      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/generation_config.json";
+      sha256 = "sha256-YQcM+N4lseklbo4QLe1J2NJKg2ntNu+E/fIVSeaBJaA=";
+    }} $out/generation_config.json
+  '';
 }
