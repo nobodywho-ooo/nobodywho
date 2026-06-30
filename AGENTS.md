@@ -132,6 +132,10 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup instructions.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) - Development setup
 - [`README.md`](README.md) - User-facing documentation
 
+## Git Policy
+
+**Never commit or push changes without explicit user instruction.** Make edits and show diffs, but always wait for the user to commit and push themselves (or explicitly ask you to do so).
+
 ## Documentation
 Documentation is built with Docusaurus and lives in the `docs/` folder. It is deployed to docs.nobodywho.ooo via Cloudflare Pages (see `.github/workflows/docs.yml`).
 
