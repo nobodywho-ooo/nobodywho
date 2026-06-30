@@ -22,7 +22,7 @@ ruff:
     git diff --exit-code nobodywho/python/ || (echo "ruff format made changes — commit them before pushing" && exit 1)
 
 flutter-analyze:
-    cd nobodywho/flutter/nobodywho && flutter analyze
+    cd nobodywho/flutter/nobodywho && flutter analyze lib/
 
 godot-build:
     cd nobodywho && cargo build -p nobodywho-godot

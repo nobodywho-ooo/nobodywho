@@ -5,11 +5,14 @@ pids=()
 logs=()
 
 for recipe in "${recipes[@]}"; do
+    echo "  → $recipe"
     log=$(mktemp)
     logs+=("$log")
     just "$recipe" >"$log" 2>&1 &
     pids+=($!)
 done
+
+echo ""
 
 failed=()
 for i in "${!pids[@]}"; do
