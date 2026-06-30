@@ -13,7 +13,10 @@ import nobodywho
 import pytest
 
 MODEL = os.environ.get("TEST_WHISPER_MODEL", "onnx-community/whisper-base")
-AUDIO = os.path.join(os.path.dirname(__file__), "..", "..", "..", "assets", "sound.mp3")
+AUDIO = os.environ.get(
+    "TEST_AUDIO_FILE",
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "assets", "sound.mp3"),
+)
 
 
 @pytest.fixture(scope="module")
