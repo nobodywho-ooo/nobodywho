@@ -55,8 +55,12 @@ pkgs.mkShell {
 
     # node.js (for napi-rs bindings)
     pkgs.nodejs
+
+    # dev tooling
+    pkgs.just
   ];
   shellHook = ''
     ulimit -n 2048
+    git config core.hooksPath .githooks
   '';
 }
