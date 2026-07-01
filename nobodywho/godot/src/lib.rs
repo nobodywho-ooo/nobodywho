@@ -2540,16 +2540,18 @@ impl NobodyWhoSTT {
 
         let mut me = self.to_gd();
         godot::task::spawn(async move {
-            tokio::task::yield_now().await;
-
-            let result = tokio::task::spawn_blocking(move || {
+            // tokio::task::spawn_blocking requires an active Tokio runtime, but
+            // godot::task::spawn runs on gdext's own executor. Use a plain thread
+            // with a oneshot channel instead — oneshot uses standard Rust wakers
+            // and works with any async executor.
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            std::thread::spawn(move || {
                 let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
                 cfg.language = language;
-                nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
-            })
-            .await;
+                let _ = tx.send(nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)));
+            });
 
-            match result {
+            match rx.await {
                 Ok(Ok(stt)) => {
                     me.bind_mut().stt = Some(stt);
                     me.signals().worker_started().emit();
@@ -2559,8 +2561,8 @@ impl NobodyWhoSTT {
                     godot_error!("Failed to start STT worker: {}", msg);
                     me.signals().worker_failed().emit(&msg);
                 }
-                Err(e) => {
-                    let msg = GString::from(format!("STT worker task panicked: {e}").as_str());
+                Err(_) => {
+                    let msg = GString::from("STT worker thread panicked during model load");
                     godot_error!("{}", msg);
                     me.signals().worker_failed().emit(&msg);
                 }
