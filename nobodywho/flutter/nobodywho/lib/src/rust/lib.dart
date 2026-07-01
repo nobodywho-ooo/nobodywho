@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `dart_function_type_to_json_schema`, `sample_step`, `shift_step`, `wrap_progress`
+// These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_backend`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
@@ -556,6 +556,43 @@ abstract class ToolCall implements RustOpaqueInterface {
   set arguments(Value arguments);
 
   set name(String name);
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tts>>
+abstract class Tts implements RustOpaqueInterface {
+  /// Create a TTS synthesizer.
+  ///
+  /// Args:
+  ///     source: Local model directory or HuggingFace repo ID.
+  ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
+  ///     voice: Voice name. Backend default is used when omitted.
+  ///     language: Language code. Backend default is used when omitted.
+  ///     speed: Speaking speed. Backend default is used when omitted.
+  ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+  ///     silence_duration: Supertonic silence between chunks in seconds.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  static Future<Tts> load({
+    required String source,
+    String? backend = null,
+    String? voice = null,
+    String? language = null,
+    double? speed = null,
+    int? steps = null,
+    double? silenceDuration = null,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateTtsLoad(
+    source: source,
+    backend: backend,
+    voice: voice,
+    language: language,
+    speed: speed,
+    steps: steps,
+    silenceDuration: silenceDuration,
+    useGpu: useGpu,
+  );
+
+  /// Synthesize text and return WAV bytes.
+  Future<Uint8List> synthesize({required String text});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>

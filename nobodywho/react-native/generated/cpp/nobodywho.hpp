@@ -167,6 +167,21 @@ protected:
   cpp_uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rusttts(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rusttts(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -248,6 +263,9 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_tts(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
@@ -442,6 +460,9 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_model(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_tts(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -578,6 +599,13 @@ protected:
   cpp_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -645,6 +673,9 @@ protected:
   cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -679,6 +710,9 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_rusttool_ffi__bless_pointer(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_internal_fn_method_rusttts_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_samplerbuilder_ffi__bless_pointer(

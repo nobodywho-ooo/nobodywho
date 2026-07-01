@@ -45,6 +45,7 @@ import {
   type UniffiRustCallStatus, 
   AbstractFfiConverterByteArray, 
   FfiConverterArray, 
+  FfiConverterArrayBuffer, 
   FfiConverterBool, 
   FfiConverterCallback, 
   FfiConverterFloat32, 
@@ -164,6 +165,34 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
             /*liftFunc:*/ FfiConverterTypeRustModel.lift.bind(FfiConverterTypeRustModel),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+/**
+ * Create a TTS synthesizer.
+ */
+export async function loadTts(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(backend),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(device)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+            /*liftFunc:*/ FfiConverterTypeRustTts.lift.bind(FfiConverterTypeRustTts),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -311,6 +340,8 @@ export function samplerPresetTopP(topP: /*f32*/number): SamplerConfigInterface {
             /*liftString:*/ FfiConverterString.lift,
     ));
     }
+
+
 
 
 
@@ -2824,6 +2855,176 @@ const uniffiTypeRustToolObjectFactory: UniffiObjectFactory<RustToolInterface> = 
 const FfiConverterTypeRustTool =  new FfiConverterObject(uniffiTypeRustToolObjectFactory);
 
 
+export interface RustTtsInterface {
+    
+    /**
+     * Synthesize text and return WAV bytes.
+     */
+    synthesize(text: string)  /*throws*/: ArrayBuffer;
+    /**
+     * Synthesize text asynchronously and return WAV bytes.
+     */
+    synthesizeAsync(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<ArrayBuffer>;
+}
+
+
+export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustTts";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    /**
+     * Create a TTS synthesizer.
+     */
+    constructor(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined) /*throws*/ {
+        super();
+        const pointer =
+            
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
+        FfiConverterString.lower(source),
+        FfiConverterOptionalString.lower(backend),
+        FfiConverterOptionalString.lower(voice),
+        FfiConverterOptionalString.lower(language),
+        FfiConverterOptionalFloat32.lower(speed),
+        FfiConverterOptionalUInt32.lower(steps),
+        FfiConverterOptionalFloat32.lower(silenceDuration),
+        FfiConverterOptionalString.lower(device),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
+        this[pointerLiteralSymbol] = pointer;
+        this[destructorGuardSymbol] = uniffiTypeRustTtsObjectFactory.bless(pointer);
+    }
+
+    
+
+    
+    /**
+     * Synthesize text and return WAV bytes.
+     */
+ synthesize(text: string): ArrayBuffer /*throws*/ {
+    return FfiConverterArrayBuffer.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(uniffiTypeRustTtsObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(text),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Synthesize text asynchronously and return WAV bytes.
+     */
+async  synthesizeAsync(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<ArrayBuffer> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(
+                    uniffiTypeRustTtsObjectFactory.clonePointer(this),
+                    FfiConverterString.lower(text)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayBuffer.lift.bind(FfiConverterArrayBuffer),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustTtsObjectFactory.pointer(this);
+            uniffiTypeRustTtsObjectFactory.freePointer(pointer);
+            uniffiTypeRustTtsObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustTts {
+        return uniffiTypeRustTtsObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustTtsObjectFactory: UniffiObjectFactory<RustTtsInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustTtsInterface {
+        const instance = Object.create(RustTts.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustTts";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rusttts_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustTtsInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustTtsInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttts(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rusttts(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustTtsInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustTts";
+    },
+}})();
+// FfiConverter for RustTtsInterface
+const FfiConverterTypeRustTts =  new FfiConverterObject(uniffiTypeRustTtsObjectFactory);
+
+
 export interface SamplerBuilderInterface {
     
     /**
@@ -3332,6 +3533,10 @@ const FfiConverterTypeSamplerConfig =  new FfiConverterObject(uniffiTypeSamplerC
 const FfiConverterOptionalTypeRustDownloadProgressCallback = new FfiConverterOptional(FfiConverterTypeRustDownloadProgressCallback);
 
 
+// FfiConverter for /*f32*/number | undefined
+const FfiConverterOptionalFloat32 = new FfiConverterOptional(FfiConverterFloat32);
+
+
 // FfiConverter for /*i32*/number | undefined
 const FfiConverterOptionalInt32 = new FfiConverterOptional(FfiConverterInt32);
 
@@ -3436,6 +3641,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 1569) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_tts");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() !== 13698) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar");
@@ -3551,6 +3759,12 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() !== 10096) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize() !== 56024) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async() !== 54670) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
     }
@@ -3611,6 +3825,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() !== 54521) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 12955) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new");
     }
@@ -3644,6 +3861,7 @@ export default Object.freeze({
     FfiConverterTypeRustModel,
     FfiConverterTypeRustTokenStream,
     FfiConverterTypeRustTool,
+    FfiConverterTypeRustTts,
     FfiConverterTypeSamplerBuilder,
     FfiConverterTypeSamplerConfig,
     FfiConverterTypeToolCall,
