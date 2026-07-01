@@ -563,12 +563,15 @@ jobs:
 
       - name: "Download wheel"
         uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_macos
+          path: ./wheels
 
       - name: Install wheel
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywho_python_macos/nobodywho*macosx*.whl
+          pip install wheels/nobodywho*.whl
 
       - name: Download models
         run: |
