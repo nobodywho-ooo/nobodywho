@@ -100,6 +100,72 @@ where
     })
 }
 
+fn parse_tts_backend(
+    backend: Option<String>,
+) -> Result<Option<nobodywho::tts::TtsBackendKind>, String> {
+    backend
+        .as_deref()
+        .map(str::parse)
+        .transpose()
+        .map_err(|()| "backend must be one of 'kokoro' or 'supertonic'".to_string())
+}
+
+fn tts_device_from_use_gpu(use_gpu: bool) -> nobodywho::tts::TtsDevice {
+    if use_gpu {
+        nobodywho::tts::TtsDevice::Auto
+    } else {
+        nobodywho::tts::TtsDevice::Cpu
+    }
+}
+
+fn build_tts_config(
+    source: String,
+    backend: Option<String>,
+    voice: Option<String>,
+    language: Option<String>,
+    speed: Option<f32>,
+    steps: Option<u32>,
+    silence_duration: Option<f32>,
+) -> Result<nobodywho::tts::TtsConfig, String> {
+    let backend = parse_tts_backend(backend)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
+        "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'"
+            .to_string()
+    })?;
+
+    match &mut config {
+        nobodywho::tts::TtsConfig::Kokoro(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(speed) = speed {
+                config.speed = speed;
+            }
+        }
+        nobodywho::tts::TtsConfig::Supertonic(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(speed) = speed {
+                config.speed = speed;
+            }
+            if let Some(steps) = steps {
+                config.steps = steps as usize;
+            }
+            if let Some(silence_duration) = silence_duration {
+                config.silence_duration = silence_duration;
+            }
+        }
+    }
+    Ok(config)
+}
+
 #[flutter_rust_bridge::frb(mirror(ToolCall))]
 pub struct _ToolCall {
     pub name: String,
@@ -182,6 +248,58 @@ pub fn download_model(
     )
     .map(|p| p.to_string_lossy().into_owned())
     .map_err(|e| nobodywho::render_miette(&e))
+}
+
+#[flutter_rust_bridge::frb(opaque)]
+pub struct Tts {
+    handle: nobodywho::tts::Tts,
+}
+
+impl Tts {
+    /// Create a TTS synthesizer.
+    ///
+    /// Args:
+    ///     source: Local model directory or HuggingFace repo ID.
+    ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
+    ///     voice: Voice name. Backend default is used when omitted.
+    ///     language: Language code. Backend default is used when omitted.
+    ///     speed: Speaking speed. Backend default is used when omitted.
+    ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+    ///     silence_duration: Supertonic silence between chunks in seconds.
+    ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+    #[flutter_rust_bridge::frb]
+    pub fn load(
+        source: String,
+        #[frb(default = "null")] backend: Option<String>,
+        #[frb(default = "null")] voice: Option<String>,
+        #[frb(default = "null")] language: Option<String>,
+        #[frb(default = "null")] speed: Option<f32>,
+        #[frb(default = "null")] steps: Option<u32>,
+        #[frb(default = "null")] silence_duration: Option<f32>,
+        #[frb(default = true)] use_gpu: bool,
+    ) -> Result<Self, String> {
+        let config = build_tts_config(
+            source,
+            backend,
+            voice,
+            language,
+            speed,
+            steps,
+            silence_duration,
+        )?;
+        let device = tts_device_from_use_gpu(use_gpu);
+        let handle = nobodywho::tts::Tts::with_device(config, device)
+            .map_err(|e| nobodywho::render_miette(&e))?;
+        Ok(Self { handle })
+    }
+
+    /// Synthesize text and return WAV bytes.
+    pub async fn synthesize(&self, text: String) -> Result<Vec<u8>, String> {
+        self.handle
+            .synthesize_async(text)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
+    }
 }
 
 pub struct ChatStats {
