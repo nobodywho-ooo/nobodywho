@@ -8,6 +8,7 @@ const sidebars: SidebarsConfig = {
     'tool-calling',
     'vision',
     'sampling',
+    'text-to-speech',
     'embeddings-and-rag',
   ],
 };
