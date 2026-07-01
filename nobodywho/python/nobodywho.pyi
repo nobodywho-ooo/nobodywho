@@ -1087,9 +1087,11 @@ class Text:
 @final
 class TokenStream:
     """
-    `TokenStream` is returned by `Chat.ask`, `STT.transcribe_file`, and `STT.transcribe_pcm`.
-    Iterate over it token-by-token or call `.completed()` for the full text at once.
-    Also see `TokenStreamAsync` for the async variant.
+    `TokenStream` represents an in-progress text completion. It is the return value of `Chat.ask`.
+    You can iterate over the tokens in a `TokenStream` using the normal python iterator protocol,
+    or by explicitly calling the `.next_token()` method.
+    If you want to wait for the entire response to be generated, you can call `.completed()`.
+    Also see `TokenStreamAsync`, for an async version of this class.
     """
     def __iter__(self, /) -> TokenStream: ...
     def __next__(self, /) -> str: ...

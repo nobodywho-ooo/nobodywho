@@ -3091,9 +3091,7 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Tool;
     #[pymodule_export]
-    use super::STT;
-    #[pymodule_export]
-    use super::STTAsync;
-    #[pymodule_export]
     use super::Tts;
+    #[pymodule_export]
+    use super::STT;
 }
