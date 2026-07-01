@@ -26,6 +26,9 @@ func run_test() -> bool:
 		get_tree().quit(1)
 	)
 
+	stt.start_worker()
+	await stt.worker_started
+
 	var transcript := ""
 	stt.transcription_updated.connect(func(piece: String): transcript += piece)
 
