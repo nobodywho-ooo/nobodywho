@@ -1,0 +1,39 @@
+#!/bin/bash
+
+recipes=(fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze godot-build)
+pids=()
+logs=()
+start=$SECONDS
+
+for recipe in "${recipes[@]}"; do
+    log=$(mktemp)
+    logs+=("$log")
+    just "$recipe" >"$log" 2>&1 &
+    pids+=($!)
+done
+
+failed=()
+for i in "${!pids[@]}"; do
+    if wait "${pids[$i]}"; then
+        echo "✅ ${recipes[$i]}"
+    else
+        echo "❌ ${recipes[$i]}"
+        failed+=("${recipes[$i]}")
+    fi
+done
+
+for log in "${logs[@]}"; do
+    rm -f "$log"
+done
+
+elapsed=$((SECONDS - start))
+echo ""
+if [ ${#failed[@]} -eq 0 ]; then
+    echo "✅ all checks passed in ${elapsed}s"
+    exit 0
+else
+    echo "❌ failed: ${failed[*]} (${elapsed}s)"
+    echo ""
+    echo "Run 'just <recipe>' to see the full output."
+    exit 1
+fi
