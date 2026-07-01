@@ -49,6 +49,7 @@ flutter.buildFlutterApplication {
     export TEST_EMBEDDINGS_MODEL="${models.TEST_EMBEDDINGS_MODEL}"
     export TEST_CROSSENCODER_MODEL="${models.TEST_CROSSENCODER_MODEL}"
     export TEST_WHISPER_MODEL="${models.TEST_WHISPER_MODEL}"
+    export TEST_AUDIO_FILE="${../../assets/sound.mp3}"
 
     flutter test --fail-fast test/
 

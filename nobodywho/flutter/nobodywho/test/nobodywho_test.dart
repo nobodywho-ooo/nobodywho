@@ -717,16 +717,12 @@ void main() {
   // STT (Whisper)
   // ---------------------------------------------------------------------------
   group('STT', () {
-    // Model: HuggingFace repo ID or local dir. Set TEST_WHISPER_MODEL or defaults to
-    // onnx-community/whisper-base (requires network; skips if neither is set in CI).
     final whisperModel = Platform.environment['TEST_WHISPER_MODEL'];
-
-    // Audio file: "Hey Ron. Hey Billy." — shared asset in assets/.
-    final audioFile = '../../../../assets/sound.mp3';
+    final audioFile = Platform.environment['TEST_AUDIO_FILE'];
 
     test('transcribes audio file', () async {
-      if (whisperModel == null) {
-        return; // Skip test if model not provided
+      if (whisperModel == null || audioFile == null) {
+        return; // Skip test if model or audio file not provided
       }
       final stt = nobodywho.RustStt.new_(source: whisperModel);
       final stream = stt.transcribeFile(path: audioFile);
