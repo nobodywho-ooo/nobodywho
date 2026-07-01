@@ -49,8 +49,13 @@ safetensors = "0.5"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "mp3", "flac"] }
 rubato = "0.16"
 mel_spec = "0.4"
-ndarray = "0.16"
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+# Shared by STT (via mel_spec) and TTS (supertonic); use 0.17 as the workspace default
+ndarray = "0.17"
+rand_distr = "0.5"
+unicode-normalization = "0.1"
+emojis = "0.9.0"
+unicode-segmentation = "1.13.3"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"

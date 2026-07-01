@@ -359,6 +359,150 @@ impl AsyncStreamInner {
 /// `TokenStream` is returned by `Chat.ask`, `STT.transcribe_file`, and `STT.transcribe_pcm`.
 /// Iterate over it token-by-token or call `.completed()` for the full text at once.
 /// Also see `TokenStreamAsync` for the async variant.
+
+fn parse_tts_device(device: &str) -> PyResult<nobodywho::tts::TtsDevice> {
+    match device.to_ascii_lowercase().as_str() {
+        "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
+        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
+        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(
+            "device must be one of 'auto', 'cpu', or 'cuda'",
+        )),
+    }
+}
+
+fn parse_tts_backend(backend: &str) -> PyResult<nobodywho::tts::TtsBackendKind> {
+    backend.parse().map_err(|()| {
+        pyo3::exceptions::PyValueError::new_err("backend must be one of 'kokoro' or 'supertonic'")
+    })
+}
+
+fn build_tts_config(
+    source: std::path::PathBuf,
+    backend: Option<&str>,
+    voice: Option<String>,
+    language: Option<String>,
+    speed: Option<f32>,
+    steps: Option<usize>,
+    silence_duration: Option<f32>,
+) -> PyResult<nobodywho::tts::TtsConfig> {
+    let source = source.to_str().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Path contains invalid UTF-8: {}",
+            source.display()
+        ))
+    })?;
+    let backend = backend.map(parse_tts_backend).transpose()?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(source, backend).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(
+            "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'",
+        )
+    })?;
+
+    match &mut config {
+        nobodywho::tts::TtsConfig::Kokoro(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(speed) = speed {
+                config.speed = speed;
+            }
+        }
+        nobodywho::tts::TtsConfig::Supertonic(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(speed) = speed {
+                config.speed = speed;
+            }
+            if let Some(steps) = steps {
+                config.steps = steps;
+            }
+            if let Some(silence_duration) = silence_duration {
+                config.silence_duration = silence_duration;
+            }
+        }
+    }
+    Ok(config)
+}
+
+/// `Tts` synthesizes speech to WAV bytes.
+#[pyclass]
+pub struct Tts {
+    tts: nobodywho::tts::Tts,
+}
+
+#[pymethods]
+impl Tts {
+    /// Create a TTS synthesizer.
+    ///
+    /// Args:
+    ///     source: Local model directory or HuggingFace repo ID.
+    ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
+    ///         Known sources infer the backend when omitted.
+    ///     voice: Voice name. Backend default is used when omitted.
+    ///     language: Language code. Backend default is used when omitted.
+    ///     speed: Speaking speed. Backend default is used when omitted.
+    ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+    ///     silence_duration: Supertonic silence between chunks in seconds.
+    ///     device: "auto", "cpu", or "cuda". Defaults to "auto".
+    #[new]
+    #[pyo3(signature = (source: "os.PathLike | str", backend: "typing.Literal['kokoro', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
+    pub fn new(
+        source: std::path::PathBuf,
+        backend: Option<&str>,
+        voice: Option<String>,
+        language: Option<String>,
+        speed: Option<f32>,
+        steps: Option<usize>,
+        silence_duration: Option<f32>,
+        device: &str,
+    ) -> PyResult<Self> {
+        let device = parse_tts_device(device)?;
+        let config = build_tts_config(
+            source,
+            backend,
+            voice,
+            language,
+            speed,
+            steps,
+            silence_duration,
+        )?;
+        let tts = nobodywho::tts::Tts::with_device(config, device)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        Ok(Self { tts })
+    }
+
+    /// Synthesize text and return WAV bytes.
+    pub fn synthesize(&self, text: String, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
+        let bytes = py
+            .detach(|| self.tts.synthesize(text))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        Ok(pyo3::types::PyBytes::new(py, &bytes).unbind())
+    }
+
+    /// Synthesize text asynchronously and return WAV bytes.
+    pub async fn synthesize_async(&self, text: String) -> PyResult<Py<pyo3::types::PyBytes>> {
+        let bytes = self
+            .tts
+            .synthesize_async(text)
+            .await
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        Python::attach(|py| Ok(pyo3::types::PyBytes::new(py, &bytes).unbind()))
+    }
+}
+
+/// `TokenStream` represents an in-progress text completion. It is the return value of `Chat.ask`.
+/// You can iterate over the tokens in a `TokenStream` using the normal python iterator protocol,
+/// or by explicitly calling the `.next_token()` method.
+/// If you want to wait for the entire response to be generated, you can call `.completed()`.
+/// Also see `TokenStreamAsync`, for an async version of this class.
 #[pyclass]
 pub struct TokenStream {
     inner: SyncStreamInner,
@@ -2519,7 +2663,9 @@ fn python_func_json_schema(
         .transpose()?
         != Some("str".to_string())
     {
-        tracing::warn!("Return type of this tool should be `str`. Anything else will be cast to string, which might lead to unexpected results. It's recommended that you add a return type annotation to the tool: `-> str:`");
+        tracing::warn!(
+            "Return type of this tool should be `str`. Anything else will be cast to string, which might lead to unexpected results. It's recommended that you add a return type annotation to the tool: `-> str:`"
+        );
     }
 
     // check that names of parameter descriptions correspond to names of actual function arguments
@@ -2605,14 +2751,14 @@ fn json_to_kwargs(
                             return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                                 "jsonschema does not contain schema for parameter: {}",
                                 k.clone()
-                            )))
+                            )));
                         }
                     },
                     None => {
                         return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                             "jsonschema is constructed incorrectly :{}",
                             json_schema
-                        )))
+                        )));
                     }
                 };
                 let value_py = json_value_to_py(py, &v, obj_schema)?;
@@ -2643,7 +2789,7 @@ fn json_value_to_py<'py>(
             return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                 "jsonschema does not contain type:{}",
                 obj_schema
-            )))
+            )));
         }
     };
 
@@ -2673,7 +2819,7 @@ fn json_value_to_py<'py>(
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "jsonschema does not contain items schema for array:{}",
                         obj_schema
-                    )))
+                    )));
                 }
             };
             let py_items: PyResult<Vec<_>> = arr
@@ -2718,7 +2864,7 @@ fn json_value_to_py<'py>(
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "jsonschema does not contain additionalProperties schema for map:{}",
                         obj_schema
-                    )))
+                    )));
                 }
             };
             for (k, v) in obj {
@@ -2946,4 +3092,8 @@ pub mod nobodywhopython {
     use super::Tool;
     #[pymodule_export]
     use super::STT;
+    #[pymodule_export]
+    use super::STTAsync;
+    #[pymodule_export]
+    use super::Tts;
 }

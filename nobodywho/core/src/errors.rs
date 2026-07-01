@@ -5,7 +5,9 @@ use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum MemoryError {
-    #[error("Not enough memory for context. Required: ~{required_gb:.1} GB, available: ~{available_gb:.1} GB")]
+    #[error(
+        "Not enough memory for context. Required: ~{required_gb:.1} GB, available: ~{available_gb:.1} GB"
+    )]
     #[diagnostic(code(nobodywho::insufficient_memory), help("{suggestion}"))]
     InsufficientMemory {
         required_gb: f64,
@@ -691,6 +693,27 @@ pub enum TtsError {
     )]
     TooManyPhonemes { count: usize, max: usize },
 
+    // ── Supertonic validation ────────────────────────────────────────
+    #[error("Text cannot be empty")]
+    #[diagnostic(code(nobodywho::tts_empty_text))]
+    EmptyText,
+
+    #[error("Missing TTS asset: {path}")]
+    #[diagnostic(code(nobodywho::tts_missing_asset))]
+    MissingAsset { path: String },
+
+    #[error("Unknown Supertonic voice '{voice}'. Available voices: {available}")]
+    #[diagnostic(code(nobodywho::tts_missing_voice))]
+    MissingVoice { voice: String, available: String },
+
+    #[error("Invalid TTS asset {path}: {message}")]
+    #[diagnostic(code(nobodywho::tts_invalid_asset))]
+    InvalidAsset { path: String, message: String },
+
+    #[error("Invalid TTS config: {message}")]
+    #[diagnostic(code(nobodywho::tts_invalid_config))]
+    InvalidConfig { message: String },
+
     // ── Worker thread plumbing ───────────────────────────────────────
     #[error("TTS worker thread is no longer running")]
     #[diagnostic(code(nobodywho::tts_worker_dead))]
@@ -702,6 +725,15 @@ pub enum TtsError {
 
     #[error("WAV encoding failed")]
     Wav(#[from] hound::Error),
+
+    #[error("I/O error")]
+    Io(#[from] std::io::Error),
+
+    #[error("JSON parse error")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Tensor shape error")]
+    Shape(#[from] ndarray::ShapeError),
 
     #[error("Model download failed")]
     HuggingFace(#[from] HuggingFaceError),
@@ -836,7 +868,9 @@ pub enum SamplerError {
     #[error("Sample step is missing in the sampler! Maybe you did forget to add .sample() call?")]
     MissingSampleStep,
 
-    #[error("Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling.")]
+    #[error(
+        "Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling."
+    )]
     UnsupportedToolCallingTokenization,
 
     #[error("Could not initialize lazy grammar: {0}")]
@@ -923,7 +957,9 @@ pub enum TokenizationError {
     #[error("Projection model failed to tokenize image bitmap: {0}")]
     ProjectionTokenizationError(String),
 
-    #[error("Media marker mismatch: found {n_markers} media markers in template but received {n_bitmaps} media items. Each media placeholder in the prompt must have a corresponding media item.\n\nTemplate preview: {template_preview}")]
+    #[error(
+        "Media marker mismatch: found {n_markers} media markers in template but received {n_bitmaps} media items. Each media placeholder in the prompt must have a corresponding media item.\n\nTemplate preview: {template_preview}"
+    )]
     MediaMarkerMismatch {
         n_markers: usize,
         n_bitmaps: usize,
@@ -1041,7 +1077,9 @@ pub enum SetToolsError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompletionError {
-    #[error("Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue).")]
+    #[error(
+        "Worker thread terminated before completing the response. This usually indicates an error occurred during token generation (e.g., context shift failure, sampling error, or token decoding issue)."
+    )]
     WorkerCrashed,
 
     #[error(transparent)]

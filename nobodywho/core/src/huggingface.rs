@@ -442,6 +442,10 @@ pub(crate) fn resolve(source: Source) -> Result<PathBuf, HuggingFaceError> {
     }
 }
 
+pub(crate) fn resolve_model_dir(source: &str) -> Result<PathBuf, HuggingFaceError> {
+    resolve(parse(source)?)
+}
+
 #[derive(serde::Deserialize)]
 struct HfTreeEntry {
     #[serde(rename = "type")]
