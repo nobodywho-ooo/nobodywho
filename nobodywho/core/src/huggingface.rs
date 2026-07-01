@@ -462,6 +462,18 @@ fn download_repo(
     let cache_dir = get_cache_dir()?.join(owner).join(repo);
     let repo_id = format!("{owner}/{repo}");
 
+    // Skip the network round-trip if the directory is already populated (e.g.
+    // pre-fetched by the Nix build or a previous run). Each individual file is
+    // still guarded by its own existence check inside download_file().
+    if cache_dir.is_dir()
+        && std::fs::read_dir(&cache_dir)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false)
+    {
+        info!("Using cached repo: {}", cache_dir.display());
+        return Ok(cache_dir);
+    }
+
     let tree_url =
         format!("https://huggingface.co/api/models/{owner}/{repo}/tree/{revision}?recursive=true");
     let body = ureq::get(&tree_url)

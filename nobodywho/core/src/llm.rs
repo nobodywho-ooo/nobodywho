@@ -333,11 +333,8 @@ impl PoolingType for () {
     }
 }
 
-pub enum WriteOutput {
-    Token(String),
-    Done(String),
-    Error(Box<dyn miette::Diagnostic + Send + Sync + 'static>),
-}
+pub type WriteOutput =
+    crate::stream::StreamOutput<Box<dyn miette::Diagnostic + Send + Sync + 'static>>;
 
 // Common methods for any workstate type
 impl<'a, T> Worker<'a, T>

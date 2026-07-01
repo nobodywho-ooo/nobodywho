@@ -1,5 +1,8 @@
+//! Text-to-speech synthesis using the Kokoro model family.
+//!
 //! [`Tts::new`] takes a [`TtsConfig`] pointing at either a local directory
-//! or a HuggingFace Hub repo ID (`owner/repo`).
+//! or a HuggingFace Hub repo ID (`owner/repo`). HF repos are downloaded
+//! into the user's cache on first use, then reused.
 //!
 //! ```no_run
 //! # use nobodywho::tts::{Tts, TtsConfig};
@@ -11,15 +14,28 @@
 //! # }
 //! ```
 //!
+//! Override voice, speed, and language (espeak-ng language code). The full
+//! list of voices lives on the model's HuggingFace page:
+//!
 //! ```no_run
 //! # use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut cfg = KokoroConfig::new("NobodyWho/Kokoro-82M");
 //! cfg.voice = "am_michael".into();
-//! cfg.language = "en-us".into();
 //! cfg.speed = 1.1;
+//! cfg.language = "en-us".into();
 //! let tts = Tts::new(TtsConfig::Kokoro(cfg))?;
-//! let wav = tts.synthesize("Hello!")?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! From an async context use [`Tts::synthesize_async`]:
+//!
+//! ```no_run
+//! # use nobodywho::tts::{Tts, TtsConfig};
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let tts = Tts::new(TtsConfig::kokoro("NobodyWho/Kokoro-82M"))?;
+//! let wav = tts.synthesize_async("Hello from NobodyWho!").await?;
 //! # let _ = wav;
 //! # Ok(())
 //! # }
@@ -27,10 +43,10 @@
 
 mod backend;
 mod kokoro;
-mod ort_util;
 mod supertonic;
 
 use crate::errors::TtsError;
+pub use crate::onnx::Device as TtsDevice;
 pub use kokoro::KokoroConfig;
 use std::{str::FromStr, sync::mpsc};
 pub use supertonic::SupertonicConfig;
@@ -95,34 +111,6 @@ impl TtsConfig {
 
     pub fn supertonic(source: impl AsRef<str>) -> Self {
         Self::Supertonic(SupertonicConfig::new(source))
-    }
-}
-
-/// Hardware target for ONNX Runtime execution.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TtsDevice {
-    /// Prefer CUDA, silently fall back to CPU if unavailable.
-    Auto,
-    Cpu,
-    Cuda,
-}
-
-pub(super) fn ort_execution_providers(
-    device: TtsDevice,
-) -> Vec<ort::ep::ExecutionProviderDispatch> {
-    match device {
-        // CPU is listed alongside CUDA as a per-op fallback,
-        // as some ops may not have ONNX CUDA kernel.
-        // CUDA still takes whichever ops it supports.
-        TtsDevice::Cuda => vec![
-            ort::ep::CUDA::default().build().error_on_failure(),
-            ort::ep::CPU::default().build(),
-        ],
-        TtsDevice::Cpu => vec![ort::ep::CPU::default().build()],
-        TtsDevice::Auto => vec![
-            ort::ep::CUDA::default().build().fail_silently(),
-            ort::ep::CPU::default().build(),
-        ],
     }
 }
 

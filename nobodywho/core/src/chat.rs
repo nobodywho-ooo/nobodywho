@@ -398,7 +398,7 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
-        TokenStream::new(self.ask_channel(prompt.to_prompt()))
+        TokenStream::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
     }
 
     fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
@@ -696,7 +696,7 @@ impl ChatHandleAsync {
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
-        TokenStreamAsync::new(self.ask_channel(prompt.to_prompt()))
+        TokenStreamAsync::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
     }
 
     // internal helper function for async setters
@@ -947,113 +947,39 @@ impl ChatHandleAsync {
 }
 
 /// A stream of tokens from the model.
-pub struct TokenStream {
-    rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
-    completed_response: Option<String>,
-}
-
-impl TokenStream {
-    fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
-        Self {
-            rx,
-            completed_response: None,
-        }
-    }
-
-    /// Get the next token from the stream.
-    ///
-    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
-    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
-    pub fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
-        if self.completed_response.is_some() {
-            return Ok(None);
-        }
-
-        if let Some(output) = self.rx.blocking_recv() {
-            match output {
-                llm::WriteOutput::Token(token) => return Ok(Some(token)),
-                llm::WriteOutput::Done(completed_response) => {
-                    self.completed_response = Some(completed_response);
-                    return Ok(None);
-                }
-                llm::WriteOutput::Error(e) => {
-                    return Err(crate::errors::CompletionError::WorkerError(e));
-                }
-            }
-        }
-        Ok(None)
-    }
-
-    /// Blocks until the entire response is completed. Does not consume the response, so this
-    /// method is idempotent on success.
-    pub fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
-        loop {
-            match self.next_token()? {
-                Some(_) => continue,
-                None => {
-                    return self
-                        .completed_response
-                        .clone()
-                        .ok_or(crate::errors::CompletionError::WorkerCrashed);
-                }
-            }
-        }
-    }
-}
-
+pub type TokenStream = crate::stream::TokenStream<crate::errors::CompletionError>;
 /// A stream of tokens from the model, async version.
-pub struct TokenStreamAsync {
+pub type TokenStreamAsync = crate::stream::TokenStreamAsync<crate::errors::CompletionError>;
+
+/// Convert a raw `WriteOutput` channel into a typed `StreamOutput<CompletionError>` channel.
+///
+/// `ask_channel` intentionally stays as `WriteOutput` so the Godot binding
+/// (which pattern-matches on it directly) is not broken. `ask` uses this
+/// forwarder to serve the generic `TokenStream`.
+fn forward_write_output(
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
-    completed_response: Option<String>,
-}
-
-impl TokenStreamAsync {
-    pub fn new(rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>) -> Self {
-        Self {
-            rx,
-            completed_response: None,
-        }
-    }
-
-    /// Waits for the next token in the stream. Consumes the token when emitted.
-    ///
-    /// Returns `Ok(Some(token))` for each generated token, `Ok(None)` when generation is
-    /// complete, and `Err(e)` if the worker encountered an error mid-generation.
-    pub async fn next_token(&mut self) -> Result<Option<String>, crate::errors::CompletionError> {
-        if self.completed_response.is_some() {
-            return Ok(None);
-        }
-
-        if let Some(output) = self.rx.recv().await {
-            match output {
-                llm::WriteOutput::Token(token) => return Ok(Some(token)),
-                llm::WriteOutput::Done(completed_response) => {
-                    self.completed_response = Some(completed_response);
-                    return Ok(None);
-                }
-                llm::WriteOutput::Error(e) => {
-                    return Err(crate::errors::CompletionError::WorkerError(e));
-                }
+) -> tokio::sync::mpsc::UnboundedReceiver<crate::stream::StreamOutput<crate::errors::CompletionError>>
+{
+    let (tx, new_rx) = tokio::sync::mpsc::unbounded_channel();
+    // Use std::thread::spawn so this is callable from non-Tokio threads (e.g. the
+    // Flutter Rust Bridge sync dispatcher).  blocking_recv() is safe here because
+    // this thread is not inside any async executor.
+    std::thread::spawn(move || {
+        let mut rx = rx;
+        while let Some(output) = rx.blocking_recv() {
+            let item = match output {
+                llm::WriteOutput::Token(t) => crate::stream::StreamOutput::Token(t),
+                llm::WriteOutput::Done(s) => crate::stream::StreamOutput::Done(s),
+                llm::WriteOutput::Error(e) => crate::stream::StreamOutput::Error(
+                    crate::errors::CompletionError::WorkerError(e),
+                ),
+            };
+            if tx.send(item).is_err() {
+                break;
             }
         }
-        Ok(None)
-    }
-
-    /// Waits for the entire response to be completed. Does not consume the response, so this
-    /// method is idempotent on success.
-    pub async fn completed(&mut self) -> Result<String, crate::errors::CompletionError> {
-        loop {
-            match self.next_token().await? {
-                Some(_) => continue,
-                None => {
-                    return self
-                        .completed_response
-                        .clone()
-                        .ok_or(crate::errors::CompletionError::WorkerCrashed);
-                }
-            }
-        }
-    }
+    });
+    new_rx
 }
 
 pub struct ChatStats {

@@ -204,6 +204,162 @@ impl<'py> ModelOrPath<'py> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// STT
+// ---------------------------------------------------------------------------
+
+/// `STT` transcribes speech to text using a Whisper ONNX model.
+///
+/// `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
+/// a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
+/// omit or pass `None` to auto-detect.
+///
+/// Example::
+///
+///     stt = nobodywho.STT("onnx-community/whisper-base")
+///     text = stt.transcribe_file("recording.mp3").completed()
+///
+///     # Or stream tokens:
+///     for piece in stt.transcribe_file("recording.mp3"):
+///         print(piece, end="", flush=True)
+#[pyclass]
+pub struct STT {
+    stt: nobodywho::stt::Stt,
+}
+
+#[pymethods]
+impl STT {
+    #[new]
+    #[pyo3(signature = (source, language = None))]
+    pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
+        let mut cfg = nobodywho::stt::WhisperConfig::new(source);
+        cfg.language = language.map(String::from);
+        let stt = py
+            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(Self { stt })
+    }
+
+    /// Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
+    pub fn transcribe_file(&self, path: &str, py: Python) -> PyResult<TokenStream> {
+        let stream = py
+            .detach(|| self.stt.transcribe_file_stream(path))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(TokenStream {
+            inner: SyncStreamInner::Stt(stream),
+        })
+    }
+
+    /// Transcribe raw i16 PCM samples from a microphone. Returns a `TokenStream`.
+    pub fn transcribe_pcm(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+        py: Python,
+    ) -> PyResult<TokenStream> {
+        let stream = py
+            .detach(|| self.stt.transcribe_pcm_stream(samples, sample_rate))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(TokenStream {
+            inner: SyncStreamInner::Stt(stream),
+        })
+    }
+}
+
+/// `STTAsync` is the async variant of `STT`.
+#[pyclass]
+pub struct STTAsync {
+    stt: nobodywho::stt::Stt,
+}
+
+#[pymethods]
+impl STTAsync {
+    #[new]
+    #[pyo3(signature = (source, language = None))]
+    pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
+        let mut cfg = nobodywho::stt::WhisperConfig::new(source);
+        cfg.language = language.map(String::from);
+        let stt = py
+            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(Self { stt })
+    }
+
+    pub fn transcribe_file(&self, path: String) -> PyResult<TokenStreamAsync> {
+        let stream = self
+            .stt
+            .transcribe_file_stream_async(path)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(TokenStreamAsync {
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+        })
+    }
+
+    pub fn transcribe_pcm(
+        &self,
+        samples: Vec<i16>,
+        sample_rate: u32,
+    ) -> PyResult<TokenStreamAsync> {
+        let stream = self
+            .stt
+            .transcribe_pcm_stream_async(samples, sample_rate)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(TokenStreamAsync {
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Token streams (shared by Chat and STT)
+// ---------------------------------------------------------------------------
+
+// Type-erased inner for sync streams — lets Chat and STT share one pyclass.
+enum SyncStreamInner {
+    Chat(nobodywho::chat::TokenStream),
+    Stt(nobodywho::stream::TokenStream<nobodywho::errors::SttError>),
+}
+
+impl SyncStreamInner {
+    fn next_token(&mut self) -> Result<Option<String>, String> {
+        match self {
+            Self::Chat(s) => s.next_token().map_err(|e| render_miette(&e)),
+            Self::Stt(s) => s.next_token().map_err(|e| e.to_string()),
+        }
+    }
+    fn completed(&mut self) -> Result<String, String> {
+        match self {
+            Self::Chat(s) => s.completed().map_err(|e| render_miette(&e)),
+            Self::Stt(s) => s.completed().map_err(|e| e.to_string()),
+        }
+    }
+}
+
+// Type-erased inner for async streams.
+enum AsyncStreamInner {
+    Chat(nobodywho::chat::TokenStreamAsync),
+    Stt(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SttError>),
+}
+
+impl AsyncStreamInner {
+    async fn next_token(&mut self) -> Result<Option<String>, String> {
+        match self {
+            Self::Chat(s) => s.next_token().await.map_err(|e| render_miette(&e)),
+            Self::Stt(s) => s.next_token().await.map_err(|e| e.to_string()),
+        }
+    }
+    async fn completed(&mut self) -> Result<String, String> {
+        match self {
+            Self::Chat(s) => s.completed().await.map_err(|e| render_miette(&e)),
+            Self::Stt(s) => s.completed().await.map_err(|e| e.to_string()),
+        }
+    }
+}
+
+/// `TokenStream` is returned by `Chat.ask`, `STT.transcribe_file`, and `STT.transcribe_pcm`.
+/// Iterate over it token-by-token or call `.completed()` for the full text at once.
+/// Also see `TokenStreamAsync` for the async variant.
+
 fn parse_tts_device(device: &str) -> PyResult<nobodywho::tts::TtsDevice> {
     match device.to_ascii_lowercase().as_str() {
         "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
@@ -349,89 +505,56 @@ impl Tts {
 /// Also see `TokenStreamAsync`, for an async version of this class.
 #[pyclass]
 pub struct TokenStream {
-    stream: nobodywho::chat::TokenStream,
+    inner: SyncStreamInner,
 }
 
 #[pymethods]
 impl TokenStream {
-    /// Get the next token from the stream. Blocks until a token is available.
-    ///
-    /// Returns:
-    ///     The next token as a string, or None if the stream has ended.
     pub fn next_token(&mut self, py: Python) -> PyResult<Option<String>> {
-        // Release the GIL while waiting for the next token
-        // This allows the background thread to acquire the GIL if needed for tool calls
-        py.detach(|| self.stream.next_token())
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+        py.detach(|| self.inner.next_token())
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 
-    /// Wait for the entire response to be generated and return it as a single string.
-    /// This blocks until generation is complete.
-    ///
-    /// Returns:
-    ///     The complete generated text.
-    ///
-    /// Raises:
-    ///     RuntimeError: If generation fails.
     pub fn completed(&mut self, py: Python) -> PyResult<String> {
-        py.detach(|| self.stream.completed())
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+        py.detach(|| self.inner.completed())
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 
-    // sync iterator stuff
     pub fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
 
     pub fn __next__(&mut self, py: Python) -> PyResult<Option<String>> {
-        py.detach(|| self.stream.next_token())
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+        py.detach(|| self.inner.next_token())
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 }
 
-/// `TokenStreamAsync` is the async variant of the `TokenStream` class.
-/// It has the same methods as `TokenStream`, but all methods must be awaited.
-/// This class also supports async iteration using `async for token in stream:` syntax.
+/// `TokenStreamAsync` is the async variant of `TokenStream`.
+/// Supports `await stream.next_token()`, `await stream.completed()`, and `async for token in stream`.
 #[pyclass]
 pub struct TokenStreamAsync {
-    // this needs to be behind a mutex for async iterators to work
-    // because __anext__ needs to return a python awaitable for *one* element
-    // and our single-consumer channels can't be cloned
-    stream: std::sync::Arc<tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>>,
-    // we can probably get rid of this Arc<Mutex<...>>, if we switch to mpmc channels
-    // (e.g. via the async_channel crate)
+    inner: std::sync::Arc<tokio::sync::Mutex<AsyncStreamInner>>,
 }
 
 #[pymethods]
 impl TokenStreamAsync {
-    /// Get the next token from the stream asynchronously.
-    ///
-    /// Returns:
-    ///     The next token as a string, or None if the stream has ended.
     pub async fn next_token(&mut self) -> PyResult<Option<String>> {
-        // no need to release GIL in async functions
-        self.stream
+        self.inner
             .lock()
             .await
             .next_token()
             .await
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 
-    /// Wait for the entire response to be generated and return it as a single string.
-    ///
-    /// Returns:
-    ///     The complete generated text.
-    ///
-    /// Raises:
-    ///     RuntimeError: If generation fails.
     pub async fn completed(&mut self) -> PyResult<String> {
-        self.stream
+        self.inner
             .lock()
             .await
             .completed()
             .await
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
     }
 
     pub fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -440,12 +563,12 @@ impl TokenStreamAsync {
 
     pub fn __anext__<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyAny>> {
         let locals = pyo3_async_runtimes::TaskLocals::with_running_loop(py)?.copy_context(py)?;
-        let stream_clone = self.stream.clone();
+        let inner = self.inner.clone();
         pyo3_async_runtimes::tokio::future_into_py_with_locals(py, locals, async move {
-            match stream_clone.lock().await.next_token().await {
+            match inner.lock().await.next_token().await {
                 Ok(Some(t)) => Ok(t),
                 Ok(None) => Err(pyo3::exceptions::PyStopAsyncIteration::new_err(())),
-                Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e))),
+                Err(e) => Err(pyo3::exceptions::PyRuntimeError::new_err(e)),
             }
         })
     }
@@ -879,7 +1002,9 @@ impl Chat {
             }
         };
 
-        TokenStream { stream }
+        TokenStream {
+            inner: SyncStreamInner::Chat(stream),
+        }
     }
 
     /// Reset the conversation with a new system prompt and tools. Clears all chat history.
@@ -1281,7 +1406,7 @@ impl ChatAsync {
         };
 
         TokenStreamAsync {
-            stream: std::sync::Arc::new(tokio::sync::Mutex::new(stream)),
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Chat(stream))),
         }
     }
 
@@ -2950,6 +3075,8 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Prompt;
     #[pymodule_export]
+    use super::STTAsync;
+    #[pymodule_export]
     use super::SamplerBuilder;
     #[pymodule_export]
     use super::SamplerConfig;
@@ -2965,4 +3092,6 @@ pub mod nobodywhopython {
     use super::Tool;
     #[pymodule_export]
     use super::Tts;
+    #[pymodule_export]
+    use super::STT;
 }
