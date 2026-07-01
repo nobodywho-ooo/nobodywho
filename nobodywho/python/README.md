@@ -1,7 +1,6 @@
 # Python integration for Nobodywho
 
 ## Setting up
-
 Creating virtual-env with `uv` should be enough.
 ```
 uv venv
