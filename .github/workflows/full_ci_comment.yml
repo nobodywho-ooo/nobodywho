@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
-      pull-requests: read
+      pull-requests: write
       issues: write
     steps:
       - name: Check permissions
@@ -27,14 +27,6 @@ jobs:
             });
             // permission field uses legacy mapping: maintain→write, triage→read
             const allowed = ['admin', 'write'].includes(data.permission);
-            if (!allowed) {
-              await github.rest.reactions.createForIssueComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: context.payload.comment.id,
-                content: 'confused',
-              });
-            }
             core.setOutput('allowed', allowed);
 
       - name: Get PR head ref
@@ -49,6 +41,7 @@ jobs:
               pull_number: context.issue.number,
             });
             core.setOutput('ref', pr.data.head.ref);
+            core.setOutput('sha', pr.data.head.sha);
 
       - name: Trigger full CI
         if: steps.auth.outputs.allowed == 'true'
@@ -56,30 +49,54 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const ref = ${{ toJSON(steps.pr.outputs.ref) }};
+            const sha = ${{ toJSON(steps.pr.outputs.sha) }};
+            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml?query=branch%3A${encodeURIComponent(ref)}`;
+            const startedAt = Date.now();
+
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'main.yml',
-              ref: '${{ steps.pr.outputs.ref }}',
+              ref,
               inputs: { full_ci: 'true' },
             });
+
             await github.rest.reactions.createForIssueComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               comment_id: context.payload.comment.id,
-              content: 'rocket',
+              content: 'eyes',
             });
+
+            for (let attempt = 0; attempt < 10; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'main.yml',
+                branch: ref,
+                event: 'workflow_dispatch',
+                per_page: 10,
+              });
+              const run = data.workflow_runs.find((workflowRun) => workflowRun.head_sha === sha && Date.parse(workflowRun.created_at) >= startedAt - 60000);
+              if (run) {
+                core.setOutput('url', run.html_url);
+                return;
+              }
+            }
+
+            core.setOutput('url', fallbackUrl);
 
       - name: Comment workflow link
         if: steps.auth.outputs.allowed == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const ref = '${{ steps.pr.outputs.ref }}';
-            const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml?query=branch%3A${encodeURIComponent(ref)}`;
+            const url = ${{ toJSON(steps.dispatch.outputs.url) }};
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `Full CI triggered! Track progress: ${url}`,
+              body: `Full CI triggered: ${url}`,
             });
