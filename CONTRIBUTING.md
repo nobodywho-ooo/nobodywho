@@ -13,11 +13,21 @@ First off, thanks for taking the time to contribute! 🎉
 
 ## Development Setup
 
+### Dev tools (all platforms)
+
+Run the setup script once after cloning:
+
+```sh
+./setup.sh
+```
+
+This installs `just` (if not already present) and wires up the pre-push hook. After that, `just check` is available as a manual command and runs automatically on `git push`.
+
 ### On Linux or WSL
 
 1. Install Nix package manager (if you haven't already)
 2. Enable flakes: Add `experimental-features = nix-command flakes` to your Nix config
-3. Run `nix develop` from any directory in the repo. To activate a development shell with rustup and libclang.
+3. Run `nix develop` from any directory in the repo. This activates a development shell with all required tools and sets up the pre-push hook automatically — no need to run `setup.sh`.
 4. Install the stable rust toolchain using rustup (if you haven't already).
 5. To compile the plugin: run `cargo build` from the nobodywho dir to build the plugin.
 6. Set the TEST_MODEL env var to be a path to a Qwen 2.5 1.5B Instruct model in the GGUF format.
