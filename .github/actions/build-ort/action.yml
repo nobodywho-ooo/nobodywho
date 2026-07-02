@@ -38,12 +38,13 @@ runs:
             # activate because the header forgot to #include onnxruntime_config.h.
             # CMAKE_DISABLE_FIND_PACKAGE_Protobuf forces ORT to use its bundled
             # protobuf (matches the prebuilt protoc); a newer system protobuf
-            # would mismatch the generated .pb.cc files.
+            # would mismatch the generated .pb.cc files. Enable CoreML so the
+            # custom Intel macOS archive matches the Rust `ort/coreml` feature.
             cat >> "$GITHUB_OUTPUT" <<EOF
         platform=macos
         sysroot=macosx
         deploy_target=11.0
-        extra_args=--macos MacOSX --use_xcode --compile_no_warning_as_error
+        extra_args=--macos MacOSX --use_xcode --use_coreml --compile_no_warning_as_error
         cmake_extras=onnxruntime_BUILD_UNIT_TESTS=OFF CMAKE_DISABLE_FIND_PACKAGE_Protobuf=ON
         static_subdir=Release-macosx
         patch_watchos=false

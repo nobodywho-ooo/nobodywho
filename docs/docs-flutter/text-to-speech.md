@@ -91,9 +91,11 @@ final tts = await nobodywho.Tts.load(
 
 Supported backend values are `kokoro` and `supertonic`.
 
-## GPU
+## Hardware
 
-TTS uses GPU acceleration by default when available. Disable it with `useGpu: false`:
+TTS uses automatic device selection by default. With `useGpu: true` (the default), NobodyWho prefers CoreML on Apple platforms and CUDA on Linux/Windows, then falls back to CPU.
+
+Most apps should keep `useGpu` at its default. Only set `useGpu: false` when you need to force CPU:
 
 ```dart
 // ... after NobodyWho.init().

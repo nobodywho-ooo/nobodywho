@@ -70,10 +70,18 @@ let wav = tts.synthesize_async("Hello!").await?;
 
 ## Hardware
 
-`Tts::new` uses `TtsDevice::Auto` (CUDA if available, CPU otherwise).
-Use `Tts::with_device` to be explicit:
+`Tts::new` uses `TtsDevice::Auto` by default. Auto prefers CoreML on macOS/iOS and CUDA on Linux/Windows, then falls back to CPU.
+
+Most callers should keep `TtsDevice::Auto` via `Tts::new`:
+
+```rust
+let tts = Tts::new(config)?;
+```
+
+Use `Tts::with_device` only when you need to force a specific provider:
 
 ```rust
 use nobodywho::tts::TtsDevice;
+
 let tts = Tts::with_device(config, TtsDevice::Cpu)?;
 ```

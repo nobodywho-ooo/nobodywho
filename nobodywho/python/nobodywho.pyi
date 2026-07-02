@@ -1132,7 +1132,7 @@ class Tts:
         speed: float | None = None,
         steps: int | None = None,
         silence_duration: float | None = None,
-        device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
+        device: "typing.Literal['auto', 'cpu', 'cuda', 'coreml']" = "auto",
     ) -> "Tts":
         """
         Create a TTS synthesizer.
@@ -1146,7 +1146,7 @@ class Tts:
             speed: Speaking speed. Backend default is used when omitted.
             steps: Supertonic denoising steps. Ignored by Kokoro.
             silence_duration: Supertonic silence between chunks in seconds.
-            device: "auto", "cpu", or "cuda". Defaults to "auto".
+            device: "auto", "cpu", "cuda", or "coreml". Defaults to "auto".
         """
     def synthesize(self, /, text: str) -> bytes:
         """

@@ -4,7 +4,7 @@
 //! around [`ort`] session construction so each backend doesn't repeat the
 //! boilerplate.
 
-use ort::ep::{ExecutionProvider, ExecutionProviderDispatch, CPU, CUDA};
+use ort::ep::{ExecutionProviderDispatch, CPU, CUDA};
 use ort::session::builder::SessionBuilder;
 use ort::session::Session;
 use std::path::Path;
@@ -12,10 +12,21 @@ use std::path::Path;
 /// Hardware target for ONNX Runtime execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Device {
-    /// Try CUDA first, silently fall back to CPU if unavailable.
+    /// Prefer the platform accelerator, silently fall back to CPU if unavailable.
     Auto,
     Cpu,
     Cuda,
+    CoreMl,
+}
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[link(name = "CoreML", kind = "framework")]
+extern "C" {}
+
+fn coreml_provider() -> ExecutionProviderDispatch {
+    ort::ep::CoreML::default()
+        .with_compute_units(ort::ep::coreml::ComputeUnits::CPUAndGPU)
+        .build()
 }
 
 /// Build the execution-provider list for a given [`Device`].
@@ -24,18 +35,22 @@ pub enum Device {
 /// CUDA kernels, so CUDA still handles what it supports while CPU covers the rest.
 pub fn execution_providers(device: Device) -> Vec<ExecutionProviderDispatch> {
     match device {
+        // CPU is listed alongside accelerated EPs as a per-op fallback,
+        // as some ops may not have kernels for the selected provider.
         Device::Cuda => vec![
             CUDA::default().build().error_on_failure(),
             CPU::default().build(),
         ],
+        Device::CoreMl => vec![coreml_provider().error_on_failure(), CPU::default().build()],
         Device::Cpu => vec![CPU::default().build()],
         Device::Auto => {
-            let mut eps: Vec<ExecutionProviderDispatch> = Vec::new();
-            if CUDA::default().is_available().unwrap_or(false) {
-                eps.push(CUDA::default().build().fail_silently());
-            }
-            eps.push(CPU::default().build());
-            eps
+            vec![
+                #[cfg(any(target_os = "macos", target_os = "ios"))]
+                coreml_provider().fail_silently(),
+                #[cfg(any(target_os = "linux", target_os = "windows"))]
+                CUDA::default().build().fail_silently(),
+                CPU::default().build(),
+            ]
         }
     }
 }

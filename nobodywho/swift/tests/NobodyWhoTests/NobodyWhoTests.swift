@@ -154,8 +154,14 @@ final class NobodyWhoTests: XCTestCase {
             ?? "onnx-community/whisper-base"
 
         // Audio: "Hey Ron. Hey Billy." — shared asset in assets/.
-        let audioFile = "../../../../assets/sound.mp3"
-
+        let audioFile = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // tests/NobodyWhoTests
+            .deletingLastPathComponent() // tests
+            .deletingLastPathComponent() // swift
+            .deletingLastPathComponent() // nobodywho
+            .deletingLastPathComponent() // repo root
+            .appendingPathComponent("assets/sound.mp3")
+            .standardized.path
         let stt = try STT(source: model)
         let text = try await stt.transcribeFile(path: audioFile).completed()
         XCTAssertTrue(text.lowercased().contains("ron"))

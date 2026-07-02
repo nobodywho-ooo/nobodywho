@@ -92,16 +92,18 @@ val tts = Tts.load(
 
 Supported backend values are `TtsBackend.KOKORO` and `TtsBackend.SUPERTONIC`.
 
-## GPU
+## Hardware
 
-TTS uses GPU acceleration by default when available. Disable it with `device = TtsDevice.CPU`:
+TTS uses automatic device selection by default. Auto prefers CoreML on Apple platforms and CUDA on Linux/Windows, then falls back to CPU.
+
+Most apps should keep the default `TtsDevice.AUTO`. Only use `TtsDevice.CPU`, `TtsDevice.COREML`, or `TtsDevice.CUDA` when you need to force a specific provider:
 
 ```kotlin
 import ai.nobodywho.TtsDevice
 
 val tts = Tts.load(
     source = "Supertone/supertonic-3",
-    device = TtsDevice.CPU,
+    device = TtsDevice.AUTO,
 )
 ```
 

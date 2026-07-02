@@ -10,6 +10,7 @@ public enum TtsDevice: String {
     case auto
     case cpu
     case cuda
+    case coreml
 }
 
 /// Text-to-speech synthesizer that returns WAV bytes.

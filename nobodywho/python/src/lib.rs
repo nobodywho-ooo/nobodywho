@@ -365,8 +365,9 @@ fn parse_tts_device(device: &str) -> PyResult<nobodywho::tts::TtsDevice> {
         "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
         "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
         "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        "coreml" => Ok(nobodywho::tts::TtsDevice::CoreMl),
         _ => Err(pyo3::exceptions::PyValueError::new_err(
-            "device must be one of 'auto', 'cpu', or 'cuda'",
+            "device must be one of 'auto', 'cpu', 'cuda', or 'coreml'",
         )),
     }
 }
@@ -451,9 +452,9 @@ impl Tts {
     ///     speed: Speaking speed. Backend default is used when omitted.
     ///     steps: Supertonic denoising steps. Ignored by Kokoro.
     ///     silence_duration: Supertonic silence between chunks in seconds.
-    ///     device: "auto", "cpu", or "cuda". Defaults to "auto".
+    ///     device: "auto", "cpu", "cuda", or "coreml". Defaults to "auto".
     #[new]
-    #[pyo3(signature = (source: "os.PathLike | str", backend: "typing.Literal['kokoro', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
+    #[pyo3(signature = (source: "os.PathLike | str", backend: "typing.Literal['kokoro', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, device: "typing.Literal['auto', 'cpu', 'cuda', 'coreml']" = "auto") -> "Tts")]
     pub fn new(
         source: std::path::PathBuf,
         backend: Option<&str>,

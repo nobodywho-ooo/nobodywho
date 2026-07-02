@@ -5,7 +5,7 @@ import {
 } from "../generated/ts/nobodywho";
 
 export type TtsBackend = "kokoro" | "supertonic";
-export type TtsDevice = "auto" | "cpu" | "cuda";
+export type TtsDevice = "auto" | "cpu" | "cuda" | "coreml";
 
 export type TtsOptions = {
   source: string;

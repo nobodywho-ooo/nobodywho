@@ -85,14 +85,16 @@ const tts = await Tts.load({
 
 Supported backend values are `kokoro` and `supertonic`.
 
-## GPU
+## Hardware
 
-TTS uses GPU acceleration by default when available. Disable it with `device: "cpu"`:
+TTS uses automatic device selection by default. Auto prefers CoreML on Apple platforms and CUDA on Linux/Windows, then falls back to CPU.
+
+Most apps should keep the default `device: "auto"`. Only use `"cpu"`, `"coreml"`, or `"cuda"` when you need to force a specific provider:
 
 ```typescript
 const tts = await Tts.load({
   source: "Supertone/supertonic-3",
-  device: "cpu",
+  device: "auto",
 });
 ```
 

@@ -12,7 +12,8 @@ enum class TtsBackend(internal val value: String) {
 enum class TtsDevice(internal val value: String) {
     AUTO("auto"),
     CPU("cpu"),
-    CUDA("cuda")
+    CUDA("cuda"),
+    COREML("coreml")
 }
 
 /** Text-to-speech synthesizer that returns WAV bytes. */

@@ -906,7 +906,10 @@ fn parse_tts_device(device: Option<String>) -> Result<nobodywho::tts::TtsDevice,
         "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
         "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
         "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
-        _ => Err(tts_error("device must be one of 'auto', 'cpu', or 'cuda'")),
+        "coreml" => Ok(nobodywho::tts::TtsDevice::CoreMl),
+        _ => Err(tts_error(
+            "device must be one of 'auto', 'cpu', 'cuda', or 'coreml'",
+        )),
     }
 }
 

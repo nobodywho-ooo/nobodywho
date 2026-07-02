@@ -87,16 +87,16 @@ let tts = try await Tts.load(
 
 Supported backend values are `.kokoro` and `.supertonic`.
 
-## GPU
+## Hardware
 
-TTS runs on CPU only on Apple platforms for now. Metal/CoreML acceleration may be added in the future.
+TTS uses automatic device selection by default. Auto prefers CoreML on Apple platforms and CUDA on Linux/Windows, then falls back to CPU.
 
-Most apps should keep the default `device: .auto`. If you want to force CPU explicitly, pass `device: .cpu`:
+Most Swift apps should keep `device: .auto`; it already uses CoreML on Apple platforms when available. Only use `.cpu`, `.coreml`, or `.cuda` when you need to force a specific provider:
 
 ```swift
 let tts = try await Tts.load(
     source: "Supertone/supertonic-3",
-    device: .cpu
+    device: .auto
 )
 ```
 

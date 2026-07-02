@@ -62,8 +62,9 @@ fn parse_tts_device(device: String) -> Result<nobodywho::tts::TtsDevice, GString
         "" | "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
         "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
         "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        "coreml" => Ok(nobodywho::tts::TtsDevice::CoreMl),
         _ => Err(GString::from(
-            "device must be one of 'auto', 'cpu', or 'cuda'",
+            "device must be one of 'auto', 'cpu', 'cuda', or 'coreml'",
         )),
     }
 }
@@ -2063,7 +2064,7 @@ struct NobodyWhoTts {
     silence_duration: f32,
 
     #[export]
-    /// TTS device: auto, cpu, or cuda.
+    /// TTS device: auto, cpu, cuda, or coreml.
     device: GString,
 
     tts_handle: Option<nobodywho::tts::Tts>,
