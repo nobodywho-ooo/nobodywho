@@ -2548,7 +2548,9 @@ impl NobodyWhoSTT {
             std::thread::spawn(move || {
                 let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
                 cfg.language = language;
-                let _ = tx.send(nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)));
+                let _ = tx.send(nobodywho::stt::Stt::new(
+                    nobodywho::stt::SttConfig::Whisper(cfg),
+                ));
             });
 
             match rx.await {
