@@ -1,6 +1,6 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
 use gbnf::builder::{alt, nt, nt_plus, seq, t, GrammarBuilder};
-use gbnf::{Expr, GbnfGrammar, Quantifier, TokenRef};
+use gbnf::{Expr, GbnfGrammar, Quantifier};
 use gbnf_macro::gbnf;
 use nom::{
     branch::alt as nom_alt,
@@ -134,28 +134,29 @@ fn single_tool_call(input: &str) -> IResult<&str, ToolCall> {
 // Grammar generation helpers
 // ============================================================================
 
-/// Create the Expr for the <|"|> special token
+// Gemma4's delimiters are registered in the tokenizer with the angle brackets
+// as part of the special-token name (e.g. the vocab entry is `<|tool_call>`,
+// not `|tool_call`). llguidance's Lark `<X>` syntax looks tokens up by name
+// without brackets, so referring to them via TokenRef would silently miss the
+// vocab entry. Emit them as literal byte sequences instead — the model still
+// produces a single vocab token because that's the canonical tokenization,
+// but the grammar constraint is expressed on the bytes.
+
+const QUOTE_BYTES: &str = "<|\"|>";
+
+/// Create the Expr for the <|"|> delimiter as a literal byte sequence.
 fn quote_token_expr() -> Expr {
-    Expr::Token(TokenRef::ByString {
-        name: r#"|"|"#.to_string(),
-        negated: false,
-    })
+    Expr::Characters(QUOTE_BYTES.to_string())
 }
 
-/// Create the Expr for the <|tool_call> special token
+/// Create the Expr for the <|tool_call> delimiter as a literal byte sequence.
 fn begin_token_expr() -> Expr {
-    Expr::Token(TokenRef::ByString {
-        name: "|tool_call".to_string(),
-        negated: false,
-    })
+    Expr::Characters(BEGIN_TOKEN.to_string())
 }
 
-/// Create the Expr for the <tool_call|> special token
+/// Create the Expr for the <tool_call|> delimiter as a literal byte sequence.
 fn end_token_expr() -> Expr {
-    Expr::Token(TokenRef::ByString {
-        name: "tool_call|".to_string(),
-        negated: false,
-    })
+    Expr::Characters(END_TOKEN.to_string())
 }
 
 /// Walk a JSON schema and add grammar rules to the builder.
@@ -331,12 +332,17 @@ impl ToolFormatHandler for Gemma4Handler {
         };
 
         // Step 2: Extend with gemmafour-string via builder.
-        // Strings are delimited by <|"|>, so a string char is anything that isn't that token.
+        // Strings are delimited by `<|"|>`. A string char is any single byte
+        // that is NOT `<` — this is a coarse approximation of "not the start
+        // of the quote delimiter," but it works in practice because tool
+        // argument values almost never contain literal `<` characters. The
+        // previous implementation used `!<|"|>` (token-level negation), but
+        // llguidance forbids special tokens in terminal positions.
         let mut builder = GrammarBuilder::from_existing(primitives)
             .rule(
                 "gemmafour-strchar",
-                Expr::Token(TokenRef::ByString {
-                    name: r#"|"|"#.to_string(),
+                Expr::CharacterRange(gbnf::CharacterRange::Set {
+                    chars: vec!['<'],
                     negated: true,
                 }),
             )

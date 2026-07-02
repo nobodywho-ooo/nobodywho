@@ -77,9 +77,12 @@ impl Node {
 
     fn is_terminal(&self, terminal_names: &HashSet<String>) -> bool {
         match self {
-            // Special tokens resolve to specific vocab token IDs — treat as
-            // terminal so they can participate in lexer-level Lark rules.
-            Node::Literal(_) | Node::Regex(_) | Node::SpecialToken { .. } => true,
+            Node::Literal(_) | Node::Regex(_) => true,
+            // Special tokens resolve to specific vocab token IDs at sampler-
+            // init time. llguidance forbids them inside Lark TERMINALS (the
+            // lexer operates on bytes, not token IDs), so any rule that
+            // references one must stay a non-terminal.
+            Node::SpecialToken { .. } => false,
             Node::RuleRef(name) => terminal_names.contains(name),
             Node::Repetition { node, .. } => node.is_terminal(terminal_names),
             Node::Sequence(nodes) | Node::Alternative(nodes) => {
