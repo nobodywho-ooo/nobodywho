@@ -47,6 +47,76 @@ fn resolve_godot_path(path: &GString) -> String {
     }
 }
 
+fn parse_tts_backend(backend: String) -> Result<Option<nobodywho::tts::TtsBackendKind>, GString> {
+    if backend.is_empty() {
+        return Ok(None);
+    }
+    backend
+        .parse()
+        .map(Some)
+        .map_err(|()| GString::from("backend must be empty or one of 'kokoro' or 'supertonic'"))
+}
+
+fn parse_tts_device(device: String) -> Result<nobodywho::tts::TtsDevice, GString> {
+    match device.to_ascii_lowercase().as_str() {
+        "" | "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
+        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
+        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        _ => Err(GString::from(
+            "device must be one of 'auto', 'cpu', or 'cuda'",
+        )),
+    }
+}
+
+fn build_tts_config(
+    source: String,
+    backend: String,
+    voice: String,
+    language: String,
+    speed: f32,
+    steps: i64,
+    silence_duration: f32,
+) -> Result<nobodywho::tts::TtsConfig, GString> {
+    let backend = parse_tts_backend(backend)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
+        GString::from(
+            "backend is required for unknown TTS sources; set backend to 'kokoro' or 'supertonic'",
+        )
+    })?;
+
+    match &mut config {
+        nobodywho::tts::TtsConfig::Kokoro(config) => {
+            if !voice.is_empty() {
+                config.voice = voice;
+            }
+            if !language.is_empty() {
+                config.language = language;
+            }
+            if speed > 0.0 {
+                config.speed = speed;
+            }
+        }
+        nobodywho::tts::TtsConfig::Supertonic(config) => {
+            if !voice.is_empty() {
+                config.voice = voice;
+            }
+            if !language.is_empty() {
+                config.language = language;
+            }
+            if speed > 0.0 {
+                config.speed = speed;
+            }
+            if steps > 0 {
+                config.steps = steps as usize;
+            }
+            if silence_duration >= 0.0 {
+                config.silence_duration = silence_duration;
+            }
+        }
+    }
+    Ok(config)
+}
+
 #[derive(GodotClass)]
 #[class(base=Node)]
 /// The model node is used to load the model, currently only GGUF models are supported.
@@ -865,7 +935,7 @@ impl NobodyWhoChat {
                 godot_dict_msgs.iter_shared().map(Variant::from).collect();
 
             // this potentially waits for 10 frames forbefore giving up
-            match wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
                 Ok(()) => (),
                 Err(e) => {
                     godot_error!("Failed getting chat history: {}", e);
@@ -912,7 +982,7 @@ impl NobodyWhoChat {
             let _ = dict.insert("context_size", stats.context_size as i64);
             let _ = dict.insert("context_used", stats.context_used as i64);
 
-            match wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
                 Ok(()) => (),
                 Err(e) => {
                     godot_error!("Failed getting stats: {}", e);
@@ -982,7 +1052,7 @@ impl NobodyWhoChat {
                 })
                 .collect();
 
-            match wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
                 Ok(()) => (),
                 Err(e) => {
                     godot_error!("tokenize() signal connect failed: {}", e);
@@ -1034,7 +1104,7 @@ impl NobodyWhoChat {
         let mut emit_node = self.to_gd();
         let signal_name_copy = signal_name.clone();
         godot::task::spawn(async move {
-            if let Err(e) = wait_for_signal_connect(&emit_node, &signal_name_copy).await {
+            if let Err(e) = wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
                 godot_error!("Failed setting chat history: {}", e);
             };
             if let Err(e) = chat_handle.set_chat_history(msg_vec).await {
@@ -1761,7 +1831,7 @@ impl NobodyWhoSamplerBuilder {
 /// this solves a weird godot behavior
 /// when we return a signal to be awaited, there is a chance of the signal triggering before
 /// anyone awaits it. this is as async function that will block until a given signal is awaited.
-async fn wait_for_signal_connect(
+async fn wait_for_chat_signal_connect(
     node: &Gd<NobodyWhoChat>,
     signal_name: &str,
 ) -> Result<(), String> {
@@ -1788,6 +1858,57 @@ async fn wait_for_signal_connect(
     );
     warn!(msg);
     Err(msg.to_string())
+}
+
+async fn wait_for_tts_signal_connect(
+    node: &Gd<NobodyWhoTts>,
+    signal_name: &str,
+) -> Result<(), String> {
+    let signal = Signal::from_object_signal(node, signal_name);
+    let tree: Gd<SceneTree> = godot::classes::Engine::singleton()
+        .get_main_loop()
+        .expect("Uh-oh.. failed getting main loop. This should be unreachable. Please report a bug to the devs")
+        .cast();
+    for _ in 0..10 {
+        if !signal.connections().is_empty() {
+            return Ok(());
+        };
+        trace!("Nothing connected to signal yet, waiting one frame...");
+        tree.signals().process_frame().to_future().await;
+    }
+    let msg = format!(
+        "Nothing connected to signal '{}' for 10 frames. Giving up...",
+        signal_name
+    );
+    warn!(msg);
+
+    Err(msg.to_string())
+}
+
+fn tts_success_result(wav: Vec<u8>) -> Variant {
+    let mut dict = VarDictionary::new();
+    let _ = dict.insert("ok", true);
+    let _ = dict.insert("wav", PackedByteArray::from(wav));
+    Variant::from(dict)
+}
+
+fn tts_error_result(error: &GString) -> Variant {
+    let mut dict = VarDictionary::new();
+    let _ = dict.insert("ok", false);
+    let _ = dict.insert("error", error.clone());
+    Variant::from(dict)
+}
+
+async fn emit_tts_result_signal(node: &mut Gd<NobodyWhoTts>, signal_name: &str, result: Variant) {
+    match wait_for_tts_signal_connect(node, signal_name).await {
+        Ok(()) => (),
+        Err(e) => {
+            godot_error!("synthesize() signal connect failed: {}", e);
+            return;
+        }
+    }
+
+    node.emit_signal(signal_name, &[result]);
 }
 
 fn json_to_godot(value: &serde_json::Value) -> Variant {
@@ -1903,6 +2024,226 @@ fn json_schema_from_callable(
     result.insert("properties".into(), properties.into());
     result.insert("required".into(), required.into());
     Ok(result)
+}
+
+#[derive(GodotClass)]
+#[class(base=Node)]
+/// The TTS node synthesizes text into WAV bytes.
+///
+/// `source` accepts a local model directory, a Godot path (`res://` or `user://`),
+/// or a HuggingFace repo ID such as `NobodyWho/Kokoro-82M` or `Supertone/supertonic-3`.
+/// Leave `backend` empty for known official sources, or set it to `kokoro` or `supertonic`.
+struct NobodyWhoTts {
+    #[export]
+    /// Local model directory, Godot path, or HuggingFace repo ID.
+    source: GString,
+
+    #[export]
+    /// Empty for known sources, or one of: kokoro, supertonic.
+    backend: GString,
+
+    #[export]
+    /// Optional voice name. Empty uses the backend default.
+    voice: GString,
+
+    #[export]
+    /// Optional language code. Empty uses the backend default.
+    language: GString,
+
+    #[export]
+    /// Optional speed override. Use 0 to keep the backend default.
+    speed: f32,
+
+    #[export]
+    /// Optional Supertonic denoising steps. Use 0 to keep the backend default.
+    steps: i64,
+
+    #[export]
+    /// Optional Supertonic silence between chunks. Use -1 to keep the backend default.
+    silence_duration: f32,
+
+    #[export]
+    /// TTS device: auto, cpu, or cuda.
+    device: GString,
+
+    tts_handle: Option<nobodywho::tts::Tts>,
+    load_lock: Arc<tokio::sync::Mutex<()>>,
+    signal_counter: AtomicU64,
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoTts {
+    fn init(base: Base<Node>) -> Self {
+        Self {
+            source: GString::from("Supertone/supertonic-3"),
+            backend: GString::from(""),
+            voice: GString::from(""),
+            language: GString::from(""),
+            speed: 0.0,
+            steps: 0,
+            silence_duration: -1.0,
+            device: GString::from("auto"),
+            tts_handle: None,
+            load_lock: Arc::new(tokio::sync::Mutex::new(())),
+            signal_counter: AtomicU64::new(0),
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoTts {
+    #[signal]
+    /// Emitted with WAV bytes when synthesis finishes.
+    fn synthesis_finished(wav: PackedByteArray);
+
+    #[signal]
+    /// Emitted once the TTS worker has finished loading and is ready.
+    fn worker_started();
+
+    #[signal]
+    /// Emitted if loading or synthesis failed.
+    fn worker_failed(error: GString);
+
+    async fn load_and_store_worker(mut me: Gd<Self>) -> Result<nobodywho::tts::Tts, GString> {
+        tokio::task::yield_now().await;
+
+        if let Some(existing) = me.bind().tts_handle.as_ref() {
+            return Ok(existing.clone());
+        }
+
+        let load_lock = me.bind().load_lock.clone();
+        let _guard = load_lock.lock().await;
+
+        if let Some(existing) = me.bind().tts_handle.as_ref() {
+            return Ok(existing.clone());
+        }
+
+        let (config, device) = {
+            let b = me.bind();
+            let config = build_tts_config(
+                resolve_godot_path(&b.source),
+                b.backend.to_string(),
+                b.voice.to_string(),
+                b.language.to_string(),
+                b.speed,
+                b.steps,
+                b.silence_duration,
+            )?;
+            let device = parse_tts_device(b.device.to_string())?;
+            (config, device)
+        };
+
+        let handle =
+            tokio::task::spawn_blocking(move || nobodywho::tts::Tts::with_device(config, device))
+                .await
+                .map_err(|e| GString::from(format!("TTS load task failed: {e}").as_str()))?
+                .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
+
+        let mut b = me.bind_mut();
+        if let Some(existing) = &b.tts_handle {
+            Ok(existing.clone())
+        } else {
+            b.tts_handle = Some(handle.clone());
+            Ok(handle)
+        }
+    }
+
+    #[func]
+    /// Starts the TTS worker asynchronously. Connect to `worker_started` or
+    /// `worker_failed(error)` to observe readiness.
+    fn start_worker(&mut self) {
+        if self.tts_handle.is_some() {
+            self.signals().worker_started().emit();
+            return;
+        }
+
+        let me = self.to_gd();
+        godot::task::spawn(async move {
+            let me_emit = me.clone();
+            match Self::load_and_store_worker(me).await {
+                Ok(_) => me_emit.signals().worker_started().emit(),
+                Err(e) => {
+                    godot_error!("Error starting TTS worker: {}", e);
+                    me_emit.signals().worker_failed().emit(&e);
+                }
+            }
+        });
+    }
+
+    #[func]
+    /// Synthesizes text into WAV bytes. Returns a per-call signal that resolves
+    /// to `{ "ok": true, "wav": PackedByteArray }` or `{ "ok": false, "error": String }`.
+    /// If the worker was not started, it is loaded first.
+    fn synthesize(&mut self, text: String) -> Signal {
+        let existing_handle = self.tts_handle.clone();
+        let signal_name = format!(
+            "synthesis_finished_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let me = self.to_gd();
+        let mut emit_node = me.clone();
+        let signal_name_copy = signal_name.clone();
+
+        godot::task::spawn(async move {
+            let handle = match existing_handle {
+                Some(handle) => handle,
+                None => match Self::load_and_store_worker(me).await {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        godot_error!("synthesize() dropped: {}", e);
+                        emit_node.signals().worker_failed().emit(&e);
+                        emit_tts_result_signal(
+                            &mut emit_node,
+                            &signal_name_copy,
+                            tts_error_result(&e),
+                        )
+                        .await;
+                        return;
+                    }
+                },
+            };
+
+            let wav = match handle.synthesize_async(text).await {
+                Ok(wav) => wav,
+                Err(e) => {
+                    let err = GString::from(nobodywho::render_miette(&e).as_str());
+                    godot_error!("Failed synthesizing speech: {}", err);
+                    emit_node.signals().worker_failed().emit(&err);
+                    emit_tts_result_signal(
+                        &mut emit_node,
+                        &signal_name_copy,
+                        tts_error_result(&err),
+                    )
+                    .await;
+                    return;
+                }
+            };
+
+            let global_signal = Signal::from_object_signal(&emit_node, "synthesis_finished");
+            if !global_signal.connections().is_empty() {
+                emit_node
+                    .signals()
+                    .synthesis_finished()
+                    .emit(&PackedByteArray::from(wav.clone()));
+            }
+
+            emit_tts_result_signal(&mut emit_node, &signal_name_copy, tts_success_result(wav))
+                .await;
+        });
+
+        godot::builtin::Signal::from_object_signal(&self.base_mut(), &signal_name)
+    }
+
+    #[func]
+    /// Sets the (global) log level of NobodyWho.
+    /// Valid arguments are "TRACE", "DEBUG", "INFO", "WARN", and "ERROR".
+    fn set_log_level(level: String) {
+        set_log_level(&level);
+    }
 }
 
 #[derive(GodotClass)]
