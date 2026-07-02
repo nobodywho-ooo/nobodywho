@@ -872,6 +872,193 @@ pub fn get_cached_models() -> Result<Vec<CachedModel>, NobodyWhoError> {
         .collect())
 }
 
+// ---------- RustTts ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Tts`).
+
+#[derive(uniffi::Object)]
+pub struct RustTts {
+    inner: nobodywho::tts::Tts,
+}
+
+fn tts_error(message: impl Into<String>) -> NobodyWhoError {
+    NobodyWhoError::Error {
+        message: message.into(),
+    }
+}
+
+fn parse_tts_backend(
+    backend: Option<String>,
+) -> Result<Option<nobodywho::tts::TtsBackendKind>, NobodyWhoError> {
+    backend
+        .as_deref()
+        .map(str::parse)
+        .transpose()
+        .map_err(|()| tts_error("backend must be one of 'kokoro' or 'supertonic'"))
+}
+
+fn parse_tts_device(device: Option<String>) -> Result<nobodywho::tts::TtsDevice, NobodyWhoError> {
+    match device
+        .as_deref()
+        .unwrap_or("auto")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
+        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
+        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        _ => Err(tts_error("device must be one of 'auto', 'cpu', or 'cuda'")),
+    }
+}
+
+fn build_tts_config(
+    source: String,
+    backend: Option<String>,
+    voice: Option<String>,
+    language: Option<String>,
+    speed: Option<f32>,
+    steps: Option<u32>,
+    silence_duration: Option<f32>,
+) -> Result<nobodywho::tts::TtsConfig, NobodyWhoError> {
+    let backend = parse_tts_backend(backend)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
+        tts_error(
+            "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'",
+        )
+    })?;
+
+    match &mut config {
+        nobodywho::tts::TtsConfig::Kokoro(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(speed) = speed {
+                config.speed = speed;
+            }
+        }
+        nobodywho::tts::TtsConfig::Supertonic(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(speed) = speed {
+                config.speed = speed;
+            }
+            if let Some(steps) = steps {
+                config.steps = steps as usize;
+            }
+            if let Some(silence_duration) = silence_duration {
+                config.silence_duration = silence_duration;
+            }
+        }
+    }
+    Ok(config)
+}
+
+fn create_tts(
+    source: String,
+    backend: Option<String>,
+    voice: Option<String>,
+    language: Option<String>,
+    speed: Option<f32>,
+    steps: Option<u32>,
+    silence_duration: Option<f32>,
+    device: Option<String>,
+) -> Result<Arc<RustTts>, NobodyWhoError> {
+    let config = build_tts_config(
+        source,
+        backend,
+        voice,
+        language,
+        speed,
+        steps,
+        silence_duration,
+    )?;
+    let device = parse_tts_device(device)?;
+    let inner = nobodywho::tts::Tts::with_device(config, device)
+        .map_err(|e| tts_error(nobodywho::render_miette(&e)))?;
+    Ok(Arc::new(RustTts { inner }))
+}
+
+/// Create a TTS synthesizer.
+#[uniffi::export]
+pub async fn load_tts(
+    source: String,
+    backend: Option<String>,
+    voice: Option<String>,
+    language: Option<String>,
+    speed: Option<f32>,
+    steps: Option<u32>,
+    silence_duration: Option<f32>,
+    device: Option<String>,
+) -> Result<Arc<RustTts>, NobodyWhoError> {
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = create_tts(
+            source,
+            backend,
+            voice,
+            language,
+            speed,
+            steps,
+            silence_duration,
+            device,
+        );
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "TTS load thread terminated unexpectedly".into(),
+    })?
+}
+
+#[uniffi::export]
+impl RustTts {
+    /// Create a TTS synthesizer.
+    #[uniffi::constructor]
+    pub fn new(
+        source: String,
+        backend: Option<String>,
+        voice: Option<String>,
+        language: Option<String>,
+        speed: Option<f32>,
+        steps: Option<u32>,
+        silence_duration: Option<f32>,
+        device: Option<String>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
+        create_tts(
+            source,
+            backend,
+            voice,
+            language,
+            speed,
+            steps,
+            silence_duration,
+            device,
+        )
+    }
+
+    /// Synthesize text and return WAV bytes.
+    pub fn synthesize(&self, text: String) -> Result<Vec<u8>, NobodyWhoError> {
+        self.inner
+            .synthesize(text)
+            .map_err(|e| tts_error(nobodywho::render_miette(&e)))
+    }
+
+    /// Synthesize text asynchronously and return WAV bytes.
+    pub async fn synthesize_async(&self, text: String) -> Result<Vec<u8>, NobodyWhoError> {
+        self.inner
+            .synthesize_async(text)
+            .await
+            .map_err(|e| tts_error(nobodywho::render_miette(&e)))
+    }
+}
+
 // ---------- RustCrossEncoder ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `CrossEncoder`).
 

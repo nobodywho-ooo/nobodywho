@@ -540,6 +540,31 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(uint64_t p
 void uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(uint64_t ptr, RustBuffer call_id, RustBuffer result, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTTTS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTTTS
+uint64_t uniffi_nobodywho_uniffi_fn_clone_rusttts(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTTTS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTTTS
+void uniffi_nobodywho_uniffi_fn_free_rusttts(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTTS_NEW
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTTS_NEW
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(RustBuffer source, RustBuffer backend, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer device, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTTTS_SYNTHESIZE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTTTS_SYNTHESIZE
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(uint64_t ptr, RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTTTS_SYNTHESIZE_ASYNC
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTTTS_SYNTHESIZE_ASYNC
+uint64_t uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(uint64_t ptr, RustBuffer text
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_SAMPLERBUILDER
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_SAMPLERBUILDER
 uint64_t uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -675,6 +700,11 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(RustCallStatus *_No
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
 uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path, RustBuffer on_download_progress
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
+uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(RustBuffer source, RustBuffer backend, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer device
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_CONSTRAIN_WITH_GRAMMAR
@@ -1020,6 +1050,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_TTS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_TTS
+uint16_t uniffi_nobodywho_uniffi_checksum_func_load_tts(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_SAMPLER_PRESET_CONSTRAIN_WITH_GRAMMAR
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_SAMPLER_PRESET_CONSTRAIN_WITH_GRAMMAR
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(void
@@ -1272,6 +1308,18 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(v
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTTTS_SYNTHESIZE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTTTS_SYNTHESIZE
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTTTS_SYNTHESIZE_ASYNC
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTTTS_SYNTHESIZE_ASYNC
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DIST
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DIST
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(void
@@ -1395,6 +1443,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTOOL_NEW_ASYNC
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTOOL_NEW_ASYNC
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTTS_NEW
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTTS_NEW
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new(void
     
 );
 #endif

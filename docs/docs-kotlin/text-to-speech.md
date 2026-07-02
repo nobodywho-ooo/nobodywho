@@ -1,7 +1,7 @@
 ---
 title: Text-to-speech
-description: Generate WAV audio from text with NobodyWho in Python.
-sidebar_position: 8
+description: Generate WAV audio from text with NobodyWho in Kotlin.
+sidebar_position: 6
 ---
 
 NobodyWho can generate audio from any piece of text, in a wide variety of languages. You pass in text and get WAV bytes back, ready to save or play in your app. This process is also known as Text-to-Speech (or TTS).
@@ -10,20 +10,23 @@ NobodyWho can generate audio from any piece of text, in a wide variety of langua
 
 Here's how you get started:
 
-```python notest
-from pathlib import Path
-from nobodywho import Tts
+```kotlin
+import ai.nobodywho.Tts
+import java.io.File
+import kotlinx.coroutines.runBlocking
 
-tts = Tts(
-    source="NobodyWho/Kokoro-82M",  # Hugging Face repo ID or local folder with the model files.
-    voice="bf_emma",  # Voice to use from the model.
-    language="en-gb",  # Language code for the input text.
-)
+fun main() = runBlocking {
+    val tts = Tts.load(
+        source = "NobodyWho/Kokoro-82M", // Hugging Face repo ID or local folder with the model files.
+        voice = "bf_emma", // Voice to use from the model.
+        language = "en-gb", // Language code for the input text.
+    )
 
-# Generate WAV bytes for this sentence.
-wav = tts.synthesize("Hello from NobodyWho!")
-# Save the audio to a file.
-Path("out.wav").write_bytes(wav)
+    // Generate WAV bytes for this sentence.
+    val wav = tts.synthesize(text = "Hello from NobodyWho!")
+    // Save the audio to a file.
+    File("out.wav").writeBytes(wav)
+}
 ```
 
 Let’s start with `source`: it tells NobodyWho which TTS model to load. More on that in the next section.
@@ -39,11 +42,11 @@ NobodyWho currently supports two main model sources:
 
 For Kokoro, set `voice` and `language` together. They must agree with the model's available voices.
 
-```python notest
-tts = Tts(
-    source="NobodyWho/Kokoro-82M",
-    voice="bf_emma",
-    language="en-gb",
+```kotlin
+val tts = Tts.load(
+    source = "NobodyWho/Kokoro-82M",
+    voice = "bf_emma",
+    language = "en-gb",
 )
 ```
 
@@ -57,10 +60,10 @@ Optional settings include:
 
 For Supertonic, you can start with the default `voice` and `language`, or set them explicitly.
 
-```python notest
-tts = Tts(
-    source="Supertone/supertonic-3",
-    language="en",
+```kotlin
+val tts = Tts.load(
+    source = "Supertone/supertonic-3",
+    language = "en",
 )
 ```
 
@@ -70,7 +73,7 @@ Optional settings include:
 - `language`: input language code. See the [Supertonic model page](https://huggingface.co/Supertone/supertonic-3#supported-languages) for the full list. Defaults to `en`.
 - `speed`: speech speed multiplier. `1.0` is normal speed, lower values are slower, higher values are faster. Defaults to `1.05`.
 - `steps`: denoising steps. Higher values can improve quality but are slower. Lower values are faster but can sound rougher. Must be greater than `0`; defaults to `8`.
-- `silence_duration`: seconds of silence between long text chunks. Higher values add longer pauses. Must be `0` or higher; defaults to `0.3`.
+- `silenceDuration`: seconds of silence between long text chunks. Higher values add longer pauses. Must be `0` or higher; defaults to `0.3`.
 
 ## Backend
 
@@ -78,23 +81,27 @@ Optional settings include:
 
 Set `backend` when you use a local directory or a custom source that NobodyWho cannot recognize:
 
-```python notest
-tts = Tts(
-    source="/path/to/local/kokoro-folder",
-    backend="kokoro",
+```kotlin
+import ai.nobodywho.TtsBackend
+
+val tts = Tts.load(
+    source = "/path/to/local/kokoro-folder",
+    backend = TtsBackend.KOKORO,
 )
 ```
 
-Supported backend values are `kokoro` and `supertonic`.
+Supported backend values are `TtsBackend.KOKORO` and `TtsBackend.SUPERTONIC`.
 
 ## GPU
 
-TTS uses GPU acceleration by default when available. Disable it with `device="cpu"`:
+TTS uses GPU acceleration by default when available. Disable it with `device = TtsDevice.CPU`:
 
-```python notest
-tts = Tts(
-    source="Supertone/supertonic-3",
-    device="cpu",
+```kotlin
+import ai.nobodywho.TtsDevice
+
+val tts = Tts.load(
+    source = "Supertone/supertonic-3",
+    device = TtsDevice.CPU,
 )
 ```
 
