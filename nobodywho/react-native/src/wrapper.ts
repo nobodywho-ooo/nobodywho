@@ -57,6 +57,7 @@ export async function downloadModel(opts: {
 // Wrapper classes
 export { Model } from "./model";
 export { Chat } from "./chat";
+export { STT } from "./stt";
 export { Encoder } from "./encoder";
 export { CrossEncoder } from "./cross_encoder";
 export { Tts } from "./tts";

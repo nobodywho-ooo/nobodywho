@@ -145,4 +145,20 @@ final class NobodyWhoTests: XCTestCase {
         let response = try await chat.ask(prompt).completed()
         XCTAssertFalse(response.isEmpty)
     }
+
+    // MARK: - STT (Whisper)
+
+    func testSTT() async throws {
+        // Model: HuggingFace repo ID or local dir. Downloaded and cached on first run.
+        let model = ProcessInfo.processInfo.environment["TEST_WHISPER_MODEL"]
+            ?? "onnx-community/whisper-base"
+
+        // Audio: "Hey Ron. Hey Billy." — shared asset in assets/.
+        let audioFile = "../../../../assets/sound.mp3"
+
+        let stt = try STT(source: model)
+        let text = try await stt.transcribeFile(path: audioFile).completed()
+        XCTAssertTrue(text.lowercased().contains("ron"))
+        XCTAssertTrue(text.lowercased().contains("billy"))
+    }
 }

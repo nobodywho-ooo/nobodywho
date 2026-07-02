@@ -1,6 +1,6 @@
 use crate::errors::TtsError;
 use crate::tts::backend::TtsBackendImpl;
-use crate::tts::{ort_util, TtsDevice};
+use crate::tts::TtsDevice;
 use ndarray::{Array, Array3};
 use ort::session::Session;
 use ort::value::Tensor;
@@ -146,12 +146,12 @@ impl SupertonicBackend {
         let config: SupertonicTtsJsonConfig = read_json(&assets.onnx_dir.join("tts.json"))?;
         let text_processor = UnicodeProcessor::new(&assets.onnx_dir.join("unicode_indexer.json"))?;
         let duration_predictor =
-            ort_util::load_session(&assets.onnx_dir.join("duration_predictor.onnx"), device)?;
+            crate::onnx::load_session(&assets.onnx_dir.join("duration_predictor.onnx"), device)?;
         let text_encoder =
-            ort_util::load_session(&assets.onnx_dir.join("text_encoder.onnx"), device)?;
+            crate::onnx::load_session(&assets.onnx_dir.join("text_encoder.onnx"), device)?;
         let vector_estimator =
-            ort_util::load_session(&assets.onnx_dir.join("vector_estimator.onnx"), device)?;
-        let vocoder = ort_util::load_session(&assets.onnx_dir.join("vocoder.onnx"), device)?;
+            crate::onnx::load_session(&assets.onnx_dir.join("vector_estimator.onnx"), device)?;
+        let vocoder = crate::onnx::load_session(&assets.onnx_dir.join("vocoder.onnx"), device)?;
         let sample_rate = config.ae.sample_rate;
         let style = Style::load(&assets.voice_style_path)?;
 

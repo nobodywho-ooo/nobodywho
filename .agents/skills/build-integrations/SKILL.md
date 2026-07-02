@@ -71,6 +71,36 @@ Add a TypeScript wrapper class in `react-native/src/<feature-lowercase>.ts` foll
 
 Add a `#[derive(GodotClass)]` struct to `nobodywho/godot/src/lib.rs` following the `NobodyWhoChat` / `NobodyWhoEncoder` pattern. Godot uses GDExtension (not UniFFI) — no codegen step needed, but the struct must compile.
 
+**No Tokio inside `godot::task::spawn`.** `godot::task::spawn` runs on gdext's own async executor — it does NOT provide a Tokio runtime. These Tokio APIs will panic at runtime:
+
+- `tokio::task::spawn_blocking` — needs the Tokio blocking thread pool
+- `tokio::runtime::Handle::current()` — no runtime handle exists
+
+To run blocking work from a `godot::task::spawn` closure, use `std::thread::spawn` and pass the result back via a `tokio::sync::oneshot` channel (oneshot uses standard Rust wakers and works with any executor):
+
+```rust
+godot::task::spawn(async move {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(my_blocking_fn());
+    });
+    match rx.await {
+        Ok(result) => { /* handle result */ }
+        Err(_) => { /* thread panicked */ }
+    }
+});
+```
+
+`tokio::sync::mpsc` and `tokio::sync::oneshot` channels are fine to *use* (create, send, await) inside `godot::task::spawn` — they are just data structures backed by standard Rust wakers.
+
+**Godot integration test lifecycle.** Every Godot inference node requires `start_worker()` followed by `await <node>.worker_started` before calling any inference method (`transcribe_file`, `ask`, etc.). Skipping this causes an "STT/worker not started" error at runtime. See `grammar_test.gd` and `hf_path_test.gd` for the canonical pattern:
+
+```gdscript
+node.start_worker()
+await node.worker_started
+node.some_inference_call(...)
+```
+
 ### 3d. Python
 
 Add a `#[pyclass]` struct to `nobodywho/python/src/lib.rs` following existing PyO3 patterns. Then regenerate stubs (from `nobodywho/python/`):
@@ -103,11 +133,25 @@ If `nix` is not on PATH, try `/nix/var/nix/profiles/default/bin/nix --extra-expe
 
 This regenerates both `Cargo.nix` and updates `crate-hashes.json`. Both files must be committed.
 
+### 3g. Nix test asset paths
+
+If the feature requires a test asset (audio file, image, etc.), expose it via an env var in each binding's `default.nix`. Two rules:
+
+1. **String-interpolate the path.** A bare Nix path value (`env.X = ../../assets/file`) is of type `path` and causes an attribute type error. Always wrap it: `env.X = "${../../assets/file}";`
+
+2. **Count `../` from the `default.nix` file, not the repo root.** The depth varies by binding:
+   - `nobodywho/python/default.nix` → `"${../../assets/file}"` (2 levels up to repo root)
+   - `nobodywho/flutter/nobodywho/default.nix` → `"${../../../assets/file}"` (3 levels up)
+
+**Local Nix blind spot.** `nix flake check` on macOS only evaluates `aarch64-darwin` derivations. All `x86_64-linux` checks — including Flutter tests and the Linux Rust test suite — are invisible locally and only run in CI. If a Linux-only failure needs investigation, it must be pushed and observed in CI.
+
 ---
 
 ## Step 4 — Verify
 
 All of these must pass before reporting done. Fix any failures before moving on.
+
+**Check all new module files are declared.** After adding files to a core submodule directory, verify a `mod <name>;` line exists in the parent `mod.rs`. Rust silently ignores files that are not declared — they compile fine but are unreachable dead code and will never be tested or exported.
 
 ```bash
 # From nobodywho/

@@ -51,6 +51,15 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): number;
+    ubrn_uniffi_nobodywho_uniffi_fn_clone_ruststt(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_free_ruststt(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(source: Uint8Array, language: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(ptr: bigint, path: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(ptr: bigint, samples: Uint8Array, sampleRate: number, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_clone_ruststtstream(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_free_ruststtstream(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(ptr: bigint): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rusttokenstream(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(ptr: bigint): bigint;
@@ -192,6 +201,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststtstream_completed(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststtstream_next_token(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_next_token(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_get_schema_json(): number;
@@ -217,6 +230,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new(): number;
@@ -229,6 +243,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_internal_fn_method_rustcrossencoder_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
     ubrn_uniffi_internal_fn_method_rustencoder_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
     ubrn_uniffi_internal_fn_method_rustmodel_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
+    ubrn_uniffi_internal_fn_method_ruststt_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
+    ubrn_uniffi_internal_fn_method_ruststtstream_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
     ubrn_uniffi_internal_fn_method_rusttokenstream_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
     ubrn_uniffi_internal_fn_method_rusttool_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;
     ubrn_uniffi_internal_fn_method_rusttts_ffi__bless_pointer(pointer: bigint, uniffi_out_err: UniffiRustCallStatus): UniffiGcObject;

@@ -425,6 +425,22 @@ private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterInt16: FfiConverterPrimitive {
+    typealias FfiType = Int16
+    typealias SwiftType = Int16
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int16 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Int16, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -1528,6 +1544,325 @@ public func FfiConverterTypeRustModel_lift(_ handle: UInt64) throws -> RustModel
 #endif
 public func FfiConverterTypeRustModel_lower(_ value: RustModel) -> UInt64 {
     return FfiConverterTypeRustModel.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
+ * Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+ */
+public protocol RustSttProtocol: AnyObject, Sendable {
+    
+    /**
+     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Returns a `RustSTTStream` to consume tokens as they are generated.
+     */
+    func transcribeFile(path: String) throws  -> RustSttStream
+    
+    /**
+     * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
+     * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
+     */
+    func transcribePcm(samples: [Int16], sampleRate: UInt32) throws  -> RustSttStream
+    
+}
+/**
+ * Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
+ * Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+ */
+open class RustStt: RustSttProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_ruststt(self.handle, $0) }
+    }
+    /**
+     * Create an STT handle. `source` is a HuggingFace repo ID
+     * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+     * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+     */
+public convenience init(source: String, language: String?)throws  {
+    let handle =
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
+        FfiConverterString.lower(source),
+        FfiConverterOptionString.lower(language),$0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        try! rustCall { uniffi_nobodywho_uniffi_fn_free_ruststt(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Returns a `RustSTTStream` to consume tokens as they are generated.
+     */
+open func transcribeFile(path: String)throws  -> RustSttStream  {
+    return try  FfiConverterTypeRustSTTStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(path),$0
+    )
+})
+}
+    
+    /**
+     * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
+     * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
+     */
+open func transcribePcm(samples: [Int16], sampleRate: UInt32)throws  -> RustSttStream  {
+    return try  FfiConverterTypeRustSTTStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceInt16.lower(samples),
+        FfiConverterUInt32.lower(sampleRate),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustSTT: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = RustStt
+
+    public static func lift(_ handle: UInt64) throws -> RustStt {
+        return RustStt(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: RustStt) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustStt {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: RustStt, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustSTT_lift(_ handle: UInt64) throws -> RustStt {
+    return try FfiConverterTypeRustSTT.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustSTT_lower(_ value: RustStt) -> UInt64 {
+    return FfiConverterTypeRustSTT.lower(value)
+}
+
+
+
+
+
+
+/**
+ * A stream of transcript tokens from a Whisper STT run.
+ */
+public protocol RustSttStreamProtocol: AnyObject, Sendable {
+    
+    /**
+     * Wait for transcription to finish and return the full transcript.
+     */
+    func completed() async throws  -> String
+    
+    /**
+     * Get the next transcript token. Returns `None` when transcription is complete.
+     */
+    func nextToken() async throws  -> String?
+    
+}
+/**
+ * A stream of transcript tokens from a Whisper STT run.
+ */
+open class RustSttStream: RustSttStreamProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_ruststtstream(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_nobodywho_uniffi_fn_free_ruststtstream(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Wait for transcription to finish and return the full transcript.
+     */
+open func completed()async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+    
+    /**
+     * Get the next transcript token. Returns `None` when transcription is complete.
+     */
+open func nextToken()async throws  -> String?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionString.lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustSTTStream: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = RustSttStream
+
+    public static func lift(_ handle: UInt64) throws -> RustSttStream {
+        return RustSttStream(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: RustSttStream) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustSttStream {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: RustSttStream, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustSTTStream_lift(_ handle: UInt64) throws -> RustSttStream {
+    return try FfiConverterTypeRustSTTStream.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustSTTStream_lower(_ value: RustSttStream) -> UInt64 {
+    return FfiConverterTypeRustSTTStream.lower(value)
 }
 
 
@@ -3632,6 +3967,31 @@ fileprivate struct FfiConverterOptionDictionaryStringString: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceInt16: FfiConverterRustBuffer {
+    typealias SwiftType = [Int16]
+
+    public static func write(_ value: [Int16], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterInt16.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Int16] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Int16]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterInt16.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceFloat: FfiConverterRustBuffer {
     typealias SwiftType = [Float]
 
@@ -4292,6 +4652,18 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 47529) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() != 61166) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_ruststtstream_completed() != 22443) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_ruststtstream_next_token() != 38526) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() != 26060) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4365,6 +4737,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 16224) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431) {

@@ -43,6 +43,15 @@ jobs:
             "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
           curl -L -o test-models/mmproj.gguf \
             "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf"
+          # Whisper ONNX — only the files we actually load (~295 MB vs 2.4 GB for the full repo)
+          WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
+          mkdir -p test-models/whisper-base/onnx
+          curl -L --fail "$WHISPER_BASE/onnx/encoder_model.onnx"       -o test-models/whisper-base/onnx/encoder_model.onnx
+          curl -L --fail "$WHISPER_BASE/onnx/decoder_model_merged.onnx" -o test-models/whisper-base/onnx/decoder_model_merged.onnx
+          curl -L --fail "$WHISPER_BASE/tokenizer.json"                 -o test-models/whisper-base/tokenizer.json
+          curl -L --fail "$WHISPER_BASE/generation_config.json"         -o test-models/whisper-base/generation_config.json
+          curl -L --fail "$WHISPER_BASE/config.json"                    -o test-models/whisper-base/config.json
+          curl -L --fail "$WHISPER_BASE/preprocessor_config.json"       -o test-models/whisper-base/preprocessor_config.json
 
       - name: "Run integration tests"
         working-directory: ./nobodywho/swift
@@ -50,4 +59,5 @@ jobs:
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
           TEST_VISION_MODEL: ${{ github.workspace }}/test-models/vision-model.gguf
           TEST_MMPROJ: ${{ github.workspace }}/test-models/mmproj.gguf
+          TEST_WHISPER_MODEL: ${{ github.workspace }}/test-models/whisper-base
         run: swift test --filter NobodyWhoTests

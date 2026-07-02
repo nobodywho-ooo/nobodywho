@@ -75,7 +75,8 @@ String addTwoNumbers({required double a, required double b}) {
 
 void main() {
   group('A group of tests', () {
-    final modelPath = Platform.environment["TEST_MODEL"]!;
+    final modelPath = Platform.environment["TEST_MODEL"];
+    if (modelPath == null) return; // skip all LLM tests if no model provided
     nobodywho.Chat? chat;
 
     setUpAll(() async {
@@ -709,6 +710,25 @@ void main() {
       expect(modified.name, equals('new_tool'));
       expect(modified.content, equals('result'));
       expect(original.name, equals('original_tool')); // Original unchanged
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // STT (Whisper)
+  // ---------------------------------------------------------------------------
+  group('STT', () {
+    final whisperModel = Platform.environment['TEST_WHISPER_MODEL'];
+    final audioFile = Platform.environment['TEST_AUDIO_FILE'];
+
+    test('transcribes audio file', () async {
+      if (whisperModel == null || audioFile == null) {
+        return; // Skip test if model or audio file not provided
+      }
+      final stt = nobodywho.RustStt.new_(source: whisperModel);
+      final stream = stt.transcribeFile(path: audioFile);
+      final text = await stream.completed();
+      expect(text.toLowerCase(), contains('ron'));
+      expect(text.toLowerCase(), contains('billy'));
     });
   });
 }

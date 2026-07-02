@@ -45,6 +45,12 @@ indicatif = "0.18"
 walkdir = "2.5"
 hound = "3"
 safetensors = "0.5"
+# STT audio pipeline
+symphonia = { version = "0.5", default-features = false, features = ["wav", "mp3", "flac"] }
+rubato = "0.16"
+mel_spec = "0.4"
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+# Shared by STT (via mel_spec) and TTS (supertonic); use 0.17 as the workspace default
 ndarray = "0.17"
 rand_distr = "0.5"
 unicode-normalization = "0.1"
