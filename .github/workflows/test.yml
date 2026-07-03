@@ -3,7 +3,11 @@ on:
   workflow_call:
     inputs:
       full_ci:
-        description: "Run full test suite. If false, only flutter-doc-tests-check and nix-flake-check run."
+        description: "Run full test suite. If false, only lightweight checks run."
+        type: boolean
+        default: false
+      run_nix:
+        description: "Run nix flake check."
         type: boolean
         default: false
     secrets:
@@ -45,6 +49,7 @@ jobs:
   # cachix actions as per these docs:
   # https://nix.dev/guides/recipes/continuous-integration-github-actions
   nix-flake-check:
+    if: inputs.run_nix
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 360
     steps:

@@ -20,13 +20,16 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
 
       - name: Install dependencies
         working-directory: ./nobodywho/python
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-          uv venv && uv sync
+          uv venv
+          uv sync --locked
 
       - name: Format check
         working-directory: ./nobodywho/python
@@ -35,6 +38,12 @@ jobs:
       - name: Lint check
         working-directory: ./nobodywho/python
         run: uv run ruff check
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: nobodywho
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
@@ -251,6 +260,8 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
       - name: Download wheel
         uses: actions/download-artifact@v5
         with:
@@ -278,7 +289,7 @@ jobs:
         run: |
           uv venv
           # install deps - and not nobodywho-python - into the venv
-          uv sync --no-install-project --group dev
+          uv sync --locked --no-install-project --group dev
           # install nobodywho from pre-built wheel
           uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
       - name: Run pytest
@@ -307,6 +318,8 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
       - name: Download wheel
         uses: actions/download-artifact@v5
         with:
@@ -321,7 +334,7 @@ jobs:
         working-directory: ./nobodywho/python
         run: |
           uv venv
-          uv sync --no-install-project --group dev
+          uv sync --locked --no-install-project --group dev
           uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
       - name: Run multimodal tests
         working-directory: ./nobodywho/python
@@ -343,6 +356,8 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
 
       - name: Download wheel artifact
         uses: actions/download-artifact@v5
@@ -354,7 +369,7 @@ jobs:
         working-directory: ./nobodywho/python
         run: |
           uv venv
-          uv sync --no-install-project --group dev
+          uv sync --locked --no-install-project --group dev
           uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
 
       - name: Run model downloading tests
@@ -408,6 +423,8 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
 
       - name: Download wheel artifact
         uses: actions/download-artifact@v5
@@ -428,7 +445,7 @@ jobs:
         working-directory: ./nobodywho/python
         run: |
           uv venv
-          uv sync --no-install-project --group dev
+          uv sync --locked --no-install-project --group dev
           uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
 
       - name: Run tool calling tests with ${{ matrix.model.name }}
