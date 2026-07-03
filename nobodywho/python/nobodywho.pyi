@@ -754,7 +754,9 @@ class STT:
 
     `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
     a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
-    omit or pass `None` to auto-detect.
+    omit or pass `None` to auto-detect. `quantization` selects the ONNX
+    precision variant to download and load: one of `"default"`, `"fp16"`,
+    `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`; omit or pass `None` to use `"default"`.
 
     Example::
 
@@ -765,7 +767,13 @@ class STT:
         for piece in stt.transcribe_file("recording.mp3"):
             print(piece, end="", flush=True)
     """
-    def __new__(cls, /, source: str, language: str | None = None) -> STT: ...
+    def __new__(
+        cls,
+        /,
+        source: str,
+        language: str | None = None,
+        quantization: str | None = None,
+    ) -> STT: ...
     def transcribe_file(self, /, path: str) -> TokenStream:
         """
         Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
@@ -782,7 +790,13 @@ class STTAsync:
     """
     `STTAsync` is the async variant of `STT`.
     """
-    def __new__(cls, /, source: str, language: str | None = None) -> STTAsync: ...
+    def __new__(
+        cls,
+        /,
+        source: str,
+        language: str | None = None,
+        quantization: str | None = None,
+    ) -> STTAsync: ...
     def transcribe_file(self, /, path: str) -> TokenStreamAsync: ...
     def transcribe_pcm(
         self, /, samples: Sequence[int], sample_rate: int

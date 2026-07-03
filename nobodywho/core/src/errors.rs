@@ -546,6 +546,10 @@ pub enum HuggingFaceError {
     #[diagnostic(code(nobodywho::hf_empty_repo))]
     EmptyRepo { repo: String, revision: String },
 
+    #[error("HuggingFace repo {repo:?} is missing required file(s): {}", files.join(", "))]
+    #[diagnostic(code(nobodywho::hf_missing_required_files))]
+    MissingRequiredFiles { repo: String, files: Vec<String> },
+
     #[error("Failed to download entry {path:?} from HuggingFace repo")]
     #[diagnostic(code(nobodywho::hf_download_entry))]
     DownloadEntry {

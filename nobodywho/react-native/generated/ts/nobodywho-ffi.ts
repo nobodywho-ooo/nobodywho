@@ -53,7 +53,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): number;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_ruststt(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_ruststt(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(source: Uint8Array, language: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(source: Uint8Array, language: Uint8Array, quantization: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(ptr: bigint, path: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(ptr: bigint, samples: Uint8Array, sampleRate: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_ruststtstream(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;

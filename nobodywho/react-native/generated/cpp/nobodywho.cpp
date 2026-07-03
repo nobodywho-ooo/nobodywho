@@ -198,7 +198,8 @@ uint32_t uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
 void uniffi_nobodywho_uniffi_fn_free_ruststt(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
-    RustBuffer source, RustBuffer language, RustCallStatus *uniffi_out_err);
+    RustBuffer source, RustBuffer language, RustBuffer quantization,
+    RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(
     /*handle*/ uint64_t ptr, RustBuffer path, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(
@@ -3124,7 +3125,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new"),
-          2,
+          3,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
@@ -6198,6 +6199,7 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
   auto value = uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);

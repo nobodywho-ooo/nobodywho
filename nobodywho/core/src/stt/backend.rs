@@ -24,9 +24,15 @@ pub(super) fn load_backend(
     match config {
         SttConfig::Whisper(config) => {
             let init_start = Instant::now();
-            let model_dir = huggingface::resolve(huggingface::parse(&config.source)?)?;
-            let backend =
-                backends::WhisperBackend::new(&model_dir, config.language.as_deref(), device)?;
+            let required_files = backends::whisper_required_files(&config.quantization)?;
+            let model_dir =
+                huggingface::resolve(huggingface::parse(&config.source)?, &required_files)?;
+            let backend = backends::WhisperBackend::new(
+                &model_dir,
+                config.language.as_deref(),
+                &config.quantization,
+                device,
+            )?;
             info!(elapsed = ?init_start.elapsed(), "Initialized Whisper STT");
             Ok(Box::new(backend))
         }

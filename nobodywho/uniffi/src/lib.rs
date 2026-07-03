@@ -553,10 +553,20 @@ impl RustSTT {
     /// Create an STT handle. `source` is a HuggingFace repo ID
     /// (e.g. `"onnx-community/whisper-base"`) or a local directory path.
     /// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+    /// `quantization` selects the ONNX precision variant to download and load:
+    /// one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`;
+    /// pass `None` to use `"default"`.
     #[uniffi::constructor]
-    pub fn new(source: String, language: Option<String>) -> Result<Arc<Self>, NobodyWhoError> {
+    pub fn new(
+        source: String,
+        language: Option<String>,
+        quantization: Option<String>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
         let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
         cfg.language = language;
+        if let Some(quantization) = quantization {
+            cfg.quantization = quantization;
+        }
         let inner =
             nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)).map_err(|e| {
                 NobodyWhoError::Error {

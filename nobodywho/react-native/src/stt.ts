@@ -26,9 +26,16 @@ export class STT {
    *   or a local directory path. The model is downloaded on first use.
    * @param language - ISO 639-1 language code (e.g. `"en"`).
    *   Omit or pass `undefined` for automatic language detection.
+   * @param quantization - ONNX precision variant to download and load: one of
+   *   `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`.
+   *   Omit or pass `undefined` to use `"default"`.
    */
-  constructor(source: string, language?: string) {
-    this._inner = new nobodywho.RustSTT(source, language ?? undefined);
+  constructor(source: string, language?: string, quantization?: string) {
+    this._inner = new nobodywho.RustSTT(
+      source,
+      language ?? undefined,
+      quantization ?? undefined,
+    );
   }
 
   /**

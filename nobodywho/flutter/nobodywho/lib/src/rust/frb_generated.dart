@@ -239,7 +239,11 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<String?> crateRustSttStreamNextToken({required RustSttStream that});
 
-  RustStt crateRustSttNew({required String source, String? language = null});
+  RustStt crateRustSttNew({
+    required String source,
+    String? language = null,
+    String? quantization = null,
+  });
 
   RustSttStream crateRustSttTranscribeFile({
     required RustStt that,
@@ -1960,13 +1964,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  RustStt crateRustSttNew({required String source, String? language = null}) {
+  RustStt crateRustSttNew({
+    required String source,
+    String? language = null,
+    String? quantization = null,
+  }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(source, serializer);
           sse_encode_opt_String(language, serializer);
+          sse_encode_opt_String(quantization, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
         },
         codec: SseCodec(
@@ -1975,7 +1984,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustSttNewConstMeta,
-        argValues: [source, language],
+        argValues: [source, language, quantization],
         apiImpl: this,
       ),
     );
@@ -1983,7 +1992,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateRustSttNewConstMeta => const TaskConstMeta(
     debugName: "RustStt_new_",
-    argNames: ["source", "language"],
+    argNames: ["source", "language", "quantization"],
   );
 
   @override

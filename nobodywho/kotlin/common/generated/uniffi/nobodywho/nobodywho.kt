@@ -925,7 +925,7 @@ external fun uniffi_nobodywho_uniffi_fn_clone_ruststt(`handle`: Long,uniffi_out_
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_ruststt(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(`ptr`: Long,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1369,7 +1369,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 16224.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 3987.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431.toShort()) {
@@ -3579,13 +3579,16 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
      * Create an STT handle. `source` is a HuggingFace repo ID
      * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+     * `quantization` selects the ONNX precision variant to download and load:
+     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`;
+     * pass `None` to use `"default"`.
      */
-    constructor(`source`: kotlin.String, `language`: kotlin.String?) :
+    constructor(`source`: kotlin.String, `language`: kotlin.String?, `quantization`: kotlin.String?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
     
-        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`language`),_status)
+        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalString.lower(`quantization`),_status)
 }
     )
 

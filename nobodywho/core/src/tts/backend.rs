@@ -33,7 +33,7 @@ pub(super) fn load_backend(
     match config {
         TtsConfig::Kokoro(config) => {
             let init_start = Instant::now();
-            let model_dir = huggingface::resolve_model_dir(&config.source)?;
+            let model_dir = huggingface::resolve_model_dir(&config.source, &[])?;
             let backend = kokoro::KokoroBackend::new(
                 &model_dir,
                 &config.voice,
@@ -46,7 +46,7 @@ pub(super) fn load_backend(
         }
         TtsConfig::Supertonic(config) => {
             let init_start = Instant::now();
-            let model_dir = huggingface::resolve_model_dir(&config.source)?;
+            let model_dir = huggingface::resolve_model_dir(&config.source, &[])?;
             let backend = supertonic::SupertonicBackend::new(
                 &model_dir,
                 &config.voice,

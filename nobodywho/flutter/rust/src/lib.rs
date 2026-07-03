@@ -644,13 +644,20 @@ impl RustSTT {
     /// Create an STT handle.
     /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
     /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
+    /// `quantization` — ONNX precision variant to download and load: one of
+    /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`; pass `None`
+    /// to use `"default"`.
     #[flutter_rust_bridge::frb(sync)]
     pub fn new_(
         source: String,
         #[frb(default = "null")] language: Option<String>,
+        #[frb(default = "null")] quantization: Option<String>,
     ) -> Result<Self, String> {
         let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
         cfg.language = language;
+        if let Some(quantization) = quantization {
+            cfg.quantization = quantization;
+        }
         let stt = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
             .map_err(|e| e.to_string())?;
         Ok(Self { stt })

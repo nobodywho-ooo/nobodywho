@@ -1940,9 +1940,10 @@ fn wire__crate__RustStt_new__impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_source = <String>::sse_decode(&mut deserializer);
             let api_language = <Option<String>>::sse_decode(&mut deserializer);
+            let api_quantization = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
-                let output_ok = crate::RustSTT::new_(api_source, api_language)?;
+                let output_ok = crate::RustSTT::new_(api_source, api_language, api_quantization)?;
                 Ok(output_ok)
             })())
         },

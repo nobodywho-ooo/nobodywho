@@ -429,21 +429,77 @@ fn is_dotfile(path: &str) -> bool {
     path.rsplit('/').next().unwrap_or(path).starts_with('.')
 }
 
+/// Narrow `available` (every file in a repo) down to just `required` (e.g. a
+/// single ONNX precision variant out of the dozen a repo may ship), rather
+/// than downloading the entire repo. An empty `required` list keeps the
+/// download-everything behavior, for callers that genuinely need that.
+///
+/// Also pulls in ONNX external-data sidecars: a `.onnx` file's weights may be
+/// split into a companion `<path>_data` file (or `<path>_data/` directory of
+/// chunks) when the graph would otherwise exceed protobuf's 2GB limit — e.g.
+/// `onnx-community/whisper-large-v3-turbo` ships `encoder_model.onnx` (440KB,
+/// just the graph) alongside `encoder_model.onnx_data` (2.5GB, the weights).
+/// Without this, loading the model fails after a "successful" download.
+///
+/// Returns the names in `required` that aren't present in `available` as `Err`.
+fn select_required_files(
+    available: Vec<String>,
+    required: &[String],
+) -> Result<Vec<String>, Vec<String>> {
+    if required.is_empty() {
+        return Ok(available);
+    }
+    let missing: Vec<String> = required
+        .iter()
+        .filter(|r| !available.contains(r))
+        .cloned()
+        .collect();
+    if !missing.is_empty() {
+        return Err(missing);
+    }
+    Ok(available
+        .into_iter()
+        .filter(|p| required.contains(p) || is_external_data_for(p, required))
+        .collect())
+}
+
+/// True if `path` is the ONNX external-data sidecar (or a chunk inside the
+/// sidecar directory) for one of the files in `required`.
+fn is_external_data_for(path: &str, required: &[String]) -> bool {
+    required.iter().any(|r| {
+        let prefix = format!("{r}_data");
+        path == prefix || path.starts_with(&format!("{prefix}/"))
+    })
+}
+
 /// Resolve a parsed source to a local directory. For HF sources, lists the
-/// repo via the HF API and downloads every file into the local cache.
-pub(crate) fn resolve(source: Source) -> Result<PathBuf, HuggingFaceError> {
+/// repo via the HF API and downloads only the files in `required_files`
+/// (relative paths within the repo) into the local cache.
+pub(crate) fn resolve(
+    source: Source,
+    required_files: &[String],
+) -> Result<PathBuf, HuggingFaceError> {
     match source {
         Source::Local(p) => Ok(p),
         Source::HuggingFace {
             owner,
             repo,
             revision,
-        } => download_repo(&owner, &repo, &revision, &default_progress_callback()),
+        } => download_repo(
+            &owner,
+            &repo,
+            &revision,
+            required_files,
+            &default_progress_callback(),
+        ),
     }
 }
 
-pub(crate) fn resolve_model_dir(source: &str) -> Result<PathBuf, HuggingFaceError> {
-    resolve(parse(source)?)
+pub(crate) fn resolve_model_dir(
+    source: &str,
+    required_files: &[String],
+) -> Result<PathBuf, HuggingFaceError> {
+    resolve(parse(source)?, required_files)
 }
 
 #[derive(serde::Deserialize)]
@@ -457,19 +513,17 @@ fn download_repo(
     owner: &str,
     repo: &str,
     revision: &str,
+    required_files: &[String],
     progress: &DownloadProgressCallback,
 ) -> Result<PathBuf, HuggingFaceError> {
     let cache_dir = get_cache_dir()?.join(owner).join(repo);
     let repo_id = format!("{owner}/{repo}");
 
-    // Skip the network round-trip if the directory is already populated (e.g.
-    // pre-fetched by the Nix build or a previous run). Each individual file is
-    // still guarded by its own existence check inside download_file().
-    if cache_dir.is_dir()
-        && std::fs::read_dir(&cache_dir)
-            .map(|mut d| d.next().is_some())
-            .unwrap_or(false)
-    {
+    // Skip the network round-trip if every required file is already cached
+    // locally (e.g. pre-fetched by the Nix build or a previous run). Each
+    // individual file is still guarded by its own existence check inside
+    // download_file().
+    if !required_files.is_empty() && required_files.iter().all(|f| cache_dir.join(f).exists()) {
         info!("Using cached repo: {}", cache_dir.display());
         return Ok(cache_dir);
     }
@@ -495,12 +549,20 @@ fn download_repo(
         })?;
 
     // Skip dotfiles (e.g. `.gitattributes`)
-    let files: Vec<String> = entries
+    let all_files: Vec<String> = entries
         .into_iter()
         .filter(|e| e.kind == "file")
         .map(|e| e.path)
         .filter(|p| !is_dotfile(p))
         .collect();
+
+    let files = select_required_files(all_files, required_files).map_err(|missing| {
+        HuggingFaceError::MissingRequiredFiles {
+            repo: repo_id.clone(),
+            files: missing,
+        }
+    })?;
+
     if files.is_empty() {
         return Err(HuggingFaceError::EmptyRepo {
             repo: repo_id,
