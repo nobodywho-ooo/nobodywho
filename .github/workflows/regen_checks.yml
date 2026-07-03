@@ -1,10 +1,14 @@
 name: "regen_checks"
 
-# Verifies that committed generated bindings (Swift, Kotlin, React Native) are
-# up to date with the Rust source. A single `build-uniffi-host` job compiles
-# the uniffi crate + uniffi-bindgen binary once; three downstream jobs (one per
-# binding language) download that artifact and run their language-specific
-# generator. Separate jobs surface which binding is stale in the run summary.
+# Verifies that every committed generated artifact is up to date with its
+# source of truth:
+#   - Swift / Kotlin / React Native uniffi bindings (regenerated from the
+#     uniffi crate via uniffi-bindgen). One `build-uniffi-host` job builds
+#     the host artifact; three downstream jobs run their language generator.
+#   - Flutter doctests (regenerated from docs/docs-flutter via a dart tool).
+#
+# Always runs — these checks are cheap and the failure mode for forgetting
+# to wire one up is silent drift in committed files.
 
 on: workflow_call
 
@@ -12,6 +16,32 @@ permissions:
   contents: read
 
 jobs:
+  flutter-doctest-check:
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate doctest file
+        working-directory: nobodywho/flutter/nobodywho
+        run: dart run tool/doctest.dart ../../../docs/docs-flutter --generate-only
+
+      - name: Verify committed doctests are up to date
+        run: |
+          if git diff --quiet nobodywho/flutter/nobodywho/test/doctest_generated_test.dart; then
+            echo "Generated doctests are up to date"
+          else
+            echo "ERROR: Committed Flutter doctests are out of date."
+            echo "Run the generator and commit the result:"
+            echo "  cd nobodywho/flutter/nobodywho"
+            echo "  dart run tool/doctest.dart ../../../docs/docs-flutter --generate-only"
+            exit 1
+          fi
+
   build-uniffi-host:
     runs-on: warp-ubuntu-latest-x64-4x
     steps:

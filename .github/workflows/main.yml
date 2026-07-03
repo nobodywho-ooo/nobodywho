@@ -4,13 +4,23 @@ on:
     branches: [main]
     tags: ['nobodywho-*']
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    # ready_for_review needs to be in this list so flipping a draft PR to
+    # "ready" re-triggers CI with the full PR-base diff + cascade rules.
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
+  merge_group:
   workflow_dispatch:
     inputs:
       full_ci:
         type: boolean
         default: true
         description: 'Run full CI suite (all platforms, all tests)'
+
+# Cancel in-flight PR runs when a new commit is pushed to that PR.
+# Don't cancel merge_group / main / tag / dispatch runs — those are
+# canonical signals we want to see through to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
@@ -19,6 +29,14 @@ permissions:
   deployments: write
 
 jobs:
+  # Single source of truth for "what should this CI run do?" — reads paths,
+  # labels, and the event, emits a run_* boolean per bucket. Every other job
+  # gates on these outputs; no other workflow inspects labels or paths.
+  plan:
+    uses: ./.github/workflows/plan.yml
+    with:
+      dispatch_full_ci: ${{ github.event_name == 'workflow_dispatch' && inputs.full_ci }}
+
   linting:
     uses: ./.github/workflows/linting.yml
 
@@ -26,37 +44,52 @@ jobs:
     uses: ./.github/workflows/regen_checks.yml
 
   python_ci:
+    needs: plan
+    if: needs.plan.outputs.run_python == 'true' || needs.plan.outputs.run_python_models == 'true'
     uses: ./.github/workflows/python_ci.yml
     with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+      run_python:        ${{ needs.plan.outputs.run_python == 'true' }}
+      run_python_models: ${{ needs.plan.outputs.run_python_models == 'true' }}
 
   build:
+    needs: plan
+    if: |
+      needs.plan.outputs.run_godot == 'true' ||
+      needs.plan.outputs.run_flutter == 'true' ||
+      needs.plan.outputs.run_swift == 'true' ||
+      needs.plan.outputs.run_kotlin == 'true' ||
+      needs.plan.outputs.run_react_native == 'true'
     uses: ./.github/workflows/build.yml
     with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+      run_godot:        ${{ needs.plan.outputs.run_godot == 'true' }}
+      run_flutter:      ${{ needs.plan.outputs.run_flutter == 'true' }}
+      run_swift:        ${{ needs.plan.outputs.run_swift == 'true' }}
+      run_kotlin:       ${{ needs.plan.outputs.run_kotlin == 'true' }}
+      run_react_native: ${{ needs.plan.outputs.run_react_native == 'true' }}
 
   swift_ci:
-    needs: [build]
+    needs: [plan, build]
+    if: needs.plan.outputs.run_swift == 'true'
     uses: ./.github/workflows/swift_ci.yml
-    with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
   kotlin_ci:
-    needs: [build]
+    needs: [plan, build]
+    if: needs.plan.outputs.run_kotlin == 'true'
     uses: ./.github/workflows/kotlin_ci.yml
-    with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
   test:
+    needs: plan
+    if: needs.plan.outputs.run_rust_core == 'true' || needs.plan.outputs.run_flutter == 'true'
     uses: ./.github/workflows/test.yml
     with:
-      full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+      run_rust_core: ${{ needs.plan.outputs.run_rust_core == 'true' }}
+      run_flutter:   ${{ needs.plan.outputs.run_flutter == 'true' }}
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
   release:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-')
-    needs: [linting, regen_checks, build, test, python_ci, swift_ci, kotlin_ci]
+    needs: [plan, linting, regen_checks, build, test, python_ci, swift_ci, kotlin_ci]
+    if: needs.plan.outputs.run_release == 'true'
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
@@ -69,8 +102,41 @@ jobs:
       MAVEN_SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
 
   docs:
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages'
+    # Build+deploy only happens on main (or the legacy deploy branch). On PRs
+    # docs.yml would publish from a non-main ref, so keep this ref-gated even
+    # when run_docs is true. PR-time docs verification is a future improvement.
+    needs: plan
+    if: needs.plan.outputs.run_docs == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages')
     uses: ./.github/workflows/docs.yml
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # Single check name for branch protection / merge queue. Passes when every
+  # listed job either succeeded or was correctly skipped by the plan job.
+  # Renaming any matrix entry inside a child workflow no longer breaks the
+  # protection rule.
+  required:
+    if: always()
+    needs:
+      - plan
+      - linting
+      - regen_checks
+      - python_ci
+      - build
+      - swift_ci
+      - kotlin_ci
+      - test
+      - docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Verify required jobs succeeded or were skipped"
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "Job results: $RESULTS"
+          if echo "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
+            echo "::error::One or more required jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All required jobs succeeded or were correctly skipped."
