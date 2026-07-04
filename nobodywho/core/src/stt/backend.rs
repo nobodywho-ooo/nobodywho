@@ -25,8 +25,7 @@ pub(super) fn load_backend(
         SttConfig::Whisper(config) => {
             let init_start = Instant::now();
             let required_files = backends::whisper_required_files(&config.quantization)?;
-            let model_dir =
-                huggingface::resolve(huggingface::parse(&config.source)?, &required_files)?;
+            let model_dir = huggingface::resolve_model_dir(&config.source, &required_files)?;
             let backend = backends::WhisperBackend::new(
                 &model_dir,
                 config.language.as_deref(),

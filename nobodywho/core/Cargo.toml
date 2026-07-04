@@ -43,6 +43,7 @@ indexmap = "2.13.0"
 ureq = { version = "3", features = ["rustls"] }
 indicatif = "0.18"
 walkdir = "2.5"
+tempfile = "3"
 hound = "3"
 safetensors = "0.5"
 # STT audio pipeline
