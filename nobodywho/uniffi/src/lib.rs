@@ -554,7 +554,7 @@ impl RustSTT {
     /// (e.g. `"onnx-community/whisper-base"`) or a local directory path.
     /// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
     /// `quantization` selects the ONNX precision variant to download and load:
-    /// one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`;
+    /// one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
     /// pass `None` to use `"default"`.
     #[uniffi::constructor]
     pub fn new(

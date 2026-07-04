@@ -509,6 +509,42 @@ struct HfTreeEntry {
     path: String,
 }
 
+/// Name of the local marker file recording which repo files a previous call
+/// to `download_repo` confirmed were fully downloaded. Used to skip the
+/// network round-trip on a later call — see its use in `download_repo` for
+/// why this can't be inferred from `required_files` alone.
+const COMPLETE_MARKER: &str = ".nobodywho-complete";
+
+/// Read the marker left by a previous successful `download_repo` call, if any.
+fn read_completed_files(cache_dir: &Path) -> Option<Vec<String>> {
+    let content = std::fs::read_to_string(cache_dir.join(COMPLETE_MARKER)).ok()?;
+    let files: Vec<String> = content
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect();
+    (!files.is_empty()).then_some(files)
+}
+
+/// Record that `files` were just fully downloaded, merging with any
+/// previously recorded set (e.g. a different quantization of the same repo)
+/// so neither is forgotten. Best-effort: a write failure just means the next
+/// call re-verifies over the network instead of failing this one.
+fn write_completed_files(cache_dir: &Path, files: &[String]) {
+    let mut all_files = read_completed_files(cache_dir).unwrap_or_default();
+    for f in files {
+        if !all_files.contains(f) {
+            all_files.push(f.clone());
+        }
+    }
+    if let Err(e) = std::fs::write(cache_dir.join(COMPLETE_MARKER), all_files.join("\n")) {
+        warn!(
+            "Failed to write download-completion marker in {}: {e}",
+            cache_dir.display()
+        );
+    }
+}
+
 fn download_repo(
     owner: &str,
     repo: &str,
@@ -519,13 +555,20 @@ fn download_repo(
     let cache_dir = get_cache_dir()?.join(owner).join(repo);
     let repo_id = format!("{owner}/{repo}");
 
-    // Skip the network round-trip if every required file is already cached
-    // locally (e.g. pre-fetched by the Nix build or a previous run). Each
-    // individual file is still guarded by its own existence check inside
-    // download_file().
-    if !required_files.is_empty() && required_files.iter().all(|f| cache_dir.join(f).exists()) {
-        info!("Using cached repo: {}", cache_dir.display());
-        return Ok(cache_dir);
+    // Skip the network round-trip if a previous call already downloaded
+    // everything this call needs. We can't infer that from `required_files`
+    // alone: an empty list (e.g. TTS backends, which don't filter) matches
+    // vacuously without proving anything is on disk, and a non-empty list
+    // may omit ONNX external-data sidecars that only `select_required_files`
+    // discovers from the live repo tree. So completeness is recorded in a
+    // local marker after a successful download, not guessed beforehand.
+    if let Some(completed) = read_completed_files(&cache_dir) {
+        let satisfied = required_files.iter().all(|f| completed.contains(f))
+            && completed.iter().all(|f| cache_dir.join(f).exists());
+        if satisfied {
+            info!("Using cached repo: {}", cache_dir.display());
+            return Ok(cache_dir);
+        }
     }
 
     let tree_url =
@@ -580,6 +623,7 @@ fn download_repo(
             }
         })?;
     }
+    write_completed_files(&cache_dir, &files);
 
     Ok(cache_dir)
 }

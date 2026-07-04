@@ -27,7 +27,7 @@ export class STT {
    * @param language - ISO 639-1 language code (e.g. `"en"`).
    *   Omit or pass `undefined` for automatic language detection.
    * @param quantization - ONNX precision variant to download and load: one of
-   *   `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`.
+   *   `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`.
    *   Omit or pass `undefined` to use `"default"`.
    */
   constructor(source: string, language?: string, quantization?: string) {

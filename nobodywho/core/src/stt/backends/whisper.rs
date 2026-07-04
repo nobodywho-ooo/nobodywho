@@ -48,9 +48,10 @@ fn quantization_suffix(quantization: &str) -> Result<&'static str, SttError> {
         "bnb4" => Ok("_bnb4"),
         "q4" => Ok("_q4"),
         "q4f16" => Ok("_q4f16"),
+        "quantized" => Ok("_quantized"),
         other => Err(SttError::Init(format!(
             "unknown Whisper quantization {other:?}; expected one of: \
-             default, fp32, fp16, int8, uint8, bnb4, q4, q4f16"
+             default, fp32, fp16, int8, uint8, bnb4, q4, q4f16, quantized"
         ))),
     }
 }

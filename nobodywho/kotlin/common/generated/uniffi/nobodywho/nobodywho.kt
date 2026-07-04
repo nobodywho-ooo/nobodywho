@@ -1369,7 +1369,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 3987.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 21941.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431.toShort()) {
@@ -3580,7 +3580,7 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
      * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
      * `quantization` selects the ONNX precision variant to download and load:
-     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`;
+     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
      * pass `None` to use `"default"`.
      */
     constructor(`source`: kotlin.String, `language`: kotlin.String?, `quantization`: kotlin.String?) :

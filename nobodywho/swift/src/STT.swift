@@ -64,7 +64,7 @@ public class STT {
     ///   - source: HuggingFace repo ID or local directory path.
     ///   - language: ISO 639-1 language code (e.g. `"en"`). Pass `nil` to auto-detect.
     ///   - quantization: ONNX precision variant to download and load: one of
-    ///     `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`.
+    ///     `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`.
     ///     Pass `nil` to use `"default"`.
     public init(source: String, language: String? = nil, quantization: String? = nil) throws {
         self.inner = try RustStt(source: source, language: language, quantization: quantization)

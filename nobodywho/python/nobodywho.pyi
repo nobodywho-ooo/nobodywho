@@ -756,7 +756,7 @@ class STT:
     a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
     omit or pass `None` to auto-detect. `quantization` selects the ONNX
     precision variant to download and load: one of `"default"`, `"fp16"`,
-    `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`; omit or pass `None` to use `"default"`.
+    `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
 
     Example::
 

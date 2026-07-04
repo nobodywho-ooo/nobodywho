@@ -1618,7 +1618,7 @@ open class RustStt: RustSttProtocol, @unchecked Sendable {
      * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
      * `quantization` selects the ONNX precision variant to download and load:
-     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`;
+     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
      * pass `None` to use `"default"`.
      */
 public convenience init(source: String, language: String?, quantization: String?)throws  {
@@ -4743,7 +4743,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 3987) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 21941) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431) {

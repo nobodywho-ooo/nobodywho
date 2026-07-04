@@ -322,7 +322,7 @@ abstract class RustStt implements RustOpaqueInterface {
   /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
   /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
   /// `quantization` — ONNX precision variant to download and load: one of
-  /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`; pass `None`
+  /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
   /// to use `"default"`.
   static RustStt new_({
     required String source,

@@ -2821,8 +2821,8 @@ struct NobodyWhoSTT {
 
     #[export]
     /// ONNX precision variant to download and load: one of "default", "fp16",
-    /// "int8", "uint8", "bnb4", "q4", "q4f16". Leave as "default" unless you
-    /// need a smaller/faster or higher-precision model variant.
+    /// "int8", "uint8", "bnb4", "q4", "q4f16", "quantized". Leave as "default"
+    /// unless you need a smaller/faster or higher-precision model variant.
     quantization: GString,
 
     stt: Option<nobodywho::stt::Stt>,
