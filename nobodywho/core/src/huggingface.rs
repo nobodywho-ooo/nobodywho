@@ -27,11 +27,10 @@ pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
 /// Default terminal progress bar shown when the user doesn't pass their own callback.
 ///
-/// Renders an `indicatif` bar with spinner, elapsed time, wide bar, binary byte counts,
-/// throughput, and ETA. indicatif auto-disables on non-TTY stderr, so this is safe to use
-/// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
-/// Detects a new download (model → mmproj transition) by watching for `total` to change,
-/// finishes the previous bar, and starts a fresh one.
+/// indicatif auto-disables on non-TTY stderr, so this is safe to use unconditionally —
+/// GUI bindings (Godot, Flutter mobile) won't see output in production. Detects a new
+/// download (model → mmproj transition) by watching for `total` to change, finishes the
+/// previous bar, and starts a fresh one.
 pub fn default_progress_callback() -> DownloadProgressCallback {
     let style = ProgressStyle::with_template(
         "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
@@ -100,11 +99,8 @@ where
 // =========================================================================
 
 /// Root directory all downloaded models are cached under, shared by both
-/// [`GgufSource`] and [`OnnxSource`].
-///
-/// Cheap to construct (no filesystem I/O beyond an Android `/proc` read) —
-/// open a fresh one wherever a source needs resolving, no need to cache the
-/// instance across calls.
+/// [`GgufSource`] and [`OnnxSource`]. Cheap to construct — open a fresh one
+/// wherever a source needs resolving, no need to cache the instance across calls.
 struct ModelCache {
     root: PathBuf,
 }
@@ -125,10 +121,7 @@ impl ModelCache {
     /// On other platforms, uses the `dirs` crate to find the standard cache directory.
     #[cfg(target_os = "android")]
     fn platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
-        // Read the package name from /proc/self/cmdline. This file contains the process
-        // name as a null-terminated string. On Android this is the package name
-        // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
-        // (e.g. "com.example.app:remote").
+        // Multi-process apps get a colon suffix here (e.g. "com.example.app:remote").
         let cmdline = std::fs::read("/proc/self/cmdline")?;
 
         let package_name = cmdline
@@ -155,15 +148,10 @@ impl ModelCache {
         dirs::cache_dir().ok_or(GetCacheDirError::NoCacheDir)
     }
 
-    /// Download a file from a URL to a local path inside this cache, streaming
-    /// to disk with progress logging. Returns early if the target already exists.
-    /// Rejects paths containing `..` to prevent path traversal attacks.
-    ///
-    /// Streams into a `tempfile::NamedTempFile` next to the target and
-    /// atomically persists it on success. Unlike a hand-rolled temp path,
-    /// this cleans itself up on any early return — including a panic
-    /// mid-download — rather than only on an explicit `Err` we remembered
-    /// to handle.
+    /// Streams into a `tempfile::NamedTempFile` next to the target and atomically
+    /// persists it on success. Unlike a hand-rolled temp path, this cleans itself
+    /// up on any early return — including a panic mid-download — rather than only
+    /// on an explicit `Err` we remembered to handle.
     fn download_file(
         &self,
         url: &str,
@@ -227,8 +215,7 @@ impl ModelCache {
         })
     }
 
-    /// Send the request and return a streaming reader plus the parsed
-    /// `Content-Length` (0 means "unknown" — see comment below).
+    /// Returned `u64` is the parsed `Content-Length`; 0 means unknown (see below).
     fn open_http_stream(
         url: &str,
         headers: &[(String, String)],
@@ -268,8 +255,7 @@ impl ModelCache {
         Ok((Box::new(response.into_body().into_reader()), content_length))
     }
 
-    // Create the temp file next to `target_path` (same filesystem, so the
-    // later `persist` rename is atomic) named `<target-filename>.<rand>.part`.
+    // Same directory as `target_path` so the later `persist` rename is atomic.
     fn create_temp_file(target_path: &Path) -> Result<tempfile::NamedTempFile, LoadModelError> {
         let parent = target_path.parent().unwrap_or_else(|| Path::new("."));
         tempfile::Builder::new()
@@ -298,7 +284,7 @@ impl ModelCache {
     ) -> Result<(), LoadModelError> {
         let mut downloaded: u64 = 0;
         let mut last_logged_pct: u64 = 0;
-        let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
+        let mut buf = vec![0u8; 256 * 1024];
 
         loop {
             let n = reader
@@ -340,8 +326,7 @@ impl ModelCache {
 const DEFAULT_REVISION: &str = "main";
 
 /// A HuggingFace Hub repo at a given revision. Used by both [`GgufSource`]
-/// (one file) and [`OnnxSource`] (a whole repo) — `(owner, repo, revision)`
-/// was a data clump repeated across URL-building and error messages.
+/// (one file) and [`OnnxSource`] (a whole repo).
 #[derive(Clone, Debug)]
 struct HfRepo {
     owner: String,
@@ -363,12 +348,10 @@ impl HfRepo {
         format!("{}/{}", self.owner, self.repo)
     }
 
-    /// Local cache directory for this repo (files, not a single one).
     fn cache_dir(&self, cache: &ModelCache) -> PathBuf {
         cache.root.join(&self.owner).join(&self.repo)
     }
 
-    /// Resolve URL for a single file at this repo and revision.
     fn resolve_url(&self, path: &str) -> String {
         format!(
             "https://huggingface.co/{}/{}/resolve/{}/{}",
@@ -376,7 +359,6 @@ impl HfRepo {
         )
     }
 
-    /// URL for this repo's recursive file tree listing.
     fn tree_url(&self) -> String {
         format!(
             "https://huggingface.co/api/models/{}/{}/tree/{}?recursive=true",
@@ -398,8 +380,7 @@ enum GgufSource {
 }
 
 impl GgufSource {
-    /// Download this file into `cache` (skipping if already cached) and
-    /// return its local path.
+    /// Skips the download if the file is already cached.
     fn resolve(
         &self,
         cache: &ModelCache,
@@ -451,8 +432,6 @@ impl GgufSource {
     }
 }
 
-/// Download a single file from a HuggingFace Hub repo and return the local path.
-///
 /// If the file is already cached locally, the cached path is returned without downloading.
 pub(crate) fn download_model_from_hf(
     owner: &str,
@@ -469,8 +448,7 @@ pub(crate) fn download_model_from_hf(
     .resolve(&cache, progress, headers)
 }
 
-/// Download a single file from a generic HTTP(S) URL into the cache and return
-/// the local path. Cache keyed by the URL's path components.
+/// Cache keyed by the URL's path components.
 pub(crate) fn download_model_from_url(
     url: &str,
     progress: &DownloadProgressCallback,
@@ -537,9 +515,7 @@ impl OnnxSource {
         Err(HuggingFaceError::InvalidSource(s.to_string()))
     }
 
-    /// Resolve to a local directory. For a HF source, lists the repo via the
-    /// HF API (skipped entirely if already fully cached — see
-    /// `download_repo`) and downloads only `required_files` into the cache.
+    /// For a HF source, see `download_repo` for the caching/fetch logic.
     fn resolve(
         &self,
         cache: &ModelCache,
@@ -607,7 +583,6 @@ impl OnnxSource {
         })
     }
 
-    /// Read the marker left by a previous successful `download_repo` call, if any.
     fn read_completed_files(cache_dir: &Path) -> Option<Vec<String>> {
         let content = std::fs::read_to_string(cache_dir.join(COMPLETE_MARKER)).ok()?;
         let files: Vec<String> = content
