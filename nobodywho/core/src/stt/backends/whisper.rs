@@ -109,7 +109,7 @@ fn resolve_model_dir(source: &str, quantization: &str) -> Result<(PathBuf, Strin
     let is_default = quantization == DEFAULT_QUANTIZATION;
     let files = required_files(quantization)?;
 
-    match crate::huggingface::resolve_model_dir(source, &files) {
+    match crate::huggingface::download_onnx(source, &files) {
         Ok(dir) => Ok((dir, quantization.to_string())),
         Err(HuggingFaceError::MissingRequiredFiles { .. }) if is_default => {
             info!(
@@ -118,7 +118,7 @@ fn resolve_model_dir(source: &str, quantization: &str) -> Result<(PathBuf, Strin
                 "q4 Whisper quantization unavailable, falling back"
             );
             let files = required_files(FALLBACK_QUANTIZATION)?;
-            let dir = crate::huggingface::resolve_model_dir(source, &files)?;
+            let dir = crate::huggingface::download_onnx(source, &files)?;
             Ok((dir, FALLBACK_QUANTIZATION.to_string()))
         }
         Err(e) => Err(e.into()),

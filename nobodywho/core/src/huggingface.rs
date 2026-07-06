@@ -7,13 +7,17 @@
 
 use crate::errors::{GetCacheDirError, GetCachedModelsError, HuggingFaceError, LoadModelError};
 use indicatif::{ProgressBar, ProgressStyle};
+use nom::branch::alt;
+use nom::bytes::complete::{tag, tag_no_case, take_until};
+use nom::combinator::{cut, map, rest, verify};
+use nom::sequence::{preceded, terminated};
+use nom::Parser;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use tracing::{info, warn};
-
 // =========================================================================
 // Progress callbacks
 // =========================================================================
@@ -152,7 +156,7 @@ impl ModelCache {
     /// persists it on success. Unlike a hand-rolled temp path, this cleans itself
     /// up on any early return — including a panic mid-download — rather than only
     /// on an explicit `Err` we remembered to handle.
-    fn download_file(
+    fn fetch_to_path(
         &self,
         url: &str,
         target_path: &Path,
@@ -373,45 +377,45 @@ impl HfRepo {
 
 /// Where a single GGUF model file comes from: a HuggingFace Hub repo, or an
 /// arbitrary HTTP(S) URL. (A local filesystem path needs no resolving at all,
-/// so it's handled entirely by the caller — see `llm::resolve_fancy_path_to_fs`.)
+/// so it's handled entirely by the caller — see [`download_gguf`].)
 enum GgufSource {
     HuggingFace { repo: HfRepo, filename: String },
     Url(String),
 }
 
-impl GgufSource {
-    /// Skips the download if the file is already cached.
-    fn resolve(
+impl ModelCache {
+    /// Resolve a [`GgufSource`] to a local file, downloading it first unless
+    /// it's already cached.
+    fn download_file(
         &self,
-        cache: &ModelCache,
+        source: &GgufSource,
         progress: &DownloadProgressCallback,
         headers: &[(String, String)],
     ) -> Result<PathBuf, LoadModelError> {
-        match self {
-            Self::HuggingFace { repo, filename } => {
-                let target = repo.cache_dir(cache).join(filename);
-                let url = repo.resolve_url(filename);
-                cache.download_file(&url, &target, progress, headers)?;
-                Ok(target)
-            }
-            Self::Url(url) => {
+        let (url, target) = match source {
+            GgufSource::HuggingFace { repo, filename } => (
+                repo.resolve_url(filename),
+                repo.cache_dir(self).join(filename),
+            ),
+            GgufSource::Url(url) => {
                 let path_part = url
                     .trim_start_matches("https://")
                     .trim_start_matches("http://");
-                let target = cache.root.join("http").join(path_part);
-                cache.download_file(url, &target, progress, headers)?;
-                Ok(target)
+                (url.clone(), self.root.join("http").join(path_part))
             }
-        }
+        };
+
+        self.fetch_to_path(&url, &target, progress, headers)?;
+        Ok(target)
     }
 
-    /// Every `.gguf` file already in `cache`, paired with its byte size.
-    fn list_cached(cache: &ModelCache) -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError> {
-        if !cache.root.exists() {
+    /// Every `.gguf` file already in the cache, paired with its byte size.
+    fn list_cached(&self) -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError> {
+        if !self.root.exists() {
             return Ok(Vec::new());
         }
 
-        walkdir::WalkDir::new(&cache.root)
+        walkdir::WalkDir::new(&self.root)
             .into_iter()
             .filter(|res| match res {
                 Ok(e) => {
@@ -432,36 +436,87 @@ impl GgufSource {
     }
 }
 
-/// If the file is already cached locally, the cached path is returned without downloading.
-pub(crate) fn download_model_from_hf(
-    owner: &str,
-    repo: &str,
-    filename: &str,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<PathBuf, LoadModelError> {
-    let cache = ModelCache::open()?;
-    GgufSource::HuggingFace {
-        repo: HfRepo::main(owner, repo),
-        filename: filename.to_string(),
-    }
-    .resolve(&cache, progress, headers)
-}
-
-/// Cache keyed by the URL's path components.
-pub(crate) fn download_model_from_url(
-    url: &str,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<PathBuf, LoadModelError> {
-    let cache = ModelCache::open()?;
-    GgufSource::Url(url.to_string()).resolve(&cache, progress, headers)
-}
-
 /// Every `.gguf` model in the nobodywho cache, paired with its byte size.
 pub fn get_cached_models() -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError> {
+    ModelCache::open()?.list_cached()
+}
+
+/// A parsed `model_path` string, before it's resolved to somewhere on disk.
+#[derive(Clone)]
+pub(crate) enum ParsedModelPath {
+    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
+    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
+    FilesystemPath(PathBuf),                // e.g. ./qwen3.gguf
+}
+
+pub(crate) fn parse_model_path(
+    model_path: &str,
+) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
+    let mut parser = alt((
+        // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
+        map(
+            preceded(
+                alt((
+                    tag_no_case("huggingface://"),
+                    tag_no_case("huggingface:"),
+                    tag_no_case("hf://"),
+                    tag_no_case("hf:"),
+                )),
+                cut((
+                    terminated(take_until("/"), tag("/")),
+                    terminated(take_until("/"), tag("/")),
+                    verify(rest, |s: &str| !s.is_empty()),
+                )),
+            ),
+            |(owner, repo, filename): (&str, &str, &str)| {
+                ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
+            },
+        ),
+        // https://... or http://...
+        map(
+            (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
+            |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
+        ),
+        // Anything else is a filesystem path (expand leading ~ on non-Android)
+        map(rest, |p: &str| {
+            ParsedModelPath::FilesystemPath(PathBuf::from(p))
+        }),
+    ));
+    let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
+    result
+        .map(|(_, parsed)| parsed)
+        .map_err(|e| e.map(|e| e.cloned()))
+}
+
+/// Takes a fancy path (possibly with `hf:` or `https://` in front) and resolves
+/// it to a realized path on the filesystem, downloading it first if needed.
+pub(crate) fn download_gguf(
+    parsed_path: ParsedModelPath,
+    progress: &DownloadProgressCallback,
+    headers: &[(String, String)],
+) -> Result<PathBuf, LoadModelError> {
     let cache = ModelCache::open()?;
-    GgufSource::list_cached(&cache)
+    let fs_model_path = match parsed_path {
+        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
+            let source = GgufSource::HuggingFace {
+                repo: HfRepo::main(owner, repo),
+                filename,
+            };
+            cache.download_file(&source, progress, headers)?
+        }
+        ParsedModelPath::FilesystemPath(path) => path,
+        ParsedModelPath::HttpUrl(url) => {
+            cache.download_file(&GgufSource::Url(url), progress, headers)?
+        }
+    };
+
+    if !fs_model_path.exists() {
+        return Err(LoadModelError::from_missing_path(&fs_model_path));
+    }
+
+    LoadModelError::validate_model_file(&fs_model_path)?;
+
+    Ok(fs_model_path)
 }
 
 // =========================================================================
@@ -513,21 +568,6 @@ impl OnnxSource {
             });
         }
         Err(HuggingFaceError::InvalidSource(s.to_string()))
-    }
-
-    /// For a HF source, see `download_repo` for the caching/fetch logic.
-    fn resolve(
-        &self,
-        cache: &ModelCache,
-        progress: &DownloadProgressCallback,
-    ) -> Result<PathBuf, HuggingFaceError> {
-        match self {
-            Self::Local(p) => Ok(p.clone()),
-            Self::HuggingFace {
-                repo,
-                required_files,
-            } => Self::download_repo(cache, repo, required_files, progress),
-        }
     }
 
     fn is_valid_repo_part(s: &str) -> bool {
@@ -611,14 +651,26 @@ impl OnnxSource {
             );
         }
     }
+}
 
+impl ModelCache {
+    /// Resolve an [`OnnxSource`] to a local directory. An existing local
+    /// directory is returned as-is; a HuggingFace repo is downloaded (or
+    /// verified already-cached) first.
     fn download_repo(
-        cache: &ModelCache,
-        repo: &HfRepo,
-        required_files: &[String],
+        &self,
+        source: &OnnxSource,
         progress: &DownloadProgressCallback,
     ) -> Result<PathBuf, HuggingFaceError> {
-        let cache_dir = repo.cache_dir(cache);
+        let (repo, required_files) = match source {
+            OnnxSource::Local(p) => return Ok(p.clone()),
+            OnnxSource::HuggingFace {
+                repo,
+                required_files,
+            } => (repo, required_files),
+        };
+
+        let cache_dir = repo.cache_dir(self);
 
         // Skip the network round-trip if a previous call already downloaded
         // everything this call needs. We can't infer that from `required_files`
@@ -627,7 +679,7 @@ impl OnnxSource {
         // may omit ONNX external-data sidecars that only `select_required_files`
         // discovers from the live repo tree. So completeness is recorded in a
         // local marker after a successful download, not guessed beforehand.
-        if let Some(completed) = Self::read_completed_files(&cache_dir) {
+        if let Some(completed) = OnnxSource::read_completed_files(&cache_dir) {
             let satisfied = required_files.iter().all(|f| completed.contains(f))
                 && completed.iter().all(|f| cache_dir.join(f).exists());
             if satisfied {
@@ -659,15 +711,16 @@ impl OnnxSource {
             .into_iter()
             .filter(|e| e.kind == "file")
             .map(|e| e.path)
-            .filter(|p| !Self::is_dotfile(p))
+            .filter(|p| !OnnxSource::is_dotfile(p))
             .collect();
 
-        let files = Self::select_required_files(all_files, required_files).map_err(|missing| {
-            HuggingFaceError::MissingRequiredFiles {
-                repo: repo.id(),
-                files: missing,
-            }
-        })?;
+        let files =
+            OnnxSource::select_required_files(all_files, required_files).map_err(|missing| {
+                HuggingFaceError::MissingRequiredFiles {
+                    repo: repo.id(),
+                    files: missing,
+                }
+            })?;
 
         if files.is_empty() {
             return Err(HuggingFaceError::EmptyRepo {
@@ -679,14 +732,13 @@ impl OnnxSource {
         for path in &files {
             let url = repo.resolve_url(path);
             let target = cache_dir.join(path);
-            cache
-                .download_file(&url, &target, progress, &[])
+            self.fetch_to_path(&url, &target, progress, &[])
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
                     source: Box::new(source),
                 })?;
         }
-        Self::write_completed_files(&cache_dir, &files);
+        OnnxSource::write_completed_files(&cache_dir, &files);
 
         Ok(cache_dir)
     }
@@ -696,13 +748,13 @@ impl OnnxSource {
 /// directories win; otherwise `source` is treated as a HuggingFace Hub repo
 /// ID (`owner/repo`) and downloaded, narrowed to `required_files` (an empty
 /// slice downloads the entire repo unfiltered).
-pub(crate) fn resolve_model_dir(
+pub(crate) fn download_onnx(
     source: &str,
     required_files: &[String],
 ) -> Result<PathBuf, HuggingFaceError> {
     let cache = ModelCache::open()?;
-    OnnxSource::parse(source, required_files.to_vec())?
-        .resolve(&cache, &default_progress_callback())
+    let source = OnnxSource::parse(source, required_files.to_vec())?;
+    cache.download_repo(&source, &default_progress_callback())
 }
 
 #[cfg(test)]
