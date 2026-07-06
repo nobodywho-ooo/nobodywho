@@ -168,16 +168,19 @@ jobs:
         # every dir under target/release that contains a ggml/llama .so to
         # LD_LIBRARY_PATH so auditwheel can resolve and vendor the whole graph.
         run: |
-          # The CMake build leaves duplicate copies of each ggml/llama lib in
-          # several dirs (out/lib64, out/build/bin, target/release). Pointing
-          # auditwheel at all of them makes its mangled-name resolution fail
-          # ("libggml-base-<hash>.so.0 could not be located"). Stage exactly ONE
-          # copy of each lib (by basename) into a single dir and use only that.
+          # The CMake build leaves duplicate copies of each ggml/llama lib across
+          # several dirs (out/lib64, out/build/bin, target/release); pointing
+          # auditwheel at all of them breaks its grafting ("libggml-*-<hash>.so.0
+          # could not be located"). Stage from a SINGLE dir, and preserve the full
+          # symlink chain (libX.so -> libX.so.MAJOR -> libX.so.MAJOR.MINOR.PATCH):
+          # the extension's DT_NEEDED references the SONAME (libggml-cpu.so.0), so
+          # that exact name must be present, not only the real versioned file.
           stage="$(mktemp -d)"
-          find "$(pwd)/nobodywho/target/release" -type f \
-              \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) \
-              -exec sh -c 'd="$1/$(basename "$2")"; [ -e "$d" ] || cp "$2" "$d"' _ "$stage" {} \;
-          echo "staged libs:"; ls -1 "$stage"
+          libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml.so.0' -printf '%h\n' 2>/dev/null | head -1)"
+          [ -n "$libdir" ] || libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml.so*' -printf '%h\n' | head -1)"
+          echo "staging ggml/llama libs from: $libdir"
+          cp -a "$libdir"/libggml*.so* "$libdir"/libllama*.so* "$stage"/
+          ls -l "$stage"
           export LD_LIBRARY_PATH="$stage:${LD_LIBRARY_PATH:-}"
           auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
 
