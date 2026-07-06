@@ -32,12 +32,29 @@ jobs:
   
         - name: "Make directory structure for release zip"
           run: |
-            mkdir -p nobodywho-release/bin/addons/nobodywho
-            # copy in nobodywho libs
-            cp ./artifacts/*/*nobodywho-godot* ./nobodywho-release/bin/addons/nobodywho/
+            ADDON=nobodywho-release/bin/addons/nobodywho
+            mkdir -p "$ADDON"
+            # Lay each platform's libraries into a per-target subdirectory (the
+            # dynamically-linked ggml/llama libs have generic filenames that would
+            # collide between same-OS architectures in a flat dir). The binding
+            # library's $ORIGIN/@loader_path rpath finds its ggml siblings there.
+            for d in ./artifacts/nobodywho-godot-*/; do
+              name=$(basename "$d"); rest=${name#nobodywho-godot-}
+              triple=${rest%-debug}; triple=${triple%-release}
+              mkdir -p "$ADDON/$triple"
+              # binding library (+ .pdb) — profile-encoded name, debug & release coexist
+              cp -P "$d"/*nobodywho-godot* "$ADDON/$triple/" 2>/dev/null || true
+            done
+            # ggml/llama libs: copy once per target from the release artifact
+            # (a debug binding loads the release ggml — same ABI/version). Covers
+            # both lib-prefixed (.so/.dylib) and MSVC (ggml.dll/llama.dll) names.
+            for d in ./artifacts/nobodywho-godot-*-release/; do
+              name=$(basename "$d"); triple=${name#nobodywho-godot-}; triple=${triple%-release}
+              cp -P "$d"/libggml* "$d"/libllama* "$d"/ggml* "$d"/llama* "$ADDON/$triple/" 2>/dev/null || true
+            done
             # copy in gdextension metadata
-            cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
-            cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
+            cp ./nobodywho/godot/nobodywho.gdextension "$ADDON/"
+            cp ./assets/icon.svg "$ADDON/"
         - name: "Upload zipped godot build artifacts"
           uses: actions/upload-artifact@v5
           with:
@@ -166,19 +183,38 @@ jobs:
       - name: "Download all Flutter artifacts"
         uses: actions/download-artifact@v5
         with:
+          # No merge-multiple: the ggml/llama libs have generic names and would
+          # collide across targets. Each artifact stays in ./artifacts/<name>/.
           pattern: nobodywho-flutter-*
-          merge-multiple: true
-          path: ./nobodywho-flutter-release
+          path: ./artifacts
 
-      - name: "List artifacts to include in release"
-        run: ls -la ./nobodywho-flutter-release/
+      - name: "Assemble Flutter release assets"
+        run: |
+          set -euo pipefail
+          OUT=nobodywho-flutter-release
+          mkdir -p "$OUT"
+          # Apple xcframework (ggml embedded inside — shipped as one zip)
+          cp artifacts/nobodywho-flutter-xcframework/nobodywho_flutter.xcframework.zip "$OUT/"
+          # Desktop/Android: the triple-named binding lib + the ggml/llama libs
+          # republished per-triple (base-<triple>-release.ext) matching what
+          # tool/resolve_binary.dart downloads and renames back on the consumer.
+          for d in artifacts/nobodywho-flutter-*-release/; do
+            name=$(basename "$d"); triple=${name#nobodywho-flutter-}; triple=${triple%-release}
+            [ "$triple" = "xcframework" ] && continue
+            cp "$d"/libnobodywho-flutter-"$triple"-release.* "$OUT/" 2>/dev/null || true
+            for f in "$d"/libggml*.so "$d"/libllama*.so "$d"/ggml*.dll "$d"/llama*.dll; do
+              [ -e "$f" ] || continue
+              b=$(basename "$f"); stem=${b%.*}; ext=${b##*.}
+              cp "$f" "$OUT/${stem}-${triple}-release.${ext}"
+            done
+          done
+          ls -la "$OUT"
 
       - name: "Verify XCFramework zip is present"
         working-directory: ./nobodywho-flutter-release
         run: |
           if [ ! -f "nobodywho_flutter.xcframework.zip" ]; then
             echo "ERROR: nobodywho_flutter.xcframework.zip not found!"
-            echo "Contents of release directory:"
             ls -la .
             exit 1
           fi
@@ -210,13 +246,13 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-aarch64-linux-android-release
-          path: ./nobodywho-react-native-release
+          path: ./rn-android-arm64
 
       - name: "Download Android x86_64 artifact"
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-x86_64-linux-android-release
-          path: ./nobodywho-react-native-release
+          path: ./rn-android-x64
 
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v5
@@ -224,11 +260,25 @@ jobs:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
 
-      - name: "Keep only React Native artifacts (.so and xcframework)"
+      - name: "Collect React Native release assets"
         run: |
-          cd nobodywho-react-native-release
-          rm -f *.a *.dll *.dylib *.pdb
-          ls -la
+          set -euo pipefail
+          OUT=nobodywho-react-native-release
+          # Per-ABI: keep the triple-named binding .so and republish the generically
+          # named ggml/llama .so with a triple suffix (release assets are a flat
+          # namespace — libggml.so from two ABIs would otherwise collide). The
+          # Android gradle downloader renames them back to their SONAME in jniLibs.
+          collect() { # $1=src-dir  $2=triple
+            cp "$1/libnobodywho-uniffi-$2-release.so" "$OUT/"
+            for so in "$1"/libggml*.so "$1"/libllama*.so; do
+              [ -e "$so" ] || continue
+              b=$(basename "$so" .so)
+              cp "$so" "$OUT/${b}-$2.so"
+            done
+          }
+          collect ./rn-android-arm64 aarch64-linux-android
+          collect ./rn-android-x64  x86_64-linux-android
+          ls -la "$OUT"
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
@@ -329,34 +379,49 @@ jobs:
       - name: "Download all uniffi release artifacts"
         uses: actions/download-artifact@v5
         with:
+          # No merge-multiple: the ggml/llama libs have generic filenames and would
+          # collide across targets if merged. Each artifact stays in its own dir.
           pattern: nobodywho-uniffi-*-release
-          merge-multiple: true
           path: ./artifacts
 
       - name: "List artifacts"
         run: ls -la artifacts/
 
-      # Place Android native libs for AAR
+      # Place Android native libs for AAR. Android's loader resolves NEEDED libs
+      # from the same jniLibs/<abi> dir, so co-locating ggml/llama there works.
       - name: "Setup Android jniLibs"
         run: |
           mkdir -p nobodywho/kotlin/android/build/jniLibs/{arm64-v8a,x86_64}
-          cp artifacts/libnobodywho-uniffi-aarch64-linux-android-release.so \
-            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/libnobodywho_uniffi.so
-          cp artifacts/libnobodywho-uniffi-x86_64-linux-android-release.so \
-            nobodywho/kotlin/android/build/jniLibs/x86_64/libnobodywho_uniffi.so
+          place_android() { # $1=target $2=abi
+            local d="artifacts/nobodywho-uniffi-$1-release"
+            cp "$d/libnobodywho-uniffi-$1-release.so" \
+              "nobodywho/kotlin/android/build/jniLibs/$2/libnobodywho_uniffi.so"
+            cp -P "$d"/libggml*.so "$d"/libllama*.so "nobodywho/kotlin/android/build/jniLibs/$2/" 2>/dev/null || true
+          }
+          place_android aarch64-linux-android arm64-v8a
+          place_android x86_64-linux-android  x86_64
 
-      # Place desktop native libs for JVM JAR (JNA layout)
+      # Place desktop native libs for JVM JAR (JNA layout).
+      # NOTE: JNA extracts only the *named* library to a temp dir at load time, not
+      # its sibling dependencies, so the co-located ggml/llama libs here are not yet
+      # discoverable by the extracted lib's $ORIGIN/@loader_path rpath. The Kotlin
+      # `common` loader must be updated to extract ALL libs in the resource dir to a
+      # shared temp dir (and add it to jna.library.path) before Native.load — see
+      # nobodywho/kotlin/common. Files are placed here so that change can land next.
       - name: "Setup JVM native libs"
         run: |
           mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64}
-          cp artifacts/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
-            nobodywho/kotlin/jvm/src/main/resources/linux-x86-64/libnobodywho_uniffi.so
-          cp artifacts/libnobodywho-uniffi-aarch64-unknown-linux-gnu-release.so \
-            nobodywho/kotlin/jvm/src/main/resources/linux-aarch64/libnobodywho_uniffi.so
-          cp artifacts/libnobodywho-uniffi-aarch64-apple-darwin-release.dylib \
-            nobodywho/kotlin/jvm/src/main/resources/darwin-aarch64/libnobodywho_uniffi.dylib
-          cp artifacts/libnobodywho-uniffi-x86_64-pc-windows-msvc-release.dll \
-            nobodywho/kotlin/jvm/src/main/resources/win32-x86-64/nobodywho_uniffi.dll
+          place_jvm() { # $1=target $2=jna-dir $3=libname
+            local d="artifacts/nobodywho-uniffi-$1-release"
+            cp "$d/libnobodywho-uniffi-$1-release.$4" \
+              "nobodywho/kotlin/jvm/src/main/resources/$2/$3"
+            cp -P "$d"/libggml* "$d"/libllama* "$d"/ggml* "$d"/llama* \
+              "nobodywho/kotlin/jvm/src/main/resources/$2/" 2>/dev/null || true
+          }
+          place_jvm x86_64-unknown-linux-gnu  linux-x86-64   libnobodywho_uniffi.so    so
+          place_jvm aarch64-unknown-linux-gnu linux-aarch64  libnobodywho_uniffi.so    so
+          place_jvm aarch64-apple-darwin      darwin-aarch64 libnobodywho_uniffi.dylib dylib
+          place_jvm x86_64-pc-windows-msvc    win32-x86-64   nobodywho_uniffi.dll      dll
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5

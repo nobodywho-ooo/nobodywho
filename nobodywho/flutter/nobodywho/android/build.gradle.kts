@@ -110,6 +110,17 @@ val resolveNativeLibraries by tasks.registering {
                 into(abiOutputDir)
                 rename { "libnobodywho_flutter.so" }
             }
+
+            // Copy the dynamically-linked ggml/llama .so (dynamic-link feature)
+            // that sit next to the resolved library into the same jniLibs/<abi>
+            // dir. Android's loader resolves NEEDED libs from there at runtime.
+            val resolvedLibDir = File(resolvedLibPath).parentFile
+            copy {
+                from(resolvedLibDir) {
+                    include("libggml*.so", "libllama*.so")
+                }
+                into(abiOutputDir)
+            }
         }
     }
 }
