@@ -42,8 +42,18 @@ endif()
 
 message(STATUS "Using NobodyWho library for Linux ${LINUX_ARCH}: ${NOBODYWHO_LIB_PATH}")
 
+# The dynamically-linked ggml/llama shared libraries (dynamic-link feature) sit
+# next to the resolved binding library; bundle them too. The binding library's
+# $ORIGIN rpath resolves them from the same bundled-libraries directory at runtime.
+get_filename_component(NOBODYWHO_LIB_DIR "${NOBODYWHO_LIB_PATH}" DIRECTORY)
+file(GLOB NOBODYWHO_GGML_LIBS
+  "${NOBODYWHO_LIB_DIR}/libggml*.so"
+  "${NOBODYWHO_LIB_DIR}/libllama*.so"
+)
+
 # List of absolute paths to libraries that should be bundled with the plugin.
 set(nobodywho_bundled_libraries
   ${NOBODYWHO_LIB_PATH}
+  ${NOBODYWHO_GGML_LIBS}
   PARENT_SCOPE
 )

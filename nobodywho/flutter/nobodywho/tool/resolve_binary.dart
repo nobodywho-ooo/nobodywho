@@ -329,6 +329,43 @@ Future<String> downloadLibrary(Config config, String version) async {
     httpClient.close();
 
     stderr.writeln('Downloaded to: $outputPath');
+
+    // Download the dynamically-linked ggml/llama sibling libs (dynamic-link
+    // feature) into the same cache dir, so the desktop CMake glob / Android
+    // jniLibs copy find them next to the binding library. They are published
+    // per-triple (base-triple-buildType.ext) to avoid a flat-namespace collision
+    // and saved back under their base name (matching the binding's rpath / SONAME).
+    final ext = libName.split('.').last;
+    final prefix = config.platform == 'windows' ? '' : 'lib';
+    final bases = <String>[
+      '${prefix}ggml', '${prefix}ggml-base', '${prefix}ggml-cpu',
+      '${prefix}ggml-vulkan', // absent on Android; skipped on 404
+      '${prefix}llama', '${prefix}llama-common',
+    ];
+    for (final base in bases) {
+      final assetName = '$base-$triple-${config.buildType}.$ext';
+      final assetUrl = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$assetName';
+      final destFile = File('$cacheDir/$base.$ext');
+      if (destFile.existsSync()) continue;
+      final client = HttpClient();
+      try {
+        final req = await client.getUrl(Uri.parse(assetUrl));
+        final resp = await req.close();
+        if (resp.statusCode == 200) {
+          final s = destFile.openWrite();
+          await resp.pipe(s);
+          await s.close();
+          stderr.writeln('Downloaded sibling lib: $base.$ext');
+        } else {
+          await resp.drain();
+        }
+      } catch (_) {
+        // Optional sibling (e.g. backend lib not built for this platform) — skip.
+      } finally {
+        client.close();
+      }
+    }
+
     return outputFile.absolute.path;
   } catch (e) {
     // Clean up partial download
