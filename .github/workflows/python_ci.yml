@@ -151,14 +151,8 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Repair wheel to use manylinux
-        # auditwheel bundles external libraries (incl. the dynamically-linked
-        # ggml/llama .so from dynamic-link) into the wheel and verifies manylinux
-        # compliance. LD_LIBRARY_PATH points it at the built ggml libs so it can
-        # resolve and vendor them (the extension references them via $ORIGIN rpath,
-        # which auditwheel does not follow when analyzing the lone extension).
-        run: |
-          export LD_LIBRARY_PATH="$(pwd)/nobodywho/target/release:${LD_LIBRARY_PATH:-}"
-          auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
+        # auditwheel bundles external libraries and verifies manylinux compliance
+        run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel
         uses: actions/upload-artifact@v5
@@ -219,17 +213,11 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
-      - name: "Delvewheel repair (bundle ggml/llama DLLs)"
-        # delvewheel vendors the dynamically-linked ggml/llama DLLs into the wheel.
-        # --add-path points it at the built DLLs (in the short C:/target dir used above).
-        run: |
-          pip install delvewheel
-          delvewheel repair --add-path C:/target/${{ matrix.target }}/release -w C:/wheelhouse (Get-Item C:/target/wheels/nobodywho*.whl).FullName
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
-          path: C:/wheelhouse/nobodywho*.whl
+          path: C:/target/wheels/nobodywho*.whl
 
   mac-os-build:
     if: inputs.full_ci
@@ -247,22 +235,11 @@ jobs:
         run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
 
-      - name: "Delocate wheel (bundle ggml/llama dylibs)"
-        # delocate copies the dynamically-linked ggml/llama dylibs into the wheel
-        # and rewrites install names. DYLD_*_LIBRARY_PATH points it at the built
-        # dylibs so it can resolve the extension's @rpath dependencies.
-        run: |
-          pip3 install delocate
-          export DYLD_LIBRARY_PATH="$(pwd)/nobodywho/target/aarch64-apple-darwin/release:${DYLD_LIBRARY_PATH:-}"
-          export DYLD_FALLBACK_LIBRARY_PATH="$DYLD_LIBRARY_PATH"
-          mkdir -p wheelhouse
-          delocate-wheel -w wheelhouse -v nobodywho/target/wheels/nobodywho*.whl
-
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_macos
-          path: ./wheelhouse/nobodywho*.whl
+          path: ./nobodywho/target/wheels/nobodywho*.whl
 
   linux-pytest:
     if: inputs.full_ci

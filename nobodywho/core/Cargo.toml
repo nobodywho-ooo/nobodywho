@@ -20,7 +20,6 @@ llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = 
     "mtmd",
     "llguidance",
     "common",
-    "dynamic-link",
 ] }
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = [
@@ -69,7 +68,6 @@ libc = "0.2"
 # `gomp_tls_data`"). Desktop keeps the dynamic libstdc++ it has always used.
 llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = "v0.1.150-watchos", default-features = false, features = [
     "android-static-stdcxx",
-    "dynamic-link",
 ] }
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
@@ -101,5 +99,4 @@ llama-cpp-2 = { git = "https://github.com/nobodywho-ooo/llama-cpp-rs", branch = 
     "mtmd",
     "llguidance",
     "common",
-    "dynamic-link",
 ] }

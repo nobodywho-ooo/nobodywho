@@ -8,13 +8,6 @@
 #
 # After running, Package.swift can resolve the local binary target at:
 #   swift/Frameworks/NobodyWhoNative.xcframework
-#
-# Since the switch to dynamically-linked ggml/llama (the `dynamic-link` feature),
-# this produces a DYNAMIC-FRAMEWORK xcframework: the uniffi .dylib is wrapped as a
-# framework and the shared ggml/llama libs are embedded inside the framework bundle
-# next to the binary. The binary references them via `@rpath/libX.0.dylib` and
-# carries an `@loader_path` rpath, so the whole graph resolves from within the
-# bundle once Xcode embeds & signs the framework in the consuming app.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -42,43 +35,36 @@ cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-wat
 echo "Building nobodywho-uniffi for watchOS simulator (aarch64-apple-watchos-sim)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos-sim --release
 
-# The framework module is named `nobodywhoFFI` so the generated
-# `nobodywho.swift`'s `import nobodywhoFFI` resolves (validated with
-# `swift build --target NobodyWhoGenerated`). The SPM binaryTarget in
-# Package.swift stays named NobodyWhoNative — the vended module name is
-# independent of the binaryTarget name, so Package.swift needs no change.
-FRAMEWORK_NAME=nobodywhoFFI
-HELPER="$PWD/scripts/make-apple-framework.sh"
-FFI_HEADER="$PWD/swift/generated/nobodywhoFFI.h"
+# Assemble xcframework with headers
 TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
-# $1 = cargo target triple   $2 = output slice dir   $3 = flat|versioned
-make_framework() {
-    bash "$HELPER" "target/$1/release" libnobodywho_uniffi.dylib \
-        "$FRAMEWORK_NAME" "$3" "$2" "$FFI_HEADER" ooo.nobodywho.ffi
-}
+for dir in ios-device ios-sim macos visionos-device visionos-sim watchos-device watchos-sim; do
+    mkdir -p "$TMPDIR/$dir/Headers"
+    cp swift/generated/nobodywhoFFI.h "$TMPDIR/$dir/Headers/"
+    cp swift/generated/nobodywhoFFI.modulemap "$TMPDIR/$dir/Headers/module.modulemap"
+done
 
-make_framework aarch64-apple-ios          "$TMPDIR/ios-device"      flat
-make_framework aarch64-apple-ios-sim      "$TMPDIR/ios-sim"         flat
-make_framework aarch64-apple-darwin       "$TMPDIR/macos"           versioned
-make_framework aarch64-apple-visionos     "$TMPDIR/visionos-device" flat
-make_framework aarch64-apple-visionos-sim "$TMPDIR/visionos-sim"    flat
-make_framework aarch64-apple-watchos      "$TMPDIR/watchos-device"  flat
-make_framework aarch64-apple-watchos-sim  "$TMPDIR/watchos-sim"     flat
+cp target/aarch64-apple-ios/release/libnobodywho_uniffi.a "$TMPDIR/ios-device/"
+cp target/aarch64-apple-ios-sim/release/libnobodywho_uniffi.a "$TMPDIR/ios-sim/"
+cp target/aarch64-apple-darwin/release/libnobodywho_uniffi.a "$TMPDIR/macos/"
+cp target/aarch64-apple-visionos/release/libnobodywho_uniffi.a "$TMPDIR/visionos-device/"
+cp target/aarch64-apple-visionos-sim/release/libnobodywho_uniffi.a "$TMPDIR/visionos-sim/"
+cp target/aarch64-apple-watchos/release/libnobodywho_uniffi.a "$TMPDIR/watchos-device/"
+cp target/aarch64-apple-watchos-sim/release/libnobodywho_uniffi.a "$TMPDIR/watchos-sim/"
 
 rm -rf swift/Frameworks/NobodyWhoNative.xcframework
 mkdir -p swift/Frameworks
 
 echo "Creating xcframework..."
 xcodebuild -create-xcframework \
-    -framework "$TMPDIR/ios-device/$FRAMEWORK_NAME.framework" \
-    -framework "$TMPDIR/ios-sim/$FRAMEWORK_NAME.framework" \
-    -framework "$TMPDIR/macos/$FRAMEWORK_NAME.framework" \
-    -framework "$TMPDIR/visionos-device/$FRAMEWORK_NAME.framework" \
-    -framework "$TMPDIR/visionos-sim/$FRAMEWORK_NAME.framework" \
-    -framework "$TMPDIR/watchos-device/$FRAMEWORK_NAME.framework" \
-    -framework "$TMPDIR/watchos-sim/$FRAMEWORK_NAME.framework" \
+    -library "$TMPDIR/ios-device/libnobodywho_uniffi.a" -headers "$TMPDIR/ios-device/Headers" \
+    -library "$TMPDIR/ios-sim/libnobodywho_uniffi.a" -headers "$TMPDIR/ios-sim/Headers" \
+    -library "$TMPDIR/macos/libnobodywho_uniffi.a" -headers "$TMPDIR/macos/Headers" \
+    -library "$TMPDIR/visionos-device/libnobodywho_uniffi.a" -headers "$TMPDIR/visionos-device/Headers" \
+    -library "$TMPDIR/visionos-sim/libnobodywho_uniffi.a" -headers "$TMPDIR/visionos-sim/Headers" \
+    -library "$TMPDIR/watchos-device/libnobodywho_uniffi.a" -headers "$TMPDIR/watchos-device/Headers" \
+    -library "$TMPDIR/watchos-sim/libnobodywho_uniffi.a" -headers "$TMPDIR/watchos-sim/Headers" \
     -output swift/Frameworks/NobodyWhoNative.xcframework
 
 echo "Done: swift/Frameworks/NobodyWhoNative.xcframework"
