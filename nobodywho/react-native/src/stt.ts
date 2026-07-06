@@ -1,4 +1,4 @@
-import type { RustSTTInterface } from "../generated/ts/nobodywho";
+import type { RustSttInterface } from "../generated/ts/nobodywho";
 import * as nobodywho from "../generated/ts/nobodywho";
 import { TokenStream } from "./streaming";
 
@@ -19,7 +19,7 @@ import { TokenStream } from "./streaming";
  */
 export class STT {
   /** @internal */
-  private readonly _inner: RustSTTInterface;
+  private readonly _inner: RustSttInterface;
 
   /**
    * @param source - HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`)
@@ -31,7 +31,7 @@ export class STT {
    *   Omit or pass `undefined` to use `"default"`.
    */
   constructor(source: string, language?: string, quantization?: string) {
-    this._inner = new nobodywho.RustSTT(
+    this._inner = new nobodywho.RustStt(
       source,
       language ?? undefined,
       quantization ?? undefined,

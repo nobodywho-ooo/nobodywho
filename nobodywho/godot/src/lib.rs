@@ -2869,7 +2869,7 @@ impl NobodyWhoSTT {
             return;
         }
 
-        let source = self.model_path.to_string();
+        let source = resolve_godot_path(&self.model_path);
         if source.is_empty() {
             let err = GString::from("model_path is not set");
             godot_error!("{}", err);
@@ -2987,6 +2987,7 @@ impl NobodyWhoSTT {
             self.signals().worker_failed().emit(&err);
             return;
         };
+        let path = resolve_godot_path(&GString::from(&path));
         Self::spawn_transcription(self.to_gd(), stt, TranscriptionInput::File(path));
     }
 

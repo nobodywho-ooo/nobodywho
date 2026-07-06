@@ -8,9 +8,19 @@ const sidebars: SidebarsConfig = {
     'chat',
     'structured-output',
     'tool-calling',
-    'vision',
+    {
+      type: 'category',
+      label: 'Vision & Audio',
+      link: {
+        type: 'generated-index',
+        title: 'Vision & Audio',
+        description:
+          'Multimodal Models cover LLMs that can natively consume images and audio directly, without a separate transcription step. ' +
+          'For converting spoken audio into text, see Speech-to-Text. For generating natural-sounding voice from text, see Text-to-Speech.',
+      },
+      items: ['vision', 'speech-to-text', 'text-to-speech'],
+    },
     'sampling',
-    'text-to-speech',
     'embeddings-and-rag',
     'faq',
   ],

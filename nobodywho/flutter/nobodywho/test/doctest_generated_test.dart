@@ -381,6 +381,20 @@ void main() {
       await chat.setSamplerConfig(sampler);
     });
 
+    test('speech-to-text.md:41', () async {
+      final stt = nobodywho.Stt(
+        source: 'onnx-community/whisper-base',
+        quantization: 'int8',
+      );
+    });
+
+    test('speech-to-text.md:52', () async {
+      final stt = nobodywho.Stt(
+        source: 'onnx-community/whisper-base',
+        language: 'en',
+      );
+    });
+
     test('tool-calling.md:21', () async {
       final circleAreaTool = nobodywho.Tool(
         name: "circle_area",
@@ -445,7 +459,7 @@ void main() {
       );
     });
 
-    test('vision.md:25', () async {
+    test('vision.md:33', () async {
       if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;
       final model = await nobodywho.Model.load(
         modelPath: "./multimodal-model.gguf",
@@ -460,18 +474,6 @@ void main() {
         nobodywho.ImagePart("./dog.png"),
         nobodywho.AudioPart("./sound.mp3"),
       ])).completed(); // It's a dog and a penguin!
-      await chat.resetHistory();
-      final response2 = await chat.askWithPrompt(nobodywho.Prompt([
-        nobodywho.TextPart("Tell me what you see in the image."),
-        nobodywho.ImagePart("./dog.png"),
-        nobodywho.TextPart("Also tell me what you hear in the audio"),
-        nobodywho.AudioPart("./sound.mp3"),
-      ])).completed();
-      final chat2 = nobodywho.Chat(
-        model: model,
-        systemPrompt: "You are a helpful assistant.",
-        contextSize: 8192,
-      );
     });
 
   });

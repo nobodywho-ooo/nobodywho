@@ -1,10 +1,18 @@
 ---
-title: Vision & Hearing
-description: Enabling models to ingest images and audio
+title: Multimodal Models
+description: Enabling models to natively ingest images and audio via a projection model
 sidebar_position: 3
 ---
 
-Easily provide image and audio information to your LLM.
+Easily provide image and audio information directly to a multimodal LLM.
+
+:::info
+This is about models that **natively** ingest images and audio - no transcription step involved.
+That matters for audio in particular: the model hears the raw sound, not just words that were said,
+so it can react to tone of voice, music, or other non-speech noises. If you only need to convert
+speech to text, see [Speech-to-Text](./speech-to-text) instead. If you need to generate spoken audio
+from text, see [Text-to-Speech](./text-to-speech).
+:::
 
 ## Choosing a model
 Not all models have built-in image and audio capabilities. Generally, you will
@@ -53,27 +61,5 @@ val response = chat.ask(Prompt(
 println(response) // It's a dog!
 ```
 
-## Tips for multimodality
-
-The format in which you supply the multimodal prompt can matter. If the model performs poorly, try changing the order of text and media, or adjusting descriptions:
-
-```kotlin
-chat.resetHistory()
-val response = chat.ask(Prompt(
-    Prompt.Text("Tell me what you see in the image."),
-    Prompt.Image("./dog.png"),
-    Prompt.Text("Also tell me what you hear in the audio."),
-    Prompt.Audio("./sound.mp3"),
-)).completed()
-```
-
-Different models process images differently — some use a fixed number of tokens per image, others scale with image size. You may need to increase the context size:
-
-```kotlin
-val chat = Chat(
-    model = model,
-    contextSize = 8192u
-)
-```
-
-For large images, consider downsizing before sending to the model to reduce processing time, especially on mobile devices.
+That should be it! Beware though, that consuming images and audio can quickly drain the context,
+and larger context sizes may be needed for smooth usage.
