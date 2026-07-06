@@ -28,3 +28,17 @@ rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
 # self-sufficient and covers local `swift build` / `cargo test`.
 [target.'cfg(target_vendor = "apple")']
 rustflags = ["-C", "link-arg=-Wl,-rpath,@loader_path"]
+
+[env]
+# Disable OpenSSL/TLS in llama.cpp's bundled cpp-httplib. With `dynamic-link` the
+# `common` helper is built as a SHARED library, which (unlike the previous static
+# archive) forces the linker to resolve cpp-httplib's TLS symbols. llama.cpp
+# defaults LLAMA_OPENSSL=ON and finds the *host* OpenSSL during configure, but the
+# x86_64-apple-darwin CROSS build then has no x86_64 OpenSSL to link → undefined
+# _SSL_*/_X509_*/_EVP_* symbols. We don't use llama.cpp's HTTPS downloader
+# (LLAMA_CURL is already OFF; model I/O is our own), so disabling httplib TLS is
+# safe. CMAKE_DISABLE_FIND_PACKAGE_OpenSSL proved unreliable here, so inject a
+# CMAKE_PROJECT_INCLUDE snippet (the fork forwards CMAKE_-prefixed env as -D) that
+# force-sets LLAMA_OPENSSL=OFF before llama.cpp's option() runs. `relative = true`
+# resolves the path against the workspace dir that holds .cargo/.
+CMAKE_PROJECT_INCLUDE = { value = "scripts/disable-llama-openssl.cmake", relative = true }

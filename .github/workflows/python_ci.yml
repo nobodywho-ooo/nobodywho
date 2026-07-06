@@ -168,11 +168,17 @@ jobs:
         # every dir under target/release that contains a ggml/llama .so to
         # LD_LIBRARY_PATH so auditwheel can resolve and vendor the whole graph.
         run: |
-          ggml_dirs=$(find "$(pwd)/nobodywho/target/release" \
-              \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) -print0 \
-              | xargs -0 -r -n1 dirname | sort -u | paste -sd: -)
-          export LD_LIBRARY_PATH="${ggml_dirs}:$(pwd)/nobodywho/target/release:${LD_LIBRARY_PATH:-}"
-          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          # The CMake build leaves duplicate copies of each ggml/llama lib in
+          # several dirs (out/lib64, out/build/bin, target/release). Pointing
+          # auditwheel at all of them makes its mangled-name resolution fail
+          # ("libggml-base-<hash>.so.0 could not be located"). Stage exactly ONE
+          # copy of each lib (by basename) into a single dir and use only that.
+          stage="$(mktemp -d)"
+          find "$(pwd)/nobodywho/target/release" -type f \
+              \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) \
+              -exec sh -c 'd="$1/$(basename "$2")"; [ -e "$d" ] || cp "$2" "$d"' _ "$stage" {} \;
+          echo "staged libs:"; ls -1 "$stage"
+          export LD_LIBRARY_PATH="$stage:${LD_LIBRARY_PATH:-}"
           auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel
