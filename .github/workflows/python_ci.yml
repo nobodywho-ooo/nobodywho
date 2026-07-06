@@ -185,12 +185,28 @@ jobs:
           find "$pkg" -name '*.so' -exec cp {} "$stage/" \;
           bash nobodywho/scripts/unversion-elf-libs.sh "$stage"
 
+          # auditwheel resolves a dependency relative to the DEPENDENT's own
+          # RUNPATH, not LD_LIBRARY_PATH — so co-locate the (unversioned) ggml/llama
+          # libs next to the extension module (whose RUNPATH is $ORIGIN) and give
+          # each lib its own $ORIGIN RUNPATH. Now the whole inter-dependent graph
+          # resolves by co-location and auditwheel can graft it into <pkg>.libs.
+          extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
+          for l in "$stage"/libggml*.so "$stage"/libllama*.so; do
+            patchelf --set-rpath '$ORIGIN' "$l"
+            cp "$l" "$extdir"/
+          done
           # Put the patched extension module(s) back and repack (rebuilds RECORD).
-          find "$pkg" -name '*.so' | while read -r w; do cp "$stage/$(basename "$w")" "$w"; done
+          find "$pkg" -name '*.abi3.so' | while read -r w; do cp "$stage/$(basename "$w")" "$w"; done
           python3 -m wheel pack "$pkg" -d nobodywho/target/wheels
 
+          # We bundle the ggml/llama libs ourselves (co-located above), so tell
+          # auditwheel to NOT vendor/relocate them — its relocation of these
+          # inter-dependent libs is what fails ("libggml-<hash>.so could not be
+          # located"). --exclude takes globs; this skips that grafting entirely.
           export LD_LIBRARY_PATH="$stage:${LD_LIBRARY_PATH:-}"
-          auditwheel repair --plat ${{ matrix.manylinux_target }} "$whl"
+          auditwheel repair --plat ${{ matrix.manylinux_target }} \
+            --exclude 'libggml*' --exclude 'libllama*' \
+            "$whl"
 
       - name: Upload wheel
         uses: actions/upload-artifact@v5
