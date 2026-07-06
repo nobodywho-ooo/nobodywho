@@ -160,29 +160,37 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Repair wheel to use manylinux
-        # auditwheel bundles external libraries (the dynamically-linked ggml/llama
-        # .so from dynamic-link) into the wheel and rewrites SONAMEs. The extension
-        # references versioned SONAMEs (e.g. libggml-cpu.so.0); the real versioned
-        # files live in the llama-cpp-sys-2 CMake build output dir, not just
-        # target/release (the fork only hard-links unversioned *.so there). Add
-        # every dir under target/release that contains a ggml/llama .so to
-        # LD_LIBRARY_PATH so auditwheel can resolve and vendor the whole graph.
+        # auditwheel bundles the dynamically-linked ggml/llama .so into the wheel.
+        # It cannot handle these libs' VERSIONED SONAMEs (libggml-cpu.so.0): its
+        # inter-lib grafting fails with "libggml-cpu-<hash>.so.0 could not be
+        # located" regardless of LD_LIBRARY_PATH. So first normalize the libs AND
+        # the extension's DT_NEEDED to unversioned names (libggml.so) with
+        # scripts/unversion-elf-libs.sh, then auditwheel sees a clean graph.
         run: |
-          # The CMake build leaves duplicate copies of each ggml/llama lib across
-          # several dirs (out/lib64, out/build/bin, target/release); pointing
-          # auditwheel at all of them breaks its grafting ("libggml-*-<hash>.so.0
-          # could not be located"). Stage from a SINGLE dir, and preserve the full
-          # symlink chain (libX.so -> libX.so.MAJOR -> libX.so.MAJOR.MINOR.PATCH):
-          # the extension's DT_NEEDED references the SONAME (libggml-cpu.so.0), so
-          # that exact name must be present, not only the real versioned file.
-          stage="$(mktemp -d)"
-          libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml.so.0' -printf '%h\n' 2>/dev/null | head -1)"
-          [ -n "$libdir" ] || libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml.so*' -printf '%h\n' | head -1)"
-          echo "staging ggml/llama libs from: $libdir"
-          cp -a "$libdir"/libggml*.so* "$libdir"/libllama*.so* "$stage"/
-          ls -l "$stage"
+          set -eux
+          pip3 install wheel
+          whl="$(ls nobodywho/target/wheels/nobodywho*.whl)"
+          work="$(mktemp -d)"; stage="$(mktemp -d)"
+
+          # Unpack the wheel so we can patch the extension module's DT_NEEDED.
+          python3 -m wheel unpack "$whl" -d "$work"
+          pkg="$(echo "$work"/nobodywho-*/)"
+
+          # Stage one copy of each ggml/llama lib + the extension .so, then
+          # unversion (renames libX.so.N -> libX.so, sets unversioned SONAMEs, and
+          # repoints every DT_NEEDED including the extension's).
+          libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml.so.0.13.1' -printf '%h\n' 2>/dev/null | head -1)"
+          [ -n "$libdir" ] || libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml*.so.*' -printf '%h\n' | head -1)"
+          cp "$libdir"/libggml*.so* "$libdir"/libllama*.so* "$stage"/
+          find "$pkg" -name '*.so' -exec cp {} "$stage/" \;
+          bash nobodywho/scripts/unversion-elf-libs.sh "$stage"
+
+          # Put the patched extension module(s) back and repack (rebuilds RECORD).
+          find "$pkg" -name '*.so' | while read -r w; do cp "$stage/$(basename "$w")" "$w"; done
+          python3 -m wheel pack "$pkg" -d nobodywho/target/wheels
+
           export LD_LIBRARY_PATH="$stage:${LD_LIBRARY_PATH:-}"
-          auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
+          auditwheel repair --plat ${{ matrix.manylinux_target }} "$whl"
 
       - name: Upload wheel
         uses: actions/upload-artifact@v5
