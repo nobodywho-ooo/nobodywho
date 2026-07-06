@@ -160,13 +160,19 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Repair wheel to use manylinux
-        # auditwheel bundles external libraries (incl. the dynamically-linked
-        # ggml/llama .so from dynamic-link) into the wheel and verifies manylinux
-        # compliance. LD_LIBRARY_PATH points it at the built ggml libs so it can
-        # resolve and vendor them (the extension references them via $ORIGIN rpath,
-        # which auditwheel does not follow when analyzing the lone extension).
+        # auditwheel bundles external libraries (the dynamically-linked ggml/llama
+        # .so from dynamic-link) into the wheel and rewrites SONAMEs. The extension
+        # references versioned SONAMEs (e.g. libggml-cpu.so.0); the real versioned
+        # files live in the llama-cpp-sys-2 CMake build output dir, not just
+        # target/release (the fork only hard-links unversioned *.so there). Add
+        # every dir under target/release that contains a ggml/llama .so to
+        # LD_LIBRARY_PATH so auditwheel can resolve and vendor the whole graph.
         run: |
-          export LD_LIBRARY_PATH="$(pwd)/nobodywho/target/release:${LD_LIBRARY_PATH:-}"
+          ggml_dirs=$(find "$(pwd)/nobodywho/target/release" \
+              \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) -print0 \
+              | xargs -0 -r -n1 dirname | sort -u | paste -sd: -)
+          export LD_LIBRARY_PATH="${ggml_dirs}:$(pwd)/nobodywho/target/release:${LD_LIBRARY_PATH:-}"
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
           auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
 
       - name: Upload wheel

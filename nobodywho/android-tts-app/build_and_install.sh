@@ -40,8 +40,11 @@ cp "$APP_DIR/rust/target/aarch64-linux-android/release/libnobodywho_tts.so" "$JN
 cp "$NDK_SYSROOT/usr/lib/aarch64-linux-android/libc++_shared.so"          "$JNI_LIBS/"
 # dynamic-link: the ggml/llama .so are built as siblings of the JNI lib; the
 # Android loader resolves them from jniLibs at runtime.
-cp -P "$APP_DIR/rust/target/aarch64-linux-android/release/"libggml*.so "$JNI_LIBS/" 2>/dev/null || true
-cp -P "$APP_DIR/rust/target/aarch64-linux-android/release/"libllama*.so "$JNI_LIBS/" 2>/dev/null || true
+cp -P "$APP_DIR/rust/target/aarch64-linux-android/release/"libggml*.so* "$JNI_LIBS/" 2>/dev/null || true
+cp -P "$APP_DIR/rust/target/aarch64-linux-android/release/"libllama*.so* "$JNI_LIBS/" 2>/dev/null || true
+# Android needs unversioned SONAMEs — normalize + repoint libnobodywho_tts.so's
+# DT_NEEDED (requires patchelf: `brew install patchelf`).
+bash "$REPO_ROOT/scripts/unversion-elf-libs.sh" "$JNI_LIBS"
 ls -lh "$JNI_LIBS/"
 
 echo "==> Building APK"

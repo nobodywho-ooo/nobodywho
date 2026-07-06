@@ -68,6 +68,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
+          # patchelf: normalize the dynamic ggml/llama SONAMEs to unversioned names
+          sudo apt-get install -y patchelf
 
       - name: "Setup Flutter SDK (manual for ARM64)"
         if: matrix.integration == 'flutter' && matrix.target == 'aarch64-unknown-linux-gnu'
@@ -91,9 +93,18 @@ jobs:
         run: |
           cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
           # dynamic-link: ship the shared ggml/llama libs alongside the binding.
-          # Glob covers libggml, libggml-base, libggml-cpu, backend libs
-          # (libggml-vulkan / libggml-cpu-* variants), libllama and libllama-common.
-          cp -P ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libggml*.so ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libllama*.so ./
+          # On Linux these carry versioned SONAMEs (e.g. libggml-cpu.so.0), and the
+          # fork only hard-links the unversioned *.so into the target dir — the real
+          # versioned files (which DT_NEEDED references) live in the CMake build
+          # output dir. Find every ggml/llama .so under the profile dir and copy the
+          # real files (dereferenced) so the SONAME-named files are shipped too.
+          find "./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}" \
+            \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) \
+            -exec cp -L -n {} ./ \;
+          # Normalize to unversioned SONAMEs and repoint the binding's DT_NEEDED,
+          # so consumers reference libggml.so (not libggml.so.0). Runs on ./ where
+          # both the binding cdylib and the ggml/llama libs are now staged.
+          bash nobodywho/scripts/unversion-elf-libs.sh ./
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
@@ -616,6 +627,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
+          # patchelf: normalize the Android ggml/llama SONAMEs to unversioned names
+          # (Android APKs cannot ship versioned .so.N and the loader needs unversioned)
+          sudo apt-get install -y patchelf
 
       - name: "Install Android NDK"
         uses: nttld/setup-ndk@v1
@@ -689,10 +703,17 @@ jobs:
             cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
           fi
           # dynamic-link: ship the ggml/llama .so alongside. The Android loader
-          # resolves NEEDED libraries from the app's native lib dir (jniLibs/<abi>),
-          # so co-locating them there resolves the graph (no rpath needed).
-          cp -P ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libggml*.so ./ 2>/dev/null || true
-          cp -P ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libllama*.so ./ 2>/dev/null || true
+          # resolves NEEDED libraries from the app's native lib dir (jniLibs/<abi>).
+          # NOTE: Android APKs cannot package versioned .so.N filenames and the
+          # loader needs unversioned SONAMEs (libggml.so, not libggml.so.0). If the
+          # NDK build emits versioned SONAMEs this needs unversioning (patchelf
+          # --set-soname + rename, or an SOVERSION "" cmake change in the fork).
+          # Copy the real files (dereferenced) for now.
+          find "./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}" \
+            \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) \
+            -exec cp -L -n {} ./ \; 2>/dev/null || true
+          # Android requires unversioned SONAMEs — normalize + repoint DT_NEEDED.
+          bash nobodywho/scripts/unversion-elf-libs.sh ./
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
@@ -701,5 +722,5 @@ jobs:
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
             ./libonnxruntime.so
-            ./libggml*.so
-            ./libllama*.so
+            ./libggml*.so*
+            ./libllama*.so*

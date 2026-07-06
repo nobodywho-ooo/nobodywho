@@ -75,14 +75,19 @@ if [[ -z "$ORT_SO" ]]; then
     exit 1
 fi
 
+# dynamic-link: stage the smoke binary + the ggml/llama .so, then normalize them
+# to unversioned SONAMEs (Android needs unversioned; requires patchelf) and repoint
+# the binary's DT_NEEDED before pushing. LD_LIBRARY_PATH=. below finds them.
+STAGE="$(mktemp -d)"
+cp "$BIN" "$STAGE/"
+find "$REPO_ROOT/target/$TARGET/release" \
+    \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) -exec cp -L -n {} "$STAGE/" \;
+bash "$REPO_ROOT/scripts/unversion-elf-libs.sh" "$STAGE" "$STAGE/$(basename "$BIN")"
+
 echo "==> Pushing artifacts to $REMOTE"
-"$ADB" push "$BIN" "$REMOTE/"
+"$ADB" push "$STAGE/." "$REMOTE/"
 "$ADB" push "$ORT_SO" "$REMOTE/"
 "$ADB" push "$LIBCXX_SO" "$REMOTE/"
-# dynamic-link: push the ggml/llama .so; LD_LIBRARY_PATH=. below finds them.
-for so in "$REPO_ROOT/target/$TARGET/release/"libggml*.so "$REPO_ROOT/target/$TARGET/release/"libllama*.so; do
-    [ -e "$so" ] && "$ADB" push "$so" "$REMOTE/"
-done
 "$ADB" push "$MODEL_DIR" "$REMOTE/kokoro-v1"
 "$ADB" shell chmod +x "$REMOTE/android-tts-smoke"
 
