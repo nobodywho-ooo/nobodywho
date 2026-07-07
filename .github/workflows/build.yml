@@ -68,7 +68,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
-          # patchelf: normalize the dynamic ggml/llama SONAMEs to unversioned names
+          # patchelf: give each shipped ggml/llama lib an $ORIGIN runpath (stage-elf-libs.sh --origin)
           sudo apt-get install -y patchelf
 
       - name: "Setup Flutter SDK (manual for ARM64)"
@@ -630,9 +630,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
-          # patchelf: normalize the Android ggml/llama SONAMEs to unversioned names
-          # (Android APKs cannot ship versioned .so.N and the loader needs unversioned)
-          sudo apt-get install -y patchelf
 
       - name: "Install Android NDK"
         uses: nttld/setup-ndk@v1

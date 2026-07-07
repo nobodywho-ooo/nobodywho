@@ -172,27 +172,19 @@ jobs:
           set -eux
           pip3 install wheel
           whl="$(ls nobodywho/target/wheels/nobodywho*.whl)"
-          work="$(mktemp -d)"; stage="$(mktemp -d)"
+          work="$(mktemp -d)"
           python3 -m wheel unpack "$whl" -d "$work"
           pkg="$(echo "$work"/nobodywho-*/)"
           extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
 
-          # Stage the ggml/llama libs (unversioned, $ORIGIN rpath) alongside the
-          # extension so the helper also repoints the extension's DT_NEEDED, then
-          # co-locate the libs next to the extension in the wheel.
-          find "$pkg" -name '*.abi3.so' -exec cp {} "$stage/" \;
-          bash nobodywho/scripts/stage-elf-libs.sh --from "$(pwd)/nobodywho/target/release" --origin "$stage"
-          cp "$stage"/libggml*.so "$stage"/libllama*.so "$extdir"/
+          # Vendor the (unversioned, $ORIGIN-rpath'd) ggml/llama libs next to the extension.
+          bash nobodywho/scripts/stage-elf-libs.sh --from "$(pwd)/nobodywho/target/release" --origin "$extdir"
           # Bundle the OpenMP runtime so the wheel doesn't require it preinstalled.
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
           [ -n "$gomp" ] && cp "$gomp" "$extdir"/libgomp.so.1
-          # Put the patched extension module(s) back, giving each an $ORIGIN rpath so
-          # it finds the co-located ggml/llama libs (the job's RUSTFLAGS overrides
-          # .cargo/config.toml, so the extension is otherwise built without one).
-          find "$pkg" -name '*.abi3.so' | while read -r w; do
-            patchelf --set-rpath '$ORIGIN' "$stage/$(basename "$w")"
-            cp "$stage/$(basename "$w")" "$w"
-          done
+          # Give the extension its own $ORIGIN rpath (the job's RUSTFLAGS override drops
+          # the .cargo/config.toml one); its ggml/llama DT_NEEDED is already unversioned.
+          find "$pkg" -name '*.abi3.so' -exec patchelf --set-rpath '$ORIGIN' {} \;
 
           # Repack (rebuilds RECORD); the manylinux_2_34 tag is preserved.
           mkdir -p wheelhouse

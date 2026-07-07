@@ -9,7 +9,7 @@ set -euo pipefail
 A=$1; B=$2; OUT=$3
 mkdir -p "$OUT"
 shopt -s nullglob
-for f in "$A"/libggml*.0.dylib "$A"/libllama*.0.dylib; do
+for f in "$A"/libggml*.dylib "$A"/libllama*.dylib; do
     b=$(basename "$f")
     lipo -create "$f" "$B/$b" -output "$OUT/$b"
 done

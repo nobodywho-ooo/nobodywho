@@ -31,8 +31,9 @@ cp -L "$SRC_DIR/$DYLIB" "$ROOT/$FW_NAME"
 install_name_tool -id "@rpath/$FW_NAME.framework/$FW_NAME" "$ROOT/$FW_NAME"
 install_name_tool -add_rpath "@loader_path" "$ROOT/$FW_NAME" 2>/dev/null || true
 
-# embedded ggml/llama dylibs (real files matching their @rpath install names, no symlinks)
-for real in "$SRC_DIR"/libggml*.0.dylib "$SRC_DIR"/libllama*.0.dylib; do
+# Embedded ggml/llama dylibs (real files; libX.dylib is now unversioned via the
+# reset-soversion override, cp -L dereferences any stray symlink to a real object).
+for real in "$SRC_DIR"/libggml*.dylib "$SRC_DIR"/libllama*.dylib; do
     [ -e "$real" ] || continue
     cp -L "$real" "$ROOT/$(basename "$real")"
     install_name_tool -add_rpath "@loader_path" "$ROOT/$(basename "$real")" 2>/dev/null || true

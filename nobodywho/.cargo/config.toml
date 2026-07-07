@@ -14,9 +14,9 @@ rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
 rustflags = ["-C", "link-arg=-Wl,-rpath,@loader_path"]
 
 [env]
-# Disable OpenSSL in llama.cpp's cpp-httplib. dynamic-link builds `common` as a
-# shared lib, forcing its TLS symbols to resolve, but the x86_64-apple-darwin cross
-# build has no host OpenSSL to link. We don't use the HTTPS downloader, so inject a
-# snippet (the fork forwards CMAKE_-prefixed env as -D) that forces LLAMA_OPENSSL
-# off before llama.cpp's option() runs. relative = true: path is vs the .cargo dir.
-CMAKE_PROJECT_INCLUDE = { value = "scripts/disable-llama-openssl.cmake", relative = true }
+# Inject build overrides into llama.cpp's CMake configure (the fork forwards
+# CMAKE_-prefixed env as -D): disable cpp-httplib's OpenSSL (dynamic-link's shared
+# `common` drags in TLS symbols the macOS cross build can't link) and strip the
+# ggml/llama versioned SONAMEs so they're born unversioned. See the file for details.
+# relative = true resolves the path against the dir holding .cargo/.
+CMAKE_PROJECT_INCLUDE = { value = "scripts/llama-build-overrides.cmake", relative = true }
