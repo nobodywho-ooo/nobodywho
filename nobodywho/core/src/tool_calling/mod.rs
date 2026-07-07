@@ -17,6 +17,7 @@ mod qwen3;
 mod qwen35_36;
 
 use bashkit::{ExecutionLimits, InMemoryFs};
+use llguidance::earley::SlicedBiasComputer;
 use llama_cpp_2::model::LlamaModel;
 use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
@@ -284,6 +285,20 @@ pub trait ToolFormatHandler {
         gbnf::gbnf_to_lark::gbnf_to_lark_with_entry(gbnf.as_str(), &gbnf.root_name)
             .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))
     }
+
+    /// Regex strings to use as llguidance `ParserFactory` slices for this format.
+    ///
+    /// Each regex describes a token sub-set. When the parser's current state is
+    /// subsumed by a slice, the full vocabulary trie-walk is skipped and a
+    /// pre-built bitmask is used, cutting per-token constraint cost significantly
+    /// on large vocabularies.
+    ///
+    /// The default returns `SlicedBiasComputer::general_slices()` — four JSON-body
+    /// regexes that are optimal for JSON-formatted tool calls (e.g. Qwen3).
+    /// Handlers with non-JSON formats should override this.
+    fn slice_regexes(&self) -> Vec<String> {
+        SlicedBiasComputer::general_slices()
+    }
 }
 
 /// Enum representing different tool calling formats.
@@ -327,6 +342,10 @@ impl ToolFormat {
 
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
+    }
+
+    pub fn slice_regexes(&self) -> Vec<String> {
+        self.handler().slice_regexes()
     }
 }
 

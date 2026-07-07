@@ -67,6 +67,10 @@ impl ToolFormatHandler for Lfm2Handler {
             .build())
     }
 
+    fn slice_regexes(&self) -> Vec<String> {
+        vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
+    }
+
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         // Locate the call block. The end token may be absent if the model was
         // cut off, in which case we parse to the end of the input.

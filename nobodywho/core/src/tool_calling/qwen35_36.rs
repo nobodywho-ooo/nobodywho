@@ -54,6 +54,10 @@ impl ToolFormatHandler for Qwen35_36Handler {
             .build())
     }
 
+    fn slice_regexes(&self) -> Vec<String> {
+        vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
+    }
+
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         let calls: Vec<ToolCall> = outer_tool_call_regex()
             .captures_iter(input)

@@ -428,6 +428,12 @@ impl ToolFormatHandler for Gemma4Handler {
 
         Some(calls)
     }
+
+    fn slice_regexes(&self) -> Vec<String> {
+        // Gemma4 uses <|tool_call>call:name{key:<|"|>val<|"|>}<tool_call|> format.
+        // The delimiters are < > { } , : so value content is [^<>{},:]+.
+        vec![r"[^<>{},:]+".to_string()]
+    }
 }
 
 #[cfg(test)]

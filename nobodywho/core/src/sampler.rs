@@ -231,6 +231,12 @@ impl SamplerConfig {
                 LlamaSampler::llguidance(model, "lark", &lark)
                     .map_err(SamplerError::LlguidanceGrammarError)
             }
+            ShiftStep::LarkWithSlices(lark, slices) => {
+                let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
+                    .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
+                LlamaSampler::llguidance_with_slices(model, "lark", &lark, &slices)
+                    .map_err(SamplerError::LlguidanceGrammarError)
+            }
         }
     }
 
@@ -395,6 +401,10 @@ pub enum ShiftStep {
     Regex(String),
     /// Constrain output using a Lark context-free grammar via llguidance.
     Lark(String),
+    /// Like [`Lark`][ShiftStep::Lark] but with custom slice regexes for the `ParserFactory`.
+    /// Slices are pre-filtered vocab sub-tries that skip the full trie-walk when the
+    /// parser state is subsumed by a slice regex — see [`LlamaSampler::llguidance_with_slices`].
+    LarkWithSlices(String, Vec<String>),
     #[serde(rename = "dry")]
     DRY {
         multiplier: f32,

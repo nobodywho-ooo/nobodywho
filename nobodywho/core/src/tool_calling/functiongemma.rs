@@ -96,6 +96,10 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         Ok(grammar)
     }
 
+    fn slice_regexes(&self) -> Vec<String> {
+        vec![r"[^<>{},:]+".to_string()]
+    }
+
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         // Regex to capture the entire FunctionGemma structure:
         // <start_function_call>call:function_name{params}<end_function_call>
