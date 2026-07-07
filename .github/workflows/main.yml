@@ -52,6 +52,9 @@ jobs:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
   test:
+    # The flutter test jobs consume the build job's prebuilt artifacts (testing
+    # what we ship rather than a local rebuild), so build must run first.
+    needs: [build]
     uses: ./.github/workflows/test.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
