@@ -1,5 +1,5 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
-use crate::huggingface::{download_model_from_hf, download_model_from_url};
+use crate::huggingface::{download_gguf, parse_model_path};
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::memory;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
@@ -103,82 +103,6 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
-#[derive(Clone)]
-enum ParsedModelPath {
-    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
-    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
-    FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
-}
-
-fn parse_model_path(
-    model_path: &str,
-) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
-    use nom::branch::alt;
-    use nom::bytes::complete::{tag, tag_no_case, take_until};
-    use nom::combinator::{cut, map, rest, verify};
-    use nom::sequence::{preceded, terminated};
-    use nom::Parser;
-
-    let mut parser = alt((
-        // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
-        map(
-            preceded(
-                alt((
-                    tag_no_case("huggingface://"),
-                    tag_no_case("huggingface:"),
-                    tag_no_case("hf://"),
-                    tag_no_case("hf:"),
-                )),
-                cut((
-                    terminated(take_until("/"), tag("/")),
-                    terminated(take_until("/"), tag("/")),
-                    verify(rest, |s: &str| !s.is_empty()),
-                )),
-            ),
-            |(owner, repo, filename): (&str, &str, &str)| {
-                ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
-            },
-        ),
-        // https://... or http://...
-        map(
-            (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
-            |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
-        ),
-        // Anything else is a filesystem path (expand leading ~ on non-Android)
-        map(rest, |p: &str| {
-            ParsedModelPath::FilesystemPath(std::path::PathBuf::from(p))
-        }),
-    ));
-    let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
-    result
-        .map(|(_, parsed)| parsed)
-        .map_err(|e| e.map(|e| e.cloned()))
-}
-
-/// takes a fancy path (possibly with hf: or https:// in front), and resolve it to a realized path
-/// on the filesystem
-fn resolve_fancy_path_to_fs(
-    parsed_path: ParsedModelPath,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<std::path::PathBuf, LoadModelError> {
-    let fs_model_path = match parsed_path {
-        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            download_model_from_hf(&owner, &repo, &filename, progress, headers)?
-        }
-        ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress, headers)?,
-    };
-
-    if !fs_model_path.exists() {
-        return Err(LoadModelError::from_missing_path(&fs_model_path));
-    }
-
-    LoadModelError::validate_model_file(&fs_model_path)?;
-
-    Ok(fs_model_path)
-}
-
 #[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
@@ -187,11 +111,11 @@ pub fn get_model(
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let progress = progress.unwrap_or_else(default_progress_callback);
-    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &[])?;
+    let real_model_path = download_gguf(parse_model_path(model_path)?, &progress, &[])?;
     let real_mmproj_path = mmproj_path
         .map(parse_model_path) // parse inside option
         .transpose()? // return early if parse fails
-        .map(|p| resolve_fancy_path_to_fs(p, &progress, &[])) // download the file if needed
+        .map(|p| download_gguf(p, &progress, &[])) // download the file if needed
         .transpose()?; // return early if download fails
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
@@ -291,7 +215,7 @@ pub fn download_model(
     progress: Option<DownloadProgressCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
     let progress = progress.unwrap_or_else(default_progress_callback);
-    resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &headers)
+    download_gguf(parse_model_path(model_path)?, &progress, &headers)
 }
 
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {

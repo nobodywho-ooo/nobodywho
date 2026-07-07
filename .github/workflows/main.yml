@@ -12,6 +12,10 @@ on:
         default: true
         description: 'Run full CI suite (all platforms, all tests)'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pages: write
@@ -51,6 +55,7 @@ jobs:
     uses: ./.github/workflows/test.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
+      run_nix: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 

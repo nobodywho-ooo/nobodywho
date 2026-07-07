@@ -1,5 +1,4 @@
 use crate::errors::SttError;
-use crate::huggingface;
 use crate::onnx::Device;
 use crate::stream::StreamOutput;
 use crate::stt::{audio, backends, AudioInput, SttConfig};
@@ -24,10 +23,8 @@ pub(super) fn load_backend(
     match config {
         SttConfig::Whisper(config) => {
             let init_start = Instant::now();
-            let required_files = backends::whisper_required_files(&config.quantization)?;
-            let model_dir = huggingface::resolve_model_dir(&config.source, &required_files)?;
             let backend = backends::WhisperBackend::new(
-                &model_dir,
+                &config.source,
                 config.language.as_deref(),
                 &config.quantization,
                 device,

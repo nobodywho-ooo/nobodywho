@@ -7,7 +7,7 @@
 //!   `onnx/encoder_model.onnx`, `onnx/decoder_model_merged.onnx`,
 //!   `tokenizer.json`, `generation_config.json`, `config.json`.
 
-use crate::errors::SttError;
+use crate::errors::{HuggingFaceError, SttError};
 use crate::onnx::Device;
 use crate::stt::backend::SttBackendImpl;
 use mel_spec::prelude::*;
@@ -15,7 +15,7 @@ use ort::session::Session;
 use ort::value::{DynValue, Tensor};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
 use tracing::{debug, info};
 
@@ -29,8 +29,16 @@ const MAX_NEW_TOKENS: usize = 448;
 // Public types
 // ---------------------------------------------------------------------------
 
-/// Default value of [`WhisperConfig::quantization`] — the unsuffixed fp32 ONNX variant.
-pub const DEFAULT_QUANTIZATION: &str = "default";
+/// Default value of [`WhisperConfig::quantization`] — Q4, the smallest and
+/// fastest commonly-shipped ONNX variant. Not every `onnx-community/whisper-*`
+/// repo ships a Q4 variant, so [`resolve_model_dir`] transparently falls back
+/// to [`FALLBACK_QUANTIZATION`] when it's missing.
+pub const DEFAULT_QUANTIZATION: &str = "q4";
+
+/// Fallback used by [`resolve_model_dir`] when [`DEFAULT_QUANTIZATION`] isn't
+/// available for a given source — the unsuffixed fp32 ONNX variant, which
+/// every `onnx-community/whisper-*` repo ships.
+const FALLBACK_QUANTIZATION: &str = "default";
 
 /// Map a user-supplied quantization name to the ONNX filename suffix used by
 /// `onnx-community/whisper-*` repos, e.g. `"fp16"` -> `"_fp16"`.
@@ -65,7 +73,8 @@ pub struct WhisperConfig {
     pub language: Option<String>,
     /// ONNX precision variant to download and load: one of `"default"`
     /// (fp32, no suffix), `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`.
-    /// Defaults to `"default"` so most users never need to set this.
+    /// Defaults to `"q4"`, falling back to `"default"` (fp32) if the source
+    /// doesn't have a `"q4"` variant. Most users never need to set this.
     pub quantization: String,
 }
 
@@ -92,6 +101,28 @@ pub(in crate::stt) fn required_files(quantization: &str) -> Result<Vec<String>, 
         format!("onnx/encoder_model{suffix}.onnx"),
         format!("onnx/decoder_model_merged{suffix}.onnx"),
     ])
+}
+
+/// Resolve `source` to a local model directory for `quantization`. Called by
+/// [`WhisperBackend::new`] before it loads anything.
+fn resolve_model_dir(source: &str, quantization: &str) -> Result<(PathBuf, String), SttError> {
+    let is_default = quantization == DEFAULT_QUANTIZATION;
+    let files = required_files(quantization)?;
+
+    match crate::huggingface::download_onnx(source, &files) {
+        Ok(dir) => Ok((dir, quantization.to_string())),
+        Err(HuggingFaceError::MissingRequiredFiles { .. }) if is_default => {
+            info!(
+                source,
+                quantization = FALLBACK_QUANTIZATION,
+                "q4 Whisper quantization unavailable, falling back"
+            );
+            let files = required_files(FALLBACK_QUANTIZATION)?;
+            let dir = crate::huggingface::download_onnx(source, &files)?;
+            Ok((dir, FALLBACK_QUANTIZATION.to_string()))
+        }
+        Err(e) => Err(e.into()),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -211,20 +242,21 @@ pub(in crate::stt) struct WhisperBackend {
 
 impl WhisperBackend {
     pub fn new(
-        model_dir: &Path,
+        source: &str,
         language: Option<&str>,
         quantization: &str,
         device: Device,
     ) -> Result<Self, SttError> {
-        let (encoder, decoder) = load_sessions(&model_dir.join("onnx"), quantization, device)?;
+        let (model_dir, quantization) = resolve_model_dir(source, quantization)?;
+        let (encoder, decoder) = load_sessions(&model_dir.join("onnx"), &quantization, device)?;
         let tokenizer = Tokenizer::from_file(model_dir.join("tokenizer.json"))
             .map_err(|e| SttError::Init(format!("load tokenizer: {e}")))?;
         let sot_id = token_id(&tokenizer, "<|startoftranscript|>")?;
         let eot_id = token_id(&tokenizer, "<|endoftext|>")?;
         let transcribe_id = token_id(&tokenizer, "<|transcribe|>")?;
         let notimestamps_id = token_id(&tokenizer, "<|notimestamps|>")?;
-        let model_cfg = ModelConfig::from_dir(model_dir)?;
-        let gen_cfg = GenerationConfig::from_dir(model_dir)?;
+        let model_cfg = ModelConfig::from_dir(&model_dir)?;
+        let gen_cfg = GenerationConfig::from_dir(&model_dir)?;
 
         info!(
             n_mels = model_cfg.n_mels,
