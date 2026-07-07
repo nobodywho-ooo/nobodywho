@@ -68,8 +68,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
-          # patchelf: give each shipped ggml/llama lib an $ORIGIN runpath (stage-elf-libs.sh --origin)
-          sudo apt-get install -y patchelf
 
       - name: "Setup Flutter SDK (manual for ARM64)"
         if: matrix.integration == 'flutter' && matrix.target == 'aarch64-unknown-linux-gnu'
@@ -93,9 +91,9 @@ jobs:
         run: |
           PROFILE="./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}"
           cp "$PROFILE/libnobodywho_${{ matrix.integration }}.so" ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
-          # dynamic-link: stage the sibling ggml/llama libs next to the binding with
-          # unversioned SONAMEs + a per-lib $ORIGIN runpath so co-located consumers resolve them.
-          bash nobodywho/scripts/stage-elf-libs.sh --from "$PROFILE" --origin ./
+          # dynamic-link: ship the sibling ggml/llama libs (born unversioned + $ORIGIN-rpath'd
+          # by the CMake override, llama-build-overrides.cmake) next to the binding.
+          cp "$PROFILE"/libggml*.so "$PROFILE"/libllama*.so ./
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
@@ -702,11 +700,10 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
             cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
           fi
-          # dynamic-link: stage the sibling ggml/llama .so with unversioned SONAMEs
-          # (Android APKs can't package versioned .so.N; the loader resolves NEEDED
-          # libs from the jniLibs/<abi> dir, so no per-lib $ORIGIN needed).
-          bash nobodywho/scripts/stage-elf-libs.sh \
-            --from "./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}" ./
+          # dynamic-link: ship the sibling ggml/llama .so (born unversioned by the CMake
+          # override); the Android loader resolves NEEDED libs from the jniLibs/<abi> dir.
+          PROFILE="./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}"
+          cp "$PROFILE"/libggml*.so "$PROFILE"/libllama*.so ./
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
@@ -715,5 +712,5 @@ jobs:
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
             ./libonnxruntime.so
-            ./libggml*.so*
-            ./libllama*.so*
+            ./libggml*.so
+            ./libllama*.so

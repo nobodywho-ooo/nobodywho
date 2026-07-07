@@ -394,7 +394,7 @@ jobs:
             local d="artifacts/nobodywho-uniffi-$1-release"
             cp "$d/libnobodywho-uniffi-$1-release.so" \
               "nobodywho/kotlin/android/build/jniLibs/$2/libnobodywho_uniffi.so"
-            cp -P "$d"/libggml*.so* "$d"/libllama*.so* "nobodywho/kotlin/android/build/jniLibs/$2/" 2>/dev/null || true
+            cp -P "$d"/libggml*.so "$d"/libllama*.so "nobodywho/kotlin/android/build/jniLibs/$2/" 2>/dev/null || true
           }
           place_android aarch64-linux-android arm64-v8a
           place_android x86_64-linux-android  x86_64

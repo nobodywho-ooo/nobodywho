@@ -177,8 +177,9 @@ jobs:
           pkg="$(echo "$work"/nobodywho-*/)"
           extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
 
-          # Vendor the (unversioned, $ORIGIN-rpath'd) ggml/llama libs next to the extension.
-          bash nobodywho/scripts/stage-elf-libs.sh --from "$(pwd)/nobodywho/target/release" --origin "$extdir"
+          # Vendor the ggml/llama libs (born unversioned + $ORIGIN-rpath'd by the CMake
+          # override, llama-build-overrides.cmake) next to the extension.
+          cp "$(pwd)"/nobodywho/target/release/libggml*.so "$(pwd)"/nobodywho/target/release/libllama*.so "$extdir"/
           # Bundle the OpenMP runtime so the wheel doesn't require it preinstalled.
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
           [ -n "$gomp" ] && cp "$gomp" "$extdir"/libgomp.so.1

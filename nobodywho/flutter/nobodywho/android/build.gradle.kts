@@ -117,7 +117,7 @@ val resolveNativeLibraries by tasks.registering {
             val resolvedLibDir = File(resolvedLibPath).parentFile
             copy {
                 from(resolvedLibDir) {
-                    include("libggml*.so*", "libllama*.so*")
+                    include("libggml*.so", "libllama*.so")
                 }
                 into(abiOutputDir)
             }
