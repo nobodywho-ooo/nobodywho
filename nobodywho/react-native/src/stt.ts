@@ -39,7 +39,7 @@ export class STT {
   }
 
   /**
-   * Transcribe an audio file (WAV / MP3 / FLAC).
+   * Transcribe an audio file (WAV / MP3).
    * Returns an `STTStream` to consume tokens as they arrive.
    */
   transcribeFile(path: string): TokenStream {

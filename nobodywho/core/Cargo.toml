@@ -46,8 +46,9 @@ walkdir = "2.5"
 tempfile = "3"
 hound = "3"
 safetensors = "0.5"
-# STT audio pipeline
-symphonia = { version = "0.5", default-features = false, features = ["wav", "mp3", "flac", "pcm"] }
+# STT audio pipeline: WAV via hound, MP3 via symphonia-bundle-mp3 directly
+symphonia-core = "0.5"
+symphonia-bundle-mp3 = { version = "0.5", default-features = false, features = ["mp3"] }
 rubato = "0.16"
 mel_spec = "0.4"
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }

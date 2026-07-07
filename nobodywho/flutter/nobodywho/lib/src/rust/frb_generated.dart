@@ -7682,7 +7682,7 @@ class RustSttImpl extends RustOpaque implements RustStt {
         NobodyWho.instance.api.rust_arc_decrement_strong_count_RustSttPtr,
   );
 
-  /// Transcribe an audio file (WAV / MP3 / FLAC).
+  /// Transcribe an audio file (WAV / MP3).
   RustSttStream transcribeFile({required String path}) =>
       NobodyWho.instance.api.crateRustSttTranscribeFile(that: this, path: path);
 

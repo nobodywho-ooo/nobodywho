@@ -576,7 +576,7 @@ impl RustSTT {
         Ok(Arc::new(Self { inner }))
     }
 
-    /// Start transcribing an audio file (WAV / MP3 / FLAC).
+    /// Start transcribing an audio file (WAV / MP3).
     /// Returns a `RustSTTStream` to consume tokens as they are generated.
     pub fn transcribe_file(&self, path: String) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
         let stream =

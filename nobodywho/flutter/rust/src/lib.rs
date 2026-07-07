@@ -663,7 +663,7 @@ impl RustSTT {
         Ok(Self { stt })
     }
 
-    /// Transcribe an audio file (WAV / MP3 / FLAC).
+    /// Transcribe an audio file (WAV / MP3).
     #[flutter_rust_bridge::frb(sync)]
     pub fn transcribe_file(&self, path: String) -> Result<RustSTTStream, String> {
         let stream = self

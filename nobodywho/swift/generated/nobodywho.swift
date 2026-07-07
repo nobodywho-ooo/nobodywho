@@ -1558,7 +1558,7 @@ public func FfiConverterTypeRustModel_lower(_ value: RustModel) -> UInt64 {
 public protocol RustSttProtocol: AnyObject, Sendable {
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     func transcribeFile(path: String) throws  -> RustSttStream
@@ -1641,7 +1641,7 @@ public convenience init(source: String, language: String?, quantization: String?
 
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
 open func transcribeFile(path: String)throws  -> RustSttStream  {
@@ -4656,7 +4656,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 47529) {
+    if (uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 43975) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() != 61166) {

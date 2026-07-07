@@ -1,19 +1,22 @@
 //! Audio decoding and preprocessing for the STT pipeline.
 //!
 //! All functions are pure (no model I/O) and unit-testable without a GPU.
+//!
+//! WAV is decoded via `hound`; MP3 via `symphonia-bundle-mp3` used directly
+//! (no generic multi-format probing registry — these are the only two
+//! formats we support, dispatched by file extension).
 
 use crate::errors::SttError;
 use rubato::{
     Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
 };
 use std::path::Path;
-use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
-use symphonia::core::errors::Error as SymphoniaError;
-use symphonia::core::formats::{FormatOptions, FormatReader};
-use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
-use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
+use symphonia_bundle_mp3::{MpaDecoder, MpaReader};
+use symphonia_core::audio::{AudioBufferRef, SampleBuffer};
+use symphonia_core::codecs::{Decoder, DecoderOptions, CODEC_TYPE_NULL};
+use symphonia_core::errors::Error as SymphoniaError;
+use symphonia_core::formats::{FormatOptions, FormatReader, Packet};
+use symphonia_core::io::{MediaSourceStream, MediaSourceStreamOptions};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -25,17 +28,16 @@ pub struct DecodedAudio {
 }
 
 impl DecodedAudio {
-    /// Decode an audio file (WAV / MP3 / FLAC) to mono f32 samples.
+    /// Decode an audio file (WAV / MP3) to mono f32 samples.
     ///
     /// Multi-channel audio is downmixed to mono by averaging all channels.
+    /// Dispatched by file extension: `.mp3` decodes via the MP3 backend,
+    /// anything else is decoded as WAV.
     pub fn from_file(path: &Path) -> Result<Self, SttError> {
-        let mut format = probe_format(path)?;
-        let mut info = TrackInfo::from_format(format.as_mut())?;
-        let samples = decode_packets(format.as_mut(), &mut info)?;
-        Ok(Self {
-            samples,
-            sample_rate: info.sample_rate,
-        })
+        match path.extension().and_then(|e| e.to_str()) {
+            Some(ext) if ext.eq_ignore_ascii_case("mp3") => decode_mp3(path),
+            _ => decode_wav(path),
+        }
     }
 
     /// Wrap raw i16 PCM samples (e.g. from a microphone stream) as `DecodedAudio`.
@@ -68,19 +70,60 @@ impl DecodedAudio {
     }
 }
 
+fn to_mono(interleaved: &[f32], n_channels: usize) -> Vec<f32> {
+    if n_channels <= 1 {
+        return interleaved.to_vec();
+    }
+    interleaved
+        .chunks_exact(n_channels)
+        .map(|frame| frame.iter().sum::<f32>() / n_channels as f32)
+        .collect()
+}
+
 // ---------------------------------------------------------------------------
-// Internals — file decoding
+// Internals — WAV decoding (hound)
+// ---------------------------------------------------------------------------
+
+fn decode_wav(path: &Path) -> Result<DecodedAudio, SttError> {
+    let mut reader = hound::WavReader::open(path)
+        .map_err(|e| SttError::Audio(format!("open {}: {e}", path.display())))?;
+    let spec = reader.spec();
+    let n_channels = spec.channels as usize;
+
+    let interleaved: Vec<f32> = match spec.sample_format {
+        hound::SampleFormat::Float => reader
+            .samples::<f32>()
+            .collect::<Result<_, _>>()
+            .map_err(|e| SttError::Audio(format!("decode {}: {e}", path.display())))?,
+        hound::SampleFormat::Int => {
+            let max_value = 2f32.powi(spec.bits_per_sample as i32 - 1);
+            reader
+                .samples::<i32>()
+                .map(|s| s.map(|v| v as f32 / max_value))
+                .collect::<Result<_, _>>()
+                .map_err(|e| SttError::Audio(format!("decode {}: {e}", path.display())))?
+        }
+    };
+
+    Ok(DecodedAudio {
+        samples: to_mono(&interleaved, n_channels),
+        sample_rate: spec.sample_rate,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Internals — MP3 decoding (symphonia-bundle-mp3, used directly)
 // ---------------------------------------------------------------------------
 
 struct TrackInfo {
     sample_rate: u32,
     n_channels: usize,
     track_id: u32,
-    decoder: Box<dyn symphonia::core::codecs::Decoder>,
+    decoder: MpaDecoder,
 }
 
 impl TrackInfo {
-    fn from_format(format: &mut dyn FormatReader) -> Result<Self, SttError> {
+    fn from_format(format: &MpaReader) -> Result<Self, SttError> {
         let track = format
             .tracks()
             .iter()
@@ -94,8 +137,7 @@ impl TrackInfo {
         let n_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
         let track_id = track.id;
 
-        let decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
+        let decoder = MpaDecoder::try_new(&track.codec_params, &DecoderOptions::default())
             .map_err(|e| SttError::Audio(format!("decoder init: {e}")))?;
 
         Ok(Self {
@@ -107,42 +149,37 @@ impl TrackInfo {
     }
 }
 
-fn probe_format(path: &Path) -> Result<Box<dyn FormatReader>, SttError> {
+fn decode_mp3(path: &Path) -> Result<DecodedAudio, SttError> {
     let file = std::fs::File::open(path)
         .map_err(|e| SttError::Audio(format!("open {}: {e}", path.display())))?;
     let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
+    let mut format = MpaReader::try_new(mss, &FormatOptions::default())
+        .map_err(|e| SttError::Audio(format!("probe {}: {e}", path.display())))?;
 
-    let mut hint = Hint::new();
-    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-        hint.with_extension(ext);
-    }
+    let mut info = TrackInfo::from_format(&format)?;
+    let samples = decode_packets(&mut format, &mut info)?;
 
-    symphonia::default::get_probe()
-        .format(
-            &hint,
-            mss,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
-        )
-        .map(|probed| probed.format)
-        .map_err(|e| SttError::Audio(format!("probe {}: {e}", path.display())))
+    Ok(DecodedAudio {
+        samples,
+        sample_rate: info.sample_rate,
+    })
 }
 
 /// Iterator over packets belonging to a specific track, hiding EOF and
 /// wrong-track packets from the caller.
 struct PacketIter<'a> {
-    format: &'a mut dyn FormatReader,
+    format: &'a mut MpaReader,
     track_id: u32,
 }
 
 impl<'a> PacketIter<'a> {
-    fn new(format: &'a mut dyn FormatReader, track_id: u32) -> Self {
+    fn new(format: &'a mut MpaReader, track_id: u32) -> Self {
         Self { format, track_id }
     }
 }
 
 impl Iterator for PacketIter<'_> {
-    type Item = Result<symphonia::core::formats::Packet, SttError>;
+    type Item = Result<Packet, SttError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -160,19 +197,13 @@ impl Iterator for PacketIter<'_> {
     }
 }
 
-fn to_mono_samples(decoded: symphonia::core::audio::AudioBufferRef, n_channels: usize) -> Vec<f32> {
+fn to_mono_samples(decoded: AudioBufferRef, n_channels: usize) -> Vec<f32> {
     let mut buf = SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
     buf.copy_interleaved_ref(decoded);
-    buf.samples()
-        .chunks_exact(n_channels)
-        .map(|frame| frame.iter().sum::<f32>() / n_channels as f32)
-        .collect()
+    to_mono(buf.samples(), n_channels)
 }
 
-fn decode_packets(
-    format: &mut dyn FormatReader,
-    info: &mut TrackInfo,
-) -> Result<Vec<f32>, SttError> {
+fn decode_packets(format: &mut MpaReader, info: &mut TrackInfo) -> Result<Vec<f32>, SttError> {
     let mut samples: Vec<f32> = Vec::new();
     for packet in PacketIter::new(format, info.track_id) {
         match info.decoder.decode(&packet?) {

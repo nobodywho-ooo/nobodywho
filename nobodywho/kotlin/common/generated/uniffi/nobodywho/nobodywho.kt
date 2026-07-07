@@ -1282,7 +1282,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 47529.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 43975.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() != 61166.toShort()) {
@@ -3533,7 +3533,7 @@ public object FfiConverterTypeRustModel: FfiConverter<RustModel, Long> {
 public interface RustSttInterface {
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     fun `transcribeFile`(`path`: kotlin.String): RustSttStream
@@ -3665,7 +3665,7 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
 
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     @Throws(NobodyWhoException::class)override fun `transcribeFile`(`path`: kotlin.String): RustSttStream {
