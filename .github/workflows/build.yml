@@ -105,6 +105,15 @@ jobs:
           # so consumers reference libggml.so (not libggml.so.0). Runs on ./ where
           # both the binding cdylib and the ggml/llama libs are now staged.
           bash nobodywho/scripts/unversion-elf-libs.sh ./
+          # Give each ggml/llama lib its own $ORIGIN RUNPATH. The binding gets one
+          # via RUSTFLAGS, but DT_RUNPATH does NOT chain to transitive deps — it only
+          # resolves an object's DIRECT DT_NEEDED. So the binding finds libggml/libllama,
+          # but those libs' inter-deps (libggml -> libggml-base, libllama -> libggml, ...)
+          # resolve against the ggml lib's OWN runpath. Without this, a co-located
+          # consumer (e.g. Kotlin JNA loading from one dir) hits UnsatisfiedLinkError.
+          for l in ./libggml*.so ./libllama*.so; do
+            [ -e "$l" ] && patchelf --set-rpath '$ORIGIN' "$l"
+          done
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
