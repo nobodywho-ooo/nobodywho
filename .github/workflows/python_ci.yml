@@ -154,21 +154,29 @@ jobs:
           cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
       - name: Build linux python wheel
+        # --auditwheel skip: maturin's built-in auditwheel repair is the broken
+        # relocation (it hashes the libs -> libggml-base-<hash>.so and rewrites the
+        # extension's DT_NEEDED, then fails to graft the inter-dependent ggml libs,
+        # leaving the wheel referencing libs it never vendored). Skip it so the
+        # extension keeps its original versioned DT_NEEDED (libggml-base.so.0); the
+        # next step vendors + unversions the libs ourselves. --compatibility forces
+        # the manylinux_2_34 platform tag (skip would otherwise tag plain `linux`).
         run: |
           source "$HOME/.cargo/env"
-          maturin build --verbose --release --locked
+          maturin build --verbose --release --locked \
+            --auditwheel skip --compatibility manylinux_2_34
         working-directory: ./nobodywho/python
 
       - name: Bundle native libs into the wheel
-        # maturin already tags this wheel manylinux_2_34, so auditwheel's only real
-        # job would be vendoring the native libs — but its relocation is unusable
-        # here: it fails "libX-<hash>.so could not be located" grafting the
-        # inter-dependent ggml libs, and even fails the same way on a plain system
-        # lib (libgomp). So we vendor the libs ourselves and skip `auditwheel repair`.
-        # We co-locate the (unversioned) ggml/llama libs + the OpenMP runtime next to
-        # the extension module with an $ORIGIN rpath; libstdc++, libc/libm and the
-        # Vulkan loader stay system/driver-provided (as for the Godot/Flutter Linux
-        # artifacts). Unversioning (libX.so.N -> libX.so) also matches Android/Godot.
+        # The build step tagged the wheel manylinux_2_34 and skipped auditwheel
+        # (its relocation is unusable here — it fails "libX-<hash>.so could not be
+        # located" grafting the inter-dependent ggml libs, and even fails the same
+        # way on a plain system lib like libgomp). So we vendor the native libs
+        # ourselves: co-locate the (unversioned) ggml/llama libs + the OpenMP runtime
+        # next to the extension module, each with an $ORIGIN rpath. libstdc++,
+        # libc/libm and the Vulkan loader stay system/driver-provided (as for the
+        # Godot/Flutter Linux artifacts). Unversioning (libX.so.N -> libX.so) matches
+        # the extension's DT_NEEDED to the shipped filenames and mirrors Android/Godot.
         run: |
           set -eux
           pip3 install wheel
@@ -195,8 +203,13 @@ jobs:
           # Bundle the OpenMP runtime so the wheel doesn't require it preinstalled.
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
           [ -n "$gomp" ] && cp "$gomp" "$extdir"/libgomp.so.1
-          # Put the patched extension module(s) back.
-          find "$pkg" -name '*.abi3.so' | while read -r w; do cp "$stage/$(basename "$w")" "$w"; done
+          # Put the patched extension module(s) back, giving each an $ORIGIN rpath so
+          # it finds the co-located ggml/llama libs (the job's RUSTFLAGS overrides
+          # .cargo/config.toml, so the extension is otherwise built without one).
+          find "$pkg" -name '*.abi3.so' | while read -r w; do
+            patchelf --set-rpath '$ORIGIN' "$stage/$(basename "$w")"
+            cp "$stage/$(basename "$w")" "$w"
+          done
 
           # Repack (rebuilds RECORD); the manylinux_2_34 tag is preserved.
           mkdir -p wheelhouse
