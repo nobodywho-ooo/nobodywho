@@ -84,35 +84,10 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
-
-      # Test what we ship: use the prebuilt flutter cdylib + its dynamic-link
-      # ggml/llama libs from the build job (the parent `test` job's needs: [build]
-      # in main.yml guarantees they exist) instead of rebuilding here.
-      - name: Download flutter Linux artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: nobodywho-flutter-x86_64-unknown-linux-gnu-release
-          path: ./native-lib
-
-      - name: Name the cdylib for flutter_rust_bridge
-        run: |
-          # frb dlopens the bare name `libnobodywho_flutter.so`; the artifact ships it
-          # under the per-triple name. Its sibling libggml*/libllama* (already
-          # unversioned, each with an $ORIGIN rpath) resolve from the same dir.
-          cp ./native-lib/libnobodywho-flutter-x86_64-unknown-linux-gnu-release.so \
-            ./native-lib/libnobodywho_flutter.so
-
-      - name: Install Vulkan runtime
-        # The shipped ggml links libvulkan; provide the loader at test runtime.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvulkan1
-
-      - name: Setup Flutter SDK
-        uses: flutter-actions/setup-flutter@v4
-        with:
-          channel: stable
-          version: 3.35.5
+      # Test the shipped artifact: download the prebuilt cdylib + ggml/llama libs,
+      # set up Flutter, expose LD_LIBRARY_PATH (needs the build job — gated on the
+      # parent `test` job's needs: [build] in main.yml).
+      - uses: ./.github/actions/flutter-native-lib
 
       - name: Download vision models
         run: |
@@ -125,7 +100,6 @@ jobs:
         env:
           TEST_MULTIMODAL_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
           TEST_MULTIMODAL_MMPROJ: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
-          LD_LIBRARY_PATH: ${{ github.workspace }}/native-lib
         run: flutter test test/nobodywho_multimodal_test.dart --reporter expanded
 
 
@@ -134,36 +108,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      # Test what we ship: use the prebuilt flutter cdylib + its dynamic-link
-      # ggml/llama libs from the build job (the parent `test` job's needs: [build]
-      # in main.yml guarantees they exist) instead of rebuilding here. ONNX Runtime
-      # is statically linked into the cdylib, so no separate onnx lib is needed.
-      - name: Download flutter Linux artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: nobodywho-flutter-x86_64-unknown-linux-gnu-release
-          path: ./native-lib
-
-      - name: Name the cdylib for flutter_rust_bridge
-        run: |
-          # frb dlopens the bare name `libnobodywho_flutter.so`; the artifact ships it
-          # under the per-triple name. Its sibling libggml*/libllama* (already
-          # unversioned, each with an $ORIGIN rpath) resolve from the same dir.
-          cp ./native-lib/libnobodywho-flutter-x86_64-unknown-linux-gnu-release.so \
-            ./native-lib/libnobodywho_flutter.so
-
-      - name: Install Vulkan runtime
-        # The shipped ggml links libvulkan; provide the loader at test runtime.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvulkan1
-
-      - name: Setup Flutter SDK
-        uses: flutter-actions/setup-flutter@v4
-        with:
-          channel: stable
-          version: 3.35.5
+      # Test the shipped artifact (see multimodal job). ONNX Runtime is statically
+      # linked into the cdylib, so no separate onnx lib is needed.
+      - uses: ./.github/actions/flutter-native-lib
 
       - name: Download Whisper model
         run: |
@@ -182,5 +129,4 @@ jobs:
         env:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
           TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
-          LD_LIBRARY_PATH: ${{ github.workspace }}/native-lib
         run: flutter test test/nobodywho_test.dart --name "STT" --reporter expanded

@@ -92,23 +92,19 @@ fi
 echo ""
 echo "Step 4/4: Creating XCFramework..."
 
-# Assemble frameworks with the embedded ggml/llama dylibs (dynamic-link) via the
-# shared helper. iOS uses flat framework bundles (dylibs sit next to the binary).
-HELPER="$(cd "$(dirname "$0")/../.." && pwd)/scripts/make-apple-framework.sh"
+# Assemble flat framework bundles (dylibs sit next to the binary) with the embedded
+# ggml/llama dylibs (dynamic-link) via the shared helpers.
+SCRIPTS="$(cd "$(dirname "$0")/../.." && pwd)/scripts"
+HELPER="$SCRIPTS/make-apple-framework.sh"
 
 # Universal iOS simulator source dir: lipo binding + each ggml/llama dylib.
 USIM="$TARGET_DIR/universal-ios-sim/$BUILD_TYPE"
+SIM_ARM="$TARGET_DIR/aarch64-apple-ios-sim/$BUILD_TYPE"
+SIM_X64="$TARGET_DIR/x86_64-apple-ios/$BUILD_TYPE"
 mkdir -p "$USIM"
-lipo -create \
-    "$TARGET_DIR/aarch64-apple-ios-sim/$BUILD_TYPE/libnobodywho_flutter.dylib" \
-    "$TARGET_DIR/x86_64-apple-ios/$BUILD_TYPE/libnobodywho_flutter.dylib" \
+lipo -create "$SIM_ARM/libnobodywho_flutter.dylib" "$SIM_X64/libnobodywho_flutter.dylib" \
     -output "$USIM/libnobodywho_flutter.dylib"
-for f in "$TARGET_DIR/aarch64-apple-ios-sim/$BUILD_TYPE/"libggml*.0.dylib \
-         "$TARGET_DIR/aarch64-apple-ios-sim/$BUILD_TYPE/"libllama*.0.dylib; do
-    [ -e "$f" ] || continue
-    b=$(basename "$f")
-    lipo -create "$f" "$TARGET_DIR/x86_64-apple-ios/$BUILD_TYPE/$b" -output "$USIM/$b"
-done
+bash "$SCRIPTS/lipo-apple-libs.sh" "$SIM_ARM" "$SIM_X64" "$USIM"
 
 IOS_SIM_OUT="$USIM/fw"; rm -rf "$IOS_SIM_OUT"; mkdir -p "$IOS_SIM_OUT"
 bash "$HELPER" "$USIM" libnobodywho_flutter.dylib nobodywho_flutter flat "$IOS_SIM_OUT" "" ooo.nobodywho.flutter

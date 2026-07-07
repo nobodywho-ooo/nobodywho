@@ -1,44 +1,22 @@
-# Runtime discovery for dynamically-linked ggml/llama.cpp libraries.
+# Runtime discovery for the dynamically-linked ggml/llama libs (dynamic-link
+# feature). The fork ships them next to each built artifact but emits no rpath, so
+# bake $ORIGIN / @loader_path into everything we link to find the co-located libs.
 #
-# The `dynamic-link` feature on `llama-cpp-2` builds ggml/llama as shared
-# libraries (libggml*, libllama, libmtmd) instead of static archives, and the
-# fork's build.rs hard-links them next to the produced artifacts in
-# `target/<profile>/{,deps/,examples/}`. The fork does NOT emit any rpath, so
-# without help the dynamic loader cannot find the sibling libs at runtime
-# (`cargo test`, `cargo run`, and desktop cdylibs loaded by Godot/Flutter).
-#
-# Baking `$ORIGIN` / `@loader_path` into every artifact we link makes the loader
-# search the artifact's own directory, where the ggml libs are co-located.
-#
-# NOTE: Cargo uses only ONE rustflags source (first match wins): the RUSTFLAGS
-# env var, else target.<cfg>.rustflags, else build.rustflags. CI sets RUSTFLAGS,
-# so these config values are ignored there — CI must append the same rpath flags
-# to its own RUSTFLAGS (see .github/workflows). This config covers local
-# dev/test/build where RUSTFLAGS is unset.
-#
-# Android needs no rpath (the app loader resolves all NEEDED libs from the same
-# jniLibs dir); Apple discovery is handled via framework @rpath/install_name in
-# the xcframework build; Windows resolves DLLs from the loading module's dir.
+# Cargo uses only ONE rustflags source: the RUSTFLAGS env var wins over this config.
+# CI sets RUSTFLAGS, so it must append the same rpath there (see .github/workflows);
+# this covers local dev/test/build. Android resolves from jniLibs; Windows from the
+# loading module's dir.
 
 [target.'cfg(target_os = "linux")']
 rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
 
-# All Apple targets (macOS desktop + iOS/visionOS/watchOS device & sim). The
-# xcframework build also adds this rpath, but baking it here keeps the dylib
-# self-sufficient and covers local `swift build` / `cargo test`.
 [target.'cfg(target_vendor = "apple")']
 rustflags = ["-C", "link-arg=-Wl,-rpath,@loader_path"]
 
 [env]
-# Disable OpenSSL/TLS in llama.cpp's bundled cpp-httplib. With `dynamic-link` the
-# `common` helper is built as a SHARED library, which (unlike the previous static
-# archive) forces the linker to resolve cpp-httplib's TLS symbols. llama.cpp
-# defaults LLAMA_OPENSSL=ON and finds the *host* OpenSSL during configure, but the
-# x86_64-apple-darwin CROSS build then has no x86_64 OpenSSL to link → undefined
-# _SSL_*/_X509_*/_EVP_* symbols. We don't use llama.cpp's HTTPS downloader
-# (LLAMA_CURL is already OFF; model I/O is our own), so disabling httplib TLS is
-# safe. CMAKE_DISABLE_FIND_PACKAGE_OpenSSL proved unreliable here, so inject a
-# CMAKE_PROJECT_INCLUDE snippet (the fork forwards CMAKE_-prefixed env as -D) that
-# force-sets LLAMA_OPENSSL=OFF before llama.cpp's option() runs. `relative = true`
-# resolves the path against the workspace dir that holds .cargo/.
+# Disable OpenSSL in llama.cpp's cpp-httplib. dynamic-link builds `common` as a
+# shared lib, forcing its TLS symbols to resolve, but the x86_64-apple-darwin cross
+# build has no host OpenSSL to link. We don't use the HTTPS downloader, so inject a
+# snippet (the fork forwards CMAKE_-prefixed env as -D) that forces LLAMA_OPENSSL
+# off before llama.cpp's option() runs. relative = true: path is vs the .cargo dir.
 CMAKE_PROJECT_INCLUDE = { value = "scripts/disable-llama-openssl.cmake", relative = true }

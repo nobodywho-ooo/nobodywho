@@ -83,22 +83,17 @@ fi
 echo ""
 echo "Step 3/3: Creating XCFramework..."
 
-# Create a universal macOS source dir: lipo the binding dylib AND every embedded
-# ggml/llama dylib (dynamic-link feature) across both arches, then assemble the
-# versioned framework with them embedded via the shared helper.
-HELPER="$(cd "$(dirname "$0")/../.." && pwd)/scripts/make-apple-framework.sh"
+# Universal macOS source dir: lipo the binding dylib + every ggml/llama dylib
+# (dynamic-link) across both arches, then assemble a versioned framework via the helpers.
+SCRIPTS="$(cd "$(dirname "$0")/../.." && pwd)/scripts"
+HELPER="$SCRIPTS/make-apple-framework.sh"
 USRC="$TARGET_DIR/universal-macos/$BUILD_TYPE"
+DAR_ARM="$TARGET_DIR/aarch64-apple-darwin/$BUILD_TYPE"
+DAR_X64="$TARGET_DIR/x86_64-apple-darwin/$BUILD_TYPE"
 mkdir -p "$USRC"
-lipo -create \
-    "$TARGET_DIR/aarch64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.dylib" \
-    "$TARGET_DIR/x86_64-apple-darwin/$BUILD_TYPE/libnobodywho_flutter.dylib" \
+lipo -create "$DAR_ARM/libnobodywho_flutter.dylib" "$DAR_X64/libnobodywho_flutter.dylib" \
     -output "$USRC/libnobodywho_flutter.dylib"
-for f in "$TARGET_DIR/aarch64-apple-darwin/$BUILD_TYPE/"libggml*.0.dylib \
-         "$TARGET_DIR/aarch64-apple-darwin/$BUILD_TYPE/"libllama*.0.dylib; do
-    [ -e "$f" ] || continue
-    b=$(basename "$f")
-    lipo -create "$f" "$TARGET_DIR/x86_64-apple-darwin/$BUILD_TYPE/$b" -output "$USRC/$b"
-done
+bash "$SCRIPTS/lipo-apple-libs.sh" "$DAR_ARM" "$DAR_X64" "$USRC"
 
 # Clean existing xcframework and assemble (versioned macOS framework)
 rm -rf "$XCFRAMEWORK_OUTPUT"

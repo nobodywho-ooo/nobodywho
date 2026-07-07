@@ -9,12 +9,9 @@
 # After running, Package.swift can resolve the local binary target at:
 #   swift/Frameworks/NobodyWhoNative.xcframework
 #
-# Since the switch to dynamically-linked ggml/llama (the `dynamic-link` feature),
-# this produces a DYNAMIC-FRAMEWORK xcframework: the uniffi .dylib is wrapped as a
-# framework and the shared ggml/llama libs are embedded inside the framework bundle
-# next to the binary. The binary references them via `@rpath/libX.0.dylib` and
-# carries an `@loader_path` rpath, so the whole graph resolves from within the
-# bundle once Xcode embeds & signs the framework in the consuming app.
+# Produces a DYNAMIC-FRAMEWORK xcframework (since the dynamic-link switch): the
+# uniffi .dylib wrapped as a framework with the ggml/llama dylibs embedded inside.
+# See make-apple-framework.sh for how the @rpath/@loader_path graph is assembled.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."

@@ -91,29 +91,11 @@ jobs:
 
       - name: "Rename built file"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
-          # dynamic-link: ship the shared ggml/llama libs alongside the binding.
-          # On Linux these carry versioned SONAMEs (e.g. libggml-cpu.so.0), and the
-          # fork only hard-links the unversioned *.so into the target dir — the real
-          # versioned files (which DT_NEEDED references) live in the CMake build
-          # output dir. Find every ggml/llama .so under the profile dir and copy the
-          # real files (dereferenced) so the SONAME-named files are shipped too.
-          find "./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}" \
-            \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) \
-            -exec cp -L -n {} ./ \;
-          # Normalize to unversioned SONAMEs and repoint the binding's DT_NEEDED,
-          # so consumers reference libggml.so (not libggml.so.0). Runs on ./ where
-          # both the binding cdylib and the ggml/llama libs are now staged.
-          bash nobodywho/scripts/unversion-elf-libs.sh ./
-          # Give each ggml/llama lib its own $ORIGIN RUNPATH. The binding gets one
-          # via RUSTFLAGS, but DT_RUNPATH does NOT chain to transitive deps — it only
-          # resolves an object's DIRECT DT_NEEDED. So the binding finds libggml/libllama,
-          # but those libs' inter-deps (libggml -> libggml-base, libllama -> libggml, ...)
-          # resolve against the ggml lib's OWN runpath. Without this, a co-located
-          # consumer (e.g. Kotlin JNA loading from one dir) hits UnsatisfiedLinkError.
-          for l in ./libggml*.so ./libllama*.so; do
-            [ -e "$l" ] && patchelf --set-rpath '$ORIGIN' "$l"
-          done
+          PROFILE="./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}"
+          cp "$PROFILE/libnobodywho_${{ matrix.integration }}.so" ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          # dynamic-link: stage the sibling ggml/llama libs next to the binding with
+          # unversioned SONAMEs + a per-lib $ORIGIN runpath so co-located consumers resolve them.
+          bash nobodywho/scripts/stage-elf-libs.sh --from "$PROFILE" --origin ./
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
@@ -359,15 +341,11 @@ jobs:
         run: |
           export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
           TARGET="${{ matrix.target }}"
-          # The built-in aarch64-apple-watchos (device) target spec ships with
-          # dynamic-linking disabled, so cargo silently drops the cdylib crate-type
-          # and emits only a static .a — useless under dynamic-link, where ggml/llama
-          # live in separate dylibs. The spec is otherwise identical to the watchOS
-          # simulator's (has-rpath, dll-suffix .dylib, is-like-darwin), and watchOS 6+
-          # supports embedded dynamic frameworks, so derive a spec with
-          # dynamic-linking flipped on and build against that. Naming the JSON exactly
-          # aarch64-apple-watchos.json keeps cargo emitting into
-          # target/aarch64-apple-watchos/, matching the rename/upload/xcframework steps.
+          # The built-in aarch64-apple-watchos (device) spec has dynamic-linking off,
+          # so cargo silently drops the cdylib and emits only a static .a (useless under
+          # dynamic-link). watchOS 6+ supports embedded dynamic frameworks, so derive a
+          # spec with the flag on. The JSON stem must equal the triple so cargo still
+          # emits into target/aarch64-apple-watchos/ (matching the later steps).
           ZFLAGS=""
           if [ "$TARGET" = "aarch64-apple-watchos" ]; then
             rustc +nightly -Z unstable-options --target aarch64-apple-watchos \
@@ -425,8 +403,7 @@ jobs:
       - name: "Download all build artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: embedded ggml dylibs have generic names and would
-          # collide across slices if merged.
+          # No merge-multiple: generically-named ggml dylibs would collide across slices.
           pattern: nobodywho-flutter-*-apple-*
           path: artifacts
 
@@ -446,16 +423,13 @@ jobs:
           bash "$HELPER" "$ios_dev" libnobodywho-flutter-aarch64-apple-ios-release.dylib \
             nobodywho_flutter flat ios-device "" ooo.nobodywho.flutter
 
-          # macOS universal: lipo the main dylib AND every embedded ggml/llama dylib
-          # across both arches into one dir, then assemble a versioned framework.
+          # macOS universal: lipo the main dylib + every ggml/llama dylib across both
+          # arches, then assemble a versioned framework.
           mkdir -p universal-src
           lipo -create -output universal-src/libnobodywho_flutter.dylib \
             "$dar_arm/libnobodywho-flutter-aarch64-apple-darwin-release.dylib" \
             "$dar_x64/libnobodywho-flutter-x86_64-apple-darwin-release.dylib"
-          for f in "$dar_arm"/libggml*.0.dylib "$dar_arm"/libllama*.0.dylib; do
-            b=$(basename "$f")
-            lipo -create -output "universal-src/$b" "$dar_arm/$b" "$dar_x64/$b"
-          done
+          bash nobodywho/scripts/lipo-apple-libs.sh "$dar_arm" "$dar_x64" universal-src
           bash "$HELPER" universal-src libnobodywho_flutter.dylib \
             nobodywho_flutter versioned macos "" ooo.nobodywho.flutter
 
@@ -485,8 +459,7 @@ jobs:
       - name: "Download uniffi iOS artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: embedded ggml dylibs have generic names and would
-          # collide across the device/sim slices if merged.
+          # No merge-multiple: generically-named ggml dylibs would collide across slices.
           pattern: nobodywho-uniffi-*-apple-ios*-release
           path: artifacts
 
@@ -525,9 +498,7 @@ jobs:
       - name: "Download uniffi Apple artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: the embedded ggml dylibs have generic filenames
-          # (libggml.0.dylib, ...) and would collide across slices if merged.
-          # Each artifact stays in artifacts/<artifact-name>/.
+          # No merge-multiple: generically-named ggml dylibs would collide across slices.
           pattern: nobodywho-uniffi-*-apple-*-release
           path: artifacts
 
@@ -734,18 +705,11 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
             cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
           fi
-          # dynamic-link: ship the ggml/llama .so alongside. The Android loader
-          # resolves NEEDED libraries from the app's native lib dir (jniLibs/<abi>).
-          # NOTE: Android APKs cannot package versioned .so.N filenames and the
-          # loader needs unversioned SONAMEs (libggml.so, not libggml.so.0). If the
-          # NDK build emits versioned SONAMEs this needs unversioning (patchelf
-          # --set-soname + rename, or an SOVERSION "" cmake change in the fork).
-          # Copy the real files (dereferenced) for now.
-          find "./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}" \
-            \( -name 'libggml*.so*' -o -name 'libllama*.so*' \) \
-            -exec cp -L -n {} ./ \; 2>/dev/null || true
-          # Android requires unversioned SONAMEs — normalize + repoint DT_NEEDED.
-          bash nobodywho/scripts/unversion-elf-libs.sh ./
+          # dynamic-link: stage the sibling ggml/llama .so with unversioned SONAMEs
+          # (Android APKs can't package versioned .so.N; the loader resolves NEEDED
+          # libs from the jniLibs/<abi> dir, so no per-lib $ORIGIN needed).
+          bash nobodywho/scripts/stage-elf-libs.sh \
+            --from "./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}" ./
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5

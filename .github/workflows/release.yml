@@ -183,8 +183,7 @@ jobs:
       - name: "Download all Flutter artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: the ggml/llama libs have generic names and would
-          # collide across targets. Each artifact stays in ./artifacts/<name>/.
+          # No merge-multiple: generically-named ggml/llama libs would collide across targets.
           pattern: nobodywho-flutter-*
           path: ./artifacts
 
@@ -379,8 +378,7 @@ jobs:
       - name: "Download all uniffi release artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: the ggml/llama libs have generic filenames and would
-          # collide across targets if merged. Each artifact stays in its own dir.
+          # No merge-multiple: generically-named ggml/llama libs would collide across targets.
           pattern: nobodywho-uniffi-*-release
           path: ./artifacts
 

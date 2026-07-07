@@ -154,13 +154,9 @@ jobs:
           cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
       - name: Build linux python wheel
-        # --auditwheel skip: maturin's built-in auditwheel repair is the broken
-        # relocation (it hashes the libs -> libggml-base-<hash>.so and rewrites the
-        # extension's DT_NEEDED, then fails to graft the inter-dependent ggml libs,
-        # leaving the wheel referencing libs it never vendored). Skip it so the
-        # extension keeps its original versioned DT_NEEDED (libggml-base.so.0); the
-        # next step vendors + unversions the libs ourselves. --compatibility forces
-        # the manylinux_2_34 platform tag (skip would otherwise tag plain `linux`).
+        # Skip maturin's built-in auditwheel: its relocation hashes the ggml libs then
+        # fails to graft the inter-dependent ones, so the next step vendors them
+        # ourselves. --compatibility forces the manylinux_2_34 tag (skip alone tags `linux`).
         run: |
           source "$HOME/.cargo/env"
           maturin build --verbose --release --locked \
@@ -168,15 +164,10 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Bundle native libs into the wheel
-        # The build step tagged the wheel manylinux_2_34 and skipped auditwheel
-        # (its relocation is unusable here — it fails "libX-<hash>.so could not be
-        # located" grafting the inter-dependent ggml libs, and even fails the same
-        # way on a plain system lib like libgomp). So we vendor the native libs
-        # ourselves: co-locate the (unversioned) ggml/llama libs + the OpenMP runtime
-        # next to the extension module, each with an $ORIGIN rpath. libstdc++,
-        # libc/libm and the Vulkan loader stay system/driver-provided (as for the
-        # Godot/Flutter Linux artifacts). Unversioning (libX.so.N -> libX.so) matches
-        # the extension's DT_NEEDED to the shipped filenames and mirrors Android/Godot.
+        # auditwheel was skipped in the build step (its relocation fails to graft the
+        # inter-dependent ggml libs), so vendor them ourselves: co-locate the
+        # unversioned ggml/llama libs + the OpenMP runtime next to the extension, each
+        # with an $ORIGIN rpath. libstdc++/libc/libm/Vulkan stay system-provided.
         run: |
           set -eux
           pip3 install wheel
@@ -186,20 +177,12 @@ jobs:
           pkg="$(echo "$work"/nobodywho-*/)"
           extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
 
-          # Stage the ggml/llama libs + the extension, then unversion (renames
-          # libX.so.N -> libX.so, sets unversioned SONAMEs, repoints every DT_NEEDED
-          # including the extension's).
-          libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml.so.0.13.1' -printf '%h\n' 2>/dev/null | head -1)"
-          [ -n "$libdir" ] || libdir="$(find "$(pwd)/nobodywho/target/release" -name 'libggml*.so.*' -printf '%h\n' | head -1)"
-          cp "$libdir"/libggml*.so* "$libdir"/libllama*.so* "$stage"/
+          # Stage the ggml/llama libs (unversioned, $ORIGIN rpath) alongside the
+          # extension so the helper also repoints the extension's DT_NEEDED, then
+          # co-locate the libs next to the extension in the wheel.
           find "$pkg" -name '*.abi3.so' -exec cp {} "$stage/" \;
-          bash nobodywho/scripts/unversion-elf-libs.sh "$stage"
-
-          # Co-locate the ggml/llama libs next to the extension, each with $ORIGIN.
-          for l in "$stage"/libggml*.so "$stage"/libllama*.so; do
-            patchelf --set-rpath '$ORIGIN' "$l"
-            cp "$l" "$extdir"/
-          done
+          bash nobodywho/scripts/stage-elf-libs.sh --from "$(pwd)/nobodywho/target/release" --origin "$stage"
+          cp "$stage"/libggml*.so "$stage"/libllama*.so "$extdir"/
           # Bundle the OpenMP runtime so the wheel doesn't require it preinstalled.
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
           [ -n "$gomp" ] && cp "$gomp" "$extdir"/libgomp.so.1
