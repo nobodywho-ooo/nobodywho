@@ -573,8 +573,12 @@ jobs:
       - name: "Download iOS simulator uniffi artifact"
         uses: actions/download-artifact@v5
         with:
-          pattern: nobodywho-uniffi-aarch64-apple-ios-sim-release
-          path: artifacts
+          # Use `name:` (not `pattern:`) so the single artifact's contents extract
+          # directly into `path` — a single-match `pattern` extracts to the path root
+          # WITHOUT a per-artifact subdir, which would leave artifacts/<name>/ empty.
+          # Point `path` straight at the SRC dir the smoke step reads.
+          name: nobodywho-uniffi-aarch64-apple-ios-sim-release
+          path: artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release
 
       - name: "Assemble framework and dlopen it on a booted simulator"
         run: |
