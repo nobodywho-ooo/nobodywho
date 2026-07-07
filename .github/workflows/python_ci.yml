@@ -178,8 +178,9 @@ jobs:
           extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
 
           # Vendor the ggml/llama libs (born unversioned + $ORIGIN-rpath'd by the CMake
-          # override, llama-build-overrides.cmake) next to the extension.
-          cp "$(pwd)"/nobodywho/target/release/libggml*.so "$(pwd)"/nobodywho/target/release/libllama*.so "$extdir"/
+          # override, llama-build-overrides.cmake) next to the extension. The real .so live
+          # nested in the CMake build tree, so find them recursively.
+          find "$(pwd)/nobodywho/target/release" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} "$extdir/" \;
           # Bundle the OpenMP runtime so the wheel doesn't require it preinstalled.
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
           [ -n "$gomp" ] && cp "$gomp" "$extdir"/libgomp.so.1

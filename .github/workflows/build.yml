@@ -92,8 +92,9 @@ jobs:
           PROFILE="./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}"
           cp "$PROFILE/libnobodywho_${{ matrix.integration }}.so" ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
           # dynamic-link: ship the sibling ggml/llama libs (born unversioned + $ORIGIN-rpath'd
-          # by the CMake override, llama-build-overrides.cmake) next to the binding.
-          cp "$PROFILE"/libggml*.so "$PROFILE"/libllama*.so ./
+          # by the CMake override, llama-build-overrides.cmake) next to the binding. The real
+          # .so live nested in the CMake build tree, so find them recursively.
+          find "$PROFILE" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} ./ \;
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
@@ -702,8 +703,9 @@ jobs:
           fi
           # dynamic-link: ship the sibling ggml/llama .so (born unversioned by the CMake
           # override); the Android loader resolves NEEDED libs from the jniLibs/<abi> dir.
+          # The real .so live nested in the CMake build tree, so find them recursively.
           PROFILE="./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}"
-          cp "$PROFILE"/libggml*.so "$PROFILE"/libllama*.so ./
+          find "$PROFILE" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} ./ \;
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
