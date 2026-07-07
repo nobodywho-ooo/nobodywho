@@ -81,6 +81,7 @@ EOF
   env.TEST_CROSSENCODER_MODEL = models.TEST_CROSSENCODER_MODEL;
   env.TEST_WHISPER_MODEL = models.TEST_WHISPER_MODEL;
   env.TEST_AUDIO_FILE = "${../../assets/sound.mp3}";
+  env.TEST_AUDIO_FILE_WAV = "${../../assets/sound_16k.wav}";
   # not needed since we skip vision tests
   # env.TEST_VISION_MODEL = models.TEST_VISION_MODEL;
   # env.TEST_MMPROJ_MODEL = models.TEST_MMPROJ_MODEL;

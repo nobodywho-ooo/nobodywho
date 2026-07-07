@@ -212,7 +212,9 @@ impl<'py> ModelOrPath<'py> {
 ///
 /// `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
 /// a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
-/// omit or pass `None` to auto-detect.
+/// omit or pass `None` to auto-detect. `quantization` selects the ONNX
+/// precision variant to download and load: one of `"default"`, `"fp16"`,
+/// `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
 ///
 /// Example::
 ///
@@ -230,10 +232,18 @@ pub struct STT {
 #[pymethods]
 impl STT {
     #[new]
-    #[pyo3(signature = (source, language = None))]
-    pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub fn new(
+        source: &str,
+        language: Option<&str>,
+        quantization: Option<&str>,
+        py: Python,
+    ) -> PyResult<Self> {
         let mut cfg = nobodywho::stt::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
+        if let Some(quantization) = quantization {
+            cfg.quantization = quantization.to_string();
+        }
         let stt = py
             .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
@@ -275,10 +285,18 @@ pub struct STTAsync {
 #[pymethods]
 impl STTAsync {
     #[new]
-    #[pyo3(signature = (source, language = None))]
-    pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub fn new(
+        source: &str,
+        language: Option<&str>,
+        quantization: Option<&str>,
+        py: Python,
+    ) -> PyResult<Self> {
         let mut cfg = nobodywho::stt::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
+        if let Some(quantization) = quantization {
+            cfg.quantization = quantization.to_string();
+        }
         let stt = py
             .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;

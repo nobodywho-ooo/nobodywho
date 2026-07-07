@@ -1,14 +1,23 @@
 //! Download infrastructure and HuggingFace Hub helpers.
+//!
+//! Two independent use cases share the low-level cache/download machinery
+//! ([`ModelCache`]) below:
+//! - [`GgufSource`] — a single GGUF file (LLM / embedding / reranker models).
+//! - [`OnnxSource`] — a whole multi-file ONNX model repo (STT / TTS models).
 
 use crate::errors::{GetCacheDirError, GetCachedModelsError, HuggingFaceError, LoadModelError};
 use indicatif::{ProgressBar, ProgressStyle};
+use nom::branch::alt;
+use nom::bytes::complete::{tag, tag_no_case, take_until};
+use nom::combinator::{cut, map, rest, verify};
+use nom::sequence::{preceded, terminated};
+use nom::Parser;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use tracing::{info, warn};
-
 // =========================================================================
 // Progress callbacks
 // =========================================================================
@@ -22,11 +31,10 @@ pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
 /// Default terminal progress bar shown when the user doesn't pass their own callback.
 ///
-/// Renders an `indicatif` bar with spinner, elapsed time, wide bar, binary byte counts,
-/// throughput, and ETA. indicatif auto-disables on non-TTY stderr, so this is safe to use
-/// unconditionally — GUI bindings (Godot, Flutter mobile) won't see output in production.
-/// Detects a new download (model → mmproj transition) by watching for `total` to change,
-/// finishes the previous bar, and starts a fresh one.
+/// indicatif auto-disables on non-TTY stderr, so this is safe to use unconditionally —
+/// GUI bindings (Godot, Flutter mobile) won't see output in production. Detects a new
+/// download (model → mmproj transition) by watching for `total` to change, finishes the
+/// previous bar, and starts a fresh one.
 pub fn default_progress_callback() -> DownloadProgressCallback {
     let style = ProgressStyle::with_template(
         "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
@@ -91,360 +99,435 @@ where
 }
 
 // =========================================================================
-// Download cache directory
+// ModelCache — shared cache root + low-level file download
 // =========================================================================
 
-/// Get the cache directory for downloaded models.
-///
-/// On Android, the package name is read from `/proc/self/cmdline` and the user ID
-/// is derived from the UID (`uid / 100000`). This avoids needing JNI or an Android
-/// Context object, which isn't reliably available — Flutter loads native libraries
-/// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
-///
-/// On other platforms, uses the `dirs` crate to find the standard cache directory.
-pub(crate) fn get_cache_dir() -> Result<PathBuf, GetCacheDirError> {
-    let base = get_platform_cache_dir()?;
-    Ok(base.join("nobodywho").join("models"))
+/// Root directory all downloaded models are cached under, shared by both
+/// [`GgufSource`] and [`OnnxSource`]. Cheap to construct — open a fresh one
+/// wherever a source needs resolving, no need to cache the instance across calls.
+struct ModelCache {
+    root: PathBuf,
+}
+
+impl ModelCache {
+    fn open() -> Result<Self, GetCacheDirError> {
+        let base = Self::platform_cache_dir()?;
+        Ok(Self {
+            root: base.join("nobodywho").join("models"),
+        })
+    }
+
+    /// On Android, the package name is read from `/proc/self/cmdline` and the user ID
+    /// is derived from the UID (`uid / 100000`). This avoids needing JNI or an Android
+    /// Context object, which isn't reliably available — Flutter loads native libraries
+    /// via `dlopen` (not `System.loadLibrary`), so `JNI_OnLoad` is never called.
+    ///
+    /// On other platforms, uses the `dirs` crate to find the standard cache directory.
+    #[cfg(target_os = "android")]
+    fn platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
+        // Multi-process apps get a colon suffix here (e.g. "com.example.app:remote").
+        let cmdline = std::fs::read("/proc/self/cmdline")?;
+
+        let package_name = cmdline
+            .split(|&b| b == 0)
+            .next()
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .map(|s| s.split(':').next().unwrap_or(s))
+            .ok_or(GetCacheDirError::NoPackageName)?;
+
+        // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
+        //   uid = user_id * 100000 + app_id
+        // This gives the correct path on multi-user devices (e.g. GrapheneOS work
+        // profiles), where /data/data/ is a symlink only valid for user 0.
+        let uid = unsafe { libc::getuid() };
+        let user_id = uid / 100000;
+
+        Ok(PathBuf::from(format!(
+            "/data/user/{user_id}/{package_name}/cache"
+        )))
+    }
+
+    #[cfg(not(target_os = "android"))]
+    fn platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
+        dirs::cache_dir().ok_or(GetCacheDirError::NoCacheDir)
+    }
+
+    /// Streams into a `tempfile::NamedTempFile` next to the target and atomically
+    /// persists it on success. Unlike a hand-rolled temp path, this cleans itself
+    /// up on any early return — including a panic mid-download — rather than only
+    /// on an explicit `Err` we remembered to handle.
+    fn fetch_to_path(
+        &self,
+        url: &str,
+        target_path: &Path,
+        progress: &DownloadProgressCallback,
+        headers: &[(String, String)],
+    ) -> Result<(), LoadModelError> {
+        Self::validate_no_traversal(target_path)?;
+
+        if target_path.exists() {
+            info!("Using cached file: {}", target_path.display());
+            return Ok(());
+        }
+
+        Self::ensure_parent_dir(target_path)?;
+        info!("Downloading {} -> {}", url, target_path.display());
+
+        let (mut reader, content_length) = Self::open_http_stream(url, headers)?;
+        let mut tmp_file = Self::create_temp_file(target_path)?;
+        let tmp_path = tmp_file.path().to_path_buf();
+
+        Self::stream_to_file(
+            &mut reader,
+            url,
+            tmp_file.as_file_mut(),
+            &tmp_path,
+            content_length,
+            progress,
+        )?;
+
+        tmp_file
+            .persist(target_path)
+            .map_err(|e| LoadModelError::RenameTempFile {
+                from: e.file.path().to_path_buf(),
+                to: target_path.to_path_buf(),
+                source: e.error,
+            })?;
+
+        info!("Download complete: {}", target_path.display());
+        Ok(())
+    }
+
+    fn validate_no_traversal(path: &Path) -> Result<(), LoadModelError> {
+        for component in path.components() {
+            if component == std::path::Component::ParentDir {
+                return Err(LoadModelError::PathTraversal {
+                    path: path.to_path_buf(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn ensure_parent_dir(path: &Path) -> Result<(), LoadModelError> {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        std::fs::create_dir_all(parent).map_err(|source| LoadModelError::CreateCacheDir {
+            path: parent.to_path_buf(),
+            source,
+        })
+    }
+
+    /// Returned `u64` is the parsed `Content-Length`; 0 means unknown (see below).
+    fn open_http_stream(
+        url: &str,
+        headers: &[(String, String)],
+    ) -> Result<(Box<dyn Read>, u64), LoadModelError> {
+        let mut request = ureq::get(url);
+        for (name, value) in headers {
+            request = request.header(name.as_str(), value.as_str());
+        }
+        let response = request.call().map_err(|e| match e {
+            ureq::Error::StatusCode(status) => LoadModelError::from_http_status(url, status),
+            source => LoadModelError::HttpRequest {
+                url: url.to_owned(),
+                source,
+            },
+        })?;
+
+        // Content-Length is missing for many text/JSON responses served via chunked
+        // transfer (e.g. HuggingFace `.gitattributes`, `config.json`, README.md);
+        // we treat that as "unknown size" rather than an error — we still stream
+        // the body, just without progress denominator or post-download size check.
+        let content_length: u64 = response
+            .headers()
+            .get("content-length")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        if content_length > 0 {
+            info!(
+                "Download size: {:.1} GB",
+                content_length as f64 / 1_073_741_824.0
+            );
+        } else {
+            info!("Download size: unknown (no Content-Length)");
+        }
+
+        Ok((Box::new(response.into_body().into_reader()), content_length))
+    }
+
+    // Same directory as `target_path` so the later `persist` rename is atomic.
+    fn create_temp_file(target_path: &Path) -> Result<tempfile::NamedTempFile, LoadModelError> {
+        let parent = target_path.parent().unwrap_or_else(|| Path::new("."));
+        tempfile::Builder::new()
+            .prefix(&format!(
+                "{}.",
+                target_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+            ))
+            .suffix(".part")
+            .tempfile_in(parent)
+            .map_err(|source| LoadModelError::CreateTempFile {
+                path: target_path.to_path_buf(),
+                source,
+            })
+    }
+
+    fn stream_to_file(
+        reader: &mut dyn Read,
+        url: &str,
+        file: &mut std::fs::File,
+        tmp_path: &Path,
+        content_length: u64,
+        progress: &DownloadProgressCallback,
+    ) -> Result<(), LoadModelError> {
+        let mut downloaded: u64 = 0;
+        let mut last_logged_pct: u64 = 0;
+        let mut buf = vec![0u8; 256 * 1024];
+
+        loop {
+            let n = reader
+                .read(&mut buf)
+                .map_err(|source| LoadModelError::ReadDownload {
+                    url: url.to_owned(),
+                    source,
+                })?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n])
+                .map_err(|source| LoadModelError::WriteDownload {
+                    path: tmp_path.to_path_buf(),
+                    source,
+                })?;
+            downloaded += n as u64;
+
+            progress(downloaded, content_length);
+
+            if let Some(pct) = (downloaded * 100).checked_div(content_length) {
+                if pct >= last_logged_pct + 5 {
+                    info!("Download progress: {pct}% ({downloaded}/{content_length} bytes)");
+                    last_logged_pct = pct;
+                }
+            }
+        }
+        if content_length > 0 && downloaded != content_length {
+            return Err(LoadModelError::IncompleteDownload {
+                url: url.to_owned(),
+                got: downloaded,
+                expected: content_length,
+            });
+        }
+        Ok(())
+    }
+}
+
+const DEFAULT_REVISION: &str = "main";
+
+/// A HuggingFace Hub repo at a given revision. Used by both [`GgufSource`]
+/// (one file) and [`OnnxSource`] (a whole repo).
+#[derive(Clone, Debug)]
+struct HfRepo {
+    owner: String,
+    repo: String,
+    revision: String,
+}
+
+impl HfRepo {
+    fn main(owner: impl Into<String>, repo: impl Into<String>) -> Self {
+        Self {
+            owner: owner.into(),
+            repo: repo.into(),
+            revision: DEFAULT_REVISION.into(),
+        }
+    }
+
+    /// `owner/repo`, used in error messages and as the cache subdirectory key.
+    fn id(&self) -> String {
+        format!("{}/{}", self.owner, self.repo)
+    }
+
+    fn cache_dir(&self, cache: &ModelCache) -> PathBuf {
+        cache.root.join(&self.owner).join(&self.repo)
+    }
+
+    fn resolve_url(&self, path: &str) -> String {
+        format!(
+            "https://huggingface.co/{}/{}/resolve/{}/{}",
+            self.owner, self.repo, self.revision, path
+        )
+    }
+
+    fn tree_url(&self) -> String {
+        format!(
+            "https://huggingface.co/api/models/{}/{}/tree/{}?recursive=true",
+            self.owner, self.repo, self.revision
+        )
+    }
+}
+
+// =========================================================================
+// GgufSource — a single GGUF file (LLM / embedding / reranker models)
+// =========================================================================
+
+/// Where a single GGUF model file comes from: a HuggingFace Hub repo, or an
+/// arbitrary HTTP(S) URL. (A local filesystem path needs no resolving at all,
+/// so it's handled entirely by the caller — see [`download_gguf`].)
+enum GgufSource {
+    HuggingFace { repo: HfRepo, filename: String },
+    Url(String),
+}
+
+impl ModelCache {
+    /// Resolve a [`GgufSource`] to a local file, downloading it first unless
+    /// it's already cached.
+    fn download_file(
+        &self,
+        source: &GgufSource,
+        progress: &DownloadProgressCallback,
+        headers: &[(String, String)],
+    ) -> Result<PathBuf, LoadModelError> {
+        let (url, target) = match source {
+            GgufSource::HuggingFace { repo, filename } => (
+                repo.resolve_url(filename),
+                repo.cache_dir(self).join(filename),
+            ),
+            GgufSource::Url(url) => {
+                let path_part = url
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://");
+                (url.clone(), self.root.join("http").join(path_part))
+            }
+        };
+
+        self.fetch_to_path(&url, &target, progress, headers)?;
+        Ok(target)
+    }
+
+    /// Every `.gguf` file already in the cache, paired with its byte size.
+    fn list_cached(&self) -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError> {
+        if !self.root.exists() {
+            return Ok(Vec::new());
+        }
+
+        walkdir::WalkDir::new(&self.root)
+            .into_iter()
+            .filter(|res| match res {
+                Ok(e) => {
+                    e.file_type().is_file()
+                        && e.path()
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .is_some_and(|s| s.eq_ignore_ascii_case("gguf"))
+                }
+                Err(_) => true,
+            })
+            .map(|res| {
+                let entry = res?;
+                let len = entry.metadata()?.len() as usize;
+                Ok((entry.into_path(), len))
+            })
+            .collect()
+    }
 }
 
 /// Every `.gguf` model in the nobodywho cache, paired with its byte size.
 pub fn get_cached_models() -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError> {
-    let cache_dir = get_cache_dir()?;
-    if !cache_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    walkdir::WalkDir::new(&cache_dir)
-        .into_iter()
-        .filter(|res| match res {
-            Ok(e) => {
-                e.file_type().is_file()
-                    && e.path()
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .is_some_and(|s| s.eq_ignore_ascii_case("gguf"))
-            }
-            Err(_) => true,
-        })
-        .map(|res| {
-            let entry = res?;
-            let len = entry.metadata()?.len() as usize;
-            Ok((entry.into_path(), len))
-        })
-        .collect()
+    ModelCache::open()?.list_cached()
 }
 
-#[cfg(target_os = "android")]
-fn get_platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
-    // Read the package name from /proc/self/cmdline. This file contains the process
-    // name as a null-terminated string. On Android this is the package name
-    // (e.g. "com.example.app"), possibly with a colon suffix for multi-process apps
-    // (e.g. "com.example.app:remote").
-    let cmdline = std::fs::read("/proc/self/cmdline")?;
-
-    let package_name = cmdline
-        .split(|&b| b == 0)
-        .next()
-        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-        .map(|s| s.split(':').next().unwrap_or(s))
-        .ok_or(GetCacheDirError::NoPackageName)?;
-
-    // Derive the Android user ID from the Unix UID. Android assigns UIDs as:
-    //   uid = user_id * 100000 + app_id
-    // This gives the correct path on multi-user devices (e.g. GrapheneOS work
-    // profiles), where /data/data/ is a symlink only valid for user 0.
-    let uid = unsafe { libc::getuid() };
-    let user_id = uid / 100000;
-
-    Ok(PathBuf::from(format!(
-        "/data/user/{user_id}/{package_name}/cache"
-    )))
+/// A parsed `model_path` string, before it's resolved to somewhere on disk.
+#[derive(Clone)]
+pub(crate) enum ParsedModelPath {
+    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
+    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
+    FilesystemPath(PathBuf),                // e.g. ./qwen3.gguf
 }
 
-#[cfg(not(target_os = "android"))]
-fn get_platform_cache_dir() -> Result<PathBuf, GetCacheDirError> {
-    dirs::cache_dir().ok_or(GetCacheDirError::NoCacheDir)
+pub(crate) fn parse_model_path(
+    model_path: &str,
+) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
+    let mut parser = alt((
+        // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
+        map(
+            preceded(
+                alt((
+                    tag_no_case("huggingface://"),
+                    tag_no_case("huggingface:"),
+                    tag_no_case("hf://"),
+                    tag_no_case("hf:"),
+                )),
+                cut((
+                    terminated(take_until("/"), tag("/")),
+                    terminated(take_until("/"), tag("/")),
+                    verify(rest, |s: &str| !s.is_empty()),
+                )),
+            ),
+            |(owner, repo, filename): (&str, &str, &str)| {
+                ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
+            },
+        ),
+        // https://... or http://...
+        map(
+            (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
+            |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
+        ),
+        // Anything else is a filesystem path (expand leading ~ on non-Android)
+        map(rest, |p: &str| {
+            ParsedModelPath::FilesystemPath(PathBuf::from(p))
+        }),
+    ));
+    let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
+    result
+        .map(|(_, parsed)| parsed)
+        .map_err(|e| e.map(|e| e.cloned()))
 }
 
-// =========================================================================
-// Generic HTTP download
-// =========================================================================
-
-/// Download a file from a URL to a local path, streaming to disk with progress logging.
-///
-/// Returns early if the file already exists at the target path.
-/// Rejects paths containing `..` to prevent path traversal attacks.
-pub(crate) fn download_file(
-    url: &str,
-    target_path: &Path,
+/// Takes a fancy path (possibly with `hf:` or `https://` in front) and resolves
+/// it to a realized path on the filesystem, downloading it first if needed.
+pub(crate) fn download_gguf(
+    parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
     headers: &[(String, String)],
-) -> Result<(), LoadModelError> {
-    validate_no_traversal(target_path)?;
-
-    if target_path.exists() {
-        info!("Using cached file: {}", target_path.display());
-        return Ok(());
-    }
-
-    ensure_parent_dir(target_path)?;
-    info!("Downloading {} -> {}", url, target_path.display());
-
-    let (mut reader, content_length) = open_http_stream(url, headers)?;
-    let tmp_path = make_temp_path(target_path);
-
-    if let Err(e) = stream_to_temp(&mut reader, url, &tmp_path, content_length, progress) {
-        if let Err(cleanup_err) = std::fs::remove_file(&tmp_path) {
-            warn!(
-                "Failed to clean up temp file {}: {cleanup_err}",
-                tmp_path.display()
-            );
+) -> Result<PathBuf, LoadModelError> {
+    let cache = ModelCache::open()?;
+    let fs_model_path = match parsed_path {
+        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
+            let source = GgufSource::HuggingFace {
+                repo: HfRepo::main(owner, repo),
+                filename,
+            };
+            cache.download_file(&source, progress, headers)?
         }
-        return Err(e);
-    }
-
-    finalize_rename(&tmp_path, target_path)?;
-    info!("Download complete: {}", target_path.display());
-    Ok(())
-}
-
-fn validate_no_traversal(path: &Path) -> Result<(), LoadModelError> {
-    for component in path.components() {
-        if component == std::path::Component::ParentDir {
-            return Err(LoadModelError::PathTraversal {
-                path: path.to_path_buf(),
-            });
+        ParsedModelPath::FilesystemPath(path) => path,
+        ParsedModelPath::HttpUrl(url) => {
+            cache.download_file(&GgufSource::Url(url), progress, headers)?
         }
-    }
-    Ok(())
-}
-
-fn ensure_parent_dir(path: &Path) -> Result<(), LoadModelError> {
-    let Some(parent) = path.parent() else {
-        return Ok(());
     };
-    std::fs::create_dir_all(parent).map_err(|source| LoadModelError::CreateCacheDir {
-        path: parent.to_path_buf(),
-        source,
-    })
-}
 
-/// Send the request and return a streaming reader plus the parsed
-/// `Content-Length` (0 means "unknown" — see comment below).
-fn open_http_stream(
-    url: &str,
-    headers: &[(String, String)],
-) -> Result<(Box<dyn Read>, u64), LoadModelError> {
-    let mut request = ureq::get(url);
-    for (name, value) in headers {
-        request = request.header(name.as_str(), value.as_str());
-    }
-    let response = request.call().map_err(|e| match e {
-        ureq::Error::StatusCode(status) => LoadModelError::from_http_status(url, status),
-        source => LoadModelError::HttpRequest {
-            url: url.to_owned(),
-            source,
-        },
-    })?;
-
-    // Content-Length is missing for many text/JSON responses served via chunked
-    // transfer (e.g. HuggingFace `.gitattributes`, `config.json`, README.md);
-    // we treat that as "unknown size" rather than an error — we still stream
-    // the body, just without progress denominator or post-download size check.
-    let content_length: u64 = response
-        .headers()
-        .get("content-length")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(0);
-
-    if content_length > 0 {
-        info!(
-            "Download size: {:.1} GB",
-            content_length as f64 / 1_073_741_824.0
-        );
-    } else {
-        info!("Download size: unknown (no Content-Length)");
+    if !fs_model_path.exists() {
+        return Err(LoadModelError::from_missing_path(&fs_model_path));
     }
 
-    Ok((Box::new(response.into_body().into_reader()), content_length))
-}
+    LoadModelError::validate_model_file(&fs_model_path)?;
 
-// Write to a temp file first, then rename — avoids partial files on failure.
-fn make_temp_path(target_path: &Path) -> PathBuf {
-    target_path.with_file_name(format!(
-        "{}.{:x}.part",
-        target_path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy(),
-        rand::random::<u32>(),
-    ))
-}
-
-fn stream_to_temp(
-    reader: &mut dyn Read,
-    url: &str,
-    tmp_path: &Path,
-    content_length: u64,
-    progress: &DownloadProgressCallback,
-) -> Result<(), LoadModelError> {
-    let mut file =
-        std::fs::File::create(tmp_path).map_err(|source| LoadModelError::CreateTempFile {
-            path: tmp_path.to_path_buf(),
-            source,
-        })?;
-
-    let mut downloaded: u64 = 0;
-    let mut last_logged_pct: u64 = 0;
-    let mut buf = vec![0u8; 256 * 1024]; // 256 KB chunks
-
-    loop {
-        let n = reader
-            .read(&mut buf)
-            .map_err(|source| LoadModelError::ReadDownload {
-                url: url.to_owned(),
-                source,
-            })?;
-        if n == 0 {
-            break;
-        }
-        file.write_all(&buf[..n])
-            .map_err(|source| LoadModelError::WriteDownload {
-                path: tmp_path.to_path_buf(),
-                source,
-            })?;
-        downloaded += n as u64;
-
-        progress(downloaded, content_length);
-
-        if let Some(pct) = (downloaded * 100).checked_div(content_length) {
-            if pct >= last_logged_pct + 5 {
-                info!("Download progress: {pct}% ({downloaded}/{content_length} bytes)");
-                last_logged_pct = pct;
-            }
-        }
-    }
-    if content_length > 0 && downloaded != content_length {
-        return Err(LoadModelError::IncompleteDownload {
-            url: url.to_owned(),
-            got: downloaded,
-            expected: content_length,
-        });
-    }
-    Ok(())
-}
-
-fn finalize_rename(tmp: &Path, target: &Path) -> Result<(), LoadModelError> {
-    std::fs::rename(tmp, target).map_err(|source| LoadModelError::RenameTempFile {
-        from: tmp.to_path_buf(),
-        to: target.to_path_buf(),
-        source,
-    })
-}
-
-/// Download a single file from a generic HTTP(S) URL into the cache and return
-/// the local path. Cache keyed by the URL's path components.
-pub(crate) fn download_model_from_url(
-    url: &str,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<PathBuf, LoadModelError> {
-    let cache_dir = get_cache_dir()?;
-    let path_part = url
-        .trim_start_matches("https://")
-        .trim_start_matches("http://");
-    let target_path = cache_dir.join("http").join(path_part);
-    download_file(url, &target_path, progress, headers)?;
-    Ok(target_path)
+    Ok(fs_model_path)
 }
 
 // =========================================================================
-// HuggingFace Hub: single-file download
+// OnnxSource — a whole multi-file ONNX model repo (STT / TTS models)
 // =========================================================================
 
-/// HuggingFace Hub URL for resolving a file at a given revision.
-pub(crate) fn hf_resolve_url(owner: &str, repo: &str, revision: &str, path: &str) -> String {
-    format!("https://huggingface.co/{owner}/{repo}/resolve/{revision}/{path}")
-}
-
-/// Download a single file from a HuggingFace Hub repo and return the local path.
-///
-/// If the file is already cached locally, the cached path is returned without downloading.
-pub(crate) fn download_model_from_hf(
-    owner: &str,
-    repo: &str,
-    filename: &str,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<PathBuf, LoadModelError> {
-    let cache_dir = get_cache_dir()?;
-    let target_path = cache_dir.join(owner).join(repo).join(filename);
-    let url = hf_resolve_url(owner, repo, "main", filename);
-    download_file(&url, &target_path, progress, headers)?;
-    Ok(target_path)
-}
-
-// =========================================================================
-// HuggingFace Hub: whole-repo "model source" workflow
-// =========================================================================
-
-const DEFAULT_REVISION: &str = "main";
-
-#[derive(Clone, Debug)]
-pub(crate) enum Source {
-    Local(PathBuf),
-    HuggingFace {
-        owner: String,
-        repo: String,
-        revision: String,
-    },
-}
-
-/// Parse a source string. Existing local directories win; otherwise we expect
-/// `owner/repo` and treat it as a HuggingFace Hub repo ID at `main`.
-pub(crate) fn parse(s: &str) -> Result<Source, HuggingFaceError> {
-    let path = Path::new(s);
-    if path.is_dir() {
-        return Ok(Source::Local(path.to_path_buf()));
-    }
-    let parts: Vec<&str> = s.split('/').collect();
-    if parts.len() == 2 && parts.iter().all(|p| is_valid_repo_part(p)) {
-        return Ok(Source::HuggingFace {
-            owner: parts[0].to_string(),
-            repo: parts[1].to_string(),
-            revision: DEFAULT_REVISION.into(),
-        });
-    }
-    Err(HuggingFaceError::InvalidSource(s.to_string()))
-}
-
-fn is_valid_repo_part(s: &str) -> bool {
-    !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-}
-
-fn is_dotfile(path: &str) -> bool {
-    path.rsplit('/').next().unwrap_or(path).starts_with('.')
-}
-
-/// Resolve a parsed source to a local directory. For HF sources, lists the
-/// repo via the HF API and downloads every file into the local cache.
-pub(crate) fn resolve(source: Source) -> Result<PathBuf, HuggingFaceError> {
-    match source {
-        Source::Local(p) => Ok(p),
-        Source::HuggingFace {
-            owner,
-            repo,
-            revision,
-        } => download_repo(&owner, &repo, &revision, &default_progress_callback()),
-    }
-}
-
-pub(crate) fn resolve_model_dir(source: &str) -> Result<PathBuf, HuggingFaceError> {
-    resolve(parse(source)?)
-}
+/// Name of the local marker file recording which repo files a previous call
+/// to `OnnxSource::download_repo` confirmed were fully downloaded. Used to
+/// skip the network round-trip on a later call — see its use below for why
+/// this can't be inferred from `required_files` alone.
+const COMPLETE_MARKER: &str = ".nobodywho-complete";
 
 #[derive(serde::Deserialize)]
 struct HfTreeEntry {
@@ -453,73 +536,225 @@ struct HfTreeEntry {
     path: String,
 }
 
-fn download_repo(
-    owner: &str,
-    repo: &str,
-    revision: &str,
-    progress: &DownloadProgressCallback,
-) -> Result<PathBuf, HuggingFaceError> {
-    let cache_dir = get_cache_dir()?.join(owner).join(repo);
-    let repo_id = format!("{owner}/{repo}");
+/// Where a whole multi-file ONNX model comes from: an existing local
+/// directory, or a HuggingFace Hub repo.
+///
+/// `required_files` narrows a HuggingFace download to just the files actually
+/// needed (e.g. one ONNX precision variant out of a dozen a repo may ship),
+/// rather than downloading the entire repo. Pass an empty list to download
+/// everything unfiltered.
+#[derive(Clone, Debug)]
+enum OnnxSource {
+    Local(PathBuf),
+    HuggingFace {
+        repo: HfRepo,
+        required_files: Vec<String>,
+    },
+}
 
-    // Skip the network round-trip if the directory is already populated (e.g.
-    // pre-fetched by the Nix build or a previous run). Each individual file is
-    // still guarded by its own existence check inside download_file().
-    if cache_dir.is_dir()
-        && std::fs::read_dir(&cache_dir)
-            .map(|mut d| d.next().is_some())
-            .unwrap_or(false)
-    {
-        info!("Using cached repo: {}", cache_dir.display());
-        return Ok(cache_dir);
+impl OnnxSource {
+    /// Parse a source string. Existing local directories win; otherwise we
+    /// expect `owner/repo` and treat it as a HuggingFace Hub repo ID at `main`.
+    fn parse(s: &str, required_files: Vec<String>) -> Result<Self, HuggingFaceError> {
+        let path = Path::new(s);
+        if path.is_dir() {
+            return Ok(Self::Local(path.to_path_buf()));
+        }
+        let parts: Vec<&str> = s.split('/').collect();
+        if parts.len() == 2 && parts.iter().all(|p| Self::is_valid_repo_part(p)) {
+            return Ok(Self::HuggingFace {
+                repo: HfRepo::main(parts[0], parts[1]),
+                required_files,
+            });
+        }
+        Err(HuggingFaceError::InvalidSource(s.to_string()))
     }
 
-    let tree_url =
-        format!("https://huggingface.co/api/models/{owner}/{repo}/tree/{revision}?recursive=true");
-    let body = ureq::get(&tree_url)
-        .call()
-        .map_err(|source| HuggingFaceError::ListRepoTree {
-            repo: repo_id.clone(),
-            source,
-        })?
-        .body_mut()
-        .read_to_string()
-        .map_err(|source| HuggingFaceError::ReadRepoTree {
-            repo: repo_id.clone(),
-            source,
-        })?;
-    let entries: Vec<HfTreeEntry> =
-        serde_json::from_str(&body).map_err(|source| HuggingFaceError::ParseRepoTree {
-            repo: repo_id.clone(),
-            source,
-        })?;
-
-    // Skip dotfiles (e.g. `.gitattributes`)
-    let files: Vec<String> = entries
-        .into_iter()
-        .filter(|e| e.kind == "file")
-        .map(|e| e.path)
-        .filter(|p| !is_dotfile(p))
-        .collect();
-    if files.is_empty() {
-        return Err(HuggingFaceError::EmptyRepo {
-            repo: repo_id,
-            revision: revision.to_string(),
-        });
+    fn is_valid_repo_part(s: &str) -> bool {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
     }
 
-    for path in &files {
-        let url = hf_resolve_url(owner, repo, revision, path);
-        let target = cache_dir.join(path);
-        download_file(&url, &target, progress, &[]).map_err(|source| {
-            HuggingFaceError::DownloadEntry {
-                path: path.clone(),
-                source: Box::new(source),
+    fn is_dotfile(path: &str) -> bool {
+        path.rsplit('/').next().unwrap_or(path).starts_with('.')
+    }
+
+    /// Narrow `available` (every file in a repo) down to just `required` (e.g. a
+    /// single ONNX precision variant out of the dozen a repo may ship), rather
+    /// than downloading the entire repo. An empty `required` list keeps the
+    /// download-everything behavior, for callers that genuinely need that.
+    ///
+    /// Also pulls in ONNX external-data sidecars: a `.onnx` file's weights may be
+    /// split into a companion `<path>_data` file (or `<path>_data/` directory of
+    /// chunks) when the graph would otherwise exceed protobuf's 2GB limit — e.g.
+    /// `onnx-community/whisper-large-v3-turbo` ships `encoder_model.onnx` (440KB,
+    /// just the graph) alongside `encoder_model.onnx_data` (2.5GB, the weights).
+    /// Without this, loading the model fails after a "successful" download.
+    ///
+    /// Returns the names in `required` that aren't present in `available` as `Err`.
+    fn select_required_files(
+        available: Vec<String>,
+        required: &[String],
+    ) -> Result<Vec<String>, Vec<String>> {
+        if required.is_empty() {
+            return Ok(available);
+        }
+        let missing: Vec<String> = required
+            .iter()
+            .filter(|r| !available.contains(r))
+            .cloned()
+            .collect();
+        if !missing.is_empty() {
+            return Err(missing);
+        }
+        Ok(available
+            .into_iter()
+            .filter(|p| required.contains(p) || Self::is_external_data_for(p, required))
+            .collect())
+    }
+
+    /// True if `path` is the ONNX external-data sidecar (or a chunk inside the
+    /// sidecar directory) for one of the files in `required`.
+    fn is_external_data_for(path: &str, required: &[String]) -> bool {
+        required.iter().any(|r| {
+            let prefix = format!("{r}_data");
+            path == prefix || path.starts_with(&format!("{prefix}/"))
+        })
+    }
+
+    fn read_completed_files(cache_dir: &Path) -> Option<Vec<String>> {
+        let content = std::fs::read_to_string(cache_dir.join(COMPLETE_MARKER)).ok()?;
+        let files: Vec<String> = content
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(String::from)
+            .collect();
+        (!files.is_empty()).then_some(files)
+    }
+
+    /// Record that `files` were just fully downloaded, merging with any
+    /// previously recorded set (e.g. a different quantization of the same repo)
+    /// so neither is forgotten. Best-effort: a write failure just means the next
+    /// call re-verifies over the network instead of failing this one.
+    fn write_completed_files(cache_dir: &Path, files: &[String]) {
+        let mut all_files = Self::read_completed_files(cache_dir).unwrap_or_default();
+        for f in files {
+            if !all_files.contains(f) {
+                all_files.push(f.clone());
             }
-        })?;
+        }
+        if let Err(e) = std::fs::write(cache_dir.join(COMPLETE_MARKER), all_files.join("\n")) {
+            warn!(
+                "Failed to write download-completion marker in {}: {e}",
+                cache_dir.display()
+            );
+        }
     }
+}
 
-    Ok(cache_dir)
+impl ModelCache {
+    /// Resolve an [`OnnxSource`] to a local directory. An existing local
+    /// directory is returned as-is; a HuggingFace repo is downloaded (or
+    /// verified already-cached) first.
+    fn download_repo(
+        &self,
+        source: &OnnxSource,
+        progress: &DownloadProgressCallback,
+    ) -> Result<PathBuf, HuggingFaceError> {
+        let (repo, required_files) = match source {
+            OnnxSource::Local(p) => return Ok(p.clone()),
+            OnnxSource::HuggingFace {
+                repo,
+                required_files,
+            } => (repo, required_files),
+        };
+
+        let cache_dir = repo.cache_dir(self);
+
+        // Skip the network round-trip if a previous call already downloaded
+        // everything this call needs. We can't infer that from `required_files`
+        // alone: an empty list (e.g. TTS backends, which don't filter) matches
+        // vacuously without proving anything is on disk, and a non-empty list
+        // may omit ONNX external-data sidecars that only `select_required_files`
+        // discovers from the live repo tree. So completeness is recorded in a
+        // local marker after a successful download, not guessed beforehand.
+        if let Some(completed) = OnnxSource::read_completed_files(&cache_dir) {
+            let satisfied = required_files.iter().all(|f| completed.contains(f))
+                && completed.iter().all(|f| cache_dir.join(f).exists());
+            if satisfied {
+                info!("Using cached repo: {}", cache_dir.display());
+                return Ok(cache_dir);
+            }
+        }
+
+        let body = ureq::get(&repo.tree_url())
+            .call()
+            .map_err(|source| HuggingFaceError::ListRepoTree {
+                repo: repo.id(),
+                source,
+            })?
+            .body_mut()
+            .read_to_string()
+            .map_err(|source| HuggingFaceError::ReadRepoTree {
+                repo: repo.id(),
+                source,
+            })?;
+        let entries: Vec<HfTreeEntry> =
+            serde_json::from_str(&body).map_err(|source| HuggingFaceError::ParseRepoTree {
+                repo: repo.id(),
+                source,
+            })?;
+
+        // Skip dotfiles (e.g. `.gitattributes`)
+        let all_files: Vec<String> = entries
+            .into_iter()
+            .filter(|e| e.kind == "file")
+            .map(|e| e.path)
+            .filter(|p| !OnnxSource::is_dotfile(p))
+            .collect();
+
+        let files =
+            OnnxSource::select_required_files(all_files, required_files).map_err(|missing| {
+                HuggingFaceError::MissingRequiredFiles {
+                    repo: repo.id(),
+                    files: missing,
+                }
+            })?;
+
+        if files.is_empty() {
+            return Err(HuggingFaceError::EmptyRepo {
+                repo: repo.id(),
+                revision: repo.revision.clone(),
+            });
+        }
+
+        for path in &files {
+            let url = repo.resolve_url(path);
+            let target = cache_dir.join(path);
+            self.fetch_to_path(&url, &target, progress, &[])
+                .map_err(|source| HuggingFaceError::DownloadEntry {
+                    path: path.clone(),
+                    source: Box::new(source),
+                })?;
+        }
+        OnnxSource::write_completed_files(&cache_dir, &files);
+
+        Ok(cache_dir)
+    }
+}
+
+/// Resolve a model source string to a local directory. Existing local
+/// directories win; otherwise `source` is treated as a HuggingFace Hub repo
+/// ID (`owner/repo`) and downloaded, narrowed to `required_files` (an empty
+/// slice downloads the entire repo unfiltered).
+pub(crate) fn download_onnx(
+    source: &str,
+    required_files: &[String],
+) -> Result<PathBuf, HuggingFaceError> {
+    let cache = ModelCache::open()?;
+    let source = OnnxSource::parse(source, required_files.to_vec())?;
+    cache.download_repo(&source, &default_progress_callback())
 }
 
 #[cfg(test)]
@@ -528,24 +763,21 @@ mod tests {
 
     #[test]
     fn parses_hf_repo_id() {
-        let Source::HuggingFace {
-            owner,
-            repo,
-            revision,
-        } = parse("NobodyWho/Kokoro-82M").unwrap()
+        let OnnxSource::HuggingFace { repo, .. } =
+            OnnxSource::parse("NobodyWho/Kokoro-82M", vec![]).unwrap()
         else {
             panic!("expected HuggingFace");
         };
-        assert_eq!(owner, "NobodyWho");
-        assert_eq!(repo, "Kokoro-82M");
-        assert_eq!(revision, "main");
+        assert_eq!(repo.owner, "NobodyWho");
+        assert_eq!(repo.repo, "Kokoro-82M");
+        assert_eq!(repo.revision, "main");
     }
 
     #[test]
     fn accepts_dashes_underscores_dots_in_repo_parts() {
         assert!(matches!(
-            parse("a-b/c_d.e").unwrap(),
-            Source::HuggingFace { .. }
+            OnnxSource::parse("a-b/c_d.e", vec![]).unwrap(),
+            OnnxSource::HuggingFace { .. }
         ));
     }
 
@@ -553,33 +785,36 @@ mod tests {
     fn existing_local_dir_resolves_to_local() {
         let dir = std::env::temp_dir();
         let s = dir.to_str().expect("temp_dir is valid utf-8");
-        assert!(matches!(parse(s).unwrap(), Source::Local(_)));
+        assert!(matches!(
+            OnnxSource::parse(s, vec![]).unwrap(),
+            OnnxSource::Local(_)
+        ));
     }
 
     #[test]
     fn rejects_no_slash() {
-        assert!(parse("nobodywho").is_err());
+        assert!(OnnxSource::parse("nobodywho", vec![]).is_err());
     }
 
     #[test]
     fn rejects_too_many_slashes() {
-        assert!(parse("a/b/c").is_err());
+        assert!(OnnxSource::parse("a/b/c", vec![]).is_err());
     }
 
     #[test]
     fn rejects_empty_owner() {
-        assert!(parse("/repo").is_err());
+        assert!(OnnxSource::parse("/repo", vec![]).is_err());
     }
 
     #[test]
     fn rejects_empty_repo() {
-        assert!(parse("owner/").is_err());
+        assert!(OnnxSource::parse("owner/", vec![]).is_err());
     }
 
     #[test]
     fn rejects_invalid_chars() {
-        assert!(parse("foo/bar baz").is_err());
-        assert!(parse("foo bar/baz").is_err());
-        assert!(parse("foo!/baz").is_err());
+        assert!(OnnxSource::parse("foo/bar baz", vec![]).is_err());
+        assert!(OnnxSource::parse("foo bar/baz", vec![]).is_err());
+        assert!(OnnxSource::parse("foo!/baz", vec![]).is_err());
     }
 }

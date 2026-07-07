@@ -2819,6 +2819,12 @@ struct NobodyWhoSTT {
     /// ISO 639-1 language code (e.g. "en"). Leave empty for auto-detection.
     language: GString,
 
+    #[export]
+    /// ONNX precision variant to download and load: one of "default", "fp16",
+    /// "int8", "uint8", "bnb4", "q4", "q4f16", "quantized". Leave empty to use
+    /// the default ("q4", falling back to "default"/fp32 if unavailable).
+    quantization: GString,
+
     stt: Option<nobodywho::stt::Stt>,
     base: Base<Node>,
 }
@@ -2829,6 +2835,7 @@ impl INode for NobodyWhoSTT {
         Self {
             model_path: GString::from(""),
             language: GString::from(""),
+            quantization: GString::from(""),
             stt: None,
             base,
         }
@@ -2879,6 +2886,8 @@ impl NobodyWhoSTT {
             }
         };
 
+        let quantization = self.quantization.to_string();
+
         let mut me = self.to_gd();
         godot::task::spawn(async move {
             // tokio::task::spawn_blocking requires an active Tokio runtime, but
@@ -2889,6 +2898,9 @@ impl NobodyWhoSTT {
             std::thread::spawn(move || {
                 let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
                 cfg.language = language;
+                if !quantization.is_empty() {
+                    cfg.quantization = quantization;
+                }
                 let _ = tx.send(nobodywho::stt::Stt::new(
                     nobodywho::stt::SttConfig::Whisper(cfg),
                 ));

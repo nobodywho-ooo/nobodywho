@@ -452,7 +452,7 @@ void uniffi_nobodywho_uniffi_fn_free_ruststt(uint64_t handle, RustCallStatus *_N
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTSTT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTSTT_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(RustBuffer source, RustBuffer language, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(RustBuffer source, RustBuffer language, RustBuffer quantization, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTSTT_TRANSCRIBE_FILE

@@ -2527,8 +2527,11 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
      * Create an STT handle. `source` is a HuggingFace repo ID
      * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+     * `quantization` selects the ONNX precision variant to download and load:
+     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+     * pass `None` to use `"default"`.
      */
-    constructor(source: string, language: string | undefined) /*throws*/ {
+    constructor(source: string, language: string | undefined, quantization: string | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -2538,6 +2541,7 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
         FfiConverterString.lower(source),
         FfiConverterOptionalString.lower(language),
+        FfiConverterOptionalString.lower(quantization),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4173,7 +4177,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 27902) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() !== 16224) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() !== 21941) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 9431) {
