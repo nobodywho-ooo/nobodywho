@@ -349,7 +349,26 @@ jobs:
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
         run: |
           export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
-          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+          TARGET="${{ matrix.target }}"
+          # The built-in aarch64-apple-watchos (device) target spec ships with
+          # dynamic-linking disabled, so cargo silently drops the cdylib crate-type
+          # and emits only a static .a — useless under dynamic-link, where ggml/llama
+          # live in separate dylibs. The spec is otherwise identical to the watchOS
+          # simulator's (has-rpath, dll-suffix .dylib, is-like-darwin), and watchOS 6+
+          # supports embedded dynamic frameworks, so derive a spec with
+          # dynamic-linking flipped on and build against that. Naming the JSON exactly
+          # aarch64-apple-watchos.json keeps cargo emitting into
+          # target/aarch64-apple-watchos/, matching the rename/upload/xcframework steps.
+          ZFLAGS=""
+          if [ "$TARGET" = "aarch64-apple-watchos" ]; then
+            rustc +nightly -Z unstable-options --target aarch64-apple-watchos \
+              --print target-spec-json \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); d["dynamic-linking"]=True; d.pop("metadata",None); json.dump(d, open("aarch64-apple-watchos.json","w"))'
+            TARGET="$(pwd)/aarch64-apple-watchos.json"
+            # nightly gates building against a .json target spec behind this flag.
+            ZFLAGS="-Z json-target-spec"
+          fi
+          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std $ZFLAGS --verbose --target "$TARGET" ${{ matrix.profile == 'release' && '--release' || '' }}
         working-directory: ./nobodywho
 
       - name: "Rename built file"
