@@ -1,11 +1,3 @@
-//! Silero VAD backend: owns the ONNX session, converts an arbitrary-rate,
-//! arbitrary-chunked, ever-growing `&[i16]` buffer into 512-sample 16kHz
-//! frames, and drives the pure debounce state machine in `events.rs`.
-//!
-//! Model: https://huggingface.co/onnx-community/silero-vad (MIT licensed,
-//! mirrors https://github.com/snakers4/silero-vad), resolved and cached the
-//! same way `Stt`'s Whisper backend resolves its models.
-
 use crate::errors::VadError;
 use crate::huggingface;
 use crate::onnx::{load_session, Device};
@@ -59,22 +51,12 @@ impl VadBackend {
         })
     }
 
-    /// Clears everything needed to start detecting a fresh utterance: the
-    /// model's LSTM state, any buffered-but-not-yet-processed frame samples,
-    /// and the debounce state machine. Does NOT touch the read cursors
-    /// (`raw_processed_len`/`resampled_processed_len`) — those must be left
-    /// alone here so a caller who keeps extending one buffer across multiple
-    /// turns doesn't have already-consumed audio re-fed on the next push().
     fn reset_detection_state(&mut self) {
         self.model_state = vec![0.0; 2 * 128];
         self.frame_buffer.clear();
         self.debouncer.reset();
     }
 
-    /// Full reset for a genuinely new buffer (the caller started over with a
-    /// shorter buffer than previously seen, e.g. after cancelling). Includes
-    /// everything reset_detection_state() does, plus zeroing both read
-    /// cursors, since position 0 in the new buffer really is unprocessed.
     fn reset_for_new_buffer(&mut self) {
         self.reset_detection_state();
         self.raw_processed_len = 0;
@@ -130,12 +112,6 @@ impl VadBackend {
     }
 
     /// Resample the *whole* accumulated raw buffer to 16kHz f32 from scratch.
-    /// Only called on the non-default (non-16kHz) sample-rate path — see
-    /// module doc for why this must operate on the whole buffer every call
-    /// rather than just the newly-arrived tail (a sinc resampler needs
-    /// continuous history; resampling independent small chunks introduces
-    /// discontinuities at each chunk boundary). Callers are responsible for
-    /// only consuming the new tail of the *returned* (resampled) samples.
     fn to_16khz_f32(&self, buffer: &[i16]) -> Result<Vec<f32>, VadError> {
         let decoded = DecodedAudio {
             samples: buffer.iter().map(|&s| s as f32 / 32768.0).collect(),

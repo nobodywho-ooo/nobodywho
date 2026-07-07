@@ -6,35 +6,6 @@
 //! models — first use requires network access, subsequent uses are
 //! offline. The model source is configurable via [`VadConfig::source`] for
 //! forks/mirrors that keep the same `onnx/model.onnx` layout.
-//!
-//! Unlike [`crate::stt::Stt`] (which needs a background worker thread
-//! because LLM/decoder inference is slow), [`Vad::push`] runs synchronously
-//! inline: Silero inference on one frame is sub-millisecond on CPU.
-//!
-//! `push` takes your *entire accumulated buffer* each call, not just the
-//! newest chunk — internally only the new tail is processed, so this is
-//! cheap regardless of how large the buffer grows:
-//!
-//! ```no_run
-//! # use nobodywho::vad::{Vad, VadConfig, VadEvent};
-//! # fn mic_stream() -> Vec<Vec<i16>> { vec![] }
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut vad = Vad::new(VadConfig::default())?;
-//! let mut buffer: Vec<i16> = Vec::new();
-//! for chunk in mic_stream() {
-//!     buffer.extend(chunk);
-//!     if vad.push(&buffer) == Some(VadEvent::SpeechEnded) {
-//!         break;
-//!     }
-//! }
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! There is no `reset()` — state clears itself automatically after
-//! `SpeechEnded`, and also if a shorter buffer than previously seen is
-//! passed in (which can only mean a new turn started, e.g. after the user
-//! cancelled a recording attempt).
 
 mod backend;
 mod events;
