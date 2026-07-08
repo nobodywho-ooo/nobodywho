@@ -29,15 +29,20 @@ use tracing::{info, warn};
 /// synchronization (hence the `Sync` bound).
 pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
-/// Default terminal progress bar shown when the user doesn't pass their own callback.
+/// Default terminal progress bar shown when the user doesn't pass their own callback,
+/// labeled with the last path segment of `path` — e.g. `"hf://owner/repo/model.gguf"`
+/// shows as `"model.gguf"`.
 ///
 /// indicatif auto-disables on non-TTY stderr, so this is safe to use unconditionally —
-/// GUI bindings (Godot, Flutter mobile) won't see output in production. Detects a new
-/// download (model → mmproj transition) by watching for `total` to change, finishes the
-/// previous bar, and starts a fresh one.
-pub fn default_progress_callback() -> DownloadProgressCallback {
+/// GUI bindings (Godot, Flutter mobile) won't see output in production. Callers
+/// downloading more than one file (a repo download, or a GGUF model plus its
+/// mmproj) should create one of these per file rather than sharing a single
+/// instance, so each file gets its own visibly-labeled bar instead of an
+/// unlabeled one that appears to just restart.
+pub fn default_progress_callback(path: &str) -> DownloadProgressCallback {
+    let name = path.rsplit('/').next().unwrap_or(path).to_string();
     let style = ProgressStyle::with_template(
-        "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
+        "{spinner:.green} [{elapsed_precise}] {msg} {wide_bar:.cyan/blue} \
          {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
     )
     .expect("static progress bar template is valid")
@@ -53,6 +58,7 @@ pub fn default_progress_callback() -> DownloadProgressCallback {
             }
             let bar = ProgressBar::new(total);
             bar.set_style(style.clone());
+            bar.set_message(name.clone());
             bar.enable_steady_tick(Duration::from_millis(100));
             s.0 = Some(bar);
             s.1 = total;
@@ -753,8 +759,9 @@ pub(crate) fn download_onnx(
     required_files: &[String],
 ) -> Result<PathBuf, HuggingFaceError> {
     let cache = ModelCache::open()?;
+    let progress = default_progress_callback(source);
     let source = OnnxSource::parse(source, required_files.to_vec())?;
-    cache.download_repo(&source, &default_progress_callback())
+    cache.download_repo(&source, &progress)
 }
 
 #[cfg(test)]
