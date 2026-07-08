@@ -65,7 +65,8 @@ pub fn default_progress_callback(path: &str) -> DownloadProgressCallback {
         }
         let bar = s.0.as_ref().unwrap();
         bar.set_position(downloaded);
-        if downloaded >= total {
+
+        if total > 0 && downloaded >= total {
             bar.finish();
             s.0 = None;
         }
@@ -328,6 +329,14 @@ impl ModelCache {
                 got: downloaded,
                 expected: content_length,
             });
+        }
+
+        // Content-Length was unknown throughout (chunked transfer), so every
+        // call above reported `total = 0`. Report the now-known final size so
+        // the bar can close out against a real total instead of never
+        // learning how big the file actually was.
+        if content_length == 0 {
+            progress(downloaded, downloaded);
         }
         Ok(())
     }
@@ -738,7 +747,17 @@ impl ModelCache {
         for path in &files {
             let url = repo.resolve_url(path);
             let target = cache_dir.join(path);
-            self.fetch_to_path(&url, &target, progress, &[])
+            // `progress` is one instance shared across every file in this repo, so on
+            // its own it can't label the bar per file. Drive a freshly-labeled bar
+            // here (named after the concrete file) alongside it, forwarding the same
+            // byte counts to both.
+            let named = default_progress_callback(path);
+            let progress = progress.clone();
+            let file_progress: DownloadProgressCallback = Arc::new(move |downloaded, total| {
+                named(downloaded, total);
+                progress(downloaded, total);
+            });
+            self.fetch_to_path(&url, &target, &file_progress, &[])
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
                     source: Box::new(source),
@@ -759,7 +778,9 @@ pub(crate) fn download_onnx(
     required_files: &[String],
 ) -> Result<PathBuf, HuggingFaceError> {
     let cache = ModelCache::open()?;
-    let progress = default_progress_callback(source);
+    // No caller threads a custom callback through yet, so there's nothing
+    // meaningful to forward here — `download_repo` labels its own per-file bars.
+    let progress: DownloadProgressCallback = Arc::new(|_downloaded, _total| {});
     let source = OnnxSource::parse(source, required_files.to_vec())?;
     cache.download_repo(&source, &progress)
 }
