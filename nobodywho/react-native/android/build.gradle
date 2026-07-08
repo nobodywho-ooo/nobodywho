@@ -83,7 +83,15 @@ task resolveNativeLibraries {
         connection.connect()
         def code = connection.responseCode
         if (code == 200) {
-          destFile.withOutputStream { out -> out << connection.inputStream }
+          // Never leave a truncated file behind: the caller only re-checks the binding's
+          // existence, so a half-written sibling would otherwise be packaged into
+          // jniLibs/<abi> on the next run → UnsatisfiedLinkError on device.
+          try {
+            destFile.withOutputStream { out -> out << connection.inputStream }
+          } catch (Exception e) {
+            if (destFile.exists()) destFile.delete()
+            throw e
+          }
           logger.lifecycle("[NobodyWho] Downloaded ${assetName} -> ${destFile.name} (${destFile.length()} bytes)")
           return true
         } else if (code in [301, 302, 307, 308]) {
