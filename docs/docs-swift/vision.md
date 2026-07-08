@@ -1,11 +1,19 @@
 ---
-title: Vision & Hearing
-description: Enabling models to ingest images and audio
+title: Multimodal Models
+description: Enabling models to natively ingest images and audio via a projection model
 sidebar_position: 3
 ---
 
 A picture is worth a thousand words (or at least a thousand tokens).
-With NobodyWho, you can easily provide image and audio information to your LLM.
+With NobodyWho, you can easily provide image and audio information directly to a multimodal LLM.
+
+:::info
+This is about models that **natively** ingest images and audio - no transcription step involved.
+That matters for audio in particular: the model hears the raw sound, not just words that were said,
+so it can react to tone of voice, music, or other non-speech noises. If you only need to convert
+speech to text, see [Speech-to-Text](./speech-to-text) instead. If you need to generate spoken audio
+from text, see [Text-to-Speech](./text-to-speech).
+:::
 
 ## Choosing a model
 Not all models have built-in image and audio capabilities. Generally, you will
@@ -63,36 +71,5 @@ let prompt = Prompt([
 let response = try await chat.ask(prompt).completed()
 ```
 
-## Tips for multimodality
-
-As with textual prompts, the format in which you supply the multimodal prompt can matter in certain
-scenarios. If the model performs poorly, try to mess around with the order of supplying the text
-and the multimodal files, or the descriptions you supply. For example, the following prompt may perform better than the previously presented one.
-
-```swift
-let prompt = Prompt([
-    Prompt.text("Tell me what you see in the image."),
-    Prompt.image("/path/to/dog.png"),
-    Prompt.text("Also tell me what you hear in the audio."),
-    Prompt.audio("/path/to/sound.mp3"),
-])
-```
-
-Also, there is still a lot of variance between how the models internally process the images.
-This, for example, causes differences in how quickly the model consumes context - for some models like Gemma 3, the number of tokens per image is constant; for others like Qwen 3, they scale with the size of the image. In that case, you can increase the context size if the resources allow:
-
-```swift
-let chat = try await Chat.fromPath(
-    modelPath: "/path/to/vision-model.gguf",
-    projectionModelPath: "/path/to/mmproj.gguf",
-    contextSize: 8192
-)
-```
-
-Or, for example, preprocess your images with some kind of downsampling (sometimes even changing the image type helps).
-
-Moreover, audio ingestion seems to be also reliant a lot on the data type of the projection model file - for gemma 4,
-ingesting audio works the best on BF16, while other types reportedly struggle. We thus recommend at least trying out different
-projection model files, if the one you picked does not work.
-
-As always with more niche models you can find bugs. If you stumble upon some of them, please be sure to [report them](https://github.com/nobodywho-ooo/nobodywho/issues), so we can fix the functionality.
+That should be it! Beware though, that consuming images and audio can quickly drain the context,
+and larger context sizes may be needed for smooth usage.

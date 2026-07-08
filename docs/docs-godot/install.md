@@ -1,3 +1,7 @@
+---
+slug: /
+---
+
 # Installation
 _How to install NobodyWho and start building._
 

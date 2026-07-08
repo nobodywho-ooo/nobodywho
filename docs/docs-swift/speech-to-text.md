@@ -1,0 +1,50 @@
+---
+title: Speech to Text
+description: Transcribe spoken audio to text with NobodyWho in Swift.
+sidebar_position: 5
+---
+
+To transcribe audio into text, NobodyWho provides an integration with the Whisper models in ONNX format.
+
+```swift
+import NobodyWho
+
+let stt = try STT(source: "onnx-community/whisper-base")
+
+let text = try await stt.transcribeFile(path: "recording.mp3").completed()
+print(text)
+```
+
+If the audio is not coming from a file, but instead directly from a buffer, `transcribePcm` is available:
+
+```swift
+let text = try await stt.transcribePcm(samples: samples, sampleRate: 16000).completed()
+```
+
+In order to make this work, the buffer needs to be mono i16 PCM samples (`[Int16]`). The sample rate can be anything - NobodyWho resamples internally to what Whisper expects.
+
+As with classic Chat models, streaming is available, so the transcription can be consumed token by token:
+
+```swift
+for try await piece in stt.transcribeFile(path: "recording.mp3") {
+    print(piece, terminator: "")
+}
+```
+
+## Supported models
+
+NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging Face repo ID or a local directory containing such a model, e.g. `onnx-community/whisper-base`. Browse the [Whisper ONNX models on Hugging Face](https://huggingface.co/models?library=onnx&search=whisper) to pick a size that fits your accuracy and speed needs.
+
+You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
+
+```swift
+let stt = try STT(source: "onnx-community/whisper-base", quantization: "int8")
+```
+
+## Improving performance
+
+By default, Whisper auto-detects the spoken language, which costs a bit of extra processing. If you already know the language, pass its ISO 639-1 code as `language` to skip detection and improve performance:
+
+```swift
+let stt = try STT(source: "onnx-community/whisper-base", language: "en")
+```
