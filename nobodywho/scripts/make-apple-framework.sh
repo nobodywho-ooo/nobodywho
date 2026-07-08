@@ -24,7 +24,13 @@ FFI_HEADER=${6:-}; BUNDLE_ID=${7:-ooo.nobodywho.$FW_NAME}
 
 FW="$OUT_DIR/$FW_NAME.framework"
 rm -rf "$FW"
-if [ "$LAYOUT" = versioned ]; then ROOT="$FW/Versions/A"; mkdir -p "$ROOT/Resources"; else ROOT="$FW"; mkdir -p "$ROOT"; fi
+if [ "$LAYOUT" = versioned ]; then
+    ROOT="$FW/Versions/A"
+    mkdir -p "$ROOT/Resources"
+else
+    ROOT="$FW"
+    mkdir -p "$ROOT"
+fi
 
 # main binary
 cp -L "$SRC_DIR/$DYLIB" "$ROOT/$FW_NAME"
@@ -35,8 +41,9 @@ install_name_tool -add_rpath "@loader_path" "$ROOT/$FW_NAME" 2>/dev/null || true
 # reset-soversion override, cp -L dereferences any stray symlink to a real object).
 for real in "$SRC_DIR"/libggml*.dylib "$SRC_DIR"/libllama*.dylib; do
     [ -e "$real" ] || continue
-    cp -L "$real" "$ROOT/$(basename "$real")"
-    install_name_tool -add_rpath "@loader_path" "$ROOT/$(basename "$real")" 2>/dev/null || true
+    name=$(basename "$real")
+    cp -L "$real" "$ROOT/$name"
+    install_name_tool -add_rpath "@loader_path" "$ROOT/$name" 2>/dev/null || true
 done
 
 # optional uniffi FFI module (framework modulemap with umbrella header)
@@ -54,7 +61,11 @@ fi
 # A versioned (macOS) framework keeps Info.plist under Resources/ (where the
 # Resources symlink points and CFBundle/codesign expect it); a flat (iOS et al.)
 # framework keeps it at the bundle root.
-if [ "$LAYOUT" = versioned ]; then PLIST="$ROOT/Resources/Info.plist"; else PLIST="$ROOT/Info.plist"; fi
+if [ "$LAYOUT" = versioned ]; then
+    PLIST="$ROOT/Resources/Info.plist"
+else
+    PLIST="$ROOT/Info.plist"
+fi
 cat > "$PLIST" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

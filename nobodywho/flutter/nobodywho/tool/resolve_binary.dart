@@ -337,19 +337,24 @@ Future<String> downloadLibrary(Config config, String version) async {
     // and saved back under their base name (matching the binding's rpath / SONAME).
     final ext = libName.split('.').last;
     final prefix = config.platform == 'windows' ? '' : 'lib';
-    // Optional backend libs may legitimately 404: Vulkan is not built for Android,
-    // and libonnxruntime.so ships for x86_64 android only (every other platform links
-    // ONNX Runtime statically). Everything else is a DT_NEEDED of the binding — a
-    // missing or truncated one makes the binding unloadable, so it must not be
-    // silently skipped or left half-written in the cache.
-    final optionalBases = <String>{'${prefix}ggml-vulkan', '${prefix}onnxruntime'};
-    final bases = <String>[
-      '${prefix}ggml', '${prefix}ggml-base', '${prefix}ggml-cpu',
-      '${prefix}ggml-vulkan', '${prefix}onnxruntime',
-      '${prefix}llama', '${prefix}llama-common',
-    ];
-    for (final base in bases) {
-      final optional = optionalBases.contains(base);
+    // Each entry maps a lib base name to whether a 404 is tolerable. Optional
+    // backend libs: Vulkan is not built for Android, and libonnxruntime ships for
+    // x86_64 android only (every other platform links ONNX statically). All
+    // others are a DT_NEEDED of the binding — a missing or truncated one makes
+    // the binding unloadable, so it must not be silently skipped or left
+    // half-written in the cache.
+    final siblingLibs = <String, bool>{
+      '${prefix}ggml': false,
+      '${prefix}ggml-base': false,
+      '${prefix}ggml-cpu': false,
+      '${prefix}ggml-vulkan': true,
+      '${prefix}onnxruntime': true,
+      '${prefix}llama': false,
+      '${prefix}llama-common': false,
+    };
+    for (final entry in siblingLibs.entries) {
+      final base = entry.key;
+      final optional = entry.value;
       final assetName = '$base-$triple-${config.buildType}.$ext';
       final assetUrl = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$assetName';
       final destFile = File('$cacheDir/$base.$ext');
