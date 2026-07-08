@@ -1,0 +1,153 @@
+name: "Pi code review from PR comment"
+
+on:
+  issue_comment:
+    types: [created]
+
+env:
+  PI_REVIEW_PROVIDER: opencode-go
+  PI_REVIEW_MODEL: glm-5.2
+  PI_REVIEW_THINKING: high
+
+jobs:
+  review:
+    if: >-
+      github.event.issue.pull_request
+      && startsWith(github.event.comment.body, '/pi-review')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check permissions
+        id: auth
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            // permission field uses legacy mapping: maintain→write, triage→read
+            const allowed = ['admin', 'write'].includes(data.permission);
+            core.setOutput('allowed', allowed);
+
+      - name: Get PR details
+        if: steps.auth.outputs.allowed == 'true'
+        id: pr
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const hasPiReviewLabel = pr.labels.some((label) => label.name === 'pi-review');
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_repo', pr.head.repo.full_name);
+            core.setOutput('had_pi_review_label', hasPiReviewLabel);
+
+      - name: Ensure pi-review label exists
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const labelName = 'pi-review';
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: labelName });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: labelName,
+                color: '0e8a16',
+                description: 'Pi code review is running for this pull request',
+              });
+            }
+
+      - name: Add pi-review label
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.had_pi_review_label != 'true'
+        id: label
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const labelName = 'pi-review';
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              labels: [labelName],
+            });
+            core.setOutput('added', 'true');
+
+      - name: Checkout PR
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.pr.outputs.head_repo }}
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        if: steps.auth.outputs.allowed == 'true'
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+        run: |
+          git remote add base "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags base "+refs/heads/${BASE_REF}:refs/remotes/base/${BASE_REF}"
+
+      - name: Build review command
+        if: steps.auth.outputs.allowed == 'true'
+        id: review_command
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const extraInstruction = process.env.COMMENT_BODY.replace(/^\/pi-review\s*/, '').trim();
+            const command = `/review branch base/${process.env.BASE_REF}`;
+            const reviewCommand = extraInstruction ? `${command} --extra ${JSON.stringify(extraInstruction)}` : command;
+            core.setOutput('value', reviewCommand);
+
+      - name: Setup Node
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Run Pi review
+        if: steps.auth.outputs.allowed == 'true'
+        uses: shaftoe/pi-coding-agent-action@v2
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          provider: ${{ env.PI_REVIEW_PROVIDER }}
+          model: ${{ env.PI_REVIEW_MODEL }}
+          token: ${{ secrets.OPENCODE_GO_API_KEY }}
+          thinking_level: ${{ env.PI_REVIEW_THINKING }}
+          extensions: |
+            git:github.com/earendil-works/pi-review
+          prompt: ${{ steps.review_command.outputs.value }}
+
+      - name: Remove pi-review label
+        if: always() && steps.auth.outputs.allowed == 'true' && steps.label.outputs.added == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const labelName = 'pi-review';
+            await github.rest.issues.removeLabel({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              name: labelName,
+            });
