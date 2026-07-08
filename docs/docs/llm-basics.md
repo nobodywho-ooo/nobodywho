@@ -4,7 +4,7 @@ description: Essential concepts for working with language models in NobodyWho
 sidebar_position: 2
 ---
 
-Our goal with NobodyWho is to make it easy to run local LLMs. For this reason we have made it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers and tools. 
+Our goal with NobodyWho is to make it easy to run local LLMs. For this reason we have made it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers, tools, and thinking/reasoning. 
 
 ## Tokens
 
@@ -70,3 +70,23 @@ Tools (also called function calling) allow the LLM to request external actions. 
 You define available tools, and the model decides when to use them based on the conversation. After a tool executes, you provide the result back to the model so it can continue the conversation.
 
 This enables LLMs to go beyond pure text generation and interact with your application's functionality.
+
+## Thinking/Reasoning
+
+Some models have been specifically trained to reason through complex tasks step-by-step before giving a final answer. You can check the model's Hugging Face page to find out whether it supports thinking. 
+
+Inside the LLM's raw output, the thinking/reasoning content usually appears between model-specific tags:
+
+```
+<think>
+...reasoning steps...
+</think>
+...final answer...
+```
+
+Here are some tags examples:
+- Qwen3: `<think>...</think>`
+- Gemma 4: `<|channel>thought ...<channel|>`
+- Ministral: `[THINK]…[/THINK]`
+
+These tags are model and template specific, so always check the model's chat template if you need to parse out the thinking content yourself.
