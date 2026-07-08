@@ -1,10 +1,8 @@
 #!/bin/bash
-# Assemble a dynamic .framework from a Rust cdylib, embedding the sibling
-# ggml/llama shared libraries (produced by the `dynamic-link` feature) inside the
-# framework bundle. The binary references them via `@rpath/libX.0.dylib` and gets
-# an `@loader_path` rpath, so the whole graph resolves from within the bundle once
-# Xcode/CocoaPods embeds & signs the framework in the consuming app. Verified on
-# macOS and the iOS simulator.
+# Assemble a dynamic .framework from a Rust cdylib, embedding the sibling ggml/llama
+# dylibs (dynamic-link feature) inside the bundle. The binary references them via
+# @rpath and gets an @loader_path rpath, so the whole graph resolves once Xcode/
+# CocoaPods embeds & signs the framework. Verified on macOS and the iOS simulator.
 #
 # Usage:
 #   make-apple-framework.sh <src_dir> <dylib> <fw_name> <flat|versioned> <out_dir> [ffi_header] [bundle_id]

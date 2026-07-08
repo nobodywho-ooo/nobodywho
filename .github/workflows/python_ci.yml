@@ -164,10 +164,9 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Bundle native libs into the wheel
-        # auditwheel was skipped in the build step (its relocation fails to graft the
-        # inter-dependent ggml libs), so vendor them ourselves: co-locate the
-        # unversioned ggml/llama libs + the OpenMP runtime next to the extension, each
-        # with an $ORIGIN rpath. libstdc++/libc/libm/Vulkan stay system-provided.
+        # auditwheel was skipped (it can't graft the inter-dependent ggml libs), so vendor
+        # them ourselves: co-locate the unversioned ggml/llama libs + OpenMP runtime next to
+        # the extension, each with an $ORIGIN rpath. libstdc++/libc/libm/Vulkan stay system.
         run: |
           set -eux
           pip3 install wheel
@@ -181,9 +180,8 @@ jobs:
           # override, llama-build-overrides.cmake) next to the extension. The real .so live
           # nested in the CMake build tree, so find them recursively.
           find "$(pwd)/nobodywho/target/release" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} "$extdir/" \;
-          # Bundle the OpenMP runtime so the wheel doesn't require it preinstalled.
-          # ggml-cpu has DT_NEEDED libgomp.so.1; fail loudly if it's not found rather
-          # than ship a wheel that fails to import on any host without a system libgomp.
+          # Bundle the OpenMP runtime (ggml-cpu DT_NEEDED libgomp.so.1) so the wheel
+          # doesn't require it preinstalled; fail loudly if absent.
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
           if [ -z "$gomp" ]; then echo "libgomp.so.1 not found — cannot bundle OpenMP runtime" >&2; exit 1; fi
           cp "$gomp" "$extdir"/libgomp.so.1

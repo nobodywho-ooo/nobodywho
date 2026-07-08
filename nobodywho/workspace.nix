@@ -28,14 +28,12 @@ let
         llama-cpp-sys-2 = attrs: {
           env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
 
-          # The workspace .cargo/config.toml injects our llama.cpp CMake override
-          # via CMAKE_PROJECT_INCLUDE, but crate2nix builds llama-cpp-sys-2 as an
-          # isolated derivation that never reads that config, so re-inject it here.
-          # Without it the dynamic-link ggml/llama libs are born versioned AND keep
-          # their build-tree /build/... rpath, which nixpkgs' audit-tmpdir fixup
-          # hook rejects ("forbidden reference to /build/"). The override strips the
-          # SOVERSION and bakes an $ORIGIN rpath instead. Absolute store path; the
-          # fork forwards CMAKE_-prefixed env to cmake as -D.
+          # crate2nix builds llama-cpp-sys-2 as an isolated derivation that never reads
+          # the workspace .cargo/config.toml, so re-inject our CMake override here.
+          # Without it the dynamic-link ggml/llama libs are born versioned with a
+          # build-tree /build/... rpath, which nixpkgs' audit-tmpdir hook rejects
+          # ("forbidden reference to /build/"). The override strips the SOVERSION and
+          # bakes an $ORIGIN rpath instead.
           env.CMAKE_PROJECT_INCLUDE = "${./scripts/llama-build-overrides.cmake}";
 
           # Architecture-specific CPU feature flags

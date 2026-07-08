@@ -337,12 +337,9 @@ Future<String> downloadLibrary(Config config, String version) async {
     // and saved back under their base name (matching the binding's rpath / SONAME).
     final ext = libName.split('.').last;
     final prefix = config.platform == 'windows' ? '' : 'lib';
-    // Each entry maps a lib base name to whether a 404 is tolerable. Optional
-    // backend libs: Vulkan is not built for Android, and libonnxruntime ships for
-    // x86_64 android only (every other platform links ONNX statically). All
-    // others are a DT_NEEDED of the binding — a missing or truncated one makes
-    // the binding unloadable, so it must not be silently skipped or left
-    // half-written in the cache.
+    // Map: lib base name -> is a 404 tolerable? Optional: ggml-vulkan (not on Android),
+    // onnxruntime (x86_64 android only; elsewhere ORT is static). The rest are DT_NEEDED
+    // of the binding, so a missing/truncated one must fail, not be silently skipped.
     final siblingLibs = <String, bool>{
       '${prefix}ggml': false,
       '${prefix}ggml-base': false,

@@ -37,10 +37,8 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     env:
-      # `-Wl,-rpath,$ORIGIN` makes each artifact search its own directory for the
-      # dynamically-linked ggml/llama libs (dynamic-link feature). It must be set
-      # here rather than only in .cargo/config.toml because Cargo ignores config
-      # rustflags whenever RUSTFLAGS is set in the environment (which it is here).
+      # $ORIGIN rpath so each artifact finds its co-located ggml/llama libs (dynamic-link).
+      # Set here because RUSTFLAGS env overrides .cargo/config.toml rustflags.
       RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,-rpath,$ORIGIN' || '-C link-arg=-Wl,-rpath,$ORIGIN' }}
     steps:
       - uses: actions/checkout@v5

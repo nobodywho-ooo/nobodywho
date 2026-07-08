@@ -3,22 +3,16 @@
 
 # 1) Disable OpenSSL in cpp-httplib. dynamic-link builds `common` as a shared lib,
 #    forcing its TLS symbols to resolve, but the x86_64-apple-darwin cross build has
-#    no host OpenSSL to link. We don't use the HTTPS downloader. This runs before
-#    llama.cpp's option(LLAMA_OPENSSL ... ON), so the FORCE keeps it OFF.
+#    no host OpenSSL to link. We don't use the HTTPS downloader.
 set(LLAMA_OPENSSL OFF CACHE BOOL "nobodywho: httplib TLS unused; breaks shared common cross-link" FORCE)
 
-# 2) Fix up every ggml/llama shared lib so it ships correctly:
-#    - strip the versioned SONAME/dylib version -> born as plain libggml.so /
-#      libggml.dylib (matching the SONAME the consuming cdylib records and the
-#      unversioned names our packaging references), not libggml.so.0 / libggml.0.dylib;
-#    - give each lib an $ORIGIN (ELF) / @loader_path (Mach-O) runpath so a co-located
-#      consumer resolves the transitive graph (DT_RUNPATH does NOT chain, so each lib
-#      needs its own to find its siblings, e.g. libggml -> libggml-base).
-#    BUILD_WITH_INSTALL_RPATH makes the build-tree lib (the one shipped) carry exactly
-#    INSTALL_RPATH, with no automatic build-tree absolute paths.
-#    Enumerated dynamically to cover every backend (ggml-cpu, ggml-vulkan, ...) without
-#    a hardcoded list, and deferred so it runs after the targets are created.
-#    Requires CMake >= 3.19 (cmake_language DEFER).
+# 2) For every ggml/llama shared lib: strip the versioned SONAME (so it's born as
+#    plain libggml.so/.dylib, matching what packaging references) and give it an
+#    $ORIGIN (ELF) / @loader_path (Mach-O) runpath. DT_RUNPATH doesn't chain, so
+#    each lib needs its own runpath to find siblings (libggml -> libggml-base).
+#    BUILD_WITH_INSTALL_RPATH bakes that rpath into the shipped build-tree lib.
+#    Targets are enumerated dynamically (no hardcoded backend list) and the fixup
+#    is deferred via cmake_language(DEFER) so it runs after they exist. CMake >= 3.19.
 get_property(_nw_hooked GLOBAL PROPERTY _NW_GGML_FIXUP_HOOKED)
 if(NOT _nw_hooked)
   set_property(GLOBAL PROPERTY _NW_GGML_FIXUP_HOOKED ON)
