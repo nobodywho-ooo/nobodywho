@@ -34,7 +34,17 @@ echo "Building nobodywho-uniffi for visionOS simulator (aarch64-apple-visionos-s
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-visionos-sim --release
 
 echo "Building nobodywho-uniffi for watchOS device (aarch64-apple-watchos)..."
-cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos --release
+# The stock aarch64-apple-watchos spec has dynamic-linking off, so cargo silently
+# drops the cdylib and emits only a static .a (useless under dynamic-link). Derive a
+# spec with the flag on; the JSON stem must equal the triple so output still lands in
+# target/aarch64-apple-watchos/. (Mirrors the workaround in .github/workflows/build.yml.)
+WATCHOS_SPEC_DIR=$(mktemp -d)
+rustc +nightly -Z unstable-options --target aarch64-apple-watchos --print target-spec-json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); d["dynamic-linking"]=True; d.pop("metadata",None); json.dump(d, open(sys.argv[1],"w"))' \
+    "$WATCHOS_SPEC_DIR/aarch64-apple-watchos.json"
+cargo +nightly build -p nobodywho-uniffi -Z build-std -Z json-target-spec \
+  --target "$WATCHOS_SPEC_DIR/aarch64-apple-watchos.json" --release
+rm -rf "$WATCHOS_SPEC_DIR"
 
 echo "Building nobodywho-uniffi for watchOS simulator (aarch64-apple-watchos-sim)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos-sim --release

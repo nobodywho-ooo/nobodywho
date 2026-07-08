@@ -114,9 +114,15 @@ task resolveNativeLibraries {
 
       try {
         downloadAsset("libnobodywho-uniffi-${triple}-release.so", libFile, true)
+        // ggml/llama are DT_NEEDED of the binding — a 404 must fail the build, not
+        // silently ship a jniLibs/<abi> missing a required lib (UnsatisfiedLinkError
+        // on device). resolve_binary.dart applies the same required/optional split.
         ggmlLibs.each { base ->
-          downloadAsset("${base}-${triple}.so", new File(abiDir, "${base}.so"), false)
+          downloadAsset("${base}-${triple}.so", new File(abiDir, "${base}.so"), true)
         }
+        // libonnxruntime.so ships for x86_64 android only (arm64 links ORT
+        // statically), so it is optional — absent for the arm64 triple.
+        downloadAsset("libonnxruntime-${triple}.so", new File(abiDir, "libonnxruntime.so"), false)
       } catch (GradleException e) {
         throw e
       } catch (Exception e) {

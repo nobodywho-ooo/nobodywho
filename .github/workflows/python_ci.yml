@@ -182,8 +182,11 @@ jobs:
           # nested in the CMake build tree, so find them recursively.
           find "$(pwd)/nobodywho/target/release" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} "$extdir/" \;
           # Bundle the OpenMP runtime so the wheel doesn't require it preinstalled.
+          # ggml-cpu has DT_NEEDED libgomp.so.1; fail loudly if it's not found rather
+          # than ship a wheel that fails to import on any host without a system libgomp.
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
-          [ -n "$gomp" ] && cp "$gomp" "$extdir"/libgomp.so.1
+          if [ -z "$gomp" ]; then echo "libgomp.so.1 not found — cannot bundle OpenMP runtime" >&2; exit 1; fi
+          cp "$gomp" "$extdir"/libgomp.so.1
           # Give the extension its own $ORIGIN rpath (the job's RUSTFLAGS override drops
           # the .cargo/config.toml one); its ggml/llama DT_NEEDED is already unversioned.
           find "$pkg" -name '*.abi3.so' -exec patchelf --set-rpath '$ORIGIN' {} \;

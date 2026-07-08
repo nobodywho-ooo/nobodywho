@@ -51,7 +51,11 @@ framework module $FW_NAME {
 EOF
 fi
 
-cat > "$ROOT/Info.plist" << EOF
+# A versioned (macOS) framework keeps Info.plist under Resources/ (where the
+# Resources symlink points and CFBundle/codesign expect it); a flat (iOS et al.)
+# framework keeps it at the bundle root.
+if [ "$LAYOUT" = versioned ]; then PLIST="$ROOT/Resources/Info.plist"; else PLIST="$ROOT/Info.plist"; fi
+cat > "$PLIST" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>

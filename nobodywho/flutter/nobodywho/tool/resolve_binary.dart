@@ -337,12 +337,19 @@ Future<String> downloadLibrary(Config config, String version) async {
     // and saved back under their base name (matching the binding's rpath / SONAME).
     final ext = libName.split('.').last;
     final prefix = config.platform == 'windows' ? '' : 'lib';
+    // Optional backend libs may legitimately 404: Vulkan is not built for Android,
+    // and libonnxruntime.so ships for x86_64 android only (every other platform links
+    // ONNX Runtime statically). Everything else is a DT_NEEDED of the binding — a
+    // missing or truncated one makes the binding unloadable, so it must not be
+    // silently skipped or left half-written in the cache.
+    final optionalBases = <String>{'${prefix}ggml-vulkan', '${prefix}onnxruntime'};
     final bases = <String>[
       '${prefix}ggml', '${prefix}ggml-base', '${prefix}ggml-cpu',
-      '${prefix}ggml-vulkan', // absent on Android; skipped on 404
+      '${prefix}ggml-vulkan', '${prefix}onnxruntime',
       '${prefix}llama', '${prefix}llama-common',
     ];
     for (final base in bases) {
+      final optional = optionalBases.contains(base);
       final assetName = '$base-$triple-${config.buildType}.$ext';
       final assetUrl = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$assetName';
       final destFile = File('$cacheDir/$base.$ext');
@@ -358,9 +365,21 @@ Future<String> downloadLibrary(Config config, String version) async {
           stderr.writeln('Downloaded sibling lib: $base.$ext');
         } else {
           await resp.drain();
+          if (!optional) {
+            throw Exception(
+              'Failed to download required sibling lib $base.$ext: '
+              'HTTP ${resp.statusCode}\nURL: $assetUrl'
+            );
+          }
         }
-      } catch (_) {
-        // Optional sibling (e.g. backend lib not built for this platform) — skip.
+      } catch (e) {
+        // Never leave a truncated sibling behind — the existsSync() short-circuit
+        // above would otherwise treat it as a good cached file on the next run.
+        if (destFile.existsSync()) destFile.deleteSync();
+        // Optional backend lib absent for this platform — skip. A required lib
+        // failing must bubble up so the outer catch wipes the binding too and
+        // the whole cache entry re-downloads next run instead of half-healing.
+        if (!optional) rethrow;
       } finally {
         client.close();
       }

@@ -201,7 +201,7 @@ jobs:
             name=$(basename "$d"); triple=${name#nobodywho-flutter-}; triple=${triple%-release}
             [ "$triple" = "xcframework" ] && continue
             cp "$d"/libnobodywho-flutter-"$triple"-release.* "$OUT/" 2>/dev/null || true
-            for f in "$d"/libggml*.so "$d"/libllama*.so "$d"/ggml*.dll "$d"/llama*.dll; do
+            for f in "$d"/libggml*.so "$d"/libllama*.so "$d"/ggml*.dll "$d"/llama*.dll "$d"/libonnxruntime*.so; do
               [ -e "$f" ] || continue
               b=$(basename "$f"); stem=${b%.*}; ext=${b##*.}
               cp "$f" "$OUT/${stem}-${triple}-release.${ext}"
@@ -269,7 +269,9 @@ jobs:
           # Android gradle downloader renames them back to their SONAME in jniLibs.
           collect() { # $1=src-dir  $2=triple
             cp "$1/libnobodywho-uniffi-$2-release.so" "$OUT/"
-            for so in "$1"/libggml*.so "$1"/libllama*.so; do
+            # libonnxruntime*.so is present for x86_64 android only (arm64 links ORT
+            # statically); the glob simply matches nothing for arm64.
+            for so in "$1"/libggml*.so "$1"/libllama*.so "$1"/libonnxruntime*.so; do
               [ -e "$so" ] || continue
               b=$(basename "$so" .so)
               cp "$so" "$OUT/${b}-$2.so"
@@ -394,7 +396,8 @@ jobs:
             local d="artifacts/nobodywho-uniffi-$1-release"
             cp "$d/libnobodywho-uniffi-$1-release.so" \
               "nobodywho/kotlin/android/build/jniLibs/$2/libnobodywho_uniffi.so"
-            cp -P "$d"/libggml*.so "$d"/libllama*.so "nobodywho/kotlin/android/build/jniLibs/$2/" 2>/dev/null || true
+            # libonnxruntime.so ships for x86_64 only (arm64 links ORT statically).
+            cp -P "$d"/libggml*.so "$d"/libllama*.so "$d"/libonnxruntime*.so "nobodywho/kotlin/android/build/jniLibs/$2/" 2>/dev/null || true
           }
           place_android aarch64-linux-android arm64-v8a
           place_android x86_64-linux-android  x86_64

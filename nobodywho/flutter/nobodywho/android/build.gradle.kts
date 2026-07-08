@@ -117,7 +117,9 @@ val resolveNativeLibraries by tasks.registering {
             val resolvedLibDir = File(resolvedLibPath).parentFile
             copy {
                 from(resolvedLibDir) {
-                    include("libggml*.so", "libllama*.so")
+                    // libonnxruntime.so is present for x86_64 android only (arm64 links
+                    // ORT statically); the include simply matches nothing for arm64.
+                    include("libggml*.so", "libllama*.so", "libonnxruntime*.so")
                 }
                 into(abiOutputDir)
             }
