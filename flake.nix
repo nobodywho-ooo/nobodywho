@@ -49,6 +49,7 @@
           runTests = true;
           testPreRun = ''
             export TEST_MODEL=${test-models.TEST_MODEL}
+            export TEST_RECURRENT_MODEL=${test-models.TEST_RECURRENT_MODEL}
             export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
             export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
 

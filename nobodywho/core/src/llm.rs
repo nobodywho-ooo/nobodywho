@@ -37,6 +37,46 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
+    /// True for recurrent and hybrid-recurrent architectures — where
+    /// `clear_kv_cache_seq` cannot unroll the running state on a partial
+    /// range. `Chat` uses this to opt into the two-pass sync +
+    /// checkpoint save/restore path; other architectures use a
+    /// single-render fast path.
+    pub(crate) needs_checkpointing: bool,
+}
+
+/// Returns true for `general.architecture` values that correspond to
+/// recurrent or hybrid-recurrent memory backends in llama.cpp — i.e. the
+/// architectures where `clear_kv_cache_seq` fails on partial trims and a
+/// state-snapshot restore is needed instead.
+///
+/// The list mirrors the two internal helpers `llm_arch_is_recurrent` and
+/// `llm_arch_is_hybrid` in llama.cpp's `src/llama-arch.cpp`. Keep in sync
+/// when llama.cpp adds new recurrent or hybrid architectures.
+fn is_recurrent_or_hybrid_arch(arch: &str) -> bool {
+    matches!(
+        arch,
+        // llm_arch_is_recurrent — pure recurrent (Mamba, RWKV, …)
+        "mamba"
+        | "mamba2"
+        | "rwkv6"
+        | "rwkv6qwen2"
+        | "rwkv7"
+        | "arwkv7"
+        // llm_arch_is_hybrid — mixed recurrent + attention (Qwen3.5, Jamba, …)
+        | "jamba"
+        | "falcon-h1"
+        | "plamo2"
+        | "granitehybrid"
+        | "lfm2"
+        | "lfm2moe"
+        | "nemotron_h"
+        | "nemotron_h_moe"
+        | "qwen3next"
+        | "kimi-linear"
+        | "qwen35"
+        | "qwen35moe"
+    )
 }
 
 impl Model {
@@ -174,9 +214,20 @@ pub fn get_model(
         .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
         .transpose()?;
 
+    let needs_checkpointing = language_model
+        .meta_val_str("general.architecture")
+        .ok()
+        .as_deref()
+        .map(is_recurrent_or_hybrid_arch)
+        .unwrap_or(false);
+    if needs_checkpointing {
+        debug!("Recurrent/hybrid architecture detected — enabling checkpoint-based sync");
+    }
+
     Ok(Model {
         language_model,
         projection_model,
+        needs_checkpointing,
     })
 }
 
@@ -341,6 +392,7 @@ where
             n_batch,
             tokenizer,
             use_embeddings,
+            model.needs_checkpointing,
         );
         Ok(Worker { engine, extra })
     }
