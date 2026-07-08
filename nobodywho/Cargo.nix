@@ -15422,6 +15422,27 @@ rec {
         };
         resolvedDefaultFeatures = [ "mp3" ];
       };
+      "symphonia-codec-pcm" = rec {
+        crateName = "symphonia-codec-pcm";
+        version = "0.5.5";
+        edition = "2018";
+        sha256 = "158x0g5v13qh1c4jyyrzd8kcz9rqim6cx4bwpqzash8mq0bdg2af";
+        libName = "symphonia_codec_pcm";
+        authors = [
+          "Philip Deljanov <philip.deljanov@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+          {
+            name = "symphonia-core";
+            packageId = "symphonia-core";
+          }
+        ];
+
+      };
       "symphonia-core" = rec {
         crateName = "symphonia-core";
         version = "0.5.5";
