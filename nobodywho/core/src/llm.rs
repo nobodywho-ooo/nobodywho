@@ -116,7 +116,9 @@ pub fn get_model(
     let real_model_path = download_gguf(parse_model_path(model_path)?, &model_progress, &[])?;
     let real_mmproj_path = match mmproj_path {
         Some(p) => {
-            let mmproj_progress = progress.clone().unwrap_or_else(|| default_progress_callback(p));
+            let mmproj_progress = progress
+                .clone()
+                .unwrap_or_else(|| default_progress_callback(p));
             Some(download_gguf(parse_model_path(p)?, &mmproj_progress, &[])?)
         }
         None => None,
