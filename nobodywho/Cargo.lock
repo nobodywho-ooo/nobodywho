@@ -2654,7 +2654,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.152"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=feat%2Fstate-seq-checkpoint#d7d7a56a7d08f6ca24a36a082653717e52010b59"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=feat%2Fstate-seq-checkpoint#c46b34246ba759dab8595541da07c364a28e6562"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2669,7 +2669,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.152"
-source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=feat%2Fstate-seq-checkpoint#d7d7a56a7d08f6ca24a36a082653717e52010b59"
+source = "git+https://github.com/nobodywho-ooo/llama-cpp-rs?branch=feat%2Fstate-seq-checkpoint#c46b34246ba759dab8595541da07c364a28e6562"
 dependencies = [
  "bindgen",
  "cc",

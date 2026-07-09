@@ -6,7 +6,8 @@ use crate::tokenizer::{
     find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
 };
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
-use llama_cpp_2::context::{LlamaContext, LlamaStateSeqFlags};
+use llama_cpp_2::context::LlamaContext;
+use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
@@ -65,7 +66,7 @@ where
 /// exist per engine at a time.
 #[derive(Debug)]
 struct Checkpoint {
-    data: Vec<u8>,
+    data: SeqState,
     n_past: i32,
 }
 
@@ -157,7 +158,7 @@ impl<'a> InferenceEngine<'a> {
         }
         match self.ctx.state_seq_get(SEQ_ID, CHECKPOINT_FLAGS) {
             Ok(data) => {
-                trace!(n_past = self.n_past, bytes = data.len(), "Saved checkpoint");
+                trace!(n_past = self.n_past, bytes = data.byte_len(), "Saved checkpoint");
                 self.checkpoint = Some(Checkpoint {
                     data,
                     n_past: self.n_past,
@@ -196,7 +197,7 @@ impl<'a> InferenceEngine<'a> {
             );
             return false;
         }
-        if let Err(err) = self.ctx.state_seq_set(&ckpt.data, SEQ_ID, CHECKPOINT_FLAGS) {
+        if let Err(err) = self.ctx.state_seq_set(&ckpt.data, SEQ_ID) {
             warn!(?err, "Failed to restore sequence checkpoint");
             return false;
         }
