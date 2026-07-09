@@ -724,7 +724,9 @@ void main() {
       if (whisperModel == null || audioFile == null) {
         return; // Skip test if model or audio file not provided
       }
-      final stt = nobodywho.Stt(source: whisperModel);
+      // Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
+      // "Billy" as "Bailey", while fp32 gets it right.
+      final stt = nobodywho.Stt(source: whisperModel, quantization: 'default');
       final stream = stt.transcribeFile(audioFile);
       final text = await stream.completed();
       expect(text.toLowerCase(), contains('ron'));
