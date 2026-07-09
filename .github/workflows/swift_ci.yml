@@ -61,4 +61,5 @@ jobs:
           TEST_VISION_MODEL: ${{ github.workspace }}/test-models/vision-model.gguf
           TEST_MMPROJ: ${{ github.workspace }}/test-models/mmproj.gguf
           TEST_WHISPER_MODEL: ${{ github.workspace }}/test-models/whisper-base
+          TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
         run: swift test --filter NobodyWhoTests
