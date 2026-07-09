@@ -74,14 +74,18 @@ String addTwoNumbers({required double a, required double b}) {
 }
 
 void main() {
+  // Initialize flutter_rust_bridge once for the whole file. A top-level
+  // setUpAll runs before any group, even when a CI job filters to a single
+  // group with `--name`. (flutter_rust_bridge throws on double-init, so we keep
+  // a single init here rather than one per group.)
+  setUpAll(() async {
+    await nobodywho.NobodyWho.init();
+  });
+
   group('A group of tests', () {
     final modelPath = Platform.environment["TEST_MODEL"];
     if (modelPath == null) return; // skip all LLM tests if no model provided
     nobodywho.Chat? chat;
-
-    setUpAll(() async {
-      await nobodywho.NobodyWho.init();
-    });
 
     setUp(() async {
       // Additional setup goes here.
