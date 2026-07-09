@@ -241,9 +241,6 @@ pub enum ToolFormatError {
     #[error("Failed to generate grammar: {0}")]
     GrammarGenerationFailed(String),
 
-    #[error("JSON schema error: {0}")]
-    JsonSchemaError(#[from] gbnf::json::JsonSchemaError),
-
     #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. {0}")]
     ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
 }
@@ -260,9 +257,6 @@ pub trait ToolFormatHandler {
     /// Returns the token that ends a tool call (e.g., "</tool_call>")
     fn end_token(&self) -> &str;
 
-    /// Generates a GBNF grammar for constrained sampling of tool calls.
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError>;
-
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
 
@@ -277,25 +271,22 @@ pub trait ToolFormatHandler {
     /// activation is instead handled by the chat layer, which only inserts
     /// this grammar into the sampler chain after detecting the begin token
     /// in the streamed output.
-    ///
-    /// The default implementation converts `generate_grammar(tools)` via
-    /// `gbnf::gbnf_to_lark`, honoring the per-handler entry rule name.
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
-        let gbnf = self.generate_grammar(tools)?;
-        gbnf::gbnf_to_lark::gbnf_to_lark_with_entry(gbnf.as_str(), &gbnf.root_name)
-            .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))
-    }
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError>;
 
-    /// Regex strings to use as llguidance `ParserFactory` slices for this format.
+    /// Vocabulary hints that speed up grammar-constrained token selection.
     ///
-    /// Each regex describes a token sub-set. When the parser's current state is
-    /// subsumed by a slice, the full vocabulary trie-walk is skipped and a
-    /// pre-built bitmask is used, cutting per-token constraint cost significantly
-    /// on large vocabularies.
+    /// Each regex describes a set of tokens that are commonly allowed at some
+    /// position in this format. llguidance pre-computes a bitmask for each
+    /// pattern at startup. At generation time, when every valid token at the
+    /// current grammar position matches a pattern, llguidance uses the bitmask
+    /// directly instead of scanning the full vocabulary — cutting per-token
+    /// constraint cost significantly on large vocabularies.
     ///
-    /// The default returns `SlicedBiasComputer::general_slices()` — four JSON-body
-    /// regexes that are optimal for JSON-formatted tool calls (e.g. Qwen3).
-    /// Handlers with non-JSON formats should override this.
+    /// The default returns `SlicedBiasComputer::general_slices()` — four
+    /// JSON-body regexes suitable for JSON-formatted tool calls (e.g. Qwen3).
+    /// Handlers whose format is not JSON should override this with patterns
+    /// matched to their actual delimiter structure (see `FunctionGemmaHandler`
+    /// for an example with `[^<>{},:]+`).
     fn slice_regexes(&self) -> Vec<String> {
         SlicedBiasComputer::general_slices()
     }
@@ -330,10 +321,6 @@ impl ToolFormat {
 
     pub fn end_token(&self) -> &str {
         self.handler().end_token()
-    }
-
-    pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
-        self.handler().generate_grammar(tools)
     }
 
     pub fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {

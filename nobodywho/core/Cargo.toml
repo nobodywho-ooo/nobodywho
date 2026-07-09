@@ -15,7 +15,7 @@ bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
 
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { path = "/home/jonathan/work/llama-cpp-rs/llama-cpp-2", default-features = false, features = [
     "openmp",
     "mtmd",
     "llguidance",
@@ -33,8 +33,6 @@ tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
 regex = "1.11.1"
 serde_json = "1.0.140"
-gbnf = { path = "../grammar/gbnf" }
-gbnf-macro = { path = "../grammar/gbnf-macro" }
 nom = "8.0.0"
 rand = "0.9.3"
 futures = "0.3.31"
@@ -70,7 +68,7 @@ libc = "0.2"
 # search path, which then resolves `-lgomp` to the non-PIC `libgomp.a` and
 # breaks linking the cdylib ("relocation R_X86_64_TPOFF32 against hidden symbol
 # `gomp_tls_data`"). Desktop keeps the dynamic libstdc++ it has always used.
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { path = "/home/jonathan/work/llama-cpp-rs/llama-cpp-2", default-features = false, features = [
     "android-static-stdcxx",
 ] }
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
@@ -100,10 +98,15 @@ features = [
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
 # (except watchOS which has no Metal support — handled in llama-cpp-rs build.rs).
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "visionos"), not(target_os = "watchos"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { path = "/home/jonathan/work/llama-cpp-rs/llama-cpp-2", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",
     "llguidance",
     "common",
 ] }
+
+llguidance = "1.7.5"
+
+[dev-dependencies]
+toktrie = "1.7.5"

@@ -1,6 +1,4 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{not_chars, nt, seq, t, t_star, GrammarBuilder};
-use gbnf::GbnfGrammar;
 use serde_json::json;
 use tracing::debug;
 
@@ -16,86 +14,53 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         "<end_function_call>"
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
-        // FunctionGemma format: call:tool_name{param1:<escape>value<escape>, param2:<escape>value<escape>}
-        let mut builder = GrammarBuilder::new().rule("ws", t_star(" ")).rule(
-            "value",
-            seq(&[
-                t("<escape>"),
-                not_chars(&['<', '>', '{', '}', ',', ':']),
-                t("<escape>"),
-            ]),
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        let mut lark = String::from("%llguidance {}\n");
+        lark.push_str(
+            "start: \"<start_function_call>\" ws? functioncall ws? \"<end_function_call>\" ws?\n",
         );
 
-        let tool_rules: Vec<_> = tools
-            .iter()
-            .map(|tool| {
-                // Sanitize the tool name for GBNF (only alphanumeric allowed, no underscores)
-                tool.name
-                    .chars()
-                    .filter(|c| c.is_alphanumeric())
-                    .collect::<String>()
-            })
-            .collect();
+        let alts: Vec<String> = (0..tools.len()).map(|i| format!("tool_{i}")).collect();
+        lark.push_str(&format!("functioncall: {}\n", alts.join(" | ")));
 
-        for (tool_name, tool) in tool_rules.iter().zip(tools.iter()) {
+        for (i, tool) in tools.iter().enumerate() {
             let properties = tool
                 .json_schema
                 .get("properties")
                 .and_then(|p| p.as_object());
-
-            let mut items = vec![t("call:"), t(&tool.name), t("{")];
+            let name = &tool.name;
+            let mut rule = format!("tool_{i}: \"call:{name}{{\"");
 
             if let Some(props) = properties {
                 if !props.is_empty() {
-                    let params_rule = format!("{}params", tool_name);
-                    items.push(nt(&params_rule));
-
-                    let params: Vec<Vec<_>> = props
-                        .keys()
-                        .map(|name| vec![t(name), t(":"), nt("value")])
-                        .collect();
-
-                    // Join parameters with ", " separator
-                    let mut param_items = Vec::new();
-                    for (i, param) in params.iter().enumerate() {
-                        if i > 0 {
-                            param_items.push(t(", "));
+                    let mut first = true;
+                    for param_name in props.keys() {
+                        if !first {
+                            rule.push_str(" \", \"");
                         }
-                        param_items.extend_from_slice(param);
+                        rule.push_str(&format!(" \"{param_name}:\" value"));
+                        first = false;
                     }
-
-                    builder = builder.rule(&params_rule, seq(&param_items));
                 }
             }
 
-            items.push(t("}"));
-            builder = builder.rule(tool_name, seq(&items));
+            rule.push_str(" \"}\"");
+            lark.push_str(&rule);
+            lark.push('\n');
         }
 
-        for tool_rule in &tool_rules {
-            builder = builder.rule("functioncall", nt(tool_rule));
-        }
-
-        let grammar = builder
-            .rule(
-                "toolcall",
-                seq(&[
-                    t(self.begin_token()),
-                    nt("ws"),
-                    nt("functioncall"),
-                    nt("ws"),
-                    t(self.end_token()),
-                    nt("ws"),
-                ]),
-            )
-            .rule("root", nt("toolcall"))
-            .root("root")
-            .build();
-
-        Ok(grammar)
+        lark.push_str("value: \"<escape>\" /[^<>{},:]+/ \"<escape>\"\n");
+        lark.push_str("ws: / */\n");
+        Ok(lark)
     }
 
+    /// Returns a vocabulary hint that speeds up grammar-constrained token selection.
+    ///
+    /// The regex covers the most common token content in this format: value
+    /// bytes that are not structural delimiters (`< > { } , :`). llguidance
+    /// pre-computes a bitmask for this pattern at startup; when every valid
+    /// token at the current grammar position matches the pattern, it uses the
+    /// bitmask directly instead of scanning the full vocabulary.
     fn slice_regexes(&self) -> Vec<String> {
         vec![r"[^<>{},:]+".to_string()]
     }

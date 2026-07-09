@@ -2653,8 +2653,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.151"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#43733d1de03e8a7d582f5732e9836f2387997c4d"
+version = "0.1.152"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2668,8 +2667,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.151"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#43733d1de03e8a7d582f5732e9836f2387997c4d"
+version = "0.1.152"
 dependencies = [
  "bindgen",
  "cc",
@@ -3041,14 +3039,13 @@ dependencies = [
  "encoding_rs",
  "espeak-ng",
  "futures",
- "gbnf",
- "gbnf-macro",
  "hound",
  "indexmap",
  "indicatif",
  "lazy_static",
  "libc",
  "llama-cpp-2",
+ "llguidance",
  "mel_spec",
  "miette",
  "minijinja",
@@ -3072,6 +3069,7 @@ dependencies = [
  "tokenizers",
  "tokio",
  "tokio-stream",
+ "toktrie",
  "tracing",
  "tracing-subscriber",
  "unicode-normalization",

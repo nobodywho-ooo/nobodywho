@@ -225,15 +225,9 @@ impl SamplerConfig {
             }
             ShiftStep::Regex(pattern) => LlamaSampler::llguidance(model, "regex", &pattern)
                 .map_err(SamplerError::LlguidanceGrammarError),
-            ShiftStep::Lark(lark) => {
-                let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
-                    .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
-                LlamaSampler::llguidance(model, "lark", &lark)
-                    .map_err(SamplerError::LlguidanceGrammarError)
-            }
+            ShiftStep::Lark(lark) => LlamaSampler::llguidance(model, "lark", &lark)
+                .map_err(SamplerError::LlguidanceGrammarError),
             ShiftStep::LarkWithSlices(lark, slices) => {
-                let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
-                    .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
                 LlamaSampler::llguidance_with_slices(model, "lark", &lark, &slices)
                     .map_err(SamplerError::LlguidanceGrammarError)
             }
