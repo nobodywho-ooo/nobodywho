@@ -283,18 +283,20 @@ jobs:
 
       - name: Upload AI review JSONL session
         if: always() && steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ai-review-session-jsonl-${{ github.run_id }}
           path: ${{ runner.temp }}/ai-review-session.jsonl
+          archive: false
           if-no-files-found: warn
 
       - name: Upload AI review HTML session
         if: always() && steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: ai-review-session-html-${{ github.run_id }}
           path: ${{ runner.temp }}/ai-review-session.html
+          archive: false
           if-no-files-found: warn
 
       - name: Remove ai-review label
