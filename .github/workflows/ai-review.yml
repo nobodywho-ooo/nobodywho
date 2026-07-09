@@ -1,0 +1,316 @@
+name: "AI review from PR comment"
+
+on:
+  issue_comment:
+    types: [created]
+
+env:
+  AI_REVIEW_PROVIDER: opencode-go
+  AI_REVIEW_MODEL: glm-5.2
+  AI_REVIEW_THINKING: high
+
+jobs:
+  review:
+    if: >-
+      github.event.issue.pull_request
+      && github.event.comment.body == '/ai-review'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    concurrency:
+      group: ai-review-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Check permissions
+        id: auth
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            const allowed = ['admin', 'write'].includes(data.permission);
+            core.setOutput('allowed', allowed);
+
+      - name: Get PR details
+        if: steps.auth.outputs.allowed == 'true'
+        id: pr
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const hasAiReviewLabel = pr.labels.some((label) => label.name === 'ai-review');
+            core.setOutput('base_ref', pr.base.ref);
+            core.setOutput('base_sha', pr.base.sha);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_repo', pr.head.repo.full_name);
+            core.setOutput('same_repo', pr.head.repo.full_name === `${context.repo.owner}/${context.repo.repo}`);
+            core.setOutput('had_ai_review_label', hasAiReviewLabel);
+
+      - name: Reject fork PR
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo != 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              body: 'AI review is disabled for fork PRs.',
+            });
+
+      - name: Ensure ai-review label exists
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const labelName = 'ai-review';
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: labelName });
+              await github.rest.issues.updateLabel({
+                owner,
+                repo,
+                name: labelName,
+                color: 'c2e0c6',
+                description: 'AI review is running for this pull request',
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: labelName,
+                color: 'c2e0c6',
+                description: 'AI review is running for this pull request',
+              });
+            }
+
+      - name: Add ai-review label
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true' && steps.pr.outputs.had_ai_review_label != 'true'
+        id: label
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const labelName = 'ai-review';
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              labels: [labelName],
+            });
+            core.setOutput('added', 'true');
+
+      - name: Acknowledge command
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        id: ack
+        uses: actions/github-script@v8
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.reactions.createForIssueComment({
+              owner,
+              repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes',
+            });
+            const { data: comment } = await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              body: `The clanker is reviewing your spaghetti code. Should be quick.\n\n[View action run](${process.env.RUN_URL})`,
+            });
+            core.setOutput('comment_id', comment.id);
+
+      - name: Checkout PR
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.pr.outputs.head_repo }}
+          ref: ${{ steps.pr.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Fetch trusted review skill
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        id: trusted_skill
+        uses: actions/github-script@v8
+        env:
+          TRUSTED_AI_REVIEW_SKILL: ${{ runner.temp }}/trusted-ai-review-skill.md
+        with:
+          script: |
+            const fs = require('fs');
+            const { owner, repo } = context.repo;
+            const ref = ${{ toJSON(steps.pr.outputs.base_sha) }};
+            const { data } = await github.rest.repos.getContent({
+              owner,
+              repo,
+              path: '.agents/skills/ai-review/SKILL.md',
+              ref,
+            });
+            if (data.type !== 'file' || !data.content) {
+              throw new Error('Trusted AI review skill was not found in the PR base commit');
+            }
+            fs.writeFileSync(
+              process.env.TRUSTED_AI_REVIEW_SKILL,
+              Buffer.from(data.content, data.encoding).toString('utf8'),
+            );
+            core.setOutput('path', process.env.TRUSTED_AI_REVIEW_SKILL);
+
+      - name: Fetch base branch
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+        run: |
+          git remote add base "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags base "+refs/heads/${BASE_REF}:refs/remotes/base/${BASE_REF}"
+
+      - name: Setup Node
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Pi
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        env:
+          PI_TELEMETRY: 0
+          PI_SKIP_VERSION_CHECK: 1
+        run: |
+          npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+          pi --version
+
+      - name: Run AI review
+        if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        id: ai_review
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          BASE_REMOTE_REF: refs/remotes/base/${{ steps.pr.outputs.base_ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AI_REVIEW_COMMENT_ID: ${{ steps.ack.outputs.comment_id }}
+          PI_TELEMETRY: 0
+          PI_SKIP_VERSION_CHECK: 1
+          PI_CODING_AGENT_SESSION_DIR: ${{ runner.temp }}/pi-ai-review-sessions
+          TRUSTED_AI_REVIEW_SKILL: ${{ steps.trusted_skill.outputs.path }}
+        run: |
+          mkdir -p "$PI_CODING_AGENT_SESSION_DIR"
+
+          prompt_file="$RUNNER_TEMP/ai-review-prompt.md"
+          cat > "$prompt_file" <<PROMPT
+          /skill:code-review
+
+          Review pull request #${PR_NUMBER} against base branch ${BASE_REF}.
+          The PR head is checked out in this workspace.
+          The base branch is available at ${BASE_REMOTE_REF}.
+          Update the existing running comment with your findings when done.
+          Do not submit a GitHub PR review or request changes.
+          Do not create a new PR comment.
+          Use \`gh api -X PATCH repos/${GITHUB_REPOSITORY}/issues/comments/${AI_REVIEW_COMMENT_ID} -F body=@<file>\` to replace the running comment body.
+          Keep the comment minimal and do not use emoji.
+          Do not add an "Automated review by" footer.
+          End the PR comment body with exactly: [View GitHub action run](${RUN_URL})
+          PROMPT
+
+          echo "::group::AI review skill"
+          cat "$TRUSTED_AI_REVIEW_SKILL"
+          echo "::endgroup::"
+          echo "::group::AI review prompt"
+          cat "$prompt_file"
+          echo "::endgroup::"
+
+          set +e
+          pi \
+            --provider "$AI_REVIEW_PROVIDER" \
+            --model "$AI_REVIEW_MODEL" \
+            --api-key "$OPENCODE_API_KEY" \
+            --thinking "$AI_REVIEW_THINKING" \
+            --approve \
+            --skill "$TRUSTED_AI_REVIEW_SKILL" \
+            -p "$(cat "$prompt_file")" \
+            2>&1 | tee "$RUNNER_TEMP/ai-review-response.md"
+          status=${PIPESTATUS[0]}
+          set -e
+
+          session_jsonl=$(find "$PI_CODING_AGENT_SESSION_DIR" -type f -name '*.jsonl' -print | sort | tail -1)
+          if [ -n "$session_jsonl" ]; then
+            session_jsonl_export="$RUNNER_TEMP/ai-review-session.jsonl"
+            session_html="$RUNNER_TEMP/ai-review-session.html"
+            cp "$session_jsonl" "$session_jsonl_export"
+            echo "session_jsonl=${session_jsonl_export}" >> "$GITHUB_OUTPUT"
+            pi --export "$session_jsonl" "$session_html" || true
+            {
+              echo "### AI review session export"
+              echo
+              echo "- JSONL artifact file: \`ai-review-session.jsonl\`"
+              echo "- HTML artifact file: \`ai-review-session.html\`"
+              echo "- [View action run]($RUN_URL)"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::group::Pi session export paths"
+            echo "JSONL: $session_jsonl_export"
+            echo "HTML: $session_html"
+            echo "Action run: $RUN_URL"
+            echo "::endgroup::"
+            echo "::group::Pi session JSONL export"
+            cat "$session_jsonl_export"
+            echo "::endgroup::"
+          else
+            echo "No Pi session JSONL found."
+          fi
+
+          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload AI review response
+        if: always() && steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ai-review-response-${{ github.run_id }}
+          path: ${{ runner.temp }}/ai-review-response.md
+          if-no-files-found: warn
+
+      - name: Upload AI review JSONL session
+        if: always() && steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ai-review-session-jsonl-${{ github.run_id }}
+          path: ${{ runner.temp }}/ai-review-session.jsonl
+          if-no-files-found: warn
+
+      - name: Upload AI review HTML session
+        if: always() && steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ai-review-session-html-${{ github.run_id }}
+          path: ${{ runner.temp }}/ai-review-session.html
+          if-no-files-found: warn
+
+      - name: Remove ai-review label
+        if: always() && steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true' && steps.label.outputs.added == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const labelName = 'ai-review';
+            await github.rest.issues.removeLabel({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              name: labelName,
+            });
+
+      - name: Fail if review failed
+        if: always() && steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true' && steps.ai_review.outputs.exit_code != '0'
+        run: exit 1
