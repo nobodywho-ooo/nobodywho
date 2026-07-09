@@ -39,7 +39,7 @@ You can also pick a `quantization` variant of the model to download and load. Lo
 ```python notest
 stt = STT(
     source="onnx-community/whisper-base",
-    quantization="int8",
+    quantization="q4",
 )
 ```
 
