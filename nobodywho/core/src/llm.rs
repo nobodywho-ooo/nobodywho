@@ -110,13 +110,19 @@ pub fn get_model(
     mmproj_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
-    let progress = progress.unwrap_or_else(default_progress_callback);
-    let real_model_path = download_gguf(parse_model_path(model_path)?, &progress, &[])?;
-    let real_mmproj_path = mmproj_path
-        .map(parse_model_path) // parse inside option
-        .transpose()? // return early if parse fails
-        .map(|p| download_gguf(p, &progress, &[])) // download the file if needed
-        .transpose()?; // return early if download fails
+    let model_progress = progress
+        .clone()
+        .unwrap_or_else(|| default_progress_callback(model_path));
+    let real_model_path = download_gguf(parse_model_path(model_path)?, &model_progress, &[])?;
+    let real_mmproj_path = match mmproj_path {
+        Some(p) => {
+            let mmproj_progress = progress
+                .clone()
+                .unwrap_or_else(|| default_progress_callback(p));
+            Some(download_gguf(parse_model_path(p)?, &mmproj_progress, &[])?)
+        }
+        None => None,
+    };
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
     let use_gpu = use_gpu_if_available && has_gpu_backend();
@@ -214,7 +220,7 @@ pub fn download_model(
     headers: Vec<(String, String)>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
-    let progress = progress.unwrap_or_else(default_progress_callback);
+    let progress = progress.unwrap_or_else(|| default_progress_callback(model_path));
     download_gguf(parse_model_path(model_path)?, &progress, &headers)
 }
 

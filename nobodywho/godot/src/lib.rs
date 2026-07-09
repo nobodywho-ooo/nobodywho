@@ -2973,7 +2973,7 @@ impl NobodyWhoSTT {
     }
 
     #[func]
-    /// Transcribe an audio file (WAV / MP3 / FLAC). Call `start_worker()` and wait for
+    /// Transcribe an audio file (WAV / MP3). Call `start_worker()` and wait for
     /// `worker_started` before calling this.
     fn transcribe_file(&mut self, path: String) {
         let Some(stt) = self.stt.clone() else {

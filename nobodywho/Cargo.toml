@@ -24,6 +24,3 @@ pyo3-macros = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f
 pyo3-macros-backend = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
 pyo3-build-config = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
 pyo3-introspection = { git = "https://github.com/PyO3/pyo3", rev = "20246a895718baa603f836b187b498cedc6941ca" }
-# Downgrade mpa bit-reservoir underflow from warn → debug: expected condition at stream start.
-# See: https://github.com/pdeljanov/Symphonia/issues/274
-symphonia-bundle-mp3 = { path = "patches/symphonia-bundle-mp3" }

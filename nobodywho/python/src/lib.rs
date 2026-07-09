@@ -250,7 +250,7 @@ impl STT {
         Ok(Self { stt })
     }
 
-    /// Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
+    /// Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
     pub fn transcribe_file(&self, path: &str, py: Python) -> PyResult<TokenStream> {
         let stream = py
             .detach(|| self.stt.transcribe_file_stream(path))

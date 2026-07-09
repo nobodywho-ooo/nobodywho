@@ -70,7 +70,7 @@ public class STT {
         self.inner = try RustStt(source: source, language: language, quantization: quantization)
     }
 
-    /// Transcribe an audio file (WAV / MP3 / FLAC). Returns an `SttStream`.
+    /// Transcribe an audio file (WAV / MP3). Returns an `SttStream`.
     public func transcribeFile(path: String) throws -> SttStream {
         return SttStream(try inner.transcribeFile(path: path))
     }

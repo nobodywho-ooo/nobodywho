@@ -29,15 +29,20 @@ use tracing::{info, warn};
 /// synchronization (hence the `Sync` bound).
 pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
-/// Default terminal progress bar shown when the user doesn't pass their own callback.
+/// Default terminal progress bar shown when the user doesn't pass their own callback,
+/// labeled with the last path segment of `path` — e.g. `"hf://owner/repo/model.gguf"`
+/// shows as `"model.gguf"`.
 ///
 /// indicatif auto-disables on non-TTY stderr, so this is safe to use unconditionally —
-/// GUI bindings (Godot, Flutter mobile) won't see output in production. Detects a new
-/// download (model → mmproj transition) by watching for `total` to change, finishes the
-/// previous bar, and starts a fresh one.
-pub fn default_progress_callback() -> DownloadProgressCallback {
+/// GUI bindings (Godot, Flutter mobile) won't see output in production. Callers
+/// downloading more than one file (a repo download, or a GGUF model plus its
+/// mmproj) should create one of these per file rather than sharing a single
+/// instance, so each file gets its own visibly-labeled bar instead of an
+/// unlabeled one that appears to just restart.
+pub fn default_progress_callback(path: &str) -> DownloadProgressCallback {
+    let name = path.rsplit('/').next().unwrap_or(path).to_string();
     let style = ProgressStyle::with_template(
-        "{spinner:.green} [{elapsed_precise}] {wide_bar:.cyan/blue} \
+        "{spinner:.green} [{elapsed_precise}] {msg} {wide_bar:.cyan/blue} \
          {binary_bytes}/{binary_total_bytes} ({binary_bytes_per_sec}, {eta})",
     )
     .expect("static progress bar template is valid")
@@ -53,13 +58,15 @@ pub fn default_progress_callback() -> DownloadProgressCallback {
             }
             let bar = ProgressBar::new(total);
             bar.set_style(style.clone());
+            bar.set_message(name.clone());
             bar.enable_steady_tick(Duration::from_millis(100));
             s.0 = Some(bar);
             s.1 = total;
         }
         let bar = s.0.as_ref().unwrap();
         bar.set_position(downloaded);
-        if downloaded >= total {
+
+        if total > 0 && downloaded >= total {
             bar.finish();
             s.0 = None;
         }
@@ -322,6 +329,14 @@ impl ModelCache {
                 got: downloaded,
                 expected: content_length,
             });
+        }
+
+        // Content-Length was unknown throughout (chunked transfer), so every
+        // call above reported `total = 0`. Report the now-known final size so
+        // the bar can close out against a real total instead of never
+        // learning how big the file actually was.
+        if content_length == 0 {
+            progress(downloaded, downloaded);
         }
         Ok(())
     }
@@ -732,7 +747,17 @@ impl ModelCache {
         for path in &files {
             let url = repo.resolve_url(path);
             let target = cache_dir.join(path);
-            self.fetch_to_path(&url, &target, progress, &[])
+            // `progress` is one instance shared across every file in this repo, so on
+            // its own it can't label the bar per file. Drive a freshly-labeled bar
+            // here (named after the concrete file) alongside it, forwarding the same
+            // byte counts to both.
+            let named = default_progress_callback(path);
+            let progress = progress.clone();
+            let file_progress: DownloadProgressCallback = Arc::new(move |downloaded, total| {
+                named(downloaded, total);
+                progress(downloaded, total);
+            });
+            self.fetch_to_path(&url, &target, &file_progress, &[])
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
                     source: Box::new(source),
@@ -753,8 +778,11 @@ pub(crate) fn download_onnx(
     required_files: &[String],
 ) -> Result<PathBuf, HuggingFaceError> {
     let cache = ModelCache::open()?;
+    // No caller threads a custom callback through yet, so there's nothing
+    // meaningful to forward here — `download_repo` labels its own per-file bars.
+    let progress: DownloadProgressCallback = Arc::new(|_downloaded, _total| {});
     let source = OnnxSource::parse(source, required_files.to_vec())?;
-    cache.download_repo(&source, &default_progress_callback())
+    cache.download_repo(&source, &progress)
 }
 
 #[cfg(test)]

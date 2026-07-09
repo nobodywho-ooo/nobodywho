@@ -334,7 +334,7 @@ abstract class RustStt implements RustOpaqueInterface {
     quantization: quantization,
   );
 
-  /// Transcribe an audio file (WAV / MP3 / FLAC).
+  /// Transcribe an audio file (WAV / MP3).
   RustSttStream transcribeFile({required String path});
 
   /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).

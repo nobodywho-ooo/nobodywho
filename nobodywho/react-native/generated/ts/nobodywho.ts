@@ -2502,7 +2502,7 @@ const FfiConverterTypeRustModel =  new FfiConverterObject(uniffiTypeRustModelObj
 export interface RustSttInterface {
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     transcribeFile(path: string)  /*throws*/: RustSttStreamInterface;
@@ -2554,7 +2554,7 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
 
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
  transcribeFile(path: string): RustSttStreamInterface /*throws*/ {
@@ -4090,7 +4090,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() !== 52004) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() !== 47529) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() !== 43975) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() !== 61166) {

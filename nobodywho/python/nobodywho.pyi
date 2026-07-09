@@ -776,7 +776,7 @@ class STT:
     ) -> STT: ...
     def transcribe_file(self, /, path: str) -> TokenStream:
         """
-        Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
+        Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
         """
     def transcribe_pcm(
         self, /, samples: Sequence[int], sample_rate: int

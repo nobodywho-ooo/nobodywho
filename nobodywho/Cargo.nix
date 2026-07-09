@@ -3753,16 +3753,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "rayon" ];
       };
-      "extended" = rec {
-        crateName = "extended";
-        version = "0.1.0";
-        edition = "2021";
-        sha256 = "0r830ak1a9775i9yl5lljm29zbnlncw7xlfz35mhgjrz43c775mg";
-        authors = [
-          "Dietrich Epp <depp@zdome.net>"
-        ];
-
-      };
       "fancy-regex 0.13.0" = rec {
         crateName = "fancy-regex";
         version = "0.13.0";
@@ -9775,10 +9765,14 @@ rec {
             packageId = "serde_json";
           }
           {
-            name = "symphonia";
-            packageId = "symphonia";
+            name = "symphonia-bundle-mp3";
+            packageId = "symphonia-bundle-mp3";
             usesDefaultFeatures = false;
-            features = [ "wav" "mp3" "flac" "pcm" ];
+            features = [ "mp3" ];
+          }
+          {
+            name = "symphonia-core";
+            packageId = "symphonia-core";
           }
           {
             name = "tempfile";
@@ -15396,124 +15390,11 @@ rec {
         ];
 
       };
-      "symphonia" = rec {
-        crateName = "symphonia";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "0fbhlmvf1m9rb5xdy057vzymvirmzx39gx4hl3x9p7d1630a8wsp";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "lazy_static";
-            packageId = "lazy_static";
-          }
-          {
-            name = "symphonia-bundle-flac";
-            packageId = "symphonia-bundle-flac";
-            optional = true;
-          }
-          {
-            name = "symphonia-bundle-mp3";
-            packageId = "symphonia-bundle-mp3";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "symphonia-codec-pcm";
-            packageId = "symphonia-codec-pcm";
-            optional = true;
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-format-riff";
-            packageId = "symphonia-format-riff";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
-          }
-        ];
-        features = {
-          "aac" = [ "symphonia-codec-aac" ];
-          "adpcm" = [ "symphonia-codec-adpcm" ];
-          "aiff" = [ "symphonia-format-riff/aiff" ];
-          "alac" = [ "symphonia-codec-alac" ];
-          "all" = [ "all-codecs" "all-formats" ];
-          "all-codecs" = [ "aac" "adpcm" "alac" "flac" "mp1" "mp2" "mp3" "pcm" "vorbis" ];
-          "all-formats" = [ "caf" "isomp4" "mkv" "ogg" "aiff" "wav" ];
-          "caf" = [ "symphonia-format-caf" ];
-          "default" = [ "adpcm" "flac" "mkv" "ogg" "pcm" "vorbis" "wav" ];
-          "flac" = [ "symphonia-bundle-flac" ];
-          "isomp4" = [ "symphonia-format-isomp4" ];
-          "mkv" = [ "symphonia-format-mkv" ];
-          "mp1" = [ "symphonia-bundle-mp3/mp1" ];
-          "mp2" = [ "symphonia-bundle-mp3/mp2" ];
-          "mp3" = [ "symphonia-bundle-mp3/mp3" ];
-          "mpa" = [ "mp1" "mp2" "mp3" ];
-          "ogg" = [ "symphonia-format-ogg" ];
-          "opt-simd" = [ "opt-simd-sse" "opt-simd-avx" "opt-simd-neon" ];
-          "opt-simd-avx" = [ "symphonia-core/opt-simd-avx" ];
-          "opt-simd-neon" = [ "symphonia-core/opt-simd-neon" ];
-          "opt-simd-sse" = [ "symphonia-core/opt-simd-sse" ];
-          "pcm" = [ "symphonia-codec-pcm" ];
-          "symphonia-bundle-flac" = [ "dep:symphonia-bundle-flac" ];
-          "symphonia-bundle-mp3" = [ "dep:symphonia-bundle-mp3" ];
-          "symphonia-codec-aac" = [ "dep:symphonia-codec-aac" ];
-          "symphonia-codec-adpcm" = [ "dep:symphonia-codec-adpcm" ];
-          "symphonia-codec-alac" = [ "dep:symphonia-codec-alac" ];
-          "symphonia-codec-pcm" = [ "dep:symphonia-codec-pcm" ];
-          "symphonia-codec-vorbis" = [ "dep:symphonia-codec-vorbis" ];
-          "symphonia-format-caf" = [ "dep:symphonia-format-caf" ];
-          "symphonia-format-isomp4" = [ "dep:symphonia-format-isomp4" ];
-          "symphonia-format-mkv" = [ "dep:symphonia-format-mkv" ];
-          "symphonia-format-ogg" = [ "dep:symphonia-format-ogg" ];
-          "symphonia-format-riff" = [ "dep:symphonia-format-riff" ];
-          "vorbis" = [ "symphonia-codec-vorbis" ];
-          "wav" = [ "symphonia-format-riff/wav" ];
-        };
-        resolvedDefaultFeatures = [ "flac" "mp3" "pcm" "symphonia-bundle-flac" "symphonia-bundle-mp3" "symphonia-codec-pcm" "symphonia-format-riff" "wav" ];
-      };
-      "symphonia-bundle-flac" = rec {
-        crateName = "symphonia-bundle-flac";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "0xlrdil9prgbwds8j2rd0z8gy9i5h13ca459h2dmv8mfh3hna5f9";
-        libName = "symphonia_bundle_flac";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "log";
-            packageId = "log";
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
-          }
-          {
-            name = "symphonia-utils-xiph";
-            packageId = "symphonia-utils-xiph";
-          }
-        ];
-
-      };
       "symphonia-bundle-mp3" = rec {
         crateName = "symphonia-bundle-mp3";
         version = "0.5.5";
         edition = "2018";
-        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./patches/symphonia-bundle-mp3; };
+        sha256 = "1vapgi7haxmi4fnf09rvc4z6q24136m5gsg3k73ymxbbnmmxswj8";
         libName = "symphonia_bundle_mp3";
         authors = [
           "Philip Deljanov <philip.deljanov@gmail.com>"
@@ -15602,39 +15483,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" ];
       };
-      "symphonia-format-riff" = rec {
-        crateName = "symphonia-format-riff";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "0vx9247jsn9cjr0s3hay1ns04g77x831kn01hjvfz53x1vgw7my2";
-        libName = "symphonia_format_riff";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-          "dedobbin <dedobbindedobbin@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "extended";
-            packageId = "extended";
-          }
-          {
-            name = "log";
-            packageId = "log";
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
-          }
-        ];
-        features = {
-          "default" = [ "aiff" "wav" ];
-        };
-        resolvedDefaultFeatures = [ "wav" ];
-      };
       "symphonia-metadata" = rec {
         crateName = "symphonia-metadata";
         version = "0.5.5";
@@ -15660,27 +15508,6 @@ rec {
           {
             name = "symphonia-core";
             packageId = "symphonia-core";
-          }
-        ];
-
-      };
-      "symphonia-utils-xiph" = rec {
-        crateName = "symphonia-utils-xiph";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "05lzmgxppqn647hmc1j9pgqsdqa2pxxcgvk8dd23i8wrnxdch9zf";
-        libName = "symphonia_utils_xiph";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
           }
         ];
 
