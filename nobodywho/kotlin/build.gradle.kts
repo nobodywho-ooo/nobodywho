@@ -1,7 +1,7 @@
 // Root build file — shared configuration for all subprojects
 allprojects {
     group = "ai.nobodywho"
-    version = "2.0.0"
+    version = "2.1.0"
 }
 
 // Shared POM metadata and signing for publishable subprojects

@@ -1,3 +1,9 @@
+## 2.4.0
+
+### Text to Speech and Speech to Text
+
+Added local Text-to-Speech (TTS) and Speech-to-Text (STT/ASR) APIs, with docs for generating WAV audio from text and transcribing audio files or PCM buffers.
+
 ## 2.3.0
 
 ### LFM2 tool calling (#564)

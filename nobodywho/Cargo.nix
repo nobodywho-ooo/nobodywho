@@ -1179,7 +1179,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools 0.13.0";
+            packageId = "itertools 0.10.5";
             usesDefaultFeatures = false;
           }
           {
@@ -3443,7 +3443,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_System_Diagnostics_Debug" ];
           }
@@ -7418,7 +7418,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" ];
           }
@@ -7472,26 +7472,6 @@ rec {
           "use_std" = [ "use_alloc" "either/use_std" ];
         };
         resolvedDefaultFeatures = [ "default" "use_alloc" "use_std" ];
-      };
-      "itertools 0.13.0" = rec {
-        crateName = "itertools";
-        version = "0.13.0";
-        edition = "2018";
-        sha256 = "11hiy3qzl643zcigknclh446qb9zlg4dpdzfkjaa9q9fqpgyfgj1";
-        authors = [
-          "bluss"
-        ];
-        dependencies = [
-          {
-            name = "either";
-            packageId = "either";
-            usesDefaultFeatures = false;
-          }
-        ];
-        features = {
-          "default" = [ "use_std" ];
-          "use_std" = [ "use_alloc" "either/use_std" ];
-        };
       };
       "itertools 0.14.0" = rec {
         crateName = "itertools";
@@ -8297,13 +8277,13 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.150";
+        version = "0.1.151";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
-          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+          url = "https://github.com/utilityai/llama-cpp-rs";
+          rev = "43733d1de03e8a7d582f5732e9836f2387997c4d";
+          sha256 = "0s42zc5qad3pn5rcy4pka11ry1d6d3j1qr228cabjyv4nvp747mv";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -8365,6 +8345,7 @@ rec {
           "dynamic-link" = [ "llama-cpp-sys-2/dynamic-link" ];
           "llguidance" = [ "dep:llguidance" "dep:toktrie" ];
           "metal" = [ "llama-cpp-sys-2/metal" ];
+          "mkl" = [ "llama-cpp-sys-2/mkl" ];
           "mtmd" = [ "llama-cpp-sys-2/mtmd" ];
           "opencl" = [ "llama-cpp-sys-2/opencl" ];
           "openmp" = [ "llama-cpp-sys-2/openmp" ];
@@ -8379,14 +8360,14 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.150";
+        version = "0.1.151";
         edition = "2021";
         links = "llama";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
-          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+          url = "https://github.com/utilityai/llama-cpp-rs";
+          rev = "43733d1de03e8a7d582f5732e9836f2387997c4d";
+          sha256 = "0s42zc5qad3pn5rcy4pka11ry1d6d3j1qr228cabjyv4nvp747mv";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -9590,7 +9571,7 @@ rec {
       };
       "nobodywho" = rec {
         crateName = "nobodywho";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./core; };
         dependencies = [
@@ -9828,7 +9809,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -9876,7 +9857,7 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "9.4.0";
+        version = "9.5.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
@@ -9916,7 +9897,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "1.5.0";
+        version = "1.6.0";
         edition = "2021";
         crateBin = [
           {
@@ -13689,7 +13670,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Networking_WinSock" ];
           }
@@ -13949,7 +13930,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             usesDefaultFeatures = false;
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Security_Cryptography" ];
@@ -15422,27 +15403,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "mp3" ];
       };
-      "symphonia-codec-pcm" = rec {
-        crateName = "symphonia-codec-pcm";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "158x0g5v13qh1c4jyyrzd8kcz9rqim6cx4bwpqzash8mq0bdg2af";
-        libName = "symphonia_codec_pcm";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "log";
-            packageId = "log";
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-        ];
-
-      };
       "symphonia-core" = rec {
         crateName = "symphonia-core";
         version = "0.5.5";
@@ -15685,7 +15645,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Storage_FileSystem" "Win32_Foundation" ];
           }
@@ -19247,7 +19207,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -19942,7 +19902,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_System" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_SystemInformation" "Win32_System_Threading" "default" ];
       };
       "windows-sys 0.61.2" = rec {
         crateName = "windows-sys";
@@ -20204,7 +20164,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
+        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Security_Authentication" "Win32_Security_Authentication_Identity" "Win32_Security_Credentials" "Win32_Security_Cryptography" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_IO" "Win32_System_LibraryLoader" "Win32_System_Memory" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
       };
       "windows-targets 0.48.5" = rec {
         crateName = "windows-targets";
