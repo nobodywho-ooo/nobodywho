@@ -1,4 +1,4 @@
-{ fetchurl, runCommand }:
+{ fetchurl, runCommand, fetchgit }:
 {
   TEST_MODEL = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
@@ -59,4 +59,27 @@
       sha256 = "sha256-YQcM+N4lseklbo4QLe1J2NJKg2ntNu+E/fIVSeaBJaA=";
     }} $out/generation_config.json
   '';
+
+  # The whole whisper-base repo laid out as the HF download cache expects
+  # (see `OnnxSource` in core/src/huggingface.rs): $out/onnx-community/whisper-base/
+  # with a `.nobodywho-complete` marker so it resolves offline, no network.
+  TEST_WHISPER_HF_CACHE = runCommand "whisper-base-hf-cache"
+    {
+      outputHashAlgo = "sha256";
+      outputHashMode = "recursive";
+      outputHash = "sha256-FfrrlOafv++1nqhhvXhfUi2jJ5jr6llC+9ALR9GWiIk=";
+    }
+    ''
+      dir=$out/onnx-community/whisper-base
+      mkdir -p "$out/onnx-community"
+      cp -r ${fetchgit {
+        name = "whisper-base";
+        url = "https://huggingface.co/onnx-community/whisper-base";
+        rev = "1846881b6b3a3024392c1eea3ad983695bc23925";
+        fetchLFS = true;
+        hash = "sha256-UDkez1Ix3HR7IE9g6WqG8Fuwd9w0VBP9/7yt6bbG7y4=";
+      }} $dir
+      chmod -R u+w $dir
+      (cd $dir && find . -type f -printf '%P\n' | sort) > $dir/.nobodywho-complete
+    '';
 }
