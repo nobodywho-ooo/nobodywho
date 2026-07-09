@@ -10,14 +10,18 @@ jobs:
       github.event.issue.pull_request
       && github.event.comment.body == '/full-ci'
     runs-on: ubuntu-latest
+    timeout-minutes: 190
     permissions:
-      actions: write
-      pull-requests: write
+      actions: read
+      pull-requests: read
       issues: write
+    concurrency:
+      group: full-ci-${{ github.event.issue.number }}
+      cancel-in-progress: true
     steps:
       - name: Check permissions
         id: auth
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
@@ -25,62 +29,123 @@ jobs:
               repo: context.repo.repo,
               username: context.actor,
             });
-            // permission field uses legacy mapping: maintain→write, triage→read
             const allowed = ['admin', 'write'].includes(data.permission);
             core.setOutput('allowed', allowed);
 
-      - name: Get PR head ref
+      - name: Get PR details
         if: steps.auth.outputs.allowed == 'true'
         id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
-            const pr = await github.rest.pulls.get({
+            const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
             });
-            core.setOutput('ref', pr.data.head.ref);
-            core.setOutput('sha', pr.data.head.sha);
+            core.setOutput('head_sha', pr.head.sha);
 
-      - name: Trigger full CI
+      - name: Ensure full-ci label exists
         if: steps.auth.outputs.allowed == 'true'
-        id: dispatch
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
-            const ref = ${{ toJSON(steps.pr.outputs.ref) }};
-            const sha = ${{ toJSON(steps.pr.outputs.sha) }};
-            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml?query=branch%3A${encodeURIComponent(ref)}`;
-            const startedAt = Date.now();
+            const { owner, repo } = context.repo;
+            const labelName = 'full-ci';
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: labelName });
+              await github.rest.issues.updateLabel({
+                owner,
+                repo,
+                name: labelName,
+                color: '5319e7',
+                description: 'Run the full CI suite for this pull request',
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: labelName,
+                color: '5319e7',
+                description: 'Run the full CI suite for this pull request',
+              });
+            }
 
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'main.yml',
-              ref,
-              inputs: { full_ci: 'true' },
+      - name: Remove existing full-ci label
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: context.issue.number,
+                name: 'full-ci',
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+      - name: Add full-ci label
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              labels: ['full-ci'],
             });
 
+      - name: Acknowledge command
+        if: steps.auth.outputs.allowed == 'true'
+        id: ack
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
             await github.rest.reactions.createForIssueComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               comment_id: context.payload.comment.id,
               content: 'eyes',
             });
+            const { data: comment } = await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              body: 'Full CI is running.',
+            });
+            core.setOutput('comment_id', comment.id);
 
-            for (let attempt = 0; attempt < 10; attempt++) {
-              await new Promise((resolve) => setTimeout(resolve, 3000));
+      - name: Find full CI run
+        if: steps.auth.outputs.allowed == 'true'
+        id: full_ci
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const headSha = ${{ toJSON(steps.pr.outputs.head_sha) }};
+            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml`;
+            const startedAt = Date.now();
+
+            for (let attempt = 0; attempt < 20; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 5000));
               const { data } = await github.rest.actions.listWorkflowRuns({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: 'main.yml',
-                branch: ref,
-                event: 'workflow_dispatch',
-                per_page: 10,
+                event: 'pull_request',
+                head_sha: headSha,
+                per_page: 30,
               });
-              const run = data.workflow_runs.find((workflowRun) => workflowRun.head_sha === sha && Date.parse(workflowRun.created_at) >= startedAt - 60000);
+              const run = data.workflow_runs.find((workflowRun) => Date.parse(workflowRun.created_at) >= startedAt - 60000);
               if (run) {
+                core.setOutput('id', run.id);
                 core.setOutput('url', run.html_url);
                 return;
               }
@@ -88,15 +153,79 @@ jobs:
 
             core.setOutput('url', fallbackUrl);
 
-      - name: Comment workflow link
+      - name: Update running comment
         if: steps.auth.outputs.allowed == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
-            const url = ${{ toJSON(steps.dispatch.outputs.url) }};
-            await github.rest.issues.createComment({
+            const runUrl = ${{ toJSON(steps.full_ci.outputs.url) }};
+            await github.rest.issues.updateComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `Full CI triggered: ${url}`,
+              comment_id: Number(${{ toJSON(steps.ack.outputs.comment_id) }}),
+              body: `Full CI is running.\n\n[View GitHub action run](${runUrl})`,
             });
+
+      - name: Wait for full CI result
+        if: steps.auth.outputs.allowed == 'true' && steps.full_ci.outputs.id != ''
+        id: full_ci_result
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runId = Number(${{ toJSON(steps.full_ci.outputs.id) }});
+            const runUrl = ${{ toJSON(steps.full_ci.outputs.url) }};
+            const startedAt = Date.now();
+            const timeoutMs = 180 * 60 * 1000;
+            const pollIntervalMs = 30000;
+
+            while (Date.now() - startedAt < timeoutMs) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId,
+              });
+
+              if (run.status === 'completed') {
+                const passed = run.conclusion === 'success';
+                const body = passed
+                  ? `✅ Full CI passed.\n\n[View GitHub action run](${runUrl})`
+                  : `❌ Full CI failed.\n\n[View GitHub action run](${runUrl})`;
+
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: Number(${{ toJSON(steps.ack.outputs.comment_id) }}),
+                  body,
+                });
+                core.setOutput('conclusion', run.conclusion);
+                return;
+              }
+
+              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+            }
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: Number(${{ toJSON(steps.ack.outputs.comment_id) }}),
+              body: `Full CI is still running after 180 minutes.\n\n[View GitHub action run](${runUrl})`,
+            });
+            core.warning('Timed out waiting for full CI result.');
+            core.setOutput('conclusion', 'timed_out');
+
+      - name: Remove full-ci label
+        if: always() && steps.auth.outputs.allowed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: context.issue.number,
+                name: 'full-ci',
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
