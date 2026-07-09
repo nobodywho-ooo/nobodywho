@@ -43,7 +43,8 @@ jobs:
             "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
           curl -L -o test-models/mmproj.gguf \
             "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf"
-          # Whisper ONNX — only the files we actually load (~295 MB vs 2.4 GB for the full repo)
+          # Whisper ONNX — only the files we actually load (fp32 / "default"
+          # quantization, matching the STT tests' quantization="default").
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
           mkdir -p test-models/whisper-base/onnx
           curl -L --fail "$WHISPER_BASE/onnx/encoder_model.onnx"       -o test-models/whisper-base/onnx/encoder_model.onnx

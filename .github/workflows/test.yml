@@ -148,6 +148,7 @@ jobs:
 
       - name: Download Whisper model
         run: |
+          # fp32 ("default") files, matching the Flutter STT test's quantization='default'.
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
           mkdir -p models/whisper-base/onnx
           curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
