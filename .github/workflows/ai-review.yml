@@ -152,20 +152,34 @@ jobs:
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
-            const ref = ${{ toJSON(steps.pr.outputs.base_sha) }};
-            const { data } = await github.rest.repos.getContent({
-              owner,
-              repo,
-              path: '.agents/skills/ai-review/SKILL.md',
-              ref,
-            });
+            const path = '.agents/skills/ai-review/SKILL.md';
+            const refs = [
+              ${{ toJSON(steps.pr.outputs.base_sha) }},
+              ${{ toJSON(steps.pr.outputs.base_ref) }},
+            ].filter((value, index, values) => value && values.indexOf(value) === index);
+
+            let data;
+            let skillRef;
+            for (const ref of refs) {
+              try {
+                const response = await github.rest.repos.getContent({ owner, repo, path, ref });
+                data = response.data;
+                skillRef = ref;
+                break;
+              } catch (error) {
+                if (error.status !== 404 || ref === refs[refs.length - 1]) throw error;
+                core.warning(`Trusted AI review skill was not found at ${ref}; trying ${refs[refs.indexOf(ref) + 1]}`);
+              }
+            }
+
             if (data.type !== 'file' || !data.content) {
-              throw new Error('Trusted AI review skill was not found in the PR base commit');
+              throw new Error(`Trusted AI review skill was not found at ${skillRef}`);
             }
             fs.writeFileSync(
               process.env.TRUSTED_AI_REVIEW_SKILL,
               Buffer.from(data.content, data.encoding).toString('utf8'),
             );
+            core.info(`Fetched trusted AI review skill from ${skillRef}`);
             core.setOutput('path', process.env.TRUSTED_AI_REVIEW_SKILL);
 
       - name: Fetch base branch
