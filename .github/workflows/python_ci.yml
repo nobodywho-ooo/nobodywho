@@ -275,13 +275,13 @@ jobs:
           curl -L --fail --progress-bar https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf -o models/bge-reranker-v2-m3-Q8_0.gguf
           curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf -o models/google_gemma-4-E2B-it-Q4_K_M.gguf
           curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf -o models/mmproj-google_gemma-4-E2B-it-f16.gguf
-          # Whisper ONNX — only the files we actually load (q4 quantization is the
-          # library default; keep this in sync with DEFAULT_QUANTIZATION in
-          # nobodywho/core/src/stt/backends/whisper.rs)
+          # Whisper ONNX — only the files we actually load. The STT tests
+          # request quantization="default" (fp32), so we download the unsuffixed
+          # ONNX files here. (Keep in sync with the tests and models.nix.)
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
           mkdir -p models/whisper-base/onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model_q4.onnx"       -o models/whisper-base/onnx/encoder_model_q4.onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/decoder_model_merged_q4.onnx" -o models/whisper-base/onnx/decoder_model_merged_q4.onnx
+          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
+          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/decoder_model_merged.onnx" -o models/whisper-base/onnx/decoder_model_merged.onnx
           curl -L --fail --progress-bar "$WHISPER_BASE/tokenizer.json"                 -o models/whisper-base/tokenizer.json
           curl -L --fail --progress-bar "$WHISPER_BASE/generation_config.json"         -o models/whisper-base/generation_config.json
           curl -L --fail --progress-bar "$WHISPER_BASE/config.json"                    -o models/whisper-base/config.json

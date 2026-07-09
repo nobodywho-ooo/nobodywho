@@ -6,6 +6,10 @@ or local directory path.  Defaults to "onnx-community/whisper-base" so the model
 downloaded automatically on first run (cached after).
 
 The test audio contains the phrase "Hey Ron. Hey Billy."
+
+Uses the fp32 (`"default"`) ONNX quantization rather than the library default
+(`"q4"`): the q4 `whisper-base` encoder mis-transcribes "Billy" as "Bailey",
+while fp32 transcribes it correctly, which is what the assertions below check.
 """
 
 import array
@@ -29,7 +33,7 @@ AUDIO_WAV = os.environ.get(
 
 @pytest.fixture(scope="module")
 def stt():
-    return nobodywho.STT(MODEL)
+    return nobodywho.STT(MODEL, quantization="default")
 
 
 def _read_wav_mono_i16(path):

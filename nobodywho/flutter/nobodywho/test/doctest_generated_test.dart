@@ -384,7 +384,7 @@ void main() {
     test('speech-to-text.md:41', () async {
       final stt = nobodywho.Stt(
         source: 'onnx-community/whisper-base',
-        quantization: 'int8',
+        quantization: 'q4',
       );
     });
 

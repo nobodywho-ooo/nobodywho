@@ -67,7 +67,7 @@ You can also pick a `quantization` variant of the model to download and load. Lo
 
 ```gdscript
 stt.model_path = "onnx-community/whisper-base"
-stt.quantization = "int8"
+stt.quantization = "q4"
 ```
 
 ## Improving performance

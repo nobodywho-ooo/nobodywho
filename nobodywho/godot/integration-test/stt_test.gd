@@ -19,6 +19,9 @@ func run_test() -> bool:
 
 	var stt := NobodyWhoSTT.new()
 	stt.model_path = WHISPER_MODEL
+	# Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
+	# "Billy" as "Bailey", while fp32 gets it right.
+	stt.quantization = "default"
 	add_child(stt)
 
 	stt.worker_failed.connect(func(err: String):

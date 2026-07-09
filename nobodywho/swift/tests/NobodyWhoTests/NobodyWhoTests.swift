@@ -154,9 +154,14 @@ final class NobodyWhoTests: XCTestCase {
             ?? "onnx-community/whisper-base"
 
         // Audio: "Hey Ron. Hey Billy." — shared asset in assets/.
-        let audioFile = "../../../../assets/sound.mp3"
+        // TEST_AUDIO_FILE is set in CI to an absolute path; fall back to the
+        // relative path for local runs from nobodywho/swift/.
+        let audioFile = ProcessInfo.processInfo.environment["TEST_AUDIO_FILE"]
+            ?? "../../assets/sound.mp3"
 
-        let stt = try STT(source: model)
+        // Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
+        // "Billy" as "Bailey", while fp32 gets it right.
+        let stt = try STT(source: model, quantization: "default")
         let text = try await stt.transcribeFile(path: audioFile).completed()
         XCTAssertTrue(text.lowercased().contains("ron"))
         XCTAssertTrue(text.lowercased().contains("billy"))

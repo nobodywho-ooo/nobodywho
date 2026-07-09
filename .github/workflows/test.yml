@@ -148,6 +148,7 @@ jobs:
 
       - name: Download Whisper model
         run: |
+          # fp32 ("default") files, matching the Flutter STT test's quantization='default'.
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
           mkdir -p models/whisper-base/onnx
           curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
@@ -161,5 +162,6 @@ jobs:
         working-directory: ./nobodywho/flutter/nobodywho
         env:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
+          TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
           LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_test.dart --name "STT" --reporter expanded

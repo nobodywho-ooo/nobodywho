@@ -1,4 +1,4 @@
-{ fetchurl, runCommand }:
+{ fetchurl, runCommand, fetchgit }:
 {
   TEST_MODEL = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
@@ -27,22 +27,22 @@
   };
 
   # onnx-community/whisper-base — multi-file ONNX repo assembled into a local dir.
-  # The Rust backend expects (q4 is DEFAULT_QUANTIZATION in
-  # nobodywho/core/src/stt/backends/whisper.rs — keep these in sync):
-  # onnx/encoder_model_q4.onnx, onnx/decoder_model_merged_q4.onnx,
+  # The STT tests request quantization="default" (fp32), so the local dir
+  # must contain the unsuffixed ONNX files:
+  # onnx/encoder_model.onnx, onnx/decoder_model_merged.onnx,
   # tokenizer.json, config.json, generation_config.json.
   TEST_WHISPER_MODEL = runCommand "whisper-base-model" { } ''
     mkdir -p $out/onnx
     cp ${fetchurl {
-      name = "encoder_model_q4.onnx";
-      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/encoder_model_q4.onnx";
-      sha256 = "sha256-nU6cMehVnnHePg5J1guDCVFIRpnvU3R6SgYmG7vIy4g=";
-    }} $out/onnx/encoder_model_q4.onnx
+      name = "encoder_model.onnx";
+      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/encoder_model.onnx";
+      sha256 = "sha256-qfO3UoM7SeiA3ske5bbZNhEr58PqB8IhAkukk0OfRv4=";
+    }} $out/onnx/encoder_model.onnx
     cp ${fetchurl {
-      name = "decoder_model_merged_q4.onnx";
-      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model_merged_q4.onnx";
-      sha256 = "sha256-Cfg7cc7tyX2rHZC5FHFdxTKmRqFHq9oR2Dxkhnt8MZw=";
-    }} $out/onnx/decoder_model_merged_q4.onnx
+      name = "decoder_model_merged.onnx";
+      url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model_merged.onnx";
+      sha256 = "sha256-UUkDdEuxtFgD7Fca+ZsxEQSRxvd7ChVIJYZplfsSS3M=";
+    }} $out/onnx/decoder_model_merged.onnx
     cp ${fetchurl {
       name = "tokenizer.json";
       url = "https://huggingface.co/onnx-community/whisper-base/resolve/main/tokenizer.json";
@@ -59,4 +59,27 @@
       sha256 = "sha256-YQcM+N4lseklbo4QLe1J2NJKg2ntNu+E/fIVSeaBJaA=";
     }} $out/generation_config.json
   '';
+
+  # The whole whisper-base repo laid out as the HF download cache expects
+  # (see `OnnxSource` in core/src/huggingface.rs): $out/onnx-community/whisper-base/
+  # with a `.nobodywho-complete` marker so it resolves offline, no network.
+  TEST_WHISPER_HF_CACHE = runCommand "whisper-base-hf-cache"
+    {
+      outputHashAlgo = "sha256";
+      outputHashMode = "recursive";
+      outputHash = "sha256-FfrrlOafv++1nqhhvXhfUi2jJ5jr6llC+9ALR9GWiIk=";
+    }
+    ''
+      dir=$out/onnx-community/whisper-base
+      mkdir -p "$out/onnx-community"
+      cp -r ${fetchgit {
+        name = "whisper-base";
+        url = "https://huggingface.co/onnx-community/whisper-base";
+        rev = "1846881b6b3a3024392c1eea3ad983695bc23925";
+        fetchLFS = true;
+        hash = "sha256-UDkez1Ix3HR7IE9g6WqG8Fuwd9w0VBP9/7yt6bbG7y4=";
+      }} $dir
+      chmod -R u+w $dir
+      (cd $dir && find . -type f -printf '%P\n' | sort) > $dir/.nobodywho-complete
+    '';
 }

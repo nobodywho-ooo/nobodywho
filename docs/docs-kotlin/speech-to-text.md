@@ -40,7 +40,7 @@ You can also pick a `quantization` variant of the model to download and load. Lo
 ```kotlin
 val stt = Stt(
     source = "onnx-community/whisper-base",
-    quantization = "int8"
+    quantization = "q4"
 )
 ```
 
