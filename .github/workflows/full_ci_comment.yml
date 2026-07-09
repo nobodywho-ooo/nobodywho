@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 190
     permissions:
       actions: read
-      pull-requests: read
+      pull-requests: write
       issues: write
     concurrency:
       group: full-ci-${{ github.event.issue.number }}
