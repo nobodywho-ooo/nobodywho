@@ -68,8 +68,11 @@ fi
 # MinimumOSVersion must match the slice's real platform minimum — it differs per
 # platform (visionOS 1.x, watchOS 10.x, iOS 18.x, …), so read it from the binary's
 # LC_BUILD_VERSION instead of hardcoding a value that's wrong for most slices.
-MIN_OS=$(vtool -show-build "$ROOT/$FW_NAME" 2>/dev/null | awk '/minos/{print $2; exit}')
-: "${MIN_OS:=13.0}"
+MIN_OS=$(vtool -show-build "$ROOT/$FW_NAME" | awk '/minos/{print $2; exit}')
+if [ -z "$MIN_OS" ]; then
+    echo "make-apple-framework: could not read MinimumOSVersion (minos) from $ROOT/$FW_NAME" >&2
+    exit 1
+fi
 
 plutil -create xml1 "$PLIST"
 plutil -insert CFBundleExecutable            -string "$FW_NAME"   "$PLIST"
