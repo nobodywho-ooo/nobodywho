@@ -41,6 +41,7 @@ for real in "$SRC_DIR"/libggml*.dylib "$SRC_DIR"/libllama*.dylib; do
     [ -e "$real" ] || continue
     name=$(basename "$real")
     cp -L "$real" "$ROOT/$name"
+    install_name_tool -id "@rpath/$FW_NAME.framework/$name" "$ROOT/$name" 2>/dev/null || true
     install_name_tool -add_rpath "@loader_path" "$ROOT/$name" 2>/dev/null || true
 done
 

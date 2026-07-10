@@ -371,12 +371,12 @@ jobs:
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
           fi
           # dynamic-link: ship the shared ggml/llama libs alongside the binding.
-          # Glob covers libggml, libggml-base, libggml-cpu, libggml-metal,
-          # libllama and libllama-common (versioned dylibs + their symlinks).
-          # -P preserves the symlink chain (libX.dylib -> libX.0.dylib -> libX.0.N.dylib).
+          # Glob covers libggml, libggml-base, libggml-cpu, libggml-metal, libllama
+          # and libllama-common — born unversioned by the CMake SOVERSION override, so
+          # real files with no symlink chain. -L dereferences any stray symlink defensively.
           # No-op for the static-only uniffi .a slices, which have no sibling dylibs.
-          cp -P ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libggml*.dylib ./ 2>/dev/null || true
-          cp -P ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libllama*.dylib ./ 2>/dev/null || true
+          cp -L ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libggml*.dylib ./ 2>/dev/null || true
+          cp -L ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libllama*.dylib ./ 2>/dev/null || true
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
