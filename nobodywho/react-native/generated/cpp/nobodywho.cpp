@@ -245,7 +245,7 @@ void uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(
 void uniffi_nobodywho_uniffi_fn_free_rusttts(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
-    RustBuffer source, RustBuffer backend, RustBuffer voice,
+    RustBuffer source, RustBuffer architecture, RustBuffer voice,
     RustBuffer language, RustBuffer speed, RustBuffer steps,
     RustBuffer silence_duration, RustBuffer device,
     RustCallStatus *uniffi_out_err);
@@ -323,7 +323,7 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(
     RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path,
     RustBuffer on_download_progress);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(
-    RustBuffer source, RustBuffer backend, RustBuffer voice,
+    RustBuffer source, RustBuffer architecture, RustBuffer voice,
     RustBuffer language, RustBuffer speed, RustBuffer steps,
     RustBuffer silence_duration, RustBuffer device);
 /*handle*/ uint64_t

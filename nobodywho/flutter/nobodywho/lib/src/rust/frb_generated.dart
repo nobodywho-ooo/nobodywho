@@ -397,7 +397,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<Tts> crateTtsLoad({
     required String source,
-    String? backend = null,
+    String? architecture = null,
     String? voice = null,
     String? language = null,
     double? speed = null,
@@ -3214,7 +3214,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<Tts> crateTtsLoad({
     required String source,
-    String? backend = null,
+    String? architecture = null,
     String? voice = null,
     String? language = null,
     double? speed = null,
@@ -3227,7 +3227,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(source, serializer);
-          sse_encode_opt_String(backend, serializer);
+          sse_encode_opt_String(architecture, serializer);
           sse_encode_opt_String(voice, serializer);
           sse_encode_opt_String(language, serializer);
           sse_encode_opt_box_autoadd_f_32(speed, serializer);
@@ -3249,7 +3249,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         constMeta: kCrateTtsLoadConstMeta,
         argValues: [
           source,
-          backend,
+          architecture,
           voice,
           language,
           speed,
@@ -3266,7 +3266,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     debugName: "Tts_load",
     argNames: [
       "source",
-      "backend",
+      "architecture",
       "voice",
       "language",
       "speed",

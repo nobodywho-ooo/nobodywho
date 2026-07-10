@@ -383,14 +383,14 @@ void main() {
 
     test('speech-to-text.md:41', () async {
       final stt = nobodywho.Stt(
-        source: 'onnx-community/whisper-base',
+        source: 'hf://onnx-community/whisper-base',
         quantization: 'q4',
       );
     });
 
     test('speech-to-text.md:52', () async {
       final stt = nobodywho.Stt(
-        source: 'onnx-community/whisper-base',
+        source: 'hf://onnx-community/whisper-base',
         language: 'en',
       );
     });

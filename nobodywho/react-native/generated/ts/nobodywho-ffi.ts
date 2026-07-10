@@ -73,7 +73,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(ptr: bigint, callId: Uint8Array, result: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttts(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rusttts(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(source: Uint8Array, backend: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, device: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(source: Uint8Array, architecture: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, device: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(ptr: bigint, text: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(ptr: bigint, text: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -103,7 +103,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_func_download_model(modelPath: Uint8Array, headers: Uint8Array, onDownloadProgress: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, onDownloadProgress: Uint8Array): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(source: Uint8Array, backend: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, device: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(source: Uint8Array, architecture: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, device: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(grammar: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(schema: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(pattern: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;

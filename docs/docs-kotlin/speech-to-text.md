@@ -9,7 +9,7 @@ To transcribe audio into text, NobodyWho provides an integration with the Whispe
 ```kotlin
 import ai.nobodywho.Stt
 
-val stt = Stt(source = "onnx-community/whisper-base")
+val stt = Stt(source = "hf://onnx-community/whisper-base")
 
 val text = stt.transcribeFile("recording.mp3").completed()
 println(text)
@@ -33,13 +33,13 @@ stt.transcribeFile("recording.mp3").asFlow().collect { piece ->
 
 ## Supported models
 
-NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging Face repo ID or a local directory containing such a model, e.g. `onnx-community/whisper-base`. Browse the [Whisper ONNX models on Hugging Face](https://huggingface.co/models?library=onnx&search=whisper) to pick a size that fits your accuracy and speed needs.
+NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging Face repo (`hf://owner/repo`) or a local directory containing such a model, e.g. `hf://onnx-community/whisper-base`. Browse the [Whisper ONNX models on Hugging Face](https://huggingface.co/models?library=onnx&search=whisper) to pick a size that fits your accuracy and speed needs.
 
 You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
 
 ```kotlin
 val stt = Stt(
-    source = "onnx-community/whisper-base",
+    source = "hf://onnx-community/whisper-base",
     quantization = "q4"
 )
 ```
@@ -50,7 +50,7 @@ By default, Whisper auto-detects the spoken language, which costs a bit of extra
 
 ```kotlin
 val stt = Stt(
-    source = "onnx-community/whisper-base",
+    source = "hf://onnx-community/whisper-base",
     language = "en"
 )
 ```

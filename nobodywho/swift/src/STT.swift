@@ -45,11 +45,12 @@ public struct SttStream: AsyncSequence {
 
 /// Speech-to-text using a Whisper ONNX model.
 ///
-/// `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or a
-/// local directory path. The model is downloaded and cached on first use.
+/// `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
+/// `"hf://onnx-community/whisper-base"`) or a local directory path. The model is
+/// downloaded and cached on first use.
 ///
 /// ```swift
-/// let stt = try STT(source: "onnx-community/whisper-base")
+/// let stt = try STT(source: "hf://onnx-community/whisper-base")
 /// let text = try await stt.transcribeFile(path: "recording.mp3").completed()
 ///
 /// // Stream tokens as they arrive:

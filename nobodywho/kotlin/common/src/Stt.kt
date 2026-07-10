@@ -44,7 +44,7 @@ class SttStream internal constructor(
  * Speech-to-text handle that transcribes audio using Whisper models in ONNX format.
  *
  * ```kotlin
- * val stt = Stt(source = "onnx-community/whisper-base")
+ * val stt = Stt(source = "hf://onnx-community/whisper-base")
  * val text = stt.transcribeFile("recording.mp3").completed()
  * ```
  */

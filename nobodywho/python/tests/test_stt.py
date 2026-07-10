@@ -1,8 +1,9 @@
 """
 Smoke test for the STT (Whisper) binding.
 
-Requires the Whisper ONNX model — set TEST_WHISPER_MODEL to a HuggingFace repo ID
-or local directory path.  Defaults to "onnx-community/whisper-base" so the model is
+Requires the Whisper ONNX model — set TEST_WHISPER_MODEL to a HuggingFace repo
+(`hf://owner/repo`) or local directory path.  Defaults to
+"hf://onnx-community/whisper-base" so the model is
 downloaded automatically on first run (cached after).
 
 The test audio contains the phrase "Hey Ron. Hey Billy."
@@ -18,7 +19,7 @@ import wave
 import nobodywho
 import pytest
 
-MODEL = os.environ.get("TEST_WHISPER_MODEL", "onnx-community/whisper-base")
+MODEL = os.environ.get("TEST_WHISPER_MODEL", "hf://onnx-community/whisper-base")
 AUDIO = os.environ.get(
     "TEST_AUDIO_FILE",
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "assets", "sound.mp3"),

@@ -13,7 +13,7 @@ import kotlinx.coroutines.runBlocking
 
 fun main() = runBlocking {
     val tts = Tts.load(
-        source = "NobodyWho/Kokoro-82M", // Hugging Face repo ID or local folder with the model files.
+        source = "hf://NobodyWho/Kokoro-82M", // Hugging Face repo (hf://owner/repo) or local folder with the model files.
         voice = "bf_emma", // Voice to use from the model.
         language = "en-gb", // Language code for the input text.
     )
@@ -27,12 +27,12 @@ fun main() = runBlocking {
 
 ## Models and sources
 
-NobodyWho supports two speech synthesis backends, both in ONNX format:
+NobodyWho supports two speech synthesis architectures, both in ONNX format:
 
 - [Kokoro](https://github.com/hexgrad/kokoro), a lightweight 24 kHz speech synthesis model. Model page: [`NobodyWho/Kokoro-82M`](https://huggingface.co/NobodyWho/Kokoro-82M).
 - [Supertonic](https://github.com/supertone-inc/supertonic), a multi-stage speech synthesis model with voice styles. Model page: [`Supertone/supertonic-3`](https://huggingface.co/Supertone/supertonic-3).
 
-`source` can be a Hugging Face repo ID as shown above, or a local directory laid out the same way as that repo. See [Local model folder format](#local-model-folder-format) and [Backend](#backend) for setup details.
+`source` can be a Hugging Face repo (`hf://owner/repo`) as shown above, or a local directory laid out the same way as that repo. See [Local model folder format](#local-model-folder-format) and [Architecture](#architecture) for setup details.
 
 ## Kokoro
 
@@ -40,7 +40,7 @@ For Kokoro, set `voice` and `language` together. They must agree with the model'
 
 ```kotlin
 val tts = Tts.load(
-    source = "NobodyWho/Kokoro-82M",
+    source = "hf://NobodyWho/Kokoro-82M",
     voice = "bf_emma",
     language = "en-gb",
 )
@@ -58,7 +58,7 @@ For Supertonic, you can start with the default `voice` and `language`, or set th
 
 ```kotlin
 val tts = Tts.load(
-    source = "Supertone/supertonic-3",
+    source = "hf://Supertone/supertonic-3",
     language = "en",
 )
 ```
@@ -71,22 +71,22 @@ Optional settings include:
 - `steps`: denoising steps. Higher values can improve quality but are slower. Lower values are faster but can sound rougher. Must be greater than `0`; defaults to `8`.
 - `silenceDuration`: seconds of silence between long text chunks. Higher values add longer pauses. Must be `0` or higher; defaults to `0.3`.
 
-## Backend
+## Architecture
 
-`backend` is the TTS engine/model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it from `source`.
+`architecture` is the TTS model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro" or "supertonic" in the `source` string.
 
-Set `backend` when you use a local directory or a custom source that NobodyWho cannot recognize:
+Set `architecture` when you use a local directory or a custom source that NobodyWho cannot recognize:
 
 ```kotlin
-import ai.nobodywho.TtsBackend
+import ai.nobodywho.TtsArchitecture
 
 val tts = Tts.load(
     source = "/path/to/local/kokoro-folder",
-    backend = TtsBackend.KOKORO,
+    architecture = TtsArchitecture.KOKORO,
 )
 ```
 
-Supported backend values are `TtsBackend.KOKORO` and `TtsBackend.SUPERTONIC`.
+Supported architecture values are `TtsArchitecture.KOKORO` and `TtsArchitecture.SUPERTONIC`.
 
 ## GPU
 
@@ -96,14 +96,14 @@ TTS uses GPU acceleration by default when available. Disable it with `device = T
 import ai.nobodywho.TtsDevice
 
 val tts = Tts.load(
-    source = "Supertone/supertonic-3",
+    source = "hf://Supertone/supertonic-3",
     device = TtsDevice.CPU,
 )
 ```
 
 ## Local model folder format
 
-When `source` is a local directory, point it at the top-level model folder and pass the matching `backend`.
+When `source` is a local directory, point it at the top-level model folder and pass the matching `architecture`.
 
 Use the Hugging Face file browsers as the reference layouts:
 

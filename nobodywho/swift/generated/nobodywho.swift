@@ -1614,8 +1614,8 @@ open class RustStt: RustSttProtocol, @unchecked Sendable {
         return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_ruststt(self.handle, $0) }
     }
     /**
-     * Create an STT handle. `source` is a HuggingFace repo ID
-     * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+     * Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+     * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
      * `quantization` selects the ONNX precision variant to download and load:
      * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
@@ -2271,12 +2271,12 @@ open class RustTts: RustTtsProtocol, @unchecked Sendable {
     /**
      * Create a TTS synthesizer.
      */
-public convenience init(source: String, backend: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, device: String?)throws  {
+public convenience init(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, device: String?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
         FfiConverterString.lower(source),
-        FfiConverterOptionString.lower(backend),
+        FfiConverterOptionString.lower(architecture),
         FfiConverterOptionString.lower(voice),
         FfiConverterOptionString.lower(language),
         FfiConverterOptionFloat.lower(speed),
@@ -4409,11 +4409,11 @@ public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: Stri
 /**
  * Create a TTS synthesizer.
  */
-public func loadTts(source: String, backend: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, device: String?)async throws  -> RustTts  {
+public func loadTts(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, device: String?)async throws  -> RustTts  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionString.lower(backend),FfiConverterOptionString.lower(voice),FfiConverterOptionString.lower(language),FfiConverterOptionFloat.lower(speed),FfiConverterOptionUInt32.lower(steps),FfiConverterOptionFloat.lower(silenceDuration),FfiConverterOptionString.lower(device)
+                uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionString.lower(architecture),FfiConverterOptionString.lower(voice),FfiConverterOptionString.lower(language),FfiConverterOptionFloat.lower(speed),FfiConverterOptionUInt32.lower(steps),FfiConverterOptionFloat.lower(silenceDuration),FfiConverterOptionString.lower(device)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -4554,7 +4554,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_tts() != 1569) {
+    if (uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698) {
@@ -4743,7 +4743,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 21941) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 44850) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431) {
@@ -4752,7 +4752,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 12955) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 24110) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214) {

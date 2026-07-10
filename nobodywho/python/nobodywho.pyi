@@ -752,15 +752,16 @@ class STT:
     """
     `STT` transcribes speech to text using a Whisper ONNX model.
 
-    `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
-    a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
-    omit or pass `None` to auto-detect. `quantization` selects the ONNX
-    precision variant to download and load: one of `"default"`, `"fp16"`,
-    `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
+    `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
+    `"hf://onnx-community/whisper-base"`) or a local directory path. `language`
+    is an ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+    `quantization` selects the ONNX precision variant to download and load: one
+    of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`,
+    `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
 
     Example::
 
-        stt = nobodywho.STT("onnx-community/whisper-base")
+        stt = nobodywho.STT("hf://onnx-community/whisper-base")
         text = stt.transcribe_file("recording.mp3").completed()
 
         # Or stream tokens:
@@ -1140,7 +1141,7 @@ class Tts:
         cls,
         /,
         source: "os.PathLike | str",
-        backend: "typing.Literal['kokoro', 'supertonic'] | None" = None,
+        architecture: "typing.Literal['kokoro', 'supertonic'] | None" = None,
         voice: str | None = None,
         language: str | None = None,
         speed: float | None = None,
@@ -1152,12 +1153,12 @@ class Tts:
         Create a TTS synthesizer.
 
         Args:
-            source: Local model directory or HuggingFace repo ID.
-            backend: "kokoro" or "supertonic". Required for local or unknown sources.
-                Known sources infer the backend when omitted.
-            voice: Voice name. Backend default is used when omitted.
-            language: Language code. Backend default is used when omitted.
-            speed: Speaking speed. Backend default is used when omitted.
+            source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+            architecture: "kokoro" or "supertonic". Required for local or unknown sources.
+                Sources containing "kokoro" or "supertonic" infer the architecture when omitted.
+            voice: Voice name. Architecture default is used when omitted.
+            language: Language code. Architecture default is used when omitted.
+            speed: Speaking speed. Architecture default is used when omitted.
             steps: Supertonic denoising steps. Ignored by Kokoro.
             silence_duration: Supertonic silence between chunks in seconds.
             device: "auto", "cpu", or "cuda". Defaults to "auto".
