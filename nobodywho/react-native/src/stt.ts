@@ -7,7 +7,7 @@ import { TokenStream } from "./streaming";
  *
  * @example
  * ```typescript
- * const stt = new STT("onnx-community/whisper-base");
+ * const stt = new STT("hf://onnx-community/whisper-base");
  * for await (const piece of stt.transcribeFile("recording.mp3")) {
  *   process.stdout.write(piece);
  * }
@@ -22,7 +22,7 @@ export class STT {
   private readonly _inner: RustSTTInterface;
 
   /**
-   * @param source - HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`)
+   * @param source - HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`)
    *   or a local directory path. The model is downloaded on first use.
    * @param language - ISO 639-1 language code (e.g. `"en"`).
    *   Omit or pass `undefined` for automatic language detection.

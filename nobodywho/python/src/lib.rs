@@ -210,15 +210,16 @@ impl<'py> ModelOrPath<'py> {
 
 /// `STT` transcribes speech to text using a Whisper ONNX model.
 ///
-/// `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
-/// a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
-/// omit or pass `None` to auto-detect. `quantization` selects the ONNX
-/// precision variant to download and load: one of `"default"`, `"fp16"`,
-/// `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
+/// `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
+/// `"hf://onnx-community/whisper-base"`) or a local directory path. `language`
+/// is an ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+/// `quantization` selects the ONNX precision variant to download and load: one
+/// of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`,
+/// `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
 ///
 /// Example::
 ///
-///     stt = nobodywho.STT("onnx-community/whisper-base")
+///     stt = nobodywho.STT("hf://onnx-community/whisper-base")
 ///     text = stt.transcribe_file("recording.mp3").completed()
 ///
 ///     # Or stream tokens:
@@ -389,15 +390,17 @@ fn parse_tts_device(device: &str) -> PyResult<nobodywho::tts::TtsDevice> {
     }
 }
 
-fn parse_tts_backend(backend: &str) -> PyResult<nobodywho::tts::TtsBackendKind> {
-    backend.parse().map_err(|()| {
-        pyo3::exceptions::PyValueError::new_err("backend must be one of 'kokoro' or 'supertonic'")
+fn parse_tts_architecture(architecture: &str) -> PyResult<nobodywho::tts::TtsArchitecture> {
+    architecture.parse().map_err(|()| {
+        pyo3::exceptions::PyValueError::new_err(
+            "architecture must be one of 'kokoro' or 'supertonic'",
+        )
     })
 }
 
 fn build_tts_config(
     source: std::path::PathBuf,
-    backend: Option<&str>,
+    architecture: Option<&str>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
@@ -410,10 +413,10 @@ fn build_tts_config(
             source.display()
         ))
     })?;
-    let backend = backend.map(parse_tts_backend).transpose()?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(source, backend).ok_or_else(|| {
+    let architecture = architecture.map(parse_tts_architecture).transpose()?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(source, architecture).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(
-            "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'",
+            "architecture is required for unknown TTS sources; pass architecture='kokoro' or architecture='supertonic'",
         )
     })?;
 
@@ -461,20 +464,20 @@ impl Tts {
     /// Create a TTS synthesizer.
     ///
     /// Args:
-    ///     source: Local model directory or HuggingFace repo ID.
-    ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
-    ///         Known sources infer the backend when omitted.
-    ///     voice: Voice name. Backend default is used when omitted.
-    ///     language: Language code. Backend default is used when omitted.
-    ///     speed: Speaking speed. Backend default is used when omitted.
+    ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+    ///     architecture: "kokoro" or "supertonic". Required for local or unknown sources.
+    ///         Sources containing "kokoro" or "supertonic" infer the architecture when omitted.
+    ///     voice: Voice name. Architecture default is used when omitted.
+    ///     language: Language code. Architecture default is used when omitted.
+    ///     speed: Speaking speed. Architecture default is used when omitted.
     ///     steps: Supertonic denoising steps. Ignored by Kokoro.
     ///     silence_duration: Supertonic silence between chunks in seconds.
     ///     device: "auto", "cpu", or "cuda". Defaults to "auto".
     #[new]
-    #[pyo3(signature = (source: "os.PathLike | str", backend: "typing.Literal['kokoro', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
+    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
     pub fn new(
         source: std::path::PathBuf,
-        backend: Option<&str>,
+        architecture: Option<&str>,
         voice: Option<String>,
         language: Option<String>,
         speed: Option<f32>,
@@ -485,7 +488,7 @@ impl Tts {
         let device = parse_tts_device(device)?;
         let config = build_tts_config(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,

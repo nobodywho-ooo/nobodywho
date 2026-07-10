@@ -180,13 +180,13 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
 /**
  * Create a TTS synthesizer.
  */
-export async function loadTts(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
+export async function loadTts(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(backend),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(device)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(architecture),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(device)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -2524,8 +2524,8 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
     readonly [destructorGuardSymbol]: UniffiGcObject;
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
-     * Create an STT handle. `source` is a HuggingFace repo ID
-     * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+     * Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+     * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
      * `quantization` selects the ONNX precision variant to download and load:
      * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
@@ -3218,7 +3218,7 @@ export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
     /**
      * Create a TTS synthesizer.
      */
-    constructor(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined) /*throws*/ {
+    constructor(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -3227,7 +3227,7 @@ export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
         FfiConverterString.lower(source),
-        FfiConverterOptionalString.lower(backend),
+        FfiConverterOptionalString.lower(architecture),
         FfiConverterOptionalString.lower(voice),
         FfiConverterOptionalString.lower(language),
         FfiConverterOptionalFloat32.lower(speed),
@@ -3988,7 +3988,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 1569) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 61935) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_tts");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() !== 13698) {
@@ -4177,7 +4177,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 27902) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() !== 21941) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() !== 44850) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 9431) {
@@ -4186,7 +4186,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() !== 54521) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 12955) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 24110) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {

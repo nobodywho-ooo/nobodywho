@@ -1,18 +1,18 @@
 # TTS
 
-Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Supertonic](https://huggingface.co/Supertone/supertonic-3) ONNX backends.
+Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Supertonic](https://huggingface.co/Supertone/supertonic-3) ONNX architectures.
 
 ## Quick start
 
 ```rust
 use nobodywho::tts::{Tts, TtsConfig};
 
-let tts = Tts::new(TtsConfig::kokoro("NobodyWho/Kokoro-82M"))?;
+let tts = Tts::new(TtsConfig::kokoro("hf://NobodyWho/Kokoro-82M"))?;
 let wav: Vec<u8> = tts.synthesize("Hello from NobodyWho!")?;
 std::fs::write("out.wav", wav)?;
 ```
 
-The model is downloaded from HuggingFace on first use and cached locally. Pass a local directory path instead of a repo ID to skip the download.
+The model is downloaded from HuggingFace on first use and cached locally. Pass a local directory path instead of an `hf://` repo to skip the download.
 
 ## Supertonic
 
@@ -23,7 +23,7 @@ The upstream [Supertone/supertonic-3](https://huggingface.co/Supertone/supertoni
 ```rust
 use nobodywho::tts::{SupertonicConfig, Tts, TtsConfig};
 
-let mut cfg = SupertonicConfig::new("Supertone/supertonic-3");
+let mut cfg = SupertonicConfig::new("hf://Supertone/supertonic-3");
 cfg.language = "en".into();
 cfg.voice = "M1".into();
 
@@ -49,7 +49,7 @@ Japanese (`ja`) and Chinese (`zh`) voices are not supported.
 ```rust
 use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 
-let mut cfg = KokoroConfig::new("NobodyWho/Kokoro-82M");
+let mut cfg = KokoroConfig::new("hf://NobodyWho/Kokoro-82M");
 cfg.voice = "ff_siwis".into();
 cfg.language = "fr".into();
 cfg.speed = 1.0;

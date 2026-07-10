@@ -4,12 +4,12 @@ import {
   type RustTtsInterface,
 } from "../generated/ts/nobodywho";
 
-export type TtsBackend = "kokoro" | "supertonic";
+export type TtsArchitecture = "kokoro" | "supertonic";
 export type TtsDevice = "auto" | "cpu" | "cuda";
 
 export type TtsOptions = {
   source: string;
-  backend?: TtsBackend;
+  architecture?: TtsArchitecture;
   voice?: string;
   language?: string;
   speed?: number;
@@ -27,7 +27,7 @@ export class Tts {
   constructor(opts: TtsOptions) {
     this._inner = new RustTts(
       opts.source,
-      opts.backend,
+      opts.architecture,
       opts.voice,
       opts.language,
       opts.speed,
@@ -47,7 +47,7 @@ export class Tts {
   static async load(opts: TtsOptions): Promise<Tts> {
     const inner = await loadTts(
       opts.source,
-      opts.backend,
+      opts.architecture,
       opts.voice,
       opts.language,
       opts.speed,

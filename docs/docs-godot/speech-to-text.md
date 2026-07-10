@@ -16,7 +16,7 @@ extends Node
 @onready var stt: NobodyWhoSTT = $NobodyWhoSTT
 
 func _ready():
-    stt.model_path = "onnx-community/whisper-base"
+    stt.model_path = "hf://onnx-community/whisper-base"
 
     stt.start_worker()
     await stt.worker_started
@@ -46,7 +46,7 @@ func _ready():
     stt.transcription_updated.connect(_on_transcription_updated)
     stt.transcription_finished.connect(_on_transcription_finished)
 
-    stt.model_path = "onnx-community/whisper-base"
+    stt.model_path = "hf://onnx-community/whisper-base"
     stt.start_worker()
     await stt.worker_started
 
@@ -61,12 +61,12 @@ func _on_transcription_finished(text: String):
 
 ## Supported models
 
-NobodyWho only supports Whisper models in **ONNX** format. `model_path` is a Hugging Face repo ID or a local directory containing such a model, e.g. `onnx-community/whisper-base`. Browse the [Whisper ONNX models on Hugging Face](https://huggingface.co/models?library=onnx&search=whisper) to pick a size that fits your accuracy and speed needs.
+NobodyWho only supports Whisper models in **ONNX** format. `model_path` is a Hugging Face repo (`hf://owner/repo`) or a local directory containing such a model, e.g. `hf://onnx-community/whisper-base`. Browse the [Whisper ONNX models on Hugging Face](https://huggingface.co/models?library=onnx&search=whisper) to pick a size that fits your accuracy and speed needs.
 
 You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
 
 ```gdscript
-stt.model_path = "onnx-community/whisper-base"
+stt.model_path = "hf://onnx-community/whisper-base"
 stt.quantization = "q4"
 ```
 
@@ -75,6 +75,6 @@ stt.quantization = "q4"
 By default, Whisper auto-detects the spoken language, which costs a bit of extra processing. If you already know the language, set its ISO 639-1 code on `language` to skip detection and improve performance:
 
 ```gdscript
-stt.model_path = "onnx-community/whisper-base"
+stt.model_path = "hf://onnx-community/whisper-base"
 stt.language = "en"
 ```

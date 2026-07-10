@@ -1,13 +1,13 @@
 //! Text-to-speech synthesis using the Kokoro model family.
 //!
 //! [`Tts::new`] takes a [`TtsConfig`] pointing at either a local directory
-//! or a HuggingFace Hub repo ID (`owner/repo`). HF repos are downloaded
+//! or a HuggingFace Hub repo (`hf://owner/repo`). HF repos are downloaded
 //! into the user's cache on first use, then reused.
 //!
 //! ```no_run
 //! # use nobodywho::tts::{Tts, TtsConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let tts = Tts::new(TtsConfig::kokoro("NobodyWho/Kokoro-82M"))?;
+//! let tts = Tts::new(TtsConfig::kokoro("hf://hexgrad/Kokoro-82M"))?;
 //! let wav = tts.synthesize("Hello from NobodyWho!")?;
 //! # let _ = wav;
 //! # Ok(())
@@ -20,7 +20,7 @@
 //! ```no_run
 //! # use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let mut cfg = KokoroConfig::new("NobodyWho/Kokoro-82M");
+//! let mut cfg = KokoroConfig::new("hf://hexgrad/Kokoro-82M");
 //! cfg.voice = "am_michael".into();
 //! cfg.speed = 1.1;
 //! cfg.language = "en-us".into();
@@ -34,14 +34,14 @@
 //! ```no_run
 //! # use nobodywho::tts::{Tts, TtsConfig};
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let tts = Tts::new(TtsConfig::kokoro("NobodyWho/Kokoro-82M"))?;
+//! let tts = Tts::new(TtsConfig::kokoro("hf://hexgrad/Kokoro-82M"))?;
 //! let wav = tts.synthesize_async("Hello from NobodyWho!").await?;
 //! # let _ = wav;
 //! # Ok(())
 //! # }
 //! ```
 
-mod backend;
+mod architecture;
 mod kokoro;
 mod supertonic;
 
@@ -51,20 +51,23 @@ pub use kokoro::KokoroConfig;
 use std::{str::FromStr, sync::mpsc};
 pub use supertonic::SupertonicConfig;
 
-const KNOWN_KOKORO_SOURCES: &[&str] = &["NobodyWho/Kokoro-82M", "hexgrad/Kokoro-82M"];
-const KNOWN_SUPERTONIC_SOURCES: &[&str] = &["Supertone/supertonic-3"];
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TtsBackendKind {
+pub enum TtsArchitecture {
     Kokoro,
     Supertonic,
 }
 
-impl TtsBackendKind {
+impl TtsArchitecture {
+    /// Infer the architecture from the source string by case-insensitive
+    /// substring matching. A source containing `"kokoro"` resolves to
+    /// [`TtsArchitecture::Kokoro`], one containing `"supertonic"` to
+    /// [`TtsArchitecture::Supertonic`], otherwise `None`. Forks and renamed
+    /// repos are detected as long as the architecture name appears in the path.
     pub fn infer_from_source(source: &str) -> Option<Self> {
-        if matches_known_source(source, KNOWN_KOKORO_SOURCES) {
+        let lower = source.to_ascii_lowercase();
+        if lower.contains("kokoro") {
             Some(Self::Kokoro)
-        } else if matches_known_source(source, KNOWN_SUPERTONIC_SOURCES) {
+        } else if lower.contains("supertonic") {
             Some(Self::Supertonic)
         } else {
             None
@@ -72,7 +75,7 @@ impl TtsBackendKind {
     }
 }
 
-impl FromStr for TtsBackendKind {
+impl FromStr for TtsArchitecture {
     type Err = ();
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -84,12 +87,6 @@ impl FromStr for TtsBackendKind {
     }
 }
 
-fn matches_known_source(source: &str, known_sources: &[&str]) -> bool {
-    known_sources
-        .iter()
-        .any(|known_source| source.eq_ignore_ascii_case(known_source))
-}
-
 #[derive(Clone, Debug)]
 pub enum TtsConfig {
     Kokoro(KokoroConfig),
@@ -97,11 +94,14 @@ pub enum TtsConfig {
 }
 
 impl TtsConfig {
-    pub fn from_source(source: impl AsRef<str>, backend: Option<TtsBackendKind>) -> Option<Self> {
+    pub fn from_source(
+        source: impl AsRef<str>,
+        architecture: Option<TtsArchitecture>,
+    ) -> Option<Self> {
         let source = source.as_ref();
-        match backend.or_else(|| TtsBackendKind::infer_from_source(source))? {
-            TtsBackendKind::Kokoro => Some(Self::kokoro(source)),
-            TtsBackendKind::Supertonic => Some(Self::supertonic(source)),
+        match architecture.or_else(|| TtsArchitecture::infer_from_source(source))? {
+            TtsArchitecture::Kokoro => Some(Self::kokoro(source)),
+            TtsArchitecture::Supertonic => Some(Self::supertonic(source)),
         }
     }
 
@@ -129,11 +129,11 @@ impl Tts {
     }
 
     pub fn with_device(config: TtsConfig, device: TtsDevice) -> Result<Self, TtsError> {
-        let mut backend = backend::load_backend(config, device)?;
+        let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
         std::thread::spawn(move || {
             while let Ok((text, response_tx)) = msg_rx.recv() {
-                let result = backend.synthesize(&text);
+                let result = architecture.synthesize(&text);
                 if response_tx.blocking_send(result).is_err() {
                     tracing::warn!("TTS caller dropped before result could be delivered");
                 }
@@ -164,5 +164,57 @@ impl Tts {
             .recv()
             .await
             .ok_or(TtsError::WorkerDead)?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn infers_kokoro_from_substring() {
+        assert_eq!(
+            TtsArchitecture::infer_from_source("hf://hexgrad/Kokoro-82M"),
+            Some(TtsArchitecture::Kokoro)
+        );
+        assert_eq!(
+            TtsArchitecture::infer_from_source("hf://my-org/my-kokoro-fork"),
+            Some(TtsArchitecture::Kokoro)
+        );
+    }
+
+    #[test]
+    fn infers_supertonic_from_substring() {
+        assert_eq!(
+            TtsArchitecture::infer_from_source("hf://Supertone/supertonic-3"),
+            Some(TtsArchitecture::Supertonic)
+        );
+    }
+
+    #[test]
+    fn inference_is_case_insensitive() {
+        assert_eq!(
+            TtsArchitecture::infer_from_source("hf://org/KOKORO-big"),
+            Some(TtsArchitecture::Kokoro)
+        );
+    }
+
+    #[test]
+    fn infers_none_for_unknown_source() {
+        assert_eq!(TtsArchitecture::infer_from_source("hf://random/repo"), None);
+    }
+
+    #[test]
+    fn explicit_architecture_overrides_inference() {
+        // If the user passes an explicit architecture, it wins even when the
+        // source string would infer a different one.
+        let config =
+            TtsConfig::from_source("hf://org/supertonic-style", Some(TtsArchitecture::Kokoro));
+        assert!(matches!(config, Some(TtsConfig::Kokoro(_))));
+    }
+
+    #[test]
+    fn from_source_returns_none_when_architecture_unknown() {
+        assert!(TtsConfig::from_source("hf://random/repo", None).is_none());
     }
 }

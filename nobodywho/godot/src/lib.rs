@@ -47,14 +47,15 @@ fn resolve_godot_path(path: &GString) -> String {
     }
 }
 
-fn parse_tts_backend(backend: String) -> Result<Option<nobodywho::tts::TtsBackendKind>, GString> {
-    if backend.is_empty() {
+fn parse_tts_architecture(
+    architecture: String,
+) -> Result<Option<nobodywho::tts::TtsArchitecture>, GString> {
+    if architecture.is_empty() {
         return Ok(None);
     }
-    backend
-        .parse()
-        .map(Some)
-        .map_err(|()| GString::from("backend must be empty or one of 'kokoro' or 'supertonic'"))
+    architecture.parse().map(Some).map_err(|()| {
+        GString::from("architecture must be empty or one of 'kokoro' or 'supertonic'")
+    })
 }
 
 fn parse_tts_device(device: String) -> Result<nobodywho::tts::TtsDevice, GString> {
@@ -70,17 +71,17 @@ fn parse_tts_device(device: String) -> Result<nobodywho::tts::TtsDevice, GString
 
 fn build_tts_config(
     source: String,
-    backend: String,
+    architecture: String,
     voice: String,
     language: String,
     speed: f32,
     steps: i64,
     silence_duration: f32,
 ) -> Result<nobodywho::tts::TtsConfig, GString> {
-    let backend = parse_tts_backend(backend)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
+    let architecture = parse_tts_architecture(architecture)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
         GString::from(
-            "backend is required for unknown TTS sources; set backend to 'kokoro' or 'supertonic'",
+            "architecture is required for unknown TTS sources; set architecture to 'kokoro' or 'supertonic'",
         )
     })?;
 
@@ -2031,35 +2032,35 @@ fn json_schema_from_callable(
 /// The TTS node synthesizes text into WAV bytes.
 ///
 /// `source` accepts a local model directory, a Godot path (`res://` or `user://`),
-/// or a HuggingFace repo ID such as `NobodyWho/Kokoro-82M` or `Supertone/supertonic-3`.
-/// Leave `backend` empty for known official sources, or set it to `kokoro` or `supertonic`.
+/// or a HuggingFace repo such as `hf://hexgrad/Kokoro-82M` or `hf://Supertone/supertonic-3`.
+/// Leave `architecture` empty for sources containing "kokoro" or "supertonic", or set it to `kokoro` or `supertonic`.
 struct NobodyWhoTts {
     #[export]
-    /// Local model directory, Godot path, or HuggingFace repo ID.
+    /// Local model directory, Godot path, or HuggingFace repo (`hf://owner/repo`).
     source: GString,
 
     #[export]
-    /// Empty for known sources, or one of: kokoro, supertonic.
-    backend: GString,
+    /// Empty for sources containing "kokoro"/"supertonic", or one of: kokoro, supertonic.
+    architecture: GString,
 
     #[export]
-    /// Optional voice name. Empty uses the backend default.
+    /// Optional voice name. Empty uses the architecture default.
     voice: GString,
 
     #[export]
-    /// Optional language code. Empty uses the backend default.
+    /// Optional language code. Empty uses the architecture default.
     language: GString,
 
     #[export]
-    /// Optional speed override. Use 0 to keep the backend default.
+    /// Optional speed override. Use 0 to keep the architecture default.
     speed: f32,
 
     #[export]
-    /// Optional Supertonic denoising steps. Use 0 to keep the backend default.
+    /// Optional Supertonic denoising steps. Use 0 to keep the architecture default.
     steps: i64,
 
     #[export]
-    /// Optional Supertonic silence between chunks. Use -1 to keep the backend default.
+    /// Optional Supertonic silence between chunks. Use -1 to keep the architecture default.
     silence_duration: f32,
 
     #[export]
@@ -2076,8 +2077,8 @@ struct NobodyWhoTts {
 impl INode for NobodyWhoTts {
     fn init(base: Base<Node>) -> Self {
         Self {
-            source: GString::from("Supertone/supertonic-3"),
-            backend: GString::from(""),
+            source: GString::from("hf://Supertone/supertonic-3"),
+            architecture: GString::from(""),
             voice: GString::from(""),
             language: GString::from(""),
             speed: 0.0,
@@ -2124,7 +2125,7 @@ impl NobodyWhoTts {
             let b = me.bind();
             let config = build_tts_config(
                 resolve_godot_path(&b.source),
-                b.backend.to_string(),
+                b.architecture.to_string(),
                 b.voice.to_string(),
                 b.language.to_string(),
                 b.speed,
@@ -2793,8 +2794,9 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
 
 /// NobodyWhoSTT is a Godot node for local speech-to-text using Whisper.
 ///
-/// Set `model_path` to a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`)
-/// or a local directory path, then call `transcribe_file()` or `transcribe_pcm()`.
+/// Set `model_path` to a HuggingFace repo (`hf://owner/repo`, e.g.
+/// `"hf://onnx-community/whisper-base"`) or a local directory path, then call
+/// `transcribe_file()` or `transcribe_pcm()`.
 /// Tokens stream out via the `transcription_updated` signal; the full transcript
 /// arrives via `transcription_finished`.
 ///
@@ -2803,7 +2805,7 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
 ///     extends NobodyWhoSTT
 ///
 ///     func _ready():
-///         model_path = "onnx-community/whisper-base"
+///         model_path = "hf://onnx-community/whisper-base"
 ///         transcription_updated.connect(func(piece): $Label.text += piece)
 ///         transcription_finished.connect(func(text): print("Done:", text))
 ///         transcribe_file("res://recording.wav")

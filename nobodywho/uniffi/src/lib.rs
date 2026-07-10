@@ -550,8 +550,8 @@ pub struct RustSTT {
 
 #[uniffi::export]
 impl RustSTT {
-    /// Create an STT handle. `source` is a HuggingFace repo ID
-    /// (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+    /// Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+    /// e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
     /// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
     /// `quantization` selects the ONNX precision variant to download and load:
     /// one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
@@ -896,14 +896,14 @@ fn tts_error(message: impl Into<String>) -> NobodyWhoError {
     }
 }
 
-fn parse_tts_backend(
-    backend: Option<String>,
-) -> Result<Option<nobodywho::tts::TtsBackendKind>, NobodyWhoError> {
-    backend
+fn parse_tts_architecture(
+    architecture: Option<String>,
+) -> Result<Option<nobodywho::tts::TtsArchitecture>, NobodyWhoError> {
+    architecture
         .as_deref()
         .map(str::parse)
         .transpose()
-        .map_err(|()| tts_error("backend must be one of 'kokoro' or 'supertonic'"))
+        .map_err(|()| tts_error("architecture must be one of 'kokoro' or 'supertonic'"))
 }
 
 fn parse_tts_device(device: Option<String>) -> Result<nobodywho::tts::TtsDevice, NobodyWhoError> {
@@ -922,17 +922,17 @@ fn parse_tts_device(device: Option<String>) -> Result<nobodywho::tts::TtsDevice,
 
 fn build_tts_config(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
 ) -> Result<nobodywho::tts::TtsConfig, NobodyWhoError> {
-    let backend = parse_tts_backend(backend)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
+    let architecture = parse_tts_architecture(architecture)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
         tts_error(
-            "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'",
+            "architecture is required for unknown TTS sources; pass architecture='kokoro' or architecture='supertonic'",
         )
     })?;
 
@@ -971,7 +971,7 @@ fn build_tts_config(
 
 fn create_tts(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
@@ -981,7 +981,7 @@ fn create_tts(
 ) -> Result<Arc<RustTts>, NobodyWhoError> {
     let config = build_tts_config(
         source,
-        backend,
+        architecture,
         voice,
         language,
         speed,
@@ -998,7 +998,7 @@ fn create_tts(
 #[uniffi::export]
 pub async fn load_tts(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
@@ -1012,7 +1012,7 @@ pub async fn load_tts(
     std::thread::spawn(move || {
         let result = create_tts(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,
@@ -1033,7 +1033,7 @@ impl RustTts {
     #[uniffi::constructor]
     pub fn new(
         source: String,
-        backend: Option<String>,
+        architecture: Option<String>,
         voice: Option<String>,
         language: Option<String>,
         speed: Option<f32>,
@@ -1043,7 +1043,7 @@ impl RustTts {
     ) -> Result<Arc<Self>, NobodyWhoError> {
         create_tts(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,

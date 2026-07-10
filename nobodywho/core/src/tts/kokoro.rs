@@ -18,7 +18,7 @@
 //! the largest input length the voice has a style row for.
 
 use crate::errors::TtsError;
-use crate::tts::backend::TtsBackendImpl;
+use crate::tts::architecture::TtsArchitectureImpl;
 use crate::tts::{TtsDevice, DEFAULT_SAMPLE_RATE};
 use espeak_ng::Translator;
 use misaki_rs::{language::Language, G2P};
@@ -353,7 +353,7 @@ fn init_translator(language: &str) -> Result<Translator, TtsError> {
         .map_err(|source| TtsError::EspeakInit { source })
 }
 
-impl TtsBackendImpl for KokoroBackend {
+impl TtsArchitectureImpl for KokoroBackend {
     fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
         let phoneme_ids = self.text_to_phoneme_ids(text)?;
         let style = self.voice.style_for_len(phoneme_ids.len()).to_vec();

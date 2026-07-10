@@ -3641,7 +3641,7 @@ fn wire__crate__Tts_load_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_source = <String>::sse_decode(&mut deserializer);
-            let api_backend = <Option<String>>::sse_decode(&mut deserializer);
+            let api_architecture = <Option<String>>::sse_decode(&mut deserializer);
             let api_voice = <Option<String>>::sse_decode(&mut deserializer);
             let api_language = <Option<String>>::sse_decode(&mut deserializer);
             let api_speed = <Option<f32>>::sse_decode(&mut deserializer);
@@ -3653,7 +3653,7 @@ fn wire__crate__Tts_load_impl(
                 transform_result_sse::<_, String>((move || {
                     let output_ok = crate::Tts::load(
                         api_source,
-                        api_backend,
+                        api_architecture,
                         api_voice,
                         api_language,
                         api_speed,

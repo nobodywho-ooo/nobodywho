@@ -5,13 +5,13 @@ import pytest
 import nobodywho
 
 
-def test_tts_rejects_invalid_backend() -> None:
-    with pytest.raises(expected_exception=ValueError, match="backend"):
-        nobodywho.Tts(source="missing-model", backend=cast(Any, "bad"))
+def test_tts_rejects_invalid_architecture() -> None:
+    with pytest.raises(expected_exception=ValueError, match="architecture"):
+        nobodywho.Tts(source="missing-model", architecture=cast(Any, "bad"))
 
 
-def test_tts_requires_backend_for_unknown_sources() -> None:
-    with pytest.raises(expected_exception=ValueError, match="backend"):
+def test_tts_requires_architecture_for_unknown_sources() -> None:
+    with pytest.raises(expected_exception=ValueError, match="architecture"):
         nobodywho.Tts(source="missing-model")
 
 

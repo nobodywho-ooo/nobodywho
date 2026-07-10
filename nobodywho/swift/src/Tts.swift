@@ -1,7 +1,7 @@
 import Foundation
 import NobodyWhoGenerated
 
-public enum TtsBackend: String {
+public enum TtsArchitecture: String {
     case kokoro
     case supertonic
 }
@@ -19,7 +19,7 @@ public class Tts {
     /// Create a TTS synthesizer synchronously.
     public init(
         source: String,
-        backend: TtsBackend? = nil,
+        architecture: TtsArchitecture? = nil,
         voice: String? = nil,
         language: String? = nil,
         speed: Float? = nil,
@@ -29,7 +29,7 @@ public class Tts {
     ) throws {
         self.inner = try NobodyWhoGenerated.RustTts(
             source: source,
-            backend: backend?.rawValue,
+            architecture: architecture?.rawValue,
             voice: voice,
             language: language,
             speed: speed,
@@ -46,7 +46,7 @@ public class Tts {
     /// Create a TTS synthesizer asynchronously.
     public static func load(
         source: String,
-        backend: TtsBackend? = nil,
+        architecture: TtsArchitecture? = nil,
         voice: String? = nil,
         language: String? = nil,
         speed: Float? = nil,
@@ -56,7 +56,7 @@ public class Tts {
     ) async throws -> Tts {
         let inner = try await NobodyWhoGenerated.loadTts(
             source: source,
-            backend: backend?.rawValue,
+            architecture: architecture?.rawValue,
             voice: voice,
             language: language,
             speed: speed,

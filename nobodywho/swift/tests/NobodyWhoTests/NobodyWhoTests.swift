@@ -149,9 +149,9 @@ final class NobodyWhoTests: XCTestCase {
     // MARK: - STT (Whisper)
 
     func testSTT() async throws {
-        // Model: HuggingFace repo ID or local dir. Downloaded and cached on first run.
+        // Model: HuggingFace repo (hf://owner/repo) or local dir. Downloaded and cached on first run.
         let model = ProcessInfo.processInfo.environment["TEST_WHISPER_MODEL"]
-            ?? "onnx-community/whisper-base"
+            ?? "hf://onnx-community/whisper-base"
 
         // Audio: "Hey Ron. Hey Billy." — shared asset in assets/.
         // TEST_AUDIO_FILE is set in CI to an absolute path; fall back to the

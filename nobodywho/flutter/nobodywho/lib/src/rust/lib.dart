@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_backend`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
+// These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_architecture`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
@@ -319,7 +319,7 @@ abstract class RustChat implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTT>>
 abstract class RustStt implements RustOpaqueInterface {
   /// Create an STT handle.
-  /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
+  /// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
   /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
   /// `quantization` — ONNX precision variant to download and load: one of
   /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
@@ -602,17 +602,17 @@ abstract class Tts implements RustOpaqueInterface {
   /// Create a TTS synthesizer.
   ///
   /// Args:
-  ///     source: Local model directory or HuggingFace repo ID.
-  ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
-  ///     voice: Voice name. Backend default is used when omitted.
-  ///     language: Language code. Backend default is used when omitted.
-  ///     speed: Speaking speed. Backend default is used when omitted.
+  ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+  ///     architecture: "kokoro" or "supertonic". Required for local or unknown sources.
+  ///     voice: Voice name. Architecture default is used when omitted.
+  ///     language: Language code. Architecture default is used when omitted.
+  ///     speed: Speaking speed. Architecture default is used when omitted.
   ///     steps: Supertonic denoising steps. Ignored by Kokoro.
   ///     silence_duration: Supertonic silence between chunks in seconds.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<Tts> load({
     required String source,
-    String? backend = null,
+    String? architecture = null,
     String? voice = null,
     String? language = null,
     double? speed = null,
@@ -621,7 +621,7 @@ abstract class Tts implements RustOpaqueInterface {
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateTtsLoad(
     source: source,
-    backend: backend,
+    architecture: architecture,
     voice: voice,
     language: language,
     speed: speed,

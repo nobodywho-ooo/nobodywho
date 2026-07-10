@@ -4,7 +4,7 @@ import java.io.Closeable
 import uniffi.nobodywho.RustTts as InternalTts
 import uniffi.nobodywho.loadTts as loadInternalTts
 
-enum class TtsBackend(internal val value: String) {
+enum class TtsArchitecture(internal val value: String) {
     KOKORO("kokoro"),
     SUPERTONIC("supertonic")
 }
@@ -22,7 +22,7 @@ class Tts private constructor(
     /** Create a TTS synthesizer synchronously. */
     constructor(
         source: String,
-        backend: TtsBackend? = null,
+        architecture: TtsArchitecture? = null,
         voice: String? = null,
         language: String? = null,
         speed: Float? = null,
@@ -32,7 +32,7 @@ class Tts private constructor(
     ) : this(
         InternalTts(
             source = source,
-            backend = backend?.value,
+            architecture = architecture?.value,
             voice = voice,
             language = language,
             speed = speed,
@@ -46,7 +46,7 @@ class Tts private constructor(
         /** Create a TTS synthesizer asynchronously. */
         suspend fun load(
             source: String,
-            backend: TtsBackend? = null,
+            architecture: TtsArchitecture? = null,
             voice: String? = null,
             language: String? = null,
             speed: Float? = null,
@@ -56,7 +56,7 @@ class Tts private constructor(
         ): Tts = Tts(
             loadInternalTts(
                 source = source,
-                backend = backend?.value,
+                architecture = architecture?.value,
                 voice = voice,
                 language = language,
                 speed = speed,

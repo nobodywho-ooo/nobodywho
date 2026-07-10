@@ -9,7 +9,7 @@ To transcribe audio into text, NobodyWho provides an integration with the Whispe
 ```python notest
 from nobodywho import STT
 
-stt = STT(source="onnx-community/whisper-base")
+stt = STT(source="hf://onnx-community/whisper-base")
 
 text = stt.transcribe_file("recording.mp3").completed()
 print(text)
@@ -32,13 +32,13 @@ for piece in stt.transcribe_file("recording.mp3"):
 
 ## Supported models
 
-NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging Face repo ID or a local directory containing such a model, e.g. `onnx-community/whisper-base`. Browse the [Whisper ONNX models on Hugging Face](https://huggingface.co/models?library=onnx&search=whisper) to pick a size that fits your accuracy and speed needs.
+NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging Face repo (`hf://owner/repo`) or a local directory containing such a model, e.g. `hf://onnx-community/whisper-base`. Browse the [Whisper ONNX models on Hugging Face](https://huggingface.co/models?library=onnx&search=whisper) to pick a size that fits your accuracy and speed needs.
 
 You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
 
 ```python notest
 stt = STT(
-    source="onnx-community/whisper-base",
+    source="hf://onnx-community/whisper-base",
     quantization="q4",
 )
 ```
@@ -49,7 +49,7 @@ By default, Whisper auto-detects the spoken language, which costs a bit of extra
 
 ```python notest
 stt = STT(
-    source="onnx-community/whisper-base",
+    source="hf://onnx-community/whisper-base",
     language="en",
 )
 ```

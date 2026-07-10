@@ -100,14 +100,14 @@ where
     })
 }
 
-fn parse_tts_backend(
-    backend: Option<String>,
-) -> Result<Option<nobodywho::tts::TtsBackendKind>, String> {
-    backend
+fn parse_tts_architecture(
+    architecture: Option<String>,
+) -> Result<Option<nobodywho::tts::TtsArchitecture>, String> {
+    architecture
         .as_deref()
         .map(str::parse)
         .transpose()
-        .map_err(|()| "backend must be one of 'kokoro' or 'supertonic'".to_string())
+        .map_err(|()| "architecture must be one of 'kokoro' or 'supertonic'".to_string())
 }
 
 fn tts_device_from_use_gpu(use_gpu: bool) -> nobodywho::tts::TtsDevice {
@@ -120,16 +120,16 @@ fn tts_device_from_use_gpu(use_gpu: bool) -> nobodywho::tts::TtsDevice {
 
 fn build_tts_config(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
 ) -> Result<nobodywho::tts::TtsConfig, String> {
-    let backend = parse_tts_backend(backend)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
-        "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'"
+    let architecture = parse_tts_architecture(architecture)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
+        "architecture is required for unknown TTS sources; pass architecture='kokoro' or architecture='supertonic'"
             .to_string()
     })?;
 
@@ -259,18 +259,18 @@ impl Tts {
     /// Create a TTS synthesizer.
     ///
     /// Args:
-    ///     source: Local model directory or HuggingFace repo ID.
-    ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
-    ///     voice: Voice name. Backend default is used when omitted.
-    ///     language: Language code. Backend default is used when omitted.
-    ///     speed: Speaking speed. Backend default is used when omitted.
+    ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+    ///     architecture: "kokoro" or "supertonic". Required for local or unknown sources.
+    ///     voice: Voice name. Architecture default is used when omitted.
+    ///     language: Language code. Architecture default is used when omitted.
+    ///     speed: Speaking speed. Architecture default is used when omitted.
     ///     steps: Supertonic denoising steps. Ignored by Kokoro.
     ///     silence_duration: Supertonic silence between chunks in seconds.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb]
     pub fn load(
         source: String,
-        #[frb(default = "null")] backend: Option<String>,
+        #[frb(default = "null")] architecture: Option<String>,
         #[frb(default = "null")] voice: Option<String>,
         #[frb(default = "null")] language: Option<String>,
         #[frb(default = "null")] speed: Option<f32>,
@@ -280,7 +280,7 @@ impl Tts {
     ) -> Result<Self, String> {
         let config = build_tts_config(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,
@@ -642,7 +642,7 @@ pub struct RustSTT {
 
 impl RustSTT {
     /// Create an STT handle.
-    /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
+    /// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
     /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
     /// `quantization` — ONNX precision variant to download and load: one of
     /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
