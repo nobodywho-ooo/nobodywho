@@ -813,7 +813,12 @@ pub(crate) fn download_onnx(
             repo: HfRepo::main(owner, repo),
             required_files: required_files.to_vec(),
         },
-        ParsedOnnxPath::Local(path) => OnnxSource::Local(path),
+        ParsedOnnxPath::Local(path) => {
+            if !path.is_dir() {
+                return Err(HuggingFaceError::InvalidSource(source.to_string()));
+            }
+            OnnxSource::Local(path)
+        }
     };
     cache.download_repo(&source, &progress)
 }
@@ -904,5 +909,14 @@ mod tests {
     #[test]
     fn rejects_empty_owner_after_hf_scheme() {
         assert!(parse_onnx_path("hf:///repo").is_err());
+    }
+
+    #[test]
+    fn download_onnx_rejects_nonexistent_local_path() {
+        // A bare repo id (no hf://) is now treated as a local path. Since it
+        // isn't an existing directory, download_onnx should reject it with
+        // InvalidSource rather than returning Ok and failing downstream.
+        let err = download_onnx("onnx-community/whisper-base", &[]).unwrap_err();
+        assert!(matches!(err, HuggingFaceError::InvalidSource(_)));
     }
 }
