@@ -511,7 +511,7 @@ pub enum EncoderWorkerError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum HuggingFaceError {
-    #[error("invalid model source {0:?}: must be an existing directory or `owner/repo`")]
+    #[error("invalid model source {0:?}: must be an existing directory or `hf://owner/repo`")]
     #[diagnostic(code(nobodywho::hf_invalid_source))]
     InvalidSource(String),
 

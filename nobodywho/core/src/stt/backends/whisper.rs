@@ -3,7 +3,7 @@
 //! Pipeline: 16 kHz mono f32 audio → log-mel spectrogram → encoder → greedy
 //! token decode with KV cache → text.
 //!
-//! Uses `onnx-community/whisper-*` model repos which ship:
+//! Uses `hf://onnx-community/whisper-*` model repos which ship:
 //!   `onnx/encoder_model.onnx`, `onnx/decoder_model_merged.onnx`,
 //!   `tokenizer.json`, `generation_config.json`, `config.json`.
 
@@ -67,7 +67,7 @@ fn quantization_suffix(quantization: &str) -> Result<&'static str, SttError> {
 /// Configuration for the Whisper STT backend.
 #[derive(Clone, Debug)]
 pub struct WhisperConfig {
-    /// HuggingFace repo ID (`"onnx-community/whisper-base"`) or local directory path.
+    /// HuggingFace Hub repo (`"hf://onnx-community/whisper-base"`) or local directory path.
     pub source: String,
     /// ISO 639-1 language code (e.g. `"en"`, `"fr"`). `None` → auto-detect.
     pub language: Option<String>,

@@ -568,29 +568,6 @@ enum OnnxSource {
 }
 
 impl OnnxSource {
-    /// Parse a source string. Existing local directories win; otherwise we
-    /// expect `owner/repo` and treat it as a HuggingFace Hub repo ID at `main`.
-    fn parse(s: &str, required_files: Vec<String>) -> Result<Self, HuggingFaceError> {
-        let path = Path::new(s);
-        if path.is_dir() {
-            return Ok(Self::Local(path.to_path_buf()));
-        }
-        let parts: Vec<&str> = s.split('/').collect();
-        if parts.len() == 2 && parts.iter().all(|p| Self::is_valid_repo_part(p)) {
-            return Ok(Self::HuggingFace {
-                repo: HfRepo::main(parts[0], parts[1]),
-                required_files,
-            });
-        }
-        Err(HuggingFaceError::InvalidSource(s.to_string()))
-    }
-
-    fn is_valid_repo_part(s: &str) -> bool {
-        !s.is_empty()
-            && s.chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-    }
-
     fn is_dotfile(path: &str) -> bool {
         path.rsplit('/').next().unwrap_or(path).starts_with('.')
     }
@@ -769,10 +746,60 @@ impl ModelCache {
     }
 }
 
-/// Resolve a model source string to a local directory. Existing local
-/// directories win; otherwise `source` is treated as a HuggingFace Hub repo
-/// ID (`owner/repo`) and downloaded, narrowed to `required_files` (an empty
-/// slice downloads the entire repo unfiltered).
+/// A parsed STT/TTS `source` string, before it's resolved to a local directory.
+///
+/// This mirrors [`ParsedModelPath`] but only needs `owner/repo` (a whole repo
+/// download), never a filename. `http(s)://` URLs and bare `owner/repo` IDs
+/// are not recognized — they fall through to [`ParsedOnnxPath::Local`] and
+/// fail the downstream directory check.
+pub(crate) enum ParsedOnnxPath {
+    HuggingFace(String, String), // owner, repo
+    Local(PathBuf),
+}
+
+/// Parse an STT/TTS source string. Recognized forms:
+/// - `hf://owner/repo`, `hf:owner/repo`, `huggingface://owner/repo`,
+///   `huggingface:owner/repo` → [`ParsedOnnxPath::HuggingFace`]. A trailing
+///   path (e.g. `hf://owner/repo/extra`) is rejected — ONNX download is
+///   repo-scoped.
+/// - Anything else (local paths, `http(s)://` URLs, bare `owner/repo`) →
+///   [`ParsedOnnxPath::Local`]. Callers reject non-directories downstream.
+pub(crate) fn parse_onnx_path(s: &str) -> Result<ParsedOnnxPath, HuggingFaceError> {
+    let mut parser = alt((
+        // hf://owner/repo (also hf:, huggingface:, huggingface://) — exactly
+        // owner/repo, no trailing path. The repo part must be non-empty and
+        // contain no further '/', so hf://owner/repo/extra is rejected.
+        map(
+            preceded(
+                alt((
+                    tag_no_case("huggingface://"),
+                    tag_no_case("huggingface:"),
+                    tag_no_case("hf://"),
+                    tag_no_case("hf:"),
+                )),
+                cut((
+                    verify(terminated(take_until("/"), tag("/")), |s: &str| {
+                        !s.is_empty()
+                    }),
+                    verify(rest, |s: &str| !s.is_empty() && !s.contains('/')),
+                )),
+            ),
+            |(owner, repo): (&str, &str)| ParsedOnnxPath::HuggingFace(owner.into(), repo.into()),
+        ),
+        // Anything else is a local filesystem path. http(s):// URLs land here
+        // and are rejected by the caller's directory check.
+        map(rest, |p: &str| ParsedOnnxPath::Local(PathBuf::from(p))),
+    ));
+    let result: nom::IResult<&str, ParsedOnnxPath> = parser.parse(s);
+    result
+        .map(|(_, parsed)| parsed)
+        .map_err(|_| HuggingFaceError::InvalidSource(s.to_string()))
+}
+
+/// Resolve a model source string to a local directory. `hf://owner/repo`
+/// (or `huggingface:` variants) downloads from the HuggingFace Hub, narrowed
+/// to `required_files` (an empty slice downloads the entire repo unfiltered).
+/// Anything else is treated as a local directory path and must exist on disk.
 pub(crate) fn download_onnx(
     source: &str,
     required_files: &[String],
@@ -781,7 +808,13 @@ pub(crate) fn download_onnx(
     // No caller threads a custom callback through yet, so there's nothing
     // meaningful to forward here — `download_repo` labels its own per-file bars.
     let progress: DownloadProgressCallback = Arc::new(|_downloaded, _total| {});
-    let source = OnnxSource::parse(source, required_files.to_vec())?;
+    let source = match parse_onnx_path(source)? {
+        ParsedOnnxPath::HuggingFace(owner, repo) => OnnxSource::HuggingFace {
+            repo: HfRepo::main(owner, repo),
+            required_files: required_files.to_vec(),
+        },
+        ParsedOnnxPath::Local(path) => OnnxSource::Local(path),
+    };
     cache.download_repo(&source, &progress)
 }
 
@@ -790,22 +823,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_hf_repo_id() {
-        let OnnxSource::HuggingFace { repo, .. } =
-            OnnxSource::parse("NobodyWho/Kokoro-82M", vec![]).unwrap()
+    fn parses_hf_scheme() {
+        let ParsedOnnxPath::HuggingFace(owner, repo) =
+            parse_onnx_path("hf://NobodyWho/Kokoro-82M").unwrap()
         else {
             panic!("expected HuggingFace");
         };
-        assert_eq!(repo.owner, "NobodyWho");
-        assert_eq!(repo.repo, "Kokoro-82M");
-        assert_eq!(repo.revision, "main");
+        assert_eq!(owner, "NobodyWho");
+        assert_eq!(repo, "Kokoro-82M");
+    }
+
+    #[test]
+    fn parses_hf_colon_scheme() {
+        assert!(matches!(
+            parse_onnx_path("hf:NobodyWho/Kokoro-82M").unwrap(),
+            ParsedOnnxPath::HuggingFace(_, _)
+        ));
+    }
+
+    #[test]
+    fn parses_huggingface_scheme_variants() {
+        assert!(matches!(
+            parse_onnx_path("huggingface://a/b").unwrap(),
+            ParsedOnnxPath::HuggingFace(_, _)
+        ));
+        assert!(matches!(
+            parse_onnx_path("huggingface:a/b").unwrap(),
+            ParsedOnnxPath::HuggingFace(_, _)
+        ));
     }
 
     #[test]
     fn accepts_dashes_underscores_dots_in_repo_parts() {
         assert!(matches!(
-            OnnxSource::parse("a-b/c_d.e", vec![]).unwrap(),
-            OnnxSource::HuggingFace { .. }
+            parse_onnx_path("hf://a-b/c_d.e").unwrap(),
+            ParsedOnnxPath::HuggingFace(_, _)
         ));
     }
 
@@ -814,35 +866,43 @@ mod tests {
         let dir = std::env::temp_dir();
         let s = dir.to_str().expect("temp_dir is valid utf-8");
         assert!(matches!(
-            OnnxSource::parse(s, vec![]).unwrap(),
-            OnnxSource::Local(_)
+            parse_onnx_path(s).unwrap(),
+            ParsedOnnxPath::Local(_)
         ));
     }
 
     #[test]
-    fn rejects_no_slash() {
-        assert!(OnnxSource::parse("nobodywho", vec![]).is_err());
+    fn bare_repo_id_is_local_not_hf() {
+        // Bare `owner/repo` is no longer auto-interpreted as HuggingFace; it's
+        // a local path that the caller rejects if it isn't an existing directory.
+        assert!(matches!(
+            parse_onnx_path("NobodyWho/Kokoro-82M").unwrap(),
+            ParsedOnnxPath::Local(_)
+        ));
     }
 
     #[test]
-    fn rejects_too_many_slashes() {
-        assert!(OnnxSource::parse("a/b/c", vec![]).is_err());
+    fn http_url_is_local_not_hf() {
+        // http(s):// falls through to Local; the caller rejects non-directories.
+        assert!(matches!(
+            parse_onnx_path("https://huggingface.co/owner/repo").unwrap(),
+            ParsedOnnxPath::Local(_)
+        ));
     }
 
     #[test]
-    fn rejects_empty_owner() {
-        assert!(OnnxSource::parse("/repo", vec![]).is_err());
+    fn rejects_trailing_path_on_hf_scheme() {
+        // ONNX download is repo-scoped: a trailing path is a parse error.
+        assert!(parse_onnx_path("hf://owner/repo/extra").is_err());
     }
 
     #[test]
-    fn rejects_empty_repo() {
-        assert!(OnnxSource::parse("owner/", vec![]).is_err());
+    fn rejects_no_slash_after_hf_scheme() {
+        assert!(parse_onnx_path("hf:nobodywho").is_err());
     }
 
     #[test]
-    fn rejects_invalid_chars() {
-        assert!(OnnxSource::parse("foo/bar baz", vec![]).is_err());
-        assert!(OnnxSource::parse("foo bar/baz", vec![]).is_err());
-        assert!(OnnxSource::parse("foo!/baz", vec![]).is_err());
+    fn rejects_empty_owner_after_hf_scheme() {
+        assert!(parse_onnx_path("hf:///repo").is_err());
     }
 }
