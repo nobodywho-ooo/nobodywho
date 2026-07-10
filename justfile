@@ -31,5 +31,7 @@ regen-uniffi:
     cd nobodywho && cargo build -p nobodywho-uniffi --locked
     cd nobodywho && target/debug/uniffi-bindgen generate --library target/debug/libnobodywho_uniffi.{{LIB_EXT}} --language swift --out-dir swift/generated
     cd nobodywho && target/debug/uniffi-bindgen generate --library target/debug/libnobodywho_uniffi.{{LIB_EXT}} --language kotlin --out-dir kotlin/common/generated
+    # Re-inject the NativeLoader hook uniffi-bindgen overwrites (dynamic-link: stage the ggml/llama siblings first). Idempotent; guarded by NativeLoaderGuardTest.
+    cd nobodywho && python3 scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
     cd nobodywho && npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp $(pwd)/target/debug/libnobodywho_uniffi.{{LIB_EXT}}
     git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/react-native/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)

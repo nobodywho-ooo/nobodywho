@@ -681,6 +681,7 @@ internal open class UniffiVTableCallbackInterfaceRustToolCallback(
 // We now use JNA's "direct mapping" - unclear if same considerations apply exactly.
 internal object IntegrityCheckingUniffiLib {
     init {
+        ai.nobodywho.NativeLoader.ensureLoaded()
         Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "nobodywho"))
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
@@ -850,6 +851,7 @@ internal object UniffiLib {
     
 
     init {
+        ai.nobodywho.NativeLoader.ensureLoaded()
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "nobodywho"))
         uniffiCallbackInterfaceRustDownloadProgressCallback.register(this)
         uniffiCallbackInterfaceRustToolCallback.register(this)

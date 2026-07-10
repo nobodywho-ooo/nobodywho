@@ -402,13 +402,12 @@ jobs:
           place_android aarch64-linux-android arm64-v8a
           place_android x86_64-linux-android  x86_64
 
-      # Place desktop native libs for JVM JAR (JNA layout).
-      # NOTE: JNA extracts only the *named* library to a temp dir at load time, not
-      # its sibling dependencies, so the co-located ggml/llama libs here are not yet
-      # discoverable by the extracted lib's $ORIGIN/@loader_path rpath. The Kotlin
-      # `common` loader must be updated to extract ALL libs in the resource dir to a
-      # shared temp dir (and add it to jna.library.path) before Native.load — see
-      # nobodywho/kotlin/common. Files are placed here so that change can land next.
+      # Place desktop native libs for JVM JAR (JNA layout): the binding lib plus its
+      # co-located ggml/llama siblings. JNA extracts only the *named* library to a temp
+      # dir, so the Kotlin `common` NativeLoader stages ALL libs from the resource dir
+      # into one temp dir and prepends it to jna.library.path before the first FFI call,
+      # letting the binding's $ORIGIN/@loader_path rpath resolve the siblings — see
+      # nobodywho/kotlin/common/src/NativeLoader.kt.
       - name: "Setup JVM native libs"
         run: |
           mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64}
