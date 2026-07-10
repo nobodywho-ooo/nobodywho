@@ -30,9 +30,12 @@ internal object NativeLoader {
         try {
             stageBundledLibs()
             done = true // only after success, so a transient failure can retry on the next call
-        } catch (_: Exception) {
-            // Best-effort: on failure JNA falls back to its default resolution, and any
-            // genuine problem surfaces as UnsatisfiedLinkError at the first FFI call.
+        } catch (e: Exception) {
+            // Best-effort: JNA then falls back to its default resolution, which for a
+            // JAR-packaged dynamic-link binding fails later with an opaque
+            // UnsatisfiedLinkError. Log the root cause here so a staging failure (e.g. a
+            // temp-dir IOException) stays distinguishable from a genuine packaging bug.
+            System.err.println("nobodywho: failed to stage bundled native libraries: $e")
         }
     }
 
