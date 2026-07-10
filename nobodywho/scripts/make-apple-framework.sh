@@ -64,6 +64,12 @@ if [ "$LAYOUT" = versioned ]; then
 else
     PLIST="$ROOT/Info.plist"
 fi
+# MinimumOSVersion must match the slice's real platform minimum — it differs per
+# platform (visionOS 1.x, watchOS 10.x, iOS 18.x, …), so read it from the binary's
+# LC_BUILD_VERSION instead of hardcoding a value that's wrong for most slices.
+MIN_OS=$(vtool -show-build "$ROOT/$FW_NAME" 2>/dev/null | awk '/minos/{print $2; exit}')
+: "${MIN_OS:=13.0}"
+
 plutil -create xml1 "$PLIST"
 plutil -insert CFBundleExecutable            -string "$FW_NAME"   "$PLIST"
 plutil -insert CFBundleIdentifier            -string "$BUNDLE_ID" "$PLIST"
@@ -71,7 +77,7 @@ plutil -insert CFBundleInfoDictionaryVersion -string "6.0"        "$PLIST"
 plutil -insert CFBundleName                  -string "$FW_NAME"   "$PLIST"
 plutil -insert CFBundlePackageType           -string "FMWK"       "$PLIST"
 plutil -insert CFBundleVersion               -string "1"          "$PLIST"
-plutil -insert MinimumOSVersion              -string "13.0"       "$PLIST"
+plutil -insert MinimumOSVersion              -string "$MIN_OS"    "$PLIST"
 
 if [ "$LAYOUT" = versioned ]; then
     ln -sf A "$FW/Versions/Current"
