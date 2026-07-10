@@ -1,4 +1,4 @@
-//! Whisper STT backend via ONNX Runtime.
+//! Whisper STT architecture via ONNX Runtime.
 //!
 //! Pipeline: 16 kHz mono f32 audio → log-mel spectrogram → encoder → greedy
 //! token decode with KV cache → text.
@@ -9,7 +9,7 @@
 
 use crate::errors::{HuggingFaceError, SttError};
 use crate::onnx::Device;
-use crate::stt::backend::SttBackendImpl;
+use crate::stt::architecture::SttArchitectureImpl;
 use mel_spec::prelude::*;
 use ort::session::Session;
 use ort::value::{DynValue, Tensor};
@@ -64,7 +64,7 @@ fn quantization_suffix(quantization: &str) -> Result<&'static str, SttError> {
     }
 }
 
-/// Configuration for the Whisper STT backend.
+/// Configuration for the Whisper STT architecture.
 #[derive(Clone, Debug)]
 pub struct WhisperConfig {
     /// HuggingFace Hub repo (`"hf://onnx-community/whisper-base"`) or local directory path.
@@ -423,7 +423,7 @@ impl WhisperBackend {
     }
 }
 
-impl SttBackendImpl for WhisperBackend {
+impl SttArchitectureImpl for WhisperBackend {
     fn transcribe_window(
         &mut self,
         window: &[f32],

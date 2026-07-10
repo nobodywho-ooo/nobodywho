@@ -1,5 +1,5 @@
 use crate::errors::TtsError;
-use crate::tts::backend::TtsBackendImpl;
+use crate::tts::architecture::TtsArchitectureImpl;
 use crate::tts::TtsDevice;
 use ndarray::{Array, Array3};
 use ort::session::Session;
@@ -179,7 +179,7 @@ impl SupertonicBackend {
     }
 }
 
-impl TtsBackendImpl for SupertonicBackend {
+impl TtsArchitectureImpl for SupertonicBackend {
     fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
         let text = text.trim();
         if text.is_empty() {

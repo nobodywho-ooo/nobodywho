@@ -41,7 +41,7 @@
 //! # }
 //! ```
 
-mod backend;
+mod architecture;
 mod kokoro;
 mod supertonic;
 
@@ -129,11 +129,11 @@ impl Tts {
     }
 
     pub fn with_device(config: TtsConfig, device: TtsDevice) -> Result<Self, TtsError> {
-        let mut backend = backend::load_backend(config, device)?;
+        let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
         std::thread::spawn(move || {
             while let Ok((text, response_tx)) = msg_rx.recv() {
-                let result = backend.synthesize(&text);
+                let result = architecture.synthesize(&text);
                 if response_tx.blocking_send(result).is_err() {
                     tracing::warn!("TTS caller dropped before result could be delivered");
                 }

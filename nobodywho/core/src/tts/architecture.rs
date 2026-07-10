@@ -4,12 +4,12 @@ use crate::tts::{kokoro, supertonic, TtsConfig, TtsDevice};
 use std::time::Instant;
 use tracing::info;
 
-pub(super) trait TtsBackendImpl: Send {
+pub(super) trait TtsArchitectureImpl: Send {
     fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError>;
     fn sample_rate(&self) -> u32;
 
     /// Synthesize `text` and encode the resulting PCM as a WAV byte buffer.
-    /// Default implementation; backends typically don't need to override.
+    /// Default implementation; architectures typically don't need to override.
     fn synthesize(&mut self, text: &str) -> Result<Vec<u8>, TtsError> {
         let synth_start = Instant::now();
         let samples = self.synthesize_raw(text)?;
@@ -26,10 +26,10 @@ pub(super) trait TtsBackendImpl: Send {
     }
 }
 
-pub(super) fn load_backend(
+pub(super) fn load_architecture(
     config: TtsConfig,
     device: TtsDevice,
-) -> Result<Box<dyn TtsBackendImpl>, TtsError> {
+) -> Result<Box<dyn TtsArchitectureImpl>, TtsError> {
     match config {
         TtsConfig::Kokoro(config) => {
             let init_start = Instant::now();
