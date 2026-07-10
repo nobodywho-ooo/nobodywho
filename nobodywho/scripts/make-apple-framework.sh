@@ -64,19 +64,14 @@ if [ "$LAYOUT" = versioned ]; then
 else
     PLIST="$ROOT/Info.plist"
 fi
-cat > "$PLIST" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleExecutable</key><string>$FW_NAME</string>
-<key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
-<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-<key>CFBundleName</key><string>$FW_NAME</string>
-<key>CFBundlePackageType</key><string>FMWK</string>
-<key>CFBundleVersion</key><string>1</string>
-<key>MinimumOSVersion</key><string>13.0</string>
-</dict></plist>
-EOF
+plutil -create xml1 "$PLIST"
+plutil -insert CFBundleExecutable            -string "$FW_NAME"   "$PLIST"
+plutil -insert CFBundleIdentifier            -string "$BUNDLE_ID" "$PLIST"
+plutil -insert CFBundleInfoDictionaryVersion -string "6.0"        "$PLIST"
+plutil -insert CFBundleName                  -string "$FW_NAME"   "$PLIST"
+plutil -insert CFBundlePackageType           -string "FMWK"       "$PLIST"
+plutil -insert CFBundleVersion               -string "1"          "$PLIST"
+plutil -insert MinimumOSVersion              -string "13.0"       "$PLIST"
 
 if [ "$LAYOUT" = versioned ]; then
     ln -sf A "$FW/Versions/Current"
