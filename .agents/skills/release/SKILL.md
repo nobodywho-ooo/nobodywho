@@ -1,7 +1,7 @@
 ---
 name: release
 description: Prepare a release of one or more nobodywho language bindings — draft per-binding changelogs from git history, propose semver bumps with rationale for approval, bump all version files and lockfiles, snapshot Docusaurus docs, and stage everything for the user to tag and push. Use when the user asks to release, publish, cut a release, or bump versions for any binding (Python, Godot, Flutter, Kotlin, Swift, React Native).
-compatibility: Designed for Claude Code. Requires cargo, nix, uv, and a Node.js toolchain on PATH; Flutter/Dart toolchain needed for pubspec.lock sync.
+compatibility: Designed for Claude Code. Requires cargo, nix, uv, and a Node.js toolchain on PATH; Flutter/Dart toolchain needed for pubspec.lock sync. On a pure Nix setup these are all provided by the flake's devShell (`nix develop`), so enter the devShell before running the Step 6 commands rather than invoking the tools ad hoc.
 ---
 
 Prepare a release of one or more nobodywho bindings for the user to review, commit, and tag. Each binding is versioned **independently** and tagged separately (`nobodywho-<binding>-vX.Y.Z`). Publishing itself is done by GitHub Actions (`.github/workflows/release.yml`) triggered by pushing those tags — this skill only stages the changes; it never commits, tags, or pushes without explicit user approval (see `AGENTS.md` Git Policy).
@@ -167,6 +167,8 @@ cargo update -p nobodywho-python --precise 1.6.0
 cargo update -p nobodywho-flutter --precise 2.4.0
 ```
 
+Note: the `core` crate's package name is `nobodywho` (not `nobodywho-core` — the directory is `core/` but `Cargo.toml` names the package `nobodywho`), so update it with `cargo update -p nobodywho --precise <v>`.
+
 Verify with `git diff nobodywho/Cargo.lock` — only the bumped crate's `version` lines should change.
 
 ### 6b. `nobodywho/Cargo.nix` and `nobodywho/crate-hashes.json`
@@ -183,6 +185,8 @@ If `nix` is not on PATH:
 ```
 
 Both `Cargo.nix` and `crate-hashes.json` must be committed together.
+
+The `Cargo.nix` diff may include more than the nobodywho version bumps — e.g. git dependency URL/rev changes from prior PRs whose `Cargo.nix` wasn't regenerated, or transitive crate version resolution picks. These are legitimate. If the diff looks unexpectedly large, `git log --oneline -- nobodywho/Cargo.lock` can confirm whether a prior commit changed a git dependency without regenerating `Cargo.nix`.
 
 ### 6c. `nobodywho/python/uv.lock`
 
@@ -201,8 +205,10 @@ Verify: `rg -n -A2 'name = "nobodywho"' uv.lock` shows the new version.
 
 ```bash
 cd nobodywho/flutter/nobodywho
-dart pub get   # or: flutter pub get
+flutter pub get
 ```
+
+Use `flutter pub get` rather than `dart pub get` — this package depends on the Flutter SDK, so `dart pub get` fails with "Because nobodywho requires the Flutter SDK, version solving failed."
 
 If the diff is empty, that's expected — nothing to commit for pubspec.lock this release. If deps changed, the lockfile diff will appear; commit it.
 
@@ -220,15 +226,29 @@ Either way, confirm `git diff` shows both the top-level `version` and `packages[
 
 There is no Gradle or SwiftPM lockfile tracked for the Kotlin / Swift bindings — nothing to bump.
 
-### 6g. Verify the Nix workspace
+### 6g. `flake.nix` `npmDepsHash`
 
-After 6a–6b, the generated `Cargo.nix` / `crate-hashes.json` must actually evaluate. **Have the user run this in a separate terminal** — `nix flake check -L` takes a long time and its verbose output will bloat the LLM context if run in this session:
+Whenever `react-native/package-lock.json` changed (Step 5/6e), the `npmDepsHash` pinned in `flake.nix` (the `react-native-jest` check derivation) is invalidated. This only surfaces during `nix flake check` (Step 6h), where it fails with `npmDepsHash is out of date`. Fix it before running the check:
+
+1. In `flake.nix`, replace the `npmDepsHash` value with the literal sentinel `sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=` (do **not** use `lib.fakeHash` — `lib` is not bound in this flake's `outputs` args).
+2. Build the derivation to trigger a hash mismatch:
+   ```bash
+   nix build .#checks.x86_64-linux.react-native-jest
+   ```
+3. Copy the `got: sha256-...` value from the mismatch error back into `npmDepsHash`.
+4. Rebuild to confirm it succeeds.
+
+This must be done before Step 6h.
+
+### 6h. Verify the Nix workspace
+
+After 6a–6g, the generated `Cargo.nix` / `crate-hashes.json` and the `npmDepsHash` must actually evaluate. **Have the user run this in a separate terminal** — `nix flake check -L` takes a long time and its verbose output will bloat the LLM context if run in this session:
 
 ```bash
 nix flake check -L
 ```
 
-On macOS this only evaluates `aarch64-darwin` derivations locally (Linux-only checks are invisible until CI — see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes before moving on. If it fails, the usual cause is a stale `Cargo.nix` — re-run 6b.
+On macOS this only evaluates `aarch64-darwin` derivations locally (Linux-only checks are invisible until CI — see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes before moving on. If it fails, the usual causes are a stale `Cargo.nix` (re-run 6b) or a stale `npmDepsHash` (re-run 6g).
 
 ---
 
@@ -253,7 +273,7 @@ const latestReleases: Record<string, string> = {
 };
 ```
 
-Commit the versioned folders, the `*_versions.json` files, and the config change. These are tracked.
+Commit the versioned folders, the `*_versions.json` files, and the config change. These are tracked. The new files under `docs/<binding>_versioned_docs/version-<v>/` and `docs/<binding>_versioned_sidebars/version-<v>-sidebars.json` are **untracked**, so `git add -u` will not pick them up — `git add` them explicitly (e.g. `git add 'docs/*_versioned_docs/' 'docs/*_versioned_sidebars/'`) before committing.
 
 > Not every past release snapshotted docs, but the most recent all-bindings release (`#569`) did. Snapshotting is the correct step and should be done for every released binding that has docs.
 
@@ -338,6 +358,7 @@ Tag format **must** be `nobodywho-<binding>-vX.Y.Z` — `.github/workflows/main.
 - [ ] `python/uv.lock` updated (`uv lock`)
 - [ ] `flutter/.../pubspec.lock` synced (`dart pub get`)
 - [ ] `react-native/package-lock.json` — **both** version fields bumped
+- [ ] `flake.nix` `npmDepsHash` updated (Step 6g)
 - [ ] Docusaurus docs snapshotted per released binding + `latestReleases` updated
 - [ ] `cargo fmt --check` + `cargo check` pass
 - [ ] `nobodywho/changelogs/` confirmed untracked
