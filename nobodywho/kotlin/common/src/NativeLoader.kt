@@ -29,14 +29,13 @@ internal object NativeLoader {
         if (done) return
         try {
             stageBundledLibs()
-            done = true // only after success, so a transient failure can retry on the next call
         } catch (e: Exception) {
-            // Best-effort: JNA then falls back to its default resolution, which for a
-            // JAR-packaged dynamic-link binding fails later with an opaque
-            // UnsatisfiedLinkError. Log the root cause here so a staging failure (e.g. a
-            // temp-dir IOException) stays distinguishable from a genuine packaging bug.
-            System.err.println("nobodywho: failed to stage bundled native libraries: $e")
+            // Propagate the real cause rather than swallow: staging is what makes a
+            // JAR-packaged dynamic-link binding loadable, so a failure here would only
+            // resurface as an opaque UnsatisfiedLinkError at first FFI call.
+            throw RuntimeException("nobodywho: failed to stage bundled native libraries", e)
         }
+        done = true // only after success, so a transient failure can retry on the next call
     }
 
     private fun stageBundledLibs() {
