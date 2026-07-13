@@ -1,13 +1,22 @@
-import type { RustSTTInterface } from "../generated/ts/nobodywho";
+import type { RustSttInterface } from "../generated/ts/nobodywho";
 import * as nobodywho from "../generated/ts/nobodywho";
 import { TokenStream } from "./streaming";
+
+export type SttOptions = {
+  source: string;
+  language?: string;
+  quantization?: string;
+};
 
 /**
  * Speech-to-text using a local Whisper ONNX model.
  *
  * @example
  * ```typescript
- * const stt = new STT("hf://onnx-community/whisper-base");
+ * const stt = new STT({
+ *   source: "hf://onnx-community/whisper-base",
+ *   language: "en",
+ * });
  * for await (const piece of stt.transcribeFile("recording.mp3")) {
  *   process.stdout.write(piece);
  * }
@@ -19,22 +28,16 @@ import { TokenStream } from "./streaming";
  */
 export class STT {
   /** @internal */
-  private readonly _inner: RustSTTInterface;
+  private readonly _inner: RustSttInterface;
 
   /**
-   * @param source - HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`)
-   *   or a local directory path. The model is downloaded on first use.
-   * @param language - ISO 639-1 language code (e.g. `"en"`).
-   *   Omit or pass `undefined` for automatic language detection.
-   * @param quantization - ONNX precision variant to download and load: one of
-   *   `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`.
-   *   Omit or pass `undefined` to use `"default"`.
+   * @param opts - See {@link SttOptions}.
    */
-  constructor(source: string, language?: string, quantization?: string) {
-    this._inner = new nobodywho.RustSTT(
-      source,
-      language ?? undefined,
-      quantization ?? undefined,
+  constructor(opts: SttOptions) {
+    this._inner = new nobodywho.RustStt(
+      opts.source,
+      opts.language,
+      opts.quantization,
     );
   }
 
