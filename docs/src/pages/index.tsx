@@ -32,7 +32,7 @@ const sdks = [
     name: 'Godot',
     description: 'GDExtension for Godot 4.x game projects.',
     install: 'Asset Library or GitHub release',
-    link: '/godot/install',
+    link: '/godot/',
   },
 ];
 
