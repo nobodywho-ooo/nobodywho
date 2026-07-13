@@ -9,7 +9,9 @@ To transcribe audio into text, NobodyWho provides an integration with the Whispe
 ```typescript
 import { STT } from "react-native-nobodywho";
 
-const stt = new STT("hf://onnx-community/whisper-base");
+const stt = new STT({
+  source: "hf://onnx-community/whisper-base",
+});
 
 const text = await stt.transcribeFile("recording.mp3").completed();
 console.log(text);
@@ -38,7 +40,10 @@ NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging
 You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
 
 ```typescript
-const stt = new STT("hf://onnx-community/whisper-base", undefined, "int8");
+const stt = new STT({
+  source: "hf://onnx-community/whisper-base",
+  quantization: "int8",
+});
 ```
 
 ## Improving performance
@@ -46,5 +51,8 @@ const stt = new STT("hf://onnx-community/whisper-base", undefined, "int8");
 By default, Whisper auto-detects the spoken language, which costs a bit of extra processing. If you already know the language, pass its ISO 639-1 code as `language` to skip detection and improve performance:
 
 ```typescript
-const stt = new STT("hf://onnx-community/whisper-base", "en");
+const stt = new STT({
+  source: "hf://onnx-community/whisper-base",
+  language: "en",
+});
 ```

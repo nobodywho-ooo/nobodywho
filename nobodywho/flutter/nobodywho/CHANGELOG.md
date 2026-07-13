@@ -22,6 +22,7 @@ Added an `Stt` class for offline transcription with Whisper ONNX models (`hf://o
 
 ### Fixes
 
+- **Gradle 9.0 compatible Android build (#627)** — the Android build script now injects the `ExecOperations` service instead of the `project.exec { }` call that was removed in Gradle 9.0, so the plugin builds cleanly on modern Gradle versions.
 - **Clearer Dart function-parsing errors (#575)** — tool functions that fail to parse now produce more actionable error messages.
 
 ### Under the hood
