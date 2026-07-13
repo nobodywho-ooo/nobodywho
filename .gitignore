@@ -9,6 +9,7 @@
 !.claude/commands/
 python_dev_envs/
 checkpoints/
+nobodywho/changelogs/
 docs/build/
 docs/node_modules/
 docs/.docusaurus/
