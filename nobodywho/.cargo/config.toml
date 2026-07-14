@@ -1,5 +1,5 @@
 # Runtime discovery for the dynamically-linked ggml/llama libs (dynamic-link
-# feature). The fork ships them next to each built artifact but emits no rpath, so
+# feature). llama-cpp-sys-2 ships them next to each built artifact but emits no rpath, so
 # bake $ORIGIN / @loader_path into everything we link to find the co-located libs.
 #
 # RUSTFLAGS env wins over this config, so CI sets the same rpath itself
@@ -13,7 +13,7 @@ rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
 rustflags = ["-C", "link-arg=-Wl,-rpath,@loader_path"]
 
 [env]
-# Inject build overrides into llama.cpp's CMake configure (the fork forwards
+# Inject build overrides into llama.cpp's CMake configure (llama-cpp-sys-2 forwards
 # CMAKE_-prefixed env as -D): disable cpp-httplib's OpenSSL (dynamic-link's shared
 # `common` drags in TLS symbols the macOS cross build can't link) and strip the
 # ggml/llama versioned SONAMEs so they're born unversioned. See the file for details.
