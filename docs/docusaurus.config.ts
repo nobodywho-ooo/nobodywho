@@ -190,7 +190,7 @@ const config: Config = {
         {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/'},
         {to: '/react-native/', label: 'React Native', position: 'left', activeBaseRegex: '/react-native/'},
         {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/'},
-        {to: '/godot/install', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
+        {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',
