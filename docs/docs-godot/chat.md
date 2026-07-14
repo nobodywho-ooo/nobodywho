@@ -10,6 +10,8 @@ Now let's dive deeper into the Chat component and show you all the settings and 
  
 The Chat component isn't just for conversations - it's your main interface for any kind of LLM processing, whether that's generating dialogue, analyzing text, creating content, or any other language task.
 
+Set the model node's `model_path` to `"auto"` to select a chat model based on available memory.
+
 In this guide, you'll learn:
 
 - The main settings that control LLM behavior

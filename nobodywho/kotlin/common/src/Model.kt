@@ -21,7 +21,7 @@ class Model internal constructor(
         /**
          * Load a GGUF model from a local path or remote URL.
          *
-         * @param modelPath Path to the .gguf file, `hf://owner/repo/file.gguf`, or an `https://` URL.
+         * @param modelPath Path to a .gguf file, `hf://` or `https://` URL, or `auto` for memory-based selection.
          * @param useGpu Enable GPU acceleration (default: true).
          * @param projectionModelPath Optional path to an mmproj file for vision models.
          * @param onDownloadProgress Optional callback receiving (downloadedBytes, totalBytes) during download.

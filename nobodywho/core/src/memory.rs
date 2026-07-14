@@ -1,4 +1,5 @@
-use crate::errors::MemoryError;
+use crate::errors::{MemoryDetectionError, MemoryError};
+use crate::host_memory::{self, HostMemory};
 use std::path::Path;
 use tracing::warn;
 
@@ -17,6 +18,18 @@ pub(crate) struct ModelArchitecture {
 pub struct LoadingPlan {
     pub gpu_layers: u32,
     pub warnings: Vec<String>,
+}
+
+pub(crate) struct AvailableMemory {
+    pub free_bytes: u64,
+    pub usable_bytes: u64,
+}
+
+#[derive(Clone, Copy)]
+struct GpuMemory {
+    free_bytes: u64,
+    total_bytes: u64,
+    shares_host_memory: bool,
 }
 
 fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
@@ -44,6 +57,70 @@ fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
             let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
             (is_gpu, device_free(d))
         })
+}
+
+fn gpu_shares_host_memory(
+    device_type: llama_cpp_2::LlamaBackendDeviceType,
+    backend: &str,
+    apple_unified_memory: bool,
+) -> bool {
+    matches!(
+        device_type,
+        llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+    ) || (apple_unified_memory && backend.eq_ignore_ascii_case("metal"))
+}
+
+fn available_model_memory_from(
+    host: HostMemory,
+    gpus: &[GpuMemory],
+    use_gpu: bool,
+) -> AvailableMemory {
+    let dedicated_gpu = if use_gpu {
+        gpus.iter()
+            .filter(|gpu| !gpu.shares_host_memory)
+            .max_by_key(|gpu| gpu.free_bytes)
+            .copied()
+    } else {
+        None
+    };
+    let total_bytes = host
+        .total_bytes
+        .saturating_add(dedicated_gpu.map(|gpu| gpu.total_bytes).unwrap_or(0));
+    let free_bytes = host
+        .available_bytes
+        .saturating_add(dedicated_gpu.map(|gpu| gpu.free_bytes).unwrap_or(0))
+        .min(total_bytes);
+
+    AvailableMemory {
+        free_bytes,
+        usable_bytes: free_bytes.min(total_bytes.saturating_mul(3) / 4),
+    }
+}
+
+pub(crate) fn available_model_memory(
+    use_gpu: bool,
+) -> Result<AvailableMemory, MemoryDetectionError> {
+    let host = host_memory::available()?;
+    let gpus = llama_cpp_2::list_llama_ggml_backend_devices()
+        .into_iter()
+        .filter(|device| {
+            matches!(
+                device.device_type,
+                llama_cpp_2::LlamaBackendDeviceType::Gpu
+                    | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+            )
+        })
+        .map(|device| GpuMemory {
+            free_bytes: device_free(&device),
+            total_bytes: device.memory_total as u64,
+            shares_host_memory: gpu_shares_host_memory(
+                device.device_type,
+                &device.backend,
+                cfg!(all(target_vendor = "apple", target_arch = "aarch64")),
+            ),
+        })
+        .collect::<Vec<_>>();
+    Ok(available_model_memory_from(host, &gpus, use_gpu))
 }
 
 fn read_gguf_model_info(path: &Path) -> Option<GgufModelInfo> {
@@ -234,4 +311,77 @@ pub(crate) fn plan_context(
         n_ubatch,
         warnings,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use llama_cpp_2::LlamaBackendDeviceType::{Gpu, IntegratedGpu};
+
+    const GIB: u64 = 1024 * 1024 * 1024;
+
+    fn host(available: u64, total: u64) -> HostMemory {
+        HostMemory {
+            available_bytes: available,
+            total_bytes: total,
+        }
+    }
+
+    fn gpu(free: u64, total: u64, shares_host_memory: bool) -> GpuMemory {
+        GpuMemory {
+            free_bytes: free,
+            total_bytes: total,
+            shares_host_memory,
+        }
+    }
+
+    #[test]
+    fn reserves_a_quarter_of_total_memory() {
+        let memory = available_model_memory_from(host(15 * GIB, 16 * GIB), &[], false);
+        assert_eq!(memory.free_bytes, 15 * GIB);
+        assert_eq!(memory.usable_bytes, 12 * GIB);
+    }
+
+    #[test]
+    fn uses_constrained_available_host_memory() {
+        let memory = available_model_memory_from(host(3 * GIB, 16 * GIB), &[], false);
+        assert_eq!(memory.free_bytes, 3 * GIB);
+        assert_eq!(memory.usable_bytes, 3 * GIB);
+    }
+
+    #[test]
+    fn does_not_double_count_integrated_gpu_memory() {
+        let memory = available_model_memory_from(
+            host(6 * GIB, 8 * GIB),
+            &[gpu(6 * GIB, 8 * GIB, true)],
+            true,
+        );
+        assert_eq!(memory.free_bytes, 6 * GIB);
+    }
+
+    #[test]
+    fn treats_apple_metal_gpu_as_unified_memory() {
+        assert!(gpu_shares_host_memory(Gpu, "Metal", true));
+        let memory = available_model_memory_from(
+            host(6 * GIB, 8 * GIB),
+            &[gpu(6 * GIB, 8 * GIB, true)],
+            true,
+        );
+        assert_eq!(memory.free_bytes, 6 * GIB);
+    }
+
+    #[test]
+    fn does_not_treat_discrete_metal_gpu_as_unified_memory() {
+        assert!(!gpu_shares_host_memory(Gpu, "Metal", false));
+        assert!(gpu_shares_host_memory(IntegratedGpu, "Vulkan", false));
+    }
+
+    #[test]
+    fn adds_discrete_gpu_memory_when_enabled() {
+        let gpus = [gpu(7 * GIB, 8 * GIB, false)];
+        let with_gpu = available_model_memory_from(host(6 * GIB, 8 * GIB), &gpus, true);
+        let without_gpu = available_model_memory_from(host(6 * GIB, 8 * GIB), &gpus, false);
+        assert_eq!(with_gpu.free_bytes, 13 * GIB);
+        assert_eq!(without_gpu.free_bytes, 6 * GIB);
+    }
 }

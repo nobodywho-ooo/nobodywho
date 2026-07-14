@@ -36,7 +36,7 @@ export class Model {
   /**
    * Load a GGUF model from a local path or remote URL.
    *
-   * @param opts.modelPath - Path to the GGUF model file, or a `hf://owner/repo/file.gguf` / `https://` URL to download and cache automatically
+   * @param opts.modelPath - Local path, `hf://` or `https://` URL, or `auto` for memory-based model selection
    * @param opts.useGpu - Use GPU acceleration if available (default: true)
    * @param opts.projectionModelPath - Path to a multimodal projector file for vision models
    * @param opts.onDownloadProgress - Invoked with `(downloaded, total)` byte counts while a remote model is being downloaded. Throttled to ~10 Hz with a guaranteed final emit on completion. Not invoked for cached/local files.

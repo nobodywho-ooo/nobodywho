@@ -7,6 +7,8 @@ sidebar_position: 1
 As you may have noticed in the [welcome guide](./), every interaction with your LLM starts by instantiating a `Chat` object.
 In the following sections, we talk about which configuration options it has, and when to use them.
 
+You can pass `"auto"` as the model path to select a chat model based on available memory.
+
 ## Prompts and responses
 
 The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a response.

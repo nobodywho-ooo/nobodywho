@@ -186,10 +186,11 @@ pub struct Model {
 
 impl Model {
     /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
-    /// or HTTPS URL. Remote models are downloaded and cached automatically.
+    /// HTTPS URL, or `auto` for memory-based selection. Remote models are downloaded
+    /// and cached automatically.
     ///
     /// Args:
-    ///     model_path: Path or URL to a GGUF model file.
+    ///     model_path: Path, URL, or `auto`.
     ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
     ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
     ///         final emit on completion. Not invoked for cached/local files.

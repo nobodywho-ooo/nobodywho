@@ -186,8 +186,8 @@ pub struct RustModel {
 
 /// Load a GGUF model from a local path or remote URL.
 ///
-/// Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
-/// or `https://` URLs. Downloaded models are cached automatically.
+/// Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
+/// or `auto` for memory-based selection. Downloaded models are cached automatically.
 ///
 /// This is a free function instead of an async constructor because
 /// uniffi-bindgen-react-native generates invalid JS (`async static` instead

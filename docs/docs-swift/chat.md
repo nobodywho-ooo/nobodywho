@@ -18,7 +18,7 @@ import NobodyWho
 let chat = try await Chat.fromPath(modelPath: "/path/to/model.gguf")
 ```
 
-The `modelPath` parameter accepts a local file path, a Hugging Face `hf://` URL, or an `https://` URL:
+The `modelPath` parameter accepts a local file path, a Hugging Face `hf://` URL, an `https://` URL, or `"auto"` to select a chat model based on available memory:
 
 ```swift
 // From a Hugging Face repository

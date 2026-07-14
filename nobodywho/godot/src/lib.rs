@@ -126,7 +126,8 @@ fn build_tts_config(
 /// - a local filesystem path (`/absolute/path/to/model.gguf` or `./relative.gguf`),
 /// - a Godot-virtual path (`res://models/foo.gguf`, `user://downloaded.gguf`),
 /// - a HuggingFace reference (`huggingface:owner/repo/file.gguf` or `hf://owner/repo/file.gguf`),
-/// - a plain HTTPS URL (`https://example.com/model.gguf`).
+/// - a plain HTTPS URL (`https://example.com/model.gguf`),
+/// - `auto` to select a text-generation model based on available memory.
 ///
 /// Remote models are downloaded to the platform cache directory once and re-used on
 /// subsequent loads. Downloads run on a background thread; connect to the consumer

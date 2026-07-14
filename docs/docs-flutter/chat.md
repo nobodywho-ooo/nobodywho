@@ -26,6 +26,8 @@ final chat = nobodywho.Chat(model : model);
 
 This allows for sharing the model between several `Chat` instances.
 
+You can pass `"auto"` as `modelPath` to select a chat model based on available memory.
+
 ## Prompts and responses
 
 The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a response.

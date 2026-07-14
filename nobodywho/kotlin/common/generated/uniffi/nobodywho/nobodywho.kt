@@ -1177,7 +1177,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 58712.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935.toShort()) {
@@ -7214,8 +7214,8 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         /**
          * Load a GGUF model from a local path or remote URL.
          *
-         * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
-         * or `https://` URLs. Downloaded models are cached automatically.
+         * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
+         * or `auto` for memory-based selection. Downloaded models are cached automatically.
          *
          * This is a free function instead of an async constructor because
          * uniffi-bindgen-react-native generates invalid JS (`async static` instead
