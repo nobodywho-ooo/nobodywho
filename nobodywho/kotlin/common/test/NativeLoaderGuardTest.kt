@@ -5,13 +5,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Enforces the invariant that the generated UniFFI loader stages the bundled native libs
- * (see [NativeLoader]) *before* JNA registers the binding. The hook lives inside the
- * generated `nobodywho.kt`, at both `Native.register` sites, and is re-injected on every
- * regeneration by the inject-native-loader.py script in the justfile / regen_checks.yml.
- * This test fails loudly
- * if a regeneration ever drops it — which would silently reintroduce the packaged-JAR
- * UnsatisfiedLinkError this guards against. See kotlin/DEVELOPMENT.md.
+ * Guards that the generated `nobodywho.kt` calls [NativeLoader.ensureLoaded] before each
+ * `Native.register` — re-injected on every regeneration by inject-native-loader.py (see the
+ * justfile / regen_checks.yml). Fails loudly if a regeneration drops it, which would
+ * silently reintroduce the packaged-JAR UnsatisfiedLinkError. See kotlin/DEVELOPMENT.md.
  */
 class NativeLoaderGuardTest {
     private val generated = File("generated/uniffi/nobodywho/nobodywho.kt")

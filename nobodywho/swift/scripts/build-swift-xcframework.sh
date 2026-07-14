@@ -50,8 +50,7 @@ echo "Building nobodywho-uniffi for watchOS simulator (aarch64-apple-watchos-sim
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos-sim --release
 
 # The framework module is named `nobodywhoFFI` so the generated
-# `nobodywho.swift`'s `import nobodywhoFFI` resolves (validated with
-# `swift build --target NobodyWhoGenerated`). The SPM binaryTarget in
+# `nobodywho.swift`'s `import nobodywhoFFI` resolves. The SPM binaryTarget in
 # Package.swift stays named NobodyWhoNative — the vended module name is
 # independent of the binaryTarget name, so Package.swift needs no change.
 FRAMEWORK_NAME=nobodywhoFFI

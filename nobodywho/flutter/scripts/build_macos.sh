@@ -83,8 +83,7 @@ fi
 echo ""
 echo "Step 3/3: Creating XCFramework..."
 
-# Universal macOS source dir: lipo the binding dylib + every ggml/llama dylib
-# (dynamic-link) across both arches, then assemble a versioned framework via the helpers.
+# Universal macOS source dir: lipo the binding + every ggml/llama dylib across both arches.
 SCRIPTS="$(cd "$(dirname "$0")/../.." && pwd)/scripts"
 HELPER="$SCRIPTS/make-apple-framework.sh"
 USRC="$TARGET_DIR/universal-macos/$BUILD_TYPE"
@@ -95,12 +94,10 @@ lipo -create "$DAR_ARM/libnobodywho_flutter.dylib" "$DAR_X64/libnobodywho_flutte
     -output "$USRC/libnobodywho_flutter.dylib"
 bash "$SCRIPTS/lipo-apple-libs.sh" "$DAR_ARM" "$DAR_X64" "$USRC"
 
-# Clean existing xcframework and assemble (versioned macOS framework)
 rm -rf "$XCFRAMEWORK_OUTPUT"
 FW_OUT="$USRC/fw"; rm -rf "$FW_OUT"; mkdir -p "$FW_OUT"
 bash "$HELPER" "$USRC" libnobodywho_flutter.dylib nobodywho_flutter versioned "$FW_OUT" "" ooo.nobodywho.flutter
 
-# Create XCFramework (macOS only)
 xcodebuild -create-xcframework \
     -framework "$FW_OUT/nobodywho_flutter.framework" \
     -output "$XCFRAMEWORK_OUTPUT"

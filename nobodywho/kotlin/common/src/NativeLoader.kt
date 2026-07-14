@@ -7,19 +7,15 @@ import java.net.JarURLConnection
 /**
  * Stages the bundled native libraries so JNA can load the full dynamic-link graph.
  *
- * Under the dynamic-link build the binding lib (`nobodywho_uniffi`) is no longer
- * self-contained: it depends on co-located `libggml*`/`libllama*` siblings resolved
- * through its own `$ORIGIN`/`@loader_path` rpath. JNA's default resource loading
- * extracts only the *named* library to a private temp dir, leaving the siblings
- * undiscoverable — an `UnsatisfiedLinkError` at first use.
+ * Under dynamic-link the binding lib (`nobodywho_uniffi`) depends on co-located
+ * `libggml*`/`libllama*` siblings via its own `$ORIGIN`/`@loader_path` rpath, but JNA
+ * extracts only the *named* library from JAR resources to a private temp dir — leaving
+ * the siblings undiscoverable (`UnsatisfiedLinkError` at first use). [ensureLoaded] copies
+ * the whole resource dir (binding + siblings) into one temp dir and prepends it to
+ * `jna.library.path`, so the rpath finds the siblings alongside the binding.
  *
- * [ensureLoaded] copies every lib packaged under the JNA resource prefix (binding +
- * siblings) into a single temp directory and prepends it to `jna.library.path`, so
- * JNA loads the binding from there and its rpath finds the siblings alongside it.
- *
- * It is a no-op when the libs are not packaged as JAR resources:
- *  - Android, where the OS loader resolves NEEDED libs from `jniLibs/<abi>`;
- *  - tests, which point `jna.library.path` at the co-located cargo build dir.
+ * No-op when the libs aren't JAR resources: Android (OS loader resolves from
+ * `jniLibs/<abi>`) and tests (point `jna.library.path` at the cargo build dir).
  */
 internal object NativeLoader {
     @Volatile private var done = false
@@ -63,8 +59,7 @@ internal object NativeLoader {
                 out.deleteOnExit()
             }
         } else {
-            // Exploded on disk (e.g. `gradle run` off a classes dir): copy the siblings
-            // sitting next to the binding lib in the resource directory.
+            // Exploded on disk (e.g. `gradle run`): copy the siblings next to the binding.
             val srcDir = File(url.toURI()).parentFile ?: return
             srcDir.listFiles()?.forEach { f ->
                 if (!f.isFile) return@forEach

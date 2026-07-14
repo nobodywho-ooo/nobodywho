@@ -111,14 +111,11 @@ val resolveNativeLibraries by tasks.registering {
                 rename { "libnobodywho_flutter.so" }
             }
 
-            // Copy the dynamically-linked ggml/llama .so (dynamic-link feature)
-            // that sit next to the resolved library into the same jniLibs/<abi>
-            // dir. Android's loader resolves NEEDED libs from there at runtime.
+            // Copy the ggml/llama siblings into jniLibs/<abi>, where the Android loader resolves NEEDED libs.
             val resolvedLibDir = File(resolvedLibPath).parentFile
             copy {
                 from(resolvedLibDir) {
-                    // libonnxruntime.so is present for x86_64 android only (arm64 links
-                    // ORT statically); the include simply matches nothing for arm64.
+                    // libonnxruntime.so exists for x86_64 android only (arm64 links ORT statically).
                     include("libggml*.so", "libllama*.so", "libonnxruntime*.so")
                 }
                 into(abiOutputDir)

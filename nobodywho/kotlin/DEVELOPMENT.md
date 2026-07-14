@@ -51,8 +51,8 @@ cargo run --bin uniffi-bindgen -- generate \
   --out-dir kotlin/common/generated
 
 # Re-inject the NativeLoader hook that uniffi-bindgen overwrites (dynamic-link: the
-# binding lib's ggml/llama siblings must be staged before Native.register). Idempotent —
-# safe to re-run. Same step used by `just regen-uniffi` and the regen_checks CI job.
+# binding lib's ggml/llama siblings must be staged before Native.register). Idempotent;
+# same step used by `just regen-uniffi` and the regen_checks CI job.
 python3 scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
 ```
 

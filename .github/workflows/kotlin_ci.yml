@@ -63,8 +63,7 @@ jobs:
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
         run: ./gradlew :nobodywho-core:test
 
-      # Bundle the binding lib + its ggml/llama siblings into the JVM JAR resources
-      # (JNA layout), mirroring the release packaging.
+      # Bundle the binding + ggml/llama siblings into the JVM JAR resources (JNA layout), mirroring release.
       - name: "Bundle native libs into JVM JAR resources"
         run: |
           d=./native-lib

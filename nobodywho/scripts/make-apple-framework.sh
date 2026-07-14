@@ -30,13 +30,11 @@ else
     mkdir -p "$ROOT"
 fi
 
-# main binary
 cp -L "$SRC_DIR/$DYLIB" "$ROOT/$FW_NAME"
 install_name_tool -id "@rpath/$FW_NAME.framework/$FW_NAME" "$ROOT/$FW_NAME"
 install_name_tool -add_rpath "@loader_path" "$ROOT/$FW_NAME" 2>/dev/null || true
 
-# Embedded ggml/llama dylibs (real files; libX.dylib is now unversioned via the
-# reset-soversion override, cp -L dereferences any stray symlink to a real object).
+# Embed the ggml/llama dylibs. cp -L dereferences any stray symlink to a real file.
 for real in "$SRC_DIR"/libggml*.dylib "$SRC_DIR"/libllama*.dylib; do
     [ -e "$real" ] || continue
     name=$(basename "$real")
@@ -45,7 +43,7 @@ for real in "$SRC_DIR"/libggml*.dylib "$SRC_DIR"/libllama*.dylib; do
     install_name_tool -add_rpath "@loader_path" "$ROOT/$name" 2>/dev/null || true
 done
 
-# optional uniffi FFI module (framework modulemap with umbrella header)
+# optional uniffi FFI module
 if [ -n "$FFI_HEADER" ]; then
     mkdir -p "$ROOT/Headers" "$ROOT/Modules"
     cp "$FFI_HEADER" "$ROOT/Headers/"
@@ -57,9 +55,8 @@ framework module $FW_NAME {
 EOF
 fi
 
-# A versioned (macOS) framework keeps Info.plist under Resources/ (where the
-# Resources symlink points and CFBundle/codesign expect it); a flat (iOS et al.)
-# framework keeps it at the bundle root.
+# Versioned (macOS) frameworks keep Info.plist in Resources/ (the Resources symlink
+# target, where codesign expects it); flat (iOS et al.) keep it at the bundle root.
 if [ "$LAYOUT" = versioned ]; then
     PLIST="$ROOT/Resources/Info.plist"
 else

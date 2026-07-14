@@ -3,12 +3,10 @@ entry_symbol = "gdext_rust_init"
 compatibility_minimum = 4.5
 reloadable = true
 
-# Each platform's binding library lives in a per-target subdirectory alongside
-# its dynamically-linked ggml/llama libraries (the `dynamic-link` feature). A
-# per-target subdir is required because the ggml libs have generic filenames
-# (libggml.so, ...) that would otherwise collide between same-OS architectures
-# (e.g. linux x86_64 vs arm64). The binding library carries an $ORIGIN /
-# @loader_path rpath, so the loader finds its sibling ggml libs in the same dir.
+# Per-target subdirectory: the ggml/llama libs (dynamic-link feature) have generic
+# filenames (libggml.so, ...) that would collide between same-OS architectures
+# (linux x86_64 vs arm64) in a flat dir. The binding's $ORIGIN/@loader_path rpath
+# finds its siblings in the same dir.
 [libraries]
 linux.debug.x86_64 =     "res://addons/nobodywho/x86_64-unknown-linux-gnu/libnobodywho-godot-x86_64-unknown-linux-gnu-debug.so"
 linux.release.x86_64 =   "res://addons/nobodywho/x86_64-unknown-linux-gnu/libnobodywho-godot-x86_64-unknown-linux-gnu-release.so"
@@ -23,11 +21,10 @@ macos.release.arm64 =    "res://addons/nobodywho/aarch64-apple-darwin/libnobodyw
 android.debug.arm64 =      "res://addons/nobodywho/aarch64-linux-android/libnobodywho-godot-aarch64-linux-android-debug.so"
 android.release.arm64 =    "res://addons/nobodywho/aarch64-linux-android/libnobodywho-godot-aarch64-linux-android-release.so"
 
-# Dependent shared libraries Godot must ship next to the binding on export. The
-# empty destination string keeps each dependency in the same directory as the
-# binding library (where its rpath expects it). NOTE: the exact ggml lib set per
-# platform is confirmed against a CI build — macOS ships libggml-metal, Linux
-# ships libggml-vulkan, Android (no Vulkan/Metal) ships CPU only.
+# Dependencies Godot ships next to the binding on export; the empty destination
+# string keeps each in the binding's directory (where its rpath expects it). The
+# per-platform ggml set differs: macOS libggml-metal, Linux libggml-vulkan,
+# Android CPU only (no Vulkan/Metal).
 [dependencies]
 linux.debug.x86_64 = { "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml-base.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml-cpu.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml-vulkan.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libllama.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libllama-common.so": "" }
 linux.release.x86_64 = { "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml-base.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml-cpu.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libggml-vulkan.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libllama.so": "", "res://addons/nobodywho/x86_64-unknown-linux-gnu/libllama-common.so": "" }

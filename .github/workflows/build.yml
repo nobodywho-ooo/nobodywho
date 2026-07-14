@@ -37,8 +37,7 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     env:
-      # $ORIGIN rpath so each artifact finds its co-located ggml/llama libs (dynamic-link).
-      # Set here because RUSTFLAGS env overrides .cargo/config.toml rustflags.
+      # $ORIGIN rpath, duplicated from .cargo/config.toml because RUSTFLAGS env overrides it.
       RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,-rpath,$ORIGIN' || '-C link-arg=-Wl,-rpath,$ORIGIN' }}
     steps:
       - uses: actions/checkout@v5
@@ -89,9 +88,7 @@ jobs:
         run: |
           PROFILE="./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}"
           cp "$PROFILE/libnobodywho_${{ matrix.integration }}.so" ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
-          # dynamic-link: ship the sibling ggml/llama libs (born unversioned + $ORIGIN-rpath'd
-          # by the CMake override, llama-build-overrides.cmake) next to the binding. The real
-          # .so live nested in the CMake build tree, so find them recursively.
+          # ggml/llama .so are nested in the build tree, so gather them recursively.
           find "$PROFILE" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} ./ \;
 
       - name: "Upload build artifact"
@@ -203,10 +200,7 @@ jobs:
         run: |
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
-          # dynamic-link: ship the ggml/llama DLLs alongside the binding. On
-          # Windows the loader searches the loading module's own directory for its
-          # imports, so co-locating them next to the binding DLL resolves them.
-          # (No `lib` prefix on MSVC: ggml.dll, ggml-base.dll, ggml-vulkan.dll, llama.dll, ...)
+          # Windows resolves imports from the loading module's dir; ship the ggml/llama DLLs alongside (no lib prefix on MSVC).
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/ggml*.dll ./ 2>$null
           cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/llama*.dll ./ 2>$null
 
@@ -370,11 +364,7 @@ jobs:
             cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
               ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
           fi
-          # dynamic-link: ship the shared ggml/llama libs alongside the binding.
-          # Glob covers libggml, libggml-base, libggml-cpu, libggml-metal, libllama
-          # and libllama-common — born unversioned by the CMake SOVERSION override, so
-          # real files with no symlink chain. -L dereferences any stray symlink defensively.
-          # No-op for the static-only uniffi .a slices, which have no sibling dylibs.
+          # Ship the ggml/llama dylibs alongside; -L dereferences any symlink. No-op for the .a slices.
           cp -L ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libggml*.dylib ./ 2>/dev/null || true
           cp -L ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libllama*.dylib ./ 2>/dev/null || true
 
@@ -406,22 +396,18 @@ jobs:
 
       - name: Build XCFramework
         run: |
-          # Dynamic frameworks with the ggml/llama dylibs embedded (dynamic-link).
-          # No FFI modulemap: flutter_rust_bridge links the framework binary directly.
+          # No FFI modulemap arg: flutter_rust_bridge links the framework binary directly.
           HELPER=nobodywho/scripts/make-apple-framework.sh
           ios_sim=artifacts/nobodywho-flutter-aarch64-apple-ios-sim-release
           ios_dev=artifacts/nobodywho-flutter-aarch64-apple-ios-release
           dar_arm=artifacts/nobodywho-flutter-aarch64-apple-darwin-release
           dar_x64=artifacts/nobodywho-flutter-x86_64-apple-darwin-release
 
-          # iOS simulator / device (single arch)
           bash "$HELPER" "$ios_sim" libnobodywho-flutter-aarch64-apple-ios-sim-release.dylib \
             nobodywho_flutter flat ios-sim ""  ooo.nobodywho.flutter
           bash "$HELPER" "$ios_dev" libnobodywho-flutter-aarch64-apple-ios-release.dylib \
             nobodywho_flutter flat ios-device "" ooo.nobodywho.flutter
 
-          # macOS universal: lipo the main dylib + every ggml/llama dylib across both
-          # arches, then assemble a versioned framework.
           mkdir -p universal-src
           lipo -create -output universal-src/libnobodywho_flutter.dylib \
             "$dar_arm/libnobodywho-flutter-aarch64-apple-darwin-release.dylib" \
@@ -462,9 +448,8 @@ jobs:
 
       - name: "Build dynamic-framework XCFramework"
         run: |
-          # Dynamic frameworks with ggml/llama embedded. No FFI modulemap/header:
-          # uniffi-bindgen-react-native's generated C++ links the framework binary's
-          # symbols directly. CocoaPods `vendored_frameworks` embeds & signs it.
+          # No FFI modulemap/header: uniffi-bindgen-react-native's generated C++ links
+          # the framework binary's symbols directly; CocoaPods `vendored_frameworks` embeds it.
           HELPER=nobodywho/scripts/make-apple-framework.sh
           bash "$HELPER" artifacts/nobodywho-uniffi-aarch64-apple-ios-release \
             libnobodywho-uniffi-aarch64-apple-ios-release.dylib NobodywhoFramework flat device
@@ -501,9 +486,8 @@ jobs:
 
       - name: "Build dynamic-framework XCFramework"
         run: |
-          # Dynamic frameworks (uniffi .dylib) with the ggml/llama dylibs embedded.
-          # Verified on macOS + iOS simulator. The framework module is `nobodywhoFFI`
-          # so the generated swift's `import nobodywhoFFI` resolves.
+          # The framework module is `nobodywhoFFI` so the generated swift's
+          # `import nobodywhoFFI` resolves.
           HELPER=nobodywho/scripts/make-apple-framework.sh
           HDR=nobodywho/swift/generated/nobodywhoFFI.h
           mkslice() { # $1=target $2=layout $3=slice-out-dir
@@ -537,9 +521,8 @@ jobs:
           name: nobodywho-swift-xcframework
           path: ./NobodyWhoNative.xcframework.zip
 
-  # Runtime smoke test: prove the dynamically-linked ggml/llama graph resolves on
-  # an actual iOS simulator (guards the "opaque to Apple consumers" promise —
-  # install_name/rpath/embedding mistakes surface here instead of on a user device).
+  # Runtime smoke test: prove the dynamically-linked ggml/llama graph resolves on a real
+  # iOS simulator — rpath/install_name/embedding mistakes surface here, not on a user device.
   apple-runtime-smoke:
     if: inputs.full_ci
     runs-on: warp-macos-15-arm64-6x
@@ -550,10 +533,9 @@ jobs:
       - name: "Download iOS simulator uniffi artifact"
         uses: actions/download-artifact@v5
         with:
-          # Use `name:` (not `pattern:`) so the single artifact's contents extract
-          # directly into `path` — a single-match `pattern` extracts to the path root
-          # WITHOUT a per-artifact subdir, which would leave artifacts/<name>/ empty.
-          # Point `path` straight at the SRC dir the smoke step reads.
+          # Use `name:` (not `pattern:`): `name:` extracts the artifact's contents
+          # directly into `path`, whereas a single-match `pattern` extracts to the path
+          # root without a per-artifact subdir, leaving artifacts/<name>/ empty.
           name: nobodywho-uniffi-aarch64-apple-ios-sim-release
           path: artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release
 
@@ -569,7 +551,6 @@ jobs:
           xcrun -sdk iphonesimulator clang -target arm64-apple-ios15.0-simulator \
             -isysroot "$SDK" nobodywho/scripts/apple-dlopen-smoke.c -o smoke/dlopen-smoke
 
-          # Boot the first available iOS simulator
           UDID=$(xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}') || true
           if [ -z "$UDID" ]; then
             RT=$(xcrun simctl list runtimes | grep -m1 -oE 'com.apple.CoreSimulator.SimRuntime.iOS[^ ]*')
@@ -699,9 +680,7 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
             cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
           fi
-          # dynamic-link: ship the sibling ggml/llama .so (born unversioned by the CMake
-          # override); the Android loader resolves NEEDED libs from the jniLibs/<abi> dir.
-          # The real .so live nested in the CMake build tree, so find them recursively.
+          # ggml/llama .so are nested in the build tree; gather recursively (Android loads them from jniLibs/<abi>).
           PROFILE="./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}"
           find "$PROFILE" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} ./ \;
 

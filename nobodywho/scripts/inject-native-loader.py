@@ -2,15 +2,14 @@
 """Idempotently inject the NativeLoader hook into the generated UniFFI Kotlin bindings.
 
 uniffi-bindgen overwrites `kotlin/common/generated/uniffi/nobodywho/nobodywho.kt` on every
-regeneration, dropping our loader hook. Under dynamic-link the binding lib depends on
-co-located ggml/llama siblings that JNA does not stage on its own (see NativeLoader.kt), so
+regeneration, dropping our hook. Under dynamic-link the binding lib depends on co-located
+ggml/llama siblings JNA does not stage on its own (see NativeLoader.kt), so
 `ai.nobodywho.NativeLoader.ensureLoaded()` must run before `Native.register`. uniffi 0.30's
-Kotlin backend exposes no template-override hook, so re-injecting here after generation is
-the supported path (kept honest by NativeLoaderGuardTest).
+Kotlin backend has no template-override hook, so re-injecting after generation is the
+supported path (kept honest by NativeLoaderGuardTest).
 
-This inserts the hook as the first statement of every `Native.register(...)` block. It is
-idempotent by construction: a register already preceded by the hook is left untouched, so
-running it twice never duplicates the line.
+The hook goes in as the first statement of every `Native.register(...)` block; a register
+already preceded by it is skipped, so running twice never duplicates the line.
 
 Usage: inject-native-loader.py <path-to-nobodywho.kt>
 """

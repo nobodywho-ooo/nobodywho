@@ -126,9 +126,7 @@ jobs:
             --library ../uniffi-host/libnobodywho_uniffi.so \
             --language kotlin \
             --out-dir kotlin/common/generated
-          # Re-inject the NativeLoader hook uniffi-bindgen overwrites (dynamic-link: stage
-          # the ggml/llama siblings before Native.register). Idempotent; kept in sync with
-          # the committed file by NativeLoaderGuardTest. See kotlin/DEVELOPMENT.md.
+          # uniffi-bindgen drops our NativeLoader hook on regen; re-inject it (see kotlin/DEVELOPMENT.md).
           python3 scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
 
       - name: "Verify committed Kotlin bindings are up to date"

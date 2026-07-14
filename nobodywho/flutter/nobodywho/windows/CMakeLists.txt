@@ -48,8 +48,7 @@ endif()
 
 message(STATUS "Using NobodyWho library for Windows ${WINDOWS_ARCH}: ${NOBODYWHO_LIB_PATH}")
 
-# The dynamically-linked ggml/llama DLLs (dynamic-link feature) sit next to the
-# resolved binding DLL; bundle them too so Windows resolves them from the app dir.
+# Bundle the ggml/llama DLLs; Windows resolves them from the loading module's (app) dir.
 get_filename_component(NOBODYWHO_LIB_DIR "${NOBODYWHO_LIB_PATH}" DIRECTORY)
 file(GLOB NOBODYWHO_GGML_LIBS
   "${NOBODYWHO_LIB_DIR}/ggml*.dll"

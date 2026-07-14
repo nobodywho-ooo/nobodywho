@@ -84,9 +84,7 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
-      # Test the shipped artifact: download the prebuilt cdylib + ggml/llama libs,
-      # set up Flutter, expose LD_LIBRARY_PATH (needs the build job — gated on the
-      # parent `test` job's needs: [build] in main.yml).
+      # Consumes the build job's prebuilt artifact (gated on `test`'s needs: [build] in main.yml).
       - uses: ./.github/actions/flutter-native-lib
 
       - name: Download vision models
@@ -108,8 +106,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      # Test the shipped artifact (see multimodal job). ONNX Runtime is statically
-      # linked into the cdylib, so no separate onnx lib is needed.
+      # ONNX Runtime is statically linked into the cdylib, so no separate onnx lib is needed.
       - uses: ./.github/actions/flutter-native-lib
 
       - name: Download Whisper model

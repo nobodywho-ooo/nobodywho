@@ -2,9 +2,8 @@
 # feature). The fork ships them next to each built artifact but emits no rpath, so
 # bake $ORIGIN / @loader_path into everything we link to find the co-located libs.
 #
-# Cargo uses only ONE rustflags source: the RUSTFLAGS env var wins over this config.
-# CI sets RUSTFLAGS, so it must append the same rpath there (see .github/workflows);
-# this covers local dev/test/build. Android resolves from jniLibs; Windows from the
+# RUSTFLAGS env wins over this config, so CI sets the same rpath itself
+# (see .github/workflows); this covers local dev. Android uses jniLibs, Windows the
 # loading module's dir.
 
 [target.'cfg(target_os = "linux")']

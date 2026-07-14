@@ -34,10 +34,8 @@ jobs:
           run: |
             ADDON=nobodywho-release/bin/addons/nobodywho
             mkdir -p "$ADDON"
-            # Lay each platform's libraries into a per-target subdirectory (the
-            # dynamically-linked ggml/llama libs have generic filenames that would
-            # collide between same-OS architectures in a flat dir). The binding
-            # library's $ORIGIN/@loader_path rpath finds its ggml siblings there.
+            # Per-target subdir: the ggml/llama libs have generic filenames that would collide
+            # between same-OS arches in a flat dir; the binding's rpath finds its siblings there.
             for d in ./artifacts/nobodywho-godot-*/; do
               name=$(basename "$d"); rest=${name#nobodywho-godot-}
               triple=${rest%-debug}; triple=${triple%-release}
@@ -45,9 +43,8 @@ jobs:
               # binding library (+ .pdb) — profile-encoded name, debug & release coexist
               cp -P "$d"/*nobodywho-godot* "$ADDON/$triple/" 2>/dev/null || true
             done
-            # ggml/llama libs: copy once per target from the release artifact
-            # (a debug binding loads the release ggml — same ABI/version). Covers
-            # both lib-prefixed (.so/.dylib) and MSVC (ggml.dll/llama.dll) names.
+            # ggml/llama: copy once per target from the release artifact (a debug binding loads
+            # the release ggml — same ABI). Covers lib-prefixed (.so/.dylib) and MSVC (.dll) names.
             for d in ./artifacts/nobodywho-godot-*-release/; do
               name=$(basename "$d"); triple=${name#nobodywho-godot-}; triple=${triple%-release}
               cp -P "$d"/libggml* "$d"/libllama* "$d"/ggml* "$d"/llama* "$ADDON/$triple/" 2>/dev/null || true
@@ -194,9 +191,8 @@ jobs:
           mkdir -p "$OUT"
           # Apple xcframework (ggml embedded inside — shipped as one zip)
           cp artifacts/nobodywho-flutter-xcframework/nobodywho_flutter.xcframework.zip "$OUT/"
-          # Desktop/Android: the triple-named binding lib + the ggml/llama libs
-          # republished per-triple (base-<triple>-release.ext) matching what
-          # tool/resolve_binary.dart downloads and renames back on the consumer.
+          # Desktop/Android: republish the binding + ggml/llama libs per-triple
+          # (base-<triple>-release.ext), matching what tool/resolve_binary.dart downloads.
           for d in artifacts/nobodywho-flutter-*-release/; do
             name=$(basename "$d"); triple=${name#nobodywho-flutter-}; triple=${triple%-release}
             [ "$triple" = "xcframework" ] && continue
@@ -263,14 +259,12 @@ jobs:
         run: |
           set -euo pipefail
           OUT=nobodywho-react-native-release
-          # Per-ABI: keep the triple-named binding .so and republish the generically
-          # named ggml/llama .so with a triple suffix (release assets are a flat
-          # namespace — libggml.so from two ABIs would otherwise collide). The
+          # Republish the generically-named ggml/llama .so with a triple suffix — release
+          # assets are a flat namespace where libggml.so from two ABIs would collide. The
           # Android gradle downloader renames them back to their SONAME in jniLibs.
           collect() { # $1=src-dir  $2=triple
             cp "$1/libnobodywho-uniffi-$2-release.so" "$OUT/"
-            # libonnxruntime*.so is present for x86_64 android only (arm64 links ORT
-            # statically); the glob simply matches nothing for arm64.
+            # libonnxruntime*.so exists for x86_64 android only (arm64 links ORT statically); glob matches nothing there.
             for so in "$1"/libggml*.so "$1"/libllama*.so "$1"/libonnxruntime*.so; do
               [ -e "$so" ] || continue
               b=$(basename "$so" .so)
@@ -387,8 +381,7 @@ jobs:
       - name: "List artifacts"
         run: ls -la artifacts/
 
-      # Place Android native libs for AAR. Android's loader resolves NEEDED libs
-      # from the same jniLibs/<abi> dir, so co-locating ggml/llama there works.
+      # Place Android native libs for the AAR; the loader resolves NEEDED libs from jniLibs/<abi>.
       - name: "Setup Android jniLibs"
         run: |
           mkdir -p nobodywho/kotlin/android/build/jniLibs/{arm64-v8a,x86_64}
@@ -402,12 +395,9 @@ jobs:
           place_android aarch64-linux-android arm64-v8a
           place_android x86_64-linux-android  x86_64
 
-      # Place desktop native libs for JVM JAR (JNA layout): the binding lib plus its
-      # co-located ggml/llama siblings. JNA extracts only the *named* library to a temp
-      # dir, so the Kotlin `common` NativeLoader stages ALL libs from the resource dir
-      # into one temp dir and prepends it to jna.library.path before the first FFI call,
-      # letting the binding's $ORIGIN/@loader_path rpath resolve the siblings — see
-      # nobodywho/kotlin/common/src/NativeLoader.kt.
+      # Place desktop native libs for the JVM JAR (JNA layout): the binding lib plus its
+      # co-located ggml/llama siblings, staged at load time by the `common` NativeLoader
+      # (see nobodywho/kotlin/common/src/NativeLoader.kt).
       - name: "Setup JVM native libs"
         run: |
           mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64}

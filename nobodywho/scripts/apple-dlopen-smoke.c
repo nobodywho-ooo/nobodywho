@@ -1,7 +1,7 @@
 // Apple runtime smoke test for the dynamically-linked ggml/llama framework.
 // dlopen(RTLD_NOW) forces every symbol to bind, which pulls in the entire
 // embedded ggml/llama dylib graph — so a successful load proves the graph
-// resolves at runtime (used in CI on an iOS simulator, and locally on macOS).
+// resolves at runtime.
 //
 // argv[1] = path to the framework binary (…/<name>.framework/<name>)
 #include <dlfcn.h>

@@ -92,8 +92,6 @@ fi
 echo ""
 echo "Step 4/4: Creating XCFramework..."
 
-# Assemble flat framework bundles (dylibs sit next to the binary) with the embedded
-# ggml/llama dylibs (dynamic-link) via the shared helpers.
 SCRIPTS="$(cd "$(dirname "$0")/../.." && pwd)/scripts"
 HELPER="$SCRIPTS/make-apple-framework.sh"
 
@@ -109,7 +107,6 @@ bash "$SCRIPTS/lipo-apple-libs.sh" "$SIM_ARM" "$SIM_X64" "$USIM"
 IOS_SIM_OUT="$USIM/fw"; rm -rf "$IOS_SIM_OUT"; mkdir -p "$IOS_SIM_OUT"
 bash "$HELPER" "$USIM" libnobodywho_flutter.dylib nobodywho_flutter flat "$IOS_SIM_OUT" "" ooo.nobodywho.flutter
 
-# iOS device (single arch)
 IOS_DEV_OUT="$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE/fw"; rm -rf "$IOS_DEV_OUT"; mkdir -p "$IOS_DEV_OUT"
 bash "$HELPER" "$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE" libnobodywho_flutter.dylib \
     nobodywho_flutter flat "$IOS_DEV_OUT" "" ooo.nobodywho.flutter
@@ -117,7 +114,6 @@ bash "$HELPER" "$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE" libnobodywho_flutter.
 # Clean existing xcframework
 rm -rf "$XCFRAMEWORK_OUTPUT"
 
-# Create XCFramework
 xcodebuild -create-xcframework \
     -framework "$IOS_DEV_OUT/nobodywho_flutter.framework" \
     -framework "$IOS_SIM_OUT/nobodywho_flutter.framework" \
