@@ -214,6 +214,8 @@ impl Model {
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
+            None,
+            false,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -396,6 +398,8 @@ impl RustChat {
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
+            None,
+            false,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -756,6 +760,8 @@ impl Encoder {
             model_path,
             use_gpu,
             None,
+            None,
+            false,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -808,6 +814,8 @@ impl CrossEncoder {
             model_path,
             use_gpu,
             None,
+            None,
+            false,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;

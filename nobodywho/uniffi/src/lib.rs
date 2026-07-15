@@ -212,6 +212,8 @@ pub async fn load_model(
         model_path.clone(),
         use_gpu,
         projection_model_path,
+        None,
+        false,
         progress,
     )
     .await

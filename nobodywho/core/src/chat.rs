@@ -11,7 +11,7 @@
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
+//! let model = Arc::new(llm::get_model("model.gguf", true, None, None, false, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
@@ -232,7 +232,7 @@ impl Default for ChatConfig {
 /// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
+/// let model = Arc::new(llm::get_model("model.gguf", true, None, None, false, None)?);
 ///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
@@ -585,7 +585,7 @@ impl ChatHandle {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, false, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -897,7 +897,7 @@ impl ChatHandleAsync {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, false, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build_async();
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -1548,61 +1548,73 @@ impl<'a> Chat<'a> {
                 // do not update tokens_in_context as this is done later by ask
             }
 
-            // Sample next token, no need to use sampler.accept as sample already accepts the token.
+            // Sample next token(s), no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_token = self.engine.sample_and_decode_next_token(&mut sampler)?;
+            //
+            // On the solo path this returns exactly one token. On the MTP-speculative path it
+            // returns 1..=K+1 accepted tokens (the drafts confirmed by the target plus one
+            // bonus/replacement).
+            let new_tokens = self.engine.sample_and_decode_next_tokens(&mut sampler)?;
 
-            tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
+            tokens_written_until_now.append(TokenizerChunk::new_text(new_tokens.clone()));
 
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
-                .engine
-                .ctx
-                .model
-                .token_to_piece_bytes(new_token, 8, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
+            let mut hit_eog = false;
+            for new_token in new_tokens {
+                // Attempt to convert token(s) to bytes
+                let token_bytes = match self
+                    .engine
+                    .ctx
+                    .model
+                    .token_to_piece_bytes(new_token, 8, true, None)
+                {
+                    Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
+                        self.engine.ctx.model.token_to_piece_bytes(
+                            new_token,
+                            (-i).try_into().expect("Error buffer size is positive"),
+                            true,
+                            None,
+                        )
+                    }
+                    x => x,
+                }?;
+
+                // Attempt to convert bytes to utf8 string.
+                let max_len = decoder
+                    .max_utf8_buffer_length(token_bytes.len())
+                    .unwrap_or(32);
+                let mut token_str = String::with_capacity(max_len);
+
+                // this is where the utf-8 decoder handles partial unicode
+                // it'll write whatever printable chars it can into `token_str`
+                // and retain partial codepoints for next decoding attempt
+                let (_result, _bytes_read, _had_errors) =
+                    decoder.decode_to_string(&token_bytes, &mut token_str, false);
+
+                // XXX: this literal '<eos>' token match is a fucked hotfix for gemma4. it seems like
+                // some gemma4 models will emit a *wrong* eos token (doesn't match the expected format)
+                // after tool calls. This doesn't trigger the is_eog_token match in llama.cpp and
+                // causes a bad infinite generation loop.
+                // it seems like vllm also has a codepath to handle this specific case:
+                // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
+                let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
+
+                let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
+                trace!(?new_token, ?token_str, ?has_eog);
+
+                if !has_eog {
+                    full_response.push_str(&token_str);
+                    trace!(?token_str, "Sending out token:");
+                    respond(WriteOutput::Token(token_str.to_string()));
                 }
-                x => x,
-            }?;
 
-            // Attempt to convert bytes to utf8 string.
-            let max_len = decoder
-                .max_utf8_buffer_length(token_bytes.len())
-                .unwrap_or(32);
-            let mut token_str = String::with_capacity(max_len);
-
-            // this is where the utf-8 decoder handles partial unicode
-            // it'll write whatever printable chars it can into `token_str`
-            // and retain partial codepoints for next decoding attempt
-            let (_result, _bytes_read, _had_errors) =
-                decoder.decode_to_string(&token_bytes, &mut token_str, false);
-
-            // XXX: this literal '<eos>' token match is a fucked hotfix for gemma4. it seems like
-            // some gemma4 models will emit a *wrong* eos token (doesn't match the expected format)
-            // after tool calls. This doesn't trigger the is_eog_token match in llama.cpp and
-            // causes a bad infinite generation loop.
-            // it seems like vllm also has a codepath to handle this specific case:
-            // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
-            let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
-
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
-            trace!(?new_token, ?token_str, ?has_eog);
-
-            if !has_eog {
-                full_response.push_str(&token_str);
-                trace!(?token_str, "Sending out token:");
-                respond(WriteOutput::Token(token_str.to_string()));
+                if has_eog {
+                    hit_eog = true;
+                    break;
+                }
             }
 
-            if has_eog {
+            if hit_eog {
                 break;
             }
         }
@@ -2071,6 +2083,63 @@ mod tests {
         println!("{}", resp);
 
         assert!(resp.contains("Danish"));
+
+        Ok(())
+    }
+
+    /// Smoke test: load Gemma-4 base + MTP draft heads with `mtp=true`
+    /// and verify a factual generation succeeds end-to-end. Skipped
+    /// when the model files are not present at the expected paths;
+    /// override via `TEST_MTP_TARGET_MODEL` / `TEST_MTP_DRAFT_MODEL`.
+    #[test]
+    fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
+        let target_path = std::env::var("TEST_MTP_TARGET_MODEL").unwrap_or_else(|_| {
+            "/home/hanshh/work/model_dir/gemma4-mtp/gemma-4-E2B-it-Q4_K_M.gguf".to_string()
+        });
+        let draft_path = std::env::var("TEST_MTP_DRAFT_MODEL").unwrap_or_else(|_| {
+            "/home/hanshh/work/model_dir/gemma4-mtp/mtp-gemma-4-E2B-it.gguf".to_string()
+        });
+
+        if !std::path::Path::new(&target_path).exists()
+            || !std::path::Path::new(&draft_path).exists()
+        {
+            eprintln!(
+                "skipping test_mtp_gemma4_smoke: model files missing at {} / {}",
+                target_path, draft_path
+            );
+            return Ok(());
+        }
+
+        let model = Arc::new(crate::llm::get_model(
+            &target_path,
+            true,
+            None,
+            Some(&draft_path),
+            true,
+            None,
+        )?);
+
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
+                sender.send(resp).unwrap();
+            }
+        };
+
+        worker.ask("What is the capital of Denmark?".into(), f)?;
+        let resp = receiver.recv()?;
+        println!("MTP response: {}", resp);
+        assert!(resp.contains("Copenhagen"));
 
         Ok(())
     }

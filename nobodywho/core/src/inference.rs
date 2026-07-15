@@ -11,6 +11,7 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::speculative::MtpSpeculative;
 use llama_cpp_2::token::LlamaToken;
 use std::path::Path;
 use std::rc::Rc;
@@ -55,9 +56,57 @@ where
 /// Holds everything needed to read tokens/media into the KV cache and sample new tokens,
 /// independent of any higher-level concept like chat history. Both `Worker` (encoder /
 /// crossencoder) and `Chat` own one of these.
+/// The context(s) an inference engine owns.
+///
+/// A solo engine holds one [`LlamaContext`] and drives it directly. An
+/// MTP-speculative engine holds a target + draft pair wrapped in
+/// [`MtpSpeculative`]; call sites that just need "the target context"
+/// go through [`Deref`] / [`DerefMut`], so most of the engine code is
+/// unchanged.
+#[derive(Debug)]
+pub(crate) enum EngineContext<'a> {
+    Solo(LlamaContext<'a>),
+    Speculative(MtpSpeculative<'a>),
+}
+
+impl<'a> std::ops::Deref for EngineContext<'a> {
+    type Target = LlamaContext<'a>;
+    fn deref(&self) -> &LlamaContext<'a> {
+        match self {
+            Self::Solo(c) => c,
+            Self::Speculative(s) => s.target_context(),
+        }
+    }
+}
+
+impl<'a> std::ops::DerefMut for EngineContext<'a> {
+    fn deref_mut(&mut self) -> &mut LlamaContext<'a> {
+        match self {
+            Self::Solo(c) => c,
+            Self::Speculative(s) => s.target_context_mut(),
+        }
+    }
+}
+
+impl<'a> EngineContext<'a> {
+    /// Notify the MTP draft context of a batch that was just decoded on
+    /// the target. No-op on the solo path. Must be called after every
+    /// target decode when MTP is active so the draft ctx's hidden-state
+    /// carryover stays in sync.
+    fn mtp_process(
+        &mut self,
+        batch: &LlamaBatch<'a>,
+    ) -> Result<(), llama_cpp_2::speculative::MtpSpeculativeError> {
+        if let Self::Speculative(spec) = self {
+            spec.process(batch)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
-    pub(crate) ctx: LlamaContext<'a>,
+    pub(crate) ctx: EngineContext<'a>,
     projection_model: Option<&'a ProjectionModel>,
     n_past: i32,
     tokenizer: Tokenizer<'a>,
@@ -67,11 +116,26 @@ pub(crate) struct InferenceEngine<'a> {
     big_batch: LlamaBatch<'a>,
     small_batch: LlamaBatch<'a>,
     use_embeddings: bool,
+    /// Deferred-decode "pending sample": a token sampled from the
+    /// target but not yet decoded into the KV cache. On the MTP
+    /// speculative path, each iteration's batch begins with this
+    /// pending token followed by the drafter's proposals, so the
+    /// bonus/replacement token from iteration N gets its decode "for
+    /// free" as part of iteration N+1's batch — one fewer decode call
+    /// per emit than the eager approach.
+    ///
+    /// Invariants:
+    /// - `None` after `read_text_tokens` and `reset_context`.
+    /// - `Some(t)` between speculative iterations, where `t` is the
+    ///   target's sample for the next-to-emit position and is *not* in
+    ///   the KV cache.
+    /// - Solo path never sets it.
+    pending: Option<LlamaToken>,
 }
 
 impl<'a> InferenceEngine<'a> {
     pub(crate) fn new(
-        ctx: LlamaContext<'a>,
+        ctx: EngineContext<'a>,
         big_batch: LlamaBatch<'a>,
         small_batch: LlamaBatch<'a>,
         projection_model: Option<&'a ProjectionModel>,
@@ -88,6 +152,7 @@ impl<'a> InferenceEngine<'a> {
             n_batch,
             tokenizer,
             use_embeddings,
+            pending: None,
         }
     }
 
@@ -95,6 +160,7 @@ impl<'a> InferenceEngine<'a> {
     pub(crate) fn reset_context(&mut self) -> &mut Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
+        self.pending = None;
         self
     }
 
@@ -200,7 +266,15 @@ impl<'a> InferenceEngine<'a> {
         drop(decode_guard);
         // brrr
 
+        // Keep the MTP draft ctx's hidden state in sync (no-op on solo).
+        self.ctx.mtp_process(&self.big_batch)?;
+
         self.n_past += tokens.len() as i32;
+        // A new prompt (or context-shift replay) invalidates any deferred
+        // pending sample from a previous generation. The next call to
+        // `sample_and_decode_speculative` will re-seed pending from the
+        // freshly-decoded state's `-1` logits.
+        self.pending = None;
 
         debug!("Completed read tokens operation, n_past: {}", self.n_past);
 
@@ -295,11 +369,31 @@ impl<'a> InferenceEngine<'a> {
             .load_audio(path)
     }
 
-    pub(crate) fn sample_and_decode_next_token(
+    /// Sample and decode 1..K+1 tokens.
+    ///
+    /// On the solo path this is a plain "sample one, decode one" step
+    /// returning a single-element vec — identical semantics to the old
+    /// `sample_and_decode_next_token`.
+    ///
+    /// On the MTP-speculative path this drafts up to K tokens, decodes
+    /// them in one batch, verifies each against the target's sampling,
+    /// and returns the accepted prefix (plus one bonus token). The
+    /// returned vec has length in `1..=K+1`.
+    pub(crate) fn sample_and_decode_next_tokens(
         &mut self,
         sampler: &mut LlamaSampler,
-    ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler");
+    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        match &self.ctx {
+            EngineContext::Solo(_) => self.sample_and_decode_solo(sampler),
+            EngineContext::Speculative(_) => self.sample_and_decode_speculative(sampler),
+        }
+    }
+
+    fn sample_and_decode_solo(
+        &mut self,
+        sampler: &mut LlamaSampler,
+    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        trace!("Applying sampler (solo)");
         let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
 
         self.small_batch.clear();
@@ -311,6 +405,152 @@ impl<'a> InferenceEngine<'a> {
         drop(decode_guard);
         self.n_past += 1;
 
-        Ok(new_token)
+        Ok(vec![new_token])
+    }
+
+    /// Deferred-decode MTP sample.
+    ///
+    /// Consolidates the eager path's two decode calls (drafts batch +
+    /// bonus single-token) into a single `[pending, drafts...]` batch
+    /// of K+1 tokens. The bonus token from iteration N becomes
+    /// iteration N+1's pending — decoded "for free" as the first entry
+    /// of that iteration's batch.
+    ///
+    /// See `pending` on [`InferenceEngine`] for the state invariant.
+    fn sample_and_decode_speculative(
+        &mut self,
+        sampler: &mut LlamaSampler,
+    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        trace!("Applying sampler (MTP speculative, deferred)");
+        // 1. Seed pending lazily on the first speculative iteration
+        //    after prompt processing.
+        let pending = match self.pending {
+            Some(p) => p,
+            None => {
+                let p = sampler.sample(&self.ctx, -1);
+                sampler.accept(p);
+                p
+            }
+        };
+
+        // 2. Fast-path EOG on pending: don't touch KV, don't ask the
+        //    drafter — chat loop breaks on EOG in the return vec.
+        if self.ctx.model.is_eog_token(pending) {
+            trace!(?pending, "MTP: pending is EOG, short-circuiting");
+            self.pending = None;
+            return Ok(vec![pending]);
+        }
+
+        // 3. Ask the drafter for up to n_max proposals starting after
+        //    pending.
+        let drafts = {
+            let EngineContext::Speculative(spec) = &mut self.ctx else {
+                unreachable!("sample_and_decode_speculative called on solo ctx");
+            };
+            spec.draft(self.n_past, pending, &[])?
+        };
+        let k_max = drafts.len();
+
+        // 4. Empty drafts: decode pending as a single token, re-seed
+        //    pending. Same shape/cost as the solo path.
+        if k_max == 0 {
+            trace!(?pending, "MTP: drafter returned no proposals");
+            self.small_batch.clear();
+            self.small_batch.add(pending, self.n_past, &[0], true)?;
+            self.ctx.decode(&mut self.small_batch)?;
+            self.ctx.mtp_process(&self.small_batch)?;
+            {
+                let EngineContext::Speculative(spec) = &mut self.ctx else {
+                    unreachable!();
+                };
+                spec.accept(0)?;
+            }
+            let new_pending = sampler.sample(&self.ctx, -1);
+            sampler.accept(new_pending);
+            self.n_past += 1;
+            self.pending = Some(new_pending);
+            return Ok(vec![pending]);
+        }
+
+        // 5. Build batch = [pending, drafts...] at positions
+        //    [n_past, n_past+1, ..., n_past+k_max]. K+1 entries, all
+        //    logits=true.
+        self.big_batch.clear();
+        self.big_batch.add(pending, self.n_past, &[0], true)?;
+        for (i, &d) in drafts.iter().enumerate() {
+            self.big_batch
+                .add(d, self.n_past + 1 + i as i32, &[0], true)?;
+        }
+        {
+            let decode_span = trace_span!(
+                "mtp verify decode",
+                n_past = self.n_past,
+                k_max
+            );
+            let _decode_guard = decode_span.enter();
+            self.ctx.decode(&mut self.big_batch)?;
+        }
+        self.ctx.mtp_process(&self.big_batch)?;
+
+        // 6. Verify. Batch idx i's logits predict position n_past+i+1
+        //    = draft[i]'s position, so sample at batch idx i and
+        //    compare to drafts[i].
+        let mut accepted_drafts: Vec<LlamaToken> = Vec::with_capacity(k_max);
+        let mut new_pending: Option<LlamaToken> = None;
+        for i in 0..k_max {
+            let ti = sampler.sample(&self.ctx, i as i32);
+            sampler.accept(ti);
+            if ti == drafts[i] {
+                accepted_drafts.push(drafts[i]);
+            } else {
+                new_pending = Some(ti);
+                break;
+            }
+        }
+        // 7. If all K drafts matched, sample the bonus at batch idx
+        //    k_max (last position, predicts n_past+k_max+1).
+        if new_pending.is_none() {
+            let bonus = sampler.sample(&self.ctx, k_max as i32);
+            sampler.accept(bonus);
+            new_pending = Some(bonus);
+        }
+        let new_pending = new_pending.expect("new_pending is set above");
+        let j = accepted_drafts.len();
+
+        // 8. KV rollback for partial acceptance. Keep positions
+        //    [0..n_past+1+j] (pending + accepted drafts).
+        if j < k_max {
+            let keep_up_to = (self.n_past + 1 + j as i32) as u32;
+            let _ = self
+                .ctx
+                .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
+        }
+
+        // 9. Tell the drafter how many drafts stuck.
+        {
+            let EngineContext::Speculative(spec) = &mut self.ctx else {
+                unreachable!();
+            };
+            spec.accept(j as u16)?;
+        }
+
+        // 10. Bookkeeping: n_past advances by (pending + j drafts).
+        //     new_pending is the bonus/replacement, held for next iter.
+        self.n_past += 1 + j as i32;
+        self.pending = Some(new_pending);
+
+        trace!(
+            j,
+            k_max,
+            ?pending,
+            ?new_pending,
+            "MTP: deferred iteration complete"
+        );
+
+        // 11. Emit pending (confirmed this iteration) + accepted drafts.
+        let mut emitted = Vec::with_capacity(1 + j);
+        emitted.push(pending);
+        emitted.extend_from_slice(&accepted_drafts);
+        Ok(emitted)
     }
 }

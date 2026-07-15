@@ -95,7 +95,7 @@ impl Model {
             .transpose()?;
         let progress = resolve_on_download_progress(on_download_progress)?;
         let model_result =
-            nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str, progress);
+            nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str, None, false, progress);
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
@@ -153,6 +153,8 @@ impl Model {
             path_str.to_owned(),
             use_gpu_if_available,
             mmproj_str.map(str::to_owned),
+            None,
+            false,
             progress,
         )
         .await;
@@ -196,7 +198,7 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None, None)
+                nobodywho::llm::get_model(path_str, true, None, None, false, None)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
                     .map(Arc::new)
             }

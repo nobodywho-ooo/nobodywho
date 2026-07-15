@@ -399,6 +399,20 @@ pub enum InitWorkerError {
     #[error("Insufficient memory for context: {0}")]
     #[diagnostic(transparent)]
     Memory(#[from] MemoryError),
+
+    #[error("MTP speculative decoding failed to initialize: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("Same-file MTP is not yet supported")]
+    #[diagnostic(
+        code(nobodywho::mtp_same_file_unsupported),
+        help(
+            "Same-file MTP (e.g. Qwen3.5-Next) is not implemented yet.\n\
+             For now, MTP requires a separate draft-model file passed as draft_model_path\n\
+             (e.g. Gemma-4 with mtp-gemma-4-*.gguf)."
+        )
+    )]
+    MtpSameFileNotYetSupported,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -491,6 +505,9 @@ pub enum ReadError {
         )
     )]
     InputExceedsContext { n_tokens: usize, n_ctx: usize },
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
 // CrossEncoderWorker errors
@@ -917,6 +934,12 @@ pub enum DecodingError {
 
     #[error("Llama.cpp failed decoding: {0}")]
     Decode(#[from] llama_cpp_2::DecodeError),
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("KV cache rollback failed: {0}")]
+    KvCache(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
