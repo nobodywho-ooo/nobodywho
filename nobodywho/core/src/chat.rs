@@ -1291,8 +1291,8 @@ impl ChatContext {
 /// vocabulary walk, cutting per-token constraint cost significantly.
 ///
 /// This function is called once at session init (and again when config
-/// changes) so the ~400ms `LlamaSampler::llguidance_with_slices` cost is paid
-/// upfront rather than on the first tool-calling token. See [`Chat::tool_sampler`].
+/// changes) so the ~400ms sampler-construction cost is paid upfront rather
+/// than on the first tool-calling token. See [`Chat::tool_sampler`].
 fn build_tool_sampler(
     config: &SamplerConfig,
     lark: &str,
@@ -1318,13 +1318,21 @@ struct Chat<'a> {
     /// extraction. Built by `ToolFormatHandler::to_lark`.
     tool_grammar: Option<String>,
     tool_format: Option<ToolFormat>,
-    /// Pre-built sampler chain that includes the llguidance Lark step.
-    /// Built once at session init (and rebuilt when sampler/tool config
-    /// changes) so we avoid paying the ~400ms `LlamaSampler::llguidance` cost
-    /// per activation. At the start of every generation it is `reset()` to
-    /// initial state; when the begin token is observed mid-stream we
-    /// `accept_many(begin_token_ids)` to fast-forward the matcher past the
-    /// trigger and start sampling through it.
+    /// Pre-built sampler that enforces the tool-call grammar during token
+    /// generation.
+    ///
+    /// Building the sampler (`llguidance_tok_env` + `LlamaSampler::from(Matcher)`)
+    /// takes ~400ms because it pre-computes vocabulary bitmasks for the slice
+    /// regexes. Doing this on every tool call would add that cost to the first
+    /// generated token. Instead, it is built once here and held idle.
+    ///
+    /// During a generation call the model starts with a plain sampler that
+    /// allows any token. When the model emits the begin token for a tool call
+    /// (e.g. `<tool_call>` for Qwen3), we detect it in the stream and switch
+    /// this sampler in. From that point on, every token the model generates is
+    /// constrained to follow the Lark grammar for the tool-call format — the
+    /// grammar already encodes which tool names and argument shapes are valid.
+    ///
     /// `None` when no tools are configured or grammar generation failed; in
     /// that case the model generates freely with text-level extraction as
     /// fallback. Built by [`build_tool_sampler`].
@@ -1385,10 +1393,10 @@ impl<'a> Chat<'a> {
             None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
         };
 
-        // Pre-build the with-grammar sampler chain. We accept the ~1s cost of
-        // `LlamaSampler::llguidance` here (during session setup) rather than
-        // per activation, since llama-cpp-rs's `create_llg_sampler` rebuilds
-        // the tokenizer environment from scratch on every call.
+        // Pre-build the with-grammar sampler. We accept the ~400ms
+        // `llguidance_tok_env` + `LlamaSampler::from(Matcher)` cost here (during
+        // session setup) rather than per activation — the tokenizer env and
+        // ParserFactory are rebuilt from scratch on every call.
         let tool_sampler = tool_grammar.as_ref().and_then(|lark| {
             let slices = tool_format
                 .as_ref()
@@ -1640,8 +1648,8 @@ impl<'a> Chat<'a> {
             // https://github.com/utilityai/llama-cpp-rs/issues/604
             //
             // After activation we delegate to `self.tool_sampler` (pre-built
-            // at session init), so we don't pay the ~1s
-            // `LlamaSampler::llguidance` cost mid-stream.
+            // at session init), so we don't pay the ~400ms sampler-construction
+            // cost mid-stream.
             let new_token = if grammar_activated {
                 let ts = self
                     .tool_sampler
@@ -3072,40 +3080,20 @@ mod tests {
     // sampler.sample() in #[cfg(test)].
     // -------------------------------------------------------------------------
 
-    /// Replicate build_tok_env from llguidance_sampler.rs using only public APIs
-    /// so we can time TokTrie construction independently.
-    fn build_tok_env_for_bench(
-        model: &llama_cpp_2::model::LlamaModel,
-    ) -> std::sync::Arc<toktrie::ApproximateTokEnv> {
-        use llama_cpp_2::token::LlamaToken;
-        use toktrie::{ApproximateTokEnv, TokRxInfo, TokTrie};
-        let n_vocab = model.n_vocab() as u32;
-        let tok_eos = model.token_eos().0 as u32;
-        let info = TokRxInfo::new(n_vocab, tok_eos);
-        let mut words: Vec<Vec<u8>> = Vec::with_capacity(n_vocab as usize);
-        for i in 0..(n_vocab as i32) {
-            let token = LlamaToken(i);
-            let bytes = model
-                .token_to_piece_bytes(token, 32, false, None)
-                .unwrap_or_default();
-            if bytes.is_empty() {
-                let special = model
-                    .token_to_piece_bytes(token, 32, true, None)
-                    .unwrap_or_default();
-                if special.is_empty() {
-                    words.push(vec![]);
-                } else {
-                    let mut marked = Vec::with_capacity(special.len() + 1);
-                    marked.push(0xFF);
-                    marked.extend(special);
-                    words.push(marked);
-                }
-            } else {
-                words.push(bytes);
+    /// Load the Gemma4 test model from TEST_GEMMA4_MODEL env var.
+    /// Returns None (and prints a skip message) when the var is not set.
+    fn load_gemma4_model() -> Option<Arc<crate::llm::Model>> {
+        let path = match std::env::var("TEST_GEMMA4_MODEL") {
+            Ok(p) => p,
+            Err(_) => {
+                eprintln!("[bench] skipping — set TEST_GEMMA4_MODEL to a Gemma-4 GGUF path");
+                return None;
             }
-        }
-        let trie = TokTrie::from(&info, &words);
-        std::sync::Arc::new(ApproximateTokEnv::new(trie))
+        };
+        Some(Arc::new(
+            crate::llm::get_model(&path, true, None, None)
+                .unwrap_or_else(|e| panic!("Failed to load Gemma4 model from {path}: {e:?}")),
+        ))
     }
 
     /// Build N dummy tools for scaling benches.
@@ -3131,10 +3119,7 @@ mod tests {
     /// Returns `(grammar_nanos, grammar_count, free_nanos, free_count, total_ms, response)`.
     /// `grammar_*` counts only grammar-constrained tokens (Lark path).
     /// `free_*` counts all other tokens (free-generation path).
-    fn run_bench_turn(
-        worker: &mut Chat<'_>,
-        prompt: &str,
-    ) -> (u128, u64, u128, u64, u128, String) {
+    fn run_bench_turn(worker: &mut Chat<'_>, prompt: &str) -> (u128, u64, u128, u64, u128, String) {
         crate::inference::reset_sample_timing();
         let (sender, receiver) = std::sync::mpsc::channel();
         let f = move |x| {
@@ -3156,6 +3141,39 @@ mod tests {
             total_ms,
             response,
         )
+    }
+
+    /// Build a [`Chat`] worker with a specific slice profile, replacing the
+    /// sampler that [`Chat::new_chat_worker`] would have selected automatically.
+    ///
+    /// `new_chat_worker` builds a sampler with the format's default slices
+    /// internally; this function immediately rebuilds it with `slices`. The
+    /// returned `setup_ms` therefore includes two sampler builds for
+    /// non-default profiles — use [`bench_build_tok_env_breakdown_qwen3`] for
+    /// precise setup cost comparisons.
+    fn make_tool_worker_with_slices<'a>(
+        model: &'a crate::llm::Model,
+        tools: Vec<Tool>,
+        slices: Vec<String>,
+    ) -> (Chat<'a>, u128) {
+        let t = std::time::Instant::now();
+        let mut worker = Chat::new_chat_worker(
+            model,
+            ChatConfig {
+                system_prompt: Some("You are a helpful assistant.".into()),
+                n_ctx: 4096,
+                tools,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("worker creation failed");
+        if let Some(lark) = worker.tool_grammar.clone() {
+            worker.tool_sampler =
+                build_tool_sampler(&worker.sampler_config, &lark, slices, &model.language_model)
+                    .ok();
+        }
+        (worker, t.elapsed().as_millis())
     }
 
     #[test]
@@ -3186,104 +3204,21 @@ mod tests {
         eprintln!("[bench] no_tools: {free_count} tokens, {avg_us} µs/token, {total_ms} ms total");
     }
 
-    /// Lark per-token sampler overhead for 1, 5, 10, and 50 tools.
-    ///
-    /// Shows worker setup cost (grammar + ParserFactory construction), the
-    /// grammar-constrained first-token average, and the all-token average with
-    /// overhead relative to the no-tools baseline.
-    #[test]
-    #[ignore = "manual perf bench — run with `cargo test bench_ -- --ignored --nocapture --test-threads=1`"]
-    fn bench_per_token_sample_cost_lark_vs_gbnf() {
-        let model = test_utils::load_test_model();
-
-        // Measure baseline sampler cost with no grammar.
-        let mut baseline_worker = Chat::new_chat_worker(
-            &model,
-            ChatConfig {
-                system_prompt: Some("You are a helpful assistant.".into()),
-                n_ctx: 4096,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )
-        .expect("baseline worker creation failed");
-        run_bench_turn(&mut baseline_worker, "Hello.");
-        let (_, _, base_nanos, base_count, _, _) =
-            run_bench_turn(&mut baseline_worker, "Name three capital cities in Europe.");
-        let baseline_us = if base_count > 0 {
-            base_nanos / base_count as u128 / 1000
-        } else {
-            0
-        };
-        eprintln!("[bench] baseline (no tools): {baseline_us} µs/token ({base_count} tokens)");
-
-        eprintln!(
-            "\n[bench] {:>5}  {:>8}  {:>11}  {:>20}  {:>8}",
-            "tools", "setup", "grammar-↑", "all-avg", "total_ms",
-        );
-
-        for n in [1usize, 5, 10, 50] {
-            let tools = make_n_tools(n);
-
-            let t_setup = std::time::Instant::now();
-            let mut lark_worker = Chat::new_chat_worker(
-                &model,
-                ChatConfig {
-                    system_prompt: Some("You are a helpful assistant.".into()),
-                    n_ctx: 4096,
-                    tools: tools.clone(),
-                    ..Default::default()
-                },
-                Arc::new(AtomicBool::new(false)),
-            )
-            .expect("lark worker creation failed");
-            let setup_ms = t_setup.elapsed().as_millis();
-
-            let (g_nanos, g_count, free_nanos, free_count, total_ms, response) =
-                run_bench_turn(&mut lark_worker, "Use tool_0 with location 'London'.");
-
-            let lark_grammar_us = if g_count > 0 {
-                g_nanos / g_count as u128 / 1000
-            } else {
-                0
-            };
-            let total_count = g_count + free_count;
-            let lark_all_us = if total_count > 0 {
-                (g_nanos + free_nanos) / total_count as u128 / 1000
-            } else {
-                0
-            };
-            let lark_overhead_us = lark_all_us.saturating_sub(baseline_us);
-
-            let all_avg_col = format!("{lark_all_us} µs (+{lark_overhead_us})");
-            eprintln!(
-                "[bench] {:>5}  {:>5} ms  {:>8} µs  {:>20}   {:>8}",
-                n, setup_ms, lark_grammar_us, all_avg_col, total_ms
-            );
-            let preview: String = response.chars().take(200).collect();
-            let ratio = if free_count > 0 {
-                format!("{g_count} grammar / {free_count} free")
-            } else {
-                format!("{g_count} grammar / 0 free (all grammar)")
-            };
-            eprintln!("        [{ratio}]  response: {preview:?}");
-        }
-    }
-
     /// Compare old vs new Qwen3 setup cost, and break down where the time goes.
     /// Old: LlamaSampler::llguidance uses new_simple() (general_slices, 4 JSON regexes).
-    /// New: LlamaSampler::llguidance_with_slices uses one custom regex ([^"\\\x00-\x1F\x7F]+).
+    /// New: LlamaSampler::llguidance_tok_env + LlamaSampler::from(Matcher) with 1 custom regex.
     #[test]
     #[ignore = "manual perf bench — run with `cargo test bench_ -- --ignored --nocapture --test-threads=1`"]
     fn bench_build_tok_env_breakdown_qwen3() {
-        use llama_cpp_2::token::LlamaToken;
         use llguidance::api::TopLevelGrammar;
         use llguidance::earley::SlicedBiasComputer;
         use llguidance::ParserFactory;
-        use toktrie::{ApproximateTokEnv, InferenceCapabilities, TokRxInfo, TokTrie};
+        use toktrie::InferenceCapabilities;
 
         let model = test_utils::load_test_model();
         let qwen3_slices = ToolFormat::Qwen3(crate::tool_calling::Qwen3Handler).slice_regexes();
+
+        let general_slices = SlicedBiasComputer::general_slices();
 
         // Old vs new end-to-end setup cost at 1 / 10 / 50 tools.
         for n in [1usize, 10, 50] {
@@ -3292,10 +3227,11 @@ mod tests {
                 .to_lark(&tools)
                 .unwrap();
             let t = std::time::Instant::now();
-            let _ = llama_cpp_2::sampling::LlamaSampler::llguidance(
+            let _ = crate::sampler::llguidance_sampler(
                 &model.language_model,
                 "lark",
                 &lark,
+                &general_slices,
             )
             .unwrap();
             eprintln!(
@@ -3303,7 +3239,7 @@ mod tests {
                 t.elapsed().as_millis()
             );
             let t = std::time::Instant::now();
-            let _ = llama_cpp_2::sampling::LlamaSampler::llguidance_with_slices(
+            let _ = crate::sampler::llguidance_sampler(
                 &model.language_model,
                 "lark",
                 &lark,
@@ -3317,73 +3253,27 @@ mod tests {
         }
 
         // Phase breakdown: where the setup time goes.
-        let n_vocab = model.language_model.n_vocab() as u32;
-        let tok_eos = model.language_model.token_eos().0 as u32;
-        let info = TokRxInfo::new(n_vocab, tok_eos);
         let t = std::time::Instant::now();
-        let mut words: Vec<Vec<u8>> = Vec::with_capacity(n_vocab as usize);
-        for i in 0..(n_vocab as i32) {
-            let token = LlamaToken(i);
-            let bytes = model
-                .language_model
-                .token_to_piece_bytes(token, 32, false, None)
-                .unwrap_or_default();
-            if bytes.is_empty() {
-                let special = model
-                    .language_model
-                    .token_to_piece_bytes(token, 32, true, None)
-                    .unwrap_or_default();
-                if special.is_empty() {
-                    words.push(vec![]);
-                } else {
-                    let mut marked = Vec::with_capacity(special.len() + 1);
-                    marked.push(0xFF);
-                    marked.extend(special);
-                    words.push(marked);
-                }
-            } else {
-                words.push(bytes);
-            }
-        }
-        eprintln!(
-            "[bench] vocab FFI iteration: {} ms",
-            t.elapsed().as_millis()
-        );
-
-        let t = std::time::Instant::now();
-        let trie = TokTrie::from(&info, &words);
-        eprintln!("[bench] TokTrie::from: {} ms", t.elapsed().as_millis());
-
-        let t = std::time::Instant::now();
-        let tok_env = std::sync::Arc::new(ApproximateTokEnv::new(trie));
-        eprintln!(
-            "[bench] ApproximateTokEnv::new: {} ms",
-            t.elapsed().as_millis()
-        );
-
-        let tok_env_dyn: std::sync::Arc<dyn toktrie::TokenizerEnv + Sync> = tok_env.clone();
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
+        eprintln!("[bench] llguidance_tok_env: {} ms", t.elapsed().as_millis());
 
         let t = std::time::Instant::now();
         let factory_empty =
-            ParserFactory::new(&tok_env_dyn, InferenceCapabilities::default(), &[]).unwrap();
+            ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[]).unwrap();
         eprintln!("[bench] factory (0 slices): {} ms", t.elapsed().as_millis());
 
         let general = SlicedBiasComputer::general_slices();
         let t = std::time::Instant::now();
-        let _ =
-            ParserFactory::new(&tok_env_dyn, InferenceCapabilities::default(), &general).unwrap();
+        let _ = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &general).unwrap();
         eprintln!(
             "[bench] factory (4 general slices — old): {} ms",
             t.elapsed().as_millis()
         );
 
         let t = std::time::Instant::now();
-        let factory_new = ParserFactory::new(
-            &tok_env_dyn,
-            InferenceCapabilities::default(),
-            &qwen3_slices,
-        )
-        .unwrap();
+        let factory_new =
+            ParserFactory::new(&tok_env, InferenceCapabilities::default(), &qwen3_slices).unwrap();
         eprintln!(
             "[bench] factory (1 Qwen3 slice — new): {} ms",
             t.elapsed().as_millis()
@@ -3417,16 +3307,15 @@ mod tests {
 
     /// Compare old vs new Gemma4 setup cost, and break down where the time goes.
     /// Old: LlamaSampler::llguidance uses new_simple() (general_slices, 4 JSON regexes — wrong for Gemma4).
-    /// New: LlamaSampler::llguidance_with_slices uses one custom regex ([^<>{},:]+).
+    /// New: LlamaSampler::llguidance_tok_env + LlamaSampler::from(Matcher) with 1 custom regex.
     /// Requires TEST_GEMMA4_MODEL to point at a Gemma-4 GGUF.
     #[test]
     #[ignore = "manual perf bench — set TEST_GEMMA4_MODEL=/path/to/gemma4.gguf, then run with `cargo test bench_ -- --ignored --nocapture --test-threads=1`"]
     fn bench_build_tok_env_breakdown_gemma4() {
-        use llama_cpp_2::token::LlamaToken;
         use llguidance::api::TopLevelGrammar;
         use llguidance::earley::SlicedBiasComputer;
         use llguidance::ParserFactory;
-        use toktrie::{ApproximateTokEnv, InferenceCapabilities, TokRxInfo, TokTrie};
+        use toktrie::InferenceCapabilities;
 
         let Some(model) = load_gemma4_model() else {
             return;
@@ -3435,15 +3324,18 @@ mod tests {
             detect_tool_format(&model.language_model).expect("format detection failed");
         let gemma4_slices = tool_format.slice_regexes();
 
+        let general_slices = SlicedBiasComputer::general_slices();
+
         // Old vs new end-to-end setup cost at 1 / 10 / 50 tools.
         for n in [1usize, 10, 50] {
             let tools = make_n_tools(n);
             let lark = tool_format.to_lark(&tools).unwrap();
             let t = std::time::Instant::now();
-            let _ = llama_cpp_2::sampling::LlamaSampler::llguidance(
+            let _ = crate::sampler::llguidance_sampler(
                 &model.language_model,
                 "lark",
                 &lark,
+                &general_slices,
             )
             .unwrap();
             eprintln!(
@@ -3451,7 +3343,7 @@ mod tests {
                 t.elapsed().as_millis()
             );
             let t = std::time::Instant::now();
-            let _ = llama_cpp_2::sampling::LlamaSampler::llguidance_with_slices(
+            let _ = crate::sampler::llguidance_sampler(
                 &model.language_model,
                 "lark",
                 &lark,
@@ -3465,58 +3357,17 @@ mod tests {
         }
 
         // Phase breakdown: where the setup time goes (256K vocab numbers differ significantly from Qwen3).
-        let n_vocab = model.language_model.n_vocab() as u32;
-        let tok_eos = model.language_model.token_eos().0 as u32;
-        let info = TokRxInfo::new(n_vocab, tok_eos);
         let t = std::time::Instant::now();
-        let mut words: Vec<Vec<u8>> = Vec::with_capacity(n_vocab as usize);
-        for i in 0..(n_vocab as i32) {
-            let token = LlamaToken(i);
-            let bytes = model
-                .language_model
-                .token_to_piece_bytes(token, 32, false, None)
-                .unwrap_or_default();
-            if bytes.is_empty() {
-                let special = model
-                    .language_model
-                    .token_to_piece_bytes(token, 32, true, None)
-                    .unwrap_or_default();
-                if special.is_empty() {
-                    words.push(vec![]);
-                } else {
-                    let mut marked = Vec::with_capacity(special.len() + 1);
-                    marked.push(0xFF);
-                    marked.extend(special);
-                    words.push(marked);
-                }
-            } else {
-                words.push(bytes);
-            }
-        }
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
         eprintln!(
-            "[bench] gemma4 vocab FFI iteration: {} ms",
+            "[bench] gemma4 llguidance_tok_env: {} ms",
             t.elapsed().as_millis()
         );
-
-        let t = std::time::Instant::now();
-        let trie = TokTrie::from(&info, &words);
-        eprintln!(
-            "[bench] gemma4 TokTrie::from: {} ms",
-            t.elapsed().as_millis()
-        );
-
-        let t = std::time::Instant::now();
-        let tok_env = std::sync::Arc::new(ApproximateTokEnv::new(trie));
-        eprintln!(
-            "[bench] gemma4 ApproximateTokEnv::new: {} ms",
-            t.elapsed().as_millis()
-        );
-
-        let tok_env_dyn: std::sync::Arc<dyn toktrie::TokenizerEnv + Sync> = tok_env.clone();
 
         let t = std::time::Instant::now();
         let factory_empty =
-            ParserFactory::new(&tok_env_dyn, InferenceCapabilities::default(), &[]).unwrap();
+            ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[]).unwrap();
         eprintln!(
             "[bench] gemma4 factory (0 slices): {} ms",
             t.elapsed().as_millis()
@@ -3524,20 +3375,15 @@ mod tests {
 
         let general = SlicedBiasComputer::general_slices();
         let t = std::time::Instant::now();
-        let _ =
-            ParserFactory::new(&tok_env_dyn, InferenceCapabilities::default(), &general).unwrap();
+        let _ = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &general).unwrap();
         eprintln!(
             "[bench] gemma4 factory (4 general slices — old): {} ms",
             t.elapsed().as_millis()
         );
 
         let t = std::time::Instant::now();
-        let factory_new = ParserFactory::new(
-            &tok_env_dyn,
-            InferenceCapabilities::default(),
-            &gemma4_slices,
-        )
-        .unwrap();
+        let factory_new =
+            ParserFactory::new(&tok_env, InferenceCapabilities::default(), &gemma4_slices).unwrap();
         eprintln!(
             "[bench] gemma4 factory (1 Gemma4 slice — new): {} ms",
             t.elapsed().as_millis()
@@ -3574,11 +3420,11 @@ mod tests {
         use llguidance::api::TopLevelGrammar;
         use llguidance::earley::SlicedBiasComputer;
         use llguidance::{Matcher, ParserFactory};
-        use toktrie::{InferenceCapabilities, TokenizerEnv};
+        use toktrie::InferenceCapabilities;
 
         let model = test_utils::load_test_model();
-        let tok_env = build_tok_env_for_bench(&model.language_model);
-        let tok_env_dyn: std::sync::Arc<dyn toktrie::TokenizerEnv + Sync> = tok_env.clone();
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
 
         let lark = ToolFormat::Qwen3(crate::tool_calling::Qwen3Handler)
             .to_lark(&make_n_tools(1))
@@ -3611,7 +3457,7 @@ mod tests {
         for (label, slices) in profiles {
             let t_setup = std::time::Instant::now();
             let factory =
-                ParserFactory::new(&tok_env_dyn, InferenceCapabilities::default(), slices).unwrap();
+                ParserFactory::new(&tok_env, InferenceCapabilities::default(), slices).unwrap();
             let setup_ms = t_setup.elapsed().as_millis();
 
             let grammar = TopLevelGrammar::from_lark(lark.clone());
@@ -3624,12 +3470,9 @@ mod tests {
                 match matcher.compute_mask_or_eos() {
                     Ok(mask) => {
                         measured += 1;
-                        let tok = mask
-                            .iter()
-                            .next()
-                            .map(|id| id as u32)
-                            .unwrap_or_else(|| tok_env.eos_token());
-                        if tok == tok_env.eos_token() {
+                        let eos = tok_env.tok_trie().eos_token();
+                        let tok = mask.iter().next().map(|id| id as u32).unwrap_or(eos);
+                        if tok == eos {
                             let _ = matcher.reset();
                         } else {
                             let _ = matcher.consume_token(tok);
@@ -3645,22 +3488,6 @@ mod tests {
         }
     }
 
-    /// Load the Gemma4 test model from TEST_GEMMA4_MODEL env var.
-    /// Returns None (and prints a skip message) when the var is not set.
-    fn load_gemma4_model() -> Option<Arc<crate::llm::Model>> {
-        let path = match std::env::var("TEST_GEMMA4_MODEL") {
-            Ok(p) => p,
-            Err(_) => {
-                eprintln!("[bench] skipping — set TEST_GEMMA4_MODEL to a Gemma-4 GGUF path");
-                return None;
-            }
-        };
-        Some(Arc::new(
-            crate::llm::get_model(&path, true, None, None)
-                .unwrap_or_else(|e| panic!("Failed to load Gemma4 model from {path}: {e:?}")),
-        ))
-    }
-
     /// Slice tuning for Gemma4 — all five profiles from the original benchmark notes.
     /// Requires TEST_GEMMA4_MODEL to point at a Gemma-4 GGUF.
     #[test]
@@ -3669,13 +3496,13 @@ mod tests {
         use llguidance::api::TopLevelGrammar;
         use llguidance::earley::SlicedBiasComputer;
         use llguidance::{Matcher, ParserFactory};
-        use toktrie::{InferenceCapabilities, TokenizerEnv};
+        use toktrie::InferenceCapabilities;
 
         let Some(model) = load_gemma4_model() else {
             return;
         };
-        let tok_env = build_tok_env_for_bench(&model.language_model);
-        let tok_env_dyn: std::sync::Arc<dyn toktrie::TokenizerEnv + Sync> = tok_env.clone();
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
 
         let lark = ToolFormat::Gemma4(crate::tool_calling::Gemma4Handler)
             .to_lark(&make_n_tools(1))
@@ -3713,7 +3540,7 @@ mod tests {
         for (label, slices) in profiles {
             let t_setup = std::time::Instant::now();
             let factory =
-                ParserFactory::new(&tok_env_dyn, InferenceCapabilities::default(), slices).unwrap();
+                ParserFactory::new(&tok_env, InferenceCapabilities::default(), slices).unwrap();
             let setup_ms = t_setup.elapsed().as_millis();
 
             let grammar = TopLevelGrammar::from_lark(lark.clone());
@@ -3726,12 +3553,9 @@ mod tests {
                 match matcher.compute_mask_or_eos() {
                     Ok(mask) => {
                         measured += 1;
-                        let tok = mask
-                            .iter()
-                            .next()
-                            .map(|id| id as u32)
-                            .unwrap_or_else(|| tok_env.eos_token());
-                        if tok == tok_env.eos_token() {
+                        let eos = tok_env.tok_trie().eos_token();
+                        let tok = mask.iter().next().map(|id| id as u32).unwrap_or(eos);
+                        if tok == eos {
                             let _ = matcher.reset();
                         } else {
                             let _ = matcher.consume_token(tok);
@@ -3747,16 +3571,121 @@ mod tests {
         }
     }
 
+    /// Lark per-token sampler overhead for 1, 5, 10, and 50 tools.
+    ///
+    /// Runs three slice profiles per tool count so the effect of vocabulary
+    /// hints on grammar-constrained sampling can be compared directly:
+    /// - `no-slice`: no hints, full vocabulary walk on every grammar position
+    /// - `general-JSON`: four JSON-body regexes (llguidance default)
+    /// - `custom-slice`: one format-specific regex tuned to this model
+    ///
+    /// Reports setup cost, grammar-constrained per-token average, and
+    /// all-token average with overhead relative to the no-tools baseline.
+    #[test]
+    #[ignore = "manual perf bench — run with `cargo test bench_ -- --ignored --nocapture --test-threads=1`"]
+    fn bench_per_token_sample_cost_lark_vs_gbnf() {
+        use llguidance::earley::SlicedBiasComputer;
+
+        let model = test_utils::load_test_model();
+
+        let detected_format =
+            detect_tool_format(&model.language_model).expect("format detection failed");
+        let custom_slices = detected_format.slice_regexes();
+        let general_slices = SlicedBiasComputer::general_slices();
+        let slice_profiles: Vec<(&str, Vec<String>)> = vec![
+            ("no-slice    ", vec![]),
+            ("general-JSON", general_slices),
+            ("custom-slice", custom_slices),
+        ];
+
+        // Measure baseline sampler cost with no grammar.
+        let mut baseline_worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You are a helpful assistant.".into()),
+                n_ctx: 4096,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("baseline worker creation failed");
+        run_bench_turn(&mut baseline_worker, "Hello.");
+        let (_, _, base_nanos, base_count, _, _) =
+            run_bench_turn(&mut baseline_worker, "Name three capital cities in Europe.");
+        let baseline_us = if base_count > 0 {
+            base_nanos / base_count as u128 / 1000
+        } else {
+            0
+        };
+        eprintln!("[bench] baseline (no tools): {baseline_us} µs/token ({base_count} tokens)");
+
+        eprintln!(
+            "\n[bench] {:>5}  {:>13}  {:>8}  {:>11}  {:>20}  {:>8}",
+            "tools", "slices", "setup", "grammar-↑", "all-avg", "total_ms",
+        );
+
+        for n in [1usize, 5, 10, 50] {
+            let tools = make_n_tools(n);
+            eprintln!();
+
+            for (slice_label, slices) in &slice_profiles {
+                let (mut worker, setup_ms) =
+                    make_tool_worker_with_slices(&model, tools.clone(), slices.clone());
+
+                let (g_nanos, g_count, free_nanos, free_count, total_ms, response) =
+                    run_bench_turn(&mut worker, "Use tool_0 with location 'London'.");
+
+                let grammar_us = if g_count > 0 {
+                    g_nanos / g_count as u128 / 1000
+                } else {
+                    0
+                };
+                let total_count = g_count + free_count;
+                let all_us = if total_count > 0 {
+                    (g_nanos + free_nanos) / total_count as u128 / 1000
+                } else {
+                    0
+                };
+                let overhead_us = all_us.saturating_sub(baseline_us);
+                let all_avg_col = format!("{all_us} µs (+{overhead_us})");
+
+                let ratio = if free_count > 0 {
+                    format!("{g_count} grammar / {free_count} free")
+                } else {
+                    format!("{g_count} grammar / 0 free (all grammar)")
+                };
+                eprintln!(
+                    "[bench] {:>5}  {:>13}  {:>5} ms  {:>8} µs  {:>20}   {:>8}  [{ratio}]          {:?}",
+                    n, slice_label, setup_ms, grammar_us, all_avg_col, total_ms, response
+                );
+            }
+        }
+    }
+
     /// Lark per-token sampler overhead for 1, 5, 10, and 50 tools on Gemma-4.
-    /// Shows setup cost, grammar-constrained first-token average, and all-token
-    /// average with overhead relative to the no-tools baseline.
-    /// Requires TEST_GEMMA4_MODEL to point at a Gemma-4 GGUF.
+    ///
+    /// Runs the same three slice profiles as [`bench_per_token_sample_cost_lark_vs_gbnf`]:
+    /// no-slice, general-JSON, and the custom Gemma4 regex. Requires
+    /// `TEST_GEMMA4_MODEL` to point at a Gemma-4 GGUF.
     #[test]
     #[ignore = "manual perf bench — set TEST_GEMMA4_MODEL=/path/to/gemma4.gguf, then run with `cargo test bench_ -- --ignored --nocapture --test-threads=1`"]
     fn bench_per_token_sample_cost_gemma4_lark_vs_gbnf() {
+        use llguidance::earley::SlicedBiasComputer;
+
         let Some(model) = load_gemma4_model() else {
             return;
         };
+
+        let detected_format =
+            detect_tool_format(&model.language_model).expect("format detection failed");
+        let custom_slices = detected_format.slice_regexes();
+        let general_slices = SlicedBiasComputer::general_slices();
+        let slice_profiles: Vec<(&str, Vec<String>)> = vec![
+            ("no-slice    ", vec![]),
+            ("general-JSON", general_slices),
+            ("custom-slice", custom_slices),
+        ];
+
         // --- No-tools baseline ---
         let mut baseline_worker = Chat::new_chat_worker(
             &model,
@@ -3781,56 +3710,46 @@ mod tests {
         );
 
         eprintln!(
-            "\n[bench] {:>5}  {:>8}  {:>11}  {:>20}  {:>8}",
-            "tools", "setup", "grammar-↑", "all-avg", "total_ms",
+            "\n[bench] {:>5}  {:>13}  {:>8}  {:>11}  {:>20}  {:>8}",
+            "tools", "slices", "setup", "grammar-↑", "all-avg", "total_ms",
         );
 
         for n in [1usize, 5, 10, 50] {
             let tools = make_n_tools(n);
+            eprintln!();
 
-            let t_setup = std::time::Instant::now();
-            let mut lark_worker = Chat::new_chat_worker(
-                &model,
-                ChatConfig {
-                    system_prompt: Some("You are a helpful assistant.".into()),
-                    n_ctx: 4096,
-                    tools: tools.clone(),
-                    ..Default::default()
-                },
-                Arc::new(AtomicBool::new(false)),
-            )
-            .expect("lark worker creation failed");
-            let setup_ms = t_setup.elapsed().as_millis();
+            for (slice_label, slices) in &slice_profiles {
+                let (mut worker, setup_ms) =
+                    make_tool_worker_with_slices(&model, tools.clone(), slices.clone());
 
-            run_bench_turn(&mut lark_worker, "Hello.");
-            let (g_nanos, g_count, free_nanos, free_count, total_ms, response) =
-                run_bench_turn(&mut lark_worker, "Use tool_0 with location 'London'.");
+                run_bench_turn(&mut worker, "Hello.");
+                let (g_nanos, g_count, free_nanos, free_count, total_ms, response) =
+                    run_bench_turn(&mut worker, "Use tool_0 with location 'London'.");
 
-            let lark_grammar_us = if g_count > 0 {
-                g_nanos / g_count as u128 / 1000
-            } else {
-                0
-            };
-            let total_count = g_count + free_count;
-            let lark_all_us = if total_count > 0 {
-                (g_nanos + free_nanos) / total_count as u128 / 1000
-            } else {
-                0
-            };
-            let lark_overhead_us = lark_all_us.saturating_sub(baseline_us);
+                let grammar_us = if g_count > 0 {
+                    g_nanos / g_count as u128 / 1000
+                } else {
+                    0
+                };
+                let total_count = g_count + free_count;
+                let all_us = if total_count > 0 {
+                    (g_nanos + free_nanos) / total_count as u128 / 1000
+                } else {
+                    0
+                };
+                let overhead_us = all_us.saturating_sub(baseline_us);
+                let all_avg_col = format!("{all_us} µs (+{overhead_us})");
 
-            let all_avg_col = format!("{lark_all_us} µs (+{lark_overhead_us})");
-            eprintln!(
-                "[bench] {:>5}  {:>5} ms  {:>8} µs  {:>20}   {:>8}",
-                n, setup_ms, lark_grammar_us, all_avg_col, total_ms
-            );
-            let preview: String = response.chars().take(200).collect();
-            let ratio = if free_count > 0 {
-                format!("{g_count} grammar / {free_count} free")
-            } else {
-                format!("{g_count} grammar / 0 free (all grammar)")
-            };
-            eprintln!("        [{ratio}]  response: {preview:?}");
+                let ratio = if free_count > 0 {
+                    format!("{g_count} grammar / {free_count} free")
+                } else {
+                    format!("{g_count} grammar / 0 free (all grammar)")
+                };
+                eprintln!(
+                    "[bench] {:>5}  {:>13}  {:>5} ms  {:>8} µs  {:>20}   {:>8}  [{ratio}]  {:?}",
+                    n, slice_label, setup_ms, grammar_us, all_avg_col, total_ms, response
+                );
+            }
         }
     }
 }
