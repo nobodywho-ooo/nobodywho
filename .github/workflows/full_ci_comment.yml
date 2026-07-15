@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 190
     permissions:
-      actions: read
-      pull-requests: write
+      actions: write
+      pull-requests: read
       issues: write
     concurrency:
       group: full-ci-${{ github.event.issue.number }}
@@ -43,6 +43,7 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number,
             });
+            core.setOutput('head_ref', pr.head.ref);
             core.setOutput('head_sha', pr.head.sha);
 
       - name: Ensure full-ci label exists
@@ -72,34 +73,29 @@ jobs:
               });
             }
 
-      - name: Remove existing full-ci label
-        if: steps.auth.outputs.allowed == 'true'
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            try {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: context.issue.number,
-                name: 'full-ci',
-              });
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-
       - name: Add full-ci label
         if: steps.auth.outputs.allowed == 'true'
         uses: actions/github-script@v8
         with:
           script: |
-            const { owner, repo } = context.repo;
             await github.rest.issues.addLabels({
-              owner,
-              repo,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
               issue_number: context.issue.number,
               labels: ['full-ci'],
+            });
+
+      - name: Dispatch full CI
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'main.yml',
+              ref: ${{ toJSON(steps.pr.outputs.head_ref) }},
+              inputs: { full_ci: 'true' },
             });
 
       - name: Acknowledge command
@@ -129,8 +125,9 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
+            const ref = ${{ toJSON(steps.pr.outputs.head_ref) }};
             const headSha = ${{ toJSON(steps.pr.outputs.head_sha) }};
-            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml`;
+            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml?query=branch%3A${encodeURIComponent(ref)}`;
             const startedAt = Date.now();
 
             for (let attempt = 0; attempt < 20; attempt++) {
@@ -139,11 +136,14 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: 'main.yml',
-                event: 'pull_request',
-                head_sha: headSha,
+                branch: ref,
+                event: 'workflow_dispatch',
                 per_page: 30,
               });
-              const run = data.workflow_runs.find((workflowRun) => Date.parse(workflowRun.created_at) >= startedAt - 60000);
+              const run = data.workflow_runs.find((workflowRun) =>
+                workflowRun.head_sha === headSha
+                && Date.parse(workflowRun.created_at) >= startedAt - 60000
+              );
               if (run) {
                 core.setOutput('id', run.id);
                 core.setOutput('url', run.html_url);
@@ -218,11 +218,10 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            const { owner, repo } = context.repo;
             try {
               await github.rest.issues.removeLabel({
-                owner,
-                repo,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
                 issue_number: context.issue.number,
                 name: 'full-ci',
               });
