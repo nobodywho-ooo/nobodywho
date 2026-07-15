@@ -9637,7 +9637,7 @@ rec {
           {
             name = "libc";
             packageId = "libc";
-            target = { target, features }: ("android" == target."os" or null);
+            target = { target, features }: (("android" == target."os" or null) || ("apple" == target."vendor" or null));
           }
           {
             name = "llama-cpp-2";
@@ -9803,6 +9803,12 @@ rec {
           {
             name = "walkdir";
             packageId = "walkdir";
+          }
+          {
+            name = "windows-sys";
+            packageId = "windows-sys 0.61.2";
+            target = { target, features }: ("windows" == target."os" or null);
+            features = [ "Win32_System_SystemInformation" ];
           }
         ];
 

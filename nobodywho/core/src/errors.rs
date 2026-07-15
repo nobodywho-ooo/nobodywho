@@ -3,6 +3,26 @@ use std::path::PathBuf;
 
 // Memory errors
 
+#[derive(Debug, thiserror::Error)]
+pub enum MemoryDetectionError {
+    #[error("could not read {path}")]
+    ReadFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("invalid memory information from {origin}: {reason}")]
+    InvalidData { origin: String, reason: String },
+    #[error("{operation} failed")]
+    SystemCall {
+        operation: &'static str,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("memory detection is unsupported on {platform}")]
+    UnsupportedPlatform { platform: &'static str },
+}
+
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum MemoryError {
     #[error(
@@ -196,6 +216,9 @@ pub enum LoadModelError {
 
     #[error("Could not determine cache directory: {0}")]
     CacheDir(#[from] GetCacheDirError),
+
+    #[error("Could not select a model automatically: {0}")]
+    AutomaticModelSelectionMemory(#[from] MemoryDetectionError),
 }
 
 #[derive(Debug, thiserror::Error)]

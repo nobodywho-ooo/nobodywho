@@ -19,7 +19,7 @@ public class Model {
     /// Load a GGUF model from disk or remote URL.
     ///
     /// - Parameters:
-    ///   - modelPath: Path to the .gguf model file, `hf://owner/repo/file.gguf`, or an `https://` URL.
+    ///   - modelPath: Local path, `hf://` or `https://` URL, or `auto` for memory-based model selection.
     ///   - useGpu: Enable GPU acceleration (default: true).
     ///   - projectionModelPath: Optional path to an mmproj file for vision models.
     ///   - onDownloadProgress: Optional callback receiving `(downloadedBytes, totalBytes)` during download.

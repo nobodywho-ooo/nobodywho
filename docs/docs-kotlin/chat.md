@@ -26,6 +26,8 @@ val chat2 = Chat(model = model)
 
 NobodyWho takes care of the separation, so your chat histories won't collide or interfere with each other.
 
+You can pass `"auto"` as `modelPath` to select a chat model based on available memory.
+
 ## Prompts and responses
 
 The `Chat.ask()` function sends your message to the LLM, which then starts generating a response:

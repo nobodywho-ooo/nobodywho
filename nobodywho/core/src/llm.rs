@@ -2,6 +2,7 @@ use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::huggingface::{download_gguf, parse_model_path};
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::memory;
+use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -110,6 +111,15 @@ pub fn get_model(
     mmproj_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
+    if model_path == "auto" && mmproj_path.is_some() {
+        return Err(LoadModelError::InvalidModel(
+            "Automatic model selection does not support projection models; pass an explicit multimodal model path"
+                .to_string(),
+        ));
+    }
+
+    let use_gpu = use_gpu_if_available && has_gpu_backend();
+    let model_path = model_selection::resolve_model_path(model_path, use_gpu)?;
     let model_progress = progress
         .clone()
         .unwrap_or_else(|| default_progress_callback(model_path));
@@ -125,7 +135,6 @@ pub fn get_model(
     };
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
-    let use_gpu = use_gpu_if_available && has_gpu_backend();
     let loading_plan =
         memory::plan_model_loading(&real_model_path, real_mmproj_path.as_deref(), use_gpu);
     let gpu_layers = loading_plan.gpu_layers;
@@ -179,7 +188,7 @@ pub fn get_model(
 ///
 /// # Arguments
 ///
-/// * `model_path` - Path to the GGUF model file
+/// * `model_path` - `auto` for memory-based LLM selection, or a path to a GGUF model
 /// * `use_gpu_if_available` - Whether to attempt GPU acceleration if a discrete GPU is available
 ///
 /// # Returns
@@ -407,6 +416,12 @@ impl<T> Drop for WorkerGuard<T> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn rejects_projection_model_with_auto_selection() {
+        let result = get_model("auto", true, Some("projection.gguf"), None);
+        assert!(matches!(result, Err(LoadModelError::InvalidModel(_))));
+    }
 
     #[test]
     fn throttled_callback_drops_intermediate_calls_within_window() {

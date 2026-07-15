@@ -59,8 +59,10 @@ unicode-normalization = "0.1"
 emojis = "0.9.0"
 unicode-segmentation = "1.13.3"
 
-[target.'cfg(target_os = "android")'.dependencies]
+[target.'cfg(any(target_os = "android", target_vendor = "apple"))'.dependencies]
 libc = "0.2"
+
+[target.'cfg(target_os = "android")'.dependencies]
 # Statically link the C++ stdlib (libc++) on Android so the produced shared
 # library is self-contained. This is Android-only on purpose: on Linux, the
 # `static-stdcxx` feature makes llama-cpp-rs's build.rs add the compiler's
@@ -76,6 +78,9 @@ ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "n
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }
 
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["cuda"] }

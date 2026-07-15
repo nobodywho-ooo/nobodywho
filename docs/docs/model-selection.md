@@ -8,6 +8,8 @@ Choosing the right language model can make or break your project. In general you
 
 ## TL;DR
 
+If you don't want to choose a chat model, pass `auto` as the model path to select one based on available memory.
+
 If you just want a ~2GB chat model that works well, use:
 
 ```
