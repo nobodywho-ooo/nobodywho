@@ -1,4 +1,4 @@
-name: "swift_ci"
+name: "Swift CI"
 
 on:
   workflow_call:

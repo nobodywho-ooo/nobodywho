@@ -1,4 +1,4 @@
-name: "regen_checks"
+name: "Regeneration checks"
 
 # Verifies that committed generated bindings (Swift, Kotlin, React Native) are
 # up to date with the Rust source. A single `build-uniffi-host` job compiles

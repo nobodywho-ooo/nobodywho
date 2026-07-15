@@ -1,4 +1,4 @@
-name: "Lint & Format checks"
+name: "Lint and format checks"
 on: workflow_call
 
 jobs:

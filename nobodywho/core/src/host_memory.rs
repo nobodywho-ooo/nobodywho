@@ -160,8 +160,9 @@ fn platform_memory() -> Result<HostMemory, MemoryDetectionError> {
         let Some(membership) = parse_membership(&read(Path::new(CGROUP))?)? else {
             return Ok(None);
         };
-        let mount = find_mount(&read(Path::new(MOUNTINFO))?, membership.version)?
-            .ok_or_else(|| invalid(MOUNTINFO, "could not find the process memory cgroup mount"))?;
+        let Some(mount) = find_mount(&read(Path::new(MOUNTINFO))?, membership.version)? else {
+            return Ok(None);
+        };
         let relative = membership
             .path
             .strip_prefix(&mount.root)
