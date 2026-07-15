@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 190
     permissions:
       actions: write
-      pull-requests: read
+      pull-requests: write
       issues: write
     concurrency:
       group: full-ci-${{ github.event.issue.number }}
@@ -93,7 +93,7 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'main.yml',
+              workflow_id: 'build-and-test.yml',
               ref: ${{ toJSON(steps.pr.outputs.head_ref) }},
               inputs: { full_ci: 'true' },
             });
@@ -127,7 +127,7 @@ jobs:
           script: |
             const ref = ${{ toJSON(steps.pr.outputs.head_ref) }};
             const headSha = ${{ toJSON(steps.pr.outputs.head_sha) }};
-            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/main.yml?query=branch%3A${encodeURIComponent(ref)}`;
+            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/build-and-test.yml?query=branch%3A${encodeURIComponent(ref)}`;
             const startedAt = Date.now();
 
             for (let attempt = 0; attempt < 20; attempt++) {
@@ -135,7 +135,7 @@ jobs:
               const { data } = await github.rest.actions.listWorkflowRuns({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                workflow_id: 'main.yml',
+                workflow_id: 'build-and-test.yml',
                 branch: ref,
                 event: 'workflow_dispatch',
                 per_page: 30,

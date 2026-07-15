@@ -21,7 +21,7 @@ git status --short        # must be empty — no uncommitted changes
 git branch --show-current # should be main
 ```
 
-Then check that CI on `main` is fully green. Open the latest `Build and test` run on the `main` branch in GitHub (the `main.yml` workflow) and confirm every job passed — including `build.yml` (all platforms), `regen_checks`, `python_ci`, `kotlin_ci`, `swift_ci`, and `linting`. **Do not cut a release from a red `main`** — the release workflow reuses these same build jobs and will publish broken artifacts. If any job is failing or pending, stop and tell the user.
+Then check that CI on `main` is fully green. Open the latest `Build and test` run on the `main` branch in GitHub (the `build-and-test.yml` workflow) and confirm every job passed — including `build.yml` (all platforms), `regen-checks`, `python-ci`, `kotlin-ci`, `swift-ci`, and `linting`. **Do not cut a release from a red `main`** — the release workflow reuses these same build jobs and will publish broken artifacts. If any job is failing or pending, stop and tell the user.
 
 ---
 
@@ -338,7 +338,7 @@ git tag nobodywho-swift-v2.2.0
 # then: git push origin main --tags
 ```
 
-Tag format **must** be `nobodywho-<binding>-vX.Y.Z` — `.github/workflows/main.yml` triggers `release.yml` on `tags: ['nobodywho-*']`, and each release job gates on `startsWith(github.ref, 'refs/tags/nobodywho-<binding>-...')`. A malformed tag silently publishes nothing.
+Tag format **must** be `nobodywho-<binding>-vX.Y.Z` — `.github/workflows/build-and-test.yml` triggers `release.yml` on `tags: ['nobodywho-*']`, and each release job gates on `startsWith(github.ref, 'refs/tags/nobodywho-<binding>-...')`. A malformed tag silently publishes nothing.
 
 **Do not commit, tag, or push.** Per `AGENTS.md`, wait for the user to do it (or to explicitly instruct you to).
 

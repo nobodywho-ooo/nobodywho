@@ -26,11 +26,11 @@ jobs:
   linting:
     uses: ./.github/workflows/linting.yml
 
-  regen_checks:
-    uses: ./.github/workflows/regen_checks.yml
+  regen-checks:
+    uses: ./.github/workflows/regen-checks.yml
 
-  python_ci:
-    uses: ./.github/workflows/python_ci.yml
+  python-ci:
+    uses: ./.github/workflows/python-ci.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
@@ -39,15 +39,15 @@ jobs:
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
-  swift_ci:
+  swift-ci:
     needs: [build]
-    uses: ./.github/workflows/swift_ci.yml
+    uses: ./.github/workflows/swift-ci.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
-  kotlin_ci:
+  kotlin-ci:
     needs: [build]
-    uses: ./.github/workflows/kotlin_ci.yml
+    uses: ./.github/workflows/kotlin-ci.yml
     with:
       full_ci: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')) || (github.event_name == 'workflow_dispatch' && inputs.full_ci) }}
 
@@ -61,7 +61,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/nobodywho-')
-    needs: [linting, regen_checks, build, test, python_ci, swift_ci, kotlin_ci]
+    needs: [linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci]
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
