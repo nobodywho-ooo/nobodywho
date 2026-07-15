@@ -329,6 +329,64 @@ Future<String> downloadLibrary(Config config, String version) async {
     httpClient.close();
 
     stderr.writeln('Downloaded to: $outputPath');
+
+    // Download the dynamically-linked ggml/llama sibling libs (dynamic-link
+    // feature) into the same cache dir, so the desktop CMake glob / Android
+    // jniLibs copy find them next to the binding library. They are published
+    // per-triple (base-triple-buildType.ext) to avoid a flat-namespace collision
+    // and saved back under their base name (matching the binding's rpath / SONAME).
+    final ext = libName.split('.').last;
+    final prefix = config.platform == 'windows' ? '' : 'lib';
+    // Map: lib base name -> is a 404 tolerable? Optional: ggml-vulkan (not on Android),
+    // onnxruntime (x86_64 android only; elsewhere ORT is static). The rest are DT_NEEDED
+    // of the binding, so a missing/truncated one must fail, not be silently skipped.
+    final siblingLibs = <String, bool>{
+      '${prefix}ggml': false,
+      '${prefix}ggml-base': false,
+      '${prefix}ggml-cpu': false,
+      '${prefix}ggml-vulkan': true,
+      '${prefix}onnxruntime': true,
+      '${prefix}llama': false,
+      '${prefix}llama-common': false,
+    };
+    for (final entry in siblingLibs.entries) {
+      final base = entry.key;
+      final optional = entry.value;
+      final assetName = '$base-$triple-${config.buildType}.$ext';
+      final assetUrl = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$assetName';
+      final destFile = File('$cacheDir/$base.$ext');
+      if (destFile.existsSync()) continue;
+      final client = HttpClient();
+      try {
+        final req = await client.getUrl(Uri.parse(assetUrl));
+        final resp = await req.close();
+        if (resp.statusCode == 200) {
+          final s = destFile.openWrite();
+          await resp.pipe(s);
+          await s.close();
+          stderr.writeln('Downloaded sibling lib: $base.$ext');
+        } else {
+          await resp.drain();
+          if (!optional) {
+            throw Exception(
+              'Failed to download required sibling lib $base.$ext: '
+              'HTTP ${resp.statusCode}\nURL: $assetUrl'
+            );
+          }
+        }
+      } catch (e) {
+        // Never leave a truncated sibling behind — the existsSync() short-circuit
+        // above would otherwise treat it as a good cached file on the next run.
+        if (destFile.existsSync()) destFile.deleteSync();
+        // Optional backend lib absent for this platform — skip. A required lib
+        // failing must bubble up so the outer catch wipes the binding too and
+        // the whole cache entry re-downloads next run instead of half-healing.
+        if (!optional) rethrow;
+      } finally {
+        client.close();
+      }
+    }
+
     return outputFile.absolute.path;
   } catch (e) {
     // Clean up partial download

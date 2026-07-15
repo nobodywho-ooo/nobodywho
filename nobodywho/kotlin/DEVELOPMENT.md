@@ -48,10 +48,16 @@ cargo build -p nobodywho-uniffi
 cargo run --bin uniffi-bindgen -- generate \
   --library target/debug/libnobodywho_uniffi.so \
   --language kotlin \
-  --out-dir kotlin/generated
+  --out-dir kotlin/common/generated
+
+# Re-inject the NativeLoader hook that uniffi-bindgen overwrites (dynamic-link: the
+# binding lib's ggml/llama siblings must be staged before Native.register). Idempotent;
+# same step used by `just regen-uniffi` and the regen_checks CI job.
+python3 scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
 ```
 
 **After regenerating:** Check that the wrapper classes in `src/` still match the generated API. In particular:
+- The `NativeLoader.ensureLoaded()` hook is re-injected into both `Native.register` sites (the `inject-native-loader.py` step above; `NativeLoaderGuardTest` fails if it's missing)
 - `SamplerPresets.kt` — new sampler preset functions may need wrapping
 - `Exports.kt` — new data types used in public APIs may need type aliases
 - Import aliases in wrapper files (`RustChat`, `RustModel`, etc.) — names may change

@@ -154,14 +154,38 @@ jobs:
           cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
       - name: Build linux python wheel
+        # Skip maturin's auditwheel (it can't graft the inter-dependent ggml libs — the next
+        # step vendors them). --compatibility forces the manylinux_2_34 tag (skip alone tags `linux`).
         run: |
           source "$HOME/.cargo/env"
-          maturin build --verbose --release --locked
+          maturin build --verbose --release --locked \
+            --auditwheel skip --compatibility manylinux_2_34
         working-directory: ./nobodywho/python
 
-      - name: Repair wheel to use manylinux
-        # auditwheel bundles external libraries and verifies manylinux compliance
-        run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
+      - name: Bundle native libs into the wheel
+        # Vendor the ggml/llama libs + OpenMP runtime next to the extension, each with an
+        # $ORIGIN rpath. libstdc++/libc/libm/Vulkan stay system.
+        run: |
+          set -eux
+          pip3 install wheel
+          whl="$(ls nobodywho/target/wheels/nobodywho*.whl)"
+          work="$(mktemp -d)"
+          python3 -m wheel unpack "$whl" -d "$work"
+          pkg="$(echo "$work"/nobodywho-*/)"
+          extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
+
+          # ggml/llama .so are nested in the build tree, so gather them recursively.
+          find "$(pwd)/nobodywho/target/release" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} "$extdir/" \;
+          # Bundle the OpenMP runtime (ggml-cpu needs libgomp.so.1); fail loudly if absent.
+          gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
+          if [ -z "$gomp" ]; then echo "libgomp.so.1 not found — cannot bundle OpenMP runtime" >&2; exit 1; fi
+          cp "$gomp" "$extdir"/libgomp.so.1
+          # Give the extension its own $ORIGIN rpath (the job's RUSTFLAGS override drops the config one).
+          find "$pkg" -name '*.abi3.so' -exec patchelf --set-rpath '$ORIGIN' {} \;
+
+          mkdir -p wheelhouse
+          python3 -m wheel pack "$pkg" -d wheelhouse
+          ls -l wheelhouse "$extdir"
 
       - name: Upload wheel
         uses: actions/upload-artifact@v5
@@ -222,11 +246,16 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+      - name: "Delvewheel repair (bundle ggml/llama DLLs)"
+        # --add-path points delvewheel at the built DLLs (in the short C:/target dir).
+        run: |
+          pip install delvewheel
+          delvewheel repair --add-path C:/target/${{ matrix.target }}/release -w C:/wheelhouse (Get-Item C:/target/wheels/nobodywho*.whl).FullName
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
-          path: C:/target/wheels/nobodywho*.whl
+          path: C:/wheelhouse/nobodywho*.whl
 
   mac-os-build:
     if: inputs.full_ci
@@ -244,11 +273,20 @@ jobs:
         run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
 
+      - name: "Delocate wheel (bundle ggml/llama dylibs)"
+        # DYLD_*_LIBRARY_PATH points delocate at the built dylibs to resolve the extension's @rpath deps.
+        run: |
+          pip3 install delocate
+          export DYLD_LIBRARY_PATH="$(pwd)/nobodywho/target/aarch64-apple-darwin/release:${DYLD_LIBRARY_PATH:-}"
+          export DYLD_FALLBACK_LIBRARY_PATH="$DYLD_LIBRARY_PATH"
+          mkdir -p wheelhouse
+          delocate-wheel -w wheelhouse -v nobodywho/target/wheels/nobodywho*.whl
+
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_macos
-          path: ./nobodywho/target/wheels/nobodywho*.whl
+          path: ./wheelhouse/nobodywho*.whl
 
   linux-pytest:
     if: inputs.full_ci

@@ -70,6 +70,46 @@ task resolveNativeLibraries {
   description = "Downloads NobodyWho native shared libraries from GitHub Releases"
 
   doLast {
+    def releaseBase = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v${nobodywhoVersion}"
+
+    // Download a release asset to destFile (following GitHub's cross-protocol
+    // redirects). Returns true on success; when required=false a 404 is tolerated
+    // (returns false) so optional backend libs that don't exist are skipped.
+    def downloadAsset = { String assetName, File destFile, boolean required ->
+      def url = "${releaseBase}/${assetName}"
+      for (int i = 0; i < 5; i++) {
+        def connection = (java.net.HttpURLConnection) new URL(url).openConnection()
+        connection.setInstanceFollowRedirects(false)
+        connection.connect()
+        def code = connection.responseCode
+        if (code == 200) {
+          // Never leave a truncated file behind: the caller only re-checks the binding's
+          // existence, so a half-written sibling would otherwise be packaged into
+          // jniLibs/<abi> on the next run → UnsatisfiedLinkError on device.
+          try {
+            destFile.withOutputStream { out -> out << connection.inputStream }
+          } catch (Exception e) {
+            if (destFile.exists()) destFile.delete()
+            throw e
+          }
+          logger.lifecycle("[NobodyWho] Downloaded ${assetName} -> ${destFile.name} (${destFile.length()} bytes)")
+          return true
+        } else if (code in [301, 302, 307, 308]) {
+          url = connection.getHeaderField("Location"); connection.disconnect()
+        } else if (code == 404 && !required) {
+          return false
+        } else {
+          throw new GradleException("Failed to download ${assetName}: HTTP ${code}\nCheck ${releaseBase}")
+        }
+      }
+      throw new GradleException("Too many redirects downloading ${assetName}")
+    }
+
+    // The dynamically-linked ggml/llama libs (dynamic-link feature) are published
+    // per-triple (e.g. libggml-<triple>.so) to avoid a flat-namespace collision,
+    // and saved back under their SONAME so the Android loader resolves them.
+    def ggmlLibs = ["libggml", "libggml-base", "libggml-cpu", "libllama", "libllama-common"]
+
     abiToTriple.each { abi, triple ->
       def abiDir = new File(nativeLibsDir, abi)
       def libFile = new File(abiDir, "libnobodywho_uniffi.so")
@@ -78,49 +118,25 @@ task resolveNativeLibraries {
         logger.lifecycle("[NobodyWho] ${abi}: Using existing library at ${libFile.path}")
         return
       }
-
       abiDir.mkdirs()
 
-      def fileName = "libnobodywho-uniffi-${triple}-release.so"
-      def downloadUrl = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v${nobodywhoVersion}/${fileName}"
-
-      logger.lifecycle("[NobodyWho] ${abi}: Downloading from ${downloadUrl}")
-
       try {
-        // Follow redirects manually to handle cross-protocol redirects
-        // (GitHub redirects from github.com to objects.githubusercontent.com)
-        def url = downloadUrl
-        def maxRedirects = 5
-        for (int i = 0; i < maxRedirects; i++) {
-          def connection = (java.net.HttpURLConnection) new URL(url).openConnection()
-          connection.setInstanceFollowRedirects(false)
-          connection.connect()
-
-          def code = connection.responseCode
-          if (code == 200) {
-            libFile.withOutputStream { out ->
-              out << connection.inputStream
-            }
-            logger.lifecycle("[NobodyWho] ${abi}: Downloaded to ${libFile.path} (${libFile.length()} bytes)")
-            return
-          } else if (code == 301 || code == 302 || code == 307 || code == 308) {
-            url = connection.getHeaderField("Location")
-            connection.disconnect()
-          } else {
-            throw new GradleException(
-              "Failed to download NobodyWho library for ${abi}: HTTP ${code}\n" +
-              "URL: ${downloadUrl}\n" +
-              "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v${nobodywhoVersion}"
-            )
-          }
+        downloadAsset("libnobodywho-uniffi-${triple}-release.so", libFile, true)
+        // ggml/llama are DT_NEEDED of the binding — a 404 must fail the build, not
+        // silently ship a jniLibs/<abi> missing a required lib (UnsatisfiedLinkError
+        // on device). resolve_binary.dart applies the same required/optional split.
+        ggmlLibs.each { base ->
+          downloadAsset("${base}-${triple}.so", new File(abiDir, "${base}.so"), true)
         }
-        throw new GradleException("Too many redirects downloading NobodyWho library for ${abi}")
+        // libonnxruntime.so ships for x86_64 android only (arm64 links ORT
+        // statically), so it is optional — absent for the arm64 triple.
+        downloadAsset("libonnxruntime-${triple}.so", new File(abiDir, "libonnxruntime.so"), false)
       } catch (GradleException e) {
         throw e
       } catch (Exception e) {
         throw new GradleException(
-          "Failed to download NobodyWho library for ${abi}: ${e.message}\n" +
-          "For local development, build the uniffi crate and place the .so file at: ${libFile.path}",
+          "Failed to download NobodyWho libraries for ${abi}: ${e.message}\n" +
+          "For local development, build the uniffi crate and place the .so files at: ${abiDir}",
           e
         )
       }

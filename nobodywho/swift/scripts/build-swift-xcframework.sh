@@ -8,6 +8,10 @@
 #
 # After running, Package.swift can resolve the local binary target at:
 #   swift/Frameworks/NobodyWhoNative.xcframework
+#
+# Produces a DYNAMIC-FRAMEWORK xcframework (since the dynamic-link switch): the
+# uniffi .dylib wrapped as a framework with the ggml/llama dylibs embedded inside.
+# See make-apple-framework.sh for how the @rpath/@loader_path graph is assembled.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -30,41 +34,57 @@ echo "Building nobodywho-uniffi for visionOS simulator (aarch64-apple-visionos-s
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-visionos-sim --release
 
 echo "Building nobodywho-uniffi for watchOS device (aarch64-apple-watchos)..."
-cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos --release
+# The stock aarch64-apple-watchos spec has dynamic-linking off, so cargo silently
+# drops the cdylib and emits only a static .a (useless under dynamic-link). Derive a
+# spec with the flag on; the JSON stem must equal the triple so output still lands in
+# target/aarch64-apple-watchos/. (Mirrors the workaround in .github/workflows/build.yml.)
+WATCHOS_SPEC_DIR=$(mktemp -d)
+rustc +nightly -Z unstable-options --target aarch64-apple-watchos --print target-spec-json \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); d["dynamic-linking"]=True; d.pop("metadata",None); json.dump(d, open(sys.argv[1],"w"))' \
+    "$WATCHOS_SPEC_DIR/aarch64-apple-watchos.json"
+cargo +nightly build -p nobodywho-uniffi -Z build-std -Z json-target-spec \
+  --target "$WATCHOS_SPEC_DIR/aarch64-apple-watchos.json" --release
+rm -rf "$WATCHOS_SPEC_DIR"
 
 echo "Building nobodywho-uniffi for watchOS simulator (aarch64-apple-watchos-sim)..."
 cargo +nightly build -p nobodywho-uniffi -Z build-std --target aarch64-apple-watchos-sim --release
 
-# Assemble xcframework with headers
+# The framework module is named `nobodywhoFFI` so the generated
+# `nobodywho.swift`'s `import nobodywhoFFI` resolves. The SPM binaryTarget in
+# Package.swift stays named NobodyWhoNative — the vended module name is
+# independent of the binaryTarget name, so Package.swift needs no change.
+FRAMEWORK_NAME=nobodywhoFFI
+HELPER="$PWD/scripts/make-apple-framework.sh"
+FFI_HEADER="$PWD/swift/generated/nobodywhoFFI.h"
 TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 
-for dir in ios-device ios-sim macos visionos-device visionos-sim watchos-device watchos-sim; do
-    mkdir -p "$TMPDIR/$dir/Headers"
-    cp swift/generated/nobodywhoFFI.h "$TMPDIR/$dir/Headers/"
-    cp swift/generated/nobodywhoFFI.modulemap "$TMPDIR/$dir/Headers/module.modulemap"
-done
+# $1 = cargo target triple   $2 = output slice dir   $3 = flat|versioned
+make_framework() {
+    bash "$HELPER" "target/$1/release" libnobodywho_uniffi.dylib \
+        "$FRAMEWORK_NAME" "$3" "$2" "$FFI_HEADER" ooo.nobodywho.ffi
+}
 
-cp target/aarch64-apple-ios/release/libnobodywho_uniffi.a "$TMPDIR/ios-device/"
-cp target/aarch64-apple-ios-sim/release/libnobodywho_uniffi.a "$TMPDIR/ios-sim/"
-cp target/aarch64-apple-darwin/release/libnobodywho_uniffi.a "$TMPDIR/macos/"
-cp target/aarch64-apple-visionos/release/libnobodywho_uniffi.a "$TMPDIR/visionos-device/"
-cp target/aarch64-apple-visionos-sim/release/libnobodywho_uniffi.a "$TMPDIR/visionos-sim/"
-cp target/aarch64-apple-watchos/release/libnobodywho_uniffi.a "$TMPDIR/watchos-device/"
-cp target/aarch64-apple-watchos-sim/release/libnobodywho_uniffi.a "$TMPDIR/watchos-sim/"
+make_framework aarch64-apple-ios          "$TMPDIR/ios-device"      flat
+make_framework aarch64-apple-ios-sim      "$TMPDIR/ios-sim"         flat
+make_framework aarch64-apple-darwin       "$TMPDIR/macos"           versioned
+make_framework aarch64-apple-visionos     "$TMPDIR/visionos-device" flat
+make_framework aarch64-apple-visionos-sim "$TMPDIR/visionos-sim"    flat
+make_framework aarch64-apple-watchos      "$TMPDIR/watchos-device"  flat
+make_framework aarch64-apple-watchos-sim  "$TMPDIR/watchos-sim"     flat
 
 rm -rf swift/Frameworks/NobodyWhoNative.xcframework
 mkdir -p swift/Frameworks
 
 echo "Creating xcframework..."
 xcodebuild -create-xcframework \
-    -library "$TMPDIR/ios-device/libnobodywho_uniffi.a" -headers "$TMPDIR/ios-device/Headers" \
-    -library "$TMPDIR/ios-sim/libnobodywho_uniffi.a" -headers "$TMPDIR/ios-sim/Headers" \
-    -library "$TMPDIR/macos/libnobodywho_uniffi.a" -headers "$TMPDIR/macos/Headers" \
-    -library "$TMPDIR/visionos-device/libnobodywho_uniffi.a" -headers "$TMPDIR/visionos-device/Headers" \
-    -library "$TMPDIR/visionos-sim/libnobodywho_uniffi.a" -headers "$TMPDIR/visionos-sim/Headers" \
-    -library "$TMPDIR/watchos-device/libnobodywho_uniffi.a" -headers "$TMPDIR/watchos-device/Headers" \
-    -library "$TMPDIR/watchos-sim/libnobodywho_uniffi.a" -headers "$TMPDIR/watchos-sim/Headers" \
+    -framework "$TMPDIR/ios-device/$FRAMEWORK_NAME.framework" \
+    -framework "$TMPDIR/ios-sim/$FRAMEWORK_NAME.framework" \
+    -framework "$TMPDIR/macos/$FRAMEWORK_NAME.framework" \
+    -framework "$TMPDIR/visionos-device/$FRAMEWORK_NAME.framework" \
+    -framework "$TMPDIR/visionos-sim/$FRAMEWORK_NAME.framework" \
+    -framework "$TMPDIR/watchos-device/$FRAMEWORK_NAME.framework" \
+    -framework "$TMPDIR/watchos-sim/$FRAMEWORK_NAME.framework" \
     -output swift/Frameworks/NobodyWhoNative.xcframework
 
 echo "Done: swift/Frameworks/NobodyWhoNative.xcframework"

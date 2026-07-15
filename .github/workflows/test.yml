@@ -84,26 +84,8 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
-
-      - name: Setup Rust toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install Vulkan dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-
-      - name: Setup Flutter SDK
-        uses: flutter-actions/setup-flutter@v4
-        with:
-          channel: stable
-          version: 3.35.5
-
-      - name: Build Flutter library
-        working-directory: ./nobodywho
-        run: cargo build -p nobodywho-flutter --locked
+      # Consumes the build job's prebuilt artifact (gated on `test`'s needs: [build] in main.yml).
+      - uses: ./.github/actions/flutter-native-lib
 
       - name: Download vision models
         run: |
@@ -116,7 +98,6 @@ jobs:
         env:
           TEST_MULTIMODAL_MODEL: ${{ github.workspace }}/models/gemma-3-4b-it-Q4_K_M.gguf
           TEST_MULTIMODAL_MMPROJ: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
-          LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_multimodal_test.dart --reporter expanded
 
 
@@ -125,26 +106,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install Vulkan dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
-
-      - name: Setup Flutter SDK
-        uses: flutter-actions/setup-flutter@v4
-        with:
-          channel: stable
-          version: 3.35.5
-
-      - name: Build Flutter library
-        working-directory: ./nobodywho
-        run: cargo build -p nobodywho-flutter --locked
+      # ONNX Runtime is statically linked into the cdylib, so no separate onnx lib is needed.
+      - uses: ./.github/actions/flutter-native-lib
 
       - name: Download Whisper model
         run: |
@@ -163,5 +126,4 @@ jobs:
         env:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
           TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
-          LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_test.dart --name "STT" --reporter expanded

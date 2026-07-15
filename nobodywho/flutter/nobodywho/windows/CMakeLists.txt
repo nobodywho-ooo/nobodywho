@@ -48,8 +48,16 @@ endif()
 
 message(STATUS "Using NobodyWho library for Windows ${WINDOWS_ARCH}: ${NOBODYWHO_LIB_PATH}")
 
+# Bundle the ggml/llama DLLs; Windows resolves them from the loading module's (app) dir.
+get_filename_component(NOBODYWHO_LIB_DIR "${NOBODYWHO_LIB_PATH}" DIRECTORY)
+file(GLOB NOBODYWHO_GGML_LIBS
+  "${NOBODYWHO_LIB_DIR}/ggml*.dll"
+  "${NOBODYWHO_LIB_DIR}/llama*.dll"
+)
+
 # List of absolute paths to libraries that should be bundled with the plugin.
 set(nobodywho_bundled_libraries
   ${NOBODYWHO_LIB_PATH}
+  ${NOBODYWHO_GGML_LIBS}
   PARENT_SCOPE
 )

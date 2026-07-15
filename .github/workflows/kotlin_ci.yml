@@ -62,3 +62,19 @@ jobs:
           NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
         run: ./gradlew :nobodywho-core:test
+
+      # Bundle the binding + ggml/llama siblings into the JVM JAR resources (JNA layout), mirroring release.
+      - name: "Bundle native libs into JVM JAR resources"
+        run: |
+          d=./native-lib
+          mkdir -p nobodywho/kotlin/jvm/src/main/resources/linux-x86-64
+          cp "$d/libnobodywho_uniffi.so" nobodywho/kotlin/jvm/src/main/resources/linux-x86-64/
+          cp -P "$d"/libggml* "$d"/libllama* \
+            nobodywho/kotlin/jvm/src/main/resources/linux-x86-64/ 2>/dev/null || true
+
+      # Load the packaged JAR the way a real consumer does — no NOBODYWHO_LIB_DIR /
+      # jna.library.path shim — so the NativeLoader must resolve the sibling libs from the
+      # JAR. Catches release-only UnsatisfiedLinkError the co-located unit tests can't.
+      - name: "Run JVM packaging smoke test"
+        working-directory: ./nobodywho/kotlin
+        run: ./gradlew :jvm:jvmSmoke
