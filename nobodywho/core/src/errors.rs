@@ -399,6 +399,12 @@ pub enum InitWorkerError {
     #[error("Insufficient memory for context: {0}")]
     #[diagnostic(transparent)]
     Memory(#[from] MemoryError),
+
+    #[error("Invalid sampler configuration: {0}")]
+    InvalidSamplerConfig(#[from] SamplerError),
+
+    #[error("Failed setting up tool calling: {0}")]
+    ToolCallingSetup(#[from] ToolCallingSetupError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -817,8 +823,11 @@ pub(crate) enum ChatWorkerError {
     #[error("Error during context syncing: {0}")]
     ContextSyncError(#[from] ContextSyncError),
 
-    #[error("Error setting tools: {0}")]
-    SetTools(#[from] SetToolsError),
+    #[error("Invalid sampler configuration: {0}")]
+    InvalidSamplerConfig(#[from] SamplerError),
+
+    #[error("Failed setting up tool calling: {0}")]
+    ToolCallingSetup(#[from] ToolCallingSetupError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -1092,14 +1101,16 @@ impl From<llama_cpp_2::ChatTemplateError> for SelectTemplateError {
     }
 }
 
+/// Errors building the tool-calling state (format detection, Lark grammar
+/// generation, and pre-building the tool-call sampler) for a non-empty set
+/// of tools.
 #[derive(Debug, thiserror::Error)]
-pub enum SetToolsError {
-    #[error("Failed syncing context to include the new tools: {0}")]
-    ContextSync(#[from] ContextSyncError),
-    #[error("Failed selecting chat template for the new tools: {0}")]
-    SelectTemplate(#[from] SelectTemplateError),
-    #[error("Failed rendering chat template with the new tools: {0}")]
-    Render(#[from] RenderError),
+pub enum ToolCallingSetupError {
+    #[error("Failed to detect or apply tool calling format: {0}")]
+    ToolFormat(#[from] crate::tool_calling::ToolFormatError),
+
+    #[error("Failed to build tool-call sampler: {0}")]
+    Sampler(#[from] SamplerError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

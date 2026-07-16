@@ -136,16 +136,44 @@ impl SamplerConfig {
         }
     }
 
-    pub fn to_stateful(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
-        let sample_step = self.sample_step.clone();
+    pub fn build_sampler(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
+        self.build_sampler_with_prepended_step(model, None)
+    }
 
-        let mut shift_steps = self
-            .steps
-            .iter()
-            .map(|step| self.build_step(model, step.clone()))
+    /// Build a stateful sampler chain with a `LarkWithSlices` grammar step
+    /// prepended to the configured steps, so every token sampled through the
+    /// chain is constrained by the grammar.
+    ///
+    /// `slices` are vocabulary hint regexes pre-computed into bitmasks at
+    /// construction time; when all tokens matched by a slice are valid at the
+    /// current grammar position, llguidance uses the bitmask instead of a
+    /// full vocabulary walk, cutting per-token constraint cost significantly.
+    pub fn build_sampler_with_grammar(
+        &self,
+        model: &LlamaModel,
+        lark: &str,
+        slices: Vec<String>,
+    ) -> Result<LlamaSampler, SamplerError> {
+        self.build_sampler_with_prepended_step(
+            model,
+            Some(ShiftStep::LarkWithSlices(lark.to_string(), slices)),
+        )
+    }
+
+    fn build_sampler_with_prepended_step(
+        &self,
+        model: &LlamaModel,
+        extra_step: Option<ShiftStep>,
+    ) -> Result<LlamaSampler, SamplerError> {
+        // Essentially prepends the optional grammar step at the head of the
+        // sample steps, so the grammar is the first thing the sampler performs
+        let mut shift_steps = extra_step
+            .into_iter()
+            .chain(self.steps.iter().cloned())
+            .map(|step| self.build_step(model, step))
             .collect::<Result<Vec<_>, SamplerError>>()?;
 
-        let final_sampler = match sample_step {
+        let final_sampler = match self.sample_step.clone() {
             SampleStep::Dist => LlamaSampler::dist(self.seed),
             SampleStep::Greedy => LlamaSampler::greedy(),
             SampleStep::MirostatV1 { tau, eta, m } => {
