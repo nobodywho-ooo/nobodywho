@@ -1481,8 +1481,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
      * Set `mtp = true` to enable MTP speculative decoding for this
      * chat. Requires the `RustModel` to have been loaded with a
      * compatible `draft_model_path`; otherwise construction fails.
-     * Big speedup on structured outputs (code, JSON, math), neutral
-     * or slight loss on freeform prose. Costs ~200 MiB of extra VRAM.
+     * Adds around 5% to VRAM usage.
      */
     constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: boolean) /*throws*/ {
         super();
@@ -4183,7 +4182,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 564) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 60526) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {

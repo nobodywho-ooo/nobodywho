@@ -733,8 +733,7 @@ open class RustChat: RustChatProtocol, @unchecked Sendable {
      * Set `mtp = true` to enable MTP speculative decoding for this
      * chat. Requires the `RustModel` to have been loaded with a
      * compatible `draft_model_path`; otherwise construction fails.
-     * Big speedup on structured outputs (code, JSON, math), neutral
-     * or slight loss on freeform prose. Costs ~200 MiB of extra VRAM.
+     * Adds around 5% to VRAM usage.
      */
 public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: Bool)throws  {
     let handle =
@@ -4749,7 +4748,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 564) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 60526) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {

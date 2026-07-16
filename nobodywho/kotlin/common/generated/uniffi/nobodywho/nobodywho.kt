@@ -1360,7 +1360,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 564.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 60526.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -2064,8 +2064,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      * Set `mtp = true` to enable MTP speculative decoding for this
      * chat. Requires the `RustModel` to have been loaded with a
      * compatible `draft_model_path`; otherwise construction fails.
-     * Big speedup on structured outputs (code, JSON, math), neutral
-     * or slight loss on freeform prose. Costs ~200 MiB of extra VRAM.
+     * Adds around 5% to VRAM usage.
      */
     constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: kotlin.Boolean) :
         this(UniffiWithHandle, 
