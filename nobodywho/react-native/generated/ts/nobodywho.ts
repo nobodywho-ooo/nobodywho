@@ -151,23 +151,22 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
  * # MTP speculative decoding
  *
  * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
- * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and set `mtp = true` to
- * enable multi-token-prediction speculative decoding. Expect large
- * speedups on structured/deterministic outputs (code, JSON, math);
- * negligible-to-slight loss on high-entropy prose. Costs ~200 MiB of
- * extra VRAM. When `mtp = false`, `draft_model_path` is ignored.
+ * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+ * speculative decoding on chats built from this model. Whether MTP is
+ * actually used is a per-chat decision — pass it through
+ * `Chat`-level config on the wrapping binding.
  *
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, draftModelPath: string | undefined, mtp: boolean, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, draftModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalString.lower(draftModelPath),FfiConverterBool.lower(mtp),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalString.lower(draftModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -1478,8 +1477,14 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
      * Create a new chat session.
+     *
+     * Set `mtp = true` to enable MTP speculative decoding for this
+     * chat. Requires the `RustModel` to have been loaded with a
+     * compatible `draft_model_path`; otherwise construction fails.
+     * Big speedup on structured outputs (code, JSON, math), neutral
+     * or slight loss on freeform prose. Costs ~200 MiB of extra VRAM.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) /*throws*/ {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: boolean) /*throws*/ {
         super();
         const pointer =
             
@@ -1493,6 +1498,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
         FfiConverterOptionalMapStringBool.lower(templateVariables),
         FfiConverterOptionalArrayTypeRustTool.lower(tools),
         FfiConverterOptionalTypeSamplerConfig.lower(sampler),
+        FfiConverterBool.lower(mtp),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -3994,7 +4000,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models() !== 12002) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_get_cached_models");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 9764) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 22964) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 61935) {
@@ -4177,7 +4183,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 24505) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 564) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {

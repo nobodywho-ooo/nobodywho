@@ -729,8 +729,14 @@ open class RustChat: RustChatProtocol, @unchecked Sendable {
     }
     /**
      * Create a new chat session.
+     *
+     * Set `mtp = true` to enable MTP speculative decoding for this
+     * chat. Requires the `RustModel` to have been loaded with a
+     * compatible `draft_model_path`; otherwise construction fails.
+     * Big speedup on structured outputs (code, JSON, math), neutral
+     * or slight loss on freeform prose. Costs ~200 MiB of extra VRAM.
      */
-public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?)throws  {
+public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: Bool)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
@@ -739,7 +745,8 @@ public convenience init(model: RustModel, systemPrompt: String?, contextSize: UI
         FfiConverterUInt32.lower(contextSize),
         FfiConverterOptionDictionaryStringBool.lower(templateVariables),
         FfiConverterOptionSequenceTypeRustTool.lower(tools),
-        FfiConverterOptionTypeSamplerConfig.lower(sampler),$0
+        FfiConverterOptionTypeSamplerConfig.lower(sampler),
+        FfiConverterBool.lower(mtp),$0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -4391,21 +4398,20 @@ public func getCachedModels()throws  -> [CachedModel]  {
  * # MTP speculative decoding
  *
  * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
- * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and set `mtp = true` to
- * enable multi-token-prediction speculative decoding. Expect large
- * speedups on structured/deterministic outputs (code, JSON, math);
- * negligible-to-slight loss on high-entropy prose. Costs ~200 MiB of
- * extra VRAM. When `mtp = false`, `draft_model_path` is ignored.
+ * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+ * speculative decoding on chats built from this model. Whether MTP is
+ * actually used is a per-chat decision — pass it through
+ * `Chat`-level config on the wrapping binding.
  *
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?, draftModelPath: String?, mtp: Bool, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> RustModel  {
+public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?, draftModelPath: String?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> RustModel  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionString.lower(projectionModelPath),FfiConverterOptionString.lower(draftModelPath),FfiConverterBool.lower(mtp),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
+                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionString.lower(projectionModelPath),FfiConverterOptionString.lower(draftModelPath),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -4560,7 +4566,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 9764) {
+    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935) {
@@ -4743,7 +4749,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 564) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {
