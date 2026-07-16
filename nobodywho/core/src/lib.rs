@@ -82,6 +82,22 @@ pub mod test_utils {
         std::env::var("TEST_VISION_MODEL").unwrap_or_else(|_| "vision-model.gguf".to_string())
     }
 
+    /// Get path to MTP target model from TEST_MTP_TARGET_MODEL env var,
+    /// or `None` if the env var isn't set. Tests that require MTP
+    /// should skip cleanly on `None` — MTP tests aren't wired into the
+    /// default nix test build because the target model is large and
+    /// only a few architectures ship compatible MTP heads.
+    pub fn test_mtp_target_model_path() -> Option<String> {
+        std::env::var("TEST_MTP_TARGET_MODEL").ok()
+    }
+
+    /// Get path to MTP draft (heads-only) model from
+    /// TEST_MTP_DRAFT_MODEL env var, or `None` if unset. See
+    /// [`test_mtp_target_model_path`].
+    pub fn test_mtp_draft_model_path() -> Option<String> {
+        std::env::var("TEST_MTP_DRAFT_MODEL").ok()
+    }
+
     /// Load the test model with GPU acceleration if available
     pub fn load_test_model() -> Arc<Model> {
         let path = test_model_path();

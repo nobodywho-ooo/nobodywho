@@ -2089,23 +2089,26 @@ mod tests {
 
     /// Smoke test: load Gemma-4 base + MTP draft heads with `mtp=true`
     /// and verify a factual generation succeeds end-to-end. Skipped
-    /// when the model files are not present at the expected paths;
-    /// override via `TEST_MTP_TARGET_MODEL` / `TEST_MTP_DRAFT_MODEL`.
+    /// unless both `TEST_MTP_TARGET_MODEL` and `TEST_MTP_DRAFT_MODEL`
+    /// env vars are set to existing files.
     #[test]
     fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
         // test_utils::init_test_tracing();
-        let target_path = std::env::var("TEST_MTP_TARGET_MODEL").unwrap_or_else(|_| {
-            "/home/hanshh/work/model_dir/gemma4-mtp/gemma-4-E2B-it-Q4_K_M.gguf".to_string()
-        });
-        let draft_path = std::env::var("TEST_MTP_DRAFT_MODEL").unwrap_or_else(|_| {
-            "/home/hanshh/work/model_dir/gemma4-mtp/mtp-gemma-4-E2B-it.gguf".to_string()
-        });
-
+        let (Some(target_path), Some(draft_path)) = (
+            test_utils::test_mtp_target_model_path(),
+            test_utils::test_mtp_draft_model_path(),
+        ) else {
+            eprintln!(
+                "skipping test_mtp_gemma4_smoke: \
+                 set TEST_MTP_TARGET_MODEL and TEST_MTP_DRAFT_MODEL to enable"
+            );
+            return Ok(());
+        };
         if !std::path::Path::new(&target_path).exists()
             || !std::path::Path::new(&draft_path).exists()
         {
             eprintln!(
-                "skipping test_mtp_gemma4_smoke: model files missing at {} / {}",
+                "skipping test_mtp_gemma4_smoke: file missing at {} or {}",
                 target_path, draft_path
             );
             return Ok(());
