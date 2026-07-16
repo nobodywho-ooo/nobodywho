@@ -25,7 +25,13 @@ class Chat(
     contextSize: UInt = 4096u,
     templateVariables: Map<String, Boolean>? = null,
     tools: List<Tool>? = null,
-    sampler: SamplerConfig? = null
+    sampler: SamplerConfig? = null,
+    /**
+     * Enable MTP speculative decoding on this chat. Requires the [Model]
+     * to have been loaded with a compatible `draftModelPath`. Adds
+     * around 5% to VRAM usage.
+     */
+    mtp: Boolean = false
 ) : Closeable {
     private val inner: InternalRustChat = InternalRustChat(
         model.inner,
@@ -33,7 +39,8 @@ class Chat(
         contextSize,
         templateVariables,
         tools?.map { it.inner },
-        sampler
+        sampler,
+        mtp
     )
 
     companion object {
@@ -42,15 +49,17 @@ class Chat(
             modelPath: String,
             useGpu: Boolean = true,
             projectionModelPath: String? = null,
+            draftModelPath: String? = null,
             systemPrompt: String? = null,
             contextSize: UInt = 4096u,
             templateVariables: Map<String, Boolean>? = null,
             tools: List<Tool>? = null,
             sampler: SamplerConfig? = null,
+            mtp: Boolean = false,
             onDownloadProgress: ((downloaded: ULong, total: ULong) -> Unit)? = null
         ): Chat {
-            val model = Model.load(modelPath, useGpu, projectionModelPath, onDownloadProgress)
-            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler)
+            val model = Model.load(modelPath, useGpu, projectionModelPath, draftModelPath, onDownloadProgress)
+            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler, mtp)
         }
     }
 

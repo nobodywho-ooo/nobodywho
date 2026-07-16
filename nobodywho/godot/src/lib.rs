@@ -247,8 +247,7 @@ impl NobodyWhoModel {
             let _ = tx.send((d, t));
         });
 
-        let load_fut =
-            llm::get_model_async(path, use_gpu, mmproj, draft, Some(progress));
+        let load_fut = llm::get_model_async(path, use_gpu, mmproj, draft, Some(progress));
         tokio::pin!(load_fut);
 
         // select! lets one task drive the load AND drain progress on the same

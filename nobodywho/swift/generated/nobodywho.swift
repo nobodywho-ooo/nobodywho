@@ -4388,15 +4388,24 @@ public func getCachedModels()throws  -> [CachedModel]  {
  * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
  * or `auto` for memory-based selection. Downloaded models are cached automatically.
  *
+ * # MTP speculative decoding
+ *
+ * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+ * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and set `mtp = true` to
+ * enable multi-token-prediction speculative decoding. Expect large
+ * speedups on structured/deterministic outputs (code, JSON, math);
+ * negligible-to-slight loss on high-entropy prose. Costs ~200 MiB of
+ * extra VRAM. When `mtp = false`, `draft_model_path` is ignored.
+ *
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> RustModel  {
+public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?, draftModelPath: String?, mtp: Bool, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> RustModel  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionString.lower(projectionModelPath),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
+                uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionString.lower(projectionModelPath),FfiConverterOptionString.lower(draftModelPath),FfiConverterBool.lower(mtp),FfiConverterOptionCallbackInterfaceRustDownloadProgressCallback.lower(onDownloadProgress)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -4551,7 +4560,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 58712) {
+    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 9764) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935) {

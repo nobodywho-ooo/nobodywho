@@ -321,7 +321,7 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
     RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path,
-    RustBuffer on_download_progress);
+    RustBuffer draft_model_path, int8_t mtp, RustBuffer on_download_progress);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(
     RustBuffer source, RustBuffer architecture, RustBuffer voice,
     RustBuffer language, RustBuffer speed, RustBuffer steps,
@@ -3708,7 +3708,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_load_model"),
-          4,
+          6,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
@@ -6957,8 +6957,10 @@ jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
       uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[1]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
+      uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[4]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                      args[3]));
+                                                      args[5]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);

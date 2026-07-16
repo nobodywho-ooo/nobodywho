@@ -482,11 +482,7 @@ impl<'a> InferenceEngine<'a> {
                 .add(d, self.n_past + 1 + i as i32, &[0], true)?;
         }
         {
-            let decode_span = trace_span!(
-                "mtp verify decode",
-                n_past = self.n_past,
-                k_max
-            );
+            let decode_span = trace_span!("mtp verify decode", n_past = self.n_past, k_max);
             let _decode_guard = decode_span.enter();
             self.ctx.decode(&mut self.big_batch)?;
         }
@@ -497,11 +493,11 @@ impl<'a> InferenceEngine<'a> {
         //    compare to drafts[i].
         let mut accepted_drafts: Vec<LlamaToken> = Vec::with_capacity(k_max);
         let mut new_pending: Option<LlamaToken> = None;
-        for i in 0..k_max {
+        for (i, &draft) in drafts.iter().enumerate() {
             let ti = sampler.sample(&self.ctx, i as i32);
             sampler.accept(ti);
-            if ti == drafts[i] {
-                accepted_drafts.push(drafts[i]);
+            if ti == draft {
+                accepted_drafts.push(draft);
             } else {
                 new_pending = Some(ti);
                 break;

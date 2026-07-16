@@ -38,6 +38,12 @@ export class Chat {
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
+    /**
+     * Enable MTP speculative decoding on this chat. Requires the
+     * `Model` to have been loaded with a compatible `draftModelPath`.
+     * Adds around 5% to VRAM usage.
+     */
+    mtp?: boolean;
   }) {
     this._inner = new RustChat(
       opts.model._inner,
@@ -46,6 +52,7 @@ export class Chat {
       opts.templateVariables ? new Map(Object.entries(opts.templateVariables)) : undefined,
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
+      opts.mtp ?? false,
     );
   }
 
@@ -65,17 +72,20 @@ export class Chat {
     modelPath: string;
     useGpu?: boolean;
     projectionModelPath?: string;
+    draftModelPath?: string;
     systemPrompt?: string;
     contextSize?: number;
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
+    mtp?: boolean;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({
       modelPath: opts.modelPath,
       useGpu: opts.useGpu,
       projectionModelPath: opts.projectionModelPath,
+      draftModelPath: opts.draftModelPath,
       onDownloadProgress: opts.onDownloadProgress,
     });
     return new Chat({ model, ...opts });

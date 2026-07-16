@@ -102,7 +102,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_func_cosine_similarity(a: Uint8Array, b: Uint8Array, uniffi_out_err: UniffiRustCallStatus): number;
     ubrn_uniffi_nobodywho_uniffi_fn_func_download_model(modelPath: Uint8Array, headers: Uint8Array, onDownloadProgress: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
-    ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, onDownloadProgress: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, draftModelPath: Uint8Array, mtp: number, onDownloadProgress: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(source: Uint8Array, architecture: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, device: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(grammar: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(schema: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;

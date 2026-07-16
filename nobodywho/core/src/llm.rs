@@ -402,11 +402,8 @@ where
                         draft_params,
                         &ctx,
                     )?;
-                    let spec = MtpSpeculative::new(
-                        ctx,
-                        draft_ctx,
-                        MtpSpeculativeParams::default(),
-                    )?;
+                    let spec =
+                        MtpSpeculative::new(ctx, draft_ctx, MtpSpeculativeParams::default())?;
                     EngineContext::Speculative(spec)
                 }
                 None => {

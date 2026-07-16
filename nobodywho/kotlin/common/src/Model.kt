@@ -24,12 +24,16 @@ class Model internal constructor(
          * @param modelPath Path to a .gguf file, `hf://` or `https://` URL, or `auto` for memory-based selection.
          * @param useGpu Enable GPU acceleration (default: true).
          * @param projectionModelPath Optional path to an mmproj file for vision models.
+         * @param draftModelPath Optional path to an MTP draft-heads gguf. Loading it lets
+         *   `Chat` instances opt into MTP speculative decoding via `Chat(..., mtp = true)`.
+         *   Adds around 5% to VRAM usage.
          * @param onDownloadProgress Optional callback receiving (downloadedBytes, totalBytes) during download.
          */
         suspend fun load(
             modelPath: String,
             useGpu: Boolean = true,
             projectionModelPath: String? = null,
+            draftModelPath: String? = null,
             onDownloadProgress: ((downloaded: ULong, total: ULong) -> Unit)? = null
         ): Model {
             val callback = onDownloadProgress?.let { cb ->
@@ -37,7 +41,7 @@ class Model internal constructor(
                     override fun onDownloadProgress(downloaded: ULong, total: ULong) = cb(downloaded, total)
                 }
             }
-            return Model(loadModel(modelPath, useGpu, projectionModelPath, callback))
+            return Model(loadModel(modelPath, useGpu, projectionModelPath, draftModelPath, callback))
         }
 
         /**

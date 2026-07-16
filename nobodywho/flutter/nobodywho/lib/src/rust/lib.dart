@@ -173,11 +173,13 @@ abstract class Model implements RustOpaqueInterface {
         noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
   }) => NobodyWho.instance.api.crateModelLoad(
     modelPath: modelPath,
     onDownloadProgress: onDownloadProgress,
     useGpu: useGpu,
     projectionModelPath: projectionModelPath,
+    draftModelPath: draftModelPath,
   );
 
   /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
@@ -191,6 +193,8 @@ abstract class Model implements RustOpaqueInterface {
   ///         final emit on completion. Not invoked for cached/local files.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+  ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
+  ///         chats built from this model opt into MTP speculative decoding.
   Future<int> maxCtx();
 }
 
@@ -227,6 +231,7 @@ abstract class RustChat implements RustOpaqueInterface {
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
         noopOnDownloadProgress,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -234,10 +239,12 @@ abstract class RustChat implements RustOpaqueInterface {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
+    bool mtp = false,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
     onDownloadProgress: onDownloadProgress,
     projectionModelPath: projectionModelPath,
+    draftModelPath: draftModelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     allowThinking: allowThinking,
@@ -245,6 +252,7 @@ abstract class RustChat implements RustOpaqueInterface {
     tools: tools,
     sampler: sampler,
     useGpu: useGpu,
+    mtp: mtp,
   );
 
   Future<List<Message>> getChatHistory();
@@ -271,6 +279,9 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     context_size: Context size (maximum conversation length in tokens)
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  ///     mtp: Enable MTP speculative decoding. Requires the Model to have been
+  ///         loaded with a compatible `draft_model_path`. Adds around 5% to
+  ///         VRAM usage. Defaults to false.
   factory RustChat({
     required Model model,
     String? systemPrompt = null,
@@ -279,6 +290,7 @@ abstract class RustChat implements RustOpaqueInterface {
     Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
+    bool mtp = false,
   }) => NobodyWho.instance.api.crateRustChatNew(
     model: model,
     systemPrompt: systemPrompt,
@@ -287,6 +299,7 @@ abstract class RustChat implements RustOpaqueInterface {
     templateVariables: templateVariables,
     tools: tools,
     sampler: sampler,
+    mtp: mtp,
   );
 
   Future<void> resetContext({

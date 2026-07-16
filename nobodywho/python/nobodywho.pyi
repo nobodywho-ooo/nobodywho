@@ -44,6 +44,7 @@ class Chat:
         template_variables: "dict[str, bool]" = ...,
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
+        mtp: bool = False,
         allow_thinking: "bool | None" = None,
     ) -> "Chat":
         """
@@ -58,6 +59,9 @@ class Chat:
             sampler: SamplerConfig for token selection. If not given, sampling settings
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
+            mtp: If True, enable MTP speculative decoding on this chat. Requires the
+                `Model` to have been loaded with a compatible `draft_model_path`.
+                Adds around 5% to VRAM usage. Defaults to False.
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
 
         Returns:
@@ -259,6 +263,7 @@ class ChatAsync:
         template_variables: "dict[str, bool]" = ...,
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
+        mtp: bool = False,
         allow_thinking: "bool | None" = None,
     ) -> "ChatAsync":
         """
@@ -273,6 +278,9 @@ class ChatAsync:
             sampler: SamplerConfig for token selection. If not given, sampling settings
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
+            mtp: If True, enable MTP speculative decoding on this chat. Requires the
+                `Model` to have been loaded with a compatible `draft_model_path`.
+                Adds around 5% to VRAM usage. Defaults to False.
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
 
         Returns:
@@ -685,6 +693,7 @@ class Model:
         model_path: "os.PathLike | str",
         use_gpu_if_available: bool = True,
         projection_model_path: "os.PathLike | str | None" = None,
+        draft_model_path: "os.PathLike | str | None" = None,
         on_download_progress: "typing.Callable[[int, int], None] | None" = None,
     ) -> "Model":
         """
@@ -694,6 +703,7 @@ class Model:
             model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=True` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
             on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
 
         Returns:
@@ -707,6 +717,7 @@ class Model:
         model_path: "os.PathLike | str",
         use_gpu_if_available: bool = True,
         projection_model_path: "os.PathLike | str | None" = None,
+        draft_model_path: "os.PathLike | str | None" = None,
         on_download_progress: "typing.Callable[[int, int], None] | None" = None,
     ) -> "Model":
         """
@@ -720,6 +731,7 @@ class Model:
             model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            draft_model_path: Path or URL to a compatible MTP draft-heads gguf. See `Model.__init__` for details. Defaults to None.
             on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
 
         Returns:

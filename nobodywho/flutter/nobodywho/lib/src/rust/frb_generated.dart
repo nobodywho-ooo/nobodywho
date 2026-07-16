@@ -122,6 +122,7 @@ abstract class NobodyWhoApi extends BaseApi {
         noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
   });
 
   Future<int> crateModelMaxCtx({required Model that});
@@ -146,6 +147,7 @@ abstract class NobodyWhoApi extends BaseApi {
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
         noopOnDownloadProgress,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -153,6 +155,7 @@ abstract class NobodyWhoApi extends BaseApi {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
+    bool mtp = false,
   });
 
   Future<List<Message>> crateRustChatGetChatHistory({required RustChat that});
@@ -175,6 +178,7 @@ abstract class NobodyWhoApi extends BaseApi {
     Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
+    bool mtp = false,
   });
 
   Future<void> crateRustChatResetContext({
@@ -897,6 +901,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -909,6 +914,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_bool(useGpu, serializer);
           sse_encode_opt_String(projectionModelPath, serializer);
+          sse_encode_opt_String(draftModelPath, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -922,7 +928,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateModelLoadConstMeta,
-        argValues: [modelPath, onDownloadProgress, useGpu, projectionModelPath],
+        argValues: [
+          modelPath,
+          onDownloadProgress,
+          useGpu,
+          projectionModelPath,
+          draftModelPath,
+        ],
         apiImpl: this,
       ),
     );
@@ -935,6 +947,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "onDownloadProgress",
       "useGpu",
       "projectionModelPath",
+      "draftModelPath",
     ],
   );
 
@@ -1075,6 +1088,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
         noopOnDownloadProgress,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -1082,6 +1096,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
+    bool mtp = false,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1093,6 +1108,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_opt_String(projectionModelPath, serializer);
+          sse_encode_opt_String(draftModelPath, serializer);
           sse_encode_opt_String(systemPrompt, serializer);
           sse_encode_u_32(contextSize, serializer);
           sse_encode_opt_box_autoadd_bool(allowThinking, serializer);
@@ -1106,6 +1122,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_bool(useGpu, serializer);
+          sse_encode_bool(mtp, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1123,6 +1140,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           modelPath,
           onDownloadProgress,
           projectionModelPath,
+          draftModelPath,
           systemPrompt,
           contextSize,
           allowThinking,
@@ -1130,6 +1148,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           tools,
           sampler,
           useGpu,
+          mtp,
         ],
         apiImpl: this,
       ),
@@ -1142,6 +1161,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "modelPath",
       "onDownloadProgress",
       "projectionModelPath",
+      "draftModelPath",
       "systemPrompt",
       "contextSize",
       "allowThinking",
@@ -1149,6 +1169,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "tools",
       "sampler",
       "useGpu",
+      "mtp",
     ],
   );
 
@@ -1338,6 +1359,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
+    bool mtp = false,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1359,6 +1381,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             sampler,
             serializer,
           );
+          sse_encode_bool(mtp, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
@@ -1375,6 +1398,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           templateVariables,
           tools,
           sampler,
+          mtp,
         ],
         apiImpl: this,
       ),
@@ -1391,6 +1415,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "templateVariables",
       "tools",
       "sampler",
+      "mtp",
     ],
   );
 
@@ -7543,6 +7568,8 @@ class ModelImpl extends RustOpaque implements Model {
   ///         final emit on completion. Not invoked for cached/local files.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+  ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
+  ///         chats built from this model opt into MTP speculative decoding.
   Future<int> maxCtx() => NobodyWho.instance.api.crateModelMaxCtx(that: this);
 }
 

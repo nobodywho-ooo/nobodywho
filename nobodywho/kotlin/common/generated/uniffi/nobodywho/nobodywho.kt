@@ -1023,7 +1023,7 @@ external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuf
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`mtp`: Byte,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
@@ -1177,7 +1177,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 58712.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 9764.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935.toShort()) {
@@ -7217,15 +7217,24 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
          * or `auto` for memory-based selection. Downloaded models are cached automatically.
          *
+         * # MTP speculative decoding
+         *
+         * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+         * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and set `mtp = true` to
+         * enable multi-token-prediction speculative decoding. Expect large
+         * speedups on structured/deterministic outputs (code, JSON, math);
+         * negligible-to-slight loss on high-entropy prose. Costs ~200 MiB of
+         * extra VRAM. When `mtp = false`, `draft_model_path` is ignored.
+         *
          * This is a free function instead of an async constructor because
          * uniffi-bindgen-react-native generates invalid JS (`async static` instead
          * of `static async`) for async constructors.
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
+     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `draftModelPath`: kotlin.String?, `mtp`: kotlin.Boolean, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalString.lower(`draftModelPath`),FfiConverterBoolean.lower(`mtp`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },

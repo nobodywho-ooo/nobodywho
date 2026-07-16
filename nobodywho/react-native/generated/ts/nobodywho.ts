@@ -148,17 +148,26 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
  * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
  * or `auto` for memory-based selection. Downloaded models are cached automatically.
  *
+ * # MTP speculative decoding
+ *
+ * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+ * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and set `mtp = true` to
+ * enable multi-token-prediction speculative decoding. Expect large
+ * speedups on structured/deterministic outputs (code, JSON, math);
+ * negligible-to-slight loss on high-entropy prose. Costs ~200 MiB of
+ * extra VRAM. When `mtp = false`, `draft_model_path` is ignored.
+ *
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, draftModelPath: string | undefined, mtp: boolean, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalString.lower(draftModelPath),FfiConverterBool.lower(mtp),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -3985,7 +3994,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models() !== 12002) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_get_cached_models");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 58712) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 9764) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 61935) {

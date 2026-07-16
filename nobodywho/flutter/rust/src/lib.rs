@@ -332,6 +332,9 @@ impl RustChat {
     ///     context_size: Context size (maximum conversation length in tokens)
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+    ///     mtp: Enable MTP speculative decoding. Requires the Model to have been
+    ///         loaded with a compatible `draft_model_path`. Adds around 5% to
+    ///         VRAM usage. Defaults to false.
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(
         model: &Model,
@@ -341,6 +344,7 @@ impl RustChat {
         #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
+        #[frb(default = false)] mtp: bool,
     ) -> Result<Self, String> {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -360,6 +364,7 @@ impl RustChat {
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
+            .with_mtp(mtp)
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
 
@@ -388,6 +393,7 @@ impl RustChat {
             + Sync
             + 'static,
         #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] draft_model_path: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = "null")] allow_thinking: Option<bool>,
@@ -395,13 +401,13 @@ impl RustChat {
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
+        #[frb(default = false)] mtp: bool,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
-            None,
-            false,
+            draft_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -423,6 +429,7 @@ impl RustChat {
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
             .with_sampler(sampler_config)
+            .with_mtp(mtp)
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { chat })
@@ -763,7 +770,6 @@ impl Encoder {
             use_gpu,
             None,
             None,
-            false,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -817,7 +823,6 @@ impl CrossEncoder {
             use_gpu,
             None,
             None,
-            false,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;

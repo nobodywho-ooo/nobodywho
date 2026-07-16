@@ -15,13 +15,17 @@ import NobodyWhoGenerated
 public class Chat {
     private let inner: RustChat
 
+    /// - Parameter mtp: Enable MTP speculative decoding on this chat.
+    ///   Requires the `Model` to have been loaded with a compatible
+    ///   `draftModelPath`. Adds around 5% to VRAM usage.
     public init(
         model: Model,
         systemPrompt: String? = nil,
         contextSize: UInt32 = 4096,
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
-        sampler: SamplerConfig? = nil
+        sampler: SamplerConfig? = nil,
+        mtp: Bool = false
     ) throws {
         self.inner = try RustChat(
             model: model.inner,
@@ -29,7 +33,8 @@ public class Chat {
             contextSize: contextSize,
             templateVariables: templateVariables,
             tools: tools?.map { $0.inner },
-            sampler: sampler
+            sampler: sampler,
+            mtp: mtp
         )
     }
 
@@ -39,17 +44,20 @@ public class Chat {
         modelPath: String,
         useGpu: Bool = true,
         projectionModelPath: String? = nil,
+        draftModelPath: String? = nil,
         systemPrompt: String? = nil,
         contextSize: UInt32 = 4096,
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil,
+        mtp: Bool = false,
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Chat {
         let model = try await Model.load(
             modelPath: modelPath,
             useGpu: useGpu,
             projectionModelPath: projectionModelPath,
+            draftModelPath: draftModelPath,
             onDownloadProgress: onDownloadProgress
         )
         return try Chat(
@@ -58,7 +66,8 @@ public class Chat {
             contextSize: contextSize,
             templateVariables: templateVariables,
             tools: tools,
-            sampler: sampler
+            sampler: sampler,
+            mtp: mtp
         )
     }
 

@@ -441,6 +441,7 @@ fn wire__crate__Model_load_impl(
                 );
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             let api_projection_model_path = <Option<String>>::sse_decode(&mut deserializer);
+            let api_draft_model_path = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
@@ -449,6 +450,7 @@ fn wire__crate__Model_load_impl(
                         api_on_download_progress,
                         api_use_gpu,
                         api_projection_model_path,
+                        api_draft_model_path,
                     )?;
                     Ok(output_ok)
                 })())
@@ -681,6 +683,7 @@ fn wire__crate__RustChat_from_path_impl(
                     <flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer),
                 );
             let api_projection_model_path = <Option<String>>::sse_decode(&mut deserializer);
+            let api_draft_model_path = <Option<String>>::sse_decode(&mut deserializer);
             let api_system_prompt = <Option<String>>::sse_decode(&mut deserializer);
             let api_context_size = <u32>::sse_decode(&mut deserializer);
             let api_allow_thinking = <Option<bool>>::sse_decode(&mut deserializer);
@@ -689,6 +692,7 @@ fn wire__crate__RustChat_from_path_impl(
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
+            let api_mtp = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
@@ -696,6 +700,7 @@ fn wire__crate__RustChat_from_path_impl(
                         &api_model_path,
                         api_on_download_progress,
                         api_projection_model_path,
+                        api_draft_model_path,
                         api_system_prompt,
                         api_context_size,
                         api_allow_thinking,
@@ -703,6 +708,7 @@ fn wire__crate__RustChat_from_path_impl(
                         api_tools,
                         api_sampler,
                         api_use_gpu,
+                        api_mtp,
                     )?;
                     Ok(output_ok)
                 })())
@@ -1019,6 +1025,7 @@ fn wire__crate__RustChat_new_impl(
                 <std::collections::HashMap<String, bool>>::sse_decode(&mut deserializer);
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
+            let api_mtp = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
                 let mut api_model_guard = None;
@@ -1043,6 +1050,7 @@ fn wire__crate__RustChat_new_impl(
                     api_template_variables,
                     api_tools,
                     api_sampler,
+                    api_mtp,
                 )?;
                 Ok(output_ok)
             })())
