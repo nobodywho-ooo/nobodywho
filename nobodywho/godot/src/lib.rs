@@ -142,6 +142,12 @@ struct NobodyWhoModel {
     /// Optional multimodal projection model path for vision/image support.
     projection_model_path: GString,
 
+    #[export(file = "*.gguf")]
+    /// Optional MTP draft-heads gguf. Loading it lets consumer chats
+    /// opt into MTP speculative decoding via `NobodyWhoChat.mtp`.
+    /// Adds around 5% to VRAM usage.
+    draft_model_path: GString,
+
     #[export]
     use_gpu_if_available: bool,
 
@@ -162,6 +168,7 @@ impl INode for NobodyWhoModel {
         Self {
             model_path,
             projection_model_path: GString::from(""),
+            draft_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
             load_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -204,16 +211,21 @@ impl NobodyWhoModel {
         }
 
         // Extract config, then drop the guard before awaiting.
-        let (path, use_gpu, mmproj) = {
+        let (path, use_gpu, mmproj, draft) = {
             let b = gd.bind();
             let mmproj = {
                 let s = b.projection_model_path.to_string();
                 (!s.is_empty()).then(|| resolve_godot_path(&b.projection_model_path))
             };
+            let draft = {
+                let s = b.draft_model_path.to_string();
+                (!s.is_empty()).then(|| resolve_godot_path(&b.draft_model_path))
+            };
             (
                 resolve_godot_path(&b.model_path),
                 b.use_gpu_if_available,
                 mmproj,
+                draft,
             )
         };
 
@@ -235,7 +247,8 @@ impl NobodyWhoModel {
             let _ = tx.send((d, t));
         });
 
-        let load_fut = llm::get_model_async(path, use_gpu, mmproj, None, false, Some(progress));
+        let load_fut =
+            llm::get_model_async(path, use_gpu, mmproj, draft, Some(progress));
         tokio::pin!(load_fut);
 
         // select! lets one task drive the load AND drain progress on the same
@@ -610,6 +623,12 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
+    #[export]
+    /// Enable MTP speculative decoding for this chat. Requires the
+    /// linked `NobodyWhoModel` to have a `draft_model_path` set.
+    /// Adds around 5% to VRAM usage.
+    mtp: bool,
+
     // internal state
     chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
     tools: Vec<nobodywho::tool_calling::Tool>,
@@ -628,6 +647,7 @@ impl INode for NobodyWhoChat {
             system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
             allow_thinking: true,
+            mtp: default_config.mtp,
 
             // config
             model_node: None,
@@ -652,6 +672,7 @@ impl NobodyWhoChat {
         tools: Vec<nobodywho::tool_calling::Tool>,
         n_ctx: u32,
         allow_thinking: bool,
+        mtp: bool,
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
         tokio::task::yield_now().await;
 
@@ -669,6 +690,7 @@ impl NobodyWhoChat {
                 n_ctx,
                 template_variables,
                 sampler_config: None,
+                mtp,
             },
         )
         .map_err(|e| GString::from(e.to_string().as_str()))?;
@@ -695,6 +717,7 @@ impl NobodyWhoChat {
             Vec<nobodywho::tool_calling::Tool>,
             u32,
             bool,
+            bool,
         ),
         GString,
     > {
@@ -707,6 +730,7 @@ impl NobodyWhoChat {
             self.tools.clone(),
             self.context_length,
             self.allow_thinking,
+            self.mtp,
         ))
     }
 
@@ -724,7 +748,7 @@ impl NobodyWhoChat {
             return;
         }
 
-        let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
+        let (model_node, system_prompt, tools, n_ctx, allow_thinking, mtp) =
             match self.snapshot_worker_config() {
                 Ok(c) => c,
                 Err(e) => {
@@ -744,6 +768,7 @@ impl NobodyWhoChat {
                 tools,
                 n_ctx,
                 allow_thinking,
+                mtp,
             )
             .await
             {
@@ -803,7 +828,7 @@ impl NobodyWhoChat {
             let chat_handle = match existing_handle {
                 Some(h) => h,
                 None => {
-                    let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
+                    let (model_node, system_prompt, tools, n_ctx, allow_thinking, mtp) =
                         load_config.expect("load_config set when no existing handle");
                     match Self::load_and_store_worker(
                         me,
@@ -812,6 +837,7 @@ impl NobodyWhoChat {
                         tools,
                         n_ctx,
                         allow_thinking,
+                        mtp,
                     )
                     .await
                     {

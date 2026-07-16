@@ -208,6 +208,11 @@ pub struct ChatConfig {
     pub template_variables: std::collections::HashMap<String, bool>,
     /// Sampler configuration for inference.
     pub sampler_config: Option<SamplerConfig>,
+    /// Enable MTP speculative decoding for this chat worker. Requires
+    /// the [`llm::Model`] to have been loaded with a compatible
+    /// `draft_model_path` (see `llm::get_model`) — otherwise worker
+    /// construction fails with `InitWorkerError::MtpSameFileNotYetSupported`.
+    pub mtp: bool,
 }
 
 impl Default for ChatConfig {
@@ -218,6 +223,7 @@ impl Default for ChatConfig {
             system_prompt: None,
             tools: Vec::new(),
             sampler_config: None,
+            mtp: false,
         }
     }
 }
@@ -317,6 +323,15 @@ impl ChatBuilder {
     /// Set a custom sampler configuration
     pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
         self.config.sampler_config = Some(sampler);
+        self
+    }
+
+    /// Enable MTP speculative decoding for this chat. Requires the
+    /// [`llm::Model`] to have been loaded with a compatible
+    /// `draft_model_path` — otherwise `build_*` fails with
+    /// `InitWorkerError::MtpSameFileNotYetSupported`.
+    pub fn with_mtp(mut self, mtp: bool) -> Self {
+        self.config.mtp = mtp;
         self
     }
 
@@ -1346,7 +1361,8 @@ impl<'a> Chat<'a> {
 
         // Build the low-level inference engine via the shared Worker constructor,
         // then take ownership of just the engine for the chat session.
-        let Worker { engine, extra: () } = Worker::new_with_type(model, config.n_ctx, false, ())?;
+        let Worker { engine, extra: () } =
+            Worker::new_with_type(model, config.n_ctx, false, config.mtp, ())?;
 
         Ok(Chat {
             engine,
@@ -2119,7 +2135,6 @@ mod tests {
             true,
             None,
             Some(&draft_path),
-            true,
             None,
         )?);
 
@@ -2127,6 +2142,7 @@ mod tests {
             &model,
             ChatConfig {
                 n_ctx: 1024,
+                mtp: true,
                 ..Default::default()
             },
             Arc::new(AtomicBool::new(false)),

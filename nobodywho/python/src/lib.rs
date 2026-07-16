@@ -61,6 +61,7 @@ impl Model {
     ///     model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
     ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=True` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
     ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
@@ -69,11 +70,12 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, draft_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub fn new(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
         projection_model_path: Option<std::path::PathBuf>,
+        draft_model_path: Option<std::path::PathBuf>,
         on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
@@ -93,9 +95,25 @@ impl Model {
                 })
             })
             .transpose()?;
+        let draft_str = draft_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
         let progress = resolve_on_download_progress(on_download_progress)?;
-        let model_result =
-            nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str, None, false, progress);
+        let model_result = nobodywho::llm::get_model(
+            path_str,
+            use_gpu_if_available,
+            mmproj_str,
+            draft_str,
+            progress,
+        );
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
@@ -116,6 +134,7 @@ impl Model {
     ///     model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
     ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     draft_model_path: Path or URL to a compatible MTP draft-heads gguf. See `Model.__init__` for details. Defaults to None.
     ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
@@ -124,11 +143,12 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, draft_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
         projection_model_path: Option<std::path::PathBuf>,
+        draft_model_path: Option<std::path::PathBuf>,
         on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
@@ -148,13 +168,23 @@ impl Model {
                 })
             })
             .transpose()?;
+        let draft_str = draft_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
         let progress = resolve_on_download_progress(on_download_progress)?;
         let model_result = nobodywho::llm::get_model_async(
             path_str.to_owned(),
             use_gpu_if_available,
             mmproj_str.map(str::to_owned),
-            None,
-            false,
+            draft_str.map(str::to_owned),
             progress,
         )
         .await;
@@ -198,7 +228,7 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None, None, false, None)
+                nobodywho::llm::get_model(path_str, true, None, None, None)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
                     .map(Arc::new)
             }
@@ -949,6 +979,9 @@ impl Chat {
     ///     sampler: SamplerConfig for token selection. If not given, sampling settings
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
+    ///     mtp: If True, enable MTP speculative decoding on this chat. Requires the
+    ///         `Model` to have been loaded with a compatible `draft_model_path`.
+    ///         Adds around 5% to VRAM usage. Defaults to False.
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
@@ -958,7 +991,7 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, mtp = false, allow_thinking: "bool | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -966,6 +999,7 @@ impl Chat {
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
+        mtp: bool,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -992,7 +1026,8 @@ impl Chat {
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt);
+                .with_system_prompt(system_prompt)
+                .with_mtp(mtp);
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.
@@ -1353,6 +1388,9 @@ impl ChatAsync {
     ///     sampler: SamplerConfig for token selection. If not given, sampling settings
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
+    ///     mtp: If True, enable MTP speculative decoding on this chat. Requires the
+    ///         `Model` to have been loaded with a compatible `draft_model_path`.
+    ///         Adds around 5% to VRAM usage. Defaults to False.
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
@@ -1362,7 +1400,7 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, mtp = false, allow_thinking: "bool | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -1370,6 +1408,7 @@ impl ChatAsync {
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
+        mtp: bool,
         allow_thinking: Option<bool>,
         py: Python<'_>,
     ) -> PyResult<Self> {
@@ -1396,7 +1435,8 @@ impl ChatAsync {
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt);
+                .with_system_prompt(system_prompt)
+                .with_mtp(mtp);
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.

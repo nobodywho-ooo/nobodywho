@@ -196,6 +196,8 @@ impl Model {
     ///         final emit on completion. Not invoked for cached/local files.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+    ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
+    ///         chats built from this model opt into MTP speculative decoding.
     pub fn max_ctx(&self) -> u32 {
         self.model.max_ctx()
     }
@@ -209,13 +211,13 @@ impl Model {
             + 'static,
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] draft_model_path: Option<String>,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
-            None,
-            false,
+            draft_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;

@@ -39,18 +39,11 @@ pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
     /// Optional MTP draft model for split-file speculative decoding
-    /// (e.g. Gemma-4's separate MTP-heads gguf). When `Some` and
-    /// [`Self::mtp_enabled`] is set, workers built from this `Model`
-    /// will open a draft context on it and wrap the pair in
-    /// `MtpSpeculative`. When `None` and [`Self::mtp_enabled`] is set,
-    /// the draft context is opened on the target model itself
-    /// (same-file MTP, e.g. Qwen3.5-Next).
+    /// (e.g. Gemma-4's separate MTP-heads gguf). Loaded at model-load
+    /// time so multiple workers can share it without reloading. Whether
+    /// a given worker actually *uses* it for MTP is a per-worker
+    /// decision (see `mtp` on `ChatConfig` / `Worker::new_with_type`).
     pub(crate) draft_model: Option<LlamaModel>,
-    /// Master opt-in for MTP speculative decoding. When true, worker
-    /// construction picks the split-file or same-file topology based
-    /// on [`Self::draft_model`]. When false, MTP is disabled
-    /// regardless of `draft_model`.
-    pub(crate) mtp_enabled: bool,
 }
 
 impl Model {
@@ -124,7 +117,6 @@ pub fn get_model(
     use_gpu_if_available: bool,
     mmproj_path: Option<&str>,
     draft_model_path: Option<&str>,
-    mtp: bool,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     if model_path == "auto" && mmproj_path.is_some() {
@@ -219,7 +211,6 @@ pub fn get_model(
         language_model,
         projection_model,
         draft_model,
-        mtp_enabled: mtp,
     })
 }
 
@@ -250,7 +241,6 @@ pub async fn get_model_async(
     use_gpu_if_available: bool,
     mmproj_path: Option<String>,
     draft_model_path: Option<String>,
-    mtp: bool,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
@@ -260,7 +250,6 @@ pub async fn get_model_async(
             use_gpu_if_available,
             mmproj_path.as_deref(),
             draft_model_path.as_deref(),
-            mtp,
             progress,
         ))
     });
@@ -331,6 +320,7 @@ where
         model: &'a Model,
         n_ctx: u32,
         use_embeddings: bool,
+        mtp: bool,
         extra: T,
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
@@ -372,7 +362,7 @@ where
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
 
-        let engine_ctx = if model.mtp_enabled {
+        let engine_ctx = if mtp {
             match &model.draft_model {
                 Some(draft_model) => {
                     info!("Initializing MTP speculative draft context");
@@ -518,7 +508,7 @@ mod tests {
 
     #[test]
     fn rejects_projection_model_with_auto_selection() {
-        let result = get_model("auto", true, Some("projection.gguf"), None);
+        let result = get_model("auto", true, Some("projection.gguf"), None, None);
         assert!(matches!(result, Err(LoadModelError::InvalidModel(_))));
     }
 
