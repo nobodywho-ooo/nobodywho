@@ -12,49 +12,10 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
-use std::cell::Cell;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::MutexGuard;
 use tracing::{debug, debug_span, trace, trace_span, warn};
-
-// Thread-locals for per-sampler timing in benchmarks.
-//
-// SAMPLE_TIMING      — all sampler.sample() calls (free + grammar).
-// GRAMMAR_SAMPLE_TIMING — only calls where GRAMMAR_TIMING_ACTIVE is true,
-//                         i.e. grammar-constrained tokens only.
-// GRAMMAR_TIMING_ACTIVE — flag set by the chat loop around the grammar branch.
-//
-// All zero-cost in release builds (gated on #[cfg(test)]).
-thread_local! {
-    pub(crate) static SAMPLE_TIMING: Cell<(u128, u64)> = const { Cell::new((0, 0)) };
-    pub(crate) static GRAMMAR_SAMPLE_TIMING: Cell<(u128, u64)> = const { Cell::new((0, 0)) };
-    pub(crate) static GRAMMAR_TIMING_ACTIVE: Cell<bool> = const { Cell::new(false) };
-}
-
-#[cfg(test)]
-pub(crate) fn reset_sample_timing() {
-    SAMPLE_TIMING.with(|c| c.set((0, 0)));
-    GRAMMAR_SAMPLE_TIMING.with(|c| c.set((0, 0)));
-    GRAMMAR_TIMING_ACTIVE.with(|c| c.set(false));
-}
-
-/// Returns `(total_nanos, call_count)` for ALL sampler.sample() calls.
-#[cfg(test)]
-pub(crate) fn read_sample_timing() -> (u128, u64) {
-    SAMPLE_TIMING.with(|c| c.get())
-}
-
-/// Returns `(total_nanos, call_count)` for grammar-constrained tokens only.
-#[cfg(test)]
-pub(crate) fn read_grammar_sample_timing() -> (u128, u64) {
-    GRAMMAR_SAMPLE_TIMING.with(|c| c.get())
-}
-
-#[cfg(test)]
-pub(crate) fn set_grammar_timing_active(active: bool) {
-    GRAMMAR_TIMING_ACTIVE.with(|c| c.set(active));
-}
 
 pub(crate) fn acquire_inference_lock() -> MutexGuard<'static, GlobalInferenceLockToken> {
     GLOBAL_INFERENCE_LOCK.lock().unwrap()
@@ -339,24 +300,7 @@ impl<'a> InferenceEngine<'a> {
         sampler: &mut LlamaSampler,
     ) -> Result<LlamaToken, DecodingError> {
         trace!("Applying sampler");
-        #[cfg(test)]
-        let t0 = std::time::Instant::now();
         let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
-        #[cfg(test)]
-        {
-            let elapsed = t0.elapsed().as_nanos();
-            if GRAMMAR_TIMING_ACTIVE.with(|c| c.get()) {
-                GRAMMAR_SAMPLE_TIMING.with(|c| {
-                    let (n, count) = c.get();
-                    c.set((n + elapsed, count + 1));
-                });
-            } else {
-                SAMPLE_TIMING.with(|c| {
-                    let (n, count) = c.get();
-                    c.set((n + elapsed, count + 1));
-                });
-            }
-        }
 
         self.small_batch.clear();
         self.small_batch.add(new_token, self.n_past, &[0], true)?;

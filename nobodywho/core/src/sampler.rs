@@ -223,7 +223,11 @@ impl SamplerConfig {
                 llguidance_sampler(model, "json_schema", &schema, &[])
             }
             ShiftStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
-            ShiftStep::Lark(lark) => llguidance_sampler(model, "lark", &lark, &[]),
+            ShiftStep::Lark(lark) => {
+                let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
+                    .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
+                llguidance_sampler(model, "lark", &lark, &[])
+            }
             ShiftStep::LarkWithSlices(lark, slices) => {
                 llguidance_sampler(model, "lark", &lark, &slices)
             }
@@ -271,12 +275,8 @@ impl SamplerConfig {
 ///
 /// `tag` selects the format: `"json_schema"`, `"regex"`, or `"lark"`.
 /// `grammar` is the content string (JSON Schema object, regex pattern, or Lark grammar).
-/// `slices` are optional vocabulary hint regexes; pass `&[]` for none.
-///
-/// Each slice regex describes a common token subset for this grammar. llguidance
-/// pre-computes a bitmask per pattern at startup; when every valid token at the current
-/// grammar position matches a pattern, the bitmask is used directly instead of a full
-/// vocabulary walk — cutting per-token constraint cost on large vocabularies.
+/// `slices` are optional vocabulary hint regexes (see
+/// [`crate::tool_calling::ToolFormatHandler::slice_regexes`]); pass `&[]` for none.
 pub fn llguidance_sampler(
     model: &LlamaModel,
     tag: &str,
@@ -285,12 +285,14 @@ pub fn llguidance_sampler(
 ) -> Result<LlamaSampler, SamplerError> {
     use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
     use llguidance::toktrie::InferenceCapabilities;
-    let err = || SamplerError::LlguidanceGrammarError(llama_cpp_2::GrammarError::NullGrammar);
     let tok_env = LlamaSampler::llguidance_tok_env(model);
     let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), slices)
-        .map_err(|_| err())?;
-    let tlg = TopLevelGrammar::from_tagged_str(tag, grammar).map_err(|_| err())?;
-    let parser = factory.create_parser(tlg).map_err(|_| err())?;
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    let tlg = TopLevelGrammar::from_tagged_str(tag, grammar)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    let parser = factory
+        .create_parser(tlg)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
     Ok(LlamaSampler::from(Matcher::new(Ok(parser))))
 }
 

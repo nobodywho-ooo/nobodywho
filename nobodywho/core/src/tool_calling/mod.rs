@@ -249,6 +249,15 @@ pub enum ToolFormatError {
 // Trait & Format Enum
 // ============================================================================
 
+/// Escape a string for embedding inside a Lark double-quoted string literal.
+///
+/// Tool names and JSON schema property names come from user-controlled input
+/// and are spliced directly into generated Lark grammar text; without this,
+/// a name containing `"` or `\` breaks the surrounding literal.
+pub(crate) fn escape_lark_string(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 /// Trait for handling different tool calling formats.
 pub trait ToolFormatHandler {
     /// Returns the token that begins a tool call (e.g., "<tool_call>")
@@ -261,7 +270,7 @@ pub trait ToolFormatHandler {
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
 
     /// Build a Lark grammar describing the tool call shape, for use with
-    /// `LlamaSampler::llguidance(_, "lark", _)`.
+    /// [`crate::sampler::llguidance_sampler`].
     ///
     /// The grammar starts at the tool-call body — i.e., its entry rule
     /// includes the begin token as its first literal. It does **not** include

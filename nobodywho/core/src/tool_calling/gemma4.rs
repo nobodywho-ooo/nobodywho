@@ -165,7 +165,7 @@ fn schema_to_lark(
                     .iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| {
-                        let esc = s.replace('\\', "\\\\").replace('"', "\\\"");
+                        let esc = super::escape_lark_string(s);
                         format!(r#""<|\"|>" "{esc}" "<|\"|>""#)
                     })
                     .collect();
@@ -197,9 +197,9 @@ fn schema_to_lark(
                     let prop_rule = schema_to_lark(
                         prop_schema,
                         rules,
-                        &format!("{prefix}_{}", sanitize_lark(key)),
+                        &format!("{prefix}_{i}_{}", sanitize_lark(key)),
                     )?;
-                    parts.push(format!("\"{}\"", key.replace('"', "\\\"")));
+                    parts.push(format!("\"{}\"", super::escape_lark_string(key)));
                     parts.push("\":\"".to_string());
                     parts.push(prop_rule);
                 }
@@ -288,7 +288,10 @@ impl ToolFormatHandler for Gemma4Handler {
             let prefix = format!("tool{i}");
             let params_rule = schema_to_lark(&tool.json_schema, &mut tool_rules, &prefix)?;
             let tool_rule = format!("{prefix}_call");
-            tool_rules.push(format!("{tool_rule}: \"call:{}\" {params_rule}", tool.name));
+            tool_rules.push(format!(
+                "{tool_rule}: \"call:{}\" {params_rule}",
+                super::escape_lark_string(&tool.name)
+            ));
             tool_call_names.push(tool_rule);
         }
 
@@ -326,13 +329,7 @@ impl ToolFormatHandler for Gemma4Handler {
         Some(calls)
     }
 
-    /// Returns a vocabulary hint that speeds up grammar-constrained token selection.
-    ///
-    /// The regex covers the most common token content in this format: value
-    /// bytes that are not structural delimiters (`< > { } , :`). llguidance
-    /// pre-computes a bitmask for this pattern at startup; when every valid
-    /// token at the current grammar position matches the pattern, it uses the
-    /// bitmask directly instead of scanning the full vocabulary.
+    /// Vocabulary hint: value bytes that aren't structural delimiters (`< > { } , :`).
     fn slice_regexes(&self) -> Vec<String> {
         vec![r"[^<>{},:]+".to_string()]
     }

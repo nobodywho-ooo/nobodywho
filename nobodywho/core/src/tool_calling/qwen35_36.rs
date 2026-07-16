@@ -35,10 +35,11 @@ impl ToolFormatHandler for Qwen35_36Handler {
             let mut block_rules: Vec<(String, bool)> = Vec::new();
 
             if let Some(props) = tool.json_schema.get("properties").and_then(|p| p.as_object()) {
-                for (pname, pschema) in props {
-                    let pprefix = format!("{tprefix}_p_{}", sanitize_lark(pname));
+                for (pi, (pname, pschema)) in props.iter().enumerate() {
+                    let pprefix = format!("{tprefix}_p{pi}_{}", sanitize_lark(pname));
                     let block_rule = format!("{pprefix}_block");
                     let is_required = required.contains(pname.as_str());
+                    let pname = super::escape_lark_string(pname);
 
                     let ty = pschema.get("type").and_then(|t| t.as_str()).unwrap_or("string");
 
@@ -47,12 +48,7 @@ impl ToolFormatHandler for Qwen35_36Handler {
                             let enum_alts: Vec<String> = variants
                                 .iter()
                                 .filter_map(|v| v.as_str())
-                                .map(|s| {
-                                    format!(
-                                        "\"{}\"",
-                                        s.replace('\\', "\\\\").replace('"', "\\\"")
-                                    )
-                                })
+                                .map(|s| format!("\"{}\"", super::escape_lark_string(s)))
                                 .collect();
                             if !enum_alts.is_empty() {
                                 lark.push_str(&format!(
@@ -81,7 +77,10 @@ impl ToolFormatHandler for Qwen35_36Handler {
                 }
             }
 
-            let mut rule = format!("tool_{ti}: \"<function={}>\\n\"", tool.name);
+            let mut rule = format!(
+                "tool_{ti}: \"<function={}>\\n\"",
+                super::escape_lark_string(&tool.name)
+            );
             for (block_rule, is_required) in &block_rules {
                 if *is_required {
                     rule.push_str(&format!(" {block_rule}"));
@@ -97,14 +96,7 @@ impl ToolFormatHandler for Qwen35_36Handler {
         Ok(lark)
     }
 
-    /// Returns a vocabulary hint that speeds up grammar-constrained token selection.
-    ///
-    /// The regex covers the most common token content in this format: the body
-    /// of a JSON string value (any byte except `"`, `\`, and control
-    /// characters). llguidance pre-computes a bitmask for this pattern at
-    /// startup; when every valid token at the current grammar position matches
-    /// the pattern, it uses the bitmask directly instead of scanning the full
-    /// vocabulary.
+    /// Vocabulary hint: JSON string-value body bytes (excludes `"`, `\`, control chars).
     fn slice_regexes(&self) -> Vec<String> {
         vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
     }

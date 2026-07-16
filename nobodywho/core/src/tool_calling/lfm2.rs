@@ -43,14 +43,7 @@ impl ToolFormatHandler for Lfm2Handler {
         Ok(lark)
     }
 
-    /// Returns a vocabulary hint that speeds up grammar-constrained token selection.
-    ///
-    /// The regex covers the most common token content in this format: the body
-    /// of a JSON string value (any byte except `"`, `\`, and control
-    /// characters). llguidance pre-computes a bitmask for this pattern at
-    /// startup; when every valid token at the current grammar position matches
-    /// the pattern, it uses the bitmask directly instead of scanning the full
-    /// vocabulary.
+    /// Vocabulary hint: JSON string-value body bytes (excludes `"`, `\`, control chars).
     fn slice_regexes(&self) -> Vec<String> {
         vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
     }
@@ -153,8 +146,8 @@ fn lark_tool_rule(
         .get("properties")
         .and_then(|p| p.as_object())
     {
-        for (pname, pschema) in props {
-            let pprefix = format!("{tprefix}_p_{}", sanitize_lark(pname));
+        for (pi, (pname, pschema)) in props.iter().enumerate() {
+            let pprefix = format!("{tprefix}_p{pi}_{}", sanitize_lark(pname));
 
             let val_rule = format!("{pprefix}_val");
             let schema_str = serde_json::to_string(pschema)
@@ -162,7 +155,8 @@ fn lark_tool_rule(
             lark.push_str(&format!("{val_rule}: %json {schema_str}\n"));
 
             let kv_rule = format!("{pprefix}_kv");
-            lark.push_str(&format!("{kv_rule}: \"{pname}=\" {val_rule}\n"));
+            let pname_esc = super::escape_lark_string(pname);
+            lark.push_str(&format!("{kv_rule}: \"{pname_esc}=\" {val_rule}\n"));
 
             params.push((kv_rule, required.contains(pname.as_str())));
         }
@@ -173,7 +167,7 @@ fn lark_tool_rule(
     let tool_rule = format!("{tprefix}_call");
     lark.push_str(&format!(
         "{tool_rule}: \"{}(\" {arglist_rule} \")\"\n",
-        tool.name
+        super::escape_lark_string(&tool.name)
     ));
 
     Ok(tool_rule)

@@ -40,14 +40,7 @@ impl ToolFormatHandler for Qwen3Handler {
         Ok(lark)
     }
 
-    /// Returns a vocabulary hint that speeds up grammar-constrained token selection.
-    ///
-    /// The regex covers the most common token content in this format: the body
-    /// of a JSON string value (any byte except `"`, `\`, and control
-    /// characters). llguidance pre-computes a bitmask for this pattern at
-    /// startup; when every valid token at the current grammar position matches
-    /// the pattern, it uses the bitmask directly instead of scanning the full
-    /// vocabulary.
+    /// Vocabulary hint: JSON string-value body bytes (excludes `"`, `\`, control chars).
     fn slice_regexes(&self) -> Vec<String> {
         vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
     }

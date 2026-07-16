@@ -43,7 +43,7 @@ impl ToolFormatHandler for Ministral3Handler {
         for (i, tool) in tools.iter().enumerate() {
             let schema_str = serde_json::to_string(&tool.json_schema)
                 .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
-            let name = &tool.name;
+            let name = super::escape_lark_string(&tool.name);
             lark.push_str(&format!(
                 "tool_{i}: \"[TOOL_CALLS]{name}[ARGS]\" %json {schema_str}\n"
             ));
@@ -52,14 +52,7 @@ impl ToolFormatHandler for Ministral3Handler {
         Ok(lark)
     }
 
-    /// Returns a vocabulary hint that speeds up grammar-constrained token selection.
-    ///
-    /// The regex covers the most common token content in this format: the body
-    /// of a JSON string value (any byte except `"`, `\`, and control
-    /// characters). llguidance pre-computes a bitmask for this pattern at
-    /// startup; when every valid token at the current grammar position matches
-    /// the pattern, it uses the bitmask directly instead of scanning the full
-    /// vocabulary.
+    /// Vocabulary hint: JSON string-value body bytes (excludes `"`, `\`, control chars).
     fn slice_regexes(&self) -> Vec<String> {
         vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
     }

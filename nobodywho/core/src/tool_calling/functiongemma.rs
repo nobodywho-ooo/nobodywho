@@ -28,7 +28,7 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                 .json_schema
                 .get("properties")
                 .and_then(|p| p.as_object());
-            let name = &tool.name;
+            let name = super::escape_lark_string(&tool.name);
             let mut rule = format!("tool_{i}: \"call:{name}{{\"");
 
             if let Some(props) = properties {
@@ -38,6 +38,7 @@ impl ToolFormatHandler for FunctionGemmaHandler {
                         if !first {
                             rule.push_str(" \", \"");
                         }
+                        let param_name = super::escape_lark_string(param_name);
                         rule.push_str(&format!(" \"{param_name}:\" value"));
                         first = false;
                     }
@@ -54,13 +55,7 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         Ok(lark)
     }
 
-    /// Returns a vocabulary hint that speeds up grammar-constrained token selection.
-    ///
-    /// The regex covers the most common token content in this format: value
-    /// bytes that are not structural delimiters (`< > { } , :`). llguidance
-    /// pre-computes a bitmask for this pattern at startup; when every valid
-    /// token at the current grammar position matches the pattern, it uses the
-    /// bitmask directly instead of scanning the full vocabulary.
+    /// Vocabulary hint: value bytes that aren't structural delimiters (`< > { } , :`).
     fn slice_regexes(&self) -> Vec<String> {
         vec![r"[^<>{},:]+".to_string()]
     }
