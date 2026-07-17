@@ -1312,14 +1312,14 @@ struct Chat<'a> {
     engine: InferenceEngine<'a>,
     should_stop: Arc<AtomicBool>,
     /// Is read from the model, used to control lark generation. None when
-    /// model detection fails. 
+    /// model detection fails.
     tool_format: Option<ToolFormat>,
-    /// Built once on new chat worker. Used for free (unconstrained) 
+    /// Built once on new chat worker. Used for free (unconstrained)
     /// generation. Rebuilt whenever `sampler_config` changes.
     base_sampler: llama_cpp_2::sampling::LlamaSampler,
     /// Build once on new chat worker, if tools are given. Enforces tool-call
     /// grammar and is switched for the rest of generation when the model's
-    /// begin tool token appears mid-stream. 
+    /// begin tool token appears mid-stream.
     tool_sampler: Option<llama_cpp_2::sampling::LlamaSampler>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
@@ -1366,7 +1366,7 @@ impl<'a> Chat<'a> {
                 debug!(error = %e, "Failed to detect tool calling format");
                 None
             }
-            Err(e) => return Err(ToolCallingSetupError::from(e).into()),
+            Err(e) => return Err(InitWorkerError::ToolCallingSetup(e.into())),
         };
 
         let tool_sampler = build_tool_sampler(
@@ -1648,11 +1648,14 @@ impl<'a> Chat<'a> {
                 respond(WriteOutput::Token(token_str.to_string()));
             }
 
-            // Check if grammar should be activated, i.e. if the last token
-            // is the grammar's <tool_call> begin token. Fast-forward the
-            // pre-built `self.tool_sampler`'s matcher
-            if !grammar_activated && self.tool_sampler.is_some() {
-                if let Some(format) = self.tool_format.as_ref() {
+            // Activate the tool-call grammar once the model finishes emitting
+            // the format's begin token: fast-forward the pre-built tool_sampler's
+            // matcher past those tokens so it constrains the rest of the
+            // response. Only tool-enabled sessions have a tool_sampler.
+            if !grammar_activated {
+                if let (Some(format), Some(ts)) =
+                    (self.tool_format.as_ref(), self.tool_sampler.as_mut())
+                {
                     let begin_token = format.begin_token();
                     if full_response.ends_with(begin_token) {
                         match self
@@ -1662,7 +1665,6 @@ impl<'a> Chat<'a> {
                             .str_to_token(begin_token, llama_cpp_2::model::AddBos::Never)
                         {
                             Ok(begin_tokens) => {
-                                let ts = self.tool_sampler.as_mut().unwrap();
                                 ts.accept_many(begin_tokens.iter());
                                 grammar_activated = true;
                                 info!(begin_token, "Activated tool-call grammar");

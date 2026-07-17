@@ -520,16 +520,19 @@ mod tests {
         let cases: &[(ToolFormat, &str)] = &[
             (ToolFormat::Qwen3(Qwen3Handler), "<tool_call>"),
             (ToolFormat::Qwen35_36(Qwen35_36Handler), "<tool_call>"),
-            (ToolFormat::FunctionGemma(FunctionGemmaHandler), "<start_function_call>"),
+            (
+                ToolFormat::FunctionGemma(FunctionGemmaHandler),
+                "<start_function_call>",
+            ),
             (ToolFormat::Gemma4(Gemma4Handler), "<|tool_call>"),
             (ToolFormat::Ministral3(Ministral3Handler), "[TOOL_CALLS]"),
             (ToolFormat::Lfm2(Lfm2Handler), "<|tool_call_start|>"),
         ];
 
         for (fmt, trigger) in cases {
-            let lark = fmt.to_lark(&[tool.clone()]).unwrap_or_else(|e| {
-                panic!("to_lark failed for {:?}: {}", fmt, e)
-            });
+            let lark = fmt
+                .to_lark(&[tool.clone()])
+                .unwrap_or_else(|e| panic!("to_lark failed for {:?}: {}", fmt, e));
             assert!(
                 lark.starts_with("%llguidance {}"),
                 "{:?}: missing llguidance header:\n{}",
@@ -547,8 +550,8 @@ mod tests {
             // (`<...>`). For literal handlers we check the quoted form; for
             // Gemma4 (which uses TokenRef::ByString) the converter emits the
             // bare `<...>` form.
-            let token_in_lark = lark.contains(&format!("\"{}\"", trigger))
-                || lark.contains(trigger);
+            let token_in_lark =
+                lark.contains(&format!("\"{}\"", trigger)) || lark.contains(trigger);
             assert!(
                 token_in_lark,
                 "{:?}: trigger {:?} not found in grammar:\n{}",

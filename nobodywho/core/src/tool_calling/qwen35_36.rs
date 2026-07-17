@@ -34,14 +34,21 @@ impl ToolFormatHandler for Qwen35_36Handler {
 
             let mut block_rules: Vec<(String, bool)> = Vec::new();
 
-            if let Some(props) = tool.json_schema.get("properties").and_then(|p| p.as_object()) {
+            if let Some(props) = tool
+                .json_schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+            {
                 for (pi, (pname, pschema)) in props.iter().enumerate() {
                     let pprefix = format!("{tprefix}_p{pi}_{}", super::sanitize_lark(pname));
                     let block_rule = format!("{pprefix}_block");
                     let is_required = required.contains(pname.as_str());
                     let pname = super::escape_lark_string(pname);
 
-                    let ty = pschema.get("type").and_then(|t| t.as_str()).unwrap_or("string");
+                    let ty = pschema
+                        .get("type")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("string");
 
                     if ty == "string" {
                         if let Some(variants) = pschema.get("enum").and_then(|e| e.as_array()) {
