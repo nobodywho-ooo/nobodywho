@@ -36,7 +36,7 @@ impl ToolFormatHandler for Qwen35_36Handler {
 
             if let Some(props) = tool.json_schema.get("properties").and_then(|p| p.as_object()) {
                 for (pi, (pname, pschema)) in props.iter().enumerate() {
-                    let pprefix = format!("{tprefix}_p{pi}_{}", sanitize_lark(pname));
+                    let pprefix = format!("{tprefix}_p{pi}_{}", super::sanitize_lark(pname));
                     let block_rule = format!("{pprefix}_block");
                     let is_required = required.contains(pname.as_str());
                     let pname = super::escape_lark_string(pname);
@@ -96,11 +96,6 @@ impl ToolFormatHandler for Qwen35_36Handler {
         Ok(lark)
     }
 
-    /// Vocabulary hint: JSON string-value body bytes (excludes `"`, `\`, control chars).
-    fn slice_regexes(&self) -> Vec<String> {
-        vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
-    }
-
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         let calls: Vec<ToolCall> = outer_tool_call_regex()
             .captures_iter(input)
@@ -117,13 +112,6 @@ fn required_params(tool: &Tool) -> HashSet<&str> {
         .and_then(|r| r.as_array())
         .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
         .unwrap_or_default()
-}
-
-/// Map any non-alphanumeric character to `_` for use in Lark rule names.
-fn sanitize_lark(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
 }
 
 // ============================================================================

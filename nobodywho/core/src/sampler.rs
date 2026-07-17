@@ -140,14 +140,9 @@ impl SamplerConfig {
         self.build_sampler_with_prepended_step(model, None)
     }
 
-    /// Build a stateful sampler chain with a `LarkWithSlices` grammar step
-    /// prepended to the configured steps, so every token sampled through the
-    /// chain is constrained by the grammar.
-    ///
-    /// `slices` are vocabulary hint regexes pre-computed into bitmasks at
-    /// construction time; when all tokens matched by a slice are valid at the
-    /// current grammar position, llguidance uses the bitmask instead of a
-    /// full vocabulary walk, cutting per-token constraint cost significantly.
+    /// Builds a sampler chain with a `LarkWithSlices` grammar step prepended.
+    /// `slices` are vocabulary hint regexes llguidance uses as bitmask
+    /// shortcuts instead of a full vocab walk (see [`llguidance_sampler`]).
     pub fn build_sampler_with_grammar(
         &self,
         model: &LlamaModel,
@@ -165,8 +160,7 @@ impl SamplerConfig {
         model: &LlamaModel,
         extra_step: Option<ShiftStep>,
     ) -> Result<LlamaSampler, SamplerError> {
-        // Essentially prepends the optional grammar step at the head of the
-        // sample steps, so the grammar is the first thing the sampler performs
+        // Grammar step goes first, so it constrains before anything else runs.
         let mut shift_steps = extra_step
             .into_iter()
             .chain(self.steps.iter().cloned())
@@ -247,9 +241,7 @@ impl SamplerConfig {
                 penalty_present,
             )),
             ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
-            ShiftStep::JsonSchema(schema) => {
-                llguidance_sampler(model, "json_schema", &schema, &[])
-            }
+            ShiftStep::JsonSchema(schema) => llguidance_sampler(model, "json_schema", &schema, &[]),
             ShiftStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
             ShiftStep::Lark(lark) => {
                 let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
@@ -299,20 +291,17 @@ impl SamplerConfig {
     }
 }
 
-/// Build an llguidance [`LlamaSampler`] for any grammar format supported by llguidance.
-///
-/// `tag` selects the format: `"json_schema"`, `"regex"`, or `"lark"`.
-/// `grammar` is the content string (JSON Schema object, regex pattern, or Lark grammar).
-/// `slices` are optional vocabulary hint regexes (see
-/// [`crate::tool_calling::ToolFormatHandler::slice_regexes`]); pass `&[]` for none.
+/// Builds an llguidance [`LlamaSampler`] for a `json_schema`/`regex`/`lark`
+/// `tag` + `grammar` content string. `slices` are optional vocabulary hints
+/// (see [`crate::tool_calling::ToolFormatHandler::slice_regexes`]), `&[]` for none.
 pub fn llguidance_sampler(
     model: &LlamaModel,
     tag: &str,
     grammar: &str,
     slices: &[String],
 ) -> Result<LlamaSampler, SamplerError> {
-    use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
     use llguidance::toktrie::InferenceCapabilities;
+    use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
     let tok_env = LlamaSampler::llguidance_tok_env(model);
     let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), slices)
         .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;

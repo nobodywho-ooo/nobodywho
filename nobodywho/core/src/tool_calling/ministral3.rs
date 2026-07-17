@@ -52,11 +52,6 @@ impl ToolFormatHandler for Ministral3Handler {
         Ok(lark)
     }
 
-    /// Vocabulary hint: JSON string-value body bytes (excludes `"`, `\`, control chars).
-    fn slice_regexes(&self) -> Vec<String> {
-        vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
-    }
-
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         let Ok((_, parsed)) = many1(tool_call).parse(input) else {
             debug!("No Ministral3 tool calls detected");

@@ -43,11 +43,6 @@ impl ToolFormatHandler for Lfm2Handler {
         Ok(lark)
     }
 
-    /// Vocabulary hint: JSON string-value body bytes (excludes `"`, `\`, control chars).
-    fn slice_regexes(&self) -> Vec<String> {
-        vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
-    }
-
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         // Locate the call block. The end token may be absent if the model was
         // cut off, in which case we parse to the end of the input.
@@ -82,13 +77,6 @@ fn required_params(tool: &Tool) -> HashSet<&str> {
         .and_then(|r| r.as_array())
         .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
         .unwrap_or_default()
-}
-
-/// Map any non-alphanumeric character to `_` for use in Lark rule names.
-fn sanitize_lark(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
 }
 
 /// Build the `from-i`/`more-i` rule families for ordered optional params.
@@ -147,7 +135,7 @@ fn lark_tool_rule(
         .and_then(|p| p.as_object())
     {
         for (pi, (pname, pschema)) in props.iter().enumerate() {
-            let pprefix = format!("{tprefix}_p{pi}_{}", sanitize_lark(pname));
+            let pprefix = format!("{tprefix}_p{pi}_{}", super::sanitize_lark(pname));
 
             let val_rule = format!("{pprefix}_val");
             let schema_str = serde_json::to_string(pschema)

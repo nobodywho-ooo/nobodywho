@@ -17,7 +17,6 @@ mod qwen3;
 mod qwen35_36;
 
 use bashkit::{ExecutionLimits, InMemoryFs};
-use llguidance::earley::SlicedBiasComputer;
 use llama_cpp_2::model::LlamaModel;
 use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
 use serde::{ser::Serializer, Deserialize, Serialize};
@@ -258,6 +257,17 @@ pub(crate) fn escape_lark_string(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+/// Map any non-alphanumeric character to `_` for use in Lark rule names.
+///
+/// Tool/property names come from user-controlled input and are spliced into
+/// generated Lark rule names, which only allow a restricted identifier
+/// charset.
+pub(crate) fn sanitize_lark(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
 /// Trait for handling different tool calling formats.
 pub trait ToolFormatHandler {
     /// Returns the token that begins a tool call (e.g., "<tool_call>")
@@ -291,13 +301,13 @@ pub trait ToolFormatHandler {
     /// directly instead of scanning the full vocabulary — cutting per-token
     /// constraint cost significantly on large vocabularies.
     ///
-    /// The default returns `SlicedBiasComputer::general_slices()` — four
-    /// JSON-body regexes suitable for JSON-formatted tool calls (e.g. Qwen3).
+    /// The default is a JSON string-value body regex (excludes `"`, `\`,
+    /// control chars), suitable for JSON-formatted tool calls (e.g. Qwen3).
     /// Handlers whose format is not JSON should override this with patterns
     /// matched to their actual delimiter structure (see `FunctionGemmaHandler`
     /// for an example with `[^<>{},:]+`).
     fn slice_regexes(&self) -> Vec<String> {
-        SlicedBiasComputer::general_slices()
+        vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
     }
 }
 

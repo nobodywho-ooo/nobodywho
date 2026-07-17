@@ -136,13 +136,6 @@ fn single_tool_call(input: &str) -> IResult<&str, ToolCall> {
 // string literals, `"<|\"|>"` emits those bytes directly — the model still
 // produces a single vocab token because that is the canonical tokenization.
 
-/// Map non-alphanumeric chars to `_` for use in Lark rule names.
-fn sanitize_lark(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
-}
-
 /// Recursively emit Lark rules for one JSON schema node.
 /// Appends new rules to `rules` and returns the rule name to reference.
 fn schema_to_lark(
@@ -197,7 +190,7 @@ fn schema_to_lark(
                     let prop_rule = schema_to_lark(
                         prop_schema,
                         rules,
-                        &format!("{prefix}_{i}_{}", sanitize_lark(key)),
+                        &format!("{prefix}_{i}_{}", super::sanitize_lark(key)),
                     )?;
                     parts.push(format!("\"{}\"", super::escape_lark_string(key)));
                     parts.push("\":\"".to_string());
