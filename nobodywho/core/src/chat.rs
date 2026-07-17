@@ -586,9 +586,11 @@ impl ChatHandle {
     pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
-        output_rx.blocking_recv().ok_or(
-            crate::errors::GetterError::GetterError("mtp_acceptance_rate".into()),
-        )
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "mtp_acceptance_rate".into(),
+            ))
     }
 
     /// Update the system prompt without resetting chat history.
@@ -910,9 +912,12 @@ impl ChatHandleAsync {
     pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
-        output_rx.recv().await.ok_or(
-            crate::errors::GetterError::GetterError("mtp_acceptance_rate".into()),
-        )
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "mtp_acceptance_rate".into(),
+            ))
     }
 
     /// Update the system prompt without resetting chat history.
@@ -1136,9 +1141,7 @@ impl std::fmt::Debug for ChatMsg {
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
             ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
-            ChatMsg::GetMtpAcceptanceRate { .. } => {
-                f.debug_struct("GetMtpAcceptanceRate").finish()
-            }
+            ChatMsg::GetMtpAcceptanceRate { .. } => f.debug_struct("GetMtpAcceptanceRate").finish(),
             ChatMsg::Tokenize { prompt, .. } => f
                 .debug_struct("Tokenize")
                 .field(
