@@ -403,16 +403,19 @@ pub enum InitWorkerError {
     #[error("MTP speculative decoding failed to initialize: {0}")]
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 
-    #[error("Same-file MTP is not yet supported")]
+    #[error("MTP requested but no draft model was loaded")]
     #[diagnostic(
-        code(nobodywho::mtp_same_file_unsupported),
+        code(nobodywho::mtp_draft_model_not_loaded),
         help(
-            "Same-file MTP (e.g. Qwen3.5-Next) is not implemented yet.\n\
-             For now, MTP requires a separate draft-model file passed as draft_model_path\n\
-             (e.g. Gemma-4 with mtp-gemma-4-*.gguf)."
+            "Chat was configured with `mtp = true`, but the `Model` was loaded without a\n\
+             `draft_model_path`. Load the model with a matching MTP draft-heads gguf (e.g.\n\
+             `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B), or disable MTP on this chat.\n\
+             \n\
+             Same-file MTP (e.g. Qwen3.5-Next, where the draft heads share the target file)\n\
+             is not implemented yet — a separate draft file is required for now."
         )
     )]
-    MtpSameFileNotYetSupported,
+    MtpDraftModelNotLoaded,
 }
 
 #[derive(Debug, thiserror::Error)]

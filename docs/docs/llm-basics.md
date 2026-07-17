@@ -59,6 +59,14 @@ Since this part actually chooses the next token, these cannot be chained.
 
 NobodyWho also supports more advanced ways of configuraing a sampler, like for example follow a JSON Schema.
 
+## Speculative decoding (MTP)
+
+Speculative decoding is a way of making inference faster without changing the model's outputs. A small, cheap "draft" model proposes the next few tokens, and the real target model verifies them in one batch. Tokens that the target would have picked anyway are accepted for free — otherwise the target's own choice is used. Same distribution, fewer sequential forward passes.
+
+NobodyWho supports the **MTP** (Multi-Token Prediction) flavour used by Gemma 4: instead of running a separate draft model, MTP uses extra "heads" trained to predict several tokens ahead of the target. You download the MTP heads as a companion `.gguf` (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B), pass it as `draft_model_path` when loading the model, and set `mtp = true` on the chat.
+
+Expect a large speedup on structured/deterministic output (code, JSON, math, tool calls) and a neutral-to-slight loss on high-entropy prose. Enabling MTP adds around 5% to VRAM usage. It is off by default.
+
 ## Tools
 
 Tools (also called function calling) allow the LLM to request external actions. Instead of just generating text, the model can indicate it wants to:

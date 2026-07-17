@@ -131,6 +131,12 @@ pub(crate) struct InferenceEngine<'a> {
     ///   the KV cache.
     /// - Solo path never sets it.
     pending: Option<LlamaToken>,
+    /// Cumulative count of draft tokens proposed by the MTP drafter
+    /// across all speculative iterations on this engine.
+    pub(crate) mtp_drafts_proposed: u64,
+    /// Cumulative count of draft tokens accepted (matched the target's
+    /// sample) across all speculative iterations on this engine.
+    pub(crate) mtp_drafts_accepted: u64,
 }
 
 impl<'a> InferenceEngine<'a> {
@@ -153,6 +159,8 @@ impl<'a> InferenceEngine<'a> {
             tokenizer,
             use_embeddings,
             pending: None,
+            mtp_drafts_proposed: 0,
+            mtp_drafts_accepted: 0,
         }
     }
 
@@ -423,14 +431,12 @@ impl<'a> InferenceEngine<'a> {
     ) -> Result<Vec<LlamaToken>, DecodingError> {
         trace!("Applying sampler (MTP speculative, deferred)");
         // 1. Seed pending lazily on the first speculative iteration
-        //    after prompt processing.
+        //    after prompt processing. `sampler.sample` accepts the
+        //    token internally — see the comment in `generate_response`
+        //    and utilityai/llama-cpp-rs#604.
         let pending = match self.pending {
             Some(p) => p,
-            None => {
-                let p = sampler.sample(&self.ctx, -1);
-                sampler.accept(p);
-                p
-            }
+            None => sampler.sample(&self.ctx, -1),
         };
 
         // 2. Fast-path EOG on pending: don't touch KV, don't ask the
@@ -466,7 +472,6 @@ impl<'a> InferenceEngine<'a> {
                 spec.accept(0)?;
             }
             let new_pending = sampler.sample(&self.ctx, -1);
-            sampler.accept(new_pending);
             self.n_past += 1;
             self.pending = Some(new_pending);
             return Ok(vec![pending]);
@@ -495,7 +500,6 @@ impl<'a> InferenceEngine<'a> {
         let mut new_pending: Option<LlamaToken> = None;
         for (i, &draft) in drafts.iter().enumerate() {
             let ti = sampler.sample(&self.ctx, i as i32);
-            sampler.accept(ti);
             if ti == draft {
                 accepted_drafts.push(draft);
             } else {
@@ -507,7 +511,6 @@ impl<'a> InferenceEngine<'a> {
         //    k_max (last position, predicts n_past+k_max+1).
         if new_pending.is_none() {
             let bonus = sampler.sample(&self.ctx, k_max as i32);
-            sampler.accept(bonus);
             new_pending = Some(bonus);
         }
         let new_pending = new_pending.expect("new_pending is set above");
@@ -534,6 +537,8 @@ impl<'a> InferenceEngine<'a> {
         //     new_pending is the bonus/replacement, held for next iter.
         self.n_past += 1 + j as i32;
         self.pending = Some(new_pending);
+        self.mtp_drafts_proposed += k_max as u64;
+        self.mtp_drafts_accepted += j as u64;
 
         trace!(
             j,

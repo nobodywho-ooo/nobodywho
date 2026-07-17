@@ -11,7 +11,7 @@
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let model = Arc::new(llm::get_model("model.gguf", true, None, None, false, None)?);
+//! let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
@@ -211,7 +211,7 @@ pub struct ChatConfig {
     /// Enable MTP speculative decoding for this chat worker. Requires
     /// the [`llm::Model`] to have been loaded with a compatible
     /// `draft_model_path` (see `llm::get_model`) — otherwise worker
-    /// construction fails with `InitWorkerError::MtpSameFileNotYetSupported`.
+    /// construction fails with `InitWorkerError::MtpDraftModelNotLoaded`.
     pub mtp: bool,
 }
 
@@ -238,7 +238,7 @@ impl Default for ChatConfig {
 /// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let model = Arc::new(llm::get_model("model.gguf", true, None, None, false, None)?);
+/// let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 ///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
@@ -329,7 +329,7 @@ impl ChatBuilder {
     /// Enable MTP speculative decoding for this chat. Requires the
     /// [`llm::Model`] to have been loaded with a compatible
     /// `draft_model_path` — otherwise `build_*` fails with
-    /// `InitWorkerError::MtpSameFileNotYetSupported`.
+    /// `InitWorkerError::MtpDraftModelNotLoaded`.
     pub fn with_mtp(mut self, mtp: bool) -> Self {
         self.config.mtp = mtp;
         self
@@ -579,6 +579,18 @@ impl ChatHandle {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
+    /// Cumulative MTP draft acceptance rate for this chat, in `[0.0, 1.0]`.
+    ///
+    /// Returns `None` when no drafts have been proposed — either because
+    /// MTP is disabled on this chat, or because inference has not run yet.
+    pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
+        output_rx.blocking_recv().ok_or(
+            crate::errors::GetterError::GetterError("mtp_acceptance_rate".into()),
+        )
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -600,7 +612,7 @@ impl ChatHandle {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None, false, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -891,6 +903,18 @@ impl ChatHandleAsync {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
+    /// Cumulative MTP draft acceptance rate for this chat, in `[0.0, 1.0]`.
+    ///
+    /// Returns `None` when no drafts have been proposed — either because
+    /// MTP is disabled on this chat, or because inference has not run yet.
+    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
+        output_rx.recv().await.ok_or(
+            crate::errors::GetterError::GetterError("mtp_acceptance_rate".into()),
+        )
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -912,7 +936,7 @@ impl ChatHandleAsync {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None, false, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build_async();
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -1056,6 +1080,9 @@ enum ChatMsg {
     GetStats {
         output_tx: tokio::sync::mpsc::Sender<ChatStats>,
     },
+    GetMtpAcceptanceRate {
+        output_tx: tokio::sync::mpsc::Sender<Option<f32>>,
+    },
     Tokenize {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::Sender<Result<Vec<Option<i32>>, TokenizeError>>,
@@ -1109,6 +1136,9 @@ impl std::fmt::Debug for ChatMsg {
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
             ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
+            ChatMsg::GetMtpAcceptanceRate { .. } => {
+                f.debug_struct("GetMtpAcceptanceRate").finish()
+            }
             ChatMsg::Tokenize { prompt, .. } => f
                 .debug_struct("Tokenize")
                 .field(
@@ -1215,6 +1245,15 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
                 context_used: worker_state.engine.n_past(),
             };
             let _ = output_tx.blocking_send(stats);
+        }
+        ChatMsg::GetMtpAcceptanceRate { output_tx } => {
+            let proposed = worker_state.engine.mtp_drafts_proposed;
+            let rate = if proposed > 0 {
+                Some(worker_state.engine.mtp_drafts_accepted as f32 / proposed as f32)
+            } else {
+                None
+            };
+            let _ = output_tx.blocking_send(rate);
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);

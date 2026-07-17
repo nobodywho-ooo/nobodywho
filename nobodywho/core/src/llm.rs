@@ -407,7 +407,7 @@ where
                     EngineContext::Speculative(spec)
                 }
                 None => {
-                    return Err(InitWorkerError::MtpSameFileNotYetSupported);
+                    return Err(InitWorkerError::MtpDraftModelNotLoaded);
                 }
             }
         } else {
