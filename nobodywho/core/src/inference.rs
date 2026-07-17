@@ -418,11 +418,10 @@ impl<'a> InferenceEngine<'a> {
 
     /// Deferred-decode MTP sample.
     ///
-    /// Consolidates the eager path's two decode calls (drafts batch +
-    /// bonus single-token) into a single `[pending, drafts...]` batch
-    /// of K+1 tokens. The bonus token from iteration N becomes
-    /// iteration N+1's pending — decoded "for free" as the first entry
-    /// of that iteration's batch.
+    /// Each iteration batches `[pending, drafts...]` — K+1 tokens
+    /// decoded in one pass. The token sampled at the tail of the
+    /// batch becomes the next iteration's `pending`, and is
+    /// decoded "for free" as the first entry of that next batch.
     ///
     /// See `pending` on [`InferenceEngine`] for the state invariant.
     fn sample_and_decode_speculative(
@@ -495,28 +494,24 @@ impl<'a> InferenceEngine<'a> {
 
         // 6. Verify. Batch idx i's logits predict position n_past+i+1
         //    = draft[i]'s position, so sample at batch idx i and
-        //    compare to drafts[i].
+        //    compare to drafts[i]. On mismatch, the sample becomes
+        //    the next iteration's pending; if all drafts match,
+        //    sample at batch idx k_max instead.
         let mut accepted_drafts: Vec<LlamaToken> = Vec::with_capacity(k_max);
-        let mut new_pending: Option<LlamaToken> = None;
+        let mut new_pending = None;
         for (i, &draft) in drafts.iter().enumerate() {
             let ti = sampler.sample(&self.ctx, i as i32);
-            if ti == draft {
-                accepted_drafts.push(draft);
-            } else {
+            if ti != draft {
                 new_pending = Some(ti);
                 break;
             }
+            accepted_drafts.push(draft);
         }
-        // 7. If all K drafts matched, sample the bonus at batch idx
-        //    k_max (last position, predicts n_past+k_max+1).
-        if new_pending.is_none() {
-            let bonus = sampler.sample(&self.ctx, k_max as i32);
-            new_pending = Some(bonus);
-        }
-        let new_pending = new_pending.expect("new_pending is set above");
+        let new_pending =
+            new_pending.unwrap_or_else(|| sampler.sample(&self.ctx, k_max as i32));
         let j = accepted_drafts.len();
 
-        // 8. KV rollback for partial acceptance. Keep positions
+        // 7. KV rollback for partial acceptance. Keep positions
         //    [0..n_past+1+j] (pending + accepted drafts).
         if j < k_max {
             let keep_up_to = (self.n_past + 1 + j as i32) as u32;
@@ -525,7 +520,7 @@ impl<'a> InferenceEngine<'a> {
                 .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
         }
 
-        // 9. Tell the drafter how many drafts stuck.
+        // 8. Tell the drafter how many drafts stuck.
         {
             let EngineContext::Speculative(spec) = &mut self.ctx else {
                 unreachable!();
@@ -533,8 +528,7 @@ impl<'a> InferenceEngine<'a> {
             spec.accept(j as u16)?;
         }
 
-        // 10. Bookkeeping: n_past advances by (pending + j drafts).
-        //     new_pending is the bonus/replacement, held for next iter.
+        // 9. Bookkeeping: n_past advances by (pending + j drafts).
         self.n_past += 1 + j as i32;
         self.pending = Some(new_pending);
         self.mtp_drafts_proposed += k_max as u64;
@@ -548,7 +542,7 @@ impl<'a> InferenceEngine<'a> {
             "MTP: deferred iteration complete"
         );
 
-        // 11. Emit pending (confirmed this iteration) + accepted drafts.
+        // 10. Emit pending (confirmed this iteration) + accepted drafts.
         let mut emitted = Vec::with_capacity(1 + j);
         emitted.push(pending);
         emitted.extend_from_slice(&accepted_drafts);

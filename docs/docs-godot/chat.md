@@ -225,3 +225,29 @@ func _ready():
 ```
 
 **Memory savings:** Instead of loading multiple models, you load one and share it. Much more efficient!  
+
+### Speculative Decoding (MTP)
+
+Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target verify several candidate tokens per forward pass. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
+
+Enable it in two steps:
+
+1. On the `NobodyWhoModel` node, set `draft_model_path` to a compatible MTP draft-heads `.gguf` (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Adds around 5% to VRAM usage.
+2. On the `NobodyWhoChat` node, tick `mtp` (or set `chat.mtp = true` in code) before `start_worker()`.
+
+```gdscript
+func _ready():
+    var model = get_node("../SharedModel")
+    model.model_path = "gemma-4-e2b.gguf"
+    model.draft_model_path = "mtp-gemma-4-e2b.gguf"
+
+    var chat = get_node("MyChat")
+    chat.model_node = model
+    chat.mtp = true
+    chat.start_worker()
+```
+
+:::warning
+Benchmark before enabling. MTP can hurt performance on Apple Silicon (Metal) and on high-entropy workloads like creative prose.
+:::
+

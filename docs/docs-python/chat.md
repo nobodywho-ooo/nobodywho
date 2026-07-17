@@ -145,6 +145,25 @@ Model('./model.gguf', use_gpu_if_available=True)
 So far, NobodyWho relies purely on [Vulkan](https://www.vulkan.org), however support
 of more architectures is planned (for details check out our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on [Discord](https://discord.gg/qhaMc2qCYB)).
 
+## Speculative decoding (MTP)
+
+Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target model verify several candidate tokens per forward pass. When it works this can give a significant speedup — but see the warning below before enabling it.
+
+To use MTP, load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass `mtp=True` when constructing the chat:
+
+```python
+from nobodywho import Chat, Model
+
+model = Model("./gemma-4-e2b.gguf", draft_model_path="./mtp-gemma-4-e2b.gguf")
+chat = Chat(model, mtp=True)
+```
+
+Loading the draft heads adds around 5% to VRAM usage. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
+
+:::warning
+Benchmark before enabling. MTP can hurt performance on Apple Silicon (Metal) and on high-entropy workloads like creative prose.
+:::
+
 ## Template Variables
 
 Chat templates are used internally by models to format conversation history into the expected prompt format. Different models may support different template variables that control specific behaviors. Template variables are boolean flags passed to the chat template that can enable or disable certain features.
