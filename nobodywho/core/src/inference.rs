@@ -448,23 +448,35 @@ impl<'a> InferenceEngine<'a> {
 
         // 3. Ask the drafter for up to n_max proposals starting after
         //    pending.
-        let drafts = {
+        let mut drafts = {
             let EngineContext::Speculative(spec) = &mut self.ctx else {
                 unreachable!("sample_and_decode_speculative called on solo ctx");
             };
             spec.draft(self.n_past, pending, &[])?
         };
+        // The wrapper requires exactly one accept() after every
+        // *non-empty* draft() (and none after an empty one) — track
+        // that independently of k_max, which may be clamped to 0 below.
+        let accept_owed = !drafts.is_empty();
+
+        // Clamp drafts so the verify batch [pending, drafts...] stays
+        // within the context window: the chat loop's context-shift
+        // check only runs between iterations, so without this a
+        // generation near the boundary fails the decode (no free KV
+        // slot) instead of triggering a context shift.
+        let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
+        drafts.truncate(room);
         let k_max = drafts.len();
 
-        // 4. Empty drafts: decode pending as a single token, re-seed
-        //    pending. Same shape/cost as the solo path.
+        // 4. No drafts to verify: decode pending as a single token,
+        //    re-seed pending. Same shape/cost as the solo path.
         if k_max == 0 {
-            trace!(?pending, "MTP: drafter returned no proposals");
+            trace!(?pending, "MTP: no draft proposals to verify");
             self.small_batch.clear();
             self.small_batch.add(pending, self.n_past, &[0], true)?;
             self.ctx.decode(&mut self.small_batch)?;
             self.ctx.mtp_process(&self.small_batch)?;
-            {
+            if accept_owed {
                 let EngineContext::Speculative(spec) = &mut self.ctx else {
                     unreachable!();
                 };
@@ -507,8 +519,7 @@ impl<'a> InferenceEngine<'a> {
             }
             accepted_drafts.push(draft);
         }
-        let new_pending =
-            new_pending.unwrap_or_else(|| sampler.sample(&self.ctx, k_max as i32));
+        let new_pending = new_pending.unwrap_or_else(|| sampler.sample(&self.ctx, k_max as i32));
         let j = accepted_drafts.len();
 
         // 7. KV rollback for partial acceptance. Keep positions
