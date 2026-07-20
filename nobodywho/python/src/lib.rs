@@ -979,10 +979,10 @@ impl Chat {
     ///     sampler: SamplerConfig for token selection. If not given, sampling settings
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
+    ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///     mtp: If True, enable MTP speculative decoding on this chat. Requires the
     ///         `Model` to have been loaded with a compatible `draft_model_path`.
     ///         Adds around 5% to VRAM usage. Defaults to False.
-    ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
     ///     A Chat instance
@@ -991,7 +991,7 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, mtp = false, allow_thinking: "bool | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp = false) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -999,8 +999,8 @@ impl Chat {
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
-        mtp: bool,
         allow_thinking: Option<bool>,
+        mtp: bool,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -1388,10 +1388,10 @@ impl ChatAsync {
     ///     sampler: SamplerConfig for token selection. If not given, sampling settings
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
+    ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///     mtp: If True, enable MTP speculative decoding on this chat. Requires the
     ///         `Model` to have been loaded with a compatible `draft_model_path`.
     ///         Adds around 5% to VRAM usage. Defaults to False.
-    ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
     ///
     /// Returns:
     ///     A ChatAsync instance
@@ -1400,7 +1400,7 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, mtp = false, allow_thinking: "bool | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp = false) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -1408,8 +1408,8 @@ impl ChatAsync {
         template_variables: std::collections::HashMap<String, bool>,
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
-        mtp: bool,
         allow_thinking: Option<bool>,
+        mtp: bool,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;

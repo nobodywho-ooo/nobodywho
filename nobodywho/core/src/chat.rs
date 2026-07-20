@@ -1599,10 +1599,21 @@ impl<'a> Chat<'a> {
         while !self.should_stop() {
             // Check if the context is full
             if self.engine.is_context_full() {
+                // MTP holds one sampled-but-undecoded `pending` token that the
+                // stateful sampler has already accepted but that is absent from
+                // `tokens_written_until_now`. The replay below routes through
+                // `read_text_tokens`, which clears `pending`; letting it do so
+                // would leave the (grammar/penalty) sampler one phantom token
+                // ahead of the rebuilt KV and desync tool-call/grammar output.
+                // Detach it across the replay and restore it — the rebuilt KV
+                // ends exactly where `pending` decodes next. No-op on the solo
+                // path (`pending` is always `None`).
+                let deferred_pending = self.engine.take_pending();
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
                 self.engine
                     .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
+                self.engine.restore_pending(deferred_pending);
                 // do not update tokens_in_context as this is done later by ask
             }
 

@@ -943,6 +943,13 @@ pub enum DecodingError {
 
     #[error("KV cache rollback failed: {0}")]
     KvCache(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
+
+    #[error(
+        "MTP speculative decoding requires a model whose KV cache supports partial removal \
+         (attention-based). This architecture (recurrent / hybrid-recurrent) rejected the \
+         partial rollback needed to discard mispredicted draft tokens."
+    )]
+    MtpPartialRollbackUnsupported,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

@@ -44,8 +44,8 @@ class Chat:
         template_variables: "dict[str, bool]" = ...,
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
-        mtp: bool = False,
         allow_thinking: "bool | None" = None,
+        mtp: bool = False,
     ) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
@@ -59,10 +59,10 @@ class Chat:
             sampler: SamplerConfig for token selection. If not given, sampling settings
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
+            allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
             mtp: If True, enable MTP speculative decoding on this chat. Requires the
                 `Model` to have been loaded with a compatible `draft_model_path`.
                 Adds around 5% to VRAM usage. Defaults to False.
-            allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
 
         Returns:
             A Chat instance
@@ -263,8 +263,8 @@ class ChatAsync:
         template_variables: "dict[str, bool]" = ...,
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
-        mtp: bool = False,
         allow_thinking: "bool | None" = None,
+        mtp: bool = False,
     ) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
@@ -278,10 +278,10 @@ class ChatAsync:
             sampler: SamplerConfig for token selection. If not given, sampling settings
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
+            allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
             mtp: If True, enable MTP speculative decoding on this chat. Requires the
                 `Model` to have been loaded with a compatible `draft_model_path`.
                 Adds around 5% to VRAM usage. Defaults to False.
-            allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
 
         Returns:
             A ChatAsync instance

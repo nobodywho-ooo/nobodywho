@@ -351,6 +351,29 @@ impl<'a> InferenceEngine<'a> {
         self.n_past as u32
     }
 
+    /// Detach the deferred MTP `pending` token so a context-shift KV replay
+    /// can run without desyncing the stateful sampler.
+    ///
+    /// A context shift rebuilds the KV by replaying only the *emitted* stream
+    /// (`tokens_written_until_now`). That replay routes through
+    /// [`Self::read_text_tokens`], which clears `pending` — correct for a fresh
+    /// prompt, but wrong mid-generation: the deferred token has already been
+    /// accepted by the sampler yet is absent from the emitted stream, so
+    /// clearing it leaves the sampler one phantom token ahead of the KV. The
+    /// caller detaches `pending` across the replay and restores it afterwards
+    /// via [`Self::restore_pending`]. No-op on the solo path (always `None`).
+    pub(crate) fn take_pending(&mut self) -> Option<LlamaToken> {
+        self.pending.take()
+    }
+
+    /// Restore a `pending` token detached via [`Self::take_pending`] after a
+    /// context-shift replay. The rebuilt KV ends exactly at the last emitted
+    /// token, which is precisely where `pending` decodes next, so the following
+    /// speculative iteration consumes it exactly as in steady state.
+    pub(crate) fn restore_pending(&mut self, pending: Option<LlamaToken>) {
+        self.pending = pending;
+    }
+
     pub(crate) fn is_context_full(&self) -> bool {
         self.n_past as u32 == self.ctx.n_ctx()
     }
@@ -513,6 +536,16 @@ impl<'a> InferenceEngine<'a> {
         let mut new_pending = None;
         for (i, &draft) in drafts.iter().enumerate() {
             let ti = sampler.sample(&self.ctx, i as i32);
+            // Stop at end-of-generation: don't verify or draft past a terminal
+            // token. `ti` becomes the deferred `pending`, and the EOG fast-path
+            // at the top of the next iteration surfaces it to the chat loop.
+            // Checked before the mismatch test so a draft that happens to equal
+            // EOG is not pushed as a normal accepted token.
+            if self.ctx.model.is_eog_token(ti) {
+                trace!(?ti, "MTP: target sampled EOG during verify, stopping");
+                new_pending = Some(ti);
+                break;
+            }
             if ti != draft {
                 new_pending = Some(ti);
                 break;
@@ -526,9 +559,18 @@ impl<'a> InferenceEngine<'a> {
         //    [0..n_past+1+j] (pending + accepted drafts).
         if j < k_max {
             let keep_up_to = (self.n_past + 1 + j as i32) as u32;
-            let _ = self
+            let rolled_back = self
                 .ctx
                 .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
+            if !rolled_back {
+                // Recurrent / hybrid-recurrent memory types reject partial
+                // removal (Ok(false)). Unlike `remove_all_tokens_from_index_from_ctx`
+                // we cannot fall back to a full reset here — that would drop the
+                // prompt mid-generation. Leaving the rejected drafts' KV in place
+                // would silently corrupt subsequent decodes, so fail loudly. MTP
+                // targets attention models, where partial removal is supported.
+                return Err(DecodingError::MtpPartialRollbackUnsupported);
+            }
         }
 
         // 8. Tell the drafter how many drafts stuck.
