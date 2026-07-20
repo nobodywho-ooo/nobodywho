@@ -98,6 +98,7 @@ const CHECKPOINT_FLAGS: LlamaStateSeqFlags = LlamaStateSeqFlags::from_bits(
 );
 
 impl<'a> InferenceEngine<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         ctx: LlamaContext<'a>,
         big_batch: LlamaBatch<'a>,
