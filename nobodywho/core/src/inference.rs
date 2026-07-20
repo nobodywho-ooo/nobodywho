@@ -7,12 +7,12 @@ use crate::tokenizer::{
 };
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::LlamaContext;
-use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
+use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::MutexGuard;
@@ -158,14 +158,21 @@ impl<'a> InferenceEngine<'a> {
         }
         match self.ctx.state_seq_get(SEQ_ID, CHECKPOINT_FLAGS) {
             Ok(data) => {
-                trace!(n_past = self.n_past, bytes = data.byte_len(), "Saved checkpoint");
+                trace!(
+                    n_past = self.n_past,
+                    bytes = data.byte_len(),
+                    "Saved checkpoint"
+                );
                 self.checkpoint = Some(Checkpoint {
                     data,
                     n_past: self.n_past,
                 });
             }
             Err(err) => {
-                warn!(?err, "Failed to save sequence checkpoint; clearing any stale one");
+                warn!(
+                    ?err,
+                    "Failed to save sequence checkpoint; clearing any stale one"
+                );
                 self.checkpoint = None;
             }
         }

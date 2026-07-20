@@ -48,7 +48,7 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
@@ -1439,9 +1439,9 @@ impl<'a> Chat<'a> {
         // On recurrent archs, if the partial trim fails, the engine will
         // try to restore from the checkpoint saved on the previous sync.
         let prev = std::mem::take(&mut self.context.chunks);
-        let new_committed = self
-            .engine
-            .sync_context(committed_chunks, &prev, inference_lock_token)?;
+        let new_committed =
+            self.engine
+                .sync_context(committed_chunks, &prev, inference_lock_token)?;
         self.context.chunks = new_committed;
         self.context.garbage_collect_bitmaps(&self.messages);
 
@@ -1581,6 +1581,28 @@ impl<'a> Chat<'a> {
             if self.engine.is_context_full() {
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
+
+                // Context shifting only reclaims space held by *history* —
+                // the in-progress response must still be replayed on top of
+                // the freshly-synced context, and it cannot be shrunk. If the
+                // response alone no longer leaves room for another token, no
+                // amount of further shifting will help; stop cleanly with what
+                // we have instead of overflowing the KV cache (which would
+                // surface as a hard `NoKvCacheSlot` decode error, and on
+                // recurrent/hybrid models cannot be recovered at all).
+                let n_ctx = self.engine.ctx.n_ctx() as usize;
+                let needed = self.engine.n_past() as usize + tokens_written_until_now.n_tokens();
+                if needed >= n_ctx {
+                    warn!(
+                        n_ctx,
+                        n_past = self.engine.n_past(),
+                        in_progress = tokens_written_until_now.n_tokens(),
+                        "Response fills the entire context window after a shift; \
+                         stopping generation early"
+                    );
+                    break;
+                }
+
                 self.engine
                     .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
@@ -1805,8 +1827,11 @@ impl<'a> Chat<'a> {
             self.chat_template
                 .render(messages, &template_context, add_generation_prompt)?
         } else {
-            self.chat_template
-                .render_unhandled(messages, &template_context, add_generation_prompt)?
+            self.chat_template.render_unhandled(
+                messages,
+                &template_context,
+                add_generation_prompt,
+            )?
         };
 
         let bitmaps: Vec<&MtmdBitmap> = self
@@ -2132,8 +2157,8 @@ mod tests {
     /// (e.g. Qwen3.5-0.8B-Q4_K_M.gguf) and skips with a note when the env
     /// var is unset.
     #[test]
-    fn test_checkpoint_restore_fires_on_recurrent_model(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn test_checkpoint_restore_fires_on_recurrent_model() -> Result<(), Box<dyn std::error::Error>>
+    {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use tracing::field::{Field, Visit};
         use tracing::{Event, Subscriber};
