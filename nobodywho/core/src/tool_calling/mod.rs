@@ -560,6 +560,97 @@ mod tests {
         }
     }
 
+    /// Does the model's tokenizer + `grammar` accept `input` as a COMPLETE
+    /// match? A real tokenizer is required: the free-form-string rules use
+    /// multi-character `suffix` stops, which a single-byte tokenizer can't
+    /// resolve. True only if every token is consumed and the parser ends
+    /// accepting.
+    fn grammar_accepts_tok(model: &crate::llm::Model, grammar: &str, input: &str) -> bool {
+        use llguidance::toktrie::InferenceCapabilities;
+        use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
+        let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
+            .expect("build ParserFactory");
+        let grm = TopLevelGrammar::from_tagged_str("lark", grammar).expect("parse Lark grammar");
+        let parser = factory.create_parser(grm).expect("create parser");
+        let mut matcher = Matcher::new(Ok(parser));
+
+        let tokens = tok_env.tokenize_special(input);
+        let consumed = matcher.try_consume_tokens(&tokens).unwrap_or(0);
+        consumed == tokens.len() && matcher.is_accepting().unwrap_or(false)
+    }
+
+    /// Regression: Gemma4 free-form string values must allow a literal `<`
+    /// (e.g. "count < 5", HTML, generics). The old body rule `/[^<]*/` banned
+    /// every `<`, not just the closing `<|"|>` delimiter, so such values could
+    /// not be generated; the `gemmafour_strbody[suffix=...]` rule fixes it.
+    /// Requires a Gemma4 GGUF — set `GEMMA4_MODEL`; skipped otherwise.
+    #[test]
+    fn gemma4_string_value_allows_left_angle_bracket() {
+        let Ok(path) = std::env::var("GEMMA4_MODEL") else {
+            eprintln!("skipping: set GEMMA4_MODEL to a Gemma4 GGUF to run this test");
+            return;
+        };
+        let model = crate::llm::get_model(&path, true, None, None)
+            .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e:?}"));
+        let grammar = ToolFormat::Gemma4(Gemma4Handler)
+            .to_lark(&[weather_tool()])
+            .unwrap();
+
+        // Baseline: a plain value is accepted.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<|tool_call>call:get_weather{city:<|\"|>hello<|\"|>}<tool_call|>"
+            ),
+            "plain string value should be accepted:\n{grammar}"
+        );
+        // The regression: a value containing '<' is valid content.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<|tool_call>call:get_weather{city:<|\"|>count < 5<|\"|>}<tool_call|>"
+            ),
+            "string value containing '<' should be accepted:\n{grammar}"
+        );
+    }
+
+    /// Regression: Qwen3.5/3.6 free-form string values must be able to end in a
+    /// trailing newline. The old body rule `/([^\n]|\n[^<])*/` could not match a
+    /// value ending in `\n` before the `\n</parameter>\n` terminator (no valid
+    /// split of the bytes); the `..._body[suffix=...]` rule fixes it. Uses the
+    /// TEST_MODEL tokenizer to validate the generated grammar's byte language.
+    #[test]
+    fn qwen35_36_string_value_allows_trailing_newline() {
+        let model = crate::test_utils::load_test_model();
+        let grammar = ToolFormat::Qwen35_36(Qwen35_36Handler)
+            .to_lark(&[weather_tool()])
+            .unwrap();
+
+        // Baseline: a plain value is accepted.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>\n<function=get_weather>\n<parameter=city>\nsunny\n</parameter>\n</function>\n</tool_call>"
+            ),
+            "plain string value should be accepted:\n{grammar}"
+        );
+        // The regression: value "sunny\n" ends in a newline.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>\n<function=get_weather>\n<parameter=city>\nsunny\n\n</parameter>\n</function>\n</tool_call>"
+            ),
+            "string value ending in a newline should be accepted:\n{grammar}"
+        );
+    }
+
     #[test]
     fn test_functiongemma_format() {
         let format = ToolFormat::FunctionGemma(FunctionGemmaHandler);

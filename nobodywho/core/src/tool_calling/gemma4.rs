@@ -290,8 +290,13 @@ impl ToolFormatHandler for Gemma4Handler {
 
         lark.push_str(&format!("tool_alt: {}\n", tool_call_names.join(" | ")));
 
-        // Shared primitive rules referenced by schema_to_lark output
-        lark.push_str(r#"gemmafour_string: "<|\"|>" /[^<]*/ "<|\"|>""#);
+        // Shared primitive rules referenced by schema_to_lark output.
+        // The string body matches any text up to the closing `<|"|>` delimiter,
+        // which the lazy `suffix` consumes. This allows values containing `<`;
+        // the old `/[^<]*/` banned every `<`, not just the delimiter.
+        lark.push_str(r#"gemmafour_string: "<|\"|>" gemmafour_strbody"#);
+        lark.push('\n');
+        lark.push_str(r#"gemmafour_strbody[suffix=/<\|"\|>/]: /(?s:.*)/"#);
         lark.push('\n');
         lark.push_str("gemmafour_key: /[a-zA-Z0-9_]+/\n");
         lark.push_str(r#"gemmafour_bool: "true" | "false""#);

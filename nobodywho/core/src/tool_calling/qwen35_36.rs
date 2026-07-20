@@ -66,9 +66,18 @@ impl ToolFormatHandler for Qwen35_36Handler {
                                 continue;
                             }
                         }
-                        // Free-form string: must not contain \n< (the start of the </parameter> terminator)
+                        // Free-form string: match any text up to the first
+                        // `\n</parameter>\n` terminator, which the lazy `suffix`
+                        // consumes. This allows values containing `<`, embedded
+                        // newlines, or a trailing newline — none of which a
+                        // character-class body can represent without either
+                        // banning valid content or failing to terminate.
+                        let body_rule = format!("{pprefix}_body");
                         lark.push_str(&format!(
-                            "{block_rule}: \"<parameter={pname}>\\n\" /([^\\n]|\\n[^<])*/ \"\\n</parameter>\\n\"\n"
+                            "{block_rule}: \"<parameter={pname}>\\n\" {body_rule}\n"
+                        ));
+                        lark.push_str(&format!(
+                            "{body_rule}[suffix=/\\n<\\/parameter>\\n/]: /(?s:.*)/\n"
                         ));
                     } else {
                         let val_rule = format!("{pprefix}_val");

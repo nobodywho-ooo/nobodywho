@@ -33,7 +33,10 @@ enum Node {
     RuleRef(String),
     /// A llama.cpp GBNF token reference (`<name>` or `<[42]>`), optionally
     /// negated (`!<name>`). Maps to Lark `<name>` / `~<name>` syntax.
-    SpecialToken { name: String, negated: bool },
+    SpecialToken {
+        name: String,
+        negated: bool,
+    },
     Repetition {
         node: Box<Node>,
         min: u32,
@@ -94,10 +97,7 @@ impl Node {
     fn rename_refs(&mut self, old: &str, new: &str) {
         match self {
             Node::RuleRef(name) if name == old => *name = new.to_string(),
-            Node::RuleRef(_)
-            | Node::Literal(_)
-            | Node::Regex(_)
-            | Node::SpecialToken { .. } => {}
+            Node::RuleRef(_) | Node::Literal(_) | Node::Regex(_) | Node::SpecialToken { .. } => {}
             Node::Repetition { node, .. } => node.rename_refs(old, new),
             Node::Sequence(nodes) | Node::Alternative(nodes) => {
                 for n in nodes.iter_mut() {
@@ -659,9 +659,12 @@ fn resolve(rules: &mut [Rule], entry_name: &str) -> Result<(), GbnfToLarkError> 
     // 3. Rename the entry rule to "start"; update all refs.
     // If entry_name is already "start", there's nothing to do at this step.
     if entry_name != "start" {
-        let entry_idx = rules.iter().position(|r| r.name == entry_name).ok_or_else(|| {
-            GbnfToLarkError::ResolutionError(format!("Entry rule '{}' not found", entry_name))
-        })?;
+        let entry_idx = rules
+            .iter()
+            .position(|r| r.name == entry_name)
+            .ok_or_else(|| {
+                GbnfToLarkError::ResolutionError(format!("Entry rule '{}' not found", entry_name))
+            })?;
         rules[entry_idx].name = "start".to_string();
         for rule in rules.iter_mut() {
             rule.body.rename_refs(entry_name, "start");
@@ -711,10 +714,7 @@ pub fn gbnf_to_lark(text: &str) -> Result<String, GbnfToLarkError> {
 
 /// Convert a GBNF grammar string to Lark syntax, using `entry_name` as the
 /// entry rule (renamed to `start` in the output).
-pub fn gbnf_to_lark_with_entry(
-    text: &str,
-    entry_name: &str,
-) -> Result<String, GbnfToLarkError> {
+pub fn gbnf_to_lark_with_entry(text: &str, entry_name: &str) -> Result<String, GbnfToLarkError> {
     let mut parser = Parser::new(text);
     let mut rules = parser.parse_all()?;
     resolve(&mut rules, entry_name)?;
