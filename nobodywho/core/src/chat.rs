@@ -1428,7 +1428,17 @@ impl<'a> Chat<'a> {
         // treat the full render as committed — no split needed.
         let (committed_chunks, gen_prompt_tail) = if self.engine.needs_checkpointing() {
             let committed = self.render_as_chunks(true, false)?;
-            debug_assert!(committed.n_tokens() <= full_chunks.n_tokens());
+            // Invariant: the no-gen-prompt render must be a *token-level* prefix
+            // of the gen-prompt render. The recurrent path feeds the model
+            // `committed` then `tail = full_chunks[committed.n_tokens()..]`, so
+            // if they diverged before `committed.n_tokens()` the model would see
+            // a different prompt than the single-pass attention path. This holds
+            // as long as the generation prompt begins with an atomic (special)
+            // token — otherwise BPE could merge the last committed char with the
+            // first gen-prompt char, making tokenize(a+b) != tokenize(a)++tokenize(b).
+            // Every supported chat template opens its gen prompt with a special
+            // token (e.g. `<start_of_turn>`, `<|im_start|>`). Verified for the
+            // recurrent test template by `test_checkpoint_restore_fires_on_recurrent_model`.
             let tail = full_chunks.tail(committed.n_tokens());
             (committed, Some(tail))
         } else {
@@ -2234,6 +2244,24 @@ mod tests {
             ] {
                 chat.ask(prompt.into(), noop).expect("ask");
             }
+
+            // Guard the token-prefix invariant that `sync_context_with_render`'s
+            // recurrent two-pass split relies on: the no-gen-prompt render must
+            // be a token-level prefix of the gen-prompt render (see the comment
+            // at the split). A plain assert so it runs under CI's release test
+            // build, where a debug_assert would be compiled out.
+            let without = chat
+                .render_as_chunks(true, false)
+                .expect("render without gen prompt");
+            let with = chat
+                .render_as_chunks(true, true)
+                .expect("render with gen prompt");
+            assert_eq!(
+                crate::tokenizer::find_chunks_prefix_difference(&without, &with),
+                without.n_tokens(),
+                "generation-prompt render must be a token-level extension of the \
+                 no-gen-prompt render (gen prompt should begin with an atomic token)"
+            );
         });
 
         let n = restores.load(Ordering::Relaxed);

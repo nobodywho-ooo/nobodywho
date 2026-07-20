@@ -51,11 +51,6 @@ where
     (wrapped_respond, resp_receiver)
 }
 
-/// The low-level inference state for a single llama.cpp context.
-///
-/// Holds everything needed to read tokens/media into the KV cache and sample new tokens,
-/// independent of any higher-level concept like chat history. Both `Worker` (encoder /
-/// crossencoder) and `Chat` own one of these.
 /// Sequence-state snapshot used to rewind recurrent / hybrid-recurrent
 /// contexts (Mamba, RWKV, Gated Delta Networks, Qwen3.5) where
 /// `clear_kv_cache_seq` cannot unroll the running state.
@@ -70,6 +65,11 @@ struct Checkpoint {
     n_past: i32,
 }
 
+/// The low-level inference state for a single llama.cpp context.
+///
+/// Holds everything needed to read tokens/media into the KV cache and sample new tokens,
+/// independent of any higher-level concept like chat history. Both `Worker` (encoder /
+/// crossencoder) and `Chat` own one of these.
 #[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
     pub(crate) ctx: LlamaContext<'a>,
@@ -218,9 +218,30 @@ impl<'a> InferenceEngine<'a> {
         // position. On pure-attention paths this is trivial; on hybrid
         // archs the recurrent state is already back, so the remaining
         // work is just marking attention cells as free.
-        let _ = self
+        //
+        // This returns Ok(true) for both memory types today. A false/Err
+        // would mean stale attention cells survived past `restored_pos` and
+        // would corrupt the next decode, so surface it loudly rather than
+        // swallowing it — a future change to recurrent-rollback semantics is
+        // the realistic way this could start returning false.
+        match self
             .ctx
-            .clear_kv_cache_seq(Some(SEQ_ID as u32), Some(restored_pos as u32), None);
+            .clear_kv_cache_seq(Some(SEQ_ID as u32), Some(restored_pos as u32), None)
+        {
+            Ok(true) => {}
+            other => {
+                warn!(
+                    ?other,
+                    restored_pos,
+                    "clear_kv_cache_seq did not free attention cells past the restored \
+                     position; next decode may be corrupted"
+                );
+                debug_assert!(
+                    matches!(other, Ok(true)),
+                    "clear_kv_cache_seq after checkpoint restore returned {other:?}"
+                );
+            }
+        }
         trace!(restored_pos, target_pos, "Restored from checkpoint");
         true
     }
