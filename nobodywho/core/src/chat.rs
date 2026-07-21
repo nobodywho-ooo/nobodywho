@@ -354,11 +354,6 @@ impl ChatBuilder {
     }
 
     /// Enable MTP speculative decoding for this chat with the given tuning.
-    /// Requires the [`llm::Model`] to have been loaded with a compatible
-    /// `draft_model_path` — otherwise `build_*` fails with
-    /// `InitWorkerError::MtpDraftModelNotLoaded`.
-    ///
-    /// Pass [`MtpConfig::default`] for the default drafter tuning.
     pub fn with_mtp(mut self, config: MtpConfig) -> Self {
         self.config.mtp = Some(config);
         self
@@ -610,11 +605,8 @@ impl ChatHandle {
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
-    /// The counters reset at the start of each generation, so this reflects the
-    /// latest response rather than a cumulative average over the conversation.
-    /// Returns `None` when no drafts were proposed in the last generation —
-    /// either because MTP is disabled on this chat, or because inference has
-    /// not run yet.
+    /// The counters reset at the start of each generation.
+    /// Returns `None` when no drafts were proposed in the last generation.
     pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
