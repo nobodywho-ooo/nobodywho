@@ -61,6 +61,17 @@ nobodywho/flutter/nobodywho/CHANGELOG.md
 
 Each new version section is a `## X.Y.Z` header followed by `### <Feature> (#PR)` subsections, with a short prose line. Match that heading style and tone exactly. Group fixes under a `### Fixes` subsection.
 
+Curate the file [`CHANGELOG.md`](../../../CHANGELOG.md): move relevant entries from `Unreleased` into a dated heading that lists every package's semantic version in the release. This is written by the release maintainer, not generated from commit messages. Don't add PR links.
+
+Use these sections when applicable (don't create new ones):
+
+- `Added` — new functionality.
+- `Changed` — changed behaviour.
+- `Deprecated` — functionality that will be removed in a future release.
+- `Removed` — removed functionality.
+- `Fixed` — bug fixes.
+- `Security` — vulnerability fixes.
+
 **The per-binding changelog files are NOT tracked in version control.** Write them into the gitignored directory `nobodywho/changelogs/` (already in `.gitignore`), one file per binding, **with the version number in the filename** so they can't be confused with each other or with a previous release's drafts:
 
 ```
@@ -106,7 +117,9 @@ Notes from past releases:
 
 Show the drafted changelogs to the user and get approval of the wording.
 
-Once approved, for Flutter **only**, prepend the approved `## X.Y.Z` section to the top of the tracked file:
+Once approved, update the tracked root file `CHANGELOG.md` with the curated dated version heading. Keep a fresh empty `Unreleased` section at the top; any post-release entries stay there.
+
+For Flutter **only**, also prepend the approved `## X.Y.Z` section to the top of the tracked file:
 
 ```
 nobodywho/flutter/nobodywho/CHANGELOG.md
@@ -350,6 +363,7 @@ Tag format **must** be `nobodywho-<binding>-vX.Y.Z` — `.github/workflows/build
 - [ ] Per-binding changelog drafted in `nobodywho/changelogs/<binding>-<v>.md` (gitignored, untracked)
 - [ ] Semver proposal per binding with rationale → **user approval**
 - [ ] Changelog wording → **user approval**
+- [ ] Root `CHANGELOG.md` moved from `Unreleased` into a dated package-version heading
 - [ ] Flutter `CHANGELOG.md` (tracked) prepended with new section
 - [ ] Version files bumped per binding (Step 5 table); Flutter's two files identical
 - [ ] `Cargo.lock` updated (`cargo update -p ... --precise ...`) — before `crate2nix`
