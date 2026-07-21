@@ -1050,6 +1050,61 @@ impl NobodyWhoChat {
     }
 
     #[func]
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    /// Resets each generation, so it reflects the latest response rather than a
+    /// cumulative average. Returns a Signal that resolves to a float, or `null`
+    /// when MTP is disabled on this chat or no drafts were proposed in the last
+    /// generation. Use `var rate = await chat.mtp_acceptance_rate()`.
+    fn mtp_acceptance_rate(&mut self) -> Variant {
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to get MTP acceptance rate, but no worker is running. Returning nil."
+                );
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "mtp_acceptance_rate_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let Ok(rate) = chat_handle.mtp_acceptance_rate().await else {
+                error!("Chat worker died while waiting for mtp_acceptance_rate.");
+                emit_node.emit_signal(&signal_name_copy, &[]);
+                return;
+            };
+
+            // None (MTP disabled, or no drafts this generation) -> GDScript null.
+            let value = match rate {
+                Some(r) => Variant::from(r),
+                None => Variant::nil(),
+            };
+
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("Failed getting MTP acceptance rate: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[value]);
+        });
+
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
     /// Tokenize a string or NobodyWhoPrompt and return the token IDs.
     /// Returns a Signal that resolves to an Array where each element is an int (token ID)
     /// or null (for image/audio embedding slots).

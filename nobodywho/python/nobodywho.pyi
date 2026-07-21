@@ -110,6 +110,17 @@ class Chat:
         Raises:
             RuntimeError: If the variables cannot be retrieved
         """
+    def mtp_acceptance_rate(self, /) -> float | None:
+        """
+        MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+
+        Resets each generation, so it reflects the latest response rather than a
+        cumulative average. Returns None when MTP is disabled on this chat or no
+        drafts were proposed in the last generation.
+
+        Returns:
+            Optional[float]
+        """
     def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """
         Reset the conversation with a new system prompt and tools. Clears all chat history.
@@ -328,6 +339,17 @@ class ChatAsync:
 
         Raises:
             RuntimeError: If the variables cannot be retrieved
+        """
+    async def mtp_acceptance_rate(self, /) -> float | None:
+        """
+        MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+
+        Resets each generation, so it reflects the latest response rather than a
+        cumulative average. Returns None when MTP is disabled on this chat or no
+        drafts were proposed in the last generation.
+
+        Returns:
+            Optional[float]
         """
     async def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """

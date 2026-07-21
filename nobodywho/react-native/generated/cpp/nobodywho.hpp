@@ -64,6 +64,9 @@ protected:
   cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -555,6 +558,10 @@ protected:
       size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(

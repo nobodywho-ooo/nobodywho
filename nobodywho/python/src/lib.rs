@@ -1349,6 +1349,22 @@ impl Chat {
         })
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+    ///
+    /// Resets each generation, so it reflects the latest response rather than a
+    /// cumulative average. Returns None when MTP is disabled on this chat or no
+    /// drafts were proposed in the last generation.
+    ///
+    /// Returns:
+    ///     Optional[float]
+    pub fn mtp_acceptance_rate(&self, py: Python) -> PyResult<Option<f32>> {
+        py.detach(|| {
+            self.handle()
+                .mtp_acceptance_rate()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
     /// Get the current system prompt.
     ///
     /// Returns:
@@ -1744,6 +1760,21 @@ impl ChatAsync {
                 context_size: s.context_size,
                 context_used: s.context_used,
             })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+    ///
+    /// Resets each generation, so it reflects the latest response rather than a
+    /// cumulative average. Returns None when MTP is disabled on this chat or no
+    /// drafts were proposed in the last generation.
+    ///
+    /// Returns:
+    ///     Optional[float]
+    pub async fn mtp_acceptance_rate(&self) -> PyResult<Option<f32>> {
+        self.handle()
+            .mtp_acceptance_rate()
+            .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 

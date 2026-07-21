@@ -1499,6 +1499,14 @@ export interface RustChatInterface {
      */
     getTemplateVariables(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Map<string, boolean>>;
     /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation, so it reflects the latest response rather than a
+     * cumulative average. `null` when MTP is disabled on this chat or no drafts
+     * were proposed in the last generation.
+     */
+    mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise</*f32*/number | undefined>;
+    /**
      * Reset the chat context with a new system prompt and tools.
      */
     resetContext(systemPrompt: string | undefined, tools: Array<RustToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
@@ -1774,6 +1782,41 @@ async  getTemplateVariables(asyncOpts_?: { signal: AbortSignal }): Promise<Map<s
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             /*liftFunc:*/ FfiConverterMapStringBool.lift.bind(FfiConverterMapStringBool),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation, so it reflects the latest response rather than a
+     * cumulative average. `null` when MTP is disabled on this chat or no drafts
+     * were proposed in the last generation.
+     */
+async  mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal }): Promise</*f32*/number | undefined> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterOptionalFloat32.lift.bind(FfiConverterOptionalFloat32),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -4137,6 +4180,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() !== 19616) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() !== 6291) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() !== 47191) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context");

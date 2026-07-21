@@ -581,6 +581,13 @@ impl RustChat {
         })
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+    /// Resets each generation (per-response, not cumulative). Null when MTP is
+    /// disabled or no drafts were proposed in the last generation.
+    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, nobodywho::errors::GetterError> {
+        self.chat.mtp_acceptance_rate().await
+    }
+
     pub async fn set_tools(
         &self,
         tools: Vec<RustTool>,

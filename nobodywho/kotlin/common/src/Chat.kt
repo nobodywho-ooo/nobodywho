@@ -92,6 +92,13 @@ class Chat(
     suspend fun setSamplerConfig(sampler: SamplerConfig) = inner.setSamplerConfig(sampler)
     suspend fun getSamplerConfigJson(): String = inner.getSamplerConfigJson()
     suspend fun getStats(): ChatStats = inner.getStats()
+
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     * Resets each generation (per-response, not cumulative). `null` when MTP is
+     * disabled on this chat or no drafts were proposed in the last generation.
+     */
+    suspend fun mtpAcceptanceRate(): Float? = inner.mtpAcceptanceRate()
     suspend fun tokenize(message: String): List<Int?> = inner.tokenize(message)
 
     /** Free the underlying Rust resources. */

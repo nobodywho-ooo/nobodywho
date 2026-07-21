@@ -611,10 +611,13 @@ impl ChatHandle {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
-    /// Cumulative MTP draft acceptance rate for this chat, in `[0.0, 1.0]`.
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
-    /// Returns `None` when no drafts have been proposed — either because
-    /// MTP is disabled on this chat, or because inference has not run yet.
+    /// The counters reset at the start of each generation, so this reflects the
+    /// latest response rather than a cumulative average over the conversation.
+    /// Returns `None` when no drafts were proposed in the last generation —
+    /// either because MTP is disabled on this chat, or because inference has
+    /// not run yet.
     pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
@@ -937,10 +940,13 @@ impl ChatHandleAsync {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
-    /// Cumulative MTP draft acceptance rate for this chat, in `[0.0, 1.0]`.
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
-    /// Returns `None` when no drafts have been proposed — either because
-    /// MTP is disabled on this chat, or because inference has not run yet.
+    /// The counters reset at the start of each generation, so this reflects the
+    /// latest response rather than a cumulative average over the conversation.
+    /// Returns `None` when no drafts were proposed in the last generation —
+    /// either because MTP is disabled on this chat, or because inference has
+    /// not run yet.
     pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
@@ -1615,6 +1621,11 @@ impl<'a> Chat<'a> {
     {
         // Token generation loop
         info!("Worker writing until done");
+
+        // Reset MTP draft counters so `mtp_acceptance_rate` reflects only this
+        // generation, not a cumulative average over the whole conversation.
+        // No-op on the solo path.
+        self.engine.reset_mtp_stats();
 
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?

@@ -131,11 +131,13 @@ pub(crate) struct InferenceEngine<'a> {
     ///   the KV cache.
     /// - Solo path never sets it.
     pending: Option<LlamaToken>,
-    /// Cumulative count of draft tokens proposed by the MTP drafter
-    /// across all speculative iterations on this engine.
+    /// Count of draft tokens proposed by the MTP drafter within the
+    /// *current* generation. Reset to 0 at the start of each generation
+    /// (see [`Self::reset_mtp_stats`]) so the acceptance rate reflects the
+    /// latest prompt rather than being diluted across a long conversation.
     pub(crate) mtp_drafts_proposed: u64,
-    /// Cumulative count of draft tokens accepted (matched the target's
-    /// sample) across all speculative iterations on this engine.
+    /// Count of draft tokens accepted (matched the target's sample) within
+    /// the current generation. Reset alongside `mtp_drafts_proposed`.
     pub(crate) mtp_drafts_accepted: u64,
 }
 
@@ -170,6 +172,14 @@ impl<'a> InferenceEngine<'a> {
         self.n_past = 0;
         self.pending = None;
         self
+    }
+
+    /// Zero the per-generation MTP draft counters. Called at the start of
+    /// each generation so [`crate::chat::ChatHandle::mtp_acceptance_rate`]
+    /// reports the acceptance rate for that generation only.
+    pub(crate) fn reset_mtp_stats(&mut self) {
+        self.mtp_drafts_proposed = 0;
+        self.mtp_drafts_accepted = 0;
     }
 
     pub(crate) fn read_chunks(

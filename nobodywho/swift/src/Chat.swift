@@ -153,6 +153,13 @@ public class Chat {
         return try await inner.getStats()
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    /// Resets each generation (per-response, not cumulative). `nil` when MTP is
+    /// disabled on this chat or no drafts were proposed in the last generation.
+    public func mtpAcceptanceRate() async throws -> Float? {
+        return try await inner.mtpAcceptanceRate()
+    }
+
     /// Tokenize a message using the model's tokenizer.
     public func tokenize(message: String) async throws -> [Int32?] {
         return try await inner.tokenize(message: message)

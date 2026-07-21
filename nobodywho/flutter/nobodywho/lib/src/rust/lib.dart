@@ -265,6 +265,11 @@ abstract class RustChat implements RustOpaqueInterface {
 
   Future<Map<String, bool>> getTemplateVariables();
 
+  /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+  /// Resets each generation (per-response, not cumulative). Null when MTP is
+  /// disabled or no drafts were proposed in the last generation.
+  Future<double?> mtpAcceptanceRate();
+
   /// Create chat from existing model.
   ///
   /// For vision/multimodal models, load the model with image ingestion enabled first:

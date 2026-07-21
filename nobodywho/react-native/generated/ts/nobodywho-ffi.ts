@@ -29,6 +29,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(ptr: bigint): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(ptr: bigint, systemPrompt: Uint8Array, tools: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(ptr: bigint, messages: Uint8Array): bigint;
@@ -187,6 +188,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(): number;

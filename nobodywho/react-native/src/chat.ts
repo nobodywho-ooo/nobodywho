@@ -188,6 +188,15 @@ export class Chat {
   }
 
   /**
+   * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+   * Resets each generation (per-response, not cumulative). `undefined` when MTP
+   * is disabled on this chat or no drafts were proposed in the last generation.
+   */
+  async mtpAcceptanceRate(): Promise<number | undefined> {
+    return this._inner.mtpAcceptanceRate();
+  }
+
+  /**
    * Immediately free the underlying Rust resources (model context, KV cache, etc.).
    * After calling this, the Chat instance is no longer usable.
    */

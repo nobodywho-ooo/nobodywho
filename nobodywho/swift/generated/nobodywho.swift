@@ -637,6 +637,15 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     func getTemplateVariables() async throws  -> [String: Bool]
     
     /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation, so it reflects the latest response rather than a
+     * cumulative average. `null` when MTP is disabled on this chat or no drafts
+     * were proposed in the last generation.
+     */
+    func mtpAcceptanceRate() async throws  -> Float?
+    
+    /**
      * Reset the chat context with a new system prompt and tools.
      */
     func resetContext(systemPrompt: String?, tools: [RustTool]?) async throws 
@@ -896,6 +905,30 @@ open func getTemplateVariables()async throws  -> [String: Bool]  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterDictionaryStringBool.lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation, so it reflects the latest response rather than a
+     * cumulative average. `null` when MTP is disabled on this chat or no drafts
+     * were proposed in the last generation.
+     */
+open func mtpAcceptanceRate()async throws  -> Float?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionFloat.lift,
             errorHandler: FfiConverterTypeNobodyWhoError_lift
         )
 }
@@ -4725,6 +4758,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 6291) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191) {

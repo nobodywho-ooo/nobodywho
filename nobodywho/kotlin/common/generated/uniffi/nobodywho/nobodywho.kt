@@ -733,6 +733,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(
@@ -876,6 +878,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(`ptr`: Long,
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(`ptr`: Long,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(`ptr`: Long,`systemPrompt`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,
 ): Long
@@ -1238,6 +1242,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 6291.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191.toShort()) {
@@ -1981,6 +1988,15 @@ public interface RustChatInterface {
     suspend fun `getTemplateVariables`(): Map<kotlin.String, kotlin.Boolean>
     
     /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation, so it reflects the latest response rather than a
+     * cumulative average. `null` when MTP is disabled on this chat or no drafts
+     * were proposed in the last generation.
+     */
+    suspend fun `mtpAcceptanceRate`(): kotlin.Float?
+    
+    /**
      * Reset the chat context with a new system prompt and tools.
      */
     suspend fun `resetContext`(`systemPrompt`: kotlin.String?, `tools`: List<RustTool>?)
@@ -2316,6 +2332,34 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterMapStringBoolean.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation, so it reflects the latest response rather than a
+     * cumulative average. `null` when MTP is disabled on this chat or no drafts
+     * were proposed in the last generation.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `mtpAcceptanceRate`() : kotlin.Float? {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterOptionalFloat.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )

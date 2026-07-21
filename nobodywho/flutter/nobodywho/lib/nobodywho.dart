@@ -730,6 +730,11 @@ class Chat {
   /// Get token usage statistics for the current context.
   Future<nobodywho.ChatStats> getStats() => _chat.getStats();
 
+  /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+  /// Resets each generation (per-response, not cumulative). `null` when MTP is
+  /// disabled on this chat or no drafts were proposed in the last generation.
+  Future<double?> mtpAcceptanceRate() => _chat.mtpAcceptanceRate();
+
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();
 }
