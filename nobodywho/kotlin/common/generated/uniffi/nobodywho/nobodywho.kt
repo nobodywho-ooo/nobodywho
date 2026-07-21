@@ -312,7 +312,7 @@ internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
         }
     }
 }
-// Initial value and increment amount for handles. 
+// Initial value and increment amount for handles.
 // These ensure that Kotlin-generated handles always have the lowest bit set
 private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
 private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
@@ -322,7 +322,7 @@ private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
 internal class UniffiHandleMap<T: Any> {
     private val map = ConcurrentHashMap<Long, T>()
-    // Start 
+    // Start
     private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
     val size: Int
@@ -837,35 +837,35 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun ffi_nobodywho_uniffi_uniffi_contract_version(
     ): Int
-    
-        
+
+
 }
 
 internal object UniffiLib {
-    
+
     // The Cleaner for the whole library
     internal val CLEANER: UniffiCleaner by lazy {
         UniffiCleaner.create()
     }
-    
+
 
     init {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "nobodywho"))
         uniffiCallbackInterfaceRustDownloadProgressCallback.register(this)
         uniffiCallbackInterfaceRustToolCallback.register(this)
-        
+
     }
-    external fun uniffi_nobodywho_uniffi_fn_clone_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    external fun uniffi_nobodywho_uniffi_fn_clone_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`ptr`: Long,`json`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`ptr`: Long,`json`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(`ptr`: Long,
 ): Long
@@ -891,171 +891,171 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(`p
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_set_tools(`ptr`: Long,`tools`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize(`ptr`: Long,`message`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rustcrossencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank(`ptr`: Long,`query`: RustBuffer.ByValue,`documents`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustcrossencoder_rank_and_sort_json(`ptr`: Long,`query`: RustBuffer.ByValue,`documents`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_rustencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rustencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rustencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustencoder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(`ptr`: Long,`text`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Int
-external fun uniffi_nobodywho_uniffi_fn_clone_ruststt(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_ruststt(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_ruststt(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_ruststt(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(`ptr`: Long,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(`ptr`: Long,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(`ptr`: Long,`samples`: RustBuffer.ByValue,`sampleRate`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(`ptr`: Long,`samples`: RustBuffer.ByValue,`sampleRate`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_ruststtstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_ruststtstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_ruststtstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_ruststtstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(`ptr`: Long,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rusttokenstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rusttokenstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(`ptr`: Long,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_rusttool(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rusttool(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rusttool(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rusttool(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`parameters`: RustBuffer.ByValue,`callback`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`parameters`: RustBuffer.ByValue,`callback`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_constructor_rusttool_new_async(`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`parameters`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttool_new_async(`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`parameters`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rusttool_get_schema_json(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(`ptr`: Long,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(`ptr`: Long,`callId`: RustBuffer.ByValue,`result`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(`ptr`: Long,`callId`: RustBuffer.ByValue,`result`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_clone_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(`ptr`: Long,`text`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(`ptr`: Long,`multiplier`: Float,`base`: Float,`allowedLength`: Int,`penaltyLastN`: Int,`seqBreakers`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(`ptr`: Long,`multiplier`: Float,`base`: Float,`allowedLength`: Int,`penaltyLastN`: Int,`seqBreakers`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(`ptr`: Long,`grammar`: RustBuffer.ByValue,`triggerOn`: RustBuffer.ByValue,`root`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(`ptr`: Long,`grammar`: RustBuffer.ByValue,`triggerOn`: RustBuffer.ByValue,`root`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(`ptr`: Long,`minP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(`ptr`: Long,`minP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(`ptr`: Long,`tau`: Float,`eta`: Float,`m`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(`ptr`: Long,`tau`: Float,`eta`: Float,`m`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(`ptr`: Long,`tau`: Float,`eta`: Float,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(`ptr`: Long,`tau`: Float,`eta`: Float,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(`ptr`: Long,`penaltyLastN`: Int,`penaltyRepeat`: Float,`penaltyFreq`: Float,`penaltyPresent`: Float,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_penalties(`ptr`: Long,`penaltyLastN`: Int,`penaltyRepeat`: Float,`penaltyFreq`: Float,`penaltyPresent`: Float,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(`ptr`: Long,`seed`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(`ptr`: Long,`seed`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(`ptr`: Long,`temperature`: Float,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(`ptr`: Long,`temperature`: Float,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(`ptr`: Long,`topK`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(`ptr`: Long,`topK`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(`ptr`: Long,`topP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(`ptr`: Long,`topP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_typical_p(`ptr`: Long,`typP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_typical_p(`ptr`: Long,`typP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(`ptr`: Long,`xtcProbability`: Float,`xtcThreshold`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(`ptr`: Long,`xtcProbability`: Float,`xtcThreshold`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_samplerconfig(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_samplerconfig(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_samplerconfig(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_samplerconfig(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_samplerconfig_from_json(`jsonStr`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_samplerconfig_from_json(`jsonStr`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerconfig_to_json(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_samplerconfig_to_json(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(`vtable`: UniffiVTableCallbackInterfaceRustDownloadProgressCallback,
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(`vtable`: UniffiVTableCallbackInterfaceRustToolCallback,
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_func_cosine_similarity(`a`: RustBuffer.ByValue,`b`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_cosine_similarity(`a`: RustBuffer.ByValue,`b`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Float
 external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuffer.ByValue,`headers`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(`schema`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(`schema`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(`pattern`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(`pattern`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_greedy(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_greedy(uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_json(uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_json(uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_temperature(`temperature`: Float,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_temperature(`temperature`: Float,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_k(`topK`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_k(`topK`: Int,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_p(`topP`: Float,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_p(`topP`: Float,uniffi_out_err: UniffiRustCallStatus,
 ): Long
-external fun ffi_nobodywho_uniffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun ffi_nobodywho_uniffi_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-external fun ffi_nobodywho_uniffi_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-external fun ffi_nobodywho_uniffi_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun ffi_nobodywho_uniffi_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1063,7 +1063,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_u8(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_u8(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
 external fun ffi_nobodywho_uniffi_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1071,7 +1071,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_i8(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_i8(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
 external fun ffi_nobodywho_uniffi_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1079,7 +1079,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_u16(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_u16(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Short
 external fun ffi_nobodywho_uniffi_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1087,7 +1087,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_i16(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_i16(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Short
 external fun ffi_nobodywho_uniffi_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1095,7 +1095,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_u32(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_u32(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Int
 external fun ffi_nobodywho_uniffi_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1103,7 +1103,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_i32(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_i32(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Int
 external fun ffi_nobodywho_uniffi_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1111,7 +1111,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_u64(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_u64(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun ffi_nobodywho_uniffi_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1119,7 +1119,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_i64(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_i64(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 external fun ffi_nobodywho_uniffi_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1127,7 +1127,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_f32(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_f32(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Float
 external fun ffi_nobodywho_uniffi_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1135,7 +1135,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_f64(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_f64(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Double
 external fun ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1143,7 +1143,7 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_rust_buffer(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 external fun ffi_nobodywho_uniffi_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -1151,10 +1151,10 @@ external fun ffi_nobodywho_uniffi_rust_future_cancel_void(`handle`: Long,
 ): Unit
 external fun ffi_nobodywho_uniffi_rust_future_free_void(`handle`: Long,
 ): Unit
-external fun ffi_nobodywho_uniffi_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun ffi_nobodywho_uniffi_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 
-    
+
 }
 
 private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
@@ -1180,7 +1180,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 58712.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 26587.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
@@ -1378,7 +1378,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 24110.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 34899.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
@@ -1508,7 +1508,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
         }
     }
 
-/** 
+/**
  * Placeholder object used to signal that we're constructing an interface with a FFI handle.
  *
  * This is the first argument for interface constructors that input a raw handle. It exists is that
@@ -1519,7 +1519,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * */
 object UniffiWithHandle
 
-/** 
+/**
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
@@ -1933,12 +1933,12 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 
 //
 public interface RustChatInterface {
-    
+
     /**
      * Send a message and get a token stream for the response.
      */
     fun `ask`(`message`: kotlin.String): RustTokenStream
-    
+
     /**
      * Send a JSON-encoded prompt and get a token stream.
      *
@@ -1946,7 +1946,7 @@ public interface RustChatInterface {
      * serializing native objects (dicts, arrays, etc.) to JSON before calling this.
      */
     fun `askWithJsonPrompt`(`json`: kotlin.String): RustTokenStream
-    
+
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
@@ -1954,83 +1954,83 @@ public interface RustChatInterface {
      * Image and audio parts should contain a local file-system path.
      */
     fun `askWithPrompt`(`parts`: List<PromptPart>): RustTokenStream
-    
+
     /**
      * Get the current chat history as a list of messages.
      */
     suspend fun `getChatHistory`(): List<Message>
-    
+
     /**
      * Get the current sampler configuration as a JSON string.
      */
     suspend fun `getSamplerConfigJson`(): kotlin.String
-    
+
     /**
      * Get context usage statistics.
      */
     suspend fun `getStats`(): ChatStats
-    
+
     /**
      * Get the current system prompt.
      */
     suspend fun `getSystemPrompt`(): kotlin.String?
-    
+
     /**
      * Get all template variables.
      */
     suspend fun `getTemplateVariables`(): Map<kotlin.String, kotlin.Boolean>
-    
+
     /**
      * Reset the chat context with a new system prompt and tools.
      */
     suspend fun `resetContext`(`systemPrompt`: kotlin.String?, `tools`: List<RustTool>?)
-    
+
     /**
      * Reset the chat history, keeping the system prompt and tools.
      */
     suspend fun `resetHistory`()
-    
+
     /**
      * Set the chat history from a list of messages.
      */
     suspend fun `setChatHistory`(`messages`: List<Message>)
-    
+
     /**
      * Set the sampler configuration.
      */
     suspend fun `setSamplerConfig`(`sampler`: SamplerConfig)
-    
+
     /**
      * Set the system prompt.
      */
     suspend fun `setSystemPrompt`(`systemPrompt`: kotlin.String?)
-    
+
     /**
      * Set a template variable.
      */
     suspend fun `setTemplateVariable`(`name`: kotlin.String, `value`: kotlin.Boolean)
-    
+
     /**
      * Set the tools available to the model.
      */
     suspend fun `setTools`(`tools`: List<RustTool>)
-    
+
     /**
      * Stop the current generation.
      */
     fun `stopGeneration`()
-    
+
     /**
      * Tokenize a plain text string and return the token IDs.
      */
     suspend fun `tokenize`(`message`: kotlin.String): List<kotlin.Int?>
-    
+
     /**
      * Tokenize a multimodal prompt and return the token IDs.
      * Text tokens produce an integer ID; image/audio embedding slots produce null.
      */
     suspend fun `tokenizeWithPrompt`(`parts`: List<PromptPart>): List<kotlin.Int?>
-    
+
     companion object
 }
 
@@ -2062,10 +2062,10 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      * Create a new chat session.
      */
     constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?) :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
-    
+
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),_status)
 }
     )
@@ -2141,7 +2141,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         }
     }
 
-    
+
     /**
      * Send a message and get a token stream for the response.
      */override fun `ask`(`message`: kotlin.String): RustTokenStream {
@@ -2155,9 +2155,9 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Send a JSON-encoded prompt and get a token stream.
      *
@@ -2175,9 +2175,9 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
@@ -2194,9 +2194,9 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Get the current chat history as a list of messages.
      */
@@ -2207,7 +2207,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -2220,7 +2220,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
     }
 
-    
+
     /**
      * Get the current sampler configuration as a JSON string.
      */
@@ -2231,7 +2231,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_get_sampler_config_json(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -2244,7 +2244,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
     }
 
-    
+
     /**
      * Get context usage statistics.
      */
@@ -2255,7 +2255,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -2268,7 +2268,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
     }
 
-    
+
     /**
      * Get the current system prompt.
      */
@@ -2279,7 +2279,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -2292,7 +2292,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
     }
 
-    
+
     /**
      * Get all template variables.
      */
@@ -2303,7 +2303,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -2316,7 +2316,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
     }
 
-    
+
     /**
      * Reset the chat context with a new system prompt and tools.
      */
@@ -2335,13 +2335,13 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * Reset the chat history, keeping the system prompt and tools.
      */
@@ -2352,7 +2352,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_void(future, callback, continuation) },
@@ -2360,13 +2360,13 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * Set the chat history from a list of messages.
      */
@@ -2385,13 +2385,13 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * Set the sampler configuration.
      */
@@ -2410,13 +2410,13 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * Set the system prompt.
      */
@@ -2435,13 +2435,13 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * Set a template variable.
      */
@@ -2460,13 +2460,13 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * Set the tools available to the model.
      */
@@ -2485,17 +2485,17 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
         // lift function
         { Unit },
-        
+
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
     }
 
-    
+
     /**
      * Stop the current generation.
      */override fun `stopGeneration`()
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_stop_generation(
@@ -2503,10 +2503,10 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         _status)
 }
     }
-    
-    
 
-    
+
+
+
     /**
      * Tokenize a plain text string and return the token IDs.
      */
@@ -2530,7 +2530,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
     }
 
-    
+
     /**
      * Tokenize a multimodal prompt and return the token IDs.
      * Text tokens produce an integer ID; image/audio embedding slots produce null.
@@ -2555,18 +2555,18 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -2691,19 +2691,19 @@ public object FfiConverterTypeRustChat: FfiConverter<RustChat, Long> {
 
 //
 public interface RustCrossEncoderInterface {
-    
+
     /**
      * Rank documents by relevance to a query. Returns similarity scores.
      */
     suspend fun `rank`(`query`: kotlin.String, `documents`: List<kotlin.String>): List<kotlin.Float>
-    
+
     /**
      * Rank documents and return them sorted by descending relevance.
      * Returns a JSON string of [document, score] pairs since UniFFI
      * doesn't support tuples directly.
      */
     suspend fun `rankAndSortJson`(`query`: kotlin.String, `documents`: List<kotlin.String>): kotlin.String
-    
+
     companion object
 }
 
@@ -2735,10 +2735,10 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
      * Create a new cross-encoder for ranking documents by relevance.
      */
     constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustcrossencoder_new(
-    
+
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)
 }
     )
@@ -2814,7 +2814,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
         }
     }
 
-    
+
     /**
      * Rank documents by relevance to a query. Returns similarity scores.
      */
@@ -2838,7 +2838,7 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
     )
     }
 
-    
+
     /**
      * Rank documents and return them sorted by descending relevance.
      * Returns a JSON string of [document, score] pairs since UniFFI
@@ -2864,18 +2864,18 @@ open class RustCrossEncoder: Disposable, AutoCloseable, RustCrossEncoderInterfac
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -3000,12 +3000,12 @@ public object FfiConverterTypeRustCrossEncoder: FfiConverter<RustCrossEncoder, L
 
 //
 public interface RustEncoderInterface {
-    
+
     /**
      * Encode text into an embedding vector.
      */
     suspend fun `encode`(`text`: kotlin.String): List<kotlin.Float>
-    
+
     companion object
 }
 
@@ -3037,10 +3037,10 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
      * Create a new encoder for generating text embeddings.
      */
     constructor(`model`: RustModel, `contextSize`: kotlin.UInt?) :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(
-    
+
         FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalUInt.lower(`contextSize`),_status)
 }
     )
@@ -3116,7 +3116,7 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
         }
     }
 
-    
+
     /**
      * Encode text into an embedding vector.
      */
@@ -3140,18 +3140,18 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -3276,9 +3276,9 @@ public object FfiConverterTypeRustEncoder: FfiConverter<RustEncoder, Long> {
 
 //
 public interface RustModelInterface {
-    
+
     fun `maxCtx`(): kotlin.UInt
-    
+
     companion object
 }
 
@@ -3389,20 +3389,20 @@ open class RustModel: Disposable, AutoCloseable, RustModelInterface
     }
     )
     }
-    
-
-    
-
-    
 
 
-    
-    
+
+
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -3531,19 +3531,19 @@ public object FfiConverterTypeRustModel: FfiConverter<RustModel, Long> {
  * Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
  */
 public interface RustSttInterface {
-    
+
     /**
      * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     fun `transcribeFile`(`path`: kotlin.String): RustSttStream
-    
+
     /**
      * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
      * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
      */
     fun `transcribePcm`(`samples`: List<kotlin.Short>, `sampleRate`: kotlin.UInt): RustSttStream
-    
+
     companion object
 }
 
@@ -3584,10 +3584,10 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
      * pass `None` to use `"default"`.
      */
     constructor(`source`: kotlin.String, `language`: kotlin.String?, `quantization`: kotlin.String?) :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
-    
+
         FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalString.lower(`quantization`),_status)
 }
     )
@@ -3663,7 +3663,7 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
         }
     }
 
-    
+
     /**
      * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
@@ -3679,9 +3679,9 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
      * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
@@ -3697,20 +3697,20 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
     }
     )
     }
-    
-
-    
-
-    
 
 
-    
-    
+
+
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -3838,17 +3838,17 @@ public object FfiConverterTypeRustSTT: FfiConverter<RustStt, Long> {
  * A stream of transcript tokens from a Whisper STT run.
  */
 public interface RustSttStreamInterface {
-    
+
     /**
      * Wait for transcription to finish and return the full transcript.
      */
     suspend fun `completed`(): kotlin.String
-    
+
     /**
      * Get the next transcript token. Returns `None` when transcription is complete.
      */
     suspend fun `nextToken`(): kotlin.String?
-    
+
     companion object
 }
 
@@ -3951,7 +3951,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
         }
     }
 
-    
+
     /**
      * Wait for transcription to finish and return the full transcript.
      */
@@ -3962,7 +3962,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -3975,7 +3975,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
     )
     }
 
-    
+
     /**
      * Get the next transcript token. Returns `None` when transcription is complete.
      */
@@ -3986,7 +3986,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -3999,18 +3999,18 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -4135,17 +4135,17 @@ public object FfiConverterTypeRustSTTStream: FfiConverter<RustSttStream, Long> {
 
 //
 public interface RustTokenStreamInterface {
-    
+
     /**
      * Wait for the full response to complete and return it.
      */
     suspend fun `completed`(): kotlin.String
-    
+
     /**
      * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
     suspend fun `nextToken`(): kotlin.String?
-    
+
     companion object
 }
 
@@ -4245,7 +4245,7 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
         }
     }
 
-    
+
     /**
      * Wait for the full response to complete and return it.
      */
@@ -4256,7 +4256,7 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttokenstream_completed(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -4269,7 +4269,7 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
     )
     }
 
-    
+
     /**
      * Get the next token. Returns None when generation is complete, or an error if generation failed.
      */
@@ -4280,7 +4280,7 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttokenstream_next_token(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -4293,18 +4293,18 @@ open class RustTokenStream: Disposable, AutoCloseable, RustTokenStreamInterface
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -4429,22 +4429,22 @@ public object FfiConverterTypeRustTokenStream: FfiConverter<RustTokenStream, Lon
 
 //
 public interface RustToolInterface {
-    
+
     /**
      * Get the JSON schema for this tool's parameters as a string.
      */
     fun `getSchemaJson`(): kotlin.String
-    
+
     /**
      * Await the next tool call from inference. Returns `None` when the tool is dropped.
      */
     suspend fun `nextPendingCall`(): PendingToolCall?
-    
+
     /**
      * Resolve a pending tool call with the result string.
      */
     fun `resolvePendingCall`(`callId`: kotlin.String, `result`: kotlin.String)
-    
+
     companion object
 }
 
@@ -4476,10 +4476,10 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
      * Create a tool with a synchronous callback (for Swift, Kotlin).
      */
     constructor(`name`: kotlin.String, `description`: kotlin.String, `parameters`: List<ToolParameter>, `callback`: RustToolCallback) :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttool_new(
-    
+
         FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),FfiConverterSequenceTypeToolParameter.lower(`parameters`),FfiConverterTypeRustToolCallback.lower(`callback`),_status)
 }
     )
@@ -4555,7 +4555,7 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
         }
     }
 
-    
+
     /**
      * Get the JSON schema for this tool's parameters as a string.
      */override fun `getSchemaJson`(): kotlin.String {
@@ -4569,9 +4569,9 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Await the next tool call from inference. Returns `None` when the tool is dropped.
      */
@@ -4581,7 +4581,7 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(
                 uniffiHandle,
-                
+
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -4594,11 +4594,11 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
     )
     }
 
-    
+
     /**
      * Resolve a pending tool call with the result string.
      */override fun `resolvePendingCall`(`callId`: kotlin.String, `result`: kotlin.String)
-        = 
+        =
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(
@@ -4606,17 +4606,17 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
         FfiConverterString.lower(`callId`),FfiConverterString.lower(`result`),_status)
 }
     }
-    
-    
-
-    
-
-    
 
 
-    
+
+
+
+
+
+
+
     companion object {
-        
+
     /**
      * Create a tool with async callback support (for React Native).
      *
@@ -4627,16 +4627,16 @@ open class RustTool: Disposable, AutoCloseable, RustToolInterface
             return FfiConverterTypeRustTool.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttool_new_async(
-    
+
         FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),FfiConverterSequenceTypeToolParameter.lower(`parameters`),_status)
 }
     )
     }
-    
 
-        
+
+
     }
-    
+
 }
 
 
@@ -4761,17 +4761,17 @@ public object FfiConverterTypeRustTool: FfiConverter<RustTool, Long> {
 
 //
 public interface RustTtsInterface {
-    
+
     /**
      * Synthesize text and return WAV bytes.
      */
     fun `synthesize`(`text`: kotlin.String): kotlin.ByteArray
-    
+
     /**
      * Synthesize text asynchronously and return WAV bytes.
      */
     suspend fun `synthesizeAsync`(`text`: kotlin.String): kotlin.ByteArray
-    
+
     companion object
 }
 
@@ -4802,12 +4802,12 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
     /**
      * Create a TTS synthesizer.
      */
-    constructor(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) :
-        this(UniffiWithHandle, 
+    constructor(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) :
+        this(UniffiWithHandle,
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
-    
-        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),_status)
+
+        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),_status)
 }
     )
 
@@ -4882,7 +4882,7 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
         }
     }
 
-    
+
     /**
      * Synthesize text and return WAV bytes.
      */
@@ -4897,9 +4897,9 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Synthesize text asynchronously and return WAV bytes.
      */
@@ -4923,18 +4923,18 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
     )
     }
 
-    
-
-    
 
 
-    
-    
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -5059,78 +5059,78 @@ public object FfiConverterTypeRustTts: FfiConverter<RustTts, Long> {
 
 //
 public interface SamplerBuilderInterface {
-    
+
     /**
      * Sample from the probability distribution (weighted random selection).
      */
     fun `dist`(): SamplerConfig
-    
+
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
      */
     fun `dry`(`multiplier`: kotlin.Float, `base`: kotlin.Float, `allowedLength`: kotlin.Int, `penaltyLastN`: kotlin.Int, `seqBreakers`: List<kotlin.String>): SamplerBuilder
-    
+
     /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
     fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder
-    
+
     /**
      * Always select the most probable token (deterministic).
      */
     fun `greedy`(): SamplerConfig
-    
+
     /**
      * Keep tokens with probability above min_p * (probability of most likely token).
      */
     fun `minP`(`minP`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder
-    
+
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */
     fun `mirostatV1`(`tau`: kotlin.Float, `eta`: kotlin.Float, `m`: kotlin.Int): SamplerConfig
-    
+
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */
     fun `mirostatV2`(`tau`: kotlin.Float, `eta`: kotlin.Float): SamplerConfig
-    
+
     /**
      * Apply repetition penalties to discourage repeated tokens.
      */
     fun `penalties`(`penaltyLastN`: kotlin.Int, `penaltyRepeat`: kotlin.Float, `penaltyFreq`: kotlin.Float, `penaltyPresent`: kotlin.Float): SamplerBuilder
-    
+
     /**
      * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
      * `greedy` ignores it. If unset, a default seed is used.
      */
     fun `seed`(`seed`: kotlin.UInt): SamplerBuilder
-    
+
     /**
      * Apply temperature scaling to the probability distribution.
      */
     fun `temperature`(`temperature`: kotlin.Float): SamplerBuilder
-    
+
     /**
      * Keep only the top K most probable tokens.
      */
     fun `topK`(`topK`: kotlin.Int): SamplerBuilder
-    
+
     /**
      * Keep tokens whose cumulative probability is below top_p.
      */
     fun `topP`(`topP`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder
-    
+
     /**
      * Typical sampling: keeps tokens close to expected information content.
      */
     fun `typicalP`(`typP`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder
-    
+
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */
     fun `xtc`(`xtcProbability`: kotlin.Float, `xtcThreshold`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder
-    
+
     companion object
 }
 
@@ -5162,10 +5162,10 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
      * Create a new SamplerBuilder to construct a custom sampler chain.
      */
     constructor() :
-        this(UniffiWithHandle, 
+        this(UniffiWithHandle,
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(
-    
+
         _status)
 }
     )
@@ -5241,7 +5241,7 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
         }
     }
 
-    
+
     /**
      * Sample from the probability distribution (weighted random selection).
      */override fun `dist`(): SamplerConfig {
@@ -5255,9 +5255,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * DRY (Don't Repeat Yourself) sampler to reduce repetition.
      */override fun `dry`(`multiplier`: kotlin.Float, `base`: kotlin.Float, `allowedLength`: kotlin.Int, `penaltyLastN`: kotlin.Int, `seqBreakers`: List<kotlin.String>): SamplerBuilder {
@@ -5271,9 +5271,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */override fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder {
@@ -5287,9 +5287,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Always select the most probable token (deterministic).
      */override fun `greedy`(): SamplerConfig {
@@ -5303,9 +5303,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Keep tokens with probability above min_p * (probability of most likely token).
      */override fun `minP`(`minP`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder {
@@ -5319,9 +5319,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Use Mirostat v1 algorithm for perplexity-controlled sampling.
      */override fun `mirostatV1`(`tau`: kotlin.Float, `eta`: kotlin.Float, `m`: kotlin.Int): SamplerConfig {
@@ -5335,9 +5335,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Use Mirostat v2 algorithm for perplexity-controlled sampling.
      */override fun `mirostatV2`(`tau`: kotlin.Float, `eta`: kotlin.Float): SamplerConfig {
@@ -5351,9 +5351,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Apply repetition penalties to discourage repeated tokens.
      */override fun `penalties`(`penaltyLastN`: kotlin.Int, `penaltyRepeat`: kotlin.Float, `penaltyFreq`: kotlin.Float, `penaltyPresent`: kotlin.Float): SamplerBuilder {
@@ -5367,9 +5367,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
      * `greedy` ignores it. If unset, a default seed is used.
@@ -5384,9 +5384,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Apply temperature scaling to the probability distribution.
      */override fun `temperature`(`temperature`: kotlin.Float): SamplerBuilder {
@@ -5400,9 +5400,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Keep only the top K most probable tokens.
      */override fun `topK`(`topK`: kotlin.Int): SamplerBuilder {
@@ -5416,9 +5416,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Keep tokens whose cumulative probability is below top_p.
      */override fun `topP`(`topP`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder {
@@ -5432,9 +5432,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * Typical sampling: keeps tokens close to expected information content.
      */override fun `typicalP`(`typP`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder {
@@ -5448,9 +5448,9 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
 
-    
+
+
     /**
      * XTC sampler that probabilistically excludes high-probability tokens.
      */override fun `xtc`(`xtcProbability`: kotlin.Float, `xtcThreshold`: kotlin.Float, `minKeep`: kotlin.UInt): SamplerBuilder {
@@ -5464,20 +5464,20 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     }
     )
     }
-    
-
-    
-
-    
 
 
-    
-    
+
+
+
+
+
+
+
     /**
      * @suppress
      */
     companion object
-    
+
 }
 
 
@@ -5602,12 +5602,12 @@ public object FfiConverterTypeSamplerBuilder: FfiConverter<SamplerBuilder, Long>
 
 //
 public interface SamplerConfigInterface {
-    
+
     /**
      * Serialize the sampler configuration to a JSON string.
      */
     fun `toJson`(): kotlin.String
-    
+
     companion object
 }
 
@@ -5707,7 +5707,7 @@ open class SamplerConfig: Disposable, AutoCloseable, SamplerConfigInterface
         }
     }
 
-    
+
     /**
      * Serialize the sampler configuration to a JSON string.
      */
@@ -5722,16 +5722,16 @@ open class SamplerConfig: Disposable, AutoCloseable, SamplerConfigInterface
     }
     )
     }
-    
-
-    
-
-    
 
 
-    
+
+
+
+
+
+
     companion object {
-        
+
     /**
      * Deserialize a sampler configuration from a JSON string.
      */
@@ -5739,16 +5739,16 @@ open class SamplerConfig: Disposable, AutoCloseable, SamplerConfigInterface
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_samplerconfig_from_json(
-    
+
         FfiConverterString.lower(`jsonStr`),_status)
 }
     )
     }
-    
 
-        
+
+
     }
-    
+
 }
 
 
@@ -5779,13 +5779,13 @@ public object FfiConverterTypeSamplerConfig: FfiConverter<SamplerConfig, Long> {
 
 data class Asset (
     var `id`: kotlin.String
-    , 
+    ,
     var `path`: kotlin.String
-    
-){
-    
 
-    
+){
+
+
+
     companion object
 }
 
@@ -5818,13 +5818,13 @@ public object FfiConverterTypeAsset: FfiConverterRustBuffer<Asset> {
  */
 data class CachedModel (
     var `path`: kotlin.String
-    , 
+    ,
     var `size`: kotlin.ULong
-    
-){
-    
 
-    
+){
+
+
+
     companion object
 }
 
@@ -5854,13 +5854,13 @@ public object FfiConverterTypeCachedModel: FfiConverterRustBuffer<CachedModel> {
 
 data class ChatStats (
     var `contextSize`: kotlin.UInt
-    , 
+    ,
     var `contextUsed`: kotlin.UInt
-    
-){
-    
 
-    
+){
+
+
+
     companion object
 }
 
@@ -5893,13 +5893,13 @@ public object FfiConverterTypeChatStats: FfiConverterRustBuffer<ChatStats> {
  */
 data class PendingToolCall (
     var `callId`: kotlin.String
-    , 
+    ,
     var `argumentsJson`: kotlin.String
-    
-){
-    
 
-    
+){
+
+
+
     companion object
 }
 
@@ -5929,13 +5929,13 @@ public object FfiConverterTypePendingToolCall: FfiConverterRustBuffer<PendingToo
 
 data class ToolCall (
     var `name`: kotlin.String
-    , 
+    ,
     var `argumentsJson`: kotlin.String
-    
-){
-    
 
-    
+){
+
+
+
     companion object
 }
 
@@ -5965,16 +5965,16 @@ public object FfiConverterTypeToolCall: FfiConverterRustBuffer<ToolCall> {
 
 data class ToolParameter (
     var `name`: kotlin.String
-    , 
+    ,
     /**
      * JSON Schema for this parameter (e.g. `{"type": "string"}`).
      */
     var `schema`: kotlin.String
-    
-){
-    
 
-    
+){
+
+
+
     companion object
 }
 
@@ -6003,48 +6003,48 @@ public object FfiConverterTypeToolParameter: FfiConverterRustBuffer<ToolParamete
 
 
 sealed class Message {
-    
+
     data class User(
-        val `content`: kotlin.String, 
+        val `content`: kotlin.String,
         val `assets`: List<Asset>) : Message()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     data class Assistant(
-        val `content`: kotlin.String, 
+        val `content`: kotlin.String,
         val `toolCalls`: List<ToolCall>?) : Message()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     data class System(
         val `content`: kotlin.String) : Message()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     data class Tool(
-        val `name`: kotlin.String, 
+        val `name`: kotlin.String,
         val `content`: kotlin.String) : Message()
-        
+
     {
-        
+
 
         companion object
     }
-    
 
-    
+
+
     companion object
 }
 
@@ -6143,9 +6143,9 @@ public object FfiConverterTypeMessage : FfiConverterRustBuffer<Message>{
 
 
 sealed class NobodyWhoException(message: String): kotlin.Exception(message) {
-        
+
         class Exception(message: String) : NobodyWhoException(message)
-        
+
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<NobodyWhoException> {
         override fun lift(error_buf: RustBuffer.ByValue): NobodyWhoException = FfiConverterTypeNobodyWhoError.lift(error_buf)
@@ -6157,12 +6157,12 @@ sealed class NobodyWhoException(message: String): kotlin.Exception(message) {
  */
 public object FfiConverterTypeNobodyWhoError : FfiConverterRustBuffer<NobodyWhoException> {
     override fun read(buf: ByteBuffer): NobodyWhoException {
-        
+
             return when(buf.getInt()) {
             1 -> NobodyWhoException.Exception(FfiConverterString.read(buf))
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
-        
+
     }
 
     override fun allocationSize(value: NobodyWhoException): ULong {
@@ -6186,36 +6186,36 @@ public object FfiConverterTypeNobodyWhoError : FfiConverterRustBuffer<NobodyWhoE
  * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
  */
 sealed class PromptPart {
-    
+
     data class Text(
         val `content`: kotlin.String) : PromptPart()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     data class Image(
         val `path`: kotlin.String) : PromptPart()
-        
+
     {
-        
+
 
         companion object
     }
-    
+
     data class Audio(
         val `path`: kotlin.String) : PromptPart()
-        
+
     {
-        
+
 
         companion object
     }
-    
 
-    
+
+
     companion object
 }
 
@@ -6296,9 +6296,9 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
  * on completion. Not invoked for cached/local files.
  */
 public interface RustDownloadProgressCallback {
-    
+
     fun `onDownloadProgress`(`downloaded`: kotlin.ULong, `total`: kotlin.ULong)
-    
+
     companion object
 }
 
@@ -6363,9 +6363,9 @@ public object FfiConverterTypeRustDownloadProgressCallback: FfiConverterCallback
  * and should return the tool's result as a string.
  */
 public interface RustToolCallback {
-    
+
     fun `call`(`argumentsJson`: kotlin.String): kotlin.String
-    
+
     companion object
 }
 
@@ -7169,12 +7169,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterFloat.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_cosine_similarity(
-    
+
         FfiConverterSequenceFloat.lower(`a`),FfiConverterSequenceFloat.lower(`b`),_status)
 }
     )
     }
-    
+
 
         /**
          * Download a GGUF model from a remote URL or HuggingFace path and return the local file path.
@@ -7204,12 +7204,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterSequenceTypeCachedModel.lift(
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_get_cached_models(
-    
+
         _status)
 }
     )
     }
-    
+
 
         /**
          * Load a GGUF model from a local path or remote URL.
@@ -7241,9 +7241,9 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadTts`(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) : RustTts {
+     suspend fun `loadTts`(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) : RustTts {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
@@ -7260,12 +7260,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
-    
+
         FfiConverterString.lower(`grammar`),_status)
 }
     )
     }
-    
+
 
         /**
          * Create a sampler that constrains output to a JSON schema via llguidance.
@@ -7273,12 +7273,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(
-    
+
         FfiConverterString.lower(`schema`),_status)
 }
     )
     }
-    
+
 
         /**
          * Create a sampler that constrains output to a regular expression via llguidance.
@@ -7286,12 +7286,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(
-    
+
         FfiConverterString.lower(`pattern`),_status)
 }
     )
     }
-    
+
 
         /**
          * Get the default sampler configuration.
@@ -7299,12 +7299,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(
-    
+
         _status)
 }
     )
     }
-    
+
 
         /**
          * Create a DRY sampler preset to reduce repetition.
@@ -7312,12 +7312,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(
-    
+
         _status)
 }
     )
     }
-    
+
 
         /**
          * Create a sampler with a custom grammar constraint.
@@ -7325,12 +7325,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(
-    
+
         FfiConverterString.lower(`grammar`),_status)
 }
     )
     }
-    
+
 
         /**
          * Create a greedy sampler (always picks most probable token).
@@ -7338,22 +7338,22 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_greedy(
-    
+
         _status)
 }
     )
     }
-    
+
  fun `samplerPresetJson`(): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_json(
-    
+
         _status)
 }
     )
     }
-    
+
 
         /**
          * Create a sampler with temperature scaling.
@@ -7361,12 +7361,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_temperature(
-    
+
         FfiConverterFloat.lower(`temperature`),_status)
 }
     )
     }
-    
+
 
         /**
          * Create a sampler with top-k filtering only.
@@ -7374,12 +7374,12 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_k(
-    
+
         FfiConverterInt.lower(`topK`),_status)
 }
     )
     }
-    
+
 
         /**
          * Create a sampler with nucleus (top-p) sampling.
@@ -7387,11 +7387,11 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_top_p(
-    
+
         FfiConverterFloat.lower(`topP`),_status)
 }
     )
     }
-    
+
 
 

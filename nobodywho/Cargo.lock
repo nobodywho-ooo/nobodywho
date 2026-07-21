@@ -3063,6 +3063,7 @@ dependencies = [
  "regex",
  "rubato",
  "safetensors",
+ "sentencepiece-rs",
  "serde",
  "serde_json",
  "symphonia-bundle-mp3",
@@ -4494,6 +4495,12 @@ dependencies = [
  "serde",
  "serde_core",
 ]
+
+[[package]]
+name = "sentencepiece-rs"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bc4483945bfd66b8727ed59005af1543d3d966ca92f9bc065bfef532de1d7e8"
 
 [[package]]
 name = "serde"

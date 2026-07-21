@@ -3647,6 +3647,9 @@ fn wire__crate__Tts_load_impl(
             let api_speed = <Option<f32>>::sse_decode(&mut deserializer);
             let api_steps = <Option<u32>>::sse_decode(&mut deserializer);
             let api_silence_duration = <Option<f32>>::sse_decode(&mut deserializer);
+            let api_precision = <Option<String>>::sse_decode(&mut deserializer);
+            let api_temperature = <Option<f32>>::sse_decode(&mut deserializer);
+            let api_huggingface_token = <Option<String>>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -3659,6 +3662,9 @@ fn wire__crate__Tts_load_impl(
                         api_speed,
                         api_steps,
                         api_silence_duration,
+                        api_precision,
+                        api_temperature,
+                        api_huggingface_token,
                         api_use_gpu,
                     )?;
                     Ok(output_ok)

@@ -6,6 +6,7 @@ import uniffi.nobodywho.loadTts as loadInternalTts
 
 enum class TtsArchitecture(internal val value: String) {
     KOKORO("kokoro"),
+    POCKET_TTS("pocket-tts"),
     SUPERTONIC("supertonic")
 }
 
@@ -28,6 +29,9 @@ class Tts private constructor(
         speed: Float? = null,
         steps: UInt? = null,
         silenceDuration: Float? = null,
+        precision: String? = null,
+        temperature: Float? = null,
+        huggingfaceToken: String? = null,
         device: TtsDevice = TtsDevice.AUTO
     ) : this(
         InternalTts(
@@ -38,6 +42,9 @@ class Tts private constructor(
             speed = speed,
             steps = steps,
             silenceDuration = silenceDuration,
+            precision = precision,
+            temperature = temperature,
+            huggingfaceToken = huggingfaceToken,
             device = device.value
         )
     )
@@ -52,6 +59,9 @@ class Tts private constructor(
             speed: Float? = null,
             steps: UInt? = null,
             silenceDuration: Float? = null,
+            precision: String? = null,
+            temperature: Float? = null,
+            huggingfaceToken: String? = null,
             device: TtsDevice = TtsDevice.AUTO
         ): Tts = Tts(
             loadInternalTts(
@@ -62,6 +72,9 @@ class Tts private constructor(
                 speed = speed,
                 steps = steps,
                 silenceDuration = silenceDuration,
+                precision = precision,
+                temperature = temperature,
+                huggingfaceToken = huggingfaceToken,
                 device = device.value
             )
         )

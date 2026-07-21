@@ -43,17 +43,20 @@
 
 mod architecture;
 mod kokoro;
+mod pocket;
 mod supertonic;
 
 use crate::errors::TtsError;
 pub use crate::onnx::Device as TtsDevice;
 pub use kokoro::KokoroConfig;
+pub use pocket::{PocketTtsConfig, PocketTtsPrecision};
 use std::{str::FromStr, sync::mpsc};
 pub use supertonic::SupertonicConfig;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TtsArchitecture {
     Kokoro,
+    PocketTts,
     Supertonic,
 }
 
@@ -67,6 +70,8 @@ impl TtsArchitecture {
         let lower = source.to_ascii_lowercase();
         if lower.contains("kokoro") {
             Some(Self::Kokoro)
+        } else if lower.contains("pocket-tts") || lower.contains("pocket_tts") {
+            Some(Self::PocketTts)
         } else if lower.contains("supertonic") {
             Some(Self::Supertonic)
         } else {
@@ -81,6 +86,7 @@ impl FromStr for TtsArchitecture {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value.to_ascii_lowercase().as_str() {
             "kokoro" => Ok(Self::Kokoro),
+            "pocket-tts" | "pocket_tts" | "pockettts" => Ok(Self::PocketTts),
             "supertonic" => Ok(Self::Supertonic),
             _ => Err(()),
         }
@@ -90,6 +96,7 @@ impl FromStr for TtsArchitecture {
 #[derive(Clone, Debug)]
 pub enum TtsConfig {
     Kokoro(KokoroConfig),
+    PocketTts(PocketTtsConfig),
     Supertonic(SupertonicConfig),
 }
 
@@ -101,12 +108,17 @@ impl TtsConfig {
         let source = source.as_ref();
         match architecture.or_else(|| TtsArchitecture::infer_from_source(source))? {
             TtsArchitecture::Kokoro => Some(Self::kokoro(source)),
+            TtsArchitecture::PocketTts => Some(Self::pocket_tts(source)),
             TtsArchitecture::Supertonic => Some(Self::supertonic(source)),
         }
     }
 
     pub fn kokoro(source: impl AsRef<str>) -> Self {
         Self::Kokoro(KokoroConfig::new(source))
+    }
+
+    pub fn pocket_tts(source: impl AsRef<str>) -> Self {
+        Self::PocketTts(PocketTtsConfig::new(source))
     }
 
     pub fn supertonic(source: impl AsRef<str>) -> Self {
@@ -180,6 +192,14 @@ mod tests {
         assert_eq!(
             TtsArchitecture::infer_from_source("hf://my-org/my-kokoro-fork"),
             Some(TtsArchitecture::Kokoro)
+        );
+    }
+
+    #[test]
+    fn infers_pocket_tts_from_substring() {
+        assert_eq!(
+            TtsArchitecture::infer_from_source("hf://KevinAHM/pocket-tts-onnx"),
+            Some(TtsArchitecture::PocketTts)
         );
     }
 

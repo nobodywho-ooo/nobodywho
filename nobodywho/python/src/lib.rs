@@ -393,7 +393,7 @@ fn parse_tts_device(device: &str) -> PyResult<nobodywho::tts::TtsDevice> {
 fn parse_tts_architecture(architecture: &str) -> PyResult<nobodywho::tts::TtsArchitecture> {
     architecture.parse().map_err(|()| {
         pyo3::exceptions::PyValueError::new_err(
-            "architecture must be one of 'kokoro' or 'supertonic'",
+            "architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'",
         )
     })
 }
@@ -406,6 +406,9 @@ fn build_tts_config(
     speed: Option<f32>,
     steps: Option<usize>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
 ) -> PyResult<nobodywho::tts::TtsConfig> {
     let source = source.to_str().ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!(
@@ -416,7 +419,7 @@ fn build_tts_config(
     let architecture = architecture.map(parse_tts_architecture).transpose()?;
     let mut config = nobodywho::tts::TtsConfig::from_source(source, architecture).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(
-            "architecture is required for unknown TTS sources; pass architecture='kokoro' or architecture='supertonic'",
+            "architecture is required for unknown TTS sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
         )
     })?;
 
@@ -431,6 +434,32 @@ fn build_tts_config(
             if let Some(speed) = speed {
                 config.speed = speed;
             }
+        }
+        nobodywho::tts::TtsConfig::PocketTts(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(steps) = steps {
+                config.lsd_steps = steps;
+            }
+            if let Some(precision) = precision {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err(pyo3::exceptions::PyValueError::new_err(
+                            "precision must be 'int8' or 'fp32' for Pocket TTS",
+                        ))
+                    }
+                };
+            }
+            if let Some(temperature) = temperature {
+                config.temperature = temperature;
+            }
+            config.huggingface_token = huggingface_token;
         }
         nobodywho::tts::TtsConfig::Supertonic(config) => {
             if let Some(voice) = voice {
@@ -465,16 +494,19 @@ impl Tts {
     ///
     /// Args:
     ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
-    ///     architecture: "kokoro" or "supertonic". Required for local or unknown sources.
-    ///         Sources containing "kokoro" or "supertonic" infer the architecture when omitted.
+    ///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+    ///         Sources containing an architecture name infer it when omitted.
     ///     voice: Voice name. Architecture default is used when omitted.
     ///     language: Language code. Architecture default is used when omitted.
     ///     speed: Speaking speed. Architecture default is used when omitted.
-    ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+    ///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
     ///     silence_duration: Supertonic silence between chunks in seconds.
+    ///     precision: Pocket TTS precision: "int8" or "fp32".
+    ///     temperature: Pocket TTS generation temperature.
+    ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
     ///     device: "auto", "cpu", or "cuda". Defaults to "auto".
     #[new]
-    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
+    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, precision = None, temperature = None, huggingface_token = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
     pub fn new(
         source: std::path::PathBuf,
         architecture: Option<&str>,
@@ -483,6 +515,9 @@ impl Tts {
         speed: Option<f32>,
         steps: Option<usize>,
         silence_duration: Option<f32>,
+        precision: Option<String>,
+        temperature: Option<f32>,
+        huggingface_token: Option<String>,
         device: &str,
     ) -> PyResult<Self> {
         let device = parse_tts_device(device)?;
@@ -494,6 +529,9 @@ impl Tts {
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
         )?;
         let tts = nobodywho::tts::Tts::with_device(config, device)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;

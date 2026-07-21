@@ -9737,6 +9737,10 @@ rec {
             packageId = "safetensors";
           }
           {
+            name = "sentencepiece-rs";
+            packageId = "sentencepiece-rs";
+          }
+          {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];
@@ -14407,6 +14411,14 @@ rec {
           "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "default" "serde" "std" ];
+      };
+      "sentencepiece-rs" = rec {
+        crateName = "sentencepiece-rs";
+        version = "0.2.2";
+        edition = "2024";
+        sha256 = "1s6pw4nm7vxzcp09nbx9djb3sgaly5d00ngd4y3npmmz8lwlii3b";
+        libName = "sentencepiece_rs";
+
       };
       "serde" = rec {
         crateName = "serde";

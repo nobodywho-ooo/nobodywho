@@ -180,13 +180,13 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
 /**
  * Create a TTS synthesizer.
  */
-export async function loadTts(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
+export async function loadTts(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, precision: string | undefined, temperature: /*f32*/number | undefined, huggingfaceToken: string | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(architecture),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(device)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(architecture),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(precision),FfiConverterOptionalFloat32.lower(temperature),FfiConverterOptionalString.lower(huggingfaceToken),FfiConverterOptionalString.lower(device)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -3218,7 +3218,7 @@ export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
     /**
      * Create a TTS synthesizer.
      */
-    constructor(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined) /*throws*/ {
+    constructor(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, precision: string | undefined, temperature: /*f32*/number | undefined, huggingfaceToken: string | undefined, device: string | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -3233,6 +3233,9 @@ export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
         FfiConverterOptionalFloat32.lower(speed),
         FfiConverterOptionalUInt32.lower(steps),
         FfiConverterOptionalFloat32.lower(silenceDuration),
+        FfiConverterOptionalString.lower(precision),
+        FfiConverterOptionalFloat32.lower(temperature),
+        FfiConverterOptionalString.lower(huggingfaceToken),
         FfiConverterOptionalString.lower(device),
                 callStatus);
             },
@@ -3988,7 +3991,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 58712) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 61935) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 26587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_tts");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() !== 13698) {
@@ -4186,7 +4189,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() !== 54521) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 24110) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 34899) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {

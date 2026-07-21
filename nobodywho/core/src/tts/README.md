@@ -14,6 +14,24 @@ std::fs::write("out.wav", wav)?;
 
 The model is downloaded from HuggingFace on first use and cached locally. Pass a local directory path instead of an `hf://` repo to skip the download.
 
+## Pocket TTS
+
+[KevinAHM/pocket-tts-onnx](https://huggingface.co/KevinAHM/pocket-tts-onnx) is supported with its published language bundles and built-in voices. It defaults to CPU-friendly INT8 models and 24 kHz WAV output.
+
+Kyutai keeps the built-in voice-state files in its gated `kyutai/pocket-tts` repository. Browse its [voice catalogue](https://github.com/kyutai-labs/pocket-tts?tab=readme-ov-file#voices), accept its terms, and set `HF_TOKEN`, or pass a token explicitly in the config (which takes precedence):
+
+```rust
+use nobodywho::tts::{PocketTtsConfig, Tts, TtsConfig};
+
+let mut cfg = PocketTtsConfig::new("hf://KevinAHM/pocket-tts-onnx");
+cfg.language = "english_2026-04".into();
+cfg.voice = "alba".into();
+cfg.huggingface_token = Some("hf_...".into());
+let tts = Tts::new(TtsConfig::PocketTts(cfg))?;
+```
+
+Set `precision` to `PocketTtsPrecision::Fp32` to use full-precision ONNX weights. `temperature` controls generation variation and `lsd_steps` trades speed for flow-matching quality.
+
 ## Supertonic
 
 Supertonic models use a directory with `onnx/` model files and `voice_styles/` JSON files. Passing an unknown voice returns a `MissingVoice` error listing the voices present in the model dir.

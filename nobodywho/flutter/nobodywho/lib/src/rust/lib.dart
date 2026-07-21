@@ -604,12 +604,15 @@ abstract class Tts implements RustOpaqueInterface {
   ///
   /// Args:
   ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
-  ///     architecture: "kokoro" or "supertonic". Required for local or unknown sources.
+  ///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
   ///     voice: Voice name. Architecture default is used when omitted.
   ///     language: Language code. Architecture default is used when omitted.
   ///     speed: Speaking speed. Architecture default is used when omitted.
-  ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+  ///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
   ///     silence_duration: Supertonic silence between chunks in seconds.
+  ///     precision: Pocket TTS precision: "int8" or "fp32".
+  ///     temperature: Pocket TTS generation temperature.
+  ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   static Future<Tts> load({
     required String source,
@@ -619,6 +622,9 @@ abstract class Tts implements RustOpaqueInterface {
     double? speed = null,
     int? steps = null,
     double? silenceDuration = null,
+    String? precision = null,
+    double? temperature = null,
+    String? huggingfaceToken = null,
     bool useGpu = true,
   }) => NobodyWho.instance.api.crateTtsLoad(
     source: source,
@@ -628,6 +634,9 @@ abstract class Tts implements RustOpaqueInterface {
     speed: speed,
     steps: steps,
     silenceDuration: silenceDuration,
+    precision: precision,
+    temperature: temperature,
+    huggingfaceToken: huggingfaceToken,
     useGpu: useGpu,
   );
 

@@ -403,6 +403,9 @@ abstract class NobodyWhoApi extends BaseApi {
     double? speed = null,
     int? steps = null,
     double? silenceDuration = null,
+    String? precision = null,
+    double? temperature = null,
+    String? huggingfaceToken = null,
     bool useGpu = true,
   });
 
@@ -3220,6 +3223,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     double? speed = null,
     int? steps = null,
     double? silenceDuration = null,
+    String? precision = null,
+    double? temperature = null,
+    String? huggingfaceToken = null,
     bool useGpu = true,
   }) {
     return handler.executeNormal(
@@ -3233,6 +3239,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_f_32(speed, serializer);
           sse_encode_opt_box_autoadd_u_32(steps, serializer);
           sse_encode_opt_box_autoadd_f_32(silenceDuration, serializer);
+          sse_encode_opt_String(precision, serializer);
+          sse_encode_opt_box_autoadd_f_32(temperature, serializer);
+          sse_encode_opt_String(huggingfaceToken, serializer);
           sse_encode_bool(useGpu, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -3255,6 +3264,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           speed,
           steps,
           silenceDuration,
+          precision,
+          temperature,
+          huggingfaceToken,
           useGpu,
         ],
         apiImpl: this,
@@ -3272,6 +3284,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "speed",
       "steps",
       "silenceDuration",
+      "precision",
+      "temperature",
+      "huggingfaceToken",
       "useGpu",
     ],
   );
