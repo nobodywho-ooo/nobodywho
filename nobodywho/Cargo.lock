@@ -3072,7 +3072,6 @@ dependencies = [
  "tokenizers",
  "tokio",
  "tokio-stream",
- "toktrie",
  "tracing",
  "tracing-subscriber",
  "unicode-normalization",
