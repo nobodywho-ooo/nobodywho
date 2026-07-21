@@ -54,6 +54,56 @@ impl std::fmt::Debug for Tool {
     }
 }
 
+/// Project a JSON schema down to the keys we support, dropping everything else.
+/// llguidance's `%json` compiler rejects keys it hasn't implemented (e.g.
+/// `uniqueItems`) rather than ignoring them, so anything we don't explicitly
+/// keep must go. Recurses only into schema-valued positions; `const`/`enum`/
+/// `required` hold literal data and are copied verbatim.
+pub(crate) fn project_supported_schema(schema: &serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    let Some(obj) = schema.as_object() else {
+        // Bool schemas (`items: false`, `additionalProperties: false`) and any
+        // scalar pass through unchanged.
+        return schema.clone();
+    };
+    let mut out = serde_json::Map::new();
+    for (k, v) in obj {
+        match k.as_str() {
+            // single nested schema (may also be a bool)
+            "items" | "additionalProperties" | "not" | "contains" => {
+                out.insert(k.clone(), project_supported_schema(v));
+            }
+            // array of schemas
+            "oneOf" | "anyOf" | "allOf" | "prefixItems" => {
+                if let Some(arr) = v.as_array() {
+                    out.insert(
+                        k.clone(),
+                        Value::Array(arr.iter().map(project_supported_schema).collect()),
+                    );
+                }
+            }
+            // map of schemas
+            "properties" | "$defs" | "definitions" | "patternProperties" => {
+                if let Some(m) = v.as_object() {
+                    let mm = m
+                        .iter()
+                        .map(|(pk, pv)| (pk.clone(), project_supported_schema(pv)))
+                        .collect();
+                    out.insert(k.clone(), Value::Object(mm));
+                }
+            }
+            // data / annotations kept verbatim (NOT recursed into)
+            "type" | "required" | "const" | "enum" | "$ref" | "description" | "title"
+            | "format" => {
+                out.insert(k.clone(), v.clone());
+            }
+            // everything else (uniqueItems, examples, $schema, ...) dropped
+            _ => {}
+        }
+    }
+    Value::Object(out)
+}
+
 impl Tool {
     pub fn new<S: Into<String>>(
         name: S,
@@ -64,7 +114,7 @@ impl Tool {
         Self {
             name: name.into(),
             description: description.into(),
-            json_schema,
+            json_schema: project_supported_schema(&json_schema),
             function,
         }
     }
@@ -250,11 +300,16 @@ pub enum ToolFormatError {
 
 /// Escape a string for embedding inside a Lark double-quoted string literal.
 ///
-/// Tool names and JSON schema property names come from user-controlled input
-/// and are spliced directly into generated Lark grammar text; without this,
-/// a name containing `"` or `\` breaks the surrounding literal.
+/// Escape user-controlled input for splicing into a double-quoted Lark literal.
+/// Besides `"` and `\`, raw newline/tab/carriage-return make the literal
+/// malformed, so map them to their C-style escapes too. `\\` is replaced first
+/// so the backslashes introduced below are not re-escaped.
 pub(crate) fn escape_lark_string(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 /// Map any non-alphanumeric character to `_` for use in Lark rule names.
@@ -510,6 +565,62 @@ mod tests {
     }
 
     #[test]
+    fn tool_new_projects_unsupported_schema_keys() {
+        // A `set`-typed parameter carries `uniqueItems`, which llguidance's
+        // `%json` compiler rejects. `Tool::new` must strip it (and any other
+        // unsupported key) while preserving the structural schema, so the
+        // per-format grammars compile.
+        let tool = Tool::new(
+            "set_intersection",
+            "intersect two sets",
+            json!({
+                "type": "object",
+                "properties": {
+                    "set1": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "uniqueItems": true
+                    },
+                    // `const` holds literal data, not a schema: a key that
+                    // collides with a dropped keyword must survive untouched.
+                    "mode": {"const": {"uniqueItems": 5}}
+                },
+                "required": ["set1"]
+            }),
+            Arc::new(|_| String::new()),
+        );
+
+        let schema_str = serde_json::to_string(&tool.json_schema).unwrap();
+
+        // The unsupported keyword is gone from every schema position...
+        assert!(
+            !schema_str.contains("\"uniqueItems\":true"),
+            "uniqueItems keyword should be stripped: {schema_str}"
+        );
+        // ...but structural keys survive.
+        let props = &tool.json_schema["properties"];
+        assert_eq!(props["set1"]["type"], "array");
+        assert_eq!(props["set1"]["items"]["type"], "integer");
+        assert_eq!(tool.json_schema["required"][0], "set1");
+        // ...and literal `const` data is NOT filtered (recursion stops at data).
+        assert_eq!(props["mode"]["const"]["uniqueItems"], 5);
+
+        // The projected schema compiles into a `%json`-embedding grammar.
+        ToolFormat::Qwen3(Qwen3Handler)
+            .to_lark(&[tool])
+            .expect("projected schema should produce valid lark");
+    }
+
+    #[test]
+    fn escape_lark_string_escapes_quotes_backslashes_and_control_chars() {
+        assert_eq!(escape_lark_string("a\"b\\c"), "a\\\"b\\\\c");
+        assert_eq!(escape_lark_string("l1\nl2\tx\r"), "l1\\nl2\\tx\\r");
+        // A literal backslash-n in the input must not collide with the newline
+        // escape: `\\` is replaced first, so `\n` (two chars) becomes `\\n`.
+        assert_eq!(escape_lark_string("a\\nb"), "a\\\\nb");
+    }
+
+    #[test]
     fn to_lark_produces_valid_lark_for_all_handlers() {
         // For each handler, to_lark() should produce a Lark grammar starting
         // with the `%llguidance` header and a `start:` rule whose body
@@ -648,6 +759,41 @@ mod tests {
                 "<tool_call>\n<function=get_weather>\n<parameter=city>\nsunny\n\n</parameter>\n</function>\n</tool_call>"
             ),
             "string value ending in a newline should be accepted:\n{grammar}"
+        );
+    }
+
+    /// Regression: enum string values containing control characters (here a
+    /// newline) must be escaped when spliced into Lark literals, or the grammar
+    /// is malformed and `create_parser` fails at worker init. See
+    /// [`escape_lark_string`]. Uses the TEST_MODEL tokenizer.
+    #[test]
+    fn qwen35_36_enum_value_with_newline_produces_valid_grammar() {
+        let model = crate::test_utils::load_test_model();
+        let tool = Tool::new(
+            "set_mode",
+            "set the mode",
+            json!({
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "enum": ["plain", "with\nnewline"]}
+                },
+                "required": ["mode"]
+            }),
+            Arc::new(|_| String::new()),
+        );
+        let grammar = ToolFormat::Qwen35_36(Qwen35_36Handler)
+            .to_lark(&[tool])
+            .unwrap();
+
+        // Accepting the escaped-newline variant also proves the grammar parsed:
+        // a raw newline in the literal would make `create_parser` fail.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>\n<function=set_mode>\n<parameter=mode>\nwith\nnewline\n</parameter>\n</function>\n</tool_call>"
+            ),
+            "enum value with an escaped newline should be accepted:\n{grammar}"
         );
     }
 
