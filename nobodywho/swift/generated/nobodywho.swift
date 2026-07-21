@@ -730,12 +730,12 @@ open class RustChat: RustChatProtocol, @unchecked Sendable {
     /**
      * Create a new chat session.
      *
-     * Set `mtp = true` to enable MTP speculative decoding for this
-     * chat. Requires the `RustModel` to have been loaded with a
-     * compatible `draft_model_path`; otherwise construction fails.
-     * Adds around 5% to VRAM usage.
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
      */
-public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: Bool)throws  {
+public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: MtpConfig?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
@@ -745,7 +745,7 @@ public convenience init(model: RustModel, systemPrompt: String?, contextSize: UI
         FfiConverterOptionDictionaryStringBool.lower(templateVariables),
         FfiConverterOptionSequenceTypeRustTool.lower(tools),
         FfiConverterOptionTypeSamplerConfig.lower(sampler),
-        FfiConverterBool.lower(mtp),$0
+        FfiConverterOptionTypeMtpConfig.lower(mtp),$0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -3035,6 +3035,81 @@ public func FfiConverterTypeChatStats_lower(_ value: ChatStats) -> RustBuffer {
 
 
 /**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+public struct MtpConfig: Equatable, Hashable {
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    public var kMax: UInt32
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    public var pMin: Float
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+         * Higher values draft more per decode; returns diminish past ~4–6.
+         */kMax: UInt32 = UInt32(3), 
+        /**
+         * Minimum draft-token probability the drafter will propose (llama.cpp
+         * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+         * drafts.
+         */pMin: Float = Float(0.0)) {
+        self.kMax = kMax
+        self.pMin = pMin
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension MtpConfig: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMtpConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MtpConfig {
+        return
+            try MtpConfig(
+                kMax: FfiConverterUInt32.read(from: &buf), 
+                pMin: FfiConverterFloat.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MtpConfig, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.kMax, into: &buf)
+        FfiConverterFloat.write(value.pMin, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMtpConfig_lift(_ buf: RustBuffer) throws -> MtpConfig {
+    return try FfiConverterTypeMtpConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMtpConfig_lower(_ value: MtpConfig) -> RustBuffer {
+    return FfiConverterTypeMtpConfig.lower(value)
+}
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 public struct PendingToolCall: Equatable, Hashable {
@@ -3825,6 +3900,30 @@ fileprivate struct FfiConverterOptionTypeSamplerConfig: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeSamplerConfig.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeMtpConfig: FfiConverterRustBuffer {
+    typealias SwiftType = MtpConfig?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeMtpConfig.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeMtpConfig.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -4748,7 +4847,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 60526) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 42705) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {

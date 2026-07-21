@@ -9,7 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_architecture`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -239,7 +239,7 @@ abstract class RustChat implements RustOpaqueInterface {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
-    bool mtp = false,
+    MtpConfig? mtp = null,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
     onDownloadProgress: onDownloadProgress,
@@ -279,9 +279,9 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     context_size: Context size (maximum conversation length in tokens)
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
-  ///     mtp: Enable MTP speculative decoding. Requires the Model to have been
-  ///         loaded with a compatible `draft_model_path`. Adds around 5% to
-  ///         VRAM usage. Defaults to false.
+  ///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
+  ///         Model to have been loaded with a compatible `draft_model_path`. Adds
+  ///         around 5% to VRAM usage. Defaults to null (disabled).
   factory RustChat({
     required Model model,
     String? systemPrompt = null,
@@ -290,7 +290,7 @@ abstract class RustChat implements RustOpaqueInterface {
     Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
-    bool mtp = false,
+    MtpConfig? mtp = null,
   }) => NobodyWho.instance.api.crateRustChatNew(
     model: model,
     systemPrompt: systemPrompt,
@@ -684,6 +684,30 @@ sealed class Message with _$Message {
   const factory Message.system({required String content}) = Message_System;
   const factory Message.tool({required String name, required String content}) =
       Message_Tool;
+}
+
+/// Tuning for MTP speculative decoding. Pass one as the `mtp` argument to a
+/// chat constructor to enable MTP; pass null to disable. Requires the model to
+/// have been loaded with a compatible `draft_model_path`.
+class MtpConfig {
+  /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+  final int kMax;
+
+  /// Minimum draft-token probability the drafter will propose (llama.cpp `p_min`).
+  final double pMin;
+
+  const MtpConfig({this.kMax = 3, this.pMin = 0.0});
+
+  @override
+  int get hashCode => kMax.hashCode ^ pMin.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MtpConfig &&
+          runtimeType == other.runtimeType &&
+          kMax == other.kMax &&
+          pMin == other.pMin;
 }
 
 @freezed

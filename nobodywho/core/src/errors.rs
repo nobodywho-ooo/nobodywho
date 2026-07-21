@@ -407,7 +407,7 @@ pub enum InitWorkerError {
     #[diagnostic(
         code(nobodywho::mtp_draft_model_not_loaded),
         help(
-            "Chat was configured with `mtp = true`, but the `Model` was loaded without a\n\
+            "Chat was configured with an `MtpConfig`, but the `Model` was loaded without a\n\
              `draft_model_path`. Load the model with a matching MTP draft-heads gguf (e.g.\n\
              `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B), or disable MTP on this chat.\n\
              \n\

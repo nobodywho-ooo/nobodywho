@@ -665,6 +665,78 @@ const FfiConverterTypeChatStats = (() => {
 
 
 /**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+export type MtpConfig = {
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    kMax: /*u32*/number,
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    pMin: /*f32*/number
+}
+
+/**
+ * Generated factory for {@link MtpConfig} record objects.
+ */
+export const MtpConfig = (() => {
+    const defaults = () => ({kMax: 3,pMin: 0.0
+    });
+    const create = (() => {
+        return uniffiCreateRecord<MtpConfig, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link MtpConfig}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link MtpConfig}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<MtpConfig>,
+
+    });
+})();
+
+const FfiConverterTypeMtpConfig = (() => {
+    type TypeName = MtpConfig;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                kMax: FfiConverterUInt32.read(from), 
+                pMin: FfiConverterFloat32.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterUInt32.write(value.kMax, into);
+            FfiConverterFloat32.write(value.pMin, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterUInt32.allocationSize(value.kMax) + 
+            FfiConverterFloat32.allocationSize(value.pMin);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 export type PendingToolCall = {
@@ -1478,12 +1550,12 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     /**
      * Create a new chat session.
      *
-     * Set `mtp = true` to enable MTP speculative decoding for this
-     * chat. Requires the `RustModel` to have been loaded with a
-     * compatible `draft_model_path`; otherwise construction fails.
-     * Adds around 5% to VRAM usage.
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: boolean) /*throws*/ {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: MtpConfig | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -1497,7 +1569,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
         FfiConverterOptionalMapStringBool.lower(templateVariables),
         FfiConverterOptionalArrayTypeRustTool.lower(tools),
         FfiConverterOptionalTypeSamplerConfig.lower(sampler),
-        FfiConverterBool.lower(mtp),
+        FfiConverterOptionalTypeMtpConfig.lower(mtp),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -3897,6 +3969,10 @@ const FfiConverterOptionalFloat32 = new FfiConverterOptional(FfiConverterFloat32
 const FfiConverterOptionalInt32 = new FfiConverterOptional(FfiConverterInt32);
 
 
+// FfiConverter for MtpConfig | undefined
+const FfiConverterOptionalTypeMtpConfig = new FfiConverterOptional(FfiConverterTypeMtpConfig);
+
+
 // FfiConverter for PendingToolCall | undefined
 const FfiConverterOptionalTypePendingToolCall = new FfiConverterOptional(FfiConverterTypePendingToolCall);
 
@@ -4182,7 +4258,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 60526) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 42705) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {
@@ -4227,6 +4303,7 @@ export default Object.freeze({
     FfiConverterTypeCachedModel,
     FfiConverterTypeChatStats,
     FfiConverterTypeMessage,
+    FfiConverterTypeMtpConfig,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePendingToolCall,
     FfiConverterTypePromptPart,

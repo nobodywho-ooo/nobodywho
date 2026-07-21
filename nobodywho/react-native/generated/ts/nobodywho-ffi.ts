@@ -20,7 +20,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_internal_fn_func_ffi__arraybuffer_to_string(buffer: Uint8Array, uniffi_out_err: UniffiRustCallStatus): string;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustchat(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(model: bigint, systemPrompt: Uint8Array, contextSize: number, templateVariables: Uint8Array, tools: Uint8Array, sampler: Uint8Array, mtp: number, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(model: bigint, systemPrompt: Uint8Array, contextSize: number, templateVariables: Uint8Array, tools: Uint8Array, sampler: Uint8Array, mtp: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(ptr: bigint, message: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(ptr: bigint, json: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(ptr: bigint, parts: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;

@@ -282,6 +282,35 @@ pub struct ChatStats {
     pub context_used: u32,
 }
 
+// ---------- MtpConfig ----------
+
+/// Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+/// enables MTP; `null` runs the solo decode path. Requires the model to
+/// have been loaded with a compatible `draft_model_path`.
+#[derive(uniffi::Record, Clone)]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Higher values draft more per decode; returns diminish past ~4–6.
+    // Default mirrors core `MtpConfig::default()`.
+    #[uniffi(default = 3)]
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+    /// drafts.
+    // Default mirrors core `MtpConfig::default()`.
+    #[uniffi(default = 0.0)]
+    pub p_min: f32,
+}
+
+impl From<MtpConfig> for nobodywho::chat::MtpConfig {
+    fn from(c: MtpConfig) -> Self {
+        nobodywho::chat::MtpConfig {
+            k_max: c.k_max,
+            p_min: c.p_min,
+        }
+    }
+}
+
 // ---------- RustChat ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `Chat`).
 
@@ -294,10 +323,10 @@ pub struct RustChat {
 impl RustChat {
     /// Create a new chat session.
     ///
-    /// Set `mtp = true` to enable MTP speculative decoding for this
-    /// chat. Requires the `RustModel` to have been loaded with a
-    /// compatible `draft_model_path`; otherwise construction fails.
-    /// Adds around 5% to VRAM usage.
+    /// Pass an `mtp` config to enable MTP speculative decoding for this
+    /// chat; `null` disables it. Requires the `RustModel` to have been
+    /// loaded with a compatible `draft_model_path`; otherwise construction
+    /// fails. Adds around 5% to VRAM usage.
     #[uniffi::constructor]
     pub fn new(
         model: &RustModel,
@@ -306,7 +335,7 @@ impl RustChat {
         template_variables: Option<HashMap<String, bool>>,
         tools: Option<Vec<Arc<RustTool>>>,
         sampler: Option<Arc<SamplerConfig>>,
-        mtp: bool,
+        mtp: Option<MtpConfig>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
@@ -316,17 +345,18 @@ impl RustChat {
 
         let sampler_config = sampler.map(|s| s.inner.clone()).unwrap_or_default();
 
-        let chat = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.inner))
+        let mut builder = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.inner))
             .with_context_size(context_size)
             .with_system_prompt(system_prompt)
             .with_template_variables(template_variables.unwrap_or_default())
             .with_tools(core_tools)
-            .with_sampler(sampler_config)
-            .with_mtp(mtp)
-            .build_async()
-            .map_err(|e| NobodyWhoError::Error {
-                message: nobodywho::render_miette(&e),
-            })?;
+            .with_sampler(sampler_config);
+        if let Some(mtp) = mtp {
+            builder = builder.with_mtp(mtp.into());
+        }
+        let chat = builder.build_async().map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })?;
 
         Ok(Arc::new(Self { inner: chat }))
     }

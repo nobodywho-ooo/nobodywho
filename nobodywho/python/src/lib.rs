@@ -61,7 +61,7 @@ impl Model {
     ///     model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
     ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
-    ///     draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=True` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
+    ///     draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=MtpConfig()` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
     ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
@@ -946,6 +946,43 @@ impl CrossEncoderAsync {
 /// what tools to provide, what sampling strategy to use for choosing tokens, what system prompt
 /// to use, whether to allow extended thinking, etc.
 /// See `ChatAsync` for the async version of this class.
+/// Tuning for MTP speculative decoding. Pass an instance as the `mtp`
+/// argument to `Chat`/`ChatAsync` to enable MTP; leave it `None` to disable.
+/// Requires the `Model` to have been loaded with a compatible `draft_model_path`.
+#[pyclass]
+#[derive(Clone)]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+    #[pyo3(get, set)]
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp p_min).
+    #[pyo3(get, set)]
+    pub p_min: f32,
+}
+
+#[pymethods]
+impl MtpConfig {
+    /// Create an MTP config. Defaults mirror core `MtpConfig::default()`.
+    ///
+    /// Args:
+    ///     k_max: Max draft tokens proposed per speculative step. Defaults to 3.
+    ///     p_min: Minimum draft-token probability accepted. Defaults to 0.0.
+    #[new]
+    #[pyo3(signature = (k_max = 3, p_min = 0.0))]
+    fn new(k_max: u32, p_min: f32) -> Self {
+        Self { k_max, p_min }
+    }
+}
+
+impl From<MtpConfig> for nobodywho::chat::MtpConfig {
+    fn from(c: MtpConfig) -> Self {
+        nobodywho::chat::MtpConfig {
+            k_max: c.k_max,
+            p_min: c.p_min,
+        }
+    }
+}
+
 #[pyclass]
 pub struct Chat {
     // Wrap in Option so we can take it in Drop to release the handle
@@ -980,9 +1017,9 @@ impl Chat {
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
-    ///     mtp: If True, enable MTP speculative decoding on this chat. Requires the
-    ///         `Model` to have been loaded with a compatible `draft_model_path`.
-    ///         Adds around 5% to VRAM usage. Defaults to False.
+    ///     mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+    ///         Requires the `Model` to have been loaded with a compatible
+    ///         `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
     ///
     /// Returns:
     ///     A Chat instance
@@ -991,7 +1028,7 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp = false) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -1000,7 +1037,7 @@ impl Chat {
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
-        mtp: bool,
+        mtp: Option<MtpConfig>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -1026,8 +1063,10 @@ impl Chat {
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt)
-                .with_mtp(mtp);
+                .with_system_prompt(system_prompt);
+            if let Some(mtp) = mtp {
+                builder = builder.with_mtp(mtp.into());
+            }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.
@@ -1389,9 +1428,9 @@ impl ChatAsync {
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
-    ///     mtp: If True, enable MTP speculative decoding on this chat. Requires the
-    ///         `Model` to have been loaded with a compatible `draft_model_path`.
-    ///         Adds around 5% to VRAM usage. Defaults to False.
+    ///     mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+    ///         Requires the `Model` to have been loaded with a compatible
+    ///         `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
     ///
     /// Returns:
     ///     A ChatAsync instance
@@ -1400,7 +1439,7 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp = false) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -1409,7 +1448,7 @@ impl ChatAsync {
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
-        mtp: bool,
+        mtp: Option<MtpConfig>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -1435,8 +1474,10 @@ impl ChatAsync {
                 .with_context_size(n_ctx)
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
-                .with_system_prompt(system_prompt)
-                .with_mtp(mtp);
+                .with_system_prompt(system_prompt);
+            if let Some(mtp) = mtp {
+                builder = builder.with_mtp(mtp.into());
+            }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.
@@ -3135,6 +3176,8 @@ pub mod nobodywhopython {
     use super::Image;
     #[pymodule_export]
     use super::Model;
+    #[pymodule_export]
+    use super::MtpConfig;
     #[pymodule_export]
     use super::Prompt;
     #[pymodule_export]

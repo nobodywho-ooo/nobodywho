@@ -692,7 +692,7 @@ fn wire__crate__RustChat_from_path_impl(
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
-            let api_mtp = <bool>::sse_decode(&mut deserializer);
+            let api_mtp = <Option<crate::MtpConfig>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
@@ -1025,7 +1025,7 @@ fn wire__crate__RustChat_new_impl(
                 <std::collections::HashMap<String, bool>>::sse_decode(&mut deserializer);
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
-            let api_mtp = <bool>::sse_decode(&mut deserializer);
+            let api_mtp = <Option<crate::MtpConfig>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
                 let mut api_model_guard = None;
@@ -4915,6 +4915,18 @@ impl SseDecode for crate::Message {
     }
 }
 
+impl SseDecode for crate::MtpConfig {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_kMax = <u32>::sse_decode(deserializer);
+        let mut var_pMin = <f32>::sse_decode(deserializer);
+        return crate::MtpConfig {
+            k_max: var_kMax,
+            p_min: var_pMin,
+        };
+    }
+}
+
 impl SseDecode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4964,6 +4976,17 @@ impl SseDecode for Option<i32> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<i32>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::MtpConfig> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::MtpConfig>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -5598,6 +5621,22 @@ impl flutter_rust_bridge::IntoDart for crate::Message {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::Message {}
 impl flutter_rust_bridge::IntoIntoDart<crate::Message> for crate::Message {
     fn into_into_dart(self) -> crate::Message {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::MtpConfig {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.k_max.into_into_dart().into_dart(),
+            self.p_min.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::MtpConfig {}
+impl flutter_rust_bridge::IntoIntoDart<crate::MtpConfig> for crate::MtpConfig {
+    fn into_into_dart(self) -> crate::MtpConfig {
         self
     }
 }
@@ -6280,6 +6319,14 @@ impl SseEncode for crate::Message {
     }
 }
 
+impl SseEncode for crate::MtpConfig {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.k_max, serializer);
+        <f32>::sse_encode(self.p_min, serializer);
+    }
+}
+
 impl SseEncode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6326,6 +6373,16 @@ impl SseEncode for Option<i32> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <i32>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::MtpConfig> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::MtpConfig>::sse_encode(value, serializer);
         }
     }
 }

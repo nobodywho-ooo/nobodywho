@@ -2,6 +2,7 @@ import {
   RustChat,
   SamplerConfig,
   type ChatStats,
+  type MtpConfig,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
 import { type Message, fromInternal, toInternal } from "./message";
@@ -39,11 +40,12 @@ export class Chat {
     tools?: Tool[];
     sampler?: SamplerConfig;
     /**
-     * Enable MTP speculative decoding on this chat. Requires the
-     * `Model` to have been loaded with a compatible `draftModelPath`.
-     * Adds around 5% to VRAM usage.
+     * MTP speculative decoding config. Pass an `MtpConfig` to enable MTP
+     * (e.g. `{}` for defaults); omit to disable. Requires the `Model` to
+     * have been loaded with a compatible `draftModelPath`. Adds around 5%
+     * to VRAM usage.
      */
-    mtp?: boolean;
+    mtp?: MtpConfig;
   }) {
     this._inner = new RustChat(
       opts.model._inner,
@@ -52,7 +54,7 @@ export class Chat {
       opts.templateVariables ? new Map(Object.entries(opts.templateVariables)) : undefined,
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
-      opts.mtp ?? false,
+      opts.mtp ?? undefined,
     );
   }
 
@@ -78,7 +80,7 @@ export class Chat {
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
-    mtp?: boolean;
+    mtp?: MtpConfig;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({

@@ -155,7 +155,7 @@ abstract class NobodyWhoApi extends BaseApi {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
-    bool mtp = false,
+    MtpConfig? mtp = null,
   });
 
   Future<List<Message>> crateRustChatGetChatHistory({required RustChat that});
@@ -178,7 +178,7 @@ abstract class NobodyWhoApi extends BaseApi {
     Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
-    bool mtp = false,
+    MtpConfig? mtp = null,
   });
 
   Future<void> crateRustChatResetContext({
@@ -1096,7 +1096,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
-    bool mtp = false,
+    MtpConfig? mtp = null,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1122,7 +1122,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_bool(useGpu, serializer);
-          sse_encode_bool(mtp, serializer);
+          sse_encode_opt_box_autoadd_mtp_config(mtp, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1359,7 +1359,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
-    bool mtp = false,
+    MtpConfig? mtp = null,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1381,7 +1381,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             sampler,
             serializer,
           );
-          sse_encode_bool(mtp, serializer);
+          sse_encode_opt_box_autoadd_mtp_config(mtp, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
@@ -4451,6 +4451,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  MtpConfig dco_decode_box_autoadd_mtp_config(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_mtp_config(raw);
+  }
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -4660,6 +4666,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  MtpConfig dco_decode_mtp_config(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return MtpConfig(
+      kMax: dco_decode_u_32(arr[0]),
+      pMin: dco_decode_f_32(arr[1]),
+    );
+  }
+
+  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
@@ -4694,6 +4712,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_i_32(raw);
+  }
+
+  @protected
+  MtpConfig? dco_decode_opt_box_autoadd_mtp_config(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_mtp_config(raw);
   }
 
   @protected
@@ -5555,6 +5579,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  MtpConfig sse_decode_box_autoadd_mtp_config(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_mtp_config(deserializer));
+  }
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_u_32(deserializer));
@@ -5847,6 +5877,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  MtpConfig sse_decode_mtp_config(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kMax = sse_decode_u_32(deserializer);
+    var var_pMin = sse_decode_f_32(deserializer);
+    return MtpConfig(kMax: var_kMax, pMin: var_pMin);
+  }
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -5901,6 +5939,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_i_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  MtpConfig? sse_decode_opt_box_autoadd_mtp_config(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_mtp_config(deserializer));
     } else {
       return null;
     }
@@ -6888,6 +6939,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_mtp_config(
+    MtpConfig self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_mtp_config(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self, serializer);
@@ -7166,6 +7226,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_mtp_config(MtpConfig self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.kMax, serializer);
+    sse_encode_f_32(self.pMin, serializer);
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -7219,6 +7286,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_i_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_mtp_config(
+    MtpConfig? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_mtp_config(self, serializer);
     }
   }
 

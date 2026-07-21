@@ -192,6 +192,35 @@ impl Message {
 
 // PARALLELISM
 
+/// Tuning for MTP speculative decoding.
+///
+/// Attaching one to a chat (via [`ChatBuilder::with_mtp`] or
+/// [`ChatConfig::mtp`]) is what *enables* MTP — `None` runs the solo decode
+/// path. Requires the [`llm::Model`] to have been loaded with a compatible
+/// `draft_model_path`, otherwise worker construction fails with
+/// `InitWorkerError::MtpDraftModelNotLoaded`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Higher values draft more per decode; returns diminish past ~4–6.
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+    /// drafts.
+    pub p_min: f32,
+}
+
+impl Default for MtpConfig {
+    fn default() -> Self {
+        // Mirrors llama.cpp's MtpSpeculativeParams::default() (n_max=3, p_min=0.0).
+        // Binding-side field defaults must mirror these exact values.
+        Self {
+            k_max: 3,
+            p_min: 0.0,
+        }
+    }
+}
+
 ///
 /// Configuration for chat sessions.
 ///
@@ -208,11 +237,12 @@ pub struct ChatConfig {
     pub template_variables: std::collections::HashMap<String, bool>,
     /// Sampler configuration for inference.
     pub sampler_config: Option<SamplerConfig>,
-    /// Enable MTP speculative decoding for this chat worker. Requires
-    /// the [`llm::Model`] to have been loaded with a compatible
-    /// `draft_model_path` (see `llm::get_model`) — otherwise worker
-    /// construction fails with `InitWorkerError::MtpDraftModelNotLoaded`.
-    pub mtp: bool,
+    /// MTP speculative decoding config. `Some(..)` enables MTP with the given
+    /// tuning; `None` (the default) runs the solo decode path. Requires the
+    /// [`llm::Model`] to have been loaded with a compatible `draft_model_path`
+    /// (see `llm::get_model`) — otherwise worker construction fails with
+    /// `InitWorkerError::MtpDraftModelNotLoaded`.
+    pub mtp: Option<MtpConfig>,
 }
 
 impl Default for ChatConfig {
@@ -223,7 +253,7 @@ impl Default for ChatConfig {
             system_prompt: None,
             tools: Vec::new(),
             sampler_config: None,
-            mtp: false,
+            mtp: None,
         }
     }
 }
@@ -326,12 +356,14 @@ impl ChatBuilder {
         self
     }
 
-    /// Enable MTP speculative decoding for this chat. Requires the
-    /// [`llm::Model`] to have been loaded with a compatible
+    /// Enable MTP speculative decoding for this chat with the given tuning.
+    /// Requires the [`llm::Model`] to have been loaded with a compatible
     /// `draft_model_path` — otherwise `build_*` fails with
     /// `InitWorkerError::MtpDraftModelNotLoaded`.
-    pub fn with_mtp(mut self, mtp: bool) -> Self {
-        self.config.mtp = mtp;
+    ///
+    /// Pass [`MtpConfig::default`] for the default drafter tuning.
+    pub fn with_mtp(mut self, config: MtpConfig) -> Self {
+        self.config.mtp = Some(config);
         self
     }
 
@@ -2195,7 +2227,7 @@ mod tests {
             &model,
             ChatConfig {
                 n_ctx: 1024,
-                mtp: true,
+                mtp: Some(MtpConfig::default()),
                 ..Default::default()
             },
             Arc::new(AtomicBool::new(false)),

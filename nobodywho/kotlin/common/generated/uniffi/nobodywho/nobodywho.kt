@@ -859,7 +859,7 @@ internal object UniffiLib {
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1360,7 +1360,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 60526.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 42705.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -2061,17 +2061,17 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Create a new chat session.
      *
-     * Set `mtp = true` to enable MTP speculative decoding for this
-     * chat. Requires the `RustModel` to have been loaded with a
-     * compatible `draft_model_path`; otherwise construction fails.
-     * Adds around 5% to VRAM usage.
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
      */
-    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: kotlin.Boolean) :
+    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterBoolean.lower(`mtp`),_status)
+        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),_status)
 }
     )
 
@@ -5894,6 +5894,56 @@ public object FfiConverterTypeChatStats: FfiConverterRustBuffer<ChatStats> {
 
 
 /**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+data class MtpConfig (
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    var `kMax`: kotlin.UInt = 3u 
+    , 
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    var `pMin`: kotlin.Float = 0.0f 
+    
+){
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeMtpConfig: FfiConverterRustBuffer<MtpConfig> {
+    override fun read(buf: ByteBuffer): MtpConfig {
+        return MtpConfig(
+            FfiConverterUInt.read(buf),
+            FfiConverterFloat.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: MtpConfig) = (
+            FfiConverterUInt.allocationSize(value.`kMax`) +
+            FfiConverterFloat.allocationSize(value.`pMin`)
+    )
+
+    override fun write(value: MtpConfig, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`kMax`, buf)
+            FfiConverterFloat.write(value.`pMin`, buf)
+    }
+}
+
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 data class PendingToolCall (
@@ -6579,6 +6629,38 @@ public object FfiConverterOptionalTypeSamplerConfig: FfiConverterRustBuffer<Samp
         } else {
             buf.put(1)
             FfiConverterTypeSamplerConfig.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeMtpConfig: FfiConverterRustBuffer<MtpConfig?> {
+    override fun read(buf: ByteBuffer): MtpConfig? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeMtpConfig.read(buf)
+    }
+
+    override fun allocationSize(value: MtpConfig?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeMtpConfig.allocationSize(value)
+        }
+    }
+
+    override fun write(value: MtpConfig?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeMtpConfig.write(value, buf)
         }
     }
 }

@@ -287,7 +287,7 @@ void uniffi_nobodywho_uniffi_fn_free_rustchat(uint64_t handle, RustCallStatus *_
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTCHAT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTCHAT_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, RustBuffer system_prompt, uint32_t context_size, RustBuffer template_variables, RustBuffer tools, RustBuffer sampler, int8_t mtp, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, RustBuffer system_prompt, uint32_t context_size, RustBuffer template_variables, RustBuffer tools, RustBuffer sampler, RustBuffer mtp, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK

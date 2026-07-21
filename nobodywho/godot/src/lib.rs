@@ -628,6 +628,16 @@ struct NobodyWhoChat {
     /// Adds around 5% to VRAM usage.
     mtp: bool,
 
+    #[export]
+    /// MTP: maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Only used when `mtp` is enabled.
+    mtp_k_max: u32,
+
+    #[export]
+    /// MTP: minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). Only used when `mtp` is enabled.
+    mtp_p_min: f32,
+
     // internal state
     chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
     tools: Vec<nobodywho::tool_calling::Tool>,
@@ -639,6 +649,8 @@ struct NobodyWhoChat {
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
         let default_config = ChatConfig::default();
+        // MTP defaults mirror core `MtpConfig::default()`.
+        let mtp_defaults = nobodywho::chat::MtpConfig::default();
 
         Self {
             // defaults
@@ -646,7 +658,11 @@ impl INode for NobodyWhoChat {
             system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
             allow_thinking: true,
-            mtp: default_config.mtp,
+            // `mtp` on ChatConfig is now Option<MtpConfig>; expose the flattened
+            // toggle + tuning as separate exported properties, off by default.
+            mtp: default_config.mtp.is_some(),
+            mtp_k_max: mtp_defaults.k_max,
+            mtp_p_min: mtp_defaults.p_min,
 
             // config
             model_node: None,
@@ -671,7 +687,7 @@ impl NobodyWhoChat {
         tools: Vec<nobodywho::tool_calling::Tool>,
         n_ctx: u32,
         allow_thinking: bool,
-        mtp: bool,
+        mtp: Option<nobodywho::chat::MtpConfig>,
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
         tokio::task::yield_now().await;
 
@@ -716,20 +732,26 @@ impl NobodyWhoChat {
             Vec<nobodywho::tool_calling::Tool>,
             u32,
             bool,
-            bool,
+            Option<nobodywho::chat::MtpConfig>,
         ),
         GString,
     > {
         let Some(model_node) = self.model_node.clone() else {
             return Err(GString::from("Model node was not set"));
         };
+        // Assemble the flattened MTP properties into the core config; `None`
+        // (MTP disabled) unless the `mtp` toggle is on.
+        let mtp = self.mtp.then_some(nobodywho::chat::MtpConfig {
+            k_max: self.mtp_k_max,
+            p_min: self.mtp_p_min,
+        });
         Ok((
             model_node,
             self.system_prompt.to_string(),
             self.tools.clone(),
             self.context_length,
             self.allow_thinking,
-            self.mtp,
+            mtp,
         ))
     }
 

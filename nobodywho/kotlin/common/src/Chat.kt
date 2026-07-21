@@ -2,6 +2,7 @@ package ai.nobodywho
 
 import java.io.Closeable
 import uniffi.nobodywho.ChatStats
+import uniffi.nobodywho.MtpConfig
 import uniffi.nobodywho.RustChat as InternalRustChat
 import uniffi.nobodywho.SamplerConfig
 
@@ -27,11 +28,12 @@ class Chat(
     tools: List<Tool>? = null,
     sampler: SamplerConfig? = null,
     /**
-     * Enable MTP speculative decoding on this chat. Requires the [Model]
-     * to have been loaded with a compatible `draftModelPath`. Adds
+     * MTP speculative decoding config. Pass an [MtpConfig] to enable MTP
+     * (e.g. `MtpConfig()` for defaults); leave null to disable. Requires the
+     * [Model] to have been loaded with a compatible `draftModelPath`. Adds
      * around 5% to VRAM usage.
      */
-    mtp: Boolean = false
+    mtp: MtpConfig? = null
 ) : Closeable {
     private val inner: InternalRustChat = InternalRustChat(
         model.inner,
@@ -55,7 +57,7 @@ class Chat(
             templateVariables: Map<String, Boolean>? = null,
             tools: List<Tool>? = null,
             sampler: SamplerConfig? = null,
-            mtp: Boolean = false,
+            mtp: MtpConfig? = null,
             onDownloadProgress: ((downloaded: ULong, total: ULong) -> Unit)? = null
         ): Chat {
             val model = Model.load(modelPath, useGpu, projectionModelPath, draftModelPath, onDownloadProgress)

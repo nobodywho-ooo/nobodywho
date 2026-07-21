@@ -320,7 +320,7 @@ where
         model: &'a Model,
         n_ctx: u32,
         use_embeddings: bool,
-        mtp: bool,
+        mtp: Option<crate::chat::MtpConfig>,
         extra: T,
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
@@ -362,7 +362,7 @@ where
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
 
-        let engine_ctx = if mtp {
+        let engine_ctx = if let Some(mtp_config) = mtp {
             match &model.draft_model {
                 Some(draft_model) => {
                     info!("Initializing MTP speculative draft context");
@@ -402,8 +402,12 @@ where
                         draft_params,
                         &ctx,
                     )?;
-                    let spec =
-                        MtpSpeculative::new(ctx, draft_ctx, MtpSpeculativeParams::default())?;
+                    let spec_params = MtpSpeculativeParams {
+                        n_max: mtp_config.k_max as i32,
+                        n_min: 0,
+                        p_min: mtp_config.p_min,
+                    };
+                    let spec = MtpSpeculative::new(ctx, draft_ctx, spec_params)?;
                     EngineContext::Speculative(spec)
                 }
                 None => {

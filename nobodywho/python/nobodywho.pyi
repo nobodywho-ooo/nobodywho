@@ -24,17 +24,6 @@ class Audio:
 
 @final
 class Chat:
-    """
-    `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
-    It should be initialized with a turn-taking LLM, which includes a chat template.
-    On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
-    which returns a `TokenStream`, representing the generated response.
-    `Chat` also supports calling tools.
-    When initializing a `Chat`, you can also specify additional generation configuration, like
-    what tools to provide, what sampling strategy to use for choosing tokens, what system prompt
-    to use, whether to allow extended thinking, etc.
-    See `ChatAsync` for the async version of this class.
-    """
     def __new__(
         cls,
         /,
@@ -45,7 +34,7 @@ class Chat:
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
-        mtp: bool = False,
+        mtp: "MtpConfig | None" = None,
     ) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
@@ -60,9 +49,9 @@ class Chat:
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
-            mtp: If True, enable MTP speculative decoding on this chat. Requires the
-                `Model` to have been loaded with a compatible `draft_model_path`.
-                Adds around 5% to VRAM usage. Defaults to False.
+            mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+                Requires the `Model` to have been loaded with a compatible
+                `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
 
         Returns:
             A Chat instance
@@ -264,7 +253,7 @@ class ChatAsync:
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
-        mtp: bool = False,
+        mtp: "MtpConfig | None" = None,
     ) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
@@ -279,9 +268,9 @@ class ChatAsync:
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
-            mtp: If True, enable MTP speculative decoding on this chat. Requires the
-                `Model` to have been loaded with a compatible `draft_model_path`.
-                Adds around 5% to VRAM usage. Defaults to False.
+            mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+                Requires the `Model` to have been loaded with a compatible
+                `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
 
         Returns:
             A ChatAsync instance
@@ -744,6 +733,51 @@ class Model:
     def max_ctx(self, /) -> int:
         """
         The maximum context size this model was trained with.
+        """
+
+@final
+class MtpConfig:
+    """
+    `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
+    It should be initialized with a turn-taking LLM, which includes a chat template.
+    On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
+    which returns a `TokenStream`, representing the generated response.
+    `Chat` also supports calling tools.
+    When initializing a `Chat`, you can also specify additional generation configuration, like
+    what tools to provide, what sampling strategy to use for choosing tokens, what system prompt
+    to use, whether to allow extended thinking, etc.
+    See `ChatAsync` for the async version of this class.
+    Tuning for MTP speculative decoding. Pass an instance as the `mtp`
+    argument to `Chat`/`ChatAsync` to enable MTP; leave it `None` to disable.
+    Requires the `Model` to have been loaded with a compatible `draft_model_path`.
+    """
+    def __new__(cls, /, k_max: int = 3, p_min: float = 0.0) -> MtpConfig:
+        """
+        Create an MTP config. Defaults mirror core `MtpConfig::default()`.
+
+        Args:
+            k_max: Max draft tokens proposed per speculative step. Defaults to 3.
+            p_min: Minimum draft-token probability accepted. Defaults to 0.0.
+        """
+    @property
+    def k_max(self, /) -> int:
+        """
+        Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+        """
+    @k_max.setter
+    def k_max(self, /, value: int) -> None:
+        """
+        Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+        """
+    @property
+    def p_min(self, /) -> float:
+        """
+        Minimum draft-token probability the drafter will propose (llama.cpp p_min).
+        """
+    @p_min.setter
+    def p_min(self, /, value: float) -> None:
+        """
+        Minimum draft-token probability the drafter will propose (llama.cpp p_min).
         """
 
 @final

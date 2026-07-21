@@ -15,7 +15,8 @@ import NobodyWhoGenerated
 public class Chat {
     private let inner: RustChat
 
-    /// - Parameter mtp: Enable MTP speculative decoding on this chat.
+    /// - Parameter mtp: MTP speculative decoding config. Pass an `MtpConfig`
+    ///   to enable MTP (e.g. `MtpConfig()` for defaults); pass nil to disable.
     ///   Requires the `Model` to have been loaded with a compatible
     ///   `draftModelPath`. Adds around 5% to VRAM usage.
     public init(
@@ -25,7 +26,7 @@ public class Chat {
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil,
-        mtp: Bool = false
+        mtp: MtpConfig? = nil
     ) throws {
         self.inner = try RustChat(
             model: model.inner,
@@ -50,7 +51,7 @@ public class Chat {
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil,
-        mtp: Bool = false,
+        mtp: MtpConfig? = nil,
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Chat {
         let model = try await Model.load(
