@@ -190,7 +190,6 @@ impl Message {
     }
 }
 
-
 /// Tuning for MTP speculative decoding.
 ///
 /// Attaching one to a chat (via [`ChatBuilder::with_mtp`] or

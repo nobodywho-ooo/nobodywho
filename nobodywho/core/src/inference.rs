@@ -269,7 +269,7 @@ impl<'a> InferenceEngine<'a> {
 
         self.n_past += tokens.len() as i32;
         // A new prompt (or context-shift replay) invalidates any deferred
-        // pending sample from a previous generation. 
+        // pending sample from a previous generation.
         self.pending = None;
 
         debug!("Completed read tokens operation, n_past: {}", self.n_past);
@@ -429,7 +429,7 @@ impl<'a> InferenceEngine<'a> {
         let accept_owed = !drafts.is_empty();
 
         // Clamp drafts so the verify batch [pending, drafts...] stays
-        // within the context window: 
+        // within the context window:
         let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
         drafts.truncate(room);
         let k_max = drafts.len();
