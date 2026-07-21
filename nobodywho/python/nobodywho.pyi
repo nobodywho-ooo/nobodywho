@@ -692,7 +692,7 @@ class Model:
             model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
-            draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=True` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
+            draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=MtpConfig()` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
             on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
 
         Returns:
