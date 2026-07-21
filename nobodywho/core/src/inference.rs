@@ -221,9 +221,12 @@ impl<'a> InferenceEngine<'a> {
         //
         // This returns Ok(true) for both memory types today. A false/Err
         // would mean stale attention cells survived past `restored_pos` and
-        // would corrupt the next decode, so surface it loudly rather than
-        // swallowing it — a future change to recurrent-rollback semantics is
-        // the realistic way this could start returning false.
+        // would corrupt the next decode (a future change to recurrent-rollback
+        // semantics is the realistic way this could start happening). Bail out
+        // of the checkpoint path entirely rather than proceeding: returning
+        // `false` makes the caller fall back to a full `reset_context()`, which
+        // is release-safe — unlike a `debug_assert!`, which is compiled out of
+        // the release builds this actually ships in.
         match self
             .ctx
             .clear_kv_cache_seq(Some(SEQ_ID as u32), Some(restored_pos as u32), None)
@@ -234,12 +237,9 @@ impl<'a> InferenceEngine<'a> {
                     ?other,
                     restored_pos,
                     "clear_kv_cache_seq did not free attention cells past the restored \
-                     position; next decode may be corrupted"
+                     position; abandoning checkpoint restore for a full reset"
                 );
-                debug_assert!(
-                    matches!(other, Ok(true)),
-                    "clear_kv_cache_seq after checkpoint restore returned {other:?}"
-                );
+                return false;
             }
         }
         trace!(restored_pos, target_pos, "Restored from checkpoint");

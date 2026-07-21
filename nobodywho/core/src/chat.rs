@@ -2250,17 +2250,41 @@ mod tests {
             // be a token-level prefix of the gen-prompt render (see the comment
             // at the split). A plain assert so it runs under CI's release test
             // build, where a debug_assert would be compiled out.
+            //
+            // `ChatTemplate::render` only emits the generation prompt when the
+            // last message is a user/tool turn. After the ask loop the last
+            // message is an assistant turn, so both renders would suppress the
+            // gen prompt and the check would be vacuous (with == without). Append
+            // a user turn first so the `add_generation_prompt` render actually
+            // appends the tail we want to validate.
+            chat.messages.push(Message::new_user(
+                "What is the capital of Norway?".to_string(),
+            ));
             let without = chat
                 .render_as_chunks(true, false)
-                .expect("render without gen prompt");
+                .expect("render without gen prompt")
+                .to_token_ids();
             let with = chat
                 .render_as_chunks(true, true)
-                .expect("render with gen prompt");
-            assert_eq!(
-                crate::tokenizer::find_chunks_prefix_difference(&without, &with),
-                without.n_tokens(),
-                "generation-prompt render must be a token-level extension of the \
-                 no-gen-prompt render (gen prompt should begin with an atomic token)"
+                .expect("render with gen prompt")
+                .to_token_ids();
+            // Non-vacuous: the gen prompt must actually add tokens here.
+            assert!(
+                with.len() > without.len(),
+                "expected a non-empty generation-prompt tail for a user-turn render \
+                 (with={}, without={})",
+                with.len(),
+                without.len()
+            );
+            // The core invariant: appending the generation prompt must not perturb
+            // the tokenization of the committed prefix, so `without` must be an
+            // exact token-level prefix of `with`. This is what lets the recurrent
+            // sync feed `committed` then `full.tail(committed.n_tokens())` without
+            // the model seeing a different prompt than the single-pass path.
+            assert!(
+                with.starts_with(&without),
+                "no-gen-prompt render must be a token-level prefix of the gen-prompt \
+                 render (gen prompt should begin with an atomic token)"
             );
         });
 
