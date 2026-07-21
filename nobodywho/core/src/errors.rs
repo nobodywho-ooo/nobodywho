@@ -889,6 +889,9 @@ pub enum GenerateResponseError {
     #[error("Error converting token to bytes: {0}")]
     TokenToString(#[from] llama_cpp_2::TokenToStringError),
 
+    #[error("Error tokenizing tool-call begin token: {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
+
     #[error("Error while decoding next token: {0}")]
     Decoding(#[from] DecodingError),
 

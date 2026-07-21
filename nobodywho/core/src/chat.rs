@@ -47,7 +47,7 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
@@ -1658,25 +1658,14 @@ impl<'a> Chat<'a> {
                 {
                     let begin_token = format.begin_token();
                     if full_response.ends_with(begin_token) {
-                        match self
+                        let begin_tokens = self
                             .engine
                             .ctx
                             .model
-                            .str_to_token(begin_token, llama_cpp_2::model::AddBos::Never)
-                        {
-                            Ok(begin_tokens) => {
-                                ts.accept_many(begin_tokens.iter());
-                                grammar_activated = true;
-                                info!(begin_token, "Activated tool-call grammar");
-                            }
-                            Err(e) => {
-                                warn!(
-                                    error = %e,
-                                    begin_token,
-                                    "Failed to tokenize tool-call begin token; tool-call grammar will not activate this response"
-                                );
-                            }
-                        }
+                            .str_to_token(begin_token, llama_cpp_2::model::AddBos::Never)?;
+                        ts.accept_many(begin_tokens.iter());
+                        grammar_activated = true;
+                        info!(begin_token, "Activated tool-call grammar");
                     }
                 }
             }
