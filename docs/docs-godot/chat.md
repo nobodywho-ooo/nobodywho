@@ -233,7 +233,7 @@ Some models come with **MTP** (Multi-Token Prediction) draft heads that let the 
 Enable it in two steps:
 
 1. On the `NobodyWhoModel` node, set `draft_model_path` to a compatible MTP draft-heads `.gguf` (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Adds around 5% to VRAM usage.
-2. On the `NobodyWhoChat` node, tick `mtp` (or set `chat.mtp = true` in code) before `start_worker()`.
+2. On the `NobodyWhoChat` node, tick `mtp` (or set `chat.mtp = true` in code) before `start_worker()`. The optional `mtp_k_max` and `mtp_p_min` properties tune the drafter; the defaults are fine to leave untouched.
 
 ```gdscript
 func _ready():

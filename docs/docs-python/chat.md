@@ -149,13 +149,14 @@ of more architectures is planned (for details check out our [issues](https://git
 
 Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target model verify several candidate tokens per forward pass. When it works this can give a significant speedup — but see the warning below before enabling it.
 
-To use MTP, load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass `mtp=True` when constructing the chat:
+To use MTP, load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass an `MtpConfig` when constructing the chat:
 
-```python
-from nobodywho import Chat, Model
+```python notest
+from nobodywho import Chat, Model, MtpConfig
 
 model = Model("./gemma-4-e2b.gguf", draft_model_path="./mtp-gemma-4-e2b.gguf")
-chat = Chat(model, mtp=True)
+# MtpConfig() uses the default drafter tuning; tune with MtpConfig(k_max=..., p_min=...)
+chat = Chat(model, mtp=MtpConfig())
 ```
 
 Loading the draft heads adds around 5% to VRAM usage. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.

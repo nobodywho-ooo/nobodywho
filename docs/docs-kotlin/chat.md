@@ -129,14 +129,15 @@ NobodyWho uses Vulkan on Linux/Windows and Metal on macOS for GPU acceleration.
 
 Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target model verify several candidate tokens per forward pass. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
 
-Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass `mtp = true` when constructing the chat:
+Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass an `MtpConfig` when constructing the chat:
 
 ```kotlin
 val model = Model.load(
     modelPath = "./gemma-4-e2b.gguf",
     draftModelPath = "./mtp-gemma-4-e2b.gguf"
 )
-val chat = Chat(model = model, mtp = true)
+// MtpConfig() uses the default drafter tuning; tune with MtpConfig(kMax = ..., pMin = ...)
+val chat = Chat(model = model, mtp = MtpConfig())
 ```
 
 `Chat.fromPath` accepts the same two parameters if you don't need to share the model:
@@ -145,7 +146,7 @@ val chat = Chat(model = model, mtp = true)
 val chat = Chat.fromPath(
     modelPath = "./gemma-4-e2b.gguf",
     draftModelPath = "./mtp-gemma-4-e2b.gguf",
-    mtp = true
+    mtp = MtpConfig()
 )
 ```
 

@@ -192,14 +192,15 @@ By default `useGpu` is set to `true`, which uses Metal on Apple platforms.
 
 Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target model verify several candidate tokens per forward pass. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
 
-Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass `mtp: true` when constructing the chat:
+Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass an `MtpConfig` when constructing the chat:
 
 ```swift
 let model = try await Model.load(
     modelPath: "/path/to/gemma-4-e2b.gguf",
     draftModelPath: "/path/to/mtp-gemma-4-e2b.gguf"
 )
-let chat = try Chat(model: model, mtp: true)
+// MtpConfig() uses the default drafter tuning; tune with MtpConfig(kMax: ..., pMin: ...)
+let chat = try Chat(model: model, mtp: MtpConfig())
 ```
 
 `Chat.fromPath` accepts the same two parameters if you don't need to share the model:
@@ -208,7 +209,7 @@ let chat = try Chat(model: model, mtp: true)
 let chat = try await Chat.fromPath(
     modelPath: "/path/to/gemma-4-e2b.gguf",
     draftModelPath: "/path/to/mtp-gemma-4-e2b.gguf",
-    mtp: true
+    mtp: MtpConfig()
 )
 ```
 

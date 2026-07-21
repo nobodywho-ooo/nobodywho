@@ -158,7 +158,7 @@ of more architectures is planned (for details check out our [issues](https://git
 
 Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target model verify several candidate tokens per forward pass. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
 
-Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass `mtp: true` when constructing the chat:
+Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass an `MtpConfig` when constructing the chat:
 
 ```dart
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
@@ -167,7 +167,8 @@ final model = await nobodywho.Model.load(
   modelPath: "./gemma-4-e2b.gguf",
   draftModelPath: "./mtp-gemma-4-e2b.gguf",
 );
-final chat = nobodywho.Chat(model: model, mtp: true);
+// MtpConfig() uses the default drafter tuning; tune with MtpConfig(kMax: ..., pMin: ...)
+final chat = nobodywho.Chat(model: model, mtp: const nobodywho.MtpConfig());
 ```
 
 `Chat.fromPath` accepts the same two parameters if you don't need to share the model:
@@ -176,7 +177,7 @@ final chat = nobodywho.Chat(model: model, mtp: true);
 final chat = await nobodywho.Chat.fromPath(
   modelPath: "./gemma-4-e2b.gguf",
   draftModelPath: "./mtp-gemma-4-e2b.gguf",
-  mtp: true,
+  mtp: const nobodywho.MtpConfig(),
 );
 ```
 

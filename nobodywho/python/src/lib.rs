@@ -949,7 +949,10 @@ impl CrossEncoderAsync {
 /// Tuning for MTP speculative decoding. Pass an instance as the `mtp`
 /// argument to `Chat`/`ChatAsync` to enable MTP; leave it `None` to disable.
 /// Requires the `Model` to have been loaded with a compatible `draft_model_path`.
-#[pyclass]
+// `from_py_object` opts into the `FromPyObject` derive so `MtpConfig` can be
+// accepted by value as the `mtp` argument. pyo3 0.28 made this opt-in for
+// `Clone` pyclasses; without it the build fails under `-D deprecated`.
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct MtpConfig {
     /// Maximum draft tokens proposed per speculative step (llama.cpp n_max).

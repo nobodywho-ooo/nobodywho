@@ -1,8 +1,8 @@
 import {
   RustChat,
   SamplerConfig,
+  MtpConfig,
   type ChatStats,
-  type MtpConfig,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
 import { type Message, fromInternal, toInternal } from "./message";
@@ -40,12 +40,12 @@ export class Chat {
     tools?: Tool[];
     sampler?: SamplerConfig;
     /**
-     * MTP speculative decoding config. Pass an `MtpConfig` to enable MTP
-     * (e.g. `{}` for defaults); omit to disable. Requires the `Model` to
-     * have been loaded with a compatible `draftModelPath`. Adds around 5%
-     * to VRAM usage.
+     * MTP speculative decoding config. Pass `{}` to enable MTP with the
+     * default drafter tuning, or override fields (e.g. `{ kMax: 5 }`); omit
+     * to disable. Requires the `Model` to have been loaded with a compatible
+     * `draftModelPath`. Adds around 5% to VRAM usage.
      */
-    mtp?: MtpConfig;
+    mtp?: Partial<MtpConfig>;
   }) {
     this._inner = new RustChat(
       opts.model._inner,
@@ -54,7 +54,9 @@ export class Chat {
       opts.templateVariables ? new Map(Object.entries(opts.templateVariables)) : undefined,
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
-      opts.mtp ?? undefined,
+      // Apply the Rust-side defaults to any fields the caller omitted, so the
+      // call site can pass a partial object literal instead of a full record.
+      opts.mtp !== undefined ? MtpConfig.create(opts.mtp) : undefined,
     );
   }
 
@@ -80,7 +82,7 @@ export class Chat {
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
-    mtp?: MtpConfig;
+    mtp?: Partial<MtpConfig>;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({
