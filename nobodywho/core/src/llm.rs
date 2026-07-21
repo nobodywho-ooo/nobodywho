@@ -38,11 +38,6 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
-    /// Optional MTP draft model for split-file speculative decoding
-    /// (e.g. Gemma-4's separate MTP-heads gguf). Loaded at model-load
-    /// time so multiple workers can share it without reloading. Whether
-    /// a given worker actually *uses* it for MTP is a per-worker
-    /// decision (see `mtp` on `ChatConfig` / `Worker::new_with_type`).
     pub(crate) draft_model: Option<LlamaModel>,
 }
 
@@ -366,28 +361,6 @@ where
             match &model.draft_model {
                 Some(draft_model) => {
                     info!("Initializing MTP speculative draft context");
-                    // MTP draft ctx is built with `ctx_other =
-                    // target_ctx` (via `new_context_with_ctx_other`
-                    // below), which sets `is_mem_shared = true` inside
-                    // llama.cpp's MTP impl. That's how llama-server
-                    // configures MTP for both split-file and same-file
-                    // topologies, and it's what shares the draft's
-                    // hidden-state carryover with the target's KV.
-                    //
-                    // With `is_mem_shared = true`:
-                    //   - `spec.process(&batch)` is a no-op — it only
-                    //     copies hidden states from the target via
-                    //     `llama_get_embeddings_nextn_ith`; it does
-                    //     not call `llama_decode` on the draft ctx.
-                    //     (See `common/speculative.cpp` — the decode
-                    //     block is gated on `if (!is_mem_shared)`.)
-                    //   - `spec.draft(...)` runs an AR loop with
-                    //     1-token batches, K+1 ≤ ~6 tokens total.
-                    //
-                    // So the draft ctx never needs compute buffer for
-                    // more than a handful of tokens. Capping at 32
-                    // saves ~1 GB of VRAM per MTP-enabled worker with
-                    // no throughput cost.
                     let draft_batch_cap: u32 = 32;
                     let draft_params = LlamaContextParams::default()
                         .with_n_ctx(std::num::NonZero::new(planned_n_ctx))

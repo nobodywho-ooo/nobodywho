@@ -89,10 +89,6 @@ impl<'a> std::ops::DerefMut for EngineContext<'a> {
 }
 
 impl<'a> EngineContext<'a> {
-    /// Notify the MTP draft context of a batch that was just decoded on
-    /// the target. No-op on the solo path. Must be called after every
-    /// target decode when MTP is active so the draft ctx's hidden-state
-    /// carryover stays in sync.
     fn mtp_process(
         &mut self,
         batch: &LlamaBatch<'a>,
@@ -117,27 +113,14 @@ pub(crate) struct InferenceEngine<'a> {
     small_batch: LlamaBatch<'a>,
     use_embeddings: bool,
     /// Deferred-decode "pending sample": a token sampled from the
-    /// target but not yet decoded into the KV cache. On the MTP
-    /// speculative path, each iteration's batch begins with this
-    /// pending token followed by the drafter's proposals, so the
-    /// bonus/replacement token from iteration N gets its decode "for
-    /// free" as part of iteration N+1's batch — one fewer decode call
-    /// per emit than the eager approach.
-    ///
+    /// target but not yet decoded into the KV cache
     /// Invariants:
     /// - `None` after `read_text_tokens` and `reset_context`.
     /// - `Some(t)` between speculative iterations, where `t` is the
     ///   target's sample for the next-to-emit position and is *not* in
     ///   the KV cache.
-    /// - Solo path never sets it.
     pending: Option<LlamaToken>,
-    /// Count of draft tokens proposed by the MTP drafter within the
-    /// *current* generation. Reset to 0 at the start of each generation
-    /// (see [`Self::reset_mtp_stats`]) so the acceptance rate reflects the
-    /// latest prompt rather than being diluted across a long conversation.
     pub(crate) mtp_drafts_proposed: u64,
-    /// Count of draft tokens accepted (matched the target's sample) within
-    /// the current generation. Reset alongside `mtp_drafts_proposed`.
     pub(crate) mtp_drafts_accepted: u64,
 }
 
@@ -174,9 +157,6 @@ impl<'a> InferenceEngine<'a> {
         self
     }
 
-    /// Zero the per-generation MTP draft counters. Called at the start of
-    /// each generation so [`crate::chat::ChatHandle::mtp_acceptance_rate`]
-    /// reports the acceptance rate for that generation only.
     pub(crate) fn reset_mtp_stats(&mut self) {
         self.mtp_drafts_proposed = 0;
         self.mtp_drafts_accepted = 0;
@@ -289,9 +269,7 @@ impl<'a> InferenceEngine<'a> {
 
         self.n_past += tokens.len() as i32;
         // A new prompt (or context-shift replay) invalidates any deferred
-        // pending sample from a previous generation. The next call to
-        // `sample_and_decode_speculative` will re-seed pending from the
-        // freshly-decoded state's `-1` logits.
+        // pending sample from a previous generation. 
         self.pending = None;
 
         debug!("Completed read tokens operation, n_past: {}", self.n_past);
@@ -363,23 +341,10 @@ impl<'a> InferenceEngine<'a> {
 
     /// Detach the deferred MTP `pending` token so a context-shift KV replay
     /// can run without desyncing the stateful sampler.
-    ///
-    /// A context shift rebuilds the KV by replaying only the *emitted* stream
-    /// (`tokens_written_until_now`). That replay routes through
-    /// [`Self::read_text_tokens`], which clears `pending` — correct for a fresh
-    /// prompt, but wrong mid-generation: the deferred token has already been
-    /// accepted by the sampler yet is absent from the emitted stream, so
-    /// clearing it leaves the sampler one phantom token ahead of the KV. The
-    /// caller detaches `pending` across the replay and restores it afterwards
-    /// via [`Self::restore_pending`]. No-op on the solo path (always `None`).
     pub(crate) fn take_pending(&mut self) -> Option<LlamaToken> {
         self.pending.take()
     }
 
-    /// Restore a `pending` token detached via [`Self::take_pending`] after a
-    /// context-shift replay. The rebuilt KV ends exactly at the last emitted
-    /// token, which is precisely where `pending` decodes next, so the following
-    /// speculative iteration consumes it exactly as in steady state.
     pub(crate) fn restore_pending(&mut self, pending: Option<LlamaToken>) {
         self.pending = pending;
     }
@@ -410,16 +375,6 @@ impl<'a> InferenceEngine<'a> {
             .load_audio(path)
     }
 
-    /// Sample and decode 1..K+1 tokens.
-    ///
-    /// On the solo path this is a plain "sample one, decode one" step
-    /// returning a single-element vec — identical semantics to the old
-    /// `sample_and_decode_next_token`.
-    ///
-    /// On the MTP-speculative path this drafts up to K tokens, decodes
-    /// them in one batch, verifies each against the target's sampling,
-    /// and returns the accepted prefix (plus one bonus token). The
-    /// returned vec has length in `1..=K+1`.
     pub(crate) fn sample_and_decode_next_tokens(
         &mut self,
         sampler: &mut LlamaSampler,
@@ -449,60 +404,36 @@ impl<'a> InferenceEngine<'a> {
         Ok(vec![new_token])
     }
 
-    /// Deferred-decode MTP sample.
-    ///
-    /// Each iteration batches `[pending, drafts...]` — K+1 tokens
-    /// decoded in one pass. The token sampled at the tail of the
-    /// batch becomes the next iteration's `pending`, and is
-    /// decoded "for free" as the first entry of that next batch.
-    ///
-    /// See `pending` on [`InferenceEngine`] for the state invariant.
     fn sample_and_decode_speculative(
         &mut self,
         sampler: &mut LlamaSampler,
     ) -> Result<Vec<LlamaToken>, DecodingError> {
         trace!("Applying sampler (MTP speculative, deferred)");
-        // 1. Seed pending lazily on the first speculative iteration
-        //    after prompt processing. `sampler.sample` accepts the
-        //    token internally — see the comment in `generate_response`
-        //    and utilityai/llama-cpp-rs#604.
         let pending = match self.pending {
             Some(p) => p,
             None => sampler.sample(&self.ctx, -1),
         };
 
-        // 2. Fast-path EOG on pending: don't touch KV, don't ask the
-        //    drafter — chat loop breaks on EOG in the return vec.
         if self.ctx.model.is_eog_token(pending) {
             trace!(?pending, "MTP: pending is EOG, short-circuiting");
             self.pending = None;
             return Ok(vec![pending]);
         }
 
-        // 3. Ask the drafter for up to n_max proposals starting after
-        //    pending.
         let mut drafts = {
             let EngineContext::Speculative(spec) = &mut self.ctx else {
                 unreachable!("sample_and_decode_speculative called on solo ctx");
             };
             spec.draft(self.n_past, pending, &[])?
         };
-        // The wrapper requires exactly one accept() after every
-        // *non-empty* draft() (and none after an empty one) — track
-        // that independently of k_max, which may be clamped to 0 below.
         let accept_owed = !drafts.is_empty();
 
         // Clamp drafts so the verify batch [pending, drafts...] stays
-        // within the context window: the chat loop's context-shift
-        // check only runs between iterations, so without this a
-        // generation near the boundary fails the decode (no free KV
-        // slot) instead of triggering a context shift.
+        // within the context window: 
         let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
         drafts.truncate(room);
         let k_max = drafts.len();
 
-        // 4. No drafts to verify: decode pending as a single token,
-        //    re-seed pending. Same shape/cost as the solo path.
         if k_max == 0 {
             trace!(?pending, "MTP: no draft proposals to verify");
             self.small_batch.clear();
@@ -521,9 +452,6 @@ impl<'a> InferenceEngine<'a> {
             return Ok(vec![pending]);
         }
 
-        // 5. Build batch = [pending, drafts...] at positions
-        //    [n_past, n_past+1, ..., n_past+k_max]. K+1 entries, all
-        //    logits=true.
         self.big_batch.clear();
         self.big_batch.add(pending, self.n_past, &[0], true)?;
         for (i, &d) in drafts.iter().enumerate() {
@@ -537,20 +465,10 @@ impl<'a> InferenceEngine<'a> {
         }
         self.ctx.mtp_process(&self.big_batch)?;
 
-        // 6. Verify. Batch idx i's logits predict position n_past+i+1
-        //    = draft[i]'s position, so sample at batch idx i and
-        //    compare to drafts[i]. On mismatch, the sample becomes
-        //    the next iteration's pending; if all drafts match,
-        //    sample at batch idx k_max instead.
         let mut accepted_drafts: Vec<LlamaToken> = Vec::with_capacity(k_max);
         let mut new_pending = None;
         for (i, &draft) in drafts.iter().enumerate() {
             let ti = sampler.sample(&self.ctx, i as i32);
-            // Stop at end-of-generation: don't verify or draft past a terminal
-            // token. `ti` becomes the deferred `pending`, and the EOG fast-path
-            // at the top of the next iteration surfaces it to the chat loop.
-            // Checked before the mismatch test so a draft that happens to equal
-            // EOG is not pushed as a normal accepted token.
             if self.ctx.model.is_eog_token(ti) {
                 trace!(?ti, "MTP: target sampled EOG during verify, stopping");
                 new_pending = Some(ti);
@@ -565,8 +483,6 @@ impl<'a> InferenceEngine<'a> {
         let new_pending = new_pending.unwrap_or_else(|| sampler.sample(&self.ctx, k_max as i32));
         let j = accepted_drafts.len();
 
-        // 7. KV rollback for partial acceptance. Keep positions
-        //    [0..n_past+1+j] (pending + accepted drafts).
         if j < k_max {
             let keep_up_to = (self.n_past + 1 + j as i32) as u32;
             let rolled_back = self
@@ -583,7 +499,6 @@ impl<'a> InferenceEngine<'a> {
             }
         }
 
-        // 8. Tell the drafter how many drafts stuck.
         {
             let EngineContext::Speculative(spec) = &mut self.ctx else {
                 unreachable!();
@@ -591,7 +506,6 @@ impl<'a> InferenceEngine<'a> {
             spec.accept(j as u16)?;
         }
 
-        // 9. Bookkeeping: n_past advances by (pending + j drafts).
         self.n_past += 1 + j as i32;
         self.pending = Some(new_pending);
         self.mtp_drafts_proposed += k_max as u64;
@@ -605,7 +519,6 @@ impl<'a> InferenceEngine<'a> {
             "MTP: deferred iteration complete"
         );
 
-        // 10. Emit pending (confirmed this iteration) + accepted drafts.
         let mut emitted = Vec::with_capacity(1 + j);
         emitted.push(pending);
         emitted.extend_from_slice(&accepted_drafts);

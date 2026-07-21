@@ -190,7 +190,6 @@ impl Message {
     }
 }
 
-// PARALLELISM
 
 /// Tuning for MTP speculative decoding.
 ///
@@ -221,7 +220,6 @@ impl Default for MtpConfig {
     }
 }
 
-///
 /// Configuration for chat sessions.
 ///
 /// This struct groups all the settings needed to initialize a chat worker.
@@ -942,11 +940,8 @@ impl ChatHandleAsync {
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
-    /// The counters reset at the start of each generation, so this reflects the
-    /// latest response rather than a cumulative average over the conversation.
-    /// Returns `None` when no drafts were proposed in the last generation —
-    /// either because MTP is disabled on this chat, or because inference has
-    /// not run yet.
+    /// The counters reset at the start of each generation.
+    /// Returns `None` when no drafts were proposed.
     pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
@@ -1622,9 +1617,6 @@ impl<'a> Chat<'a> {
         // Token generation loop
         info!("Worker writing until done");
 
-        // Reset MTP draft counters so `mtp_acceptance_rate` reflects only this
-        // generation, not a cumulative average over the whole conversation.
-        // No-op on the solo path.
         self.engine.reset_mtp_stats();
 
         // pre-allocating 4096 bytes for the response string
@@ -1642,15 +1634,7 @@ impl<'a> Chat<'a> {
         while !self.should_stop() {
             // Check if the context is full
             if self.engine.is_context_full() {
-                // MTP holds one sampled-but-undecoded `pending` token that the
-                // stateful sampler has already accepted but that is absent from
-                // `tokens_written_until_now`. The replay below routes through
-                // `read_text_tokens`, which clears `pending`; letting it do so
-                // would leave the (grammar/penalty) sampler one phantom token
-                // ahead of the rebuilt KV and desync tool-call/grammar output.
-                // Detach it across the replay and restore it — the rebuilt KV
-                // ends exactly where `pending` decodes next. No-op on the solo
-                // path (`pending` is always `None`).
+                // pending should be preserved during context shift
                 let deferred_pending = self.engine.take_pending();
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
@@ -1663,10 +1647,6 @@ impl<'a> Chat<'a> {
             // Sample next token(s), no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            //
-            // On the solo path this returns exactly one token. On the MTP-speculative path it
-            // returns 1..=K+1 accepted tokens (the drafts confirmed by the target plus one
-            // bonus/replacement).
             let new_tokens = self.engine.sample_and_decode_next_tokens(&mut sampler)?;
 
             tokens_written_until_now.append(TokenizerChunk::new_text(new_tokens.clone()));

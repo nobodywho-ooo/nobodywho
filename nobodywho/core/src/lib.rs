@@ -82,11 +82,7 @@ pub mod test_utils {
         std::env::var("TEST_VISION_MODEL").unwrap_or_else(|_| "vision-model.gguf".to_string())
     }
 
-    /// Get path to MTP target model from TEST_MTP_TARGET_MODEL env var,
-    /// or `None` if the env var isn't set. Tests that require MTP
-    /// should skip cleanly on `None` — MTP tests aren't wired into the
-    /// default nix test build because the target model is large and
-    /// only a few architectures ship compatible MTP heads.
+    /// Get path to MTP target model from TEST_MTP_TARGET_MODEL env var
     pub fn test_mtp_target_model_path() -> Option<String> {
         std::env::var("TEST_MTP_TARGET_MODEL").ok()
     }
