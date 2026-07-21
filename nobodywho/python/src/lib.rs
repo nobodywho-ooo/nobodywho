@@ -937,15 +937,6 @@ impl CrossEncoderAsync {
     }
 }
 
-/// `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
-/// It should be initialized with a turn-taking LLM, which includes a chat template.
-/// On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
-/// which returns a `TokenStream`, representing the generated response.
-/// `Chat` also supports calling tools.
-/// When initializing a `Chat`, you can also specify additional generation configuration, like
-/// what tools to provide, what sampling strategy to use for choosing tokens, what system prompt
-/// to use, whether to allow extended thinking, etc.
-/// See `ChatAsync` for the async version of this class.
 /// Tuning for MTP speculative decoding. Pass an instance as the `mtp`
 /// argument to `Chat`/`ChatAsync` to enable MTP; leave it `None` to disable.
 /// Requires the `Model` to have been loaded with a compatible `draft_model_path`.
@@ -986,6 +977,15 @@ impl From<MtpConfig> for nobodywho::chat::MtpConfig {
     }
 }
 
+/// `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
+/// It should be initialized with a turn-taking LLM, which includes a chat template.
+/// On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
+/// which returns a `TokenStream`, representing the generated response.
+/// `Chat` also supports calling tools.
+/// When initializing a `Chat`, you can also specify additional generation configuration, like
+/// what tools to provide, what sampling strategy to use for choosing tokens, what system prompt
+/// to use, whether to allow extended thinking, etc.
+/// See `ChatAsync` for the async version of this class.
 #[pyclass]
 pub struct Chat {
     // Wrap in Option so we can take it in Drop to release the handle
