@@ -47,7 +47,10 @@ This installs `just` (if not already present) and wires up the pre-push hook. Af
 
 1. Make sure all tests pass
 2. Link any relevant issues in your PR description
-3. The PR will be merged once you have the sign-off of at least one maintainer
+3. Add a concise, user-facing entry under `Unreleased` in [`CHANGELOG.md`](CHANGELOG.md) when the change affects users. Group it under `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`, and mention affected bindings when it is not universal. Do not add entries for internal maintenance, CI, or documentation-only changes. PR links are not required.
+4. The PR will be merged once you have the sign-off of at least one maintainer
+
+At release time, maintainers move the relevant `Unreleased` entries into a dated release section and list the independent package versions published in that release.
 
 ## Code Style
 
