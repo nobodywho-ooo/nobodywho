@@ -1501,9 +1501,7 @@ export interface RustChatInterface {
     /**
      * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
      *
-     * Resets each generation, so it reflects the latest response rather than a
-     * cumulative average. `null` when MTP is disabled on this chat or no drafts
-     * were proposed in the last generation.
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
     mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise</*f32*/number | undefined>;
     /**
@@ -1797,9 +1795,7 @@ async  getTemplateVariables(asyncOpts_?: { signal: AbortSignal }): Promise<Map<s
     /**
      * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
      *
-     * Resets each generation, so it reflects the latest response rather than a
-     * cumulative average. `null` when MTP is disabled on this chat or no drafts
-     * were proposed in the last generation.
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
 async  mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal }): Promise</*f32*/number | undefined> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
@@ -4181,7 +4177,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() !== 19616) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() !== 6291) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() !== 727) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() !== 47191) {

@@ -39,12 +39,6 @@ export class Chat {
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
-    /**
-     * MTP speculative decoding config. Pass `{}` to enable MTP with the
-     * default drafter tuning, or override fields (e.g. `{ kMax: 5 }`); omit
-     * to disable. Requires the `Model` to have been loaded with a compatible
-     * `draftModelPath`. Adds around 5% to VRAM usage.
-     */
     mtp?: Partial<MtpConfig>;
   }) {
     this._inner = new RustChat(
@@ -54,8 +48,6 @@ export class Chat {
       opts.templateVariables ? new Map(Object.entries(opts.templateVariables)) : undefined,
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
-      // Apply the Rust-side defaults to any fields the caller omitted, so the
-      // call site can pass a partial object literal instead of a full record.
       opts.mtp !== undefined ? MtpConfig.create(opts.mtp) : undefined,
     );
   }
@@ -187,11 +179,6 @@ export class Chat {
     return this._inner.getStats();
   }
 
-  /**
-   * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
-   * Resets each generation (per-response, not cumulative). `undefined` when MTP
-   * is disabled on this chat or no drafts were proposed in the last generation.
-   */
   async mtpAcceptanceRate(): Promise<number | undefined> {
     return this._inner.mtpAcceptanceRate();
   }

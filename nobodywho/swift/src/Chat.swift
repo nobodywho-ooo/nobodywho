@@ -15,10 +15,6 @@ import NobodyWhoGenerated
 public class Chat {
     private let inner: RustChat
 
-    /// - Parameter mtp: MTP speculative decoding config. Pass an `MtpConfig`
-    ///   to enable MTP (e.g. `MtpConfig()` for defaults); pass nil to disable.
-    ///   Requires the `Model` to have been loaded with a compatible
-    ///   `draftModelPath`. Adds around 5% to VRAM usage.
     public init(
         model: Model,
         systemPrompt: String? = nil,
@@ -153,9 +149,7 @@ public class Chat {
         return try await inner.getStats()
     }
 
-    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
-    /// Resets each generation (per-response, not cumulative). `nil` when MTP is
-    /// disabled on this chat or no drafts were proposed in the last generation.
+    /// MTP draft acceptance rate for the most recent generation, or nil if unavailable.
     public func mtpAcceptanceRate() async throws -> Float? {
         return try await inner.mtpAcceptanceRate()
     }

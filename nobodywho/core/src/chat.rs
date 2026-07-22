@@ -932,7 +932,7 @@ impl ChatHandleAsync {
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
     /// The counters reset at the start of each generation.
-    /// Returns `None` when no drafts were proposed.
+    /// Returns `None` when no drafts were proposed in the last generation.
     pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
@@ -1674,11 +1674,10 @@ impl<'a> Chat<'a> {
                 let (_result, _bytes_read, _had_errors) =
                     decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-                // XXX: this literal '<eos>' token match is a fucked hotfix for gemma4. it seems like
-                // some gemma4 models will emit a *wrong* eos token (doesn't match the expected format)
-                // after tool calls. This doesn't trigger the is_eog_token match in llama.cpp and
-                // causes a bad infinite generation loop.
-                // it seems like vllm also has a codepath to handle this specific case:
+                // HACK (gemma4): some gemma4 models emit token id 1 (which renders as the
+                // literal "<eos>") as a stop token after tool calls. llama.cpp's `is_eog_token`
+                // does not flag it, which causes a runaway generation loop, so match it
+                // explicitly. vllm handles the same case:
                 // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
                 let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
 

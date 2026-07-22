@@ -1244,7 +1244,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 6291.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191.toShort()) {
@@ -1990,9 +1990,7 @@ public interface RustChatInterface {
     /**
      * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
      *
-     * Resets each generation, so it reflects the latest response rather than a
-     * cumulative average. `null` when MTP is disabled on this chat or no drafts
-     * were proposed in the last generation.
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
     suspend fun `mtpAcceptanceRate`(): kotlin.Float?
     
@@ -2341,9 +2339,7 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
      *
-     * Resets each generation, so it reflects the latest response rather than a
-     * cumulative average. `null` when MTP is disabled on this chat or no drafts
-     * were proposed in the last generation.
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")

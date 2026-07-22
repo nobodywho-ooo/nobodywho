@@ -27,12 +27,6 @@ class Chat(
     templateVariables: Map<String, Boolean>? = null,
     tools: List<Tool>? = null,
     sampler: SamplerConfig? = null,
-    /**
-     * MTP speculative decoding config. Pass an [MtpConfig] to enable MTP
-     * (e.g. `MtpConfig()` for defaults); leave null to disable. Requires the
-     * [Model] to have been loaded with a compatible `draftModelPath`. Adds
-     * around 5% to VRAM usage.
-     */
     mtp: MtpConfig? = null
 ) : Closeable {
     private val inner: InternalRustChat = InternalRustChat(
@@ -93,11 +87,6 @@ class Chat(
     suspend fun getSamplerConfigJson(): String = inner.getSamplerConfigJson()
     suspend fun getStats(): ChatStats = inner.getStats()
 
-    /**
-     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
-     * Resets each generation (per-response, not cumulative). `null` when MTP is
-     * disabled on this chat or no drafts were proposed in the last generation.
-     */
     suspend fun mtpAcceptanceRate(): Float? = inner.mtpAcceptanceRate()
     suspend fun tokenize(message: String): List<Int?> = inner.tokenize(message)
 

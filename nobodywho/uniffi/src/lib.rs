@@ -574,9 +574,7 @@ impl RustChat {
 
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
     ///
-    /// Resets each generation, so it reflects the latest response rather than a
-    /// cumulative average. `null` when MTP is disabled on this chat or no drafts
-    /// were proposed in the last generation.
+    /// Resets each generation. `null` when MTP is disabled or no drafts were proposed.
     pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, NobodyWhoError> {
         self.inner
             .mtp_acceptance_rate()

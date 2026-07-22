@@ -1351,9 +1351,7 @@ impl Chat {
 
     /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
     ///
-    /// Resets each generation, so it reflects the latest response rather than a
-    /// cumulative average. Returns None when MTP is disabled on this chat or no
-    /// drafts were proposed in the last generation.
+    /// Resets each generation. None when MTP is disabled or no drafts were proposed.
     ///
     /// Returns:
     ///     Optional[float]
@@ -1765,9 +1763,7 @@ impl ChatAsync {
 
     /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
     ///
-    /// Resets each generation, so it reflects the latest response rather than a
-    /// cumulative average. Returns None when MTP is disabled on this chat or no
-    /// drafts were proposed in the last generation.
+    /// Resets each generation. None when MTP is disabled or no drafts were proposed.
     ///
     /// Returns:
     ///     Optional[float]

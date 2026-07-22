@@ -639,9 +639,7 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     /**
      * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
      *
-     * Resets each generation, so it reflects the latest response rather than a
-     * cumulative average. `null` when MTP is disabled on this chat or no drafts
-     * were proposed in the last generation.
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
     func mtpAcceptanceRate() async throws  -> Float?
     
@@ -912,9 +910,7 @@ open func getTemplateVariables()async throws  -> [String: Bool]  {
     /**
      * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
      *
-     * Resets each generation, so it reflects the latest response rather than a
-     * cumulative average. `null` when MTP is disabled on this chat or no drafts
-     * were proposed in the last generation.
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
      */
 open func mtpAcceptanceRate()async throws  -> Float?  {
     return
@@ -4760,7 +4756,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 6291) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191) {

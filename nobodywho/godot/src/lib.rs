@@ -1051,10 +1051,8 @@ impl NobodyWhoChat {
 
     #[func]
     /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
-    /// Resets each generation, so it reflects the latest response rather than a
-    /// cumulative average. Returns a Signal that resolves to a float, or `null`
-    /// when MTP is disabled on this chat or no drafts were proposed in the last
-    /// generation. Use `var rate = await chat.mtp_acceptance_rate()`.
+    /// Returns a Signal resolving to a float, or `null` if MTP is off or no drafts
+    /// were proposed. Use `var rate = await chat.mtp_acceptance_rate()`.
     fn mtp_acceptance_rate(&mut self) -> Variant {
         let chat_handle = match self.chat_handle.as_ref() {
             Some(handle) => handle.clone(),
@@ -1081,7 +1079,6 @@ impl NobodyWhoChat {
                 return;
             };
 
-            // None (MTP disabled, or no drafts this generation) -> GDScript null.
             let value = match rate {
                 Some(r) => Variant::from(r),
                 None => Variant::nil(),
