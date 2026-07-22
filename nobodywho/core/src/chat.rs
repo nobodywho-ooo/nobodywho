@@ -48,7 +48,7 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
@@ -1398,27 +1398,75 @@ impl<'a> Chat<'a> {
     /// Compare tokens from a template-rendered chat history with the tokens in the LLM's context,
     /// and perform the LLM 'reading' to make the LLM's context match the rendered tokens exactly.
     /// Because this invokes the model, this is potentially an expensive method to call.
+    ///
+    /// On recurrent / hybrid-recurrent architectures the render is split
+    /// into a **committed** portion and a transient **generation-prompt
+    /// tail**, with a checkpoint saved in between. That lets partial
+    /// rewinds on the next sync restore from the checkpoint instead of
+    /// falling back to a full context reset (which recurrent memory
+    /// cannot avoid otherwise). Attention-only architectures skip the
+    /// second render, the split, and the checkpoint — `clear_kv_cache_seq`
+    /// handles arbitrary partial trims for them.
     #[tracing::instrument(level = "debug", skip_all)]
     fn sync_context_with_render(
         &mut self,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let mut chunks = self.render_as_chunks(true)?;
-        if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
+        let mut full_chunks = self.render_as_chunks(true, true)?;
+        if full_chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
             self.context_shift()?;
-            chunks = self.render_as_chunks(true)?;
+            full_chunks = self.render_as_chunks(true, true)?;
         }
 
         // We should never try to sync with an empty render
-        debug_assert!(!chunks.is_empty());
+        debug_assert!(!full_chunks.is_empty());
+
+        // For checkpointing archs, render a second time *without* the
+        // generation prompt to get the position of the "committed"
+        // boundary. That is the position where the next sync's diff will
+        // land, so we save the checkpoint there. Attention-only archs
+        // treat the full render as committed — no split needed.
+        let (committed_chunks, gen_prompt_tail) = if self.engine.needs_checkpointing() {
+            let committed = self.render_as_chunks(true, false)?;
+            // Invariant: the no-gen-prompt render must be a *token-level* prefix
+            // of the gen-prompt render. The recurrent path feeds the model
+            // `committed` then `tail = full_chunks[committed.n_tokens()..]`, so
+            // if they diverged before `committed.n_tokens()` the model would see
+            // a different prompt than the single-pass attention path. This holds
+            // as long as the generation prompt begins with an atomic (special)
+            // token — otherwise BPE could merge the last committed char with the
+            // first gen-prompt char, making tokenize(a+b) != tokenize(a)++tokenize(b).
+            // Every supported chat template opens its gen prompt with a special
+            // token (e.g. `<start_of_turn>`, `<|im_start|>`). Verified for the
+            // recurrent test template by `test_checkpoint_restore_fires_on_recurrent_model`.
+            let tail = full_chunks.tail(committed.n_tokens());
+            (committed, Some(tail))
+        } else {
+            (full_chunks, None)
+        };
 
         // Diff against the chunks currently in the KV cache and load only the new tail.
+        // On recurrent archs, if the partial trim fails, the engine will
+        // try to restore from the checkpoint saved on the previous sync.
         let prev = std::mem::take(&mut self.context.chunks);
-        let new_chunks = self
-            .engine
-            .sync_context(chunks, &prev, inference_lock_token)?;
-        self.context.chunks = new_chunks;
+        let new_committed =
+            self.engine
+                .sync_context(committed_chunks, &prev, inference_lock_token)?;
+        self.context.chunks = new_committed;
         self.context.garbage_collect_bitmaps(&self.messages);
+
+        // No-op on attention-only architectures (see save_checkpoint).
+        self.engine.save_checkpoint();
+
+        // Append the generation-prompt tail on top for recurrent archs.
+        // Not stored in context.chunks; it exists in the KV cache only
+        // for the current generation and will be discarded on the next
+        // sync's rewind.
+        if let Some(tail) = gen_prompt_tail {
+            if tail.n_tokens() > 0 {
+                self.engine.read_chunks(tail, inference_lock_token)?;
+            }
+        }
 
         Ok(())
     }
@@ -1455,7 +1503,7 @@ impl<'a> Chat<'a> {
                 break;
             }
 
-            let chunks = self.render_as_chunks(false)?;
+            let chunks = self.render_as_chunks(false, true)?;
             if chunks.n_tokens() <= target_token_size {
                 break;
             }
@@ -1543,6 +1591,28 @@ impl<'a> Chat<'a> {
             if self.engine.is_context_full() {
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
+
+                // Context shifting only reclaims space held by *history* —
+                // the in-progress response must still be replayed on top of
+                // the freshly-synced context, and it cannot be shrunk. If the
+                // response alone no longer leaves room for another token, no
+                // amount of further shifting will help; stop cleanly with what
+                // we have instead of overflowing the KV cache (which would
+                // surface as a hard `NoKvCacheSlot` decode error, and on
+                // recurrent/hybrid models cannot be recovered at all).
+                let n_ctx = self.engine.ctx.n_ctx() as usize;
+                let needed = self.engine.n_past() as usize + tokens_written_until_now.n_tokens();
+                if needed >= n_ctx {
+                    warn!(
+                        n_ctx,
+                        n_past = self.engine.n_past(),
+                        in_progress = tokens_written_until_now.n_tokens(),
+                        "Response fills the entire context window after a shift; \
+                         stopping generation early"
+                    );
+                    break;
+                }
+
                 self.engine
                     .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
                 // do not update tokens_in_context as this is done later by ask
@@ -1737,7 +1807,10 @@ impl<'a> Chat<'a> {
             .is_none_or(|t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
-        self.context.chunks = self.render_as_chunks(true)?;
+        // Store the committed (no-generation-prompt) view so the next sync's
+        // diff compares stable content only — see the two-pass load in
+        // `sync_context_with_render` for the full rationale.
+        self.context.chunks = self.render_as_chunks(true, false)?;
 
         Ok(self)
     }
@@ -1745,7 +1818,11 @@ impl<'a> Chat<'a> {
     /// Go for the unhandled mode when you are context shifting.
     /// That is for avoiding the render will concat system message with the first user message.
     /// Otherwise please handle stuff.
-    fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
+    fn render_as_chunks(
+        &mut self,
+        handled: bool,
+        add_generation_prompt: bool,
+    ) -> Result<TokenizerChunks, RenderError> {
         let messages = &self.messages;
         let template_context = ChatTemplateContext::new(
             self.template_variables.clone(),
@@ -1757,10 +1834,14 @@ impl<'a> Chat<'a> {
         );
 
         let rendered_chat = if handled {
-            self.chat_template.render(messages, &template_context)?
-        } else {
             self.chat_template
-                .render_unhandled(messages, &template_context)?
+                .render(messages, &template_context, add_generation_prompt)?
+        } else {
+            self.chat_template.render_unhandled(
+                messages,
+                &template_context,
+                add_generation_prompt,
+            )?
         };
 
         let bitmaps: Vec<&MtmdBitmap> = self
@@ -2072,6 +2153,125 @@ mod tests {
 
         assert!(resp.contains("Danish"));
 
+        Ok(())
+    }
+
+    /// Regression guard: on a recurrent-hybrid architecture (Mamba, RWKV,
+    /// Gated Delta Networks, Qwen3.5), each subsequent turn must exercise
+    /// the checkpoint restore path — otherwise we silently degrade to full
+    /// context resets and lose the whole point of the checkpointing work.
+    ///
+    /// The test captures tracing events by installing a scoped subscriber
+    /// with a custom Layer, so no test-only fields are added to production
+    /// code. It reads the recurrent model path from `TEST_RECURRENT_MODEL`
+    /// (e.g. Qwen3.5-0.8B-Q4_K_M.gguf) and skips with a note when the env
+    /// var is unset.
+    #[test]
+    fn test_checkpoint_restore_fires_on_recurrent_model() -> Result<(), Box<dyn std::error::Error>>
+    {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tracing::field::{Field, Visit};
+        use tracing::{Event, Subscriber};
+        use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
+
+        let Ok(model_path) = std::env::var("TEST_RECURRENT_MODEL") else {
+            eprintln!(
+                "skipping test_checkpoint_restore_fires_on_recurrent_model: \
+                 set TEST_RECURRENT_MODEL to a recurrent-hybrid gguf to enable"
+            );
+            return Ok(());
+        };
+
+        /// Layer that counts tracing events whose message contains a substring.
+        struct MessageMatchCounter {
+            substring: &'static str,
+            count: Arc<AtomicUsize>,
+        }
+        impl<S: Subscriber> Layer<S> for MessageMatchCounter {
+            fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+                struct MsgVisitor<'a> {
+                    substring: &'a str,
+                    matched: bool,
+                }
+                impl<'a> Visit for MsgVisitor<'a> {
+                    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+                        if field.name() == "message"
+                            && format!("{value:?}").contains(self.substring)
+                        {
+                            self.matched = true;
+                        }
+                    }
+                }
+                let mut v = MsgVisitor {
+                    substring: self.substring,
+                    matched: false,
+                };
+                event.record(&mut v);
+                if v.matched {
+                    self.count.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+
+        let restores = Arc::new(AtomicUsize::new(0));
+        let subscriber = tracing_subscriber::registry().with(MessageMatchCounter {
+            substring: "Restored from checkpoint",
+            count: Arc::clone(&restores),
+        });
+
+        let model = Arc::new(crate::llm::get_model(&model_path, true, None, None)?);
+        tracing::subscriber::with_default(subscriber, || {
+            let mut chat = Chat::new_chat_worker(
+                &model,
+                ChatConfig {
+                    // Qwen3.5-0.8B with thinking on can produce 1500+ tokens
+                    // per turn; 2048 overflows during generation on the very
+                    // first ask. 8192 gives comfortable headroom across the
+                    // three turns of this test.
+                    n_ctx: 8192,
+                    template_variables: [("enable_thinking".to_string(), true)].into(),
+                    ..ChatConfig::default()
+                },
+                Arc::new(AtomicBool::new(false)),
+            )
+            .expect("chat init");
+
+            let noop = |_: llm::WriteOutput| {};
+            for prompt in [
+                "What is the capital of France?",
+                "What is the capital of Germany?",
+                "What is the capital of Denmark?",
+            ] {
+                chat.ask(prompt.into(), noop).expect("ask");
+            }
+
+            // Guard the token-prefix invariant that `sync_context_with_render`'s
+            // recurrent two-pass split relies on: the no-gen-prompt render must
+            // be a token-level prefix of the gen-prompt render (see the comment
+            // at the split). A plain assert so it runs under CI's release test
+            // build, where a debug_assert would be compiled out.
+            let without = chat
+                .render_as_chunks(true, false)
+                .expect("render without gen prompt");
+            let with = chat
+                .render_as_chunks(true, true)
+                .expect("render with gen prompt");
+            assert_eq!(
+                crate::tokenizer::find_chunks_prefix_difference(&without, &with),
+                without.n_tokens(),
+                "generation-prompt render must be a token-level extension of the \
+                 no-gen-prompt render (gen prompt should begin with an atomic token)"
+            );
+        });
+
+        let n = restores.load(Ordering::Relaxed);
+        assert!(
+            n > 0,
+            "no `Restored from checkpoint` events observed on {} — \
+             either the model is not actually recurrent-hybrid, \
+             or the checkpoint restore path has silently regressed",
+            model_path,
+        );
         Ok(())
     }
 
@@ -2420,7 +2620,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(true)?.len();
+        let token_count = worker.render_as_chunks(true, true)?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2534,7 +2734,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(true)?.len();
+        let token_count = worker.render_as_chunks(true, true)?.len();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
