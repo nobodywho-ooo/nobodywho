@@ -196,6 +196,8 @@ impl Model {
     ///         final emit on completion. Not invoked for cached/local files.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+    ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
+    ///         chats built from this model opt into MTP speculative decoding.
     pub fn max_ctx(&self) -> u32 {
         self.model.max_ctx()
     }
@@ -209,11 +211,13 @@ impl Model {
             + 'static,
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] draft_model_path: Option<String>,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
+            draft_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -328,6 +332,9 @@ impl RustChat {
     ///     context_size: Context size (maximum conversation length in tokens)
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+    ///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
+    ///         Model to have been loaded with a compatible `draft_model_path`. Adds
+    ///         around 5% to VRAM usage. Defaults to null (disabled).
     #[flutter_rust_bridge::frb(sync)]
     pub fn new(
         model: &Model,
@@ -337,6 +344,7 @@ impl RustChat {
         #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
+        #[frb(default = "null")] mtp: Option<MtpConfig>,
     ) -> Result<Self, String> {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -350,12 +358,16 @@ impl RustChat {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.model))
+        let mut builder = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.model))
             .with_context_size(context_size)
             .with_template_variables(template_vars)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
-            .with_sampler(sampler_config)
+            .with_sampler(sampler_config);
+        if let Some(mtp) = mtp {
+            builder = builder.with_mtp(mtp.into());
+        }
+        let chat = builder
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
 
@@ -384,6 +396,7 @@ impl RustChat {
             + Sync
             + 'static,
         #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] draft_model_path: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = "null")] allow_thinking: Option<bool>,
@@ -391,11 +404,13 @@ impl RustChat {
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
+        #[frb(default = "null")] mtp: Option<MtpConfig>,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
+            draft_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -411,12 +426,16 @@ impl RustChat {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat = nobodywho::chat::ChatBuilder::new(Arc::new(model))
+        let mut builder = nobodywho::chat::ChatBuilder::new(Arc::new(model))
             .with_context_size(context_size)
             .with_template_variables(template_vars)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
-            .with_sampler(sampler_config)
+            .with_sampler(sampler_config);
+        if let Some(mtp) = mtp {
+            builder = builder.with_mtp(mtp.into());
+        }
+        let chat = builder
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { chat })
@@ -560,6 +579,13 @@ impl RustChat {
             context_size: s.context_size,
             context_used: s.context_used,
         })
+    }
+
+    /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+    /// Resets each generation (per-response, not cumulative). Null when MTP is
+    /// disabled or no drafts were proposed in the last generation.
+    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, nobodywho::errors::GetterError> {
+        self.chat.mtp_acceptance_rate().await
     }
 
     pub async fn set_tools(
@@ -756,6 +782,7 @@ impl Encoder {
             model_path,
             use_gpu,
             None,
+            None,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -807,6 +834,7 @@ impl CrossEncoder {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
+            None,
             None,
             Some(wrap_progress(on_download_progress)),
         )
@@ -1002,6 +1030,30 @@ fn dart_function_type_to_json_schema(
 // - blocking ask
 // - embeddings
 // - cross encoder
+
+/// Tuning for MTP speculative decoding. Pass one as the `mtp` argument to a
+/// chat constructor to enable MTP; pass null to disable. Requires the model to
+/// have been loaded with a compatible `draft_model_path`.
+#[flutter_rust_bridge::frb]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    // Default mirrors core `MtpConfig::default()`.
+    #[frb(default = 3)]
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp `p_min`).
+    // Default mirrors core `MtpConfig::default()`.
+    #[frb(default = 0.0)]
+    pub p_min: f32,
+}
+
+impl From<MtpConfig> for nobodywho::chat::MtpConfig {
+    fn from(c: MtpConfig) -> Self {
+        nobodywho::chat::MtpConfig {
+            k_max: c.k_max,
+            p_min: c.p_min,
+        }
+    }
+}
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
 /// NobodyWho will sample a token from the probability distribution, to include in the

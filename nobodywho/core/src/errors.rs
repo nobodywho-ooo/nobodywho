@@ -399,6 +399,19 @@ pub enum InitWorkerError {
     #[error("Insufficient memory for context: {0}")]
     #[diagnostic(transparent)]
     Memory(#[from] MemoryError),
+
+    #[error("MTP speculative decoding failed to initialize: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("MTP requested but no draft model was loaded")]
+    #[diagnostic(
+        code(nobodywho::mtp_draft_model_not_loaded),
+        help(
+            "Load the model with a `draft_model_path` to enable MTP, or disable it on this chat. \
+             See https://docs.nobodywho.ooo/docs/llm-basics#speculative-decoding-mtp"
+        )
+    )]
+    MtpDraftModelNotLoaded,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -491,6 +504,9 @@ pub enum ReadError {
         )
     )]
     InputExceedsContext { n_tokens: usize, n_ctx: usize },
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
 // CrossEncoderWorker errors
@@ -917,6 +933,19 @@ pub enum DecodingError {
 
     #[error("Llama.cpp failed decoding: {0}")]
     Decode(#[from] llama_cpp_2::DecodeError),
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("KV cache rollback failed: {0}")]
+    KvCache(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
+
+    #[error(
+        "MTP speculative decoding requires a model whose KV cache supports partial removal \
+         (attention-based). This architecture (recurrent / hybrid-recurrent) rejected the \
+         partial rollback needed to discard mispredicted draft tokens."
+    )]
+    MtpPartialRollbackUnsupported,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

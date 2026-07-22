@@ -39,12 +39,16 @@ export class Model {
    * @param opts.modelPath - Local path, `hf://` or `https://` URL, or `auto` for memory-based model selection
    * @param opts.useGpu - Use GPU acceleration if available (default: true)
    * @param opts.projectionModelPath - Path to a multimodal projector file for vision models
+   * @param opts.draftModelPath - Optional MTP draft-heads gguf. Loading it lets `Chat`
+   *   instances opt into MTP speculative decoding via `new Chat({ ..., mtp: true })`.
+   *   Adds around 5% to VRAM usage.
    * @param opts.onDownloadProgress - Invoked with `(downloaded, total)` byte counts while a remote model is being downloaded. Throttled to ~10 Hz with a guaranteed final emit on completion. Not invoked for cached/local files.
    */
   static async load(opts: {
     modelPath: string;
     useGpu?: boolean;
     projectionModelPath?: string;
+    draftModelPath?: string;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Model> {
     const cb = opts.onDownloadProgress;
@@ -55,6 +59,7 @@ export class Model {
       opts.modelPath,
       opts.useGpu ?? true,
       opts.projectionModelPath,
+      opts.draftModelPath,
       progressCallback,
     );
     return new Model(inner);

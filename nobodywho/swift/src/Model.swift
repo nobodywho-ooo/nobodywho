@@ -22,11 +22,15 @@ public class Model {
     ///   - modelPath: Local path, `hf://` or `https://` URL, or `auto` for memory-based model selection.
     ///   - useGpu: Enable GPU acceleration (default: true).
     ///   - projectionModelPath: Optional path to an mmproj file for vision models.
+    ///   - draftModelPath: Optional path to an MTP draft-heads gguf. Loading it
+    ///     lets `Chat` instances opt into MTP speculative decoding via
+    ///     `Chat(..., mtp: true)`. Adds around 5% to VRAM usage.
     ///   - onDownloadProgress: Optional callback receiving `(downloadedBytes, totalBytes)` during download.
     public static func load(
         modelPath: String,
         useGpu: Bool = true,
         projectionModelPath: String? = nil,
+        draftModelPath: String? = nil,
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Model {
         let callback = onDownloadProgress.map { DownloadProgressCallbackImpl($0) }
@@ -34,6 +38,7 @@ public class Model {
             modelPath: modelPath,
             useGpu: useGpu,
             projectionModelPath: projectionModelPath,
+            draftModelPath: draftModelPath,
             onDownloadProgress: callback
         )
         return Model(inner: inner)

@@ -1,6 +1,7 @@
 import {
   RustChat,
   SamplerConfig,
+  MtpConfig,
   type ChatStats,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
@@ -38,6 +39,7 @@ export class Chat {
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
+    mtp?: Partial<MtpConfig>;
   }) {
     this._inner = new RustChat(
       opts.model._inner,
@@ -46,6 +48,7 @@ export class Chat {
       opts.templateVariables ? new Map(Object.entries(opts.templateVariables)) : undefined,
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
+      opts.mtp !== undefined ? MtpConfig.create(opts.mtp) : undefined,
     );
   }
 
@@ -65,17 +68,20 @@ export class Chat {
     modelPath: string;
     useGpu?: boolean;
     projectionModelPath?: string;
+    draftModelPath?: string;
     systemPrompt?: string;
     contextSize?: number;
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
+    mtp?: Partial<MtpConfig>;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({
       modelPath: opts.modelPath,
       useGpu: opts.useGpu,
       projectionModelPath: opts.projectionModelPath,
+      draftModelPath: opts.draftModelPath,
       onDownloadProgress: opts.onDownloadProgress,
     });
     return new Chat({ model, ...opts });
@@ -171,6 +177,10 @@ export class Chat {
   /** Get context usage statistics. */
   async getStats(): Promise<ChatStats> {
     return this._inner.getStats();
+  }
+
+  async mtpAcceptanceRate(): Promise<number | undefined> {
+    return this._inner.mtpAcceptanceRate();
   }
 
   /**

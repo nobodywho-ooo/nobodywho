@@ -45,6 +45,7 @@ class Chat:
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
+        mtp: "MtpConfig | None" = None,
     ) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
@@ -59,6 +60,9 @@ class Chat:
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
+            mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+                Requires the `Model` to have been loaded with a compatible
+                `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
 
         Returns:
             A Chat instance
@@ -116,6 +120,15 @@ class Chat:
 
         Raises:
             RuntimeError: If the variables cannot be retrieved
+        """
+    def mtp_acceptance_rate(self, /) -> float | None:
+        """
+        MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+
+        Resets each generation. None when MTP is disabled or no drafts were proposed.
+
+        Returns:
+            Optional[float]
         """
     def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """
@@ -260,6 +273,7 @@ class ChatAsync:
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
+        mtp: "MtpConfig | None" = None,
     ) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
@@ -274,6 +288,9 @@ class ChatAsync:
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
+            mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+                Requires the `Model` to have been loaded with a compatible
+                `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
 
         Returns:
             A ChatAsync instance
@@ -331,6 +348,15 @@ class ChatAsync:
 
         Raises:
             RuntimeError: If the variables cannot be retrieved
+        """
+    async def mtp_acceptance_rate(self, /) -> float | None:
+        """
+        MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+
+        Resets each generation. None when MTP is disabled or no drafts were proposed.
+
+        Returns:
+            Optional[float]
         """
     async def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """
@@ -685,6 +711,7 @@ class Model:
         model_path: "os.PathLike | str",
         use_gpu_if_available: bool = True,
         projection_model_path: "os.PathLike | str | None" = None,
+        draft_model_path: "os.PathLike | str | None" = None,
         on_download_progress: "typing.Callable[[int, int], None] | None" = None,
     ) -> "Model":
         """
@@ -694,6 +721,7 @@ class Model:
             model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=MtpConfig()` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
             on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
 
         Returns:
@@ -707,6 +735,7 @@ class Model:
         model_path: "os.PathLike | str",
         use_gpu_if_available: bool = True,
         projection_model_path: "os.PathLike | str | None" = None,
+        draft_model_path: "os.PathLike | str | None" = None,
         on_download_progress: "typing.Callable[[int, int], None] | None" = None,
     ) -> "Model":
         """
@@ -720,6 +749,7 @@ class Model:
             model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            draft_model_path: Path or URL to a compatible MTP draft-heads gguf. See `Model.__init__` for details. Defaults to None.
             on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
 
         Returns:
@@ -732,6 +762,42 @@ class Model:
     def max_ctx(self, /) -> int:
         """
         The maximum context size this model was trained with.
+        """
+
+@final
+class MtpConfig:
+    """
+    Tuning for MTP speculative decoding. Pass an instance as the `mtp`
+    argument to `Chat`/`ChatAsync` to enable MTP; leave it `None` to disable.
+    Requires the `Model` to have been loaded with a compatible `draft_model_path`.
+    """
+    def __new__(cls, /, k_max: int = 3, p_min: float = 0.0) -> MtpConfig:
+        """
+        Create an MTP config. Defaults mirror core `MtpConfig::default()`.
+
+        Args:
+            k_max: Max draft tokens proposed per speculative step. Defaults to 3.
+            p_min: Minimum draft-token probability accepted. Defaults to 0.0.
+        """
+    @property
+    def k_max(self, /) -> int:
+        """
+        Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+        """
+    @k_max.setter
+    def k_max(self, /, value: int) -> None:
+        """
+        Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+        """
+    @property
+    def p_min(self, /) -> float:
+        """
+        Minimum draft-token probability the drafter will propose (llama.cpp p_min).
+        """
+    @p_min.setter
+    def p_min(self, /, value: float) -> None:
+        """
+        Minimum draft-token probability the drafter will propose (llama.cpp p_min).
         """
 
 @final

@@ -107,7 +107,7 @@ impl<'a> Worker<'a, EncoderWorker> {
             .and_then(|val| val.parse::<i32>().ok())
             .map(LlamaPoolingType::from)
             .unwrap_or(LlamaPoolingType::Unspecified);
-        Worker::new_with_type(model, n_ctx, true, EncoderWorker { pooling })
+        Worker::new_with_type(model, n_ctx, true, None, EncoderWorker { pooling })
     }
 
     pub fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {

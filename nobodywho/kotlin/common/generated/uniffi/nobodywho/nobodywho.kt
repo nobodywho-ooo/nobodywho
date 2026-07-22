@@ -733,6 +733,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(
@@ -859,7 +861,7 @@ internal object UniffiLib {
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -876,6 +878,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(`ptr`: Long,
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(`ptr`: Long,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(`ptr`: Long,`systemPrompt`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,
 ): Long
@@ -1023,7 +1027,7 @@ external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuf
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
@@ -1177,7 +1181,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 58712.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935.toShort()) {
@@ -1238,6 +1242,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191.toShort()) {
@@ -1360,7 +1367,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 42705.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -1981,6 +1988,13 @@ public interface RustChatInterface {
     suspend fun `getTemplateVariables`(): Map<kotlin.String, kotlin.Boolean>
     
     /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    suspend fun `mtpAcceptanceRate`(): kotlin.Float?
+    
+    /**
      * Reset the chat context with a new system prompt and tools.
      */
     suspend fun `resetContext`(`systemPrompt`: kotlin.String?, `tools`: List<RustTool>?)
@@ -2060,13 +2074,18 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     }
     /**
      * Create a new chat session.
+     *
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
      */
-    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?) :
+    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),_status)
+        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),_status)
 }
     )
 
@@ -2311,6 +2330,32 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterMapStringBoolean.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `mtpAcceptanceRate`() : kotlin.Float? {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterOptionalFloat.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -5889,6 +5934,56 @@ public object FfiConverterTypeChatStats: FfiConverterRustBuffer<ChatStats> {
 
 
 /**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+data class MtpConfig (
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    var `kMax`: kotlin.UInt = 3u 
+    , 
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    var `pMin`: kotlin.Float = 0.0f 
+    
+){
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeMtpConfig: FfiConverterRustBuffer<MtpConfig> {
+    override fun read(buf: ByteBuffer): MtpConfig {
+        return MtpConfig(
+            FfiConverterUInt.read(buf),
+            FfiConverterFloat.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: MtpConfig) = (
+            FfiConverterUInt.allocationSize(value.`kMax`) +
+            FfiConverterFloat.allocationSize(value.`pMin`)
+    )
+
+    override fun write(value: MtpConfig, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`kMax`, buf)
+            FfiConverterFloat.write(value.`pMin`, buf)
+    }
+}
+
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 data class PendingToolCall (
@@ -6584,6 +6679,38 @@ public object FfiConverterOptionalTypeSamplerConfig: FfiConverterRustBuffer<Samp
 /**
  * @suppress
  */
+public object FfiConverterOptionalTypeMtpConfig: FfiConverterRustBuffer<MtpConfig?> {
+    override fun read(buf: ByteBuffer): MtpConfig? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeMtpConfig.read(buf)
+    }
+
+    override fun allocationSize(value: MtpConfig?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeMtpConfig.allocationSize(value)
+        }
+    }
+
+    override fun write(value: MtpConfig?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeMtpConfig.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalTypePendingToolCall: FfiConverterRustBuffer<PendingToolCall?> {
     override fun read(buf: ByteBuffer): PendingToolCall? {
         if (buf.get().toInt() == 0) {
@@ -7217,15 +7344,23 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
          * or `auto` for memory-based selection. Downloaded models are cached automatically.
          *
+         * # MTP speculative decoding
+         *
+         * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+         * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+         * speculative decoding on chats built from this model. Whether MTP is
+         * actually used is a per-chat decision — pass it through
+         * `Chat`-level config on the wrapping binding.
+         *
          * This is a free function instead of an async constructor because
          * uniffi-bindgen-react-native generates invalid JS (`async static` instead
          * of `static async`) for async constructors.
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
+     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `draftModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalString.lower(`draftModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },

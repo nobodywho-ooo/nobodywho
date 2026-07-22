@@ -1,16 +1,17 @@
 use crate::errors::{InitWorkerError, LoadModelError, ReadError};
 use crate::huggingface::{download_gguf, parse_model_path};
-use crate::inference::{acquire_inference_lock, InferenceEngine};
+use crate::inference::{acquire_inference_lock, EngineContext, InferenceEngine};
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
-use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
+use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
+use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeParams};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -37,6 +38,7 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
+    pub(crate) draft_model: Option<LlamaModel>,
 }
 
 impl Model {
@@ -109,6 +111,7 @@ pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
     mmproj_path: Option<&str>,
+    draft_model_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     if model_path == "auto" && mmproj_path.is_some() {
@@ -130,6 +133,15 @@ pub fn get_model(
                 .clone()
                 .unwrap_or_else(|| default_progress_callback(p));
             Some(download_gguf(parse_model_path(p)?, &mmproj_progress, &[])?)
+        }
+        None => None,
+    };
+    let real_draft_model_path = match draft_model_path {
+        Some(p) => {
+            let draft_progress = progress
+                .clone()
+                .unwrap_or_else(|| default_progress_callback(p));
+            Some(download_gguf(parse_model_path(p)?, &draft_progress, &[])?)
         }
         None => None,
     };
@@ -174,9 +186,26 @@ pub fn get_model(
         .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
         .transpose()?;
 
+    let draft_model = real_draft_model_path
+        .as_ref()
+        .map(|path| {
+            info!(path = %path.display(), "Loading MTP draft model");
+            LlamaModel::load_from_file(&LLAMA_BACKEND, path, &model_params).map_err(|e| {
+                let error_msg = format!(
+                    "Failed to load MTP draft model at {}: {}",
+                    path.display(),
+                    e
+                );
+                error!(error = %error_msg, "Failed to load MTP draft model");
+                LoadModelError::InvalidModel(error_msg)
+            })
+        })
+        .transpose()?;
+
     Ok(Model {
         language_model,
         projection_model,
+        draft_model,
     })
 }
 
@@ -206,6 +235,7 @@ pub async fn get_model_async(
     model_path: String,
     use_gpu_if_available: bool,
     mmproj_path: Option<String>,
+    draft_model_path: Option<String>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
@@ -214,6 +244,7 @@ pub async fn get_model_async(
             &model_path,
             use_gpu_if_available,
             mmproj_path.as_deref(),
+            draft_model_path.as_deref(),
             progress,
         ))
     });
@@ -284,6 +315,7 @@ where
         model: &'a Model,
         n_ctx: u32,
         use_embeddings: bool,
+        mtp: Option<crate::chat::MtpConfig>,
         extra: T,
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
@@ -291,42 +323,73 @@ where
         let projection_model = model.projection_model.as_ref();
 
         // Set up context parameters using available parallelism
-        let (ctx, n_batch) = {
-            let n_threads = std::thread::available_parallelism()?.get() as i32;
-            let ctx_plan = memory::plan_context(
-                std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
-                projection_model.is_some(),
-                memory::ModelArchitecture {
-                    n_layers: model.language_model.n_layer(),
-                    n_embd: model.language_model.n_embd() as u32,
-                    n_head: model.language_model.n_head(),
-                    n_head_kv: model.language_model.n_head_kv(),
-                },
-            )?;
-            let n_ctx = ctx_plan.n_ctx;
-            let n_ubatch = ctx_plan.n_ubatch;
-            for w in &ctx_plan.warnings {
-                warn!("{}", w);
-            }
+        let n_threads = std::thread::available_parallelism()?.get() as i32;
+        let ctx_plan = memory::plan_context(
+            std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
+            projection_model.is_some(),
+            memory::ModelArchitecture {
+                n_layers: model.language_model.n_layer(),
+                n_embd: model.language_model.n_embd() as u32,
+                n_head: model.language_model.n_head(),
+                n_head_kv: model.language_model.n_head_kv(),
+            },
+        )?;
+        let planned_n_ctx = ctx_plan.n_ctx;
+        let n_ubatch = ctx_plan.n_ubatch;
+        for w in &ctx_plan.warnings {
+            warn!("{}", w);
+        }
 
-            let ctx_params = LlamaContextParams::default()
-                .with_n_ctx(std::num::NonZero::new(n_ctx))
-                .with_n_batch(n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
-                .with_n_ubatch(n_ubatch)
-                .with_n_threads(n_threads)
-                .with_n_threads_batch(n_threads)
-                .with_embeddings(use_embeddings)
-                .with_pooling_type(extra.pooling_type());
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
+            .with_n_batch(planned_n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
+            .with_n_ubatch(n_ubatch)
+            .with_n_threads(n_threads)
+            .with_n_threads_batch(n_threads)
+            .with_embeddings(use_embeddings)
+            .with_pooling_type(extra.pooling_type());
 
-            // Create inference context and sampler
-            let ctx = model
-                .language_model
-                .new_context(&LLAMA_BACKEND, ctx_params)?;
-            (ctx, n_ctx as usize)
-        };
+        let ctx = model
+            .language_model
+            .new_context(&LLAMA_BACKEND, ctx_params)?;
+        let n_batch = planned_n_ctx as usize;
 
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
+
+        let engine_ctx = if let Some(mtp_config) = mtp {
+            match &model.draft_model {
+                Some(draft_model) => {
+                    info!("Initializing MTP speculative draft context");
+                    let draft_batch_cap: u32 = 32;
+                    let draft_params = LlamaContextParams::default()
+                        .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
+                        .with_n_batch(draft_batch_cap)
+                        .with_n_ubatch(draft_batch_cap)
+                        .with_n_threads(n_threads)
+                        .with_n_threads_batch(n_threads)
+                        .with_context_type(LlamaContextType::Mtp)
+                        .with_n_rs_seq(0);
+                    let draft_ctx = draft_model.new_context_with_ctx_other(
+                        &LLAMA_BACKEND,
+                        draft_params,
+                        &ctx,
+                    )?;
+                    let spec_params = MtpSpeculativeParams {
+                        n_max: mtp_config.k_max as i32,
+                        n_min: 0,
+                        p_min: mtp_config.p_min,
+                    };
+                    let spec = MtpSpeculative::new(ctx, draft_ctx, spec_params)?;
+                    EngineContext::Speculative(spec)
+                }
+                None => {
+                    return Err(InitWorkerError::MtpDraftModelNotLoaded);
+                }
+            }
+        } else {
+            EngineContext::Solo(ctx)
+        };
 
         let add_bos = read_add_bos_metadata(&model.language_model)?;
         debug!(?add_bos, "Read add_bos from GGUF metadata:");
@@ -334,7 +397,7 @@ where
         let tokenizer = Tokenizer::new(&model.language_model, projection_model, add_bos);
 
         let engine = InferenceEngine::new(
-            ctx,
+            engine_ctx,
             big_batch,
             small_batch,
             projection_model,
@@ -419,7 +482,7 @@ mod tests {
 
     #[test]
     fn rejects_projection_model_with_auto_selection() {
-        let result = get_model("auto", true, Some("projection.gguf"), None);
+        let result = get_model("auto", true, Some("projection.gguf"), None, None);
         assert!(matches!(result, Err(LoadModelError::InvalidModel(_))));
     }
 

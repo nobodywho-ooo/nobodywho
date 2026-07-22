@@ -142,6 +142,12 @@ struct NobodyWhoModel {
     /// Optional multimodal projection model path for vision/image support.
     projection_model_path: GString,
 
+    #[export(file = "*.gguf")]
+    /// Optional MTP draft-heads gguf. Loading it lets consumer chats
+    /// opt into MTP speculative decoding via `NobodyWhoChat.mtp`.
+    /// Adds around 5% to VRAM usage.
+    draft_model_path: GString,
+
     #[export]
     use_gpu_if_available: bool,
 
@@ -162,6 +168,7 @@ impl INode for NobodyWhoModel {
         Self {
             model_path,
             projection_model_path: GString::from(""),
+            draft_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
             load_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -204,16 +211,21 @@ impl NobodyWhoModel {
         }
 
         // Extract config, then drop the guard before awaiting.
-        let (path, use_gpu, mmproj) = {
+        let (path, use_gpu, mmproj, draft) = {
             let b = gd.bind();
             let mmproj = {
                 let s = b.projection_model_path.to_string();
                 (!s.is_empty()).then(|| resolve_godot_path(&b.projection_model_path))
             };
+            let draft = {
+                let s = b.draft_model_path.to_string();
+                (!s.is_empty()).then(|| resolve_godot_path(&b.draft_model_path))
+            };
             (
                 resolve_godot_path(&b.model_path),
                 b.use_gpu_if_available,
                 mmproj,
+                draft,
             )
         };
 
@@ -235,7 +247,7 @@ impl NobodyWhoModel {
             let _ = tx.send((d, t));
         });
 
-        let load_fut = llm::get_model_async(path, use_gpu, mmproj, Some(progress));
+        let load_fut = llm::get_model_async(path, use_gpu, mmproj, draft, Some(progress));
         tokio::pin!(load_fut);
 
         // select! lets one task drive the load AND drain progress on the same
@@ -610,6 +622,22 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
+    #[export]
+    /// Enable MTP speculative decoding for this chat. Requires the
+    /// linked `NobodyWhoModel` to have a `draft_model_path` set.
+    /// Adds around 5% to VRAM usage.
+    mtp: bool,
+
+    #[export]
+    /// MTP: maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Only used when `mtp` is enabled.
+    mtp_k_max: u32,
+
+    #[export]
+    /// MTP: minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). Only used when `mtp` is enabled.
+    mtp_p_min: f32,
+
     // internal state
     chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
     tools: Vec<nobodywho::tool_calling::Tool>,
@@ -621,6 +649,8 @@ struct NobodyWhoChat {
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
         let default_config = ChatConfig::default();
+        // MTP defaults mirror core `MtpConfig::default()`.
+        let mtp_defaults = nobodywho::chat::MtpConfig::default();
 
         Self {
             // defaults
@@ -628,6 +658,11 @@ impl INode for NobodyWhoChat {
             system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
             allow_thinking: true,
+            // `mtp` on ChatConfig is now Option<MtpConfig>; expose the flattened
+            // toggle + tuning as separate exported properties, off by default.
+            mtp: default_config.mtp.is_some(),
+            mtp_k_max: mtp_defaults.k_max,
+            mtp_p_min: mtp_defaults.p_min,
 
             // config
             model_node: None,
@@ -652,6 +687,7 @@ impl NobodyWhoChat {
         tools: Vec<nobodywho::tool_calling::Tool>,
         n_ctx: u32,
         allow_thinking: bool,
+        mtp: Option<nobodywho::chat::MtpConfig>,
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
         tokio::task::yield_now().await;
 
@@ -669,6 +705,7 @@ impl NobodyWhoChat {
                 n_ctx,
                 template_variables,
                 sampler_config: None,
+                mtp,
             },
         )
         .map_err(|e| GString::from(e.to_string().as_str()))?;
@@ -695,18 +732,26 @@ impl NobodyWhoChat {
             Vec<nobodywho::tool_calling::Tool>,
             u32,
             bool,
+            Option<nobodywho::chat::MtpConfig>,
         ),
         GString,
     > {
         let Some(model_node) = self.model_node.clone() else {
             return Err(GString::from("Model node was not set"));
         };
+        // Assemble the flattened MTP properties into the core config; `None`
+        // (MTP disabled) unless the `mtp` toggle is on.
+        let mtp = self.mtp.then_some(nobodywho::chat::MtpConfig {
+            k_max: self.mtp_k_max,
+            p_min: self.mtp_p_min,
+        });
         Ok((
             model_node,
             self.system_prompt.to_string(),
             self.tools.clone(),
             self.context_length,
             self.allow_thinking,
+            mtp,
         ))
     }
 
@@ -724,7 +769,7 @@ impl NobodyWhoChat {
             return;
         }
 
-        let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
+        let (model_node, system_prompt, tools, n_ctx, allow_thinking, mtp) =
             match self.snapshot_worker_config() {
                 Ok(c) => c,
                 Err(e) => {
@@ -744,6 +789,7 @@ impl NobodyWhoChat {
                 tools,
                 n_ctx,
                 allow_thinking,
+                mtp,
             )
             .await
             {
@@ -803,7 +849,7 @@ impl NobodyWhoChat {
             let chat_handle = match existing_handle {
                 Some(h) => h,
                 None => {
-                    let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
+                    let (model_node, system_prompt, tools, n_ctx, allow_thinking, mtp) =
                         load_config.expect("load_config set when no existing handle");
                     match Self::load_and_store_worker(
                         me,
@@ -812,6 +858,7 @@ impl NobodyWhoChat {
                         tools,
                         n_ctx,
                         allow_thinking,
+                        mtp,
                     )
                     .await
                     {
@@ -996,6 +1043,58 @@ impl NobodyWhoChat {
         });
 
         // returns signal, so that you can `var stats = await get_stats()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    /// Returns a Signal resolving to a float, or `null` if MTP is off or no drafts
+    /// were proposed. Use `var rate = await chat.mtp_acceptance_rate()`.
+    fn mtp_acceptance_rate(&mut self) -> Variant {
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to get MTP acceptance rate, but no worker is running. Returning nil."
+                );
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "mtp_acceptance_rate_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let Ok(rate) = chat_handle.mtp_acceptance_rate().await else {
+                error!("Chat worker died while waiting for mtp_acceptance_rate.");
+                emit_node.emit_signal(&signal_name_copy, &[]);
+                return;
+            };
+
+            let value = match rate {
+                Some(r) => Variant::from(r),
+                None => Variant::nil(),
+            };
+
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("Failed getting MTP acceptance rate: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[value]);
+        });
+
         Variant::from(godot::builtin::Signal::from_object_signal(
             &self.base_mut(),
             &signal_name,

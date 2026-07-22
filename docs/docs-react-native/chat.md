@@ -159,6 +159,39 @@ const chat = await Chat.fromPath({
 
 By default `useGpu` is set to `true`.
 
+## Speculative decoding (MTP)
+
+Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target model verify several candidate tokens per forward pass. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
+
+Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) and pass an `mtp` config when constructing the chat:
+
+```typescript
+import { Model, Chat } from "react-native-nobodywho";
+
+const model = await Model.load({
+  modelPath: "/path/to/gemma-4-e2b.gguf",
+  draftModelPath: "/path/to/mtp-gemma-4-e2b.gguf",
+});
+// `{}` uses the default drafter tuning; override fields with e.g. `{ kMax: 5 }`
+const chat = new Chat({ model, mtp: {} });
+```
+
+`Chat.fromPath` accepts the same two options if you don't need to share the model:
+
+```typescript
+const chat = await Chat.fromPath({
+  modelPath: "/path/to/gemma-4-e2b.gguf",
+  draftModelPath: "/path/to/mtp-gemma-4-e2b.gguf",
+  mtp: {},
+});
+```
+
+Loading the draft heads adds around 5% to VRAM usage.
+
+:::warning
+Benchmark before enabling. MTP can hurt performance on Apple Silicon (Metal) and on high-entropy workloads like creative prose.
+:::
+
 ## Template Variables
 
 Chat templates are used internally by models to format conversation history into the expected prompt format. Different models may support different template variables that control specific behaviors. Template variables are boolean flags passed to the chat template that can enable or disable certain features.

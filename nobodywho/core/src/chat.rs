@@ -11,7 +11,7 @@
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
+//! let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
@@ -190,9 +190,35 @@ impl Message {
     }
 }
 
-// PARALLELISM
-
+/// Tuning for MTP speculative decoding.
 ///
+/// Attaching one to a chat (via [`ChatBuilder::with_mtp`] or
+/// [`ChatConfig::mtp`]) is what *enables* MTP — `None` runs the solo decode
+/// path. Requires the [`llm::Model`] to have been loaded with a compatible
+/// `draft_model_path`, otherwise worker construction fails with
+/// `InitWorkerError::MtpDraftModelNotLoaded`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Higher values draft more per decode; returns diminish past ~4–6.
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+    /// drafts.
+    pub p_min: f32,
+}
+
+impl Default for MtpConfig {
+    fn default() -> Self {
+        // Mirrors llama.cpp's MtpSpeculativeParams::default() (n_max=3, p_min=0.0).
+        // Binding-side field defaults must mirror these exact values.
+        Self {
+            k_max: 3,
+            p_min: 0.0,
+        }
+    }
+}
+
 /// Configuration for chat sessions.
 ///
 /// This struct groups all the settings needed to initialize a chat worker.
@@ -208,6 +234,12 @@ pub struct ChatConfig {
     pub template_variables: std::collections::HashMap<String, bool>,
     /// Sampler configuration for inference.
     pub sampler_config: Option<SamplerConfig>,
+    /// MTP speculative decoding config. `Some(..)` enables MTP with the given
+    /// tuning; `None` (the default) runs the solo decode path. Requires the
+    /// [`llm::Model`] to have been loaded with a compatible `draft_model_path`
+    /// (see `llm::get_model`) — otherwise worker construction fails with
+    /// `InitWorkerError::MtpDraftModelNotLoaded`.
+    pub mtp: Option<MtpConfig>,
 }
 
 impl Default for ChatConfig {
@@ -218,6 +250,7 @@ impl Default for ChatConfig {
             system_prompt: None,
             tools: Vec::new(),
             sampler_config: None,
+            mtp: None,
         }
     }
 }
@@ -232,7 +265,7 @@ impl Default for ChatConfig {
 /// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
+/// let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 ///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
@@ -317,6 +350,12 @@ impl ChatBuilder {
     /// Set a custom sampler configuration
     pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
         self.config.sampler_config = Some(sampler);
+        self
+    }
+
+    /// Enable MTP speculative decoding for this chat with the given tuning.
+    pub fn with_mtp(mut self, config: MtpConfig) -> Self {
+        self.config.mtp = Some(config);
         self
     }
 
@@ -564,6 +603,20 @@ impl ChatHandle {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    ///
+    /// The counters reset at the start of each generation.
+    /// Returns `None` when no drafts were proposed in the last generation.
+    pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "mtp_acceptance_rate".into(),
+            ))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -585,7 +638,7 @@ impl ChatHandle {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -876,6 +929,21 @@ impl ChatHandleAsync {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    ///
+    /// The counters reset at the start of each generation.
+    /// Returns `None` when no drafts were proposed in the last generation.
+    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "mtp_acceptance_rate".into(),
+            ))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -897,7 +965,7 @@ impl ChatHandleAsync {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build_async();
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -1041,6 +1109,9 @@ enum ChatMsg {
     GetStats {
         output_tx: tokio::sync::mpsc::Sender<ChatStats>,
     },
+    GetMtpAcceptanceRate {
+        output_tx: tokio::sync::mpsc::Sender<Option<f32>>,
+    },
     Tokenize {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::Sender<Result<Vec<Option<i32>>, TokenizeError>>,
@@ -1094,6 +1165,7 @@ impl std::fmt::Debug for ChatMsg {
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
             ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
+            ChatMsg::GetMtpAcceptanceRate { .. } => f.debug_struct("GetMtpAcceptanceRate").finish(),
             ChatMsg::Tokenize { prompt, .. } => f
                 .debug_struct("Tokenize")
                 .field(
@@ -1200,6 +1272,15 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
                 context_used: worker_state.engine.n_past(),
             };
             let _ = output_tx.blocking_send(stats);
+        }
+        ChatMsg::GetMtpAcceptanceRate { output_tx } => {
+            let proposed = worker_state.engine.mtp_drafts_proposed;
+            let rate = if proposed > 0 {
+                Some(worker_state.engine.mtp_drafts_accepted as f32 / proposed as f32)
+            } else {
+                None
+            };
+            let _ = output_tx.blocking_send(rate);
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);
@@ -1346,7 +1427,8 @@ impl<'a> Chat<'a> {
 
         // Build the low-level inference engine via the shared Worker constructor,
         // then take ownership of just the engine for the chat session.
-        let Worker { engine, extra: () } = Worker::new_with_type(model, config.n_ctx, false, ())?;
+        let Worker { engine, extra: () } =
+            Worker::new_with_type(model, config.n_ctx, false, config.mtp, ())?;
 
         Ok(Chat {
             engine,
@@ -1526,6 +1608,8 @@ impl<'a> Chat<'a> {
         // Token generation loop
         info!("Worker writing until done");
 
+        self.engine.reset_mtp_stats();
+
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
@@ -1541,68 +1625,78 @@ impl<'a> Chat<'a> {
         while !self.should_stop() {
             // Check if the context is full
             if self.engine.is_context_full() {
+                // pending should be preserved during context shift
+                let deferred_pending = self.engine.take_pending();
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
                 self.engine
                     .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
+                self.engine.restore_pending(deferred_pending);
                 // do not update tokens_in_context as this is done later by ask
             }
 
-            // Sample next token, no need to use sampler.accept as sample already accepts the token.
+            // Sample next token(s), no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_token = self.engine.sample_and_decode_next_token(&mut sampler)?;
+            let new_tokens = self.engine.sample_and_decode_next_tokens(&mut sampler)?;
 
-            tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
+            tokens_written_until_now.append(TokenizerChunk::new_text(new_tokens.clone()));
 
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
-                .engine
-                .ctx
-                .model
-                .token_to_piece_bytes(new_token, 8, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
+            let mut hit_eog = false;
+            for new_token in new_tokens {
+                // Attempt to convert token(s) to bytes
+                let token_bytes = match self
+                    .engine
+                    .ctx
+                    .model
+                    .token_to_piece_bytes(new_token, 8, true, None)
+                {
+                    Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
+                        self.engine.ctx.model.token_to_piece_bytes(
+                            new_token,
+                            (-i).try_into().expect("Error buffer size is positive"),
+                            true,
+                            None,
+                        )
+                    }
+                    x => x,
+                }?;
+
+                // Attempt to convert bytes to utf8 string.
+                let max_len = decoder
+                    .max_utf8_buffer_length(token_bytes.len())
+                    .unwrap_or(32);
+                let mut token_str = String::with_capacity(max_len);
+
+                // this is where the utf-8 decoder handles partial unicode
+                // it'll write whatever printable chars it can into `token_str`
+                // and retain partial codepoints for next decoding attempt
+                let (_result, _bytes_read, _had_errors) =
+                    decoder.decode_to_string(&token_bytes, &mut token_str, false);
+
+                // HACK (gemma4): some gemma4 models emit token id 1 (which renders as the
+                // literal "<eos>") as a stop token after tool calls. llama.cpp's `is_eog_token`
+                // does not flag it, which causes a runaway generation loop, so match it
+                // explicitly. vllm handles the same case:
+                // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
+                let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
+
+                let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
+                trace!(?new_token, ?token_str, ?has_eog);
+
+                if !has_eog {
+                    full_response.push_str(&token_str);
+                    trace!(?token_str, "Sending out token:");
+                    respond(WriteOutput::Token(token_str.to_string()));
                 }
-                x => x,
-            }?;
 
-            // Attempt to convert bytes to utf8 string.
-            let max_len = decoder
-                .max_utf8_buffer_length(token_bytes.len())
-                .unwrap_or(32);
-            let mut token_str = String::with_capacity(max_len);
-
-            // this is where the utf-8 decoder handles partial unicode
-            // it'll write whatever printable chars it can into `token_str`
-            // and retain partial codepoints for next decoding attempt
-            let (_result, _bytes_read, _had_errors) =
-                decoder.decode_to_string(&token_bytes, &mut token_str, false);
-
-            // XXX: this literal '<eos>' token match is a fucked hotfix for gemma4. it seems like
-            // some gemma4 models will emit a *wrong* eos token (doesn't match the expected format)
-            // after tool calls. This doesn't trigger the is_eog_token match in llama.cpp and
-            // causes a bad infinite generation loop.
-            // it seems like vllm also has a codepath to handle this specific case:
-            // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
-            let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
-
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
-            trace!(?new_token, ?token_str, ?has_eog);
-
-            if !has_eog {
-                full_response.push_str(&token_str);
-                trace!(?token_str, "Sending out token:");
-                respond(WriteOutput::Token(token_str.to_string()));
+                if has_eog {
+                    hit_eog = true;
+                    break;
+                }
             }
 
-            if has_eog {
+            if hit_eog {
                 break;
             }
         }
@@ -2071,6 +2165,66 @@ mod tests {
         println!("{}", resp);
 
         assert!(resp.contains("Danish"));
+
+        Ok(())
+    }
+
+    /// Smoke test: load Gemma-4 base + MTP draft heads with `mtp=true`
+    /// and verify a factual generation succeeds end-to-end. Skipped
+    /// unless both `TEST_MTP_TARGET_MODEL` and `TEST_MTP_DRAFT_MODEL`
+    /// env vars are set to existing files.
+    #[test]
+    fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
+        let (Some(target_path), Some(draft_path)) = (
+            test_utils::test_mtp_target_model_path(),
+            test_utils::test_mtp_draft_model_path(),
+        ) else {
+            eprintln!(
+                "skipping test_mtp_gemma4_smoke: \
+                 set TEST_MTP_TARGET_MODEL and TEST_MTP_DRAFT_MODEL to enable"
+            );
+            return Ok(());
+        };
+        if !std::path::Path::new(&target_path).exists()
+            || !std::path::Path::new(&draft_path).exists()
+        {
+            eprintln!(
+                "skipping test_mtp_gemma4_smoke: file missing at {} or {}",
+                target_path, draft_path
+            );
+            return Ok(());
+        }
+
+        let model = Arc::new(crate::llm::get_model(
+            &target_path,
+            true,
+            None,
+            Some(&draft_path),
+            None,
+        )?);
+
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                mtp: Some(MtpConfig::default()),
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
+                sender.send(resp).unwrap();
+            }
+        };
+
+        worker.ask("What is the capital of Denmark?".into(), f)?;
+        let resp = receiver.recv()?;
+        println!("MTP response: {}", resp);
+        assert!(resp.contains("Copenhagen"));
 
         Ok(())
     }

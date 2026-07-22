@@ -119,7 +119,7 @@ void uniffi_nobodywho_uniffi_fn_free_rustchat(
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     /*handle*/ uint64_t model, RustBuffer system_prompt, uint32_t context_size,
     RustBuffer template_variables, RustBuffer tools, RustBuffer sampler,
-    RustCallStatus *uniffi_out_err);
+    RustBuffer mtp, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
     /*handle*/ uint64_t ptr, RustBuffer message,
     RustCallStatus *uniffi_out_err);
@@ -140,6 +140,9 @@ uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(
     /*handle*/ uint64_t ptr);
 /*handle*/ uint64_t
 uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
+    /*handle*/ uint64_t ptr);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
     /*handle*/ uint64_t ptr);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(
     /*handle*/ uint64_t ptr, RustBuffer system_prompt, RustBuffer tools);
@@ -321,7 +324,7 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(
     RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path,
-    RustBuffer on_download_progress);
+    RustBuffer draft_model_path, RustBuffer on_download_progress);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(
     RustBuffer source, RustBuffer architecture, RustBuffer voice,
     RustBuffer language, RustBuffer speed, RustBuffer steps,
@@ -500,6 +503,7 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history();
@@ -2734,7 +2738,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new"),
-          6,
+          7,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
@@ -2836,6 +2840,18 @@ NativeNobodywho::NativeNobodywho(
             ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
                 rt, thisVal, args, count);
       });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustchat_mtp_acceptance_rate"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3708,7 +3724,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_load_model"),
-          4,
+          5,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
@@ -4679,6 +4695,18 @@ NativeNobodywho::NativeNobodywho(
              const jsi::Value *args, size_t count) -> jsi::Value {
         return this
             ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
+                rt, thisVal, args, count);
+      });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_"
+        "rate"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustchat_mtp_acceptance_rate"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
                 rt, thisVal, args, count);
       });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context"] =
@@ -5735,6 +5763,7 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[6]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
@@ -5845,6 +5874,17 @@ jsi::Value NativeNobodywho::
       uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(
           uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                             args[0]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
@@ -6957,8 +6997,9 @@ jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
       uniffi_jsi::Bridging<int8_t>::fromJs(rt, callInvoker, args[1]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                      args[3]));
+                                                      args[4]));
 
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
@@ -7882,6 +7923,15 @@ jsi::Value NativeNobodywho::
         size_t count) {
   auto value =
       uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

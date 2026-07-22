@@ -585,6 +585,7 @@ class Chat {
     Map<String,bool> templateVariables = const {},
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
+    nobodywho.MtpConfig? mtp,
   }) {
     final chat = nobodywho.RustChat(
       model: model,
@@ -594,6 +595,7 @@ class Chat {
       allowThinking: allowThinking,
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
+      mtp: mtp,
     );
     return Chat._(chat);
   }
@@ -613,6 +615,7 @@ class Chat {
   static Future<Chat> fromPath({
     required String modelPath,
     String? projectionModelPath,
+    String? draftModelPath,
     String? systemPrompt,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -620,6 +623,7 @@ class Chat {
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
     bool useGpu = true,
+    nobodywho.MtpConfig? mtp,
     FutureOr<void> Function(int downloaded, int total) onDownloadProgress =
         nobodywho.noopOnDownloadProgress,
   }) async {
@@ -627,6 +631,7 @@ class Chat {
       modelPath: modelPath,
       onDownloadProgress: onDownloadProgress,
       projectionModelPath: projectionModelPath,
+      draftModelPath: draftModelPath,
       systemPrompt: systemPrompt,
       contextSize: contextSize,
       allowThinking: allowThinking,
@@ -634,6 +639,7 @@ class Chat {
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
       useGpu: useGpu,
+      mtp: mtp,
     );
     return Chat._(chat);
   }
@@ -723,6 +729,8 @@ class Chat {
 
   /// Get token usage statistics for the current context.
   Future<nobodywho.ChatStats> getStats() => _chat.getStats();
+
+  Future<double?> mtpAcceptanceRate() => _chat.mtpAcceptanceRate();
 
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();
