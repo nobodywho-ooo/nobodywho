@@ -24,9 +24,10 @@ Path("out.wav").write_bytes(wav)
 
 ## Models and sources
 
-NobodyWho supports two speech synthesis architectures, both in ONNX format:
+NobodyWho supports three speech synthesis architectures, all in ONNX format:
 
 - [Kokoro](https://github.com/hexgrad/kokoro), a lightweight 24 kHz speech synthesis model. Model page: [`NobodyWho/Kokoro-82M`](https://huggingface.co/NobodyWho/Kokoro-82M).
+- [Pocket TTS](https://github.com/kyutai-labs/pocket-tts), a compact 24 kHz speech synthesis model. Model page: [`KevinAHM/pocket-tts-onnx`](https://huggingface.co/KevinAHM/pocket-tts-onnx).
 - [Supertonic](https://github.com/supertone-inc/supertonic), a multi-stage speech synthesis model with voice styles. Model page: [`Supertone/supertonic-3`](https://huggingface.co/Supertone/supertonic-3).
 
 `source` can be a Hugging Face repo (`hf://owner/repo`) as shown above, or a local directory laid out the same way as that repo. See [Local model folder format](#local-model-folder-format) and [Architecture](#architecture) for setup details.
@@ -68,9 +69,32 @@ Optional settings include:
 - `steps`: denoising steps. Higher values can improve quality but are slower. Lower values are faster but can sound rougher. Must be greater than `0`; defaults to `8`.
 - `silence_duration`: seconds of silence between long text chunks. Higher values add longer pauses. Must be `0` or higher; defaults to `0.3`.
 
+## Pocket TTS
+
+For Pocket TTS, start with the default voice and language, or set them explicitly.
+
+```python notest
+tts = Tts(
+    source="hf://KevinAHM/pocket-tts-onnx",
+    voice="alba",
+    language="english_2026-04",
+    huggingface_token="hf_...",  # Alternative: set the HF_TOKEN environment variable.
+)
+```
+
+Optional settings include:
+
+- `voice`: built-in voice name. See the [Pocket TTS voice catalogue](https://github.com/kyutai-labs/pocket-tts?tab=readme-ov-file#voices). Defaults to `alba`.
+- `language`: language bundle name. See the [available language bundles](https://huggingface.co/KevinAHM/pocket-tts-onnx/tree/main/onnx). Defaults to `english_2026-04`.
+- `steps`: quality steps. Higher values are slower. Defaults to `1`.
+- `precision`: `int8` for faster loading or `fp32` for higher quality. Defaults to `int8`.
+- `temperature`: controls how varied the speech sounds. Defaults to `0.7`.
+
+Pocket TTS voice states are gated in [`kyutai/pocket-tts`](https://huggingface.co/kyutai/pocket-tts). Accept its terms, then pass a [Hugging Face access token](https://huggingface.co/settings/tokens) with `huggingface_token`, or alternatively set the `HF_TOKEN` environment variable.
+
 ## Architecture
 
-`architecture` is the TTS model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro" or "supertonic" in the `source` string.
+`architecture` is the TTS model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
 
 Set `architecture` when you use a local directory or a custom source that NobodyWho cannot recognize:
 
@@ -81,7 +105,7 @@ tts = Tts(
 )
 ```
 
-Supported architecture values are `kokoro` and `supertonic`.
+Supported architecture values are `kokoro`, `pocket-tts`, and `supertonic`.
 
 ## GPU
 

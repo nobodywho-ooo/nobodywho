@@ -107,7 +107,9 @@ fn parse_tts_architecture(
         .as_deref()
         .map(str::parse)
         .transpose()
-        .map_err(|()| "architecture must be one of 'kokoro' or 'supertonic'".to_string())
+        .map_err(|()| {
+            "architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'".to_string()
+        })
 }
 
 fn tts_device_from_use_gpu(use_gpu: bool) -> nobodywho::tts::TtsDevice {
@@ -126,10 +128,13 @@ fn build_tts_config(
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
 ) -> Result<nobodywho::tts::TtsConfig, String> {
     let architecture = parse_tts_architecture(architecture)?;
     let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
-        "architecture is required for unknown TTS sources; pass architecture='kokoro' or architecture='supertonic'"
+        "architecture is required for unknown TTS sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'"
             .to_string()
     })?;
 
@@ -144,6 +149,30 @@ fn build_tts_config(
             if let Some(speed) = speed {
                 config.speed = speed;
             }
+        }
+        nobodywho::tts::TtsConfig::PocketTts(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(steps) = steps {
+                config.lsd_steps = steps as usize;
+            }
+            if let Some(precision) = precision {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err("precision must be 'int8' or 'fp32' for Pocket TTS".to_string())
+                    }
+                };
+            }
+            if let Some(temperature) = temperature {
+                config.temperature = temperature;
+            }
+            config.huggingface_token = huggingface_token;
         }
         nobodywho::tts::TtsConfig::Supertonic(config) => {
             if let Some(voice) = voice {
@@ -265,12 +294,15 @@ impl Tts {
     ///
     /// Args:
     ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
-    ///     architecture: "kokoro" or "supertonic". Required for local or unknown sources.
+    ///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
     ///     voice: Voice name. Architecture default is used when omitted.
     ///     language: Language code. Architecture default is used when omitted.
     ///     speed: Speaking speed. Architecture default is used when omitted.
-    ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+    ///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
     ///     silence_duration: Supertonic silence between chunks in seconds.
+    ///     precision: Pocket TTS precision: "int8" or "fp32".
+    ///     temperature: Pocket TTS generation temperature.
+    ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb]
     pub fn load(
@@ -281,6 +313,9 @@ impl Tts {
         #[frb(default = "null")] speed: Option<f32>,
         #[frb(default = "null")] steps: Option<u32>,
         #[frb(default = "null")] silence_duration: Option<f32>,
+        #[frb(default = "null")] precision: Option<String>,
+        #[frb(default = "null")] temperature: Option<f32>,
+        #[frb(default = "null")] huggingface_token: Option<String>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
         let config = build_tts_config(
@@ -291,6 +326,9 @@ impl Tts {
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
         )?;
         let device = tts_device_from_use_gpu(use_gpu);
         let handle = nobodywho::tts::Tts::with_device(config, device)

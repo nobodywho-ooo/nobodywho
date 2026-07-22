@@ -106,6 +106,21 @@ where
 }
 
 // =========================================================================
+// Authentication
+// =========================================================================
+
+pub(crate) fn resolve_token(token: Option<&str>) -> Result<Option<String>, std::env::VarError> {
+    if let Some(token) = token {
+        return Ok(Some(token.to_string()));
+    }
+    match std::env::var("HF_TOKEN") {
+        Ok(token) => Ok(Some(token)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+// =========================================================================
 // ModelCache — shared cache root + low-level file download
 // =========================================================================
 
@@ -653,6 +668,7 @@ impl ModelCache {
         &self,
         source: &OnnxSource,
         progress: &DownloadProgressCallback,
+        headers: &[(String, String)],
     ) -> Result<PathBuf, HuggingFaceError> {
         let (repo, required_files) = match source {
             OnnxSource::Local(p) => return Ok(p.clone()),
@@ -680,7 +696,11 @@ impl ModelCache {
             }
         }
 
-        let body = ureq::get(&repo.tree_url())
+        let mut request = ureq::get(&repo.tree_url());
+        for (name, value) in headers {
+            request = request.header(name, value);
+        }
+        let body = request
             .call()
             .map_err(|source| HuggingFaceError::ListRepoTree {
                 repo: repo.id(),
@@ -734,7 +754,7 @@ impl ModelCache {
                 named(downloaded, total);
                 progress(downloaded, total);
             });
-            self.fetch_to_path(&url, &target, &file_progress, &[])
+            self.fetch_to_path(&url, &target, &file_progress, headers)
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
                     source: Box::new(source),
@@ -799,10 +819,13 @@ pub(crate) fn parse_onnx_path(s: &str) -> Result<ParsedOnnxPath, HuggingFaceErro
 /// Resolve a model source string to a local directory. `hf://owner/repo`
 /// (or `huggingface:` variants) downloads from the HuggingFace Hub, narrowed
 /// to `required_files` (an empty slice downloads the entire repo unfiltered).
-/// Anything else is treated as a local directory path and must exist on disk.
+/// When `huggingface_token` is provided, it is sent as a bearer token to both
+/// the repository-tree and file requests. Anything else is treated as a local
+/// directory path and must exist on disk.
 pub(crate) fn download_onnx(
     source: &str,
     required_files: &[String],
+    huggingface_token: Option<&str>,
 ) -> Result<PathBuf, HuggingFaceError> {
     let cache = ModelCache::open()?;
     // No caller threads a custom callback through yet, so there's nothing
@@ -820,7 +843,10 @@ pub(crate) fn download_onnx(
             OnnxSource::Local(path)
         }
     };
-    cache.download_repo(&source, &progress)
+    let headers = huggingface_token
+        .map(|token| vec![("Authorization".into(), format!("Bearer {token}"))])
+        .unwrap_or_default();
+    cache.download_repo(&source, &progress, &headers)
 }
 
 #[cfg(test)]
@@ -916,7 +942,7 @@ mod tests {
         // A bare repo id (no hf://) is now treated as a local path. Since it
         // isn't an existing directory, download_onnx should reject it with
         // InvalidSource rather than returning Ok and failing downstream.
-        let err = download_onnx("onnx-community/whisper-base", &[]).unwrap_err();
+        let err = download_onnx("onnx-community/whisper-base", &[], None).unwrap_err();
         assert!(matches!(err, HuggingFaceError::InvalidSource(_)));
     }
 }

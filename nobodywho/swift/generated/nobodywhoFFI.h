@@ -557,7 +557,7 @@ void uniffi_nobodywho_uniffi_fn_free_rusttts(uint64_t handle, RustCallStatus *_N
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTTS_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTTS_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer device, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature, RustBuffer huggingface_token, RustBuffer device, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTTTS_SYNTHESIZE
@@ -709,7 +709,7 @@ uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
-uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer device
+uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature, RustBuffer huggingface_token, RustBuffer device
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_CONSTRAIN_WITH_GRAMMAR

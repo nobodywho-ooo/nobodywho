@@ -1207,12 +1207,15 @@ class Tts:
         cls,
         /,
         source: "os.PathLike | str",
-        architecture: "typing.Literal['kokoro', 'supertonic'] | None" = None,
+        architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None,
         voice: str | None = None,
         language: str | None = None,
         speed: float | None = None,
         steps: int | None = None,
         silence_duration: float | None = None,
+        precision: str | None = None,
+        temperature: float | None = None,
+        huggingface_token: str | None = None,
         device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
     ) -> "Tts":
         """
@@ -1220,13 +1223,16 @@ class Tts:
 
         Args:
             source: Local model directory or HuggingFace repo (`hf://owner/repo`).
-            architecture: "kokoro" or "supertonic". Required for local or unknown sources.
-                Sources containing "kokoro" or "supertonic" infer the architecture when omitted.
+            architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+                Sources containing an architecture name infer it when omitted.
             voice: Voice name. Architecture default is used when omitted.
             language: Language code. Architecture default is used when omitted.
             speed: Speaking speed. Architecture default is used when omitted.
-            steps: Supertonic denoising steps. Ignored by Kokoro.
+            steps: Supertonic denoising steps or Pocket TTS LSD steps.
             silence_duration: Supertonic silence between chunks in seconds.
+            precision: Pocket TTS precision: "int8" or "fp32".
+            temperature: Pocket TTS generation temperature.
+            huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
             device: "auto", "cpu", or "cuda". Defaults to "auto".
         """
     def synthesize(self, /, text: str) -> bytes:

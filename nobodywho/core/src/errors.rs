@@ -749,6 +749,10 @@ pub enum TtsError {
     #[diagnostic(code(nobodywho::tts_missing_voice))]
     MissingVoice { voice: String, available: String },
 
+    #[error("Unknown Pocket TTS voice '{voice}'. Available voices: {available}")]
+    #[diagnostic(code(nobodywho::tts_pocket_missing_voice))]
+    PocketMissingVoice { voice: String, available: String },
+
     #[error("Invalid TTS asset {path}: {message}")]
     #[diagnostic(code(nobodywho::tts_invalid_asset))]
     InvalidAsset { path: String, message: String },

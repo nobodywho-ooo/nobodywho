@@ -54,7 +54,9 @@ fn parse_tts_architecture(
         return Ok(None);
     }
     architecture.parse().map(Some).map_err(|()| {
-        GString::from("architecture must be empty or one of 'kokoro' or 'supertonic'")
+        GString::from(
+            "architecture must be empty or one of 'kokoro', 'pocket-tts', or 'supertonic'",
+        )
     })
 }
 
@@ -77,11 +79,14 @@ fn build_tts_config(
     speed: f32,
     steps: i64,
     silence_duration: f32,
+    precision: String,
+    temperature: f32,
+    huggingface_token: String,
 ) -> Result<nobodywho::tts::TtsConfig, GString> {
     let architecture = parse_tts_architecture(architecture)?;
     let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
         GString::from(
-            "architecture is required for unknown TTS sources; set architecture to 'kokoro' or 'supertonic'",
+            "architecture is required for unknown TTS sources; set architecture to 'kokoro', 'pocket-tts', or 'supertonic'",
         )
     })?;
 
@@ -95,6 +100,34 @@ fn build_tts_config(
             }
             if speed > 0.0 {
                 config.speed = speed;
+            }
+        }
+        nobodywho::tts::TtsConfig::PocketTts(config) => {
+            if !voice.is_empty() {
+                config.voice = voice;
+            }
+            if !language.is_empty() {
+                config.language = language;
+            }
+            if steps > 0 {
+                config.lsd_steps = steps as usize;
+            }
+            if !precision.is_empty() {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err(GString::from(
+                            "precision must be 'int8' or 'fp32' for Pocket TTS",
+                        ))
+                    }
+                };
+            }
+            if temperature >= 0.0 {
+                config.temperature = temperature;
+            }
+            if !huggingface_token.is_empty() {
+                config.huggingface_token = Some(huggingface_token);
             }
         }
         nobodywho::tts::TtsConfig::Supertonic(config) => {
@@ -2132,15 +2165,15 @@ fn json_schema_from_callable(
 /// The TTS node synthesizes text into WAV bytes.
 ///
 /// `source` accepts a local model directory, a Godot path (`res://` or `user://`),
-/// or a HuggingFace repo such as `hf://hexgrad/Kokoro-82M` or `hf://Supertone/supertonic-3`.
-/// Leave `architecture` empty for sources containing "kokoro" or "supertonic", or set it to `kokoro` or `supertonic`.
+/// or a HuggingFace repo such as `hf://hexgrad/Kokoro-82M`, `hf://KevinAHM/pocket-tts-onnx`, or `hf://Supertone/supertonic-3`.
+/// Leave `architecture` empty for recognizable sources, or set it to `kokoro`, `pocket-tts`, or `supertonic`.
 struct NobodyWhoTts {
     #[export]
     /// Local model directory, Godot path, or HuggingFace repo (`hf://owner/repo`).
     source: GString,
 
     #[export]
-    /// Empty for sources containing "kokoro"/"supertonic", or one of: kokoro, supertonic.
+    /// Empty for recognizable sources, or one of: kokoro, pocket-tts, supertonic.
     architecture: GString,
 
     #[export]
@@ -2164,6 +2197,18 @@ struct NobodyWhoTts {
     silence_duration: f32,
 
     #[export]
+    /// Optional Pocket TTS precision: int8 or fp32. Empty uses int8.
+    precision: GString,
+
+    #[export]
+    /// Optional Pocket TTS temperature. Use -1 to keep the architecture default.
+    temperature: f32,
+
+    #[export]
+    /// Optional Pocket TTS HuggingFace token for gated voices. Empty uses HF_TOKEN.
+    huggingface_token: GString,
+
+    #[export]
     /// TTS device: auto, cpu, or cuda.
     device: GString,
 
@@ -2184,6 +2229,9 @@ impl INode for NobodyWhoTts {
             speed: 0.0,
             steps: 0,
             silence_duration: -1.0,
+            precision: GString::new(),
+            temperature: -1.0,
+            huggingface_token: GString::new(),
             device: GString::from("auto"),
             tts_handle: None,
             load_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -2231,6 +2279,9 @@ impl NobodyWhoTts {
                 b.speed,
                 b.steps,
                 b.silence_duration,
+                b.precision.to_string(),
+                b.temperature,
+                b.huggingface_token.to_string(),
             )?;
             let device = parse_tts_device(b.device.to_string())?;
             (config, device)
