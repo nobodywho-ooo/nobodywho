@@ -136,16 +136,38 @@ impl SamplerConfig {
         }
     }
 
-    pub fn to_stateful(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
-        let sample_step = self.sample_step.clone();
+    pub fn build_sampler(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
+        self.build_sampler_with_prepended_step(model, None)
+    }
 
-        let mut shift_steps = self
-            .steps
-            .iter()
-            .map(|step| self.build_step(model, step.clone()))
+    /// Builds a sampler chain with a `LarkWithSlices` grammar step prepended.
+    /// `slices` are vocabulary hint regexes llguidance uses as bitmask
+    /// shortcuts instead of a full vocab walk (see [`llguidance_sampler`]).
+    pub fn build_sampler_with_grammar(
+        &self,
+        model: &LlamaModel,
+        lark: &str,
+        slices: Vec<String>,
+    ) -> Result<LlamaSampler, SamplerError> {
+        self.build_sampler_with_prepended_step(
+            model,
+            Some(ShiftStep::LarkWithSlices(lark.to_string(), slices)),
+        )
+    }
+
+    fn build_sampler_with_prepended_step(
+        &self,
+        model: &LlamaModel,
+        extra_step: Option<ShiftStep>,
+    ) -> Result<LlamaSampler, SamplerError> {
+        // Grammar step goes first, so it constrains before anything else runs.
+        let mut shift_steps = extra_step
+            .into_iter()
+            .chain(self.steps.iter().cloned())
+            .map(|step| self.build_step(model, step))
             .collect::<Result<Vec<_>, SamplerError>>()?;
 
-        let final_sampler = match sample_step {
+        let final_sampler = match self.sample_step.clone() {
             SampleStep::Dist => LlamaSampler::dist(self.seed),
             SampleStep::Greedy => LlamaSampler::greedy(),
             SampleStep::MirostatV1 { tau, eta, m } => {
@@ -219,17 +241,15 @@ impl SamplerConfig {
                 penalty_present,
             )),
             ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
-            ShiftStep::JsonSchema(schema) => {
-                LlamaSampler::llguidance(model, "json_schema", &schema)
-                    .map_err(SamplerError::LlguidanceGrammarError)
-            }
-            ShiftStep::Regex(pattern) => LlamaSampler::llguidance(model, "regex", &pattern)
-                .map_err(SamplerError::LlguidanceGrammarError),
+            ShiftStep::JsonSchema(schema) => llguidance_sampler(model, "json_schema", &schema, &[]),
+            ShiftStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
             ShiftStep::Lark(lark) => {
                 let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
                     .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
-                LlamaSampler::llguidance(model, "lark", &lark)
-                    .map_err(SamplerError::LlguidanceGrammarError)
+                llguidance_sampler(model, "lark", &lark, &[])
+            }
+            ShiftStep::LarkWithSlices(lark, slices) => {
+                llguidance_sampler(model, "lark", &lark, &slices)
             }
         }
     }
@@ -269,6 +289,28 @@ impl SamplerConfig {
     ) -> Result<LlamaSampler, SamplerError> {
         Ok(LlamaSampler::grammar(model, grammar, root)?)
     }
+}
+
+/// Builds an llguidance [`LlamaSampler`] for a `json_schema`/`regex`/`lark`
+/// `tag` + `grammar` content string. `slices` are optional vocabulary hints
+/// (see [`crate::tool_calling::ToolFormatHandler::slice_regexes`]), `&[]` for none.
+pub fn llguidance_sampler(
+    model: &LlamaModel,
+    tag: &str,
+    grammar: &str,
+    slices: &[String],
+) -> Result<LlamaSampler, SamplerError> {
+    use llguidance::toktrie::InferenceCapabilities;
+    use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+    let tok_env = LlamaSampler::llguidance_tok_env(model);
+    let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), slices)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    let tlg = TopLevelGrammar::from_tagged_str(tag, grammar)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    let parser = factory
+        .create_parser(tlg)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    Ok(LlamaSampler::from(Matcher::new(Ok(parser))))
 }
 
 impl Default for SamplerConfig {
@@ -395,6 +437,9 @@ pub enum ShiftStep {
     Regex(String),
     /// Constrain output using a Lark context-free grammar via llguidance.
     Lark(String),
+    /// Like [`Lark`][ShiftStep::Lark] but with custom slice regexes passed to the `ParserFactory`.
+    /// See [`llguidance_sampler`] for how slices speed up per-token constraint evaluation.
+    LarkWithSlices(String, Vec<String>),
     #[serde(rename = "dry")]
     DRY {
         multiplier: f32,

@@ -1,7 +1,4 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{alt, nt, nt_plus, seq, t, GrammarBuilder};
-use gbnf::{Expr, GbnfGrammar, Quantifier, TokenRef};
-use gbnf_macro::gbnf;
 use nom::{
     branch::alt as nom_alt,
     bytes::complete::{tag, take_until, take_while1},
@@ -131,40 +128,21 @@ fn single_tool_call(input: &str) -> IResult<&str, ToolCall> {
 }
 
 // ============================================================================
-// Grammar generation helpers
+// Grammar generation (Lark)
 // ============================================================================
 
-/// Create the Expr for the <|"|> special token
-fn quote_token_expr() -> Expr {
-    Expr::Token(TokenRef::ByString {
-        name: r#"|"|"#.to_string(),
-        negated: false,
-    })
-}
+// Gemma4's delimiters are registered in the tokenizer with the angle brackets
+// as part of the special-token name (e.g. the vocab entry is `<|"|>`). In Lark
+// string literals, `"<|\"|>"` emits those bytes directly — the model still
+// produces a single vocab token because that is the canonical tokenization.
 
-/// Create the Expr for the <|tool_call> special token
-fn begin_token_expr() -> Expr {
-    Expr::Token(TokenRef::ByString {
-        name: "|tool_call".to_string(),
-        negated: false,
-    })
-}
-
-/// Create the Expr for the <tool_call|> special token
-fn end_token_expr() -> Expr {
-    Expr::Token(TokenRef::ByString {
-        name: "tool_call|".to_string(),
-        negated: false,
-    })
-}
-
-/// Walk a JSON schema and add grammar rules to the builder.
-/// Returns the rule name to reference and the updated builder.
-fn schema_to_rule(
+/// Recursively emit Lark rules for one JSON schema node.
+/// Appends new rules to `rules` and returns the rule name to reference.
+fn schema_to_lark(
     schema: &Value,
-    mut builder: GrammarBuilder<gbnf::builder::NoRoot>,
+    rules: &mut Vec<String>,
     prefix: &str,
-) -> Result<(String, GrammarBuilder<gbnf::builder::NoRoot>), ToolFormatError> {
+) -> Result<String, ToolFormatError> {
     debug!(json_schema = %schema);
 
     let type_str = schema
@@ -175,131 +153,101 @@ fn schema_to_rule(
     match type_str {
         "string" => {
             if let Some(enum_values) = schema.get("enum").and_then(|e| e.as_array()) {
-                // enum: alternation of literal string values
-                let rule_name = format!("{}-enum", prefix);
-                let alts: Vec<Expr> = enum_values
+                let rule_name = format!("{prefix}_enum");
+                let alts: Vec<String> = enum_values
                     .iter()
                     .filter_map(|v| v.as_str())
-                    .map(|s| seq(&[quote_token_expr(), t(s), quote_token_expr()]))
+                    .map(|s| {
+                        let esc = super::escape_lark_string(s);
+                        format!(r#""<|\"|>" "{esc}" "<|\"|>""#)
+                    })
                     .collect();
-                builder = builder.rule(&rule_name, alt(&alts));
-                Ok((rule_name, builder))
-            } else {
-                Ok(("gemmafour-string".to_string(), builder))
+                if !alts.is_empty() {
+                    rules.push(format!("{rule_name}: {}", alts.join(" | ")));
+                    return Ok(rule_name);
+                }
             }
+            Ok("gemmafour_string".to_string())
         }
-        "number" => Ok(("gemmafour-number".to_string(), builder)),
-        "integer" => Ok(("gemmafour-integer".to_string(), builder)),
-        "boolean" => Ok(("gemmafour-boolean".to_string(), builder)),
-        "null" => Ok(("gemmafour-null".to_string(), builder)),
+        "number" => Ok("gemmafour_number".to_string()),
+        "integer" => Ok("gemmafour_integer".to_string()),
+        "boolean" => Ok("gemmafour_bool".to_string()),
+        "null" => Ok("gemmafour_null".to_string()),
         "object" => {
-            let rule_name = format!("{}-obj", prefix);
+            let rule_name = format!("{prefix}_obj");
             let props = schema
                 .get("properties")
                 .and_then(|p| p.as_object())
                 .filter(|p| !p.is_empty());
 
             if let Some(props) = props {
-                // Known properties: fixed key:value pairs
-                let mut items: Vec<Expr> = vec![t("{")];
+                // Known properties: emit fixed key:value sequence
+                let mut parts = vec!["\"{\"".to_string()];
                 for (i, (key, prop_schema)) in props.iter().enumerate() {
                     if i > 0 {
-                        items.push(t(","));
+                        parts.push("\",\"".to_string());
                     }
-                    let prop_prefix = format!("{}-{}", prefix, key.replace('_', "-"));
-                    let (prop_rule, new_builder) =
-                        schema_to_rule(prop_schema, builder, &prop_prefix)?;
-                    builder = new_builder;
-                    items.push(t(key));
-                    items.push(t(":"));
-                    items.push(nt(&prop_rule));
+                    let prop_rule = schema_to_lark(
+                        prop_schema,
+                        rules,
+                        &format!("{prefix}_{i}_{}", super::sanitize_lark(key)),
+                    )?;
+                    parts.push(format!("\"{}\"", super::escape_lark_string(key)));
+                    parts.push("\":\"".to_string());
+                    parts.push(prop_rule);
                 }
-                items.push(t("}"));
-                builder = builder.rule(&rule_name, seq(&items));
+                parts.push("\"}\"".to_string());
+                rules.push(format!("{rule_name}: {}", parts.join(" ")));
             } else {
-                // Free-form object: arbitrary key:value pairs
-                let default_val = Value::Object(serde_json::Map::from_iter([(
-                    "type".to_string(),
-                    Value::String("string".to_string()),
-                )]));
-                let val_schema = schema.get("additionalProperties").unwrap_or(&default_val);
-                let val_prefix = format!("{}-val", prefix);
-                let (val_rule, new_builder) = schema_to_rule(val_schema, builder, &val_prefix)?;
-                builder = new_builder;
+                // Free-form object: arbitrary key:value pairs, or empty
+                let default_str = serde_json::json!({"type": "string"});
+                let val_schema = schema.get("additionalProperties").unwrap_or(&default_str);
+                let val_rule = schema_to_lark(val_schema, rules, &format!("{prefix}_val"))?;
 
-                let kv_rule = format!("{}-kv", prefix);
-                builder =
-                    builder.rule(&kv_rule, seq(&[nt("gemmafour-key"), t(":"), nt(&val_rule)]));
-                let repeat_rule = format!("{}-repeat", prefix);
-                builder = builder.rule(&repeat_rule, seq(&[t(","), nt(&kv_rule)]));
-                builder = builder.rule(
-                    &rule_name,
-                    alt(&[
-                        seq(&[
-                            t("{"),
-                            nt(&kv_rule),
-                            Expr::Quantified {
-                                expr: Box::new(nt(&repeat_rule)),
-                                quantifier: Quantifier::ZeroOrMore,
-                            },
-                            t("}"),
-                        ]),
-                        seq(&[t("{"), t("}")]),
-                    ]),
-                );
+                let kv_rule = format!("{prefix}_kv");
+                rules.push(format!("{kv_rule}: gemmafour_key \":\" {val_rule}"));
+
+                let repeat_rule = format!("{prefix}_repeat");
+                rules.push(format!("{repeat_rule}: \",\" {kv_rule}"));
+
+                rules.push(format!(
+                    "{rule_name}: \"{{\" {kv_rule} {repeat_rule}* \"}}\" | \"{{}}\""
+                ));
             }
-            Ok((rule_name, builder))
+            Ok(rule_name)
         }
         "array" if schema.get("prefixItems").is_some() => {
-            // Tuple: fixed positional types, e.g. [string, integer]
-            let rule_name = format!("{}-arr", prefix);
+            // Tuple: fixed positional types
+            let rule_name = format!("{prefix}_arr");
             let prefix_items = schema["prefixItems"].as_array().ok_or_else(|| {
                 ToolFormatError::GrammarGenerationFailed("prefixItems is not an array".into())
             })?;
-            let mut elems: Vec<Expr> = vec![t("[")];
+            let mut parts = vec!["\"[\"".to_string()];
             for (i, item_schema) in prefix_items.iter().enumerate() {
                 if i > 0 {
-                    elems.push(t(","));
+                    parts.push("\",\"".to_string());
                 }
-                let (item_rule, b) =
-                    schema_to_rule(item_schema, builder, &format!("{}-{}", prefix, i))?;
-                builder = b;
-                elems.push(nt(&item_rule));
+                let item_rule = schema_to_lark(item_schema, rules, &format!("{prefix}_{i}"))?;
+                parts.push(item_rule);
             }
-            elems.push(t("]"));
-            builder = builder.rule(&rule_name, seq(&elems));
-            Ok((rule_name, builder))
+            parts.push("\"]\"".to_string());
+            rules.push(format!("{rule_name}: {}", parts.join(" ")));
+            Ok(rule_name)
         }
         "array" => {
-            let rule_name = format!("{}-arr", prefix);
-            let default_items = Value::Object(serde_json::Map::from_iter([(
-                "type".to_string(),
-                Value::String("string".to_string()),
-            )]));
-            let item_schema = schema.get("items").unwrap_or(&default_items);
-            let (item_rule, b) = schema_to_rule(item_schema, builder, &format!("{}-item", prefix))?;
-            builder = b;
+            let rule_name = format!("{prefix}_arr");
+            let default_str = serde_json::json!({"type": "string"});
+            let item_schema = schema.get("items").unwrap_or(&default_str);
+            let item_rule = schema_to_lark(item_schema, rules, &format!("{prefix}_item"))?;
 
-            let repeat_rule = format!("{}-repeat", prefix);
-            builder = builder.rule(&repeat_rule, seq(&[t(","), nt(&item_rule)]));
-            builder = builder.rule(
-                &rule_name,
-                alt(&[
-                    seq(&[
-                        t("["),
-                        nt(&item_rule),
-                        Expr::Quantified {
-                            expr: Box::new(nt(&repeat_rule)),
-                            quantifier: Quantifier::ZeroOrMore,
-                        },
-                        t("]"),
-                    ]),
-                    seq(&[t("["), t("]")]),
-                ]),
-            );
-            Ok((rule_name, builder))
+            let repeat_rule = format!("{prefix}_repeat");
+            rules.push(format!("{repeat_rule}: \",\" {item_rule}"));
+            rules.push(format!(
+                "{rule_name}: \"[\" {item_rule} {repeat_rule}* \"]\" | \"[]\""
+            ));
+            Ok(rule_name)
         }
-        _ => Ok(("gemmafour-string".to_string(), builder)),
+        _ => Ok("gemmafour_string".to_string()),
     }
 }
 
@@ -319,95 +267,51 @@ impl ToolFormatHandler for Gemma4Handler {
         END_TOKEN
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
-        // Step 1: Static primitives via gbnf! macro
-        let primitives = gbnf! {
-            gemmafour-boolean ::= "true" | "false"
-            gemmafour-null ::= "null"
-            gemmafour-digit ::= [0-9]
-            gemmafour-integer ::= "-"? gemmafour-digit+
-            gemmafour-number ::= gemmafour-integer ("." gemmafour-digit+)?
-            root ::= gemmafour-number
-        };
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        let mut lark = String::from("%llguidance {}\n");
+        lark.push_str("start: toolcall+\n");
+        lark.push_str(&format!(
+            "toolcall: \"{BEGIN_TOKEN}\" tool_alt \"{END_TOKEN}\"\n"
+        ));
 
-        // Step 2: Extend with gemmafour-string via builder.
-        // Strings are delimited by <|"|>, so a string char is anything that isn't that token.
-        let mut builder = GrammarBuilder::from_existing(primitives)
-            .rule(
-                "gemmafour-strchar",
-                Expr::Token(TokenRef::ByString {
-                    name: r#"|"|"#.to_string(),
-                    negated: true,
-                }),
-            )
-            .rule(
-                "gemmafour-string",
-                seq(&[
-                    quote_token_expr(),
-                    Expr::Quantified {
-                        expr: Box::new(nt("gemmafour-strchar")),
-                        quantifier: Quantifier::ZeroOrMore,
-                    },
-                    quote_token_expr(),
-                ]),
-            )
-            .rule(
-                "gemmafour-keychar",
-                alt(&[
-                    Expr::CharacterRange(gbnf::CharacterRange::Range {
-                        begin: 'a',
-                        end: 'z',
-                        negated: false,
-                    }),
-                    Expr::CharacterRange(gbnf::CharacterRange::Range {
-                        begin: 'A',
-                        end: 'Z',
-                        negated: false,
-                    }),
-                    Expr::CharacterRange(gbnf::CharacterRange::Range {
-                        begin: '0',
-                        end: '9',
-                        negated: false,
-                    }),
-                    t("_"),
-                ]),
-            )
-            .rule(
-                "gemmafour-key",
-                Expr::Quantified {
-                    expr: Box::new(nt("gemmafour-keychar")),
-                    quantifier: Quantifier::OneOrMore,
-                },
-            );
+        let mut tool_rules: Vec<String> = Vec::new();
+        let mut tool_call_names: Vec<String> = Vec::new();
 
-        // Step 3: Per-tool rules from JSON schema
-        let mut tool_rule_names = Vec::new();
         for (i, tool) in tools.iter().enumerate() {
-            let prefix = format!("tool{}", i);
-            let (params_rule, new_builder) = schema_to_rule(&tool.json_schema, builder, &prefix)?;
-            builder = new_builder;
-
-            let tool_rule = format!("tool{}-call", i);
-            builder = builder.rule(
-                &tool_rule,
-                seq(&[t("call:"), t(&tool.name), nt(&params_rule)]),
-            );
-            tool_rule_names.push(tool_rule);
+            let prefix = format!("tool{i}");
+            let params_rule = schema_to_lark(&tool.json_schema, &mut tool_rules, &prefix)?;
+            let tool_rule = format!("{prefix}_call");
+            tool_rules.push(format!(
+                "{tool_rule}: \"call:{}\" {params_rule}",
+                super::escape_lark_string(&tool.name)
+            ));
+            tool_call_names.push(tool_rule);
         }
 
-        // Step 4: Combine tools
-        let tool_alts: Vec<Expr> = tool_rule_names.iter().map(|n| nt(n)).collect();
-        let grammar = builder
-            .rule("tool-alt", alt(&tool_alts))
-            .rule(
-                "toolcall",
-                seq(&[begin_token_expr(), nt("tool-alt"), end_token_expr()]),
-            )
-            .rule("superroot", nt_plus("toolcall"))
-            .root("superroot")
-            .build();
+        lark.push_str(&format!("tool_alt: {}\n", tool_call_names.join(" | ")));
 
-        Ok(grammar)
+        // Shared primitive rules referenced by schema_to_lark output.
+        // The string body matches any text up to the closing `<|"|>` delimiter,
+        // which the lazy `suffix` consumes. This allows values containing `<`;
+        // the old `/[^<]*/` banned every `<`, not just the delimiter.
+        lark.push_str(r#"gemmafour_string: "<|\"|>" gemmafour_strbody"#);
+        lark.push('\n');
+        lark.push_str(r#"gemmafour_strbody[suffix=/<\|"\|>/]: /(?s:.*)/"#);
+        lark.push('\n');
+        lark.push_str("gemmafour_key: /[a-zA-Z0-9_]+/\n");
+        lark.push_str(r#"gemmafour_bool: "true" | "false""#);
+        lark.push('\n');
+        lark.push_str(r#"gemmafour_null: "null""#);
+        lark.push('\n');
+        lark.push_str("gemmafour_integer: /-?[0-9]+/\n");
+        lark.push_str("gemmafour_number: /-?[0-9]+(\\.[0-9]+)?/\n");
+
+        for rule in &tool_rules {
+            lark.push_str(rule);
+            lark.push('\n');
+        }
+
+        Ok(lark)
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
@@ -421,6 +325,11 @@ impl ToolFormatHandler for Gemma4Handler {
         };
 
         Some(calls)
+    }
+
+    /// Vocabulary hint: value bytes that aren't structural delimiters (`< > { } , :`).
+    fn slice_regexes(&self) -> Vec<String> {
+        vec![r"[^<>{},:]+".to_string()]
     }
 }
 
@@ -489,7 +398,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_grammar_smoke() {
+    fn test_lark_smoke() {
         let handler = Gemma4Handler;
         let tools = vec![
             Tool::new(
@@ -512,11 +421,38 @@ mod tests {
             ),
         ];
 
-        let result = handler.generate_grammar(&tools);
-        assert!(
-            result.is_ok(),
-            "Grammar generation failed: {:?}",
-            result.err()
+        let lark = handler.to_lark(&tools).expect("lark should build");
+        assert!(lark.contains("%llguidance"));
+        assert!(lark.contains("<|tool_call>"));
+        assert!(lark.contains("<tool_call|>"));
+        assert!(lark.contains("call:get_weather"));
+        assert!(lark.contains("call:get_time"));
+        assert!(lark.contains("gemmafour_string"));
+    }
+
+    #[test]
+    fn test_lark_scalar_types() {
+        let handler = Gemma4Handler;
+        let tool = Tool::new(
+            "f",
+            "test",
+            json!({
+                "type": "object",
+                "properties": {
+                    "n": { "type": "integer" },
+                    "x": { "type": "number" },
+                    "b": { "type": "boolean" },
+                    "z": { "type": "null" },
+                    "s": { "type": "string" }
+                }
+            }),
+            std::sync::Arc::new(|_| String::new()),
         );
+        let lark = handler.to_lark(&[tool]).expect("lark should build");
+        assert!(lark.contains("gemmafour_integer"));
+        assert!(lark.contains("gemmafour_number"));
+        assert!(lark.contains("gemmafour_bool"));
+        assert!(lark.contains("gemmafour_null"));
+        assert!(lark.contains("gemmafour_string"));
     }
 }

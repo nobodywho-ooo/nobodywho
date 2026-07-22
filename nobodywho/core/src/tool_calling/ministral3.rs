@@ -1,7 +1,4 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{alt, nt, nt_plus, GrammarBuilder};
-use gbnf::json::json_schema_to_grammar;
-use gbnf_macro::gbnf;
 use nom::{
     bytes::complete::{tag, take_till, take_until},
     combinator::rest,
@@ -36,35 +33,23 @@ impl ToolFormatHandler for Ministral3Handler {
         ""
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
-        // Build a per-tool grammar: "[TOOL_CALLS]" "toolname" "[ARGS]" {json-args}
-        let tool_grammars: Vec<gbnf::GbnfGrammar> = tools
-            .iter()
-            .map(|tool| {
-                let args_grammar = json_schema_to_grammar(&tool.json_schema, "root")?;
-                let tool_call_grammar = gbnf! {
-                    root ::= "[TOOL_CALLS]" {&tool.name} "[ARGS]" @{args_grammar}
-                };
-                Ok(tool_call_grammar)
-            })
-            .collect::<Result<_, gbnf::json::JsonSchemaError>>()?;
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        let mut lark = String::from("%llguidance {}\n");
+        lark.push_str("start: toolcall+\n");
 
-        // Combine: each tool grammar is an alternative, allow one or more calls
-        let mut builder = GrammarBuilder::new();
-        let mut tool_refs = Vec::new();
-        for (i, grammar) in tool_grammars.iter().enumerate() {
-            let alias = format!("tool-{}", i);
-            builder = builder.include_grammar_as(grammar, &alias);
-            tool_refs.push(nt(&alias));
+        let alts: Vec<String> = (0..tools.len()).map(|i| format!("tool_{i}")).collect();
+        lark.push_str(&format!("toolcall: {}\n", alts.join(" | ")));
+
+        for (i, tool) in tools.iter().enumerate() {
+            let schema_str = serde_json::to_string(&tool.json_schema)
+                .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
+            let name = super::escape_lark_string(&tool.name);
+            lark.push_str(&format!(
+                "tool_{i}: \"[TOOL_CALLS]{name}[ARGS]\" %json {schema_str}\n"
+            ));
         }
 
-        let grammar = builder
-            .rule("toolcall", alt(&tool_refs))
-            .rule("root", nt_plus("toolcall"))
-            .root("root")
-            .build();
-
-        Ok(grammar)
+        Ok(lark)
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {

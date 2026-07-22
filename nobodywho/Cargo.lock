@@ -2653,8 +2653,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.151"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#43733d1de03e8a7d582f5732e9836f2387997c4d"
+version = "0.1.152"
+source = "git+https://github.com/jona605a/llama-cpp-rs?branch=feat%2Fllguidance-tok-env-and-matcher#6a0216fb14f2853c496c5d73efde0cc3e7076bab"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2668,8 +2668,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.151"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#43733d1de03e8a7d582f5732e9836f2387997c4d"
+version = "0.1.152"
+source = "git+https://github.com/jona605a/llama-cpp-rs?branch=feat%2Fllguidance-tok-env-and-matcher#6a0216fb14f2853c496c5d73efde0cc3e7076bab"
 dependencies = [
  "bindgen",
  "cc",
@@ -3042,13 +3042,13 @@ dependencies = [
  "espeak-ng",
  "futures",
  "gbnf",
- "gbnf-macro",
  "hound",
  "indexmap",
  "indicatif",
  "lazy_static",
  "libc",
  "llama-cpp-2",
+ "llguidance",
  "mel_spec",
  "miette",
  "minijinja",

@@ -1,7 +1,4 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{nt, nt_plus, seq, t, GrammarBuilder};
-use gbnf::json::json_schema_to_grammar;
-use gbnf::GbnfGrammar;
 use serde_json::json;
 use tracing::debug;
 
@@ -17,47 +14,30 @@ impl ToolFormatHandler for Qwen3Handler {
         "</tool_call>"
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
-        let tool_call_schemas: serde_json::Value = tools
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        let tool_schemas: Vec<serde_json::Value> = tools
             .iter()
             .map(|tool| {
-                json!(
-                    {
-                        "type": "object",
-                        "properties": {
-                            "name": { "const": tool.name, },
-                            "arguments": tool.json_schema
-                        },
-                        "required": ["name", "arguments"]
-                    }
-                )
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "name": { "const": tool.name },
+                        "arguments": tool.json_schema
+                    },
+                    "required": ["name", "arguments"]
+                })
             })
             .collect();
 
-        let tool_call_schema = json!(
-            { "oneOf": tool_call_schemas }
-        );
+        let schema_str = serde_json::to_string(&json!({ "oneOf": tool_schemas }))
+            .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
 
-        // Generate JSON grammar from schema, then extend it with wrapping rules
-        let json_grammar = json_schema_to_grammar(tool_call_schema, "root")?;
-
-        let grammar = GrammarBuilder::from_existing(json_grammar)
-            .rule(
-                "toolcall",
-                seq(&[
-                    t(self.begin_token()),
-                    nt("ws"),
-                    nt("root"),
-                    nt("ws"),
-                    t(self.end_token()),
-                    nt("ws"),
-                ]),
-            )
-            .rule("superroot", nt_plus("toolcall"))
-            .root("superroot")
-            .build();
-
-        Ok(grammar)
+        let mut lark = String::from("%llguidance {}\n");
+        lark.push_str("start: toolcall+\n");
+        lark.push_str("toolcall: \"<tool_call>\" ws? body ws? \"</tool_call>\" ws?\n");
+        lark.push_str(&format!("body: %json {schema_str}\n"));
+        lark.push_str("ws: /[ \\t\\n\\r]+/\n");
+        Ok(lark)
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {

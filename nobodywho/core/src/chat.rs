@@ -25,17 +25,16 @@
 
 use crate::errors::{
     ChatWorkerError, ContextSyncError, GenerateResponseError, InitWorkerError, MultimodalError,
-    RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError, TokenizeError,
-    WrappedResponseError,
+    RenderError, SayError, ShiftError, TokenizeError, ToolCallingSetupError, WrappedResponseError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
 use crate::sampler::read_sampler_from_metadata;
-use crate::sampler::{SamplerConfig, ShiftStep};
+use crate::sampler::SamplerConfig;
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk, TokenizerChunks};
-use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
+use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::mtmd::MtmdBitmap;
@@ -1176,7 +1175,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             sampler_config,
             output_tx,
         } => {
-            worker_state.set_sampler_config(sampler_config);
+            worker_state.set_sampler_config(sampler_config)?;
             let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetChatHistory { output_tx } => {
@@ -1281,13 +1280,47 @@ impl ChatContext {
     }
 }
 
+/// Builds the tool-call grammar sampler for an already-detected `tool_format`
+/// (detection happens once, in `new_chat_worker` — see the `tool_format`
+/// field doc). `Ok(None)` if `tools` is empty. `Err(DetectionFailed)` if
+/// tools are requested but no format was ever detected for this model.
+fn build_tool_sampler(
+    model: &llama_cpp_2::model::LlamaModel,
+    tools: &[Tool],
+    sampler_config: &SamplerConfig,
+    tool_format: Option<&ToolFormat>,
+) -> Result<Option<llama_cpp_2::sampling::LlamaSampler>, ToolCallingSetupError> {
+    if tools.is_empty() {
+        return Ok(None);
+    }
+
+    let tool_format = tool_format.ok_or(ToolFormatError::DetectionFailed)?;
+
+    let lark = tool_format.to_lark(tools)?;
+    debug!(grammar = %lark, "Generated tool calling grammar (Lark)");
+
+    // ~400ms llguidance init cost, paid here once instead of per activation.
+    let slices = tool_format.slice_regexes();
+    let tool_sampler = sampler_config.build_sampler_with_grammar(model, &lark, slices)?;
+
+    Ok(Some(tool_sampler))
+}
+
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
 struct Chat<'a> {
     engine: InferenceEngine<'a>,
     should_stop: Arc<AtomicBool>,
-    tool_grammar: Option<gbnf::GbnfGrammar>,
+    /// Is read from the model, used to control lark generation. None when
+    /// model detection fails.
     tool_format: Option<ToolFormat>,
+    /// Built once on new chat worker. Used for free (unconstrained)
+    /// generation. Rebuilt whenever `sampler_config` changes.
+    base_sampler: llama_cpp_2::sampling::LlamaSampler,
+    /// Build once on new chat worker, if tools are given. Enforces tool-call
+    /// grammar and is switched for the rest of generation when the model's
+    /// begin tool token appears mid-stream.
+    tool_sampler: Option<llama_cpp_2::sampling::LlamaSampler>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     template_variables: std::collections::HashMap<String, bool>,
@@ -1312,47 +1345,45 @@ impl<'a> Chat<'a> {
 
         let template = select_template(&model.language_model, !config.tools.is_empty())?;
 
-        // Only detect tool calling format if tools are provided
-        let (tool_format, grammar) = if !config.tools.is_empty() {
-            match detect_tool_format(&model.language_model) {
-                Ok(format) => {
-                    debug!(format = ?format, "Detected tool calling format");
-
-                    let grammar = match format.generate_grammar(&config.tools) {
-                        Ok(g) => {
-                            debug!(grammar = %g.as_str(), root = %g.root_name, "Generated tool calling grammar");
-                            Some(g)
-                        }
-                        Err(e) => {
-                            debug!(error = %e, "Failed to generate grammar from tools");
-                            None
-                        }
-                    };
-
-                    (Some(format), grammar)
-                }
-                Err(e) => {
-                    debug!(error = %e, "Failed to detect tool format, tools will not work");
-                    (None, None)
-                }
-            }
-        } else {
-            (None, None)
-        };
         let sampler_config = match config.sampler_config {
             Some(sc) => sc,
             None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
         };
 
-        // Build the low-level inference engine via the shared Worker constructor,
-        // then take ownership of just the engine for the chat session.
+        // Pre-build the base sampler for `sampler_config`, reused for every
+        // response (see the `base_sampler` field doc).
+        let base_sampler = sampler_config.build_sampler(&model.language_model)?;
+
+        // Depends only on the model's chat template, not on `config.tools`,
+        // so detect it once here regardless (cheap — see `tool_format` field
+        // doc). Only a hard error if tools were actually requested.
+        let tool_format = match detect_tool_format(&model.language_model) {
+            Ok(format) => {
+                debug!(?format, "Detected tool calling format");
+                Some(format)
+            }
+            Err(e) if config.tools.is_empty() => {
+                debug!(error = %e, "Failed to detect tool calling format");
+                None
+            }
+            Err(e) => return Err(InitWorkerError::ToolCallingSetup(e.into())),
+        };
+
+        let tool_sampler = build_tool_sampler(
+            &model.language_model,
+            &config.tools,
+            &sampler_config,
+            tool_format.as_ref(),
+        )?;
+
         let Worker { engine, extra: () } = Worker::new_with_type(model, config.n_ctx, false, ())?;
 
         Ok(Chat {
             engine,
             should_stop,
-            tool_grammar: grammar,
             tool_format,
+            tool_sampler,
+            base_sampler,
             sampler_config,
             messages: match config.system_prompt {
                 Some(msg) => vec![Message::System { content: msg }],
@@ -1516,7 +1547,6 @@ impl<'a> Chat<'a> {
     // but assume it is.
     pub fn generate_response_until_done<F>(
         &mut self,
-        sampler_config: SamplerConfig,
         mut respond: F,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, GenerateResponseError>
@@ -1531,9 +1561,16 @@ impl<'a> Chat<'a> {
         let mut full_response: String = String::with_capacity(4096);
         let mut tokens_written_until_now = TokenizerChunks::new();
 
-        // initialize sampler
-        // stateful samplers only live for one response
-        let mut sampler = sampler_config.to_stateful(self.engine.ctx.model)?;
+        // Reset stateful sub-sampler state (RNG, penalty/DRY history, grammar
+        // matcher, etc.) for this run — see `base_sampler` field doc.
+        self.base_sampler.reset();
+        if let Some(ts) = self.tool_sampler.as_mut() {
+            ts.reset();
+        }
+
+        // Set once the begin token is seen, never reset within this call —
+        // the Lark grammar ends generation via EOS on its own.
+        let mut grammar_activated = false;
 
         // init statefull decoder for split up tokens like emojis
         let mut decoder = encoding_rs::UTF_8.new_decoder();
@@ -1551,7 +1588,16 @@ impl<'a> Chat<'a> {
             // Sample next token, no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_token = self.engine.sample_and_decode_next_token(&mut sampler)?;
+            let new_token = if grammar_activated {
+                let ts = self
+                    .tool_sampler
+                    .as_mut()
+                    .expect("tool_sampler must exist when grammar_activated is true");
+                self.engine.sample_and_decode_next_token(ts)?
+            } else {
+                self.engine
+                    .sample_and_decode_next_token(&mut self.base_sampler)?
+            };
 
             tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
 
@@ -1602,6 +1648,28 @@ impl<'a> Chat<'a> {
                 respond(WriteOutput::Token(token_str.to_string()));
             }
 
+            // Activate the tool-call grammar once the model finishes emitting
+            // the format's begin token: fast-forward the pre-built tool_sampler's
+            // matcher past those tokens so it constrains the rest of the
+            // response. Only tool-enabled sessions have a tool_sampler.
+            if !grammar_activated {
+                if let (Some(format), Some(ts)) =
+                    (self.tool_format.as_ref(), self.tool_sampler.as_mut())
+                {
+                    let begin_token = format.begin_token();
+                    if full_response.ends_with(begin_token) {
+                        let begin_tokens = self
+                            .engine
+                            .ctx
+                            .model
+                            .str_to_token(begin_token, llama_cpp_2::model::AddBos::Never)?;
+                        ts.accept_many(begin_tokens.iter());
+                        grammar_activated = true;
+                        info!(begin_token, "Activated tool-call grammar");
+                    }
+                }
+            }
+
             if has_eog {
                 break;
             }
@@ -1620,12 +1688,6 @@ impl<'a> Chat<'a> {
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
-
-        // Get the tool call begin token from the format if tools are configured
-        let tool_call_begin = self
-            .tool_format
-            .as_ref()
-            .map(|fmt| fmt.begin_token().to_string());
 
         let prompt_text = prompt.to_string();
 
@@ -1660,33 +1722,15 @@ impl<'a> Chat<'a> {
         };
         self.add_user_message(content, assets);
 
-        // Modify sampler with tool grammar if we have tools
-        let sampler =
-            self.tool_grammar
-                .as_ref()
-                .map_or(self.sampler_config.clone(), |tool_grammar| {
-                    let mut steps = self.sampler_config.steps.clone();
-                    steps.insert(
-                        0,
-                        ShiftStep::Grammar {
-                            trigger_on: tool_call_begin.clone(),
-                            root: tool_grammar.root_name.to_string(),
-                            grammar: tool_grammar.as_str().into(),
-                        },
-                    );
-                    SamplerConfig::new(
-                        steps,
-                        self.sampler_config.sample_step.clone(),
-                        self.sampler_config.seed,
-                    )
-                });
+        // The tool-call grammar is NOT pre-injected into the chain. Lark/
+        // llguidance has no "trigger word" mechanism, so an always-on grammar
+        // would block EOS when the model just wants to chat. Instead the
+        // grammar is added dynamically inside `generate_response_until_done`
+        // the moment the begin token appears in the streamed output.
 
         // get the finished response
-        let mut response: String = self.wrapped_update_context_and_generate_response(
-            sampler.clone(),
-            respond.clone(),
-            tool_call_begin.clone(),
-        )?;
+        let mut response: String =
+            self.wrapped_update_context_and_generate_response(respond.clone())?;
 
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
@@ -1724,17 +1768,14 @@ impl<'a> Chat<'a> {
                 }
 
                 // get the finished response
-                response = self.wrapped_update_context_and_generate_response(
-                    sampler.clone(),
-                    respond.clone(),
-                    tool_call_begin.clone(),
-                )?;
+                response = self.wrapped_update_context_and_generate_response(respond.clone())?;
             }
         } // Close if let Some(tool_format)
 
-        debug_assert!(tool_call_begin
+        debug_assert!(self
+            .tool_format
             .as_ref()
-            .is_none_or(|t| !response.contains(t.as_str())));
+            .is_none_or(|fmt| !response.contains(fmt.begin_token())));
         self.add_assistant_message(response);
 
         self.context.chunks = self.render_as_chunks(true)?;
@@ -1774,9 +1815,7 @@ impl<'a> Chat<'a> {
 
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
-        sampler: SamplerConfig,
         respond: F,
-        tool_call_begin_token: Option<String>,
     ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
@@ -1785,13 +1824,19 @@ impl<'a> Chat<'a> {
         let inference_lock_token = acquire_inference_lock();
         self.sync_context_with_render(&inference_lock_token)?;
 
+        // Get the tool call begin token from the format if tools are configured
+        let tool_call_begin_token = self
+            .tool_format
+            .as_ref()
+            .map(|fmt| fmt.begin_token().to_string());
+
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
         let (wrapped_respond, resp_receiver) =
             crate::inference::wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
+        self.generate_response_until_done(wrapped_respond, &inference_lock_token)?;
 
         Ok(resp_receiver.recv()?)
     }
@@ -1800,37 +1845,15 @@ impl<'a> Chat<'a> {
         &mut self,
         system_prompt: Option<String>,
         tools: Vec<Tool>,
-    ) -> Result<(), SelectTemplateError> {
+    ) -> Result<(), ChatWorkerError> {
         self.engine.reset_context();
 
-        // Detect tool format if not already detected and tools are provided
-        if !tools.is_empty() && self.tool_format.is_none() {
-            match detect_tool_format(self.engine.ctx.model) {
-                Ok(format) => {
-                    debug!(format = ?format, "Detected tool calling format");
-                    self.tool_format = Some(format);
-                }
-                Err(e) => {
-                    debug!(error = %e, "Failed to detect tool format, tools will not work");
-                }
-            }
-        }
-
-        self.tool_grammar = if !tools.is_empty() {
-            if let Some(ref format) = self.tool_format {
-                match format.generate_grammar(&tools) {
-                    Ok(g) => Some(g),
-                    Err(e) => {
-                        debug!(error = %e, "Failed to generate grammar from tools");
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        self.tool_sampler = build_tool_sampler(
+            self.engine.ctx.model,
+            &tools,
+            &self.sampler_config,
+            self.tool_format.as_ref(),
+        )?;
         self.tools = tools;
         self.messages = Vec::new();
         self.context = ChatContext::new();
@@ -1864,8 +1887,20 @@ impl<'a> Chat<'a> {
         self.template_variables.clone()
     }
 
-    pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) {
+    pub fn set_sampler_config(
+        &mut self,
+        sampler_config: SamplerConfig,
+    ) -> Result<(), ChatWorkerError> {
         self.sampler_config = sampler_config;
+        // The pre-built base and tool samplers embed the previous config — rebuild them.
+        self.base_sampler = self.sampler_config.build_sampler(self.engine.ctx.model)?;
+        self.tool_sampler = build_tool_sampler(
+            self.engine.ctx.model,
+            &self.tools,
+            &self.sampler_config,
+            self.tool_format.as_ref(),
+        )?;
+        Ok(())
     }
 
     pub fn set_system_prompt(
@@ -1903,35 +1938,13 @@ impl<'a> Chat<'a> {
         }
     }
 
-    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
-        // Detect tool format if not already detected and tools are provided
-        if !tools.is_empty() && self.tool_format.is_none() {
-            match detect_tool_format(self.engine.ctx.model) {
-                Ok(format) => {
-                    debug!(format = ?format, "Detected tool calling format");
-                    self.tool_format = Some(format);
-                }
-                Err(e) => {
-                    debug!(error = %e, "Failed to detect tool format, tools will not work");
-                }
-            }
-        }
-
-        self.tool_grammar = if !tools.is_empty() {
-            if let Some(ref format) = self.tool_format {
-                match format.generate_grammar(&tools) {
-                    Ok(g) => Some(g),
-                    Err(e) => {
-                        debug!(error = %e, "Failed to generate grammar from tools");
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
+        self.tool_sampler = build_tool_sampler(
+            self.engine.ctx.model,
+            &tools,
+            &self.sampler_config,
+            self.tool_format.as_ref(),
+        )?;
         self.tools = tools;
 
         self.chat_template = select_template(self.engine.ctx.model, !self.tools.is_empty())?;
@@ -2223,6 +2236,68 @@ mod tests {
         }
     }
 
+    /// Time three sequential tool-calling turns on the same worker to confirm the
+    /// pre-built tool sampler amortizes the llguidance init cost at worker creation.
+    /// The one-time llguidance build appears in `setup_ms`; all three turns run at
+    /// similar speed. Turns 2 and 3 are slightly slower than turn 1 due to KV cache
+    /// growth, not grammar overhead.
+    #[test]
+    #[ignore = "manual perf benchmark — run with `cargo test bench_pre_built_sampler_amortization -- --ignored --nocapture`"]
+    fn bench_pre_built_sampler_amortization() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let setup_start = std::time::Instant::now();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You're a helpful assistant.".into()),
+                n_ctx: 4096,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+        let setup_ms = setup_start.elapsed().as_millis();
+        eprintln!("[bench] worker setup: {setup_ms} ms");
+
+        // Warmup: one discarded turn to put GPU pipeline in steady state.
+        let (warmup_tx, warmup_rx) = std::sync::mpsc::channel::<String>();
+        worker
+            .ask("Hello.".into(), move |x| {
+                if let llm::WriteOutput::Done(r) = x {
+                    let _ = warmup_tx.send(r);
+                }
+            })
+            .expect("warmup failed");
+        let _ = warmup_rx.recv();
+
+        // Three distinct prompts that should each elicit a tool call.
+        let prompts = [
+            "What's the temperature in Copenhagen?",
+            "Now check the temperature in Beijing.",
+            "And one more: temperature in Copenhagen again, please.",
+        ];
+
+        for (i, prompt) in prompts.iter().enumerate() {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let f = move |x| {
+                if let llm::WriteOutput::Done(resp) = x {
+                    sender.send(resp).unwrap();
+                }
+            };
+            let turn_start = std::time::Instant::now();
+            worker.ask((*prompt).into(), f).expect("ask failed");
+            let _ = receiver.recv().unwrap();
+            eprintln!(
+                "[bench] turn {} ({} chars): {} ms",
+                i + 1,
+                prompt.len(),
+                turn_start.elapsed().as_millis()
+            );
+        }
+    }
+
     #[test]
     fn test_tool_chat() {
         test_utils::init_test_tracing();
@@ -2256,7 +2331,6 @@ mod tests {
 
         let result = receiver.recv().unwrap();
         println!("{}", result);
-        println!("{}", worker.tool_grammar.unwrap().as_str());
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
     }

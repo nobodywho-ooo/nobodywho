@@ -5,17 +5,12 @@
 //! (also tolerating Python `True`/`False`/`None`).
 
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{alt, nt, seq, t, GrammarBuilder, NoRoot};
-use gbnf::json::json_schema_to_grammar;
-use gbnf::{Expr, GbnfGrammar};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 use tracing::debug;
 
 const BEGIN_TOKEN: &str = "<|tool_call_start|>";
 const END_TOKEN: &str = "<|tool_call_end|>";
-
-type Builder = GrammarBuilder<NoRoot>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Lfm2Handler;
@@ -29,42 +24,23 @@ impl ToolFormatHandler for Lfm2Handler {
         END_TOKEN
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
-        let mut builder = GrammarBuilder::new();
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        let mut lark = String::from("%llguidance {}\n");
 
         let mut tool_rule_names = Vec::with_capacity(tools.len());
         for (ti, tool) in tools.iter().enumerate() {
-            let (tool_rule, next) = add_tool_rule(tool, ti, builder)?;
-            builder = next;
+            let tool_rule = lark_tool_rule(tool, ti, &mut lark)?;
             tool_rule_names.push(tool_rule);
         }
 
-        let tool_alts: Vec<Expr> = tool_rule_names.iter().map(|n| nt(n)).collect();
+        let tool_alt_str = tool_rule_names.join(" | ");
+        lark.push_str(&format!("lfm2_tool_alt: {tool_alt_str}\n"));
+        lark.push_str("lfm2_calllist: lfm2_tool_alt | lfm2_tool_alt \", \" lfm2_calllist\n");
+        lark.push_str(&format!(
+            "start: \"{BEGIN_TOKEN}\" \"[\" lfm2_calllist \"]\" \"{END_TOKEN}\"\n"
+        ));
 
-        Ok(builder
-            .rule("lfm2-tool-alt", alt(&tool_alts))
-            // A call list is one or more calls separated by ", ".
-            // calllist ::= tool-alt | tool-alt ", " calllist
-            .rule(
-                "lfm2-calllist",
-                alt(&[
-                    nt("lfm2-tool-alt"),
-                    seq(&[nt("lfm2-tool-alt"), t(", "), nt("lfm2-calllist")]),
-                ]),
-            )
-            .rule(
-                "lfm2-toolcall",
-                seq(&[
-                    t(BEGIN_TOKEN),
-                    t("["),
-                    nt("lfm2-calllist"),
-                    t("]"),
-                    t(END_TOKEN),
-                ]),
-            )
-            .rule("superroot", nt("lfm2-toolcall"))
-            .root("superroot")
-            .build())
+        Ok(lark)
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
@@ -94,10 +70,6 @@ impl ToolFormatHandler for Lfm2Handler {
 // ============================================================================
 // Grammar construction
 // ============================================================================
-//
-// Mirrors the per-tool / per-parameter approach in `qwen35_36.rs`: each helper
-// appends rules to the in-progress `Builder` and returns the new `Builder`
-// together with the name of the rule the caller should reference.
 
 fn required_params(tool: &Tool) -> HashSet<&str> {
     tool.json_schema
@@ -107,82 +79,52 @@ fn required_params(tool: &Tool) -> HashSet<&str> {
         .unwrap_or_default()
 }
 
-/// llama.cpp's grammar parser only accepts `[a-zA-Z0-9-]` in rule names, so any
-/// other character in a parameter name is mapped to `-` (same as qwen35_36).
-fn sanitize(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect()
-}
-
-/// Add a rule matching a single argument value. LFM2 quotes strings and renders
-/// everything else JSON-style, so the JSON value grammar covers every type
-/// (string, number, boolean, enum, object, array).
-fn add_value_rule(
-    schema: &Value,
-    prefix: &str,
-    b: Builder,
-) -> Result<(String, Builder), ToolFormatError> {
-    let alias = format!("{prefix}-val");
-    let json_gram = json_schema_to_grammar(schema.clone(), "root")?;
-    Ok((alias.clone(), b.include_grammar_as(&json_gram, &alias)))
-}
-
-/// Build the ordered, comma-separated `key=value` argument list. Required
-/// params must appear, optional params may be skipped, and commas are placed
-/// only *between* emitted params (no leading/trailing/double commas).
+/// Build the `from-i`/`more-i` rule families for ordered optional params.
 ///
-/// Encoded with two rule families over the parameter suffix `i..n`:
-/// - `from-i`: nothing emitted yet (the first emitted param has no comma)
-/// - `more-i`: a param was already emitted (every further param gets ", ")
+/// - `from-i`: nothing emitted yet; the first emitted param has no leading comma.
+/// - `more-i`: a param was already emitted; every further param gets `", "`.
 ///
-/// Returns the entry rule (`from-0`), which also matches the empty list.
-fn add_arglist_rules(
-    tprefix: &str,
-    params: &[(String, bool)],
-    mut b: Builder,
-) -> (String, Builder) {
+/// Returns the entry rule name (`{tprefix}_from_0`).
+fn lark_arglist_rules(tprefix: &str, params: &[(String, bool)], lark: &mut String) -> String {
     let n = params.len();
 
     // Base cases: nothing left to emit.
-    b = b.rule(&format!("{tprefix}-from-{n}"), t(""));
-    b = b.rule(&format!("{tprefix}-more-{n}"), t(""));
+    lark.push_str(&format!("{tprefix}_from_{n}: \"\"\n"));
+    lark.push_str(&format!("{tprefix}_more_{n}: \"\"\n"));
 
     for i in (0..n).rev() {
         let (kv_rule, required) = &params[i];
-        let from_i = format!("{tprefix}-from-{i}");
-        let more_i = format!("{tprefix}-more-{i}");
-        let from_next = format!("{tprefix}-from-{}", i + 1);
-        let more_next = format!("{tprefix}-more-{}", i + 1);
+        let from_i = format!("{tprefix}_from_{i}");
+        let more_i = format!("{tprefix}_more_{i}");
+        let from_next = format!("{tprefix}_from_{}", i + 1);
+        let more_next = format!("{tprefix}_more_{}", i + 1);
 
         if *required {
             // from-i  ::= kv more-(i+1)
             // more-i  ::= ", " kv more-(i+1)
-            b = b.rule(&from_i, seq(&[nt(kv_rule), nt(&more_next)]));
-            b = b.rule(&more_i, seq(&[t(", "), nt(kv_rule), nt(&more_next)]));
+            lark.push_str(&format!("{from_i}: {kv_rule} {more_next}\n"));
+            lark.push_str(&format!("{more_i}: \", \" {kv_rule} {more_next}\n"));
         } else {
             // from-i  ::= (kv more-(i+1)) | from-(i+1)
             // more-i  ::= (", " kv more-(i+1)) | more-(i+1)
-            b = b.rule(
-                &from_i,
-                alt(&[seq(&[nt(kv_rule), nt(&more_next)]), nt(&from_next)]),
-            );
-            b = b.rule(
-                &more_i,
-                alt(&[seq(&[t(", "), nt(kv_rule), nt(&more_next)]), nt(&more_next)]),
-            );
+            lark.push_str(&format!(
+                "{from_i}: ({kv_rule} {more_next}) | {from_next}\n"
+            ));
+            lark.push_str(&format!(
+                "{more_i}: (\", \" {kv_rule} {more_next}) | {more_next}\n"
+            ));
         }
     }
 
-    (format!("{tprefix}-from-0"), b)
+    format!("{tprefix}_from_0")
 }
 
-fn add_tool_rule(
+fn lark_tool_rule(
     tool: &Tool,
     tool_index: usize,
-    mut builder: Builder,
-) -> Result<(String, Builder), ToolFormatError> {
-    let tprefix = format!("lfm2-t{tool_index}");
+    lark: &mut String,
+) -> Result<String, ToolFormatError> {
+    let tprefix = format!("lfm2_t{tool_index}");
     let required = required_params(tool);
 
     // (kv-rule-name, is-required) per property, preserving declaration order.
@@ -192,27 +134,31 @@ fn add_tool_rule(
         .get("properties")
         .and_then(|p| p.as_object())
     {
-        for (pname, pschema) in props {
-            let pprefix = format!("{tprefix}-p-{}", sanitize(pname));
-            let (value_rule, next) = add_value_rule(pschema, &pprefix, builder)?;
-            builder = next;
+        for (pi, (pname, pschema)) in props.iter().enumerate() {
+            let pprefix = format!("{tprefix}_p{pi}_{}", super::sanitize_lark(pname));
 
-            let kv_rule = format!("{pprefix}-kv");
-            builder = builder.rule(&kv_rule, seq(&[t(&format!("{pname}=")), nt(&value_rule)]));
+            let val_rule = format!("{pprefix}_val");
+            let schema_str = serde_json::to_string(pschema)
+                .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
+            lark.push_str(&format!("{val_rule}: %json {schema_str}\n"));
+
+            let kv_rule = format!("{pprefix}_kv");
+            let pname_esc = super::escape_lark_string(pname);
+            lark.push_str(&format!("{kv_rule}: \"{pname_esc}=\" {val_rule}\n"));
+
             params.push((kv_rule, required.contains(pname.as_str())));
         }
     }
 
-    let (arglist_rule, next) = add_arglist_rules(&tprefix, &params, builder);
-    builder = next;
+    let arglist_rule = lark_arglist_rules(&tprefix, &params, lark);
 
-    let tool_rule = format!("{tprefix}-call");
-    let builder = builder.rule(
-        &tool_rule,
-        seq(&[t(&format!("{}(", tool.name)), nt(&arglist_rule), t(")")]),
-    );
+    let tool_rule = format!("{tprefix}_call");
+    lark.push_str(&format!(
+        "{tool_rule}: \"{}(\" {arglist_rule} \")\"\n",
+        super::escape_lark_string(&tool.name)
+    ));
 
-    Ok((tool_rule, builder))
+    Ok(tool_rule)
 }
 
 // ============================================================================
@@ -404,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn grammar_builds() {
+    fn lark_builds() {
         let h = Lfm2Handler;
         let make = |schema| Tool {
             name: "get_weather".to_string(),
@@ -413,8 +359,8 @@ mod tests {
             function: std::sync::Arc::new(|_| String::new()),
         };
 
-        let g = h
-            .generate_grammar(&[make(json!({
+        let s = h
+            .to_lark(&[make(json!({
                 "type": "object",
                 "properties": {
                     "city": {"type": "string"},
@@ -424,15 +370,15 @@ mod tests {
                 "required": ["city"]
             }))])
             .unwrap();
-        let s = g.as_str();
+        assert!(s.contains("%llguidance"));
         assert!(s.contains("<|tool_call_start|>") && s.contains("<|tool_call_end|>"));
         assert!(s.contains("get_weather("));
         assert!(s.contains("city=") && s.contains("units=") && s.contains("verbose="));
 
         // empty-params schema still builds
-        let g = h
-            .generate_grammar(&[make(json!({"type": "object", "properties": {}}))])
+        let s = h
+            .to_lark(&[make(json!({"type": "object", "properties": {}}))])
             .unwrap();
-        assert!(g.as_str().contains("get_weather("));
+        assert!(s.contains("get_weather("));
     }
 }

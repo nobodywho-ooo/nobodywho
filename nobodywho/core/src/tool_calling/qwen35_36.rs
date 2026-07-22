@@ -1,7 +1,4 @@
 use super::{Tool, ToolCall, ToolFormatError, ToolFormatHandler};
-use gbnf::builder::{alt, nt, nt_plus, seq, t, GrammarBuilder, NoRoot};
-use gbnf::json::json_schema_to_grammar;
-use gbnf::{CharacterRange, Expr, GbnfGrammar, Quantifier};
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
@@ -10,14 +7,6 @@ use tracing::debug;
 
 const BEGIN_TOKEN: &str = "<tool_call>";
 const END_TOKEN: &str = "</tool_call>";
-
-/// Terminator of a `<parameter=...>` block, as emitted by the Qwen3.5/3.6 chat template.
-///
-/// The leading `\n` separates the value content from the close; the trailing `\n`
-/// precedes either the next `<parameter=...>` or `</function>`.
-const PARAM_TERMINATOR: &str = "\n</parameter>\n";
-
-type Builder = GrammarBuilder<NoRoot>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Qwen35_36Handler;
@@ -31,27 +20,96 @@ impl ToolFormatHandler for Qwen35_36Handler {
         END_TOKEN
     }
 
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<GbnfGrammar, ToolFormatError> {
-        let (body_rule, mut builder) =
-            add_param_value_body_rule("qwen35-val", GrammarBuilder::new());
+    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+        let mut lark = String::from("%llguidance {}\n");
+        lark.push_str("start: toolcall+\n");
 
-        let mut tool_rule_names = Vec::with_capacity(tools.len());
+        let alts: Vec<String> = (0..tools.len()).map(|i| format!("tool_{i}")).collect();
+        lark.push_str("toolcall: \"<tool_call>\\n\" tool_alt \"</tool_call>\"\n");
+        lark.push_str(&format!("tool_alt: {}\n", alts.join(" | ")));
+
         for (ti, tool) in tools.iter().enumerate() {
-            let (tool_rule, next) = add_tool_rule(tool, ti, &body_rule, builder)?;
-            builder = next;
-            tool_rule_names.push(tool_rule);
+            let tprefix = format!("qwen35_t{ti}");
+            let required = required_params(tool);
+
+            let mut block_rules: Vec<(String, bool)> = Vec::new();
+
+            if let Some(props) = tool
+                .json_schema
+                .get("properties")
+                .and_then(|p| p.as_object())
+            {
+                for (pi, (pname, pschema)) in props.iter().enumerate() {
+                    let pprefix = format!("{tprefix}_p{pi}_{}", super::sanitize_lark(pname));
+                    let block_rule = format!("{pprefix}_block");
+                    let is_required = required.contains(pname.as_str());
+                    let pname = super::escape_lark_string(pname);
+
+                    let ty = pschema
+                        .get("type")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("string");
+
+                    if ty == "string" {
+                        if let Some(variants) = pschema.get("enum").and_then(|e| e.as_array()) {
+                            let enum_alts: Vec<String> = variants
+                                .iter()
+                                .filter_map(|v| v.as_str())
+                                .map(|s| format!("\"{}\"", super::escape_lark_string(s)))
+                                .collect();
+                            if !enum_alts.is_empty() {
+                                lark.push_str(&format!(
+                                    "{block_rule}: \"<parameter={pname}>\\n\" ({}) \"\\n</parameter>\\n\"\n",
+                                    enum_alts.join(" | ")
+                                ));
+                                block_rules.push((block_rule, is_required));
+                                continue;
+                            }
+                        }
+                        // Free-form string: match any text up to the first
+                        // `\n</parameter>\n` terminator, which the lazy `suffix`
+                        // consumes. This allows values containing `<`, embedded
+                        // newlines, or a trailing newline — none of which a
+                        // character-class body can represent without either
+                        // banning valid content or failing to terminate.
+                        let body_rule = format!("{pprefix}_body");
+                        lark.push_str(&format!(
+                            "{block_rule}: \"<parameter={pname}>\\n\" {body_rule}\n"
+                        ));
+                        lark.push_str(&format!(
+                            "{body_rule}[suffix=/\\n<\\/parameter>\\n/]: /(?s:.*)/\n"
+                        ));
+                    } else {
+                        let val_rule = format!("{pprefix}_val");
+                        let schema_str = serde_json::to_string(pschema)
+                            .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
+                        lark.push_str(&format!("{val_rule}: %json {schema_str}\n"));
+                        lark.push_str(&format!(
+                            "{block_rule}: \"<parameter={pname}>\\n\" {val_rule} \"\\n</parameter>\\n\"\n"
+                        ));
+                    }
+
+                    block_rules.push((block_rule, is_required));
+                }
+            }
+
+            let mut rule = format!(
+                "tool_{ti}: \"<function={}>\\n\"",
+                super::escape_lark_string(&tool.name)
+            );
+            for (block_rule, is_required) in &block_rules {
+                if *is_required {
+                    rule.push_str(&format!(" {block_rule}"));
+                } else {
+                    rule.push_str(&format!(" {block_rule}?"));
+                }
+            }
+            rule.push_str(" \"</function>\\n\"");
+            lark.push_str(&rule);
+            lark.push('\n');
         }
 
-        let tool_alts: Vec<Expr> = tool_rule_names.iter().map(|n| nt(n)).collect();
-        Ok(builder
-            .rule("tool-alt", alt(&tool_alts))
-            .rule(
-                "toolcall",
-                seq(&[t(BEGIN_TOKEN), t("\n"), nt("tool-alt"), t(END_TOKEN)]),
-            )
-            .rule("superroot", nt_plus("toolcall"))
-            .root("superroot")
-            .build())
+        Ok(lark)
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
@@ -64,165 +122,12 @@ impl ToolFormatHandler for Qwen35_36Handler {
     }
 }
 
-// ============================================================================
-// Grammar construction
-// ============================================================================
-//
-// Each `add_*` helper receives the in-progress `Builder`, appends one or more
-// rules, and returns the new `Builder` together with the name of the rule the
-// caller should reference.
-
-fn none_of(chars: &[char]) -> Expr {
-    Expr::CharacterRange(CharacterRange::Set {
-        chars: chars.to_vec(),
-        negated: true,
-    })
-}
-
-/// Add GBNF rules for an arbitrary-content body that cannot consume
-/// `PARAM_TERMINATOR` (`\n</parameter>\n`).
-///
-/// The terminator always begins with `\n<`, so the body allows multi-line
-/// content but forbids `<` at the start of any line. This is two rules
-/// instead of the 14-state KMP automaton needed to match the full terminator
-/// string, and is sufficient in practice because tool-call parameter values
-/// (code, text, etc.) rarely start a line with `<`.
-fn add_param_value_body_rule(prefix: &str, mut b: Builder) -> (String, Builder) {
-    let body = format!("{prefix}-body");
-    let after_nl = format!("{prefix}-after-nl");
-
-    // body ::= "" | [^\n] body | "\n" after-nl
-    b = b.rule(
-        &body,
-        alt(&[
-            t(""),
-            seq(&[none_of(&['\n']), nt(&body)]),
-            seq(&[t("\n"), nt(&after_nl)]),
-        ]),
-    );
-
-    // after-nl ::= "" | [^<\n] body | "\n" after-nl
-    b = b.rule(
-        &after_nl,
-        alt(&[
-            t(""),
-            seq(&[none_of(&['<', '\n']), nt(&body)]),
-            seq(&[t("\n"), nt(&after_nl)]),
-        ]),
-    );
-
-    (body, b)
-}
-
-/// Build a rule matching a single parameter value per its JSON schema type.
-fn add_value_rule(
-    schema: &Value,
-    prefix: &str,
-    body_rule: &str,
-    b: Builder,
-) -> Result<(String, Builder), ToolFormatError> {
-    let ty = schema
-        .get("type")
-        .and_then(|t| t.as_str())
-        .unwrap_or("string");
-
-    if ty != "string" {
-        let alias = format!("{prefix}-json");
-        let json_gram = json_schema_to_grammar(schema.clone(), "root")?;
-        return Ok((alias.clone(), b.include_grammar_as(&json_gram, &alias)));
-    }
-
-    if let Some(variants) = schema.get("enum").and_then(|e| e.as_array()) {
-        let alts: Vec<Expr> = variants.iter().filter_map(|v| v.as_str()).map(t).collect();
-        if !alts.is_empty() {
-            let rule_name = format!("{prefix}-enum");
-            return Ok((rule_name.clone(), b.rule(&rule_name, alt(&alts))));
-        }
-    }
-
-    Ok((body_rule.to_string(), b))
-}
-
 fn required_params(tool: &Tool) -> HashSet<&str> {
     tool.json_schema
         .get("required")
         .and_then(|r| r.as_array())
         .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
         .unwrap_or_default()
-}
-
-fn add_parameter_rule(
-    pname: &str,
-    pschema: &Value,
-    tprefix: &str,
-    body_rule: &str,
-    required: &HashSet<&str>,
-    builder: Builder,
-) -> Result<(Expr, Builder), ToolFormatError> {
-    let pprefix = format!("{tprefix}-p-{}", sanitize(pname));
-    let (value_rule, builder) = add_value_rule(pschema, &pprefix, body_rule, builder)?;
-
-    let param_rule = format!("{pprefix}-block");
-    let builder = builder.rule(
-        &param_rule,
-        seq(&[
-            t(&format!("<parameter={pname}>\n")),
-            nt(&value_rule),
-            t(PARAM_TERMINATOR),
-        ]),
-    );
-
-    let param_expr = if required.contains(pname) {
-        nt(&param_rule)
-    } else {
-        Expr::Quantified {
-            expr: Box::new(nt(&param_rule)),
-            quantifier: Quantifier::Optional,
-        }
-    };
-
-    Ok((param_expr, builder))
-}
-
-fn add_tool_rule(
-    tool: &Tool,
-    tool_index: usize,
-    body_rule: &str,
-    mut builder: Builder,
-) -> Result<(String, Builder), ToolFormatError> {
-    let tprefix = format!("qwen35-t{tool_index}");
-    let required = required_params(tool);
-    let mut param_exprs: Vec<Expr> = Vec::new();
-
-    if let Some(props) = tool
-        .json_schema
-        .get("properties")
-        .and_then(|p| p.as_object())
-    {
-        for (pname, pschema) in props {
-            let (expr, next) =
-                add_parameter_rule(pname, pschema, &tprefix, body_rule, &required, builder)?;
-            builder = next;
-            param_exprs.push(expr);
-        }
-    }
-
-    let tool_rule = format!("{tprefix}-call");
-    let mut call_seq: Vec<Expr> = Vec::with_capacity(param_exprs.len() + 2);
-    call_seq.push(t(&format!("<function={}>\n", tool.name)));
-    call_seq.extend(param_exprs);
-    call_seq.push(t("</function>\n"));
-
-    Ok((tool_rule.clone(), builder.rule(&tool_rule, seq(&call_seq))))
-}
-
-/// llama.cpp's grammar parser only accepts `[a-zA-Z0-9-]` in rule names
-/// (see `is_word_char` in `llama-grammar.cpp`), so underscores in parameter
-/// names must be mapped to `-`.
-fn sanitize(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect()
 }
 
 // ============================================================================
@@ -327,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn grammar_builds_for_typical_schema() {
+    fn lark_builds_for_typical_schema() {
         let h = Qwen35_36Handler;
         let tool = Tool {
             name: "get_weather".to_string(),
@@ -343,15 +248,17 @@ mod tests {
             }),
             function: std::sync::Arc::new(|_| "".to_string()),
         };
-        let gram = h.generate_grammar(&[tool]).expect("grammar should build");
-        let s = gram.as_str();
-        assert!(s.contains("<tool_call>"));
-        assert!(s.contains("<function=get_weather>"));
-        assert!(s.contains("<parameter=city>"));
+        let lark = h.to_lark(&[tool]).expect("lark should build");
+        assert!(lark.contains("%llguidance"));
+        assert!(lark.contains("<tool_call>"));
+        assert!(lark.contains("<function=get_weather>"));
+        assert!(lark.contains("<parameter=city>"));
+        assert!(lark.contains("<parameter=units>"));
+        assert!(lark.contains("<parameter=verbose>"));
     }
 
     #[test]
-    fn grammar_reuses_json_scalar_rules_for_non_strings() {
+    fn lark_includes_scalar_types() {
         let h = Qwen35_36Handler;
         let tool = Tool {
             name: "f".to_string(),
@@ -367,12 +274,11 @@ mod tests {
             }),
             function: std::sync::Arc::new(|_| "".to_string()),
         };
-
-        let grammar = h.generate_grammar(&[tool]).expect("grammar should build");
-        let s = grammar.as_str();
-        assert!(s.contains("json-integer"));
-        assert!(s.contains("json-number"));
-        assert!(s.contains("json-boolean"));
-        assert!(s.contains("json-null"));
+        let lark = h.to_lark(&[tool]).expect("lark should build");
+        assert!(lark.contains("%json"));
+        assert!(lark.contains("<parameter=n>"));
+        assert!(lark.contains("<parameter=x>"));
+        assert!(lark.contains("<parameter=b>"));
+        assert!(lark.contains("<parameter=z>"));
     }
 }
