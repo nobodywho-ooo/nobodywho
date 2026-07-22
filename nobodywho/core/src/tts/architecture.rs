@@ -1,6 +1,6 @@
 use crate::errors::TtsError;
 use crate::huggingface;
-use crate::tts::{kokoro, supertonic, TtsConfig, TtsDevice};
+use crate::tts::{kokoro, pocket, supertonic, TtsConfig, TtsDevice};
 use std::time::Instant;
 use tracing::info;
 
@@ -33,7 +33,7 @@ pub(super) fn load_architecture(
     match config {
         TtsConfig::Kokoro(config) => {
             let init_start = Instant::now();
-            let model_dir = huggingface::download_onnx(&config.source, &[])?;
+            let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
             let backend = kokoro::KokoroBackend::new(
                 &model_dir,
                 &config.voice,
@@ -44,9 +44,15 @@ pub(super) fn load_architecture(
             info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TTS");
             Ok(Box::new(backend))
         }
+        TtsConfig::PocketTts(config) => {
+            let init_start = Instant::now();
+            let backend = pocket::PocketTtsBackend::new(&config, device)?;
+            info!(elapsed = ?init_start.elapsed(), "Initialized Pocket TTS");
+            Ok(Box::new(backend))
+        }
         TtsConfig::Supertonic(config) => {
             let init_start = Instant::now();
-            let model_dir = huggingface::download_onnx(&config.source, &[])?;
+            let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
             let backend = supertonic::SupertonicBackend::new(
                 &model_dir,
                 &config.voice,

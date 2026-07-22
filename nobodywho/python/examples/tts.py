@@ -6,6 +6,7 @@ import nobodywho
 OUTPUT_DIR = Path("tts_outputs")
 SOURCES = {
     "kokoro": "hf://hexgrad/Kokoro-82M",
+    "pocket-tts": "hf://KevinAHM/pocket-tts-onnx",
     "supertonic": "hf://Supertone/supertonic-3",
 }
 TEXT = "This audio file was generated completely on-device."

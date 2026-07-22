@@ -3,6 +3,7 @@ import NobodyWhoGenerated
 
 public enum TtsArchitecture: String {
     case kokoro
+    case pocketTts = "pocket-tts"
     case supertonic
 }
 
@@ -25,6 +26,9 @@ public class Tts {
         speed: Float? = nil,
         steps: UInt32? = nil,
         silenceDuration: Float? = nil,
+        precision: String? = nil,
+        temperature: Float? = nil,
+        huggingfaceToken: String? = nil,
         device: TtsDevice = .auto
     ) throws {
         self.inner = try NobodyWhoGenerated.RustTts(
@@ -35,6 +39,9 @@ public class Tts {
             speed: speed,
             steps: steps,
             silenceDuration: silenceDuration,
+            precision: precision,
+            temperature: temperature,
+            huggingfaceToken: huggingfaceToken,
             device: device.rawValue
         )
     }
@@ -52,6 +59,9 @@ public class Tts {
         speed: Float? = nil,
         steps: UInt32? = nil,
         silenceDuration: Float? = nil,
+        precision: String? = nil,
+        temperature: Float? = nil,
+        huggingfaceToken: String? = nil,
         device: TtsDevice = .auto
     ) async throws -> Tts {
         let inner = try await NobodyWhoGenerated.loadTts(
@@ -62,6 +72,9 @@ public class Tts {
             speed: speed,
             steps: steps,
             silenceDuration: silenceDuration,
+            precision: precision,
+            temperature: temperature,
+            huggingfaceToken: huggingfaceToken,
             device: device.rawValue
         )
         return Tts(inner: inner)

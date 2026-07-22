@@ -969,7 +969,7 @@ external fun uniffi_nobodywho_uniffi_fn_clone_rusttts(`handle`: Long,uniffi_out_
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1029,7 +1029,7 @@ external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: U
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1184,7 +1184,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 26587.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
@@ -1385,7 +1385,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 24110.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 34899.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
@@ -4847,12 +4847,12 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
     /**
      * Create a TTS synthesizer.
      */
-    constructor(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) :
+    constructor(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
     
-        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),_status)
+        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),_status)
 }
     )
 
@@ -7376,9 +7376,9 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadTts`(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) : RustTts {
+     suspend fun `loadTts`(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) : RustTts {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },

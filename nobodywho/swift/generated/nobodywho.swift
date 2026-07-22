@@ -2306,7 +2306,7 @@ open class RustTts: RustTtsProtocol, @unchecked Sendable {
     /**
      * Create a TTS synthesizer.
      */
-public convenience init(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, device: String?)throws  {
+public convenience init(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, precision: String?, temperature: Float?, huggingfaceToken: String?, device: String?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
@@ -2317,6 +2317,9 @@ public convenience init(source: String, architecture: String?, voice: String?, l
         FfiConverterOptionFloat.lower(speed),
         FfiConverterOptionUInt32.lower(steps),
         FfiConverterOptionFloat.lower(silenceDuration),
+        FfiConverterOptionString.lower(precision),
+        FfiConverterOptionFloat.lower(temperature),
+        FfiConverterOptionString.lower(huggingfaceToken),
         FfiConverterOptionString.lower(device),$0
     )
 }
@@ -4551,11 +4554,11 @@ public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: Stri
 /**
  * Create a TTS synthesizer.
  */
-public func loadTts(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, device: String?)async throws  -> RustTts  {
+public func loadTts(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, precision: String?, temperature: Float?, huggingfaceToken: String?, device: String?)async throws  -> RustTts  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionString.lower(architecture),FfiConverterOptionString.lower(voice),FfiConverterOptionString.lower(language),FfiConverterOptionFloat.lower(speed),FfiConverterOptionUInt32.lower(steps),FfiConverterOptionFloat.lower(silenceDuration),FfiConverterOptionString.lower(device)
+                uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionString.lower(architecture),FfiConverterOptionString.lower(voice),FfiConverterOptionString.lower(language),FfiConverterOptionFloat.lower(speed),FfiConverterOptionUInt32.lower(steps),FfiConverterOptionFloat.lower(silenceDuration),FfiConverterOptionString.lower(precision),FfiConverterOptionFloat.lower(temperature),FfiConverterOptionString.lower(huggingfaceToken),FfiConverterOptionString.lower(device)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -4696,7 +4699,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_tts() != 61935) {
+    if (uniffi_nobodywho_uniffi_checksum_func_load_tts() != 26587) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698) {
@@ -4897,7 +4900,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 24110) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 34899) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214) {

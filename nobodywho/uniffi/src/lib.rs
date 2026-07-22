@@ -963,7 +963,9 @@ fn parse_tts_architecture(
         .as_deref()
         .map(str::parse)
         .transpose()
-        .map_err(|()| tts_error("architecture must be one of 'kokoro' or 'supertonic'"))
+        .map_err(|()| {
+            tts_error("architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'")
+        })
 }
 
 fn parse_tts_device(device: Option<String>) -> Result<nobodywho::tts::TtsDevice, NobodyWhoError> {
@@ -988,11 +990,14 @@ fn build_tts_config(
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
 ) -> Result<nobodywho::tts::TtsConfig, NobodyWhoError> {
     let architecture = parse_tts_architecture(architecture)?;
     let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
         tts_error(
-            "architecture is required for unknown TTS sources; pass architecture='kokoro' or architecture='supertonic'",
+            "architecture is required for unknown TTS sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
         )
     })?;
 
@@ -1007,6 +1012,32 @@ fn build_tts_config(
             if let Some(speed) = speed {
                 config.speed = speed;
             }
+        }
+        nobodywho::tts::TtsConfig::PocketTts(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(steps) = steps {
+                config.lsd_steps = steps as usize;
+            }
+            if let Some(precision) = precision {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err(tts_error(
+                            "precision must be 'int8' or 'fp32' for Pocket TTS",
+                        ))
+                    }
+                };
+            }
+            if let Some(temperature) = temperature {
+                config.temperature = temperature;
+            }
+            config.huggingface_token = huggingface_token;
         }
         nobodywho::tts::TtsConfig::Supertonic(config) => {
             if let Some(voice) = voice {
@@ -1037,6 +1068,9 @@ fn create_tts(
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
     device: Option<String>,
 ) -> Result<Arc<RustTts>, NobodyWhoError> {
     let config = build_tts_config(
@@ -1047,6 +1081,9 @@ fn create_tts(
         speed,
         steps,
         silence_duration,
+        precision,
+        temperature,
+        huggingface_token,
     )?;
     let device = parse_tts_device(device)?;
     let inner = nobodywho::tts::Tts::with_device(config, device)
@@ -1064,6 +1101,9 @@ pub async fn load_tts(
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
     device: Option<String>,
 ) -> Result<Arc<RustTts>, NobodyWhoError> {
     // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
@@ -1078,6 +1118,9 @@ pub async fn load_tts(
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
             device,
         );
         let _ = tx.blocking_send(result);
@@ -1099,6 +1142,9 @@ impl RustTts {
         speed: Option<f32>,
         steps: Option<u32>,
         silence_duration: Option<f32>,
+        precision: Option<String>,
+        temperature: Option<f32>,
+        huggingface_token: Option<String>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
         create_tts(
@@ -1109,6 +1155,9 @@ impl RustTts {
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
             device,
         )
     }

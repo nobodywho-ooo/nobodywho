@@ -4,7 +4,7 @@ import {
   type RustTtsInterface,
 } from "../generated/ts/nobodywho";
 
-export type TtsArchitecture = "kokoro" | "supertonic";
+export type TtsArchitecture = "kokoro" | "pocket-tts" | "supertonic";
 export type TtsDevice = "auto" | "cpu" | "cuda";
 
 export type TtsOptions = {
@@ -15,6 +15,9 @@ export type TtsOptions = {
   speed?: number;
   steps?: number;
   silenceDuration?: number;
+  precision?: "int8" | "fp32";
+  temperature?: number;
+  huggingfaceToken?: string;
   device?: TtsDevice;
 };
 
@@ -33,6 +36,9 @@ export class Tts {
       opts.speed,
       opts.steps,
       opts.silenceDuration,
+      opts.precision,
+      opts.temperature,
+      opts.huggingfaceToken,
       opts.device ?? "auto",
     );
   }
@@ -53,6 +59,9 @@ export class Tts {
       opts.speed,
       opts.steps,
       opts.silenceDuration,
+      opts.precision,
+      opts.temperature,
+      opts.huggingfaceToken,
       opts.device ?? "auto",
     );
     return Tts.fromInner(inner);
