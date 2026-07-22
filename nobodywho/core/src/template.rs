@@ -98,10 +98,8 @@ impl ChatTemplate {
         ctx: &ChatTemplateContext,
         add_generation_prompt: bool,
     ) -> Result<String, minijinja::Error> {
-        // If the caller explicitly disallows the generation prompt, force it
-        // off. Otherwise fall back to the historical auto-detect: append the
-        // generation prompt only when the last message is a user or tool
-        // response (i.e. the model is expected to produce the next turn).
+        // Only add the generation prompt when the caller allows it and the last
+        // message is a user/tool turn (i.e. the model should produce the next turn).
         let add_generation_prompt = add_generation_prompt
             && messages
                 .last()

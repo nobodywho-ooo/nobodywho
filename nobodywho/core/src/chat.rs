@@ -1399,14 +1399,9 @@ impl<'a> Chat<'a> {
     /// and perform the LLM 'reading' to make the LLM's context match the rendered tokens exactly.
     /// Because this invokes the model, this is potentially an expensive method to call.
     ///
-    /// On recurrent / hybrid-recurrent architectures the render is split
-    /// into a **committed** portion and a transient **generation-prompt
-    /// tail**, with a checkpoint saved in between. That lets partial
-    /// rewinds on the next sync restore from the checkpoint instead of
-    /// falling back to a full context reset (which recurrent memory
-    /// cannot avoid otherwise). Attention-only architectures skip the
-    /// second render, the split, and the checkpoint — `clear_kv_cache_seq`
-    /// handles arbitrary partial trims for them.
+    /// On recurrent / hybrid-recurrent architectures the render is split into a
+    /// committed portion and a transient generation-prompt tail, with a checkpoint
+    /// saved between so the next sync can rewind instead of a full reset.
     #[tracing::instrument(level = "debug", skip_all)]
     fn sync_context_with_render(
         &mut self,
@@ -1421,24 +1416,10 @@ impl<'a> Chat<'a> {
         // We should never try to sync with an empty render
         debug_assert!(!full_chunks.is_empty());
 
-        // For checkpointing archs, render a second time *without* the
-        // generation prompt to get the position of the "committed"
-        // boundary. That is the position where the next sync's diff will
-        // land, so we save the checkpoint there. Attention-only archs
-        // treat the full render as committed — no split needed.
         let (committed_chunks, gen_prompt_tail) = if self.engine.needs_checkpointing() {
             let committed = self.render_as_chunks(true, false)?;
-            // Invariant: the no-gen-prompt render must be a *token-level* prefix
-            // of the gen-prompt render. The recurrent path feeds the model
-            // `committed` then `tail = full_chunks[committed.n_tokens()..]`, so
-            // if they diverged before `committed.n_tokens()` the model would see
-            // a different prompt than the single-pass attention path. This holds
-            // as long as the generation prompt begins with an atomic (special)
-            // token — otherwise BPE could merge the last committed char with the
-            // first gen-prompt char, making tokenize(a+b) != tokenize(a)++tokenize(b).
-            // Every supported chat template opens its gen prompt with a special
-            // token (e.g. `<start_of_turn>`, `<|im_start|>`). Verified for the
-            // recurrent test template by `test_checkpoint_restore_fires_on_recurrent_model`.
+            // `committed` must be a token-level prefix of `full` — holds because the
+            // gen prompt opens with an atomic/special token. Verified by the test.
             let tail = full_chunks.tail(committed.n_tokens());
             (committed, Some(tail))
         } else {
@@ -1446,8 +1427,6 @@ impl<'a> Chat<'a> {
         };
 
         // Diff against the chunks currently in the KV cache and load only the new tail.
-        // On recurrent archs, if the partial trim fails, the engine will
-        // try to restore from the checkpoint saved on the previous sync.
         let prev = std::mem::take(&mut self.context.chunks);
         let new_committed =
             self.engine
@@ -1455,13 +1434,9 @@ impl<'a> Chat<'a> {
         self.context.chunks = new_committed;
         self.context.garbage_collect_bitmaps(&self.messages);
 
-        // No-op on attention-only architectures (see save_checkpoint).
         self.engine.save_checkpoint();
 
-        // Append the generation-prompt tail on top for recurrent archs.
-        // Not stored in context.chunks; it exists in the KV cache only
-        // for the current generation and will be discarded on the next
-        // sync's rewind.
+        // Transient tail: read into the KV cache only, not stored in context.chunks.
         if let Some(tail) = gen_prompt_tail {
             if tail.n_tokens() > 0 {
                 self.engine.read_chunks(tail, inference_lock_token)?;
@@ -1592,14 +1567,8 @@ impl<'a> Chat<'a> {
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
 
-                // Context shifting only reclaims space held by *history* —
-                // the in-progress response must still be replayed on top of
-                // the freshly-synced context, and it cannot be shrunk. If the
-                // response alone no longer leaves room for another token, no
-                // amount of further shifting will help; stop cleanly with what
-                // we have instead of overflowing the KV cache (which would
-                // surface as a hard `NoKvCacheSlot` decode error, and on
-                // recurrent/hybrid models cannot be recovered at all).
+                // A shift only reclaims history; the in-progress response can't be
+                // shrunk, so if it already fills the window, stop instead of overflowing.
                 let n_ctx = self.engine.ctx.n_ctx() as usize;
                 let needed = self.engine.n_past() as usize + tokens_written_until_now.n_tokens();
                 if needed >= n_ctx {
@@ -1807,9 +1776,7 @@ impl<'a> Chat<'a> {
             .is_none_or(|t| !response.contains(t.as_str())));
         self.add_assistant_message(response);
 
-        // Store the committed (no-generation-prompt) view so the next sync's
-        // diff compares stable content only — see the two-pass load in
-        // `sync_context_with_render` for the full rationale.
+        // Committed (no-gen-prompt) view for the next sync's diff.
         self.context.chunks = self.render_as_chunks(true, false)?;
 
         Ok(self)
@@ -2156,16 +2123,10 @@ mod tests {
         Ok(())
     }
 
-    /// Regression guard: on a recurrent-hybrid architecture (Mamba, RWKV,
-    /// Gated Delta Networks, Qwen3.5), each subsequent turn must exercise
-    /// the checkpoint restore path — otherwise we silently degrade to full
-    /// context resets and lose the whole point of the checkpointing work.
-    ///
-    /// The test captures tracing events by installing a scoped subscriber
-    /// with a custom Layer, so no test-only fields are added to production
-    /// code. It reads the recurrent model path from `TEST_RECURRENT_MODEL`
-    /// (e.g. Qwen3.5-0.8B-Q4_K_M.gguf) and skips with a note when the env
-    /// var is unset.
+    /// Regression guard: with thinking enabled, each turn on Qwen3.5 must hit the
+    /// checkpoint restore path — the stripped `<think>` block forces a rewind —
+    /// otherwise it silently degraded to full resets. Skipped unless
+    /// `TEST_RECURRENT_MODEL` is set.
     #[test]
     fn test_checkpoint_restore_fires_on_recurrent_model() -> Result<(), Box<dyn std::error::Error>>
     {
@@ -2224,11 +2185,7 @@ mod tests {
             let mut chat = Chat::new_chat_worker(
                 &model,
                 ChatConfig {
-                    // Qwen3.5-0.8B with thinking on can produce 1500+ tokens
-                    // per turn; 2048 overflows during generation on the very
-                    // first ask. 8192 gives comfortable headroom across the
-                    // three turns of this test.
-                    n_ctx: 8192,
+                    n_ctx: 4096,
                     template_variables: [("enable_thinking".to_string(), true)].into(),
                     ..ChatConfig::default()
                 },
@@ -2245,18 +2202,8 @@ mod tests {
                 chat.ask(prompt.into(), noop).expect("ask");
             }
 
-            // Guard the token-prefix invariant that `sync_context_with_render`'s
-            // recurrent two-pass split relies on: the no-gen-prompt render must
-            // be a token-level prefix of the gen-prompt render (see the comment
-            // at the split). A plain assert so it runs under CI's release test
-            // build, where a debug_assert would be compiled out.
-            //
-            // `ChatTemplate::render` only emits the generation prompt when the
-            // last message is a user/tool turn. After the ask loop the last
-            // message is an assistant turn, so both renders would suppress the
-            // gen prompt and the check would be vacuous (with == without). Append
-            // a user turn first so the `add_generation_prompt` render actually
-            // appends the tail we want to validate.
+            // Guard the token-prefix invariant the recurrent split relies on. Append a
+            // user turn first, else both renders omit the gen prompt and the check is vacuous.
             chat.messages.push(Message::new_user(
                 "What is the capital of Norway?".to_string(),
             ));
@@ -2276,11 +2223,6 @@ mod tests {
                 with.len(),
                 without.len()
             );
-            // The core invariant: appending the generation prompt must not perturb
-            // the tokenization of the committed prefix, so `without` must be an
-            // exact token-level prefix of `with`. This is what lets the recurrent
-            // sync feed `committed` then `full.tail(committed.n_tokens())` without
-            // the model seeing a different prompt than the single-pass path.
             assert!(
                 with.starts_with(&without),
                 "no-gen-prompt render must be a token-level prefix of the gen-prompt \

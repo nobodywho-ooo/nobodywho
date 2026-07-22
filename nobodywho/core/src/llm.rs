@@ -37,45 +37,33 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
-    /// True for recurrent and hybrid-recurrent architectures — where
-    /// `clear_kv_cache_seq` cannot unroll the running state on a partial
-    /// range. `Chat` uses this to opt into the two-pass sync +
-    /// checkpoint save/restore path; other architectures use a
-    /// single-render fast path.
     pub(crate) needs_checkpointing: bool,
 }
 
-/// Returns true for `general.architecture` values that correspond to
-/// recurrent or hybrid-recurrent memory backends in llama.cpp — i.e. the
-/// architectures where `clear_kv_cache_seq` fails on partial trims and a
-/// state-snapshot restore is needed instead.
-///
-/// The list mirrors the two internal helpers `llm_arch_is_recurrent` and
-/// `llm_arch_is_hybrid` in llama.cpp's `src/llama-arch.cpp`. Keep in sync
-/// when llama.cpp adds new recurrent or hybrid architectures.
+/// True for `general.architecture` values backed by recurrent / hybrid-recurrent
+/// memory in llama.cpp (where partial `clear_kv_cache_seq` fails). Mirrors
+/// llama.cpp's `llm_arch_is_recurrent` + `llm_arch_is_hybrid`; keep in sync.
 fn is_recurrent_or_hybrid_arch(arch: &str) -> bool {
     matches!(
         arch,
-        // llm_arch_is_recurrent — pure recurrent (Mamba, RWKV, …)
         "mamba"
-        | "mamba2"
-        | "rwkv6"
-        | "rwkv6qwen2"
-        | "rwkv7"
-        | "arwkv7"
-        // llm_arch_is_hybrid — mixed recurrent + attention (Qwen3.5, Jamba, …)
-        | "jamba"
-        | "falcon-h1"
-        | "plamo2"
-        | "granitehybrid"
-        | "lfm2"
-        | "lfm2moe"
-        | "nemotron_h"
-        | "nemotron_h_moe"
-        | "qwen3next"
-        | "kimi-linear"
-        | "qwen35"
-        | "qwen35moe"
+            | "mamba2"
+            | "rwkv6"
+            | "rwkv6qwen2"
+            | "rwkv7"
+            | "arwkv7"
+            | "jamba"
+            | "falcon-h1"
+            | "plamo2"
+            | "granitehybrid"
+            | "lfm2"
+            | "lfm2moe"
+            | "nemotron_h"
+            | "nemotron_h_moe"
+            | "qwen3next"
+            | "kimi-linear"
+            | "qwen35"
+            | "qwen35moe"
     )
 }
 

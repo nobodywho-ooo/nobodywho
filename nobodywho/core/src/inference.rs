@@ -51,14 +51,9 @@ where
     (wrapped_respond, resp_receiver)
 }
 
-/// Sequence-state snapshot used to rewind recurrent / hybrid-recurrent
-/// contexts (Mamba, RWKV, Gated Delta Networks, Qwen3.5) where
-/// `clear_kv_cache_seq` cannot unroll the running state.
-///
-/// `data` is a handle into llama.cpp's on-device state slot for
-/// [`SEQ_ID`]. It is bound by the ON_DEVICE contract: getting a fresh
-/// checkpoint invalidates any prior one, so at most one checkpoint can
-/// exist per engine at a time.
+/// On-device sequence-state snapshot for rewinding recurrent / hybrid-recurrent
+/// contexts, where `clear_kv_cache_seq` can't unroll the running state. At most
+/// one exists per engine; a fresh snapshot invalidates the previous one.
 #[derive(Debug)]
 struct Checkpoint {
     data: SeqState,
@@ -82,13 +77,7 @@ pub(crate) struct InferenceEngine<'a> {
     big_batch: LlamaBatch<'a>,
     small_batch: LlamaBatch<'a>,
     use_embeddings: bool,
-    /// Whether the underlying architecture needs checkpoint-based rewinds
-    /// (recurrent or hybrid-recurrent memory backend). See
-    /// [`crate::llm::Model::needs_checkpointing`].
     needs_checkpointing: bool,
-    /// On-device snapshot of the last committed context, used to rewind
-    /// on architectures where `clear_kv_cache_seq` fails on partial trims.
-    /// See [`Self::save_checkpoint`] and [`Self::try_restore_checkpoint`].
     checkpoint: Option<Checkpoint>,
 }
 
@@ -123,8 +112,6 @@ impl<'a> InferenceEngine<'a> {
         }
     }
 
-    /// True for recurrent / hybrid-recurrent architectures that need the
-    /// two-pass sync + checkpoint restore path.
     pub(crate) fn needs_checkpointing(&self) -> bool {
         self.needs_checkpointing
     }
@@ -133,27 +120,14 @@ impl<'a> InferenceEngine<'a> {
     pub(crate) fn reset_context(&mut self) -> &mut Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
-        // Any previously saved checkpoint refers to state that no longer exists.
         self.checkpoint = None;
         self
     }
 
-    /// Capture an on-device snapshot of the current sequence state.
-    ///
-    /// Intended to be called at "stable" boundaries where the caller may
-    /// later want to rewind — typically at the end of a chat sync just
-    /// before generation starts. Overwrites any previously saved
-    /// checkpoint (llama.cpp keeps at most one on-device slot per seq).
-    ///
-    /// This is a no-op on architectures that don't need it (attention-only
-    /// models, where the partial-state size is 0). Failure to save is
-    /// logged and clears any stale checkpoint; it never propagates as an
-    /// error because checkpointing is best-effort.
+    /// Snapshot the current sequence state for a later rewind. No-op on
+    /// attention-only models; best-effort (a failed save is logged, not returned).
     #[tracing::instrument(level = "trace", skip(self))]
     pub(crate) fn save_checkpoint(&mut self) {
-        // Attention-only architectures never need to rewind via a
-        // checkpoint — `clear_kv_cache_seq` handles partial trims for
-        // them. Skip the state_seq_get roundtrip on those.
         if !self.needs_checkpointing {
             return;
         }
@@ -179,18 +153,9 @@ impl<'a> InferenceEngine<'a> {
         }
     }
 
-    /// Attempt to rewind the context to `target_pos` using the saved
-    /// checkpoint.
-    ///
-    /// Returns `true` on success — the caller can treat this as an
-    /// equivalent to a successful partial `clear_kv_cache_seq`, with
-    /// `n_past` now at `min(checkpoint.n_past, target_pos)`. Any tokens
-    /// between the checkpoint position and the previous `n_past` are
-    /// discarded from the KV cache.
-    ///
-    /// Returns `false` if no usable checkpoint exists (either not saved,
-    /// or saved at a position strictly greater than `target_pos`). The
-    /// caller should fall back to a full context reset.
+    /// Rewind to `target_pos` from the saved checkpoint. Returns `true` on
+    /// success (`n_past` moves to the checkpoint position), or `false` if no
+    /// usable checkpoint exists — the caller should then do a full reset.
     #[tracing::instrument(level = "trace", skip(self))]
     fn try_restore_checkpoint(&mut self, target_pos: i32) -> bool {
         let Some(ckpt) = self.checkpoint.as_ref() else {
@@ -209,24 +174,9 @@ impl<'a> InferenceEngine<'a> {
             warn!(?err, "Failed to restore sequence checkpoint");
             return false;
         }
-        // Restoring on-device state consumes the slot. The handle is no
-        // longer valid; drop it so we don't accidentally re-use it.
         let restored_pos = ckpt.n_past;
         self.checkpoint = None;
         self.n_past = restored_pos;
-        // Discard any KV entries that were logged past the restored
-        // position. On pure-attention paths this is trivial; on hybrid
-        // archs the recurrent state is already back, so the remaining
-        // work is just marking attention cells as free.
-        //
-        // This returns Ok(true) for both memory types today. A false/Err
-        // would mean stale attention cells survived past `restored_pos` and
-        // would corrupt the next decode (a future change to recurrent-rollback
-        // semantics is the realistic way this could start happening). Bail out
-        // of the checkpoint path entirely rather than proceeding: returning
-        // `false` makes the caller fall back to a full `reset_context()`, which
-        // is release-safe — unlike a `debug_assert!`, which is compiled out of
-        // the release builds this actually ships in.
         match self
             .ctx
             .clear_kv_cache_seq(Some(SEQ_ID as u32), Some(restored_pos as u32), None)
@@ -372,18 +322,12 @@ impl<'a> InferenceEngine<'a> {
         if seq_rm_success {
             self.n_past = index as i32;
         } else if self.try_restore_checkpoint(index as i32) {
-            // Rewound via the saved checkpoint. n_past is now at the
-            // checkpoint's position (≤ index); the caller will read any
-            // remaining tail from n_past forward.
             trace!(
                 index,
                 n_past = self.n_past,
                 "Partial KV cache removal not supported; recovered via checkpoint"
             );
         } else {
-            // Partial sequence removal is not supported by this model's memory type
-            // (e.g. hybrid models with recurrent components) AND no usable
-            // checkpoint exists. Fall back to full reset.
             warn!(
                 index,
                 n_past = self.n_past,
