@@ -11,6 +11,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Added
 
 - Automatic model selection: pass `"auto"` as a model path to select a recommended model based on available memory. Available for all bindings
+- MTP support for attention models with separate MTP files. This is mainly Gemma 4. Available for all bindings.
 
 ### Changed
 
