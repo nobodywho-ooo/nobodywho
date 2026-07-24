@@ -728,7 +728,11 @@ mod tests {
         let model = crate::test_utils::load_test_model();
         let tok_env =
             llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
-        if tok_env.tok_trie().get_special_token("<|tool_call_start|>").is_none() {
+        if tok_env
+            .tok_trie()
+            .get_special_token("<|tool_call_start|>")
+            .is_none()
+        {
             eprintln!("skipping: TEST_MODEL is not an LFM2 model (no <|tool_call_start|> token)");
             return;
         }
@@ -739,8 +743,7 @@ mod tests {
 
         let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
             .expect("build ParserFactory");
-        let grm =
-            TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
+        let grm = TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
         let parser = factory.create_parser(grm).expect("create parser");
         let mut matcher = Matcher::new(Ok(parser));
 
@@ -778,7 +781,11 @@ mod tests {
         let model = crate::test_utils::load_test_model();
         let tok_env =
             llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
-        if tok_env.tok_trie().get_special_token("[TOOL_CALLS]").is_none() {
+        if tok_env
+            .tok_trie()
+            .get_special_token("[TOOL_CALLS]")
+            .is_none()
+        {
             eprintln!("skipping: TEST_MODEL is not a Ministral model (no [TOOL_CALLS] token)");
             return;
         }
@@ -789,8 +796,7 @@ mod tests {
 
         let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
             .expect("build ParserFactory");
-        let grm =
-            TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
+        let grm = TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
         let parser = factory.create_parser(grm).expect("create parser");
         let mut matcher = Matcher::new(Ok(parser));
 

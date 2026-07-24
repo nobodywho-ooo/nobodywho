@@ -22,9 +22,7 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         let mut lark = String::from("%llguidance {}\n");
         let begin = super::lark_delimiter(model, "<start_function_call>");
         let end = super::lark_delimiter(model, "<end_function_call>");
-        lark.push_str(&format!(
-            "start: {begin} ws? functioncall ws? {end} ws?\n"
-        ));
+        lark.push_str(&format!("start: {begin} ws? functioncall ws? {end} ws?\n"));
 
         let alts: Vec<String> = (0..tools.len()).map(|i| format!("tool_{i}")).collect();
         lark.push_str(&format!("functioncall: {}\n", alts.join(" | ")));

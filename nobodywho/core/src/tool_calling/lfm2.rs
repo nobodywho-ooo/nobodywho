@@ -44,9 +44,7 @@ impl ToolFormatHandler for Lfm2Handler {
         // (`<[id]>`) so they match the single control token the model emits.
         let begin = super::lark_delimiter(model, BEGIN_TOKEN);
         let end = super::lark_delimiter(model, END_TOKEN);
-        lark.push_str(&format!(
-            "start: {begin} \"[\" lfm2_calllist \"]\" {end}\n"
-        ));
+        lark.push_str(&format!("start: {begin} \"[\" lfm2_calllist \"]\" {end}\n"));
 
         Ok(lark)
     }
@@ -368,15 +366,18 @@ mod tests {
         };
 
         let s = h
-            .to_lark(&[make(json!({
-                "type": "object",
-                "properties": {
-                    "city": {"type": "string"},
-                    "units": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                    "verbose": {"type": "boolean"}
-                },
-                "required": ["city"]
-            }))], None)
+            .to_lark(
+                &[make(json!({
+                    "type": "object",
+                    "properties": {
+                        "city": {"type": "string"},
+                        "units": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                        "verbose": {"type": "boolean"}
+                    },
+                    "required": ["city"]
+                }))],
+                None,
+            )
             .unwrap();
         assert!(s.contains("%llguidance"));
         assert!(s.contains("<|tool_call_start|>") && s.contains("<|tool_call_end|>"));
