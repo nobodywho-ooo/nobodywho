@@ -62,7 +62,7 @@ fn gemma4_number(input: &str) -> IResult<&str, Value> {
 
 /// Parse a bare key (alphanumeric + underscore)
 fn gemma4_key(input: &str) -> IResult<&str, &str> {
-    take_while1(|c: char| c.is_alphanumeric() || c == '_').parse(input)
+    take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '-').parse(input)
 }
 
 /// Parse a key:value pair
@@ -302,7 +302,7 @@ impl ToolFormatHandler for Gemma4Handler {
         lark.push('\n');
         lark.push_str(r#"gemmafour_strbody[suffix=/<\|"\|>/]: /(?s:.*)/"#);
         lark.push('\n');
-        lark.push_str("gemmafour_key: /[a-zA-Z0-9_]+/\n");
+        lark.push_str("gemmafour_key: /[a-zA-Z0-9_-]+/\n");
         lark.push_str(r#"gemmafour_bool: "true" | "false""#);
         lark.push('\n');
         lark.push_str(r#"gemmafour_null: "null""#);
