@@ -15,6 +15,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Changed
 
 - `CrossEncoder.rank()` now batches documents internally making re-raking faster. Affects all bindings.
+- Tool calling now uses Lark grammars with the llguidance sampler instead of GBNF, making tool-constrained generation noticeably faster — especially on large-vocabulary models — and pre-builds the tool-call sampler so the first tool-enabled response no longer stalls while the grammar compiles. No API changes. Available for all bindings.
 
 ## [Python v1.7.0, Flutter v2.5.0, Godot v9.6.0, Kotlin v2.2.0, React Native v2.5.0, Swift v2.3.0] - 2026-07-30
 
