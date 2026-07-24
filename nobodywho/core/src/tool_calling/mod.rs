@@ -676,6 +676,59 @@ mod tests {
     /// multi-character `suffix` stops, which a single-byte tokenizer can't
     /// resolve. True only if every token is consumed and the parser ends
     /// accepting.
+    /// Regression: LFM2's tool-call delimiters `<|tool_call_start|>` /
+    /// `<|tool_call_end|>` are control tokens, which the model emits as single
+    /// special tokens. The grammar must reference them as Lark special tokens
+    /// (`<...>`), not quoted literals — otherwise the special token (0xFF-marked
+    /// in the toktrie) fails the literal-bytes rule the moment the grammar
+    /// activates (`byte 'ÿ' fails parse`). Self-gated: skips unless the loaded
+    /// TEST_MODEL actually has these control tokens.
+    #[test]
+    fn lfm2_control_token_delimiters_accepted() {
+        use llguidance::toktrie::InferenceCapabilities;
+        use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+
+        let model = crate::test_utils::load_test_model();
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
+        if tok_env.tok_trie().get_special_token("<|tool_call_start|>").is_none() {
+            eprintln!("skipping: TEST_MODEL is not an LFM2 model (no <|tool_call_start|> token)");
+            return;
+        }
+
+        let grammar = ToolFormat::Lfm2(Lfm2Handler)
+            .to_lark(&[weather_tool()])
+            .unwrap();
+
+        let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
+            .expect("build ParserFactory");
+        let grm =
+            TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
+        let parser = factory.create_parser(grm).expect("create parser");
+        let mut matcher = Matcher::new(Ok(parser));
+
+        // Tokenize the way real generation does (parse_special=true) so the
+        // delimiters become the single control tokens, not spelled-out text —
+        // this is the case the toktrie's `tokenize_special` can't reproduce.
+        let tokens: Vec<u32> = model
+            .language_model
+            .str_to_token(
+                "<|tool_call_start|>[get_weather(city=\"Paris\")]<|tool_call_end|>",
+                llama_cpp_2::model::AddBos::Never,
+            )
+            .unwrap()
+            .iter()
+            .map(|t| t.0 as u32)
+            .collect();
+        let consumed = matcher.try_consume_tokens(&tokens).unwrap_or(0);
+        assert!(
+            consumed == tokens.len() && matcher.is_accepting().unwrap_or(false),
+            "LFM2 call with control-token delimiters should be accepted \
+             (consumed {consumed}/{}):\n{grammar}",
+            tokens.len()
+        );
+    }
+
     fn grammar_accepts_tok(model: &crate::llm::Model, grammar: &str, input: &str) -> bool {
         use llguidance::toktrie::InferenceCapabilities;
         use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};

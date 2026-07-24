@@ -36,8 +36,11 @@ impl ToolFormatHandler for Lfm2Handler {
         let tool_alt_str = tool_rule_names.join(" | ");
         lark.push_str(&format!("lfm2_tool_alt: {tool_alt_str}\n"));
         lark.push_str("lfm2_calllist: lfm2_tool_alt | lfm2_tool_alt \", \" lfm2_calllist\n");
+        // Delimiters are control tokens: reference them as Lark special tokens
+        // (`<...>`, unquoted), not quoted literals, so they match the single
+        // control token the model emits rather than its literal bytes.
         lark.push_str(&format!(
-            "start: \"{BEGIN_TOKEN}\" \"[\" lfm2_calllist \"]\" \"{END_TOKEN}\"\n"
+            "start: {BEGIN_TOKEN} \"[\" lfm2_calllist \"]\" {END_TOKEN}\n"
         ));
 
         Ok(lark)

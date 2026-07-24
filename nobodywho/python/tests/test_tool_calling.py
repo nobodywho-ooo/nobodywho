@@ -358,6 +358,9 @@ def test_python_tool(model):
 
 
 def test_bash_tool(model):
+    if is_functiongemma():
+        pytest.skip("Test not supported with FunctionGemma models")
+
     chat = nobodywho.Chat(
         model,
         tools=[nobodywho.bash_tool(max_commands=1000)],
