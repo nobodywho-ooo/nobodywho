@@ -14,7 +14,11 @@ impl ToolFormatHandler for Qwen3Handler {
         "</tool_call>"
     }
 
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&llama_cpp_2::model::LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
         let tool_schemas: Vec<serde_json::Value> = tools
             .iter()
             .map(|tool| {
@@ -34,7 +38,9 @@ impl ToolFormatHandler for Qwen3Handler {
 
         let mut lark = String::from("%llguidance {}\n");
         lark.push_str("start: toolcall+\n");
-        lark.push_str("toolcall: \"<tool_call>\" ws? body ws? \"</tool_call>\" ws?\n");
+        let begin = super::lark_delimiter(model, "<tool_call>");
+        let end = super::lark_delimiter(model, "</tool_call>");
+        lark.push_str(&format!("toolcall: {begin} ws? body ws? {end} ws?\n"));
         lark.push_str(&format!("body: %json {schema_str}\n"));
         lark.push_str("ws: /[ \\t\\n\\r]+/\n");
         Ok(lark)

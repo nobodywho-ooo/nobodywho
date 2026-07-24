@@ -33,19 +33,27 @@ impl ToolFormatHandler for Ministral3Handler {
         ""
     }
 
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&llama_cpp_2::model::LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
         let mut lark = String::from("%llguidance {}\n");
         lark.push_str("start: toolcall+\n");
 
         let alts: Vec<String> = (0..tools.len()).map(|i| format!("tool_{i}")).collect();
         lark.push_str(&format!("toolcall: {}\n", alts.join(" | ")));
 
+        // `[TOOL_CALLS]` and `[ARGS]` are control tokens; reference them by id
+        // (see `lark_delimiter`) rather than as literal bytes.
+        let begin = super::lark_delimiter(model, "[TOOL_CALLS]");
+        let args = super::lark_delimiter(model, "[ARGS]");
         for (i, tool) in tools.iter().enumerate() {
             let schema_str = serde_json::to_string(&tool.json_schema)
                 .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
             let name = super::escape_lark_string(&tool.name);
             lark.push_str(&format!(
-                "tool_{i}: \"[TOOL_CALLS]{name}[ARGS]\" %json {schema_str}\n"
+                "tool_{i}: {begin} \"{name}\" {args} %json {schema_str}\n"
             ));
         }
 

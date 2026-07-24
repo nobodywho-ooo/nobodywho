@@ -312,6 +312,35 @@ pub(crate) fn escape_lark_string(s: &str) -> String {
         .replace('\t', "\\t")
 }
 
+/// Render a tool-call delimiter for embedding in a Lark grammar.
+///
+/// A delimiter that is a single **control token** (e.g. Ministral's
+/// `[TOOL_CALLS]`, LFM2's `<|tool_call_start|>`) is referenced as a Lark special
+/// token by id — `<[id]>` — so it matches the single control token the model
+/// emits. A quoted literal would instead match the token's text bytes, which
+/// never correspond to the control token. Ordinary text delimiters are emitted
+/// as an escaped quoted literal. With `model = None` (structure-only tests) the
+/// literal form is always used.
+pub(crate) fn lark_delimiter(model: Option<&LlamaModel>, s: &str) -> String {
+    if let Some(model) = model {
+        if let Ok(tokens) = model.str_to_token(s, llama_cpp_2::model::AddBos::Never) {
+            if tokens.len() == 1 {
+                let tok = tokens[0];
+                // A control token has no plaintext rendering: `special=false`
+                // yields empty bytes or errors. Anything else is ordinary text.
+                let is_control = model
+                    .token_to_piece_bytes(tok, 32, false, None)
+                    .map(|b| b.is_empty())
+                    .unwrap_or(true);
+                if is_control {
+                    return format!("<[{}]>", tok.0);
+                }
+            }
+        }
+    }
+    format!("\"{}\"", escape_lark_string(s))
+}
+
 /// Map any non-alphanumeric character to `_` for use in Lark rule names.
 ///
 /// Tool/property names come from user-controlled input and are spliced into
@@ -345,7 +374,11 @@ pub trait ToolFormatHandler {
     /// activation is instead handled by the chat layer, which only inserts
     /// this grammar into the sampler chain after detecting the begin token
     /// in the streamed output.
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError>;
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&LlamaModel>,
+    ) -> Result<String, ToolFormatError>;
 
     /// Vocabulary hints that speed up grammar-constrained token selection.
     ///
@@ -397,8 +430,12 @@ impl ToolFormat {
         self.handler().end_token()
     }
 
-    pub fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
-        self.handler().to_lark(tools)
+    pub fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
+        self.handler().to_lark(tools, model)
     }
 
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
@@ -607,7 +644,7 @@ mod tests {
 
         // The projected schema compiles into a `%json`-embedding grammar.
         ToolFormat::Qwen3(Qwen3Handler)
-            .to_lark(&[tool])
+            .to_lark(&[tool], None)
             .expect("projected schema should produce valid lark");
     }
 
@@ -642,7 +679,7 @@ mod tests {
 
         for (fmt, trigger) in cases {
             let lark = fmt
-                .to_lark(&[tool.clone()])
+                .to_lark(&[tool.clone()], None)
                 .unwrap_or_else(|e| panic!("to_lark failed for {:?}: {}", fmt, e));
             assert!(
                 lark.starts_with("%llguidance {}"),
@@ -697,7 +734,7 @@ mod tests {
         }
 
         let grammar = ToolFormat::Lfm2(Lfm2Handler)
-            .to_lark(&[weather_tool()])
+            .to_lark(&[weather_tool()], Some(&model.language_model))
             .unwrap();
 
         let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
@@ -724,6 +761,53 @@ mod tests {
         assert!(
             consumed == tokens.len() && matcher.is_accepting().unwrap_or(false),
             "LFM2 call with control-token delimiters should be accepted \
+             (consumed {consumed}/{}):\n{grammar}",
+            tokens.len()
+        );
+    }
+
+    /// Regression: Ministral3's `[TOOL_CALLS]` / `[ARGS]` delimiters are control
+    /// tokens, so the grammar must reference them by id (`<[id]>`); as quoted
+    /// literals the grammar fails to constrain the control token the model emits.
+    /// Self-gated: skips unless the loaded TEST_MODEL has these control tokens.
+    #[test]
+    fn ministral3_control_token_delimiters_accepted() {
+        use llguidance::toktrie::InferenceCapabilities;
+        use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+
+        let model = crate::test_utils::load_test_model();
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
+        if tok_env.tok_trie().get_special_token("[TOOL_CALLS]").is_none() {
+            eprintln!("skipping: TEST_MODEL is not a Ministral model (no [TOOL_CALLS] token)");
+            return;
+        }
+
+        let grammar = ToolFormat::Ministral3(Ministral3Handler)
+            .to_lark(&[weather_tool()], Some(&model.language_model))
+            .unwrap();
+
+        let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
+            .expect("build ParserFactory");
+        let grm =
+            TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
+        let parser = factory.create_parser(grm).expect("create parser");
+        let mut matcher = Matcher::new(Ok(parser));
+
+        let tokens: Vec<u32> = model
+            .language_model
+            .str_to_token(
+                "[TOOL_CALLS]get_weather[ARGS]{\"city\": \"Paris\"}",
+                llama_cpp_2::model::AddBos::Never,
+            )
+            .unwrap()
+            .iter()
+            .map(|t| t.0 as u32)
+            .collect();
+        let consumed = matcher.try_consume_tokens(&tokens).unwrap_or(0);
+        assert!(
+            consumed == tokens.len() && matcher.is_accepting().unwrap_or(false),
+            "Ministral call with control-token delimiters should be accepted \
              (consumed {consumed}/{}):\n{grammar}",
             tokens.len()
         );
@@ -760,7 +844,7 @@ mod tests {
         let model = crate::llm::get_model(&path, true, None, None)
             .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e:?}"));
         let grammar = ToolFormat::Gemma4(Gemma4Handler)
-            .to_lark(&[weather_tool()])
+            .to_lark(&[weather_tool()], Some(&model.language_model))
             .unwrap();
 
         // Baseline: a plain value is accepted.
@@ -792,7 +876,7 @@ mod tests {
     fn qwen35_36_string_value_allows_trailing_newline() {
         let model = crate::test_utils::load_test_model();
         let grammar = ToolFormat::Qwen35_36(Qwen35_36Handler)
-            .to_lark(&[weather_tool()])
+            .to_lark(&[weather_tool()], Some(&model.language_model))
             .unwrap();
 
         // Baseline: a plain value is accepted.
@@ -835,7 +919,7 @@ mod tests {
             Arc::new(|_| String::new()),
         );
         let grammar = ToolFormat::Qwen35_36(Qwen35_36Handler)
-            .to_lark(&[tool])
+            .to_lark(&[tool], Some(&model.language_model))
             .unwrap();
 
         // Accepting the escaped-newline variant also proves the grammar parsed:

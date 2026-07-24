@@ -24,7 +24,11 @@ impl ToolFormatHandler for Lfm2Handler {
         END_TOKEN
     }
 
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&llama_cpp_2::model::LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
         let mut lark = String::from("%llguidance {}\n");
 
         let mut tool_rule_names = Vec::with_capacity(tools.len());
@@ -36,11 +40,12 @@ impl ToolFormatHandler for Lfm2Handler {
         let tool_alt_str = tool_rule_names.join(" | ");
         lark.push_str(&format!("lfm2_tool_alt: {tool_alt_str}\n"));
         lark.push_str("lfm2_calllist: lfm2_tool_alt | lfm2_tool_alt \", \" lfm2_calllist\n");
-        // Delimiters are control tokens: reference them as Lark special tokens
-        // (`<...>`, unquoted), not quoted literals, so they match the single
-        // control token the model emits rather than its literal bytes.
+        // Delimiters are control tokens; `lark_delimiter` references them by id
+        // (`<[id]>`) so they match the single control token the model emits.
+        let begin = super::lark_delimiter(model, BEGIN_TOKEN);
+        let end = super::lark_delimiter(model, END_TOKEN);
         lark.push_str(&format!(
-            "start: {BEGIN_TOKEN} \"[\" lfm2_calllist \"]\" {END_TOKEN}\n"
+            "start: {begin} \"[\" lfm2_calllist \"]\" {end}\n"
         ));
 
         Ok(lark)
@@ -371,7 +376,7 @@ mod tests {
                     "verbose": {"type": "boolean"}
                 },
                 "required": ["city"]
-            }))])
+            }))], None)
             .unwrap();
         assert!(s.contains("%llguidance"));
         assert!(s.contains("<|tool_call_start|>") && s.contains("<|tool_call_end|>"));
@@ -380,7 +385,7 @@ mod tests {
 
         // empty-params schema still builds
         let s = h
-            .to_lark(&[make(json!({"type": "object", "properties": {}}))])
+            .to_lark(&[make(json!({"type": "object", "properties": {}}))], None)
             .unwrap();
         assert!(s.contains("get_weather("));
     }

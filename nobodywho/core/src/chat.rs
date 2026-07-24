@@ -1296,7 +1296,7 @@ fn build_tool_sampler(
 
     let tool_format = tool_format.ok_or(ToolFormatError::DetectionFailed)?;
 
-    let lark = tool_format.to_lark(tools)?;
+    let lark = tool_format.to_lark(tools, Some(model))?;
     debug!(grammar = %lark, "Generated tool calling grammar (Lark)");
 
     // ~400ms llguidance init cost, paid here once instead of per activation.

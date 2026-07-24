@@ -14,11 +14,17 @@ impl ToolFormatHandler for FunctionGemmaHandler {
         "<end_function_call>"
     }
 
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&llama_cpp_2::model::LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
         let mut lark = String::from("%llguidance {}\n");
-        lark.push_str(
-            "start: \"<start_function_call>\" ws? functioncall ws? \"<end_function_call>\" ws?\n",
-        );
+        let begin = super::lark_delimiter(model, "<start_function_call>");
+        let end = super::lark_delimiter(model, "<end_function_call>");
+        lark.push_str(&format!(
+            "start: {begin} ws? functioncall ws? {end} ws?\n"
+        ));
 
         let alts: Vec<String> = (0..tools.len()).map(|i| format!("tool_{i}")).collect();
         lark.push_str(&format!("functioncall: {}\n", alts.join(" | ")));
@@ -50,7 +56,8 @@ impl ToolFormatHandler for FunctionGemmaHandler {
             lark.push('\n');
         }
 
-        lark.push_str("value: \"<escape>\" /[^<>{},:]+/ \"<escape>\"\n");
+        let escape = super::lark_delimiter(model, "<escape>");
+        lark.push_str(&format!("value: {escape} /[^<>{{}},:]+/ {escape}\n"));
         lark.push_str("ws: / */\n");
         Ok(lark)
     }

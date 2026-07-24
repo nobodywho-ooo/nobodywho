@@ -20,12 +20,18 @@ impl ToolFormatHandler for Qwen35_36Handler {
         END_TOKEN
     }
 
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&llama_cpp_2::model::LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
         let mut lark = String::from("%llguidance {}\n");
         lark.push_str("start: toolcall+\n");
 
         let alts: Vec<String> = (0..tools.len()).map(|i| format!("tool_{i}")).collect();
-        lark.push_str("toolcall: \"<tool_call>\\n\" tool_alt \"</tool_call>\"\n");
+        let begin = super::lark_delimiter(model, "<tool_call>");
+        let end = super::lark_delimiter(model, "</tool_call>");
+        lark.push_str(&format!("toolcall: {begin} \"\\n\" tool_alt {end}\n"));
         lark.push_str(&format!("tool_alt: {}\n", alts.join(" | ")));
 
         for (ti, tool) in tools.iter().enumerate() {
@@ -248,7 +254,7 @@ mod tests {
             }),
             function: std::sync::Arc::new(|_| "".to_string()),
         };
-        let lark = h.to_lark(&[tool]).expect("lark should build");
+        let lark = h.to_lark(&[tool], None).expect("lark should build");
         assert!(lark.contains("%llguidance"));
         assert!(lark.contains("<tool_call>"));
         assert!(lark.contains("<function=get_weather>"));
@@ -274,7 +280,7 @@ mod tests {
             }),
             function: std::sync::Arc::new(|_| "".to_string()),
         };
-        let lark = h.to_lark(&[tool]).expect("lark should build");
+        let lark = h.to_lark(&[tool], None).expect("lark should build");
         assert!(lark.contains("%json"));
         assert!(lark.contains("<parameter=n>"));
         assert!(lark.contains("<parameter=x>"));

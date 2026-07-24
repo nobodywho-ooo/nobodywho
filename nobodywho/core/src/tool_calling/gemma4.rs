@@ -267,12 +267,16 @@ impl ToolFormatHandler for Gemma4Handler {
         END_TOKEN
     }
 
-    fn to_lark(&self, tools: &[Tool]) -> Result<String, ToolFormatError> {
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&llama_cpp_2::model::LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
         let mut lark = String::from("%llguidance {}\n");
         lark.push_str("start: toolcall+\n");
-        lark.push_str(&format!(
-            "toolcall: \"{BEGIN_TOKEN}\" tool_alt \"{END_TOKEN}\"\n"
-        ));
+        let begin = super::lark_delimiter(model, BEGIN_TOKEN);
+        let end = super::lark_delimiter(model, END_TOKEN);
+        lark.push_str(&format!("toolcall: {begin} tool_alt {end}\n"));
 
         let mut tool_rules: Vec<String> = Vec::new();
         let mut tool_call_names: Vec<String> = Vec::new();
@@ -421,7 +425,7 @@ mod tests {
             ),
         ];
 
-        let lark = handler.to_lark(&tools).expect("lark should build");
+        let lark = handler.to_lark(&tools, None).expect("lark should build");
         assert!(lark.contains("%llguidance"));
         assert!(lark.contains("<|tool_call>"));
         assert!(lark.contains("<tool_call|>"));
@@ -448,7 +452,7 @@ mod tests {
             }),
             std::sync::Arc::new(|_| String::new()),
         );
-        let lark = handler.to_lark(&[tool]).expect("lark should build");
+        let lark = handler.to_lark(&[tool], None).expect("lark should build");
         assert!(lark.contains("gemmafour_integer"));
         assert!(lark.contains("gemmafour_number"));
         assert!(lark.contains("gemmafour_bool"));
