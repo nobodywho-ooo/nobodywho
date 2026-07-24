@@ -847,7 +847,7 @@ mod tests {
             eprintln!("skipping: set GEMMA4_MODEL to a Gemma4 GGUF to run this test");
             return;
         };
-        let model = crate::llm::get_model(&path, true, None, None)
+        let model = crate::llm::get_model(&path, true, None, None, None)
             .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e:?}"));
         let grammar = ToolFormat::Gemma4(Gemma4Handler)
             .to_lark(&[weather_tool()], Some(&model.language_model))
