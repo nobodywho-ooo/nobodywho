@@ -809,6 +809,26 @@ impl From<HuggingFaceError> for SttError {
     }
 }
 
+// VAD errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum VadError {
+    #[error("Error initializing VAD: {0}")]
+    Init(String),
+
+    #[error("ONNX Runtime error: {0}")]
+    Ort(#[from] ort::Error),
+
+    #[error("Audio resample error: {0}")]
+    Audio(String),
+}
+
+impl From<HuggingFaceError> for VadError {
+    fn from(e: HuggingFaceError) -> Self {
+        VadError::Init(e.to_string())
+    }
+}
+
 // ChatWorker errors
 
 #[derive(thiserror::Error, Debug)]
