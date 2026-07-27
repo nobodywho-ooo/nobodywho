@@ -117,6 +117,16 @@ impl ToolFormatHandler for Qwen35_36Handler {
         Ok(lark)
     }
 
+    // NOTE: intentionally no `slice_regexes` override. The hot position is the
+    // free-form `<parameter=…>` body, `body[suffix=/\n<\/parameter>\n/]:
+    // /(?s:.*)/`, whose `.*` compiles to a *lazy* lexeme. llguidance excludes
+    // lazy lexemes from slice subsumption (`RegexVec::subsume_possible` returns
+    // false whenever a lazy lexeme is in the state), so no slice regex can ever
+    // apply here — verified empirically (`slices_applied` stayed 0, trie walk
+    // unchanged). A useful slice would require expressing the body as a *greedy*
+    // bounded repeat (as FunctionGemma does), which we can't without banning the
+    // `<`, embedded/trailing newlines the suffix rule deliberately allows.
+
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         let calls: Vec<ToolCall> = outer_tool_call_regex()
             .captures_iter(input)

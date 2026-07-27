@@ -2018,15 +2018,17 @@ impl<'a> Chat<'a> {
         &mut self,
         sampler_config: SamplerConfig,
     ) -> Result<(), ChatWorkerError> {
-        self.sampler_config = sampler_config;
-        // The pre-built base and tool samplers embed the previous config — rebuild them.
-        self.base_sampler = self.sampler_config.build_sampler(self.engine.ctx.model)?;
-        self.tool_sampler = build_tool_sampler(
+        let base_sampler = sampler_config.build_sampler(self.engine.ctx.model)?;
+        let tool_sampler = build_tool_sampler(
             self.engine.ctx.model,
             &self.tools,
-            &self.sampler_config,
+            &sampler_config,
             self.tool_format.as_ref(),
         )?;
+        // No error, commit the change.
+        self.sampler_config = sampler_config;
+        self.base_sampler = base_sampler;
+        self.tool_sampler = tool_sampler;
         Ok(())
     }
 
