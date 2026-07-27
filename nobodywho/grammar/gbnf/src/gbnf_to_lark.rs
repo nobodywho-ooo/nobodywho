@@ -657,7 +657,6 @@ fn resolve(rules: &mut [Rule], entry_name: &str) -> Result<(), GbnfToLarkError> 
     }
 
     // 3. Rename the entry rule to "start"; update all refs.
-    // If entry_name is already "start", there's nothing to do at this step.
     if entry_name != "start" {
         let entry_idx = rules
             .iter()

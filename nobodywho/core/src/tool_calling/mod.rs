@@ -59,13 +59,9 @@ impl std::fmt::Debug for Tool {
 /// Tags the schema with `x-guidance: { "lenient": true }`, which tells
 /// llguidance's `%json` compiler to *ignore* (with a warning) any schema
 /// keyword it doesn't implement — e.g. `uniqueItems`, `dependencies` — instead
-/// of failing the whole grammar build. Every keyword llguidance *does*
-/// implement is still enforced: `minimum`/`maximum`, `exclusiveMinimum`/
-/// `exclusiveMaximum`, `multipleOf`, `minLength`/`maxLength`, `pattern`,
-/// `minItems`/`maxItems`, `minProperties`/`maxProperties`, `patternProperties`,
-/// `$ref`, `format`, and the structural keywords. This keeps as much constraint
-/// as the sampler can enforce, rather than the previous whitelist that dropped
-/// every constraint keyword outright.
+/// of failing the whole grammar build. Keywords it does implement are still
+/// enforced, so this keeps as much constraint as the sampler can, rather than
+/// the previous whitelist that dropped every constraint keyword outright.
 ///
 /// The `x-guidance` tag is only honored at the root of the schema handed to a
 /// single `%json` node (its effect is global to that compile), so it is applied
@@ -284,9 +280,8 @@ pub enum ToolFormatError {
 // Trait & Format Enum
 // ============================================================================
 
-/// Escape a string for embedding inside a Lark double-quoted string literal.
-///
 /// Escape user-controlled input for splicing into a double-quoted Lark literal.
+///
 /// Besides `"` and `\`, raw newline/tab/carriage-return make the literal
 /// malformed, so map them to their C-style escapes too. `\\` is replaced first
 /// so the backslashes introduced below are not re-escaped.

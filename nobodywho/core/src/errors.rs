@@ -1154,6 +1154,9 @@ pub enum ToolCallingSetupError {
 
     #[error("Failed to build tool-call sampler: {0}")]
     Sampler(#[from] SamplerError),
+
+    #[error("Failed to tokenize the tool-call begin token: {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
