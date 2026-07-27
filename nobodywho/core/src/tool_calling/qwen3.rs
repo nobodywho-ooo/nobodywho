@@ -14,6 +14,10 @@ impl ToolFormatHandler for Qwen3Handler {
         "</tool_call>"
     }
 
+    fn slice_regexes(&self) -> Vec<String> {
+        super::json_body_slice_regexes()
+    }
+
     fn to_lark(
         &self,
         tools: &[Tool],

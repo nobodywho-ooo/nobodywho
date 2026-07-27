@@ -33,6 +33,10 @@ impl ToolFormatHandler for Ministral3Handler {
         ""
     }
 
+    fn slice_regexes(&self) -> Vec<String> {
+        super::json_body_slice_regexes()
+    }
+
     fn to_lark(
         &self,
         tools: &[Tool],

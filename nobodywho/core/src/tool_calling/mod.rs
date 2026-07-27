@@ -345,39 +345,29 @@ pub trait ToolFormatHandler {
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
 
     /// Build a Lark grammar describing the tool call shape, for use with
-    /// [`crate::sampler::llguidance_sampler`].
-    ///
-    /// The grammar starts at the tool-call body — i.e., its entry rule
-    /// includes the begin token as its first literal. It does **not** include
-    /// a lazy preamble: Lark/llguidance has no equivalent of llama.cpp's
-    /// `grammar_lazy` external trigger words, and a `[suffix=...]` preamble
-    /// would block EOS while waiting for the trigger to appear. Optional
-    /// activation is instead handled by the chat layer, which only inserts
-    /// this grammar into the sampler chain after detecting the begin token
-    /// in the streamed output.
+    /// [`crate::sampler::llguidance_sampler`]. The grammar's entry rule starts
+    /// with the begin token; activation is handled by the chat layer once that
+    /// token is seen (there is no lazy-trigger equivalent in Lark/llguidance).
     fn to_lark(
         &self,
         tools: &[Tool],
         model: Option<&LlamaModel>,
     ) -> Result<String, ToolFormatError>;
 
-    /// Vocabulary hints that speed up grammar-constrained token selection.
-    ///
-    /// Each regex describes a set of tokens that are commonly allowed at some
-    /// position in this format. llguidance pre-computes a bitmask for each
-    /// pattern at startup. At generation time, when every valid token at the
-    /// current grammar position matches a pattern, llguidance uses the bitmask
-    /// directly instead of scanning the full vocabulary — cutting per-token
-    /// constraint cost significantly on large vocabularies.
-    ///
-    /// The default is a JSON string-value body regex (excludes `"`, `\`,
-    /// control chars), suitable for JSON-formatted tool calls (e.g. Qwen3).
-    /// Handlers whose format is not JSON should override this with patterns
-    /// matched to their actual delimiter structure (see `FunctionGemmaHandler`
-    /// for an example with `[^<>{},:]+`).
+    /// Regexes hinting which tokens are allowed at hot grammar positions;
+    /// llguidance precomputes a bitmask per pattern to skip full-vocab scans.
+    /// Empty by default — a bitmask that never applies is pure startup cost.
+    /// Opt in via `json_body_slice_regexes` (`%json` bodies) or a custom pattern
+    /// (see `FunctionGemmaHandler`'s `[^<>{},:]+`).
     fn slice_regexes(&self) -> Vec<String> {
-        vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
+        vec![]
     }
+}
+
+/// Slice for a JSON string-value body (excludes `"`, `\`, control chars). The
+/// `slice_regexes` opt-in for formats whose tool-call body is `%json`-constrained.
+pub(crate) fn json_body_slice_regexes() -> Vec<String> {
+    vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
 }
 
 /// Enum representing different tool calling formats.

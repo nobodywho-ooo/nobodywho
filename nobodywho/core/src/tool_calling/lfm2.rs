@@ -24,6 +24,10 @@ impl ToolFormatHandler for Lfm2Handler {
         END_TOKEN
     }
 
+    fn slice_regexes(&self) -> Vec<String> {
+        super::json_body_slice_regexes()
+    }
+
     fn to_lark(
         &self,
         tools: &[Tool],
