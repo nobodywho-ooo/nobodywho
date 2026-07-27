@@ -8283,7 +8283,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/jona605a/llama-cpp-rs";
           rev = "7ffc9a92362d4e9ebb4bfa4437b076867acdc955";
-          sha256 = "1q0pfdiv070brx5yfl0skx1fawsqlz9dzi82sg71wx5hiflb4kkh";
+          sha256 = "0ccwj9azblc6xyl0xnkh24si3qnvgcaybnbhrydfw1wkqy4jssw5";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -8367,7 +8367,7 @@ rec {
         src = pkgs.fetchgit {
           url = "https://github.com/jona605a/llama-cpp-rs";
           rev = "7ffc9a92362d4e9ebb4bfa4437b076867acdc955";
-          sha256 = "1q0pfdiv070brx5yfl0skx1fawsqlz9dzi82sg71wx5hiflb4kkh";
+          sha256 = "0ccwj9azblc6xyl0xnkh24si3qnvgcaybnbhrydfw1wkqy4jssw5";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -19225,7 +19225,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.48.0";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -19672,7 +19672,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.52.0" = rec {
         crateName = "windows-sys";
@@ -19920,7 +19920,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_System" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_SystemInformation" "Win32_System_Threading" "default" ];
       };
       "windows-sys 0.61.2" = rec {
         crateName = "windows-sys";

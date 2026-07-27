@@ -47,7 +47,7 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
@@ -1474,10 +1474,24 @@ impl<'a> Chat<'a> {
             tool_format.as_ref(),
         )?;
 
+        // Tool calling and MTP can't be combined yet, so force solo decode when
+        // tools are enabled. Temporary limitation: dynamic tool-grammar
+        // activation needs single-token decoding (MTP's one-token lookahead
+        // would sample the first tool-call body token unconstrained). Lifting
+        // this means rolling back the speculative lookahead on activation.
+        let mtp = if config.tools.is_empty() {
+            config.mtp
+        } else {
+            if config.mtp.is_some() {
+                warn!("Tool calling is enabled; disabling MTP for this chat. Combining them is planned but not yet supported.");
+            }
+            None
+        };
+
         // Build the low-level inference engine via the shared Worker constructor,
         // then take ownership of just the engine for the chat session.
         let Worker { engine, extra: () } =
-            Worker::new_with_type(model, config.n_ctx, false, config.mtp, config.n_threads, ())?;
+            Worker::new_with_type(model, config.n_ctx, false, mtp, config.n_threads, ())?;
 
         Ok(Chat {
             engine,

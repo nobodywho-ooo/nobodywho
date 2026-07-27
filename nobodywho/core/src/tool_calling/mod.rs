@@ -54,54 +54,40 @@ impl std::fmt::Debug for Tool {
     }
 }
 
-/// Project a JSON schema down to the keys we support, dropping everything else.
-/// llguidance's `%json` compiler rejects keys it hasn't implemented (e.g.
-/// `uniqueItems`) rather than ignoring them, so anything we don't explicitly
-/// keep must go. Recurses only into schema-valued positions; `const`/`enum`/
-/// `required` hold literal data and are copied verbatim.
-pub(crate) fn project_supported_schema(schema: &serde_json::Value) -> serde_json::Value {
-    use serde_json::Value;
-    let Some(obj) = schema.as_object() else {
-        // Bool schemas (`items: false`, `additionalProperties: false`) and any
-        // scalar pass through unchanged.
-        return schema.clone();
-    };
-    let mut out = serde_json::Map::new();
-    for (k, v) in obj {
-        match k.as_str() {
-            // single nested schema (may also be a bool)
-            "items" | "additionalProperties" | "not" | "contains" => {
-                out.insert(k.clone(), project_supported_schema(v));
-            }
-            // array of schemas
-            "oneOf" | "anyOf" | "allOf" | "prefixItems" => {
-                if let Some(arr) = v.as_array() {
-                    out.insert(
-                        k.clone(),
-                        Value::Array(arr.iter().map(project_supported_schema).collect()),
-                    );
-                }
-            }
-            // map of schemas
-            "properties" | "$defs" | "definitions" | "patternProperties" => {
-                if let Some(m) = v.as_object() {
-                    let mm = m
-                        .iter()
-                        .map(|(pk, pv)| (pk.clone(), project_supported_schema(pv)))
-                        .collect();
-                    out.insert(k.clone(), Value::Object(mm));
-                }
-            }
-            // data / annotations kept verbatim (NOT recursed into)
-            "type" | "required" | "const" | "enum" | "$ref" | "description" | "title"
-            | "format" => {
-                out.insert(k.clone(), v.clone());
-            }
-            // everything else (uniqueItems, examples, $schema, ...) dropped
-            _ => {}
-        }
+/// Serialize a JSON schema for embedding after a Lark `%json` directive.
+///
+/// Tags the schema with `x-guidance: { "lenient": true }`, which tells
+/// llguidance's `%json` compiler to *ignore* (with a warning) any schema
+/// keyword it doesn't implement — e.g. `uniqueItems`, `dependencies` — instead
+/// of failing the whole grammar build. Every keyword llguidance *does*
+/// implement is still enforced: `minimum`/`maximum`, `exclusiveMinimum`/
+/// `exclusiveMaximum`, `multipleOf`, `minLength`/`maxLength`, `pattern`,
+/// `minItems`/`maxItems`, `minProperties`/`maxProperties`, `patternProperties`,
+/// `$ref`, `format`, and the structural keywords. This keeps as much constraint
+/// as the sampler can enforce, rather than the previous whitelist that dropped
+/// every constraint keyword outright.
+///
+/// The `x-guidance` tag is only honored at the root of the schema handed to a
+/// single `%json` node (its effect is global to that compile), so it is applied
+/// here at each embedding site rather than once on the whole tool schema.
+///
+/// Note: `lenient` also downgrades `oneOf` to `anyOf`. That is harmless for tool
+/// calling — the Qwen3 wrapper's alternatives are made mutually exclusive by a
+/// `name: { const }` discriminator, so `anyOf` accepts exactly the same inputs.
+pub(crate) fn json_schema_for_llguidance(
+    schema: &serde_json::Value,
+) -> Result<String, ToolFormatError> {
+    let mut schema = schema.clone();
+    if let Some(obj) = schema.as_object_mut() {
+        obj.insert(
+            "x-guidance".to_string(),
+            serde_json::json!({ "lenient": true }),
+        );
     }
-    Value::Object(out)
+    // Non-object schemas (bare `true`/`false`) carry no keywords to tolerate,
+    // so they are serialized untouched.
+    serde_json::to_string(&schema)
+        .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))
 }
 
 impl Tool {
@@ -114,7 +100,7 @@ impl Tool {
         Self {
             name: name.into(),
             description: description.into(),
-            json_schema: project_supported_schema(&json_schema),
+            json_schema,
             function,
         }
     }
@@ -602,11 +588,12 @@ mod tests {
     }
 
     #[test]
-    fn tool_new_projects_unsupported_schema_keys() {
-        // A `set`-typed parameter carries `uniqueItems`, which llguidance's
-        // `%json` compiler rejects. `Tool::new` must strip it (and any other
-        // unsupported key) while preserving the structural schema, so the
-        // per-format grammars compile.
+    fn tool_new_preserves_schema_and_helper_tags_lenient() {
+        // Unlike the old whitelist projection, `Tool::new` now stores the schema
+        // verbatim — including constraint keywords llguidance enforces
+        // (`maximum`) and ones it doesn't (`uniqueItems`). Tolerance is delegated
+        // to llguidance via the `x-guidance: {lenient: true}` tag that
+        // `json_schema_for_llguidance` injects at each `%json` embedding site.
         let tool = Tool::new(
             "set_intersection",
             "intersect two sets",
@@ -615,37 +602,81 @@ mod tests {
                 "properties": {
                     "set1": {
                         "type": "array",
-                        "items": {"type": "integer"},
+                        "items": {"type": "integer", "maximum": 100},
                         "uniqueItems": true
-                    },
-                    // `const` holds literal data, not a schema: a key that
-                    // collides with a dropped keyword must survive untouched.
-                    "mode": {"const": {"uniqueItems": 5}}
+                    }
                 },
                 "required": ["set1"]
             }),
             Arc::new(|_| String::new()),
         );
 
-        let schema_str = serde_json::to_string(&tool.json_schema).unwrap();
+        // Nothing is stripped: both the enforceable and the unimplemented
+        // keyword survive on the stored schema.
+        let items = &tool.json_schema["properties"]["set1"]["items"];
+        assert_eq!(items["maximum"], 100);
+        assert_eq!(tool.json_schema["properties"]["set1"]["uniqueItems"], true);
 
-        // The unsupported keyword is gone from every schema position...
-        assert!(
-            !schema_str.contains("\"uniqueItems\":true"),
-            "uniqueItems keyword should be stripped: {schema_str}"
-        );
-        // ...but structural keys survive.
-        let props = &tool.json_schema["properties"];
-        assert_eq!(props["set1"]["type"], "array");
-        assert_eq!(props["set1"]["items"]["type"], "integer");
-        assert_eq!(tool.json_schema["required"][0], "set1");
-        // ...and literal `const` data is NOT filtered (recursion stops at data).
-        assert_eq!(props["mode"]["const"]["uniqueItems"], 5);
+        // The embedding helper tags the root leniently and keeps every keyword.
+        let embedded = json_schema_for_llguidance(&tool.json_schema).unwrap();
+        assert!(embedded.contains("x-guidance"), "missing tag: {embedded}");
+        assert!(embedded.contains("lenient"), "missing lenient: {embedded}");
+        assert!(embedded.contains("uniqueItems"), "keyword dropped: {embedded}");
+        assert!(embedded.contains("maximum"), "keyword dropped: {embedded}");
 
-        // The projected schema compiles into a `%json`-embedding grammar.
+        // Grammar generation (string level) still succeeds.
         ToolFormat::Qwen3(Qwen3Handler)
             .to_lark(&[tool], None)
-            .expect("projected schema should produce valid lark");
+            .expect("schema should produce valid lark");
+    }
+
+    /// Regression: llguidance's `%json` compiler hard-errors on keywords it
+    /// hasn't implemented (e.g. `uniqueItems`). We no longer pre-strip those;
+    /// instead `json_schema_for_llguidance` tags the schema `lenient`, so the
+    /// grammar must still *compile* against a real tokenizer (create_parser
+    /// would otherwise fail at worker init). Simultaneously, a constraint
+    /// llguidance *does* implement (`maximum`) — which the old whitelist dropped
+    /// entirely — must now actually be enforced. Uses the TEST_MODEL tokenizer.
+    #[test]
+    fn unimplemented_keyword_tolerated_and_supported_constraint_enforced() {
+        let model = crate::test_utils::load_test_model();
+        let tool = Tool::new(
+            "rate",
+            "rate something",
+            json!({
+                "type": "object",
+                "properties": {
+                    // `uniqueItems` is unimplemented -> must be tolerated.
+                    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+                    // `maximum` is implemented -> must be enforced.
+                    "score": {"type": "integer", "minimum": 0, "maximum": 5}
+                },
+                "required": ["score"]
+            }),
+            Arc::new(|_| String::new()),
+        );
+        let grammar = ToolFormat::Qwen3(Qwen3Handler)
+            .to_lark(&[tool], Some(&model.language_model))
+            .unwrap();
+
+        // Compiles despite `uniqueItems`, and a within-range score is accepted.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>{\"name\":\"rate\",\"arguments\":{\"score\":3}}</tool_call>"
+            ),
+            "valid call should be accepted (proves lenient compile):\n{grammar}"
+        );
+        // `maximum: 5` is enforced: 9 is out of range and must be rejected.
+        assert!(
+            !grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>{\"name\":\"rate\",\"arguments\":{\"score\":9}}</tool_call>"
+            ),
+            "out-of-range score must be rejected (proves constraint kept):\n{grammar}"
+        );
     }
 
     #[test]

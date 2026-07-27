@@ -87,8 +87,7 @@ impl ToolFormatHandler for Qwen35_36Handler {
                         ));
                     } else {
                         let val_rule = format!("{pprefix}_val");
-                        let schema_str = serde_json::to_string(pschema)
-                            .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
+                        let schema_str = super::json_schema_for_llguidance(pschema)?;
                         lark.push_str(&format!("{val_rule}: %json {schema_str}\n"));
                         lark.push_str(&format!(
                             "{block_rule}: \"<parameter={pname}>\\n\" {val_rule} \"\\n</parameter>\\n\"\n"

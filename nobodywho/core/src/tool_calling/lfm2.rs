@@ -144,8 +144,7 @@ fn lark_tool_rule(
             let pprefix = format!("{tprefix}_p{pi}_{}", super::sanitize_lark(pname));
 
             let val_rule = format!("{pprefix}_val");
-            let schema_str = serde_json::to_string(pschema)
-                .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
+            let schema_str = super::json_schema_for_llguidance(pschema)?;
             lark.push_str(&format!("{val_rule}: %json {schema_str}\n"));
 
             let kv_rule = format!("{pprefix}_kv");

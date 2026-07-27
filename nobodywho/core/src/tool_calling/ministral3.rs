@@ -49,8 +49,7 @@ impl ToolFormatHandler for Ministral3Handler {
         let begin = super::lark_delimiter(model, "[TOOL_CALLS]");
         let args = super::lark_delimiter(model, "[ARGS]");
         for (i, tool) in tools.iter().enumerate() {
-            let schema_str = serde_json::to_string(&tool.json_schema)
-                .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
+            let schema_str = super::json_schema_for_llguidance(&tool.json_schema)?;
             let name = super::escape_lark_string(&tool.name);
             lark.push_str(&format!(
                 "tool_{i}: {begin} \"{name}\" {args} %json {schema_str}\n"

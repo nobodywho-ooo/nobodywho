@@ -33,8 +33,7 @@ impl ToolFormatHandler for Qwen3Handler {
             })
             .collect();
 
-        let schema_str = serde_json::to_string(&json!({ "oneOf": tool_schemas }))
-            .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))?;
+        let schema_str = super::json_schema_for_llguidance(&json!({ "oneOf": tool_schemas }))?;
 
         let mut lark = String::from("%llguidance {}\n");
         lark.push_str("start: toolcall+\n");
