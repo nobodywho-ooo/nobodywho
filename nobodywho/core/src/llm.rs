@@ -47,6 +47,34 @@ pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
     pub(crate) draft_model: Option<LlamaModel>,
+    pub(crate) needs_checkpointing: bool,
+}
+
+/// True for `general.architecture` values backed by recurrent / hybrid-recurrent
+/// memory in llama.cpp (where partial `clear_kv_cache_seq` fails). Mirrors
+/// llama.cpp's `llm_arch_is_recurrent` + `llm_arch_is_hybrid`; keep in sync.
+fn is_recurrent_or_hybrid_arch(arch: &str) -> bool {
+    matches!(
+        arch,
+        "mamba"
+            | "mamba2"
+            | "rwkv6"
+            | "rwkv6qwen2"
+            | "rwkv7"
+            | "arwkv7"
+            | "jamba"
+            | "falcon-h1"
+            | "plamo2"
+            | "granitehybrid"
+            | "lfm2"
+            | "lfm2moe"
+            | "nemotron_h"
+            | "nemotron_h_moe"
+            | "qwen3next"
+            | "kimi-linear"
+            | "qwen35"
+            | "qwen35moe"
+    )
 }
 
 impl Model {
@@ -209,11 +237,21 @@ pub fn get_model(
             })
         })
         .transpose()?;
+    let needs_checkpointing = language_model
+        .meta_val_str("general.architecture")
+        .ok()
+        .as_deref()
+        .map(is_recurrent_or_hybrid_arch)
+        .unwrap_or(false);
+    if needs_checkpointing {
+        debug!("Recurrent/hybrid architecture detected — enabling checkpoint-based sync");
+    }
 
     Ok(Model {
         language_model,
         projection_model,
         draft_model,
+        needs_checkpointing,
     })
 }
 
@@ -436,6 +474,7 @@ where
             },
             tokenizer,
             use_embeddings,
+            model.needs_checkpointing,
         );
         Ok(Worker { engine, extra })
     }
