@@ -1973,14 +1973,16 @@ impl<'a> Chat<'a> {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), ChatWorkerError> {
-        self.engine.reset_context();
-
-        self.tool_sampler = build_tool_sampler(
+        // Run fallible functions before committing to state.
+        let tool_sampler = build_tool_sampler(
             self.engine.ctx.model,
             &tools,
             &self.sampler_config,
             self.tool_format.as_ref(),
         )?;
+
+        self.engine.reset_context();
+        self.tool_sampler = tool_sampler;
         self.tools = tools;
         self.messages = Vec::new();
         self.context = ChatContext::new();
@@ -2018,6 +2020,7 @@ impl<'a> Chat<'a> {
         &mut self,
         sampler_config: SamplerConfig,
     ) -> Result<(), ChatWorkerError> {
+        // Run fallible functions before committing to state.
         let base_sampler = sampler_config.build_sampler(self.engine.ctx.model)?;
         let tool_sampler = build_tool_sampler(
             self.engine.ctx.model,
@@ -2025,7 +2028,6 @@ impl<'a> Chat<'a> {
             &sampler_config,
             self.tool_format.as_ref(),
         )?;
-        // No error, commit the change.
         self.sampler_config = sampler_config;
         self.base_sampler = base_sampler;
         self.tool_sampler = tool_sampler;
@@ -2068,16 +2070,17 @@ impl<'a> Chat<'a> {
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
-        self.tool_sampler = build_tool_sampler(
+        // Run fallible functions before committing to state.
+        let tool_sampler = build_tool_sampler(
             self.engine.ctx.model,
             &tools,
             &self.sampler_config,
             self.tool_format.as_ref(),
         )?;
+        let chat_template = select_template(self.engine.ctx.model, !tools.is_empty())?;
+        self.tool_sampler = tool_sampler;
         self.tools = tools;
-
-        self.chat_template = select_template(self.engine.ctx.model, !self.tools.is_empty())?;
-
+        self.chat_template = chat_template;
         Ok(())
     }
 
