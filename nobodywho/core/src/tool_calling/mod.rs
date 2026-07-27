@@ -621,7 +621,10 @@ mod tests {
         let embedded = json_schema_for_llguidance(&tool.json_schema).unwrap();
         assert!(embedded.contains("x-guidance"), "missing tag: {embedded}");
         assert!(embedded.contains("lenient"), "missing lenient: {embedded}");
-        assert!(embedded.contains("uniqueItems"), "keyword dropped: {embedded}");
+        assert!(
+            embedded.contains("uniqueItems"),
+            "keyword dropped: {embedded}"
+        );
         assert!(embedded.contains("maximum"), "keyword dropped: {embedded}");
 
         // Grammar generation (string level) still succeeds.
