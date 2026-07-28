@@ -40,10 +40,11 @@ jobs:
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
             cp ./LICENSE ./nobodywho-release/bin/addons/nobodywho/
         - name: "Upload zipped godot build artifacts"
-          uses: actions/upload-artifact@v5
+          uses: actions/upload-artifact@v7
           with:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
+            compression_level: 9
 
   create-github-release-godot:
     needs: [godot-distributable]
@@ -58,7 +59,7 @@ jobs:
 
       - name: "Make zip file"
         working-directory: ./nobodywho-release-godot
-        run: zip -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
+        run: zip -9 -r "../nobodywho-godot-${{ github.ref_name }}.zip" ./**
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
