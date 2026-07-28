@@ -10,34 +10,36 @@ The headline rule: **`build-and-test.yml` invokes a `plan` job that reads the ev
 |---|---|---|---|---|
 | `lint` | `cargo fmt --check`, `cargo clippy` | any | — | every event |
 | `regen` | uniffi swift / kotlin / RN bindings regen + flutter doctest regen | any | — | every event |
-| `rust_core` | `nix flake check` (canonical core test suite) | `core/`, `Cargo.lock` | `full-ci` | main, tag, merge queue |
-| `python` | wheel build, pytest, pip-install, multimodal, model-downloading, **plus the always-run python static checks** (ruff/ty/stub regen) | `python/`, `core/`, `Cargo.lock` | `full-ci` | main, tag, merge queue |
-| `python_models` | 6-model tool-calling matrix (multi-GB downloads) | — | `test:python-models`, `full-ci` | main, tag, merge queue |
-| `godot` | godot integration build (linux, windows, macos, android) | `godot/`, `core/`, `Cargo.lock` | `full-ci` | main, tag, merge queue |
-| `flutter` | flutter integration build + multimodal tests + xcframework | `flutter/`, `core/`, `Cargo.lock` | `full-ci` | main, tag, merge queue |
-| `swift` | uniffi Apple build + swift xcframework + swift tests | `swift/`, `uniffi/`, `core/`, `Cargo.lock` | `full-ci` | main, tag, merge queue |
-| `kotlin` | uniffi build for desktop+android + JVM/Android compile + tests | `kotlin/`, `uniffi/`, `core/`, `Cargo.lock` | `full-ci` | main, tag, merge queue |
-| `react_native` | uniffi iOS+android build + RN xcframework | `react-native/`, `uniffi/`, `core/`, `Cargo.lock` | `full-ci` | main, tag, merge queue |
-| `docs` | docusaurus build + Cloudflare Pages deploy | `docs/` | — | main only |
+| `rust_core` | `nix flake check` (canonical core test suite) | `core/`, `Cargo.lock` | `full-ci` | tag, merge queue |
+| `python` | wheel build (linux/windows/macos), pytest, pip-install, multimodal, model-downloading, **plus the always-run python static checks** (ruff/ty/stub regen) | `python/`, `Cargo.lock` | `full-ci` | tag, merge queue |
+| `python_models` | 6-model tool-calling matrix (multi-GB downloads); builds the linux wheel only | `core/` | `test:python-models`, `full-ci` | tag, merge queue |
+| `godot` | godot integration build (linux, windows, macos, android) | `godot/`, `core/`, `Cargo.lock` | `full-ci` | tag, merge queue |
+| `flutter` | flutter integration build + multimodal tests + xcframework | `flutter/`, `core/`, `Cargo.lock` | `full-ci` | tag, merge queue |
+| `swift` | uniffi Apple build + swift xcframework + swift tests | `swift/`, `uniffi/`, `core/`, `Cargo.lock` | `full-ci` | tag, merge queue |
+| `kotlin` | uniffi build for desktop+android + JVM/Android compile + tests | `kotlin/`, `uniffi/`, `core/`, `Cargo.lock` | `full-ci` | tag, merge queue |
+| `react_native` | uniffi iOS+android build + RN xcframework | `react-native/`, `uniffi/`, `core/`, `Cargo.lock` | `full-ci` | tag, merge queue |
+| `docs` | docusaurus build + Cloudflare Pages deploy | — | — | main (deploy only) |
 | `release` | publish to PyPI / pub.dev / npm / Maven Central / Swift mirror | — | — | release tag only |
 
-Two cascade rules:
+Cascade rules:
 
-- A change to `nobodywho/core/**` cascades to **every** Rust-consuming bucket (each binding links core).
+- A change to `nobodywho/core/**` cascades to `rust_core` and every binding (`godot`, `flutter`, `swift`, `kotlin`, `react_native`), plus `python_models`. It does **not** trigger the full `python` bucket — python's core coverage is the tool-calling matrix; the wheel/pytest/pip-install suite runs only on `python/**` or a full run.
 - A change to `nobodywho/uniffi/**` cascades to `swift`, `kotlin`, `react_native`.
 - A change to `Cargo.lock` or `.github/workflows/**` forces everything on (safety net).
+
+Note: `main` is absent from "always on" — the merge queue already validated the merged tree, so a push to `main` runs docs deploy only (see below).
 
 ## Trigger → behavior
 
 | trigger | what runs |
 |---|---|
 | **Draft PR** opened/updated | only the bucket(s) touched by *the latest push*, no cascade |
-| **Non-draft PR** opened/updated | bucket(s) touched by *the whole PR diff* + cross-bucket cascade (core → all bindings, uniffi → swift/kotlin/RN) |
+| **Non-draft PR** opened/updated | bucket(s) touched by *the whole PR diff* + cross-bucket cascade (core → all bindings + `python_models`, uniffi → swift/kotlin/RN) |
 | PR marked **ready-for-review** | re-runs CI in non-draft mode (full diff + cascade) |
 | PR with `full-ci` label | every bucket (sticky; remove label to revert) — overrides draft mode |
 | PR comment `/full-ci` | one-shot full run via `workflow_dispatch` (see `full-ci-comment.yml`) |
 | PR with `test:python-models` label | adds the 6-model matrix on top of path-filtered |
-| Push to `main` | every bucket (post-merge canonical run) + docs deploy |
+| Push to `main` | docs deploy only — the merge queue already validated the merged tree |
 | Push to `nobodywho-*` tag | every bucket + `release.yml` |
 | Merge queue (`merge_group`) | every bucket against the merged tree |
 | `workflow_dispatch` (Actions UI) | every bucket if `full_ci=true`, else lint+regen only |
@@ -45,7 +47,7 @@ Two cascade rules:
 
 ### Why draft vs non-draft matters
 
-While a PR is **draft**, paths-filter compares only the latest push (`before..after`), and cascade rules are disabled. This lets you push messy core changes without dragging every binding's CI into every iteration. When you flip the PR to **ready-for-review**, CI re-runs with the full cumulative PR diff and the cross-bucket cascade — that's the real verification before merge queue picks it up.
+While a PR is **draft**, the plan job diffs only the latest push (`before..after`), and cascade rules are disabled. This lets you push messy core changes without dragging every binding's CI into every iteration. When you flip the PR to **ready-for-review**, CI re-runs with the full cumulative PR diff and the cross-bucket cascade — that's the real verification before merge queue picks it up.
 
 Merge queue refuses to queue drafts, so a draft can't sneak into `main` on the lighter draft-mode CI.
 

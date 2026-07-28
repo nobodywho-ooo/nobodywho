@@ -235,10 +235,15 @@ jobs:
           p_rn="${P_RN:-false}"
           p_docs="${P_DOCS:-false}"
 
+          # push to main: NOT a full run. The merge queue (merge_group below)
+          # already validated this exact merged tree, so re-running the matrix
+          # here is pure duplication. Only main-only side effects run — docs
+          # deploy (via run_docs) and, on tags, release.
+          push_main=false
+          if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then push_main=true; fi
+
           # ---- "run everything" conditions ---------------------------------
           everything=false
-          # Push to main: full surface (this is the post-merge canonical run).
-          if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then everything=true; fi
           # Release tag: full surface, then release.yml fires.
           if [[ "$REF" == refs/tags/nobodywho-* ]]; then everything=true; fi
           # Merge queue: full surface against the would-be merged tree.
@@ -277,28 +282,38 @@ jobs:
           fi
 
           # ---- per-bucket decisions ----------------------------------------
-          run_rust_core=$(any "$everything" "$core_cascade")
-          run_python=$(any "$everything" "$core_cascade" "$p_python")
+          run_rust_core=$(any "$everything" "$core_cascade" "$p_core")
+          run_python=$(any "$everything" "$p_python")
           run_godot=$(any "$everything" "$core_cascade" "$p_godot")
           run_flutter=$(any "$everything" "$core_cascade" "$p_flutter")
           run_swift=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_swift")
           run_kotlin=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_kotlin")
           run_react_native=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_rn")
 
-          # python_models: heavy 6-model matrix. On main / full-ci / explicit label.
+          # python_models: tool-calling matrix (core coverage) — also gated on core_cascade.
           run_python_models=false
-          if [[ "$everything" == "true" ]] || has_label "test:python-models"; then
+          if [[ "$everything" == "true" ]] || has_label "test:python-models" || [[ "$core_cascade" == "true" ]]; then
             run_python_models=true
           fi
 
-          # The model matrix consumes the python wheel, so force-on the python
-          # wheel build/test bucket whenever the model matrix is requested.
-          if [[ "$run_python_models" == "true" ]]; then
-            run_python=true
+          # push to main is deploy-only: the merge queue already validated this
+          # exact tree, so force every build/test bucket off and only (re)deploy
+          # docs below. Without this, buckets touched by the merge commit would
+          # still fire via their path/cascade triggers.
+          if $push_main; then
+            run_rust_core=false
+            run_python=false
+            run_python_models=false
+            run_godot=false
+            run_flutter=false
+            run_swift=false
+            run_kotlin=false
+            run_react_native=false
           fi
 
-          # docs: rebuild whenever docs/** changed, or on a full run.
-          run_docs=$(any "$everything" "$p_docs")
+          # docs: deploy only on a push to main (the docs job is ref-gated to
+          # main anyway, so this never fires on PRs or in the merge queue).
+          run_docs="$push_main"
 
           # release: only on a release tag.
           run_release=false
