@@ -1,19 +1,14 @@
 name: "Kotlin CI"
 
-on:
-  workflow_call:
-    inputs:
-      full_ci:
-        description: "Run full Kotlin CI (compilation and integration tests with model)."
-        type: boolean
-        default: false
+# Gated by build-and-test.yml on needs.plan.outputs.run_kotlin — the workflow
+# itself has no input; it only runs when the plan job says kotlin is in scope.
+on: workflow_call
 
 permissions:
   contents: read
 
 jobs:
   test:
-    if: inputs.full_ci
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5

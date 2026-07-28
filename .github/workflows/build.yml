@@ -2,24 +2,77 @@ name: "Build"
 on:
   workflow_call:
     inputs:
-      full_ci:
-        description: "Run full build matrix (all platforms, all targets, all profiles)."
+      run_godot:
+        type: boolean
+        default: false
+      run_flutter:
+        type: boolean
+        default: false
+      run_swift:
+        type: boolean
+        default: false
+      run_kotlin:
+        type: boolean
+        default: false
+      run_react_native:
+        type: boolean
+        default: false
+      apple_extended:
         type: boolean
         default: false
 
 jobs:
+  matrix-gen:
+    runs-on: ubuntu-latest
+    outputs:
+      integrations: ${{ steps.gen.outputs.integrations }}
+      macos_matrix: ${{ steps.gen.outputs.macos_matrix }}
+    steps:
+      - id: gen
+        run: |
+          ints=()
+          [[ "${{ inputs.run_godot }}"   == "true" ]] && ints+=('"godot"')   || true
+          [[ "${{ inputs.run_flutter }}" == "true" ]] && ints+=('"flutter"') || true
+          if [[ "${{ inputs.run_swift }}"        == "true" ]] || \
+             [[ "${{ inputs.run_kotlin }}"       == "true" ]] || \
+             [[ "${{ inputs.run_react_native }}" == "true" ]]; then
+            ints+=('"uniffi"')
+          fi
+          IFS=,
+          echo "integrations=[${ints[*]}]" >> "$GITHUB_OUTPUT"
+          unset IFS
+
+          combos=()
+          add() { combos+=("{\"integration\":\"$1\",\"target\":\"$2\"}"); }
+          desktop_ios=(x86_64-apple-darwin aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim)
+          [[ "${{ inputs.run_godot }}"   == "true" ]] && for t in "${desktop_ios[@]}"; do add godot "$t"; done
+          [[ "${{ inputs.run_flutter }}" == "true" ]] && for t in "${desktop_ios[@]}"; do add flutter "$t"; done
+          declare -A uni=()
+          if [[ "${{ inputs.run_swift }}" == "true" ]]; then
+            for t in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim; do uni["$t"]=1; done
+            if [[ "${{ inputs.apple_extended }}" == "true" ]]; then
+              for t in aarch64-apple-visionos aarch64-apple-visionos-sim \
+                       aarch64-apple-watchos aarch64-apple-watchos-sim; do uni["$t"]=1; done
+            fi
+          fi
+          if [[ "${{ inputs.run_react_native }}" == "true" ]]; then
+            uni["aarch64-apple-ios"]=1; uni["aarch64-apple-ios-sim"]=1
+          fi
+          for t in "${!uni[@]}"; do add uniffi "$t"; done
+          IFS=,
+          echo "macos_matrix={\"include\":[${combos[*]}]}" >> "$GITHUB_OUTPUT"
+          unset IFS
+
   cargo-build-linux:
-    if: inputs.full_ci
+    needs: matrix-gen
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
     strategy:
       fail-fast: false
       matrix:
         target:
           - "x86_64-unknown-linux-gnu"
           - "aarch64-unknown-linux-gnu"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
         include:
           - target: x86_64-unknown-linux-gnu
             runner: warp-ubuntu-latest-x64-4x
@@ -85,17 +138,15 @@ jobs:
           path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
 
   cargo-build-windows:
-    if: inputs.full_ci
+    needs: matrix-gen
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
     env:
       RUSTFLAGS: >-
         -l Advapi32
@@ -185,45 +236,14 @@ jobs:
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
 
   cargo-build-macos:
-    if: inputs.full_ci
+    needs: matrix-gen
+    # No run_kotlin: kotlin's CI tests use the Linux uniffi lib and it downloads
+    # no macOS artifact; its release dylib comes from swift's build on full runs.
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native
     runs-on: warp-macos-15-arm64-6x
     strategy:
       fail-fast: false
-      matrix:
-        target:
-          - "x86_64-apple-darwin"
-          - "aarch64-apple-darwin"
-          - "aarch64-apple-ios"
-          - "aarch64-apple-ios-sim"
-          - "aarch64-apple-visionos"
-          - "aarch64-apple-visionos-sim"
-          - "aarch64-apple-watchos"
-          - "aarch64-apple-watchos-sim"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
-        exclude:
-          # uniffi doesn't need macOS x86_64 (Intel Macs are EOL)
-          - integration: "uniffi"
-            target: "x86_64-apple-darwin"
-          # godot and flutter only support macOS and iOS
-          - integration: "godot"
-            target: "aarch64-apple-visionos"
-          - integration: "godot"
-            target: "aarch64-apple-visionos-sim"
-          - integration: "godot"
-            target: "aarch64-apple-watchos"
-          - integration: "godot"
-            target: "aarch64-apple-watchos-sim"
-          - integration: "flutter"
-            target: "aarch64-apple-visionos"
-          - integration: "flutter"
-            target: "aarch64-apple-visionos-sim"
-          - integration: "flutter"
-            target: "aarch64-apple-watchos"
-          - integration: "flutter"
-            target: "aarch64-apple-watchos-sim"
+      matrix: ${{ fromJSON(needs.matrix-gen.outputs.macos_matrix) }}
     steps:
       - uses: actions/checkout@v5
       - name: "Setup Rust toolchain"
@@ -322,7 +342,7 @@ jobs:
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
   build-flutter-xcframework:
-    if: inputs.full_ci
+    if: inputs.run_flutter
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -401,7 +421,7 @@ jobs:
 
   # builds an xcframework containing static libraries for React Native iOS
   build-react-native-xcframework:
-    if: inputs.full_ci
+    if: inputs.run_react_native
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -437,7 +457,7 @@ jobs:
 
   # builds an xcframework containing static libraries + headers for Swift SPM
   build-swift-xcframework:
-    if: inputs.full_ci
+    if: inputs.run_swift
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -454,32 +474,34 @@ jobs:
 
       - name: "Build XCFramework with headers"
         run: |
-          mkdir -p ios-device/Headers ios-sim/Headers macos/Headers \
-                   visionos-device/Headers visionos-sim/Headers \
-                   watchos-device/Headers watchos-sim/Headers
-
-          cp libnobodywho-uniffi-aarch64-apple-ios-release.a ios-device/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-ios-sim-release.a ios-sim/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-darwin-release.a macos/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-visionos-release.a visionos-device/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-visionos-sim-release.a visionos-sim/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-watchos-release.a watchos-device/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-watchos-sim-release.a watchos-sim/libnobodywho_uniffi.a
-
-          for dir in ios-device ios-sim macos visionos-device visionos-sim watchos-device watchos-sim; do
-            cp nobodywho/swift/generated/nobodywhoFFI.h $dir/Headers/
-            cp nobodywho/swift/generated/nobodywhoFFI.modulemap $dir/Headers/module.modulemap
+          set -euo pipefail
+          slices=(
+            "ios-device:aarch64-apple-ios"
+            "ios-sim:aarch64-apple-ios-sim"
+            "macos:aarch64-apple-darwin"
+            "visionos-device:aarch64-apple-visionos"
+            "visionos-sim:aarch64-apple-visionos-sim"
+            "watchos-device:aarch64-apple-watchos"
+            "watchos-sim:aarch64-apple-watchos-sim"
+          )
+          args=()
+          for entry in "${slices[@]}"; do
+            dir="${entry%%:*}"; target="${entry##*:}"
+            lib="libnobodywho-uniffi-${target}-release.a"
+            if [[ ! -f "$lib" ]]; then
+              echo "skipping $dir — $lib not built this run"
+              continue
+            fi
+            mkdir -p "$dir/Headers"
+            cp "$lib" "$dir/libnobodywho_uniffi.a"
+            cp nobodywho/swift/generated/nobodywhoFFI.h "$dir/Headers/"
+            cp nobodywho/swift/generated/nobodywhoFFI.modulemap "$dir/Headers/module.modulemap"
+            args+=(-library "$dir/libnobodywho_uniffi.a" -headers "$dir/Headers")
           done
-
-          xcodebuild -create-xcframework \
-            -library ios-device/libnobodywho_uniffi.a -headers ios-device/Headers \
-            -library ios-sim/libnobodywho_uniffi.a -headers ios-sim/Headers \
-            -library macos/libnobodywho_uniffi.a -headers macos/Headers \
-            -library visionos-device/libnobodywho_uniffi.a -headers visionos-device/Headers \
-            -library visionos-sim/libnobodywho_uniffi.a -headers visionos-sim/Headers \
-            -library watchos-device/libnobodywho_uniffi.a -headers watchos-device/Headers \
-            -library watchos-sim/libnobodywho_uniffi.a -headers watchos-sim/Headers \
-            -output NobodyWhoNative.xcframework
+          if [[ ${#args[@]} -eq 0 ]]; then
+            echo "::error::no uniffi Apple slices were built"; exit 1
+          fi
+          xcodebuild -create-xcframework "${args[@]}" -output NobodyWhoNative.xcframework
 
       - name: "Zip XCFramework"
         run: zip -y -r NobodyWhoNative.xcframework.zip NobodyWhoNative.xcframework
@@ -491,7 +513,8 @@ jobs:
           path: ./NobodyWhoNative.xcframework.zip
 
   cargo-build-android:
-    if: inputs.full_ci
+    needs: matrix-gen
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_react_native
     runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
@@ -499,10 +522,7 @@ jobs:
         target:
           - "aarch64-linux-android"
           - "x86_64-linux-android"
-        integration:
-          - "godot"
-          - "flutter"
-          - "uniffi"
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
     steps:
       - uses: actions/checkout@v5
 
