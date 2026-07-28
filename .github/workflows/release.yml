@@ -38,6 +38,7 @@ jobs:
             # copy in gdextension metadata
             cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
             cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
+            cp ./LICENSE ./nobodywho-release/bin/addons/nobodywho/
         - name: "Upload zipped godot build artifacts"
           uses: actions/upload-artifact@v5
           with:
