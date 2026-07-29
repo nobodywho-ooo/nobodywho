@@ -102,6 +102,23 @@ stats = chat.stats()
 print(f"Using {stats.context_used} of {stats.context_size} tokens")
 ```
 
+## CPU threads
+
+When layers run on the CPU, NobodyWho picks a thread count for you: one per *performance* core,
+not one per logical CPU. Hyperthread siblings and efficiency cores end up pacing the whole
+thread pool, so using every CPU is usually slower — see [LLM Basics](/docs/llm-basics#cpu-threads)
+for the numbers.
+
+Override it with `n_threads` when you want to leave CPU headroom for other work, or when
+NobodyWho could not read your machine's topology (it logs a warning if so):
+
+```python
+chat = Chat("./model.gguf", n_threads=4)
+```
+
+Leave it unset — or pass `None` — to keep the detected default. Values above your CPU count are
+clamped, and it has little effect when the model is offloaded to the GPU.
+
 ## Sharing model between contexts
 
 There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. With plain `Chat` this is not possible.

@@ -123,6 +123,26 @@ final stats = await chat.getStats();
 print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
 ```
 
+## CPU threads
+
+When layers run on the CPU, NobodyWho picks a thread count for you: one per *performance* core,
+not one per logical CPU. Hyperthread siblings and efficiency cores end up pacing the whole
+thread pool, so using every CPU is usually slower — see [LLM Basics](/docs/llm-basics#cpu-threads)
+for the numbers.
+
+Override it with `threadCount` when you want to leave CPU headroom for the rest of your app —
+often a good idea on phones, where the big cores are also driving the UI:
+
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: "./model.gguf",
+  threadCount: 4
+);
+```
+
+Leave it unset to keep the detected default. Values above the device's CPU count are clamped,
+and it has little effect when the model is offloaded to the GPU.
+
 ## Sharing model between contexts
 
 There are scenarios where you would like to keep separate chat contexts (e.g. for every user of your app), but have only one model loaded. In this case you must load the model 

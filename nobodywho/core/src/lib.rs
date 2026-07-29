@@ -1,4 +1,5 @@
 pub mod chat;
+pub mod cpu;
 pub mod crossencoder;
 pub mod encoder;
 pub mod errors;

@@ -310,6 +310,21 @@ def test_stats(model):
     assert stats.context_used <= n_ctx
 
 
+def test_explicit_thread_count(model):
+    # n_threads is not readable back through stats(), so this asserts the option is accepted
+    # and that generation still works with a non-default pool size. Core clamps the value,
+    # so an absurd request must not fail either.
+    for n_threads in (1, 1_000_000):
+        chat = nobodywho.Chat(
+            model,
+            n_ctx=1024,
+            n_threads=n_threads,
+            template_variables={"enable_thinking": False},
+        )
+        response = chat.ask("What is the capital of Denmark?").completed()
+        assert "Copenhagen" in response
+
+
 def test_set_and_get_chat_history(chat):
     chat_history = [
         {"role": "user", "content": "What's 2 + 2?"},

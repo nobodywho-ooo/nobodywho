@@ -19,8 +19,8 @@ NobodyWho is a lightweight, open-source inference engine that makes it simple to
 ```python
 from nobodywho import Chat
 
-chat = Chat('./model.gguf')
-response = chat.ask('Hello world?').completed()
+chat = Chat("./model.gguf")
+response = chat.ask("Hello world?").completed()
 print(response)
 ```
 

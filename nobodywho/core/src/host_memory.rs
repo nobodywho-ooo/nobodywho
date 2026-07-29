@@ -228,7 +228,7 @@ fn platform_memory() -> Result<HostMemory, MemoryDetectionError> {
         let mut total_size = std::mem::size_of::<u64>();
         let result = unsafe {
             libc::sysctlbyname(
-                b"hw.memsize\0".as_ptr().cast(),
+                c"hw.memsize".as_ptr(),
                 (&raw mut total_bytes).cast::<c_void>(),
                 &raw mut total_size,
                 std::ptr::null_mut(),

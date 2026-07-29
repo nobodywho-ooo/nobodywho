@@ -240,6 +240,11 @@ pub struct ChatConfig {
     /// (see `llm::get_model`) — otherwise worker construction fails with
     /// `InitWorkerError::MtpDraftModelNotLoaded`.
     pub mtp: Option<MtpConfig>,
+    /// Threads used for inference. `None` (the default) detects the host's physical core
+    /// count — performance cores only, on Apple silicon — because hyperthread siblings and
+    /// efficiency cores slow down ggml's per-node thread barrier. Set it lower to leave CPU
+    /// headroom for other work. Values are clamped to the logical CPU count.
+    pub n_threads: Option<u32>,
 }
 
 impl Default for ChatConfig {
@@ -251,6 +256,7 @@ impl Default for ChatConfig {
             tools: Vec::new(),
             sampler_config: None,
             mtp: None,
+            n_threads: None,
         }
     }
 }
@@ -356,6 +362,17 @@ impl ChatBuilder {
     /// Enable MTP speculative decoding for this chat with the given tuning.
     pub fn with_mtp(mut self, config: MtpConfig) -> Self {
         self.config.mtp = Some(config);
+        self
+    }
+
+    /// Set the number of threads used for inference.
+    ///
+    /// Leave this unset to detect the host's physical core count (performance cores only, on
+    /// Apple silicon), which is usually fastest — hyperthread siblings and efficiency cores
+    /// slow down ggml's per-node thread barrier. Set it lower to leave CPU headroom for other
+    /// work. The value is clamped to the logical CPU count.
+    pub fn with_n_threads(mut self, n_threads: u32) -> Self {
+        self.config.n_threads = Some(n_threads);
         self
     }
 
@@ -1428,7 +1445,7 @@ impl<'a> Chat<'a> {
         // Build the low-level inference engine via the shared Worker constructor,
         // then take ownership of just the engine for the chat session.
         let Worker { engine, extra: () } =
-            Worker::new_with_type(model, config.n_ctx, false, config.mtp, ())?;
+            Worker::new_with_type(model, config.n_ctx, false, config.mtp, config.n_threads, ())?;
 
         Ok(Chat {
             engine,

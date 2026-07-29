@@ -119,7 +119,7 @@ void uniffi_nobodywho_uniffi_fn_free_rustchat(
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     /*handle*/ uint64_t model, RustBuffer system_prompt, uint32_t context_size,
     RustBuffer template_variables, RustBuffer tools, RustBuffer sampler,
-    RustBuffer mtp, RustCallStatus *uniffi_out_err);
+    RustBuffer mtp, RustBuffer thread_count, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask(
     /*handle*/ uint64_t ptr, RustBuffer message,
     RustCallStatus *uniffi_out_err);
@@ -2740,7 +2740,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new"),
-          7,
+          8,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
@@ -5766,6 +5766,7 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[6]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[7]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);

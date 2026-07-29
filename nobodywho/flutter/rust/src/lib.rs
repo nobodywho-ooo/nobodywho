@@ -373,7 +373,12 @@ impl RustChat {
     ///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
     ///         Model to have been loaded with a compatible `draft_model_path`. Adds
     ///         around 5% to VRAM usage. Defaults to null (disabled).
+    ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+    ///         device's physical core count (performance cores only, on Apple silicon) —
+    ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+    ///         headroom for the rest of the app. Clamped to the CPU count.
     #[flutter_rust_bridge::frb(sync)]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         model: &Model,
         #[frb(default = "null")] system_prompt: Option<String>,
@@ -383,6 +388,7 @@ impl RustChat {
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = "null")] mtp: Option<MtpConfig>,
+        #[frb(default = "null")] thread_count: Option<u32>,
     ) -> Result<Self, String> {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -405,6 +411,9 @@ impl RustChat {
         if let Some(mtp) = mtp {
             builder = builder.with_mtp(mtp.into());
         }
+        if let Some(thread_count) = thread_count {
+            builder = builder.with_n_threads(thread_count);
+        }
         let chat = builder
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
@@ -425,6 +434,10 @@ impl RustChat {
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+    ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+    ///         device's physical core count (performance cores only, on Apple silicon) —
+    ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+    ///         headroom for the rest of the app. Clamped to the CPU count.
     #[flutter_rust_bridge::frb]
     #[allow(clippy::too_many_arguments)]
     pub fn from_path(
@@ -443,6 +456,7 @@ impl RustChat {
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] mtp: Option<MtpConfig>,
+        #[frb(default = "null")] thread_count: Option<u32>,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
@@ -472,6 +486,9 @@ impl RustChat {
             .with_sampler(sampler_config);
         if let Some(mtp) = mtp {
             builder = builder.with_mtp(mtp.into());
+        }
+        if let Some(thread_count) = thread_count {
+            builder = builder.with_n_threads(thread_count);
         }
         let chat = builder
             .build_async()

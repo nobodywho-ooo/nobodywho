@@ -115,6 +115,25 @@ val stats = chat.getStats()
 println("Using ${stats.contextUsed} of ${stats.contextSize} tokens")
 ```
 
+## CPU threads
+
+When layers run on the CPU, NobodyWho picks a thread count for you: one per *performance* core,
+not one per logical CPU. Efficiency cores end up pacing the whole thread pool, so using every
+CPU is usually slower — see [LLM Basics](/docs/llm-basics#cpu-threads) for the numbers.
+
+Override it with `threadCount` when you want to leave CPU headroom for the rest of your app —
+often a good idea on phones, where the big cores are also driving the UI:
+
+```kotlin
+val chat = Chat.fromPath(
+    modelPath = "./model.gguf",
+    threadCount = 4u
+)
+```
+
+Leave it unset — or pass `null` — to keep the detected default. Values above the device's CPU
+count are clamped, and it has little effect when the model is offloaded to the GPU.
+
 ## GPU
 
 When loading a model, GPU acceleration is enabled by default:

@@ -693,6 +693,7 @@ fn wire__crate__RustChat_from_path_impl(
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             let api_use_gpu = <bool>::sse_decode(&mut deserializer);
             let api_mtp = <Option<crate::MtpConfig>>::sse_decode(&mut deserializer);
+            let api_thread_count = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
@@ -709,6 +710,7 @@ fn wire__crate__RustChat_from_path_impl(
                         api_sampler,
                         api_use_gpu,
                         api_mtp,
+                        api_thread_count,
                     )?;
                     Ok(output_ok)
                 })())
@@ -1082,6 +1084,7 @@ fn wire__crate__RustChat_new_impl(
             let api_tools = <Vec<RustTool>>::sse_decode(&mut deserializer);
             let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
             let api_mtp = <Option<crate::MtpConfig>>::sse_decode(&mut deserializer);
+            let api_thread_count = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
                 let mut api_model_guard = None;
@@ -1107,6 +1110,7 @@ fn wire__crate__RustChat_new_impl(
                     api_tools,
                     api_sampler,
                     api_mtp,
+                    api_thread_count,
                 )?;
                 Ok(output_ok)
             })())

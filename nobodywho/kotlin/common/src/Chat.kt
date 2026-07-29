@@ -27,7 +27,13 @@ class Chat(
     templateVariables: Map<String, Boolean>? = null,
     tools: List<Tool>? = null,
     sampler: SamplerConfig? = null,
-    mtp: MtpConfig? = null
+    mtp: MtpConfig? = null,
+    /**
+     * CPU threads used for inference. Leave null to detect the device's physical core count
+     * (performance cores only, on Apple silicon) — hyperthreads and efficiency cores make
+     * inference slower, not faster. Lower it to leave CPU headroom for the rest of the app.
+     */
+    threadCount: UInt? = null
 ) : Closeable {
     private val inner: InternalRustChat = InternalRustChat(
         model.inner,
@@ -36,7 +42,8 @@ class Chat(
         templateVariables,
         tools?.map { it.inner },
         sampler,
-        mtp
+        mtp,
+        threadCount
     )
 
     companion object {
@@ -52,10 +59,11 @@ class Chat(
             tools: List<Tool>? = null,
             sampler: SamplerConfig? = null,
             mtp: MtpConfig? = null,
+            threadCount: UInt? = null,
             onDownloadProgress: ((downloaded: ULong, total: ULong) -> Unit)? = null
         ): Chat {
             val model = Model.load(modelPath, useGpu, projectionModelPath, draftModelPath, onDownloadProgress)
-            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler, mtp)
+            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler, mtp, threadCount)
         }
     }
 

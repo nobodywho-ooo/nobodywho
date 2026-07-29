@@ -741,8 +741,13 @@ open class RustChat: RustChatProtocol, @unchecked Sendable {
      * chat; `null` disables it. Requires the `RustModel` to have been
      * loaded with a compatible `draft_model_path`; otherwise construction
      * fails. Adds around 5% to VRAM usage.
+     *
+     * `thread_count` is the number of CPU threads used for inference; `null`
+     * detects the device's physical core count (performance cores only, on
+     * Apple silicon), since hyperthreads and efficiency cores make inference
+     * slower. Clamped to the CPU count.
      */
-public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: MtpConfig?)throws  {
+public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: MtpConfig?, threadCount: UInt32?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
@@ -752,7 +757,8 @@ public convenience init(model: RustModel, systemPrompt: String?, contextSize: UI
         FfiConverterOptionDictionaryStringBool.lower(templateVariables),
         FfiConverterOptionSequenceTypeRustTool.lower(tools),
         FfiConverterOptionTypeSamplerConfig.lower(sampler),
-        FfiConverterOptionTypeMtpConfig.lower(mtp),$0
+        FfiConverterOptionTypeMtpConfig.lower(mtp),
+        FfiConverterOptionUInt32.lower(threadCount),$0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -4882,7 +4888,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 42705) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 2313) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {

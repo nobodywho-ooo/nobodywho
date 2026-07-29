@@ -46,6 +46,7 @@ class Chat:
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
         mtp: "MtpConfig | None" = None,
+        n_threads: "int | None" = None,
     ) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
@@ -63,6 +64,10 @@ class Chat:
             mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
                 Requires the `Model` to have been loaded with a compatible
                 `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+            n_threads: Number of CPU threads to use for inference. Defaults to None, which
+                detects the host's physical core count (performance cores only, on Apple
+                silicon) — hyperthreads and efficiency cores slow inference down. Set it
+                lower to leave CPU headroom for other work. Clamped to the logical CPU count.
 
         Returns:
             A Chat instance
@@ -274,6 +279,7 @@ class ChatAsync:
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
         mtp: "MtpConfig | None" = None,
+        n_threads: "int | None" = None,
     ) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
@@ -291,6 +297,10 @@ class ChatAsync:
             mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
                 Requires the `Model` to have been loaded with a compatible
                 `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+            n_threads: Number of CPU threads to use for inference. Defaults to None, which
+                detects the host's physical core count (performance cores only, on Apple
+                silicon) — hyperthreads and efficiency cores slow inference down. Set it
+                lower to leave CPU headroom for other work. Clamped to the logical CPU count.
 
         Returns:
             A ChatAsync instance

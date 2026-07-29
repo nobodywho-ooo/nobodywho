@@ -32,6 +32,12 @@ export class Chat {
   /** @internal */
   private readonly _inner: RustChat;
 
+  /**
+   * `threadCount` is the number of CPU threads used for inference. Omit it to detect the
+   * device's physical core count (performance cores only, on Apple silicon) — hyperthreads
+   * and efficiency cores make inference slower, not faster. Lower it to leave CPU headroom
+   * for the rest of the app.
+   */
   constructor(opts: {
     model: Model;
     systemPrompt?: string;
@@ -40,6 +46,7 @@ export class Chat {
     tools?: Tool[];
     sampler?: SamplerConfig;
     mtp?: Partial<MtpConfig>;
+    threadCount?: number;
   }) {
     this._inner = new RustChat(
       opts.model._inner,
@@ -49,6 +56,7 @@ export class Chat {
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
       opts.mtp !== undefined ? MtpConfig.create(opts.mtp) : undefined,
+      opts.threadCount ?? undefined,
     );
   }
 
@@ -75,6 +83,7 @@ export class Chat {
     tools?: Tool[];
     sampler?: SamplerConfig;
     mtp?: Partial<MtpConfig>;
+    threadCount?: number;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({
