@@ -1,28 +1,17 @@
-//! CPU topology detection for choosing llama.cpp thread counts.
-//!
-//! `std::thread::available_parallelism()` counts *logical* CPUs: SMT siblings on x86 and
-//! efficiency cores on Apple silicon. ggml synchronizes every graph node on a spin
-//! barrier, so the slowest thread paces the whole operation — running one thread per
-//! logical CPU makes two threads fight over a single core's vector units, or parks work
-//! on an E-core that everyone else then waits for.
-//!
-//! llama.cpp's own tooling avoids this by defaulting to physical cores
-//! (`common_cpu_get_num_physical_cores()` in `common/common.cpp`), but that helper is not
-//! reachable from Rust: `llama-cpp-sys-2`'s bindgen allowlist only covers `ggml_*`,
-//! `gguf_*`, `llama_*` and `mtmd_*`, so `common_*` symbols are never bound. This module
-//! is a port of that function — same platform order, same fallbacks — so our default
-//! matches what `llama-cli` would pick on the same host.
-
+/// mirrors https://github.com/ggml-org/llama.cpp/blob/11b068d06605288ce7917534b46d52b47823dc13/common/common.cpp#L78
+///
+/// Deviations from upstream: no AIX branch (`powerpc64-ibm-aix` is Rust tier 3), and the tail
+/// fallback reads `available_parallelism()` rather than `hardware_concurrency()` so cgroup CPU
+/// limits are respected. Per-branch notes are inline below.
 use tracing::{info, warn};
 
 /// Fallback thread count, mirroring ggml's `GGML_DEFAULT_N_THREADS`.
 const GGML_DEFAULT_N_THREADS: u32 = 4;
 
-/// Number of threads to use for llama.cpp inference.
+/// Thread count for llama.cpp inference.
 ///
-/// Pass `Some(n)` to request a specific count, or `None` to detect one — which prefers
-/// physical cores (performance cores on Apple silicon). Either way the result is clamped
-/// into `1..=logical`, so this never returns 0 and never oversubscribes the host.
+/// `None` autodetects (physical cores, P-cores on Apple); `Some(n)` requests a count. Both
+/// are clamped to 1 <= n <= logical.
 pub fn inference_thread_count(requested: Option<u32>) -> u32 {
     let logical = logical_core_count();
     let physical = physical_core_count();
@@ -50,19 +39,10 @@ pub fn inference_thread_count(requested: Option<u32>) -> u32 {
     n_threads
 }
 
-/// Pick a thread count: an explicit request wins, otherwise the detected topology, otherwise
-/// llama.cpp's last-ditch heuristic. Always clamped into `1..=logical`.
+/// Thread count by precedence: explicit request, else detected physical cores, else
+/// heuristic. Clamped to `1..=logical`.
 ///
-/// That heuristic — keep every CPU on hosts with 4 or fewer, otherwise halve — is
-/// upstream's verbatim (`n_threads <= 4 ? n_threads : n_threads / 2`, the tail of
-/// `common_cpu_get_num_physical_cores()`), and it assumes the host is x86 with SMT, so
-/// halving lands on one thread per physical core. It is *wrong* on a non-SMT host whose
-/// topology we failed to read — an ARM server or a mobile device with restricted sysfs —
-/// where it under-provisions by 2x. We keep it anyway because the platforms that reach this
-/// branch at all (BSD and other unhandled OSes, plus Windows when
-/// `GetLogicalProcessorInformationEx` fails) skew x86-with-SMT, and because diverging from
-/// upstream here would be trading a measured default for a guess. Detection failure is
-/// logged at `warn` so it can be recognised in the field.
+/// The heuristic — keep all on ≤4 logical CPUs, else halve.
 fn resolve(requested: Option<u32>, physical: Option<u32>, logical: u32) -> u32 {
     let logical = logical.max(1);
     let chosen = requested
@@ -71,16 +51,14 @@ fn resolve(requested: Option<u32>, physical: Option<u32>, logical: u32) -> u32 {
     chosen.clamp(1, logical)
 }
 
-/// Number of logical CPUs, falling back to `GGML_DEFAULT_N_THREADS`.
 fn logical_core_count() -> u32 {
     std::thread::available_parallelism()
         .map(|count| count.get() as u32)
         .unwrap_or(GGML_DEFAULT_N_THREADS)
 }
 
-/// Count distinct sibling groups. Each entry is the raw contents of one CPU's
-/// `thread_siblings` file, so SMT siblings share an identical string and collapse into a
-/// single group.
+/// Distinct sibling-mask count. SMT siblings share an identical `thread_siblings` string,
+/// so they collapse into one group.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn count_sibling_groups(siblings: &[String]) -> Option<u32> {
     let unique: std::collections::HashSet<&str> =
@@ -90,22 +68,20 @@ fn count_sibling_groups(siblings: &[String]) -> Option<u32> {
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn physical_core_count() -> Option<u32> {
-    // Enumerate /sys/devices/system/cpu/cpuN/topology/thread_siblings until a CPU is
-    // missing; the number of distinct sibling masks is the number of physical cores.
-    // `thread_siblings` is a hex mask and `thread_siblings_list` the human-readable form —
-    // either works for equality comparison, so accept whichever is present.
+    // Count physical cores: enumerate cpuN/topology/thread_siblings until a CPU is missing;
+    // distinct masks = physical cores. Only the hex mask is read, as upstream does — falling
+    // back to `thread_siblings_list` would compare a list against a mask and count one core
+    // twice if the two forms ever mixed.
     let mut siblings = Vec::new();
     for cpu in 0.. {
         let directory = format!("/sys/devices/system/cpu/cpu{cpu}/topology");
         if !std::path::Path::new(&directory).exists() {
             break;
         }
-        let entry = std::fs::read_to_string(format!("{directory}/thread_siblings"))
-            .or_else(|_| std::fs::read_to_string(format!("{directory}/thread_siblings_list")));
-        match entry {
+        match std::fs::read_to_string(format!("{directory}/thread_siblings")) {
             Ok(mask) => siblings.push(mask),
-            // A CPU can be offline (topology files unreadable) while later ones are
-            // online, so keep scanning rather than bailing out.
+            // Upstream stops here. We keep scanning: a mid-range CPU can be offline while
+            // later ones aren't, and the directory check above is already our terminator.
             Err(error) => tracing::debug!(cpu, %error, "Could not read CPU sibling mask"),
         }
     }
@@ -132,20 +108,68 @@ fn physical_core_count() -> Option<u32> {
         Some(value as u32)
     }
 
-    // `hw.perflevel0.physicalcpu` is the performance-core count on Apple silicon; it does
-    // not exist on Intel Macs, where `hw.physicalcpu` already excludes SMT siblings.
+    // `hw.perflevel0.physicalcpu` is P-cores on Apple silicon; absent on Intel Macs, where
+    // `hw.physicalcpu` collapses SMT.
     sysctl_i32(c"hw.perflevel0.physicalcpu").or_else(|| sysctl_i32(c"hw.physicalcpu"))
+}
+
+/// `RelationProcessorCore` from `LOGICAL_PROCESSOR_RELATIONSHIP`. Duplicated as a literal so
+/// [`count_core_records`] can be tested on non-Windows hosts; the Windows path asserts it
+/// against `windows_sys`'s own constant.
+#[cfg(any(target_os = "windows", test))]
+const RELATION_PROCESSOR_CORE: i32 = 0;
+
+/// Count `RelationProcessorCore` records in a `GetLogicalProcessorInformationEx` buffer.
+///
+/// Records are variable-length and each carries its own `Size`, which for a core record is
+/// *smaller* than `SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX` (48 vs 80 bytes on x64, because
+/// the struct's union is sized for `GROUP_RELATIONSHIP`). So the struct's size cannot gate the
+/// walk — doing so drops the final record — and a reference to it cannot be formed over a
+/// 48-byte record without reading past it. Only the two fixed leading fields are needed.
+///
+/// Split out from the FFI so it is testable off-Windows, which is the only platform branch
+/// here with real parsing logic.
+#[cfg(any(target_os = "windows", test))]
+fn count_core_records(buffer: &[u8]) -> u32 {
+    /// `Relationship: i32` followed by `Size: u32`.
+    const HEADER: usize = 2 * std::mem::size_of::<u32>();
+
+    let mut cores = 0u32;
+    let mut offset = 0usize;
+    while offset + HEADER <= buffer.len() {
+        // Read unaligned: `buffer` is bytes, so a record need not sit on a 4-byte boundary.
+        let base = unsafe { buffer.as_ptr().add(offset) };
+        let relationship = unsafe { base.cast::<i32>().read_unaligned() };
+        let record_size = unsafe {
+            base.add(std::mem::size_of::<i32>())
+                .cast::<u32>()
+                .read_unaligned()
+        } as usize;
+
+        // A zero or short `Size` would loop forever; a `Size` past the end means a truncated
+        // record we cannot trust.
+        if record_size < HEADER || offset + record_size > buffer.len() {
+            break;
+        }
+        // Upstream adds `info->Processor.GroupCount`, which is always 1 on a core record.
+        if relationship == RELATION_PROCESSOR_CORE {
+            cores += 1;
+        }
+        offset += record_size;
+    }
+    cores
 }
 
 #[cfg(target_os = "windows")]
 fn physical_core_count() -> Option<u32> {
     use windows_sys::Win32::System::SystemInformation::{
         GetLogicalProcessorInformationEx, RelationProcessorCore,
-        SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX,
     };
 
-    // First call with a null buffer to learn the required size, then walk the returned
-    // blob: the records are variable-length, each carrying its own `Size`.
+    debug_assert_eq!(RELATION_PROCESSOR_CORE, RelationProcessorCore);
+
+    // Null buffer to learn the size, then walk the variable-length records (each carries
+    // its own `Size`).
     let mut size = 0u32;
     if unsafe {
         GetLogicalProcessorInformationEx(RelationProcessorCore, std::ptr::null_mut(), &raw mut size)
@@ -167,23 +191,8 @@ fn physical_core_count() -> Option<u32> {
         return None;
     }
 
-    let mut cores = 0u32;
-    let mut offset = 0usize;
-    while offset + std::mem::size_of::<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>() <= size as usize {
-        let record = unsafe {
-            &*buffer
-                .as_ptr()
-                .add(offset)
-                .cast::<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>()
-        };
-        if record.Size == 0 {
-            break;
-        }
-        if record.Relationship == RelationProcessorCore {
-            cores += 1;
-        }
-        offset += record.Size as usize;
-    }
+    // The second call can shrink `size`; trust it over the buffer length.
+    let cores = count_core_records(&buffer[..(size as usize).min(buffer.len())]);
 
     (cores > 0).then_some(cores)
 }
@@ -232,8 +241,7 @@ mod tests {
     #[test]
     fn a_request_overrides_the_detected_topology() {
         assert_eq!(resolve(Some(3), Some(8), 16), 3);
-        // Fewer threads than physical cores is a legitimate ask: leave headroom for
-        // rendering, or share the box with other models.
+        // Fewer than physical is legitimate: headroom for rendering or co-tenant models.
         assert_eq!(resolve(Some(1), Some(8), 16), 1);
     }
 
@@ -254,6 +262,64 @@ mod tests {
         let siblings = ["0,8", "1,9", "2,10", "8,0"].map(String::from);
         assert_eq!(count_sibling_groups(&siblings), Some(3));
         assert_eq!(count_sibling_groups(&[]), None);
+    }
+
+    /// One `GetLogicalProcessorInformationEx` record: `Relationship`, `Size`, then padding out
+    /// to `size` bytes. A real core record is 48 bytes on x64, well under the 80-byte
+    /// `SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX`.
+    fn record(relationship: i32, size: usize) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(size);
+        bytes.extend_from_slice(&relationship.to_ne_bytes());
+        bytes.extend_from_slice(&(size as u32).to_ne_bytes());
+        bytes.resize(size, 0);
+        bytes
+    }
+
+    #[test]
+    fn counts_every_core_record_including_the_last() {
+        // The bug this guards: gating the walk on `size_of::<SYSTEM_LOGICAL_PROCESSOR_..._EX>()`
+        // (80) instead of the 8-byte header drops the final 48-byte record, so an 8-core host
+        // reports 7.
+        for cores in 1..=32usize {
+            let buffer: Vec<u8> = (0..cores)
+                .flat_map(|_| record(RELATION_PROCESSOR_CORE, 48))
+                .collect();
+            assert_eq!(count_core_records(&buffer), cores as u32, "{cores} cores");
+        }
+    }
+
+    #[test]
+    fn skips_records_that_are_not_processor_cores() {
+        let mut buffer = record(RELATION_PROCESSOR_CORE, 48);
+        buffer.extend(record(1, 64)); // RelationNumaNode, a different length
+        buffer.extend(record(RELATION_PROCESSOR_CORE, 48));
+        assert_eq!(count_core_records(&buffer), 2);
+    }
+
+    #[test]
+    fn stops_on_a_truncated_or_degenerate_record() {
+        // `Size` running past the buffer: count what was whole, discard the rest.
+        let mut truncated = record(RELATION_PROCESSOR_CORE, 48);
+        truncated.extend(record(RELATION_PROCESSOR_CORE, 48).into_iter().take(20));
+        assert_eq!(count_core_records(&truncated), 1);
+
+        // `Size` of 0 must terminate rather than spin forever.
+        let mut zero_size = record(RELATION_PROCESSOR_CORE, 48);
+        zero_size.extend(record(RELATION_PROCESSOR_CORE, 0));
+        zero_size.resize(zero_size.len() + 48, 0);
+        assert_eq!(count_core_records(&zero_size), 1);
+
+        assert_eq!(count_core_records(&[]), 0);
+        assert_eq!(count_core_records(&[0u8; 4]), 0); // shorter than one header
+    }
+
+    #[test]
+    fn walks_records_at_unaligned_offsets() {
+        // Record lengths are only guaranteed 4-byte multiples, so a later record can land off
+        // an 8-byte boundary; the reads must not assume alignment.
+        let mut buffer = record(RELATION_PROCESSOR_CORE, 12);
+        buffer.extend(record(RELATION_PROCESSOR_CORE, 48));
+        assert_eq!(count_core_records(&buffer), 2);
     }
 
     #[test]
