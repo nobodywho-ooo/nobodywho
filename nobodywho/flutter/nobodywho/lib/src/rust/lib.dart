@@ -226,6 +226,10 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+  ///         device's physical core count (performance cores only, on Apple silicon) —
+  ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+  ///         headroom for the rest of the app. Clamped to the CPU count.
   static Future<RustChat> fromPath({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
@@ -240,6 +244,7 @@ abstract class RustChat implements RustOpaqueInterface {
     SamplerConfig? sampler = null,
     bool useGpu = true,
     MtpConfig? mtp = null,
+    int? threadCount = null,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
     onDownloadProgress: onDownloadProgress,
@@ -253,6 +258,7 @@ abstract class RustChat implements RustOpaqueInterface {
     sampler: sampler,
     useGpu: useGpu,
     mtp: mtp,
+    threadCount: threadCount,
   );
 
   Future<List<Message>> getChatHistory();
@@ -287,6 +293,10 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
   ///         Model to have been loaded with a compatible `draft_model_path`. Adds
   ///         around 5% to VRAM usage. Defaults to null (disabled).
+  ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+  ///         device's physical core count (performance cores only, on Apple silicon) —
+  ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+  ///         headroom for the rest of the app. Clamped to the CPU count.
   factory RustChat({
     required Model model,
     String? systemPrompt = null,
@@ -296,6 +306,7 @@ abstract class RustChat implements RustOpaqueInterface {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     MtpConfig? mtp = null,
+    int? threadCount = null,
   }) => NobodyWho.instance.api.crateRustChatNew(
     model: model,
     systemPrompt: systemPrompt,
@@ -305,6 +316,7 @@ abstract class RustChat implements RustOpaqueInterface {
     tools: tools,
     sampler: sampler,
     mtp: mtp,
+    threadCount: threadCount,
   );
 
   Future<void> resetContext({

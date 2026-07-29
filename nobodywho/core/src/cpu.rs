@@ -15,76 +15,67 @@
 
 use tracing::{info, warn};
 
-/// Environment variable that overrides the detected thread count.
-const N_THREADS_ENV: &str = "NOBODYWHO_N_THREADS";
+/// Fallback thread count, mirroring ggml's `GGML_DEFAULT_N_THREADS`.
+const GGML_DEFAULT_N_THREADS: u32 = 4;
 
 /// Number of threads to use for llama.cpp inference.
 ///
-/// Prefers physical cores (performance cores on Apple silicon). Set
-/// `NOBODYWHO_N_THREADS` to override. Never returns 0, and never exceeds the logical CPU
-/// count.
-pub fn inference_thread_count() -> u32 {
-    let explicit = std::env::var(N_THREADS_ENV)
-        .ok()
-        .and_then(|value| parse_count(&value));
+/// Pass `Some(n)` to request a specific count, or `None` to detect one — which prefers
+/// physical cores (performance cores on Apple silicon). Either way the result is clamped
+/// into `1..=logical`, so this never returns 0 and never oversubscribes the host.
+pub fn inference_thread_count(requested: Option<u32>) -> u32 {
     let logical = logical_core_count();
     let physical = physical_core_count();
-    let n_threads = resolve(explicit, physical, logical);
+    let n_threads = resolve(requested, physical, logical);
 
-    if physical.is_none() && explicit.is_none() {
-        warn!(
-            logical,
-            n_threads,
-            "Could not read CPU topology; guessing the physical core count. Set \
-             NOBODYWHO_N_THREADS if inference is slower than expected."
-        );
+    match requested {
+        Some(requested) if requested != n_threads => warn!(
+            requested,
+            n_threads, logical, "Requested thread count is out of range; clamped it"
+        ),
+        Some(_) => info!(n_threads, logical, "Using the requested thread count"),
+        None => {
+            if physical.is_none() {
+                warn!(
+                    logical,
+                    n_threads, "Could not read CPU topology; guessing the physical core count"
+                );
+            }
+            info!(
+                n_threads,
+                physical, logical, "Selected inference thread count"
+            );
+        }
     }
-    info!(
-        n_threads,
-        explicit, physical, logical, "Selected inference thread count"
-    );
     n_threads
 }
 
-/// Pick a thread count from the detected topology.
-///
-/// Precedence: explicit override, then physical cores, then llama.cpp's last-ditch
-/// heuristic. Always clamped into `1..=logical`.
+/// Pick a thread count: an explicit request wins, otherwise the detected topology, otherwise
+/// llama.cpp's last-ditch heuristic. Always clamped into `1..=logical`.
 ///
 /// That heuristic — keep every CPU on hosts with 4 or fewer, otherwise halve — is
 /// upstream's verbatim (`n_threads <= 4 ? n_threads : n_threads / 2`, the tail of
 /// `common_cpu_get_num_physical_cores()`), and it assumes the host is x86 with SMT, so
 /// halving lands on one thread per physical core. It is *wrong* on a non-SMT host whose
 /// topology we failed to read — an ARM server or a mobile device with restricted sysfs —
-/// where it under-provisions by 2x. We keep it anyway because the platforms that reach
-/// this branch at all (BSD and other unhandled OSes, plus Windows when
+/// where it under-provisions by 2x. We keep it anyway because the platforms that reach this
+/// branch at all (BSD and other unhandled OSes, plus Windows when
 /// `GetLogicalProcessorInformationEx` fails) skew x86-with-SMT, and because diverging from
 /// upstream here would be trading a measured default for a guess. Detection failure is
-/// logged at `warn` so it can be recognised in the field, and `NOBODYWHO_N_THREADS`
-/// overrides it.
-fn resolve(explicit: Option<u32>, physical: Option<u32>, logical: u32) -> u32 {
+/// logged at `warn` so it can be recognised in the field.
+fn resolve(requested: Option<u32>, physical: Option<u32>, logical: u32) -> u32 {
     let logical = logical.max(1);
-    let chosen = explicit.or(physical).unwrap_or(if logical <= 4 {
-        logical
-    } else {
-        logical / 2
-    });
+    let chosen = requested
+        .or(physical)
+        .unwrap_or(if logical <= 4 { logical } else { logical / 2 });
     chosen.clamp(1, logical)
-}
-
-/// Parse a thread count from an environment variable. Rejects zero and garbage.
-fn parse_count(value: &str) -> Option<u32> {
-    match value.trim().parse::<u32>() {
-        Ok(0) | Err(_) => None,
-        Ok(count) => Some(count),
-    }
 }
 
 /// Number of logical CPUs, falling back to `GGML_DEFAULT_N_THREADS`.
 fn logical_core_count() -> u32 {
     std::thread::available_parallelism()
         .map(|count| count.get() as u32)
-        .unwrap_or(4)
+        .unwrap_or(GGML_DEFAULT_N_THREADS)
 }
 
 /// Count distinct sibling groups. Each entry is the raw contents of one CPU's
@@ -212,11 +203,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn explicit_override_wins_over_detected_topology() {
-        assert_eq!(resolve(Some(3), Some(8), 16), 3);
-    }
-
-    #[test]
     fn physical_count_is_preferred_over_logical() {
         assert_eq!(resolve(None, Some(8), 16), 8);
     }
@@ -234,8 +220,7 @@ mod tests {
 
     #[test]
     fn counts_are_clamped_to_the_logical_cpu_count() {
-        assert_eq!(resolve(Some(999), None, 8), 8);
-        // A bogus topology report must not oversubscribe either.
+        // A bogus topology report must not oversubscribe.
         assert_eq!(resolve(None, Some(64), 8), 8);
     }
 
@@ -245,13 +230,22 @@ mod tests {
     }
 
     #[test]
-    fn parse_count_rejects_zero_and_garbage() {
-        assert_eq!(parse_count("8"), Some(8));
-        assert_eq!(parse_count(" 8 "), Some(8));
-        assert_eq!(parse_count("0"), None);
-        assert_eq!(parse_count("-1"), None);
-        assert_eq!(parse_count("eight"), None);
-        assert_eq!(parse_count(""), None);
+    fn a_request_overrides_the_detected_topology() {
+        assert_eq!(resolve(Some(3), Some(8), 16), 3);
+        // Fewer threads than physical cores is a legitimate ask: leave headroom for
+        // rendering, or share the box with other models.
+        assert_eq!(resolve(Some(1), Some(8), 16), 1);
+    }
+
+    #[test]
+    fn a_request_cannot_oversubscribe_the_host() {
+        assert_eq!(resolve(Some(999), Some(8), 12), 12);
+        assert_eq!(resolve(Some(13), None, 12), 12);
+    }
+
+    #[test]
+    fn a_zero_request_is_treated_as_one_thread() {
+        assert_eq!(resolve(Some(0), Some(8), 12), 1);
     }
 
     #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -265,12 +259,18 @@ mod tests {
     #[test]
     fn detects_a_usable_thread_count_on_this_host() {
         let logical = logical_core_count();
-        let n_threads = inference_thread_count();
+        let n_threads = inference_thread_count(None);
         println!(
             "logical={logical} physical={:?} n_threads={n_threads}",
             physical_core_count()
         );
         assert!(n_threads >= 1);
         assert!(n_threads <= logical);
+    }
+
+    #[test]
+    fn honours_a_request_on_this_host() {
+        assert_eq!(inference_thread_count(Some(1)), 1);
+        assert_eq!(inference_thread_count(Some(u32::MAX)), logical_core_count());
     }
 }

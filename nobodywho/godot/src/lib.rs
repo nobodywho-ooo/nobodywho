@@ -656,6 +656,13 @@ struct NobodyWhoChat {
     context_length: u32,
 
     #[export]
+    /// Number of CPU threads used for inference. Leave at 0 to detect the machine's physical
+    /// core count (performance cores only, on Apple silicon) — hyperthreads and efficiency
+    /// cores make inference slower, not faster. Lower it to leave CPU headroom for rendering
+    /// and game logic. Values above the CPU count are clamped.
+    thread_count: u32,
+
+    #[export]
     /// Enable MTP speculative decoding for this chat. Requires the
     /// linked `NobodyWhoModel` to have a `draft_model_path` set.
     /// Adds around 5% to VRAM usage.
@@ -690,6 +697,9 @@ impl INode for NobodyWhoChat {
             tools: default_config.tools,
             system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
+            // `n_threads` on ChatConfig is Option<u32>; 0 is the exported spelling of
+            // "detect it", since the Godot inspector has no null for ints.
+            thread_count: default_config.n_threads.unwrap_or(0),
             allow_thinking: true,
             // `mtp` on ChatConfig is now Option<MtpConfig>; expose the flattened
             // toggle + tuning as separate exported properties, off by default.
@@ -706,6 +716,19 @@ impl INode for NobodyWhoChat {
     }
 }
 
+/// Everything `NobodyWhoChat` needs to build its worker, snapshotted synchronously before
+/// the async spawn. A named struct rather than a tuple on purpose: several fields are `u32`,
+/// and a transposed pair would compile silently.
+struct ChatWorkerConfig {
+    model_node: Gd<NobodyWhoModel>,
+    system_prompt: String,
+    tools: Vec<nobodywho::tool_calling::Tool>,
+    n_ctx: u32,
+    n_threads: Option<u32>,
+    allow_thinking: bool,
+    mtp: Option<nobodywho::chat::MtpConfig>,
+}
+
 #[godot_api]
 impl NobodyWhoChat {
     /// Load the model and create the chat worker. `me.bind_mut()` below must run
@@ -715,30 +738,26 @@ impl NobodyWhoChat {
     /// forces a single executor round-trip so the outer borrow always drops first.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
-        model_node: Gd<NobodyWhoModel>,
-        system_prompt: String,
-        tools: Vec<nobodywho::tool_calling::Tool>,
-        n_ctx: u32,
-        allow_thinking: bool,
-        mtp: Option<nobodywho::chat::MtpConfig>,
+        config: ChatWorkerConfig,
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
         tokio::task::yield_now().await;
 
-        let model = NobodyWhoModel::load_model_detached(model_node)
+        let model = NobodyWhoModel::load_model_detached(config.model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         let mut template_variables = HashMap::new();
-        template_variables.insert("enable_thinking".to_string(), allow_thinking);
+        template_variables.insert("enable_thinking".to_string(), config.allow_thinking);
         let handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
-                system_prompt: Some(system_prompt),
-                tools,
-                n_ctx,
+                system_prompt: Some(config.system_prompt),
+                tools: config.tools,
+                n_ctx: config.n_ctx,
                 template_variables,
                 sampler_config: None,
-                mtp,
+                mtp: config.mtp,
+                n_threads: config.n_threads,
             },
         )
         .map_err(|e| GString::from(e.to_string().as_str()))?;
@@ -756,19 +775,7 @@ impl NobodyWhoChat {
 
     /// Synchronously snapshot the config needed for worker init. Returns an error string
     /// if model_node isn't set. Must be called from a `&mut self` (or `&self`) context.
-    fn snapshot_worker_config(
-        &self,
-    ) -> Result<
-        (
-            Gd<NobodyWhoModel>,
-            String,
-            Vec<nobodywho::tool_calling::Tool>,
-            u32,
-            bool,
-            Option<nobodywho::chat::MtpConfig>,
-        ),
-        GString,
-    > {
+    fn snapshot_worker_config(&self) -> Result<ChatWorkerConfig, GString> {
         let Some(model_node) = self.model_node.clone() else {
             return Err(GString::from("Model node was not set"));
         };
@@ -778,14 +785,17 @@ impl NobodyWhoChat {
             k_max: self.mtp_k_max,
             p_min: self.mtp_p_min,
         });
-        Ok((
+        Ok(ChatWorkerConfig {
             model_node,
-            self.system_prompt.to_string(),
-            self.tools.clone(),
-            self.context_length,
-            self.allow_thinking,
+            system_prompt: self.system_prompt.to_string(),
+            tools: self.tools.clone(),
+            n_ctx: self.context_length,
+            // The exported property is a plain int, so 0 spells "detect it" — core takes
+            // `None` for that.
+            n_threads: (self.thread_count > 0).then_some(self.thread_count),
+            allow_thinking: self.allow_thinking,
             mtp,
-        ))
+        })
     }
 
     #[func]
@@ -802,30 +812,19 @@ impl NobodyWhoChat {
             return;
         }
 
-        let (model_node, system_prompt, tools, n_ctx, allow_thinking, mtp) =
-            match self.snapshot_worker_config() {
-                Ok(c) => c,
-                Err(e) => {
-                    godot_error!("Error starting worker: {}", e);
-                    self.signals().worker_failed().emit(&e);
-                    return;
-                }
-            };
+        let config = match self.snapshot_worker_config() {
+            Ok(c) => c,
+            Err(e) => {
+                godot_error!("Error starting worker: {}", e);
+                self.signals().worker_failed().emit(&e);
+                return;
+            }
+        };
 
         let me = self.to_gd();
         godot::task::spawn(async move {
             let me_emit = me.clone();
-            match Self::load_and_store_worker(
-                me,
-                model_node,
-                system_prompt,
-                tools,
-                n_ctx,
-                allow_thinking,
-                mtp,
-            )
-            .await
-            {
+            match Self::load_and_store_worker(me, config).await {
                 Ok(_) => me_emit.signals().worker_started().emit(),
                 Err(e) => {
                     godot_error!("Error running model: {}", e);
@@ -882,19 +881,8 @@ impl NobodyWhoChat {
             let chat_handle = match existing_handle {
                 Some(h) => h,
                 None => {
-                    let (model_node, system_prompt, tools, n_ctx, allow_thinking, mtp) =
-                        load_config.expect("load_config set when no existing handle");
-                    match Self::load_and_store_worker(
-                        me,
-                        model_node,
-                        system_prompt,
-                        tools,
-                        n_ctx,
-                        allow_thinking,
-                        mtp,
-                    )
-                    .await
-                    {
+                    let config = load_config.expect("load_config set when no existing handle");
+                    match Self::load_and_store_worker(me, config).await {
                         Ok(h) => h,
                         Err(e) => {
                             godot_error!("ask() dropped: {}", e);

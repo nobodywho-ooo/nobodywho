@@ -33,6 +33,35 @@ Once you reach the context limit, you must either:
 Currently NobodyWho resolves this issue automatically by removing old messages from the context.
 Having a larger context allows for longer and more complex conversations, but it also slows down the response time, as the model has to process more tokens each time it generates a response.
 
+## CPU threads
+
+When layers run on the CPU, inference is split across a pool of threads. Every operation in
+the model ends at a barrier where all threads wait for the slowest one, so the pool is only as
+fast as its weakest member. That makes "more threads" the wrong instinct:
+
+- **Hyperthreads (SMT) don't add compute.** Two threads on one physical core contend for the
+  same vector units, so pairing them up mostly adds synchronisation overhead.
+- **Efficiency cores are genuinely slower hardware.** On a big.LITTLE CPU — Apple silicon, most
+  phones, newer Intel — an E-core in the pool holds every P-core at the barrier until it
+  catches up.
+
+So NobodyWho defaults to one thread per *performance* core rather than per logical CPU, the
+same choice llama.cpp's own tools make. On a 12-core Mac with 8 P-cores and 4 E-cores, that
+means 8 threads — and measured on that machine it is roughly twice as fast at generation as
+using all 12:
+
+| threads | prompt processing | generation |
+|---|---|---|
+| 8 (performance cores only) | 435 tok/s | 90 tok/s |
+| 12 (every logical CPU) | 327 tok/s | 48 tok/s |
+
+You normally shouldn't need to touch this. Two cases where you might: lowering it to leave CPU
+headroom for other work (rendering a game, serving several models from one box), or raising it
+if NobodyWho could not read your machine's topology and guessed low — it logs a warning when
+that happens. Every binding exposes the option on its chat type; see your binding's chat docs.
+Values above your CPU count are clamped, and offloading to the GPU makes the setting largely
+irrelevant.
+
 ## Samplers
 
 LLMs don't output text directly. Instead, they generate a probability distribution over all possible next tokens. Since the model weights are static after training, this means that the same input tokens always generate the same distribution. Depending on the use case however, there are many possible ways of choosing a next token from this distribution. This is configured using a **sampler**. A **sampler** splits the process of choosing a next token into two parts: Shifting the distribution and Sampling the distribution.

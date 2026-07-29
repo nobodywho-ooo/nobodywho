@@ -861,7 +861,7 @@ internal object UniffiLib {
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,`threadCount`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1367,7 +1367,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 42705.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 2313.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -2079,13 +2079,18 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      * chat; `null` disables it. Requires the `RustModel` to have been
      * loaded with a compatible `draft_model_path`; otherwise construction
      * fails. Adds around 5% to VRAM usage.
+     *
+     * `thread_count` is the number of CPU threads used for inference; `null`
+     * detects the device's physical core count (performance cores only, on
+     * Apple silicon), since hyperthreads and efficiency cores make inference
+     * slower. Clamped to the CPU count.
      */
-    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?) :
+    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?, `threadCount`: kotlin.UInt?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),_status)
+        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),FfiConverterOptionalUInt.lower(`threadCount`),_status)
 }
     )
 

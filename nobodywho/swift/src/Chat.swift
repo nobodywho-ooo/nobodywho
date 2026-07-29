@@ -15,6 +15,10 @@ import NobodyWhoGenerated
 public class Chat {
     private let inner: RustChat
 
+    /// `threadCount` is the number of CPU threads used for inference. Leave it `nil` to
+    /// detect the device's physical core count (performance cores only, on Apple silicon) —
+    /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
+    /// CPU headroom for the rest of the app.
     public init(
         model: Model,
         systemPrompt: String? = nil,
@@ -22,7 +26,8 @@ public class Chat {
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil,
-        mtp: MtpConfig? = nil
+        mtp: MtpConfig? = nil,
+        threadCount: UInt32? = nil
     ) throws {
         self.inner = try RustChat(
             model: model.inner,
@@ -31,7 +36,8 @@ public class Chat {
             templateVariables: templateVariables,
             tools: tools?.map { $0.inner },
             sampler: sampler,
-            mtp: mtp
+            mtp: mtp,
+            threadCount: threadCount
         )
     }
 
@@ -48,6 +54,7 @@ public class Chat {
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil,
         mtp: MtpConfig? = nil,
+        threadCount: UInt32? = nil,
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Chat {
         let model = try await Model.load(
@@ -64,7 +71,8 @@ public class Chat {
             templateVariables: templateVariables,
             tools: tools,
             sampler: sampler,
-            mtp: mtp
+            mtp: mtp,
+            threadCount: threadCount
         )
     }
 

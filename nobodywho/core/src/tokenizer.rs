@@ -377,9 +377,9 @@ impl ProjectionModel {
         parent_model: &LlamaModel,
         use_gpu: bool,
     ) -> Result<Self, MultimodalError> {
-        let n_threads = std::thread::available_parallelism()
-            .map(|p| p.get() as i32)
-            .unwrap_or(4);
+        // The projection model is built during model load, before any chat exists, so it
+        // always uses the detected count rather than a per-chat request.
+        let n_threads = crate::cpu::inference_thread_count(None) as i32;
 
         let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
 

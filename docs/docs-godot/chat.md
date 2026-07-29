@@ -173,6 +173,30 @@ You can control how the model picks tokens and constrain its output format. See 
 
 ## Performance and Memory Tips
 
+### Leave CPU Headroom with `thread_count`
+
+When layers run on the CPU, NobodyWho picks a thread count for you: one per *performance* core,
+not one per logical CPU. Hyperthread siblings and efficiency cores end up pacing the whole
+thread pool, so using every CPU is usually slower — see [LLM Basics](/docs/llm-basics#cpu-threads)
+for the numbers.
+
+In a game you often want *fewer* threads than that, so inference doesn't compete with rendering
+and physics:
+
+```gdscript
+func _ready():
+    self.model_node = get_node("../SharedModel")
+    # Leave cores free for the rest of the game.
+    self.thread_count = 4
+    start_worker()
+```
+
+Leave `thread_count` at `0` to keep the detected default. Values above your CPU count are
+clamped, and the setting has little effect when the model is offloaded to the GPU.
+
+**Why:** the LLM worker runs on its own threads, but it still competes with your game for
+physical cores. Capping it trades some tokens per second for a steadier frame rate.
+
 ### Start the Worker Early
 
 In a real-time application, you don't want the user's first interaction to trigger a long loading time. Starting the worker early, like during a splash screen or initial setup, pre-loads the model into memory so the first response is fast.

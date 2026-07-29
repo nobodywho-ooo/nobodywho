@@ -577,6 +577,10 @@ class Chat {
   /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
   /// final chat = Chat(model: model);
   /// ```
+  /// [threadCount] is the number of CPU threads used for inference. Leave it null to
+  /// detect the device's physical core count (performance cores only, on Apple silicon) —
+  /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
+  /// CPU headroom for the rest of the app.
   factory Chat({
     required nobodywho.Model model,
     String? systemPrompt,
@@ -586,6 +590,7 @@ class Chat {
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
     nobodywho.MtpConfig? mtp,
+    int? threadCount,
   }) {
     final chat = nobodywho.RustChat(
       model: model,
@@ -596,6 +601,7 @@ class Chat {
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
       mtp: mtp,
+      threadCount: threadCount,
     );
     return Chat._(chat);
   }
@@ -612,6 +618,11 @@ class Chat {
   /// completion. It is not invoked for cached/local files. The callback may
   /// be sync or async; awaiting slow work inside it will stall the download
   /// thread.
+  ///
+  /// [threadCount] is the number of CPU threads used for inference. Leave it null to
+  /// detect the device's physical core count (performance cores only, on Apple silicon) —
+  /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
+  /// CPU headroom for the rest of the app.
   static Future<Chat> fromPath({
     required String modelPath,
     String? projectionModelPath,
@@ -624,6 +635,7 @@ class Chat {
     nobodywho.SamplerConfig? sampler,
     bool useGpu = true,
     nobodywho.MtpConfig? mtp,
+    int? threadCount,
     FutureOr<void> Function(int downloaded, int total) onDownloadProgress =
         nobodywho.noopOnDownloadProgress,
   }) async {
@@ -640,6 +652,7 @@ class Chat {
       sampler: sampler,
       useGpu: useGpu,
       mtp: mtp,
+      threadCount: threadCount,
     );
     return Chat._(chat);
   }

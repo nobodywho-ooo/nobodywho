@@ -1560,8 +1560,13 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
      * chat; `null` disables it. Requires the `RustModel` to have been
      * loaded with a compatible `draft_model_path`; otherwise construction
      * fails. Adds around 5% to VRAM usage.
+     *
+     * `thread_count` is the number of CPU threads used for inference; `null`
+     * detects the device's physical core count (performance cores only, on
+     * Apple silicon), since hyperthreads and efficiency cores make inference
+     * slower. Clamped to the CPU count.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: MtpConfig | undefined) /*throws*/ {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: MtpConfig | undefined, threadCount: /*u32*/number | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -1576,6 +1581,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
         FfiConverterOptionalArrayTypeRustTool.lower(tools),
         FfiConverterOptionalTypeSamplerConfig.lower(sampler),
         FfiConverterOptionalTypeMtpConfig.lower(mtp),
+        FfiConverterOptionalUInt32.lower(threadCount),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4303,7 +4309,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 42705) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 2313) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {

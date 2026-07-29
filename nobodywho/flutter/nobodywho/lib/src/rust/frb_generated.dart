@@ -156,6 +156,7 @@ abstract class NobodyWhoApi extends BaseApi {
     SamplerConfig? sampler = null,
     bool useGpu = true,
     MtpConfig? mtp = null,
+    int? threadCount = null,
   });
 
   Future<List<Message>> crateRustChatGetChatHistory({required RustChat that});
@@ -181,6 +182,7 @@ abstract class NobodyWhoApi extends BaseApi {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     MtpConfig? mtp = null,
+    int? threadCount = null,
   });
 
   Future<void> crateRustChatResetContext({
@@ -1102,6 +1104,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     SamplerConfig? sampler = null,
     bool useGpu = true,
     MtpConfig? mtp = null,
+    int? threadCount = null,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1128,6 +1131,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_bool(useGpu, serializer);
           sse_encode_opt_box_autoadd_mtp_config(mtp, serializer);
+          sse_encode_opt_box_autoadd_u_32(threadCount, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1154,6 +1158,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sampler,
           useGpu,
           mtp,
+          threadCount,
         ],
         apiImpl: this,
       ),
@@ -1175,6 +1180,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "sampler",
       "useGpu",
       "mtp",
+      "threadCount",
     ],
   );
 
@@ -1400,6 +1406,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     MtpConfig? mtp = null,
+    int? threadCount = null,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1422,6 +1429,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_opt_box_autoadd_mtp_config(mtp, serializer);
+          sse_encode_opt_box_autoadd_u_32(threadCount, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
@@ -1439,6 +1447,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           tools,
           sampler,
           mtp,
+          threadCount,
         ],
         apiImpl: this,
       ),
@@ -1456,6 +1465,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "tools",
       "sampler",
       "mtp",
+      "threadCount",
     ],
   );
 

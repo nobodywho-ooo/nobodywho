@@ -316,14 +316,17 @@ where
         n_ctx: u32,
         use_embeddings: bool,
         mtp: Option<crate::chat::MtpConfig>,
+        n_threads: Option<u32>,
         extra: T,
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
 
         let projection_model = model.projection_model.as_ref();
 
-        // Set up context parameters using available parallelism
-        let n_threads = std::thread::available_parallelism()?.get() as i32;
+        // Set up context parameters. Without an explicit request this uses physical cores
+        // rather than logical ones: hyperthread siblings and efficiency cores slow down
+        // ggml's per-node barrier.
+        let n_threads = crate::cpu::inference_thread_count(n_threads) as i32;
         let ctx_plan = memory::plan_context(
             std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
             projection_model.is_some(),

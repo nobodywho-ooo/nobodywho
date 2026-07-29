@@ -1061,6 +1061,10 @@ impl Chat {
     ///     mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
     ///         Requires the `Model` to have been loaded with a compatible
     ///         `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+    ///     n_threads: Number of CPU threads to use for inference. Defaults to None, which
+    ///         detects the host's physical core count (performance cores only, on Apple
+    ///         silicon) — hyperthreads and efficiency cores slow inference down. Set it
+    ///         lower to leave CPU headroom for other work. Clamped to the logical CPU count.
     ///
     /// Returns:
     ///     A Chat instance
@@ -1069,7 +1073,7 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -1079,6 +1083,7 @@ impl Chat {
         sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
         mtp: Option<MtpConfig>,
+        n_threads: Option<u32>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -1107,6 +1112,9 @@ impl Chat {
                 .with_system_prompt(system_prompt);
             if let Some(mtp) = mtp {
                 builder = builder.with_mtp(mtp.into());
+            }
+            if let Some(n_threads) = n_threads {
+                builder = builder.with_n_threads(n_threads);
             }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
@@ -1486,6 +1494,10 @@ impl ChatAsync {
     ///     mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
     ///         Requires the `Model` to have been loaded with a compatible
     ///         `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+    ///     n_threads: Number of CPU threads to use for inference. Defaults to None, which
+    ///         detects the host's physical core count (performance cores only, on Apple
+    ///         silicon) — hyperthreads and efficiency cores slow inference down. Set it
+    ///         lower to leave CPU headroom for other work. Clamped to the logical CPU count.
     ///
     /// Returns:
     ///     A ChatAsync instance
@@ -1494,7 +1506,7 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -1504,6 +1516,7 @@ impl ChatAsync {
         sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
         mtp: Option<MtpConfig>,
+        n_threads: Option<u32>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -1532,6 +1545,9 @@ impl ChatAsync {
                 .with_system_prompt(system_prompt);
             if let Some(mtp) = mtp {
                 builder = builder.with_mtp(mtp.into());
+            }
+            if let Some(n_threads) = n_threads {
+                builder = builder.with_n_threads(n_threads);
             }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),

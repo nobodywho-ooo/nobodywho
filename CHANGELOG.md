@@ -10,12 +10,14 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
+- Chat now accepts a CPU thread count (`n_threads` / `threadCount` / `thread_count`), for leaving CPU headroom for other work. Defaults to the detected physical core count. Available for all bindings.
 - Pocket TTS speech synthesis, including Hugging Face authentication for gated model files. Available for all bindings.
 - Automatic model selection: pass `"auto"` as a model path to select a recommended model based on available memory. Available for all bindings
 - MTP support for attention models with separate MTP files. This is mainly Gemma 4. Available for all bindings.
 
 ### Changed
 
+- Inference now defaults to one thread per physical core (performance cores only, on Apple silicon) instead of one per logical CPU. Hyperthread siblings and efficiency cores pace the whole thread pool, so the old default was measurably slower — up to 2x on CPU-only generation. Affects all bindings.
 - **React Native:** `STT` now takes a named options object. Replace `new STT(source, language, quantization)` with `new STT({ source, language, quantization })`.
 
 ### Fixed

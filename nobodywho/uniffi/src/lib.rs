@@ -327,7 +327,13 @@ impl RustChat {
     /// chat; `null` disables it. Requires the `RustModel` to have been
     /// loaded with a compatible `draft_model_path`; otherwise construction
     /// fails. Adds around 5% to VRAM usage.
+    ///
+    /// `thread_count` is the number of CPU threads used for inference; `null`
+    /// detects the device's physical core count (performance cores only, on
+    /// Apple silicon), since hyperthreads and efficiency cores make inference
+    /// slower. Clamped to the CPU count.
     #[uniffi::constructor]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         model: &RustModel,
         system_prompt: Option<String>,
@@ -336,6 +342,7 @@ impl RustChat {
         tools: Option<Vec<Arc<RustTool>>>,
         sampler: Option<Arc<SamplerConfig>>,
         mtp: Option<MtpConfig>,
+        thread_count: Option<u32>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
@@ -353,6 +360,9 @@ impl RustChat {
             .with_sampler(sampler_config);
         if let Some(mtp) = mtp {
             builder = builder.with_mtp(mtp.into());
+        }
+        if let Some(thread_count) = thread_count {
+            builder = builder.with_n_threads(thread_count);
         }
         let chat = builder.build_async().map_err(|e| NobodyWhoError::Error {
             message: nobodywho::render_miette(&e),
