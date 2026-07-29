@@ -34,6 +34,10 @@ lazy_static! {
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
+fn generation_thread_count(logical_threads: i32) -> i32 {
+    (logical_threads / 2).max(1)
+}
+
 #[derive(Debug)]
 pub struct Model {
     pub(crate) language_model: LlamaModel,
@@ -322,8 +326,10 @@ where
 
         let projection_model = model.projection_model.as_ref();
 
-        // Set up context parameters using available parallelism
-        let n_threads = std::thread::available_parallelism()?.get() as i32;
+        // Mirror llama-cpp-python's thread policy: half the logical CPUs for token
+        // generation and every available logical CPU for prompt batches.
+        let n_threads_batch = std::thread::available_parallelism()?.get() as i32;
+        let n_threads = generation_thread_count(n_threads_batch);
         let ctx_plan = memory::plan_context(
             std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
             projection_model.is_some(),
@@ -345,7 +351,7 @@ where
             .with_n_batch(planned_n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
             .with_n_ubatch(n_ubatch)
             .with_n_threads(n_threads)
-            .with_n_threads_batch(n_threads)
+            .with_n_threads_batch(n_threads_batch)
             .with_embeddings(use_embeddings)
             .with_pooling_type(extra.pooling_type());
 
@@ -367,7 +373,7 @@ where
                         .with_n_batch(draft_batch_cap)
                         .with_n_ubatch(draft_batch_cap)
                         .with_n_threads(n_threads)
-                        .with_n_threads_batch(n_threads)
+                        .with_n_threads_batch(n_threads_batch)
                         .with_context_type(LlamaContextType::Mtp)
                         .with_n_rs_seq(0);
                     let draft_ctx = draft_model.new_context_with_ctx_other(
@@ -479,6 +485,13 @@ impl<T> Drop for WorkerGuard<T> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn chooses_generation_thread_count() {
+        assert_eq!(generation_thread_count(1), 1);
+        assert_eq!(generation_thread_count(4), 2);
+        assert_eq!(generation_thread_count(16), 8);
+    }
 
     #[test]
     fn rejects_projection_model_with_auto_selection() {
