@@ -114,12 +114,12 @@ fn physical_core_count() -> Option<u32> {
 
 #[cfg(target_vendor = "apple")]
 fn physical_core_count() -> Option<u32> {
-    fn sysctl_i32(name: &[u8]) -> Option<u32> {
+    fn sysctl_i32(name: &std::ffi::CStr) -> Option<u32> {
         let mut value = 0i32;
         let mut size = std::mem::size_of::<i32>();
         let result = unsafe {
             libc::sysctlbyname(
-                name.as_ptr().cast(),
+                name.as_ptr(),
                 (&raw mut value).cast::<std::ffi::c_void>(),
                 &raw mut size,
                 std::ptr::null_mut(),
@@ -134,7 +134,7 @@ fn physical_core_count() -> Option<u32> {
 
     // `hw.perflevel0.physicalcpu` is the performance-core count on Apple silicon; it does
     // not exist on Intel Macs, where `hw.physicalcpu` already excludes SMT siblings.
-    sysctl_i32(b"hw.perflevel0.physicalcpu\0").or_else(|| sysctl_i32(b"hw.physicalcpu\0"))
+    sysctl_i32(c"hw.perflevel0.physicalcpu").or_else(|| sysctl_i32(c"hw.physicalcpu"))
 }
 
 #[cfg(target_os = "windows")]

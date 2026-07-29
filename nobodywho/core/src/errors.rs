@@ -1,3 +1,10 @@
+// `miette`'s `Diagnostic` derive (we're on miette 5) expands `#[error(..)]` /
+// `#[diagnostic(help(..))]` format arguments into assignments that rustc 1.92+ reports as
+// `unused_assignments`, pointing at the enum's own field declarations. The lint is a
+// macro-expansion artifact — there is nothing to fix at these sites — and it fails
+// `cargo clippy -- -D warnings`. Drop this once miette is upgraded.
+#![allow(unused_assignments)]
+
 use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
 use std::path::PathBuf;
 
