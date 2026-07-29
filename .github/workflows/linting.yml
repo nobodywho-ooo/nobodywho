@@ -30,4 +30,7 @@ jobs:
 
       - name: "Run clippy check"
         working-directory: "./nobodywho/core"
-        run: cargo clippy --no-deps -- -D warnings
+        # --all-targets so the test module is compiled too. Without it, platform-gated code
+        # reachable only from tests is never type-checked on any platform in a normal PR
+        # (lib tests themselves only run under `nix flake check`, which is opt-in).
+        run: cargo clippy --no-deps --all-targets -- -D warnings

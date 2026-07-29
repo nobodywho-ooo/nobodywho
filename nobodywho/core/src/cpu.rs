@@ -59,11 +59,13 @@ fn logical_core_count() -> u32 {
 
 /// Distinct sibling-mask count. SMT siblings share an identical `thread_siblings` string,
 /// so they collapse into one group.
-#[cfg(any(target_os = "linux", target_os = "android"))]
+/// Compiled under `test` on every platform, not just Linux, so the logic is linted and
+/// exercised everywhere — same reason as [`count_core_records`].
+#[cfg(any(target_os = "linux", target_os = "android", test))]
 fn count_sibling_groups(siblings: &[String]) -> Option<u32> {
     let unique: std::collections::HashSet<&str> =
         siblings.iter().map(|entry| entry.trim()).collect();
-    (!unique.is_empty()).then(|| unique.len() as u32)
+    (!unique.is_empty()).then_some(unique.len() as u32)
 }
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -256,11 +258,25 @@ mod tests {
         assert_eq!(resolve(Some(0), Some(8), 12), 1);
     }
 
-    #[cfg(any(target_os = "linux", target_os = "android"))]
     #[test]
     fn sibling_groups_collapse_smt_pairs() {
-        let siblings = ["0,8", "1,9", "2,10", "8,0"].map(String::from);
-        assert_eq!(count_sibling_groups(&siblings), Some(3));
+        // `thread_siblings` is a fixed-width hex mask, so every CPU in a group writes the
+        // identical string: 4 SMT pairs over 8 logical CPUs collapse to 4 physical cores.
+        let pairs = [
+            "00000003", "00000003", "0000000c", "0000000c", "00000030", "00000030", "000000c0",
+            "000000c0",
+        ]
+        .map(String::from);
+        assert_eq!(count_sibling_groups(&pairs), Some(4));
+
+        // No SMT (or an E-core): every mask is its own group.
+        let singles = ["00000001", "00000002", "00000004"].map(String::from);
+        assert_eq!(count_sibling_groups(&singles), Some(3));
+
+        // `read_to_string` keeps the trailing newline; it must not split a group in two.
+        let newlines = ["00000003\n", "00000003"].map(String::from);
+        assert_eq!(count_sibling_groups(&newlines), Some(1));
+
         assert_eq!(count_sibling_groups(&[]), None);
     }
 
