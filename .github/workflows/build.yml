@@ -16,19 +16,10 @@ jobs:
         target:
           - "x86_64-unknown-linux-gnu"
           - "aarch64-unknown-linux-gnu"
-        profile:
-          - "debug"
-          - "release"
         integration:
           - "godot"
           - "flutter"
           - "uniffi"
-        exclude:
-          # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
-          - integration: "flutter"
-            profile: "debug"
-          - integration: "uniffi"
-            profile: "debug"
         include:
           - target: x86_64-unknown-linux-gnu
             runner: warp-ubuntu-latest-x64-4x
@@ -47,9 +38,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -80,18 +71,18 @@ jobs:
           version: 3.35.5
 
       - name: "Compile for linux"
-        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+        run: cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} --release --locked
         working-directory: ./nobodywho
 
       - name: "Rename built file"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
-          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
+          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
 
   cargo-build-windows:
     if: inputs.full_ci
@@ -101,19 +92,10 @@ jobs:
       matrix:
         target:
           - "x86_64-pc-windows-msvc"
-        profile:
-          - "debug"
-          - "release"
         integration:
           - "godot"
           - "flutter"
           - "uniffi"
-        exclude:
-          # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
-          - integration: "flutter"
-            profile: "debug"
-          - integration: "uniffi"
-            profile: "debug"
     env:
       RUSTFLAGS: >-
         -l Advapi32
@@ -133,9 +115,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -177,7 +159,7 @@ jobs:
           git config --system core.longpaths true
           cd C:/
           # Use an even shorter target directory to avoid path length issues with git dependencies
-          cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose ${{ matrix.profile == 'release' && '--release' || '' }} --locked --target-dir C:/t
+          cargo build -p nobodywho-${{ matrix.integration }} --target ${{ matrix.target }} --verbose --release --locked --target-dir C:/t
         env:
           NOBODYWHO_SKIP_CODEGEN: "1"
           RUSTFLAGS: >-
@@ -191,16 +173,16 @@ jobs:
 
       - name: "Rename built files"
         run: |
-          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-          cp C:/t/${{ matrix.target }}/${{ matrix.profile }}/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+          cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
+          cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v5
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
           path: |
-            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dll
-            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.pdb
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
 
   cargo-build-macos:
     if: inputs.full_ci
@@ -217,9 +199,6 @@ jobs:
           - "aarch64-apple-visionos-sim"
           - "aarch64-apple-watchos"
           - "aarch64-apple-watchos-sim"
-        profile:
-          - "debug"
-          - "release"
         integration:
           - "godot"
           - "flutter"
@@ -245,11 +224,6 @@ jobs:
             target: "aarch64-apple-watchos"
           - integration: "flutter"
             target: "aarch64-apple-watchos-sim"
-          # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
-          - integration: "flutter"
-            profile: "debug"
-          - integration: "uniffi"
-            profile: "debug"
     steps:
       - uses: actions/checkout@v5
       - name: "Setup Rust toolchain"
@@ -310,7 +284,7 @@ jobs:
           if [ -n "${{ steps.ort.outputs.lib_path }}" ]; then
             export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
           fi
-          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} --release --locked
         working-directory: ./nobodywho
         env:
           IPHONEOS_DEPLOYMENT_TARGET: "18.5"
@@ -319,31 +293,31 @@ jobs:
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
         run: |
           export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
-          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }}
+          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} --release
         working-directory: ./nobodywho
 
       - name: "Rename built file"
         run: |
           if [ "${{ matrix.integration }}" = "uniffi" ]; then
             # Static library (.a) for xcframeworks (React Native, Swift)
-            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
+            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.a \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.a
             # Dynamic library (.dylib) for macOS desktop JNA (Kotlin JVM)
-            if [ -f ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib ]; then
-              cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
-                ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+            if [ -f ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib ]; then
+              cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
+                ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
             fi
           else
-            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.dylib \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.dylib
+            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
           fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
           # wildcard path to match both .dylib and .a
-          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.*
 
   # builds an "xcframework"
   # which is an apple thing that contains binaries for multiple systems
@@ -525,19 +499,10 @@ jobs:
         target:
           - "aarch64-linux-android"
           - "x86_64-linux-android"
-        profile:
-          - "debug"
-          - "release"
         integration:
           - "godot"
           - "flutter"
           - "uniffi"
-        exclude:
-          # debug builds are only consumed by the godot .gdextension; other integrations ship release-only
-          - integration: "flutter"
-            profile: "debug"
-          - integration: "uniffi"
-            profile: "debug"
     steps:
       - uses: actions/checkout@v5
 
@@ -547,9 +512,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -600,7 +565,7 @@ jobs:
             export ORT_LIB_PATH="${{ steps.ort-android.outputs.ort_dir }}"
             export ORT_PREFER_DYNAMIC_LINK=1
           fi
-          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} ${{ matrix.profile == 'release' && '--release' || '' }} --locked
+          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} --release --locked
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
@@ -622,13 +587,13 @@ jobs:
         run: |
           if [ "${{ matrix.integration }}" = "uniffi" ]; then
             # uniffi produces both static (.a) for React Native/Swift and shared (.so) for Kotlin/JNA
-            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.a \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.a
-            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.a \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.a
+            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
           else
-            cp ./nobodywho/target/${{ matrix.target }}/${{ matrix.profile }}/libnobodywho_${{ matrix.integration }}.so \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.so
+            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
+              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
           fi
           # x86_64 Android links dynamically against libonnxruntime.so — ship it alongside.
           if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
@@ -638,7 +603,7 @@ jobs:
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
-          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
           path: |
-            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-${{ matrix.profile }}.*
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.*
             ./libonnxruntime.so
