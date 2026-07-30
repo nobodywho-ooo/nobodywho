@@ -626,7 +626,7 @@ class Encoder:
     `Encoder` will let you generate vector representations of text.
     It must be initialized with a model that specifically supports generating embeddings.
     A regular chat/text-generation model will not just work.
-    Once initialized, you can call `.encode()` on a string, which returns a list of 32-bit floats.
+    Once initialized, call `.encode()` for one string or `.encode_batch()` for multiple strings.
     See `EncoderAsync` for the async version of this class.
     """
     def __new__(
@@ -654,6 +654,19 @@ class Encoder:
 
         Returns:
             A list of floats representing the embedding vector
+
+        Raises:
+            RuntimeError: If encoding fails
+        """
+    def encode_batch(self, /, texts: Sequence[str]) -> list[list[float]]:
+        """
+        Generate embedding vectors for multiple texts in input order. This method blocks until complete.
+
+        Args:
+            texts: The texts to encode
+
+        Returns:
+            One embedding vector per input text, in input order
 
         Raises:
             RuntimeError: If encoding fails
@@ -689,6 +702,19 @@ class EncoderAsync:
 
         Returns:
             A list of floats representing the embedding vector
+
+        Raises:
+            RuntimeError: If encoding fails
+        """
+    async def encode_batch(self, /, texts: Sequence[str]) -> list[list[float]]:
+        """
+        Generate embedding vectors for multiple texts asynchronously.
+
+        Args:
+            texts: The texts to encode
+
+        Returns:
+            One embedding vector per input text, in input order
 
         Raises:
             RuntimeError: If encoding fails

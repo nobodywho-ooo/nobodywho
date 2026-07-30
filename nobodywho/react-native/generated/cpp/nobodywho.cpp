@@ -190,6 +190,8 @@ void uniffi_nobodywho_uniffi_fn_free_rustencoder(
     RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
     /*handle*/ uint64_t ptr, RustBuffer text);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+    /*handle*/ uint64_t ptr, RustBuffer texts);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_rustmodel(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_rustmodel(
@@ -522,6 +524,7 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm();
@@ -3082,6 +3085,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_rustencoder_encode_batch"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_clone_rustmodel"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4869,6 +4884,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_"
+        "batch"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_rustencoder_encode_batch"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -6152,6 +6179,19 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[1]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
@@ -8053,6 +8093,15 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

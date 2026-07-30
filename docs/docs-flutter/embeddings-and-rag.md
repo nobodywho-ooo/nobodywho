@@ -28,6 +28,18 @@ print("Vector with ${embedding.length} dimensions");
 
 The resulting embedding is a `Float32List` (typically 384 or 768 dimensions depending on the model).
 
+### Batch Encoding
+
+Use `encodeBatch` for multiple texts. It returns a `List<Float32List>` in input order:
+
+```dart continuation
+final texts = [
+  "Paris is the capital of France.",
+  "Berlin is the capital of Germany.",
+];
+final embeddings = await encoder.encodeBatch(texts: texts);
+```
+
 ### Comparing Embeddings
 
 To measure how similar two pieces of text are, compare their embeddings using cosine similarity:
@@ -73,11 +85,8 @@ final documents = [
   "Git is a version control system for tracking changes in source code"
 ];
 
-// Pre-compute document embeddings
-final docEmbeddings = <Float32List>[];
-for (final doc in documents) {
-  docEmbeddings.add(await encoder.encode(text: doc));
-}
+// Pre-compute document embeddings in a batch
+final docEmbeddings = await encoder.encodeBatch(texts: documents);
 
 // Search query
 final query = "What language should I use for database queries?";
@@ -291,10 +300,7 @@ Future<void> main() async {
   ];
 
   // Precompute embeddings for all documents
-  final docEmbeddings = <Float32List>[];
-  for (final doc in knowledgeBase) {
-    docEmbeddings.add(await encoder.encode(text: doc));
-  }
+  final docEmbeddings = await encoder.encodeBatch(texts: knowledgeBase);
 
   Future<String> search({required String query}) async {
     // Stage 1: Fast filtering with embeddings

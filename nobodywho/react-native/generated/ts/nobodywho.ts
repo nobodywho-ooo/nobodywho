@@ -2384,6 +2384,10 @@ export interface RustEncoderInterface {
      * Encode text into an embedding vector.
      */
     encode(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    encodeBatch(texts: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array<Array</*f32*/number>>>;
 }
 
 
@@ -2433,6 +2437,37 @@ async  encode(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             /*liftFunc:*/ FfiConverterArrayFloat32.lift.bind(FfiConverterArrayFloat32),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+async  encodeBatch(texts: Array<string>, asyncOpts_?: { signal: AbortSignal }): Promise<Array<Array</*f32*/number>>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                    uniffiTypeRustEncoderObjectFactory.clonePointer(this),
+                    FfiConverterArrayString.lower(texts)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayArrayFloat32.lift.bind(FfiConverterArrayArrayFloat32),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -4093,6 +4128,10 @@ const FfiConverterArrayTypeRustTool = new FfiConverterArray(FfiConverterTypeRust
 const FfiConverterArrayOptionalInt32 = new FfiConverterArray(FfiConverterOptionalInt32);
 
 
+// FfiConverter for Array<Array</*f32*/number>>
+const FfiConverterArrayArrayFloat32 = new FfiConverterArray(FfiConverterArrayFloat32);
+
+
 // FfiConverter for Array<RustToolInterface> | undefined
 const FfiConverterOptionalArrayTypeRustTool = new FfiConverterOptional(FfiConverterArrayTypeRustTool);
 
@@ -4227,6 +4266,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() !== 52601) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() !== 20675) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() !== 52004) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx");

@@ -29,6 +29,15 @@ Embedding models are different from chat models. You need a model specifically t
 
 We normally use [bge-small-en-v1.5-q8_0.gguf](https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf).
 
+Use `encode_batch` when encoding multiple texts. It returns an `Array[PackedFloat32Array]` in input order:
+
+```gdscript
+var texts = PackedStringArray([
+    "Paris is the capital of France.",
+    "Berlin is the capital of Germany.",
+])
+var embeddings = await encode_batch(texts)
+```
 
 ### Practical Example: Quest & Reputation System
 
@@ -97,17 +106,8 @@ Generate embeddings for all your reference statements:
 
 ```gdscript
 func precompute_all_embeddings():
-    # Generate embeddings for helpful statements
-    for statement in quest_triggers:
-        encode(statement)
-        var embedding = await self.encoding_finished
-        helpful_embeddings.append(embedding)
-
-    # Generate embeddings for hostile statements
-    for statement in hostile_statements:
-        encode(statement)
-        var embedding = await self.encoding_finished
-        hostile_embeddings.append(embedding)
+    helpful_embeddings = await encode_batch(PackedStringArray(quest_triggers))
+    hostile_embeddings = await encode_batch(PackedStringArray(hostile_statements))
 ```
 
 

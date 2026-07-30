@@ -1,6 +1,10 @@
-use crate::errors::{InitWorkerError, LoadModelError, ReadError};
+#[cfg(test)]
+use crate::errors::ReadError;
+use crate::errors::{InitWorkerError, LoadModelError};
 use crate::huggingface::{download_gguf, parse_model_path};
-use crate::inference::{acquire_inference_lock, EngineContext, InferenceEngine};
+#[cfg(test)]
+use crate::inference::acquire_inference_lock;
+use crate::inference::{BatchCapacity, EngineContext, InferenceEngine};
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
@@ -33,6 +37,10 @@ lazy_static! {
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+
+// llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
+// returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
+const MAX_EMBEDDING_SEQUENCES: u32 = 256;
 
 #[derive(Debug)]
 pub struct Model {
@@ -338,7 +346,22 @@ where
             },
         )?;
         let planned_n_ctx = ctx_plan.n_ctx;
-        let n_ubatch = ctx_plan.n_ubatch;
+        let pooling_type = extra.pooling_type();
+        let n_seq_max = if use_embeddings
+            && !matches!(
+                pooling_type,
+                LlamaPoolingType::None | LlamaPoolingType::Unspecified
+            ) {
+            planned_n_ctx.min(MAX_EMBEDDING_SEQUENCES)
+        } else {
+            1
+        };
+        // llama.cpp cannot split non-causal embedding batches into micro-batches.
+        let n_ubatch = if n_seq_max > 1 {
+            planned_n_ctx
+        } else {
+            ctx_plan.n_ubatch
+        };
         for w in &ctx_plan.warnings {
             warn!("{}", w);
         }
@@ -347,16 +370,19 @@ where
             .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
             .with_n_batch(planned_n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
             .with_n_ubatch(n_ubatch)
+            .with_n_seq_max(n_seq_max)
             .with_n_threads(n_threads)
             .with_n_threads_batch(n_threads)
             .with_embeddings(use_embeddings)
-            .with_pooling_type(extra.pooling_type());
+            .with_pooling_type(pooling_type)
+            .with_kv_unified(n_seq_max > 1);
 
         let ctx = model
             .language_model
             .new_context(&LLAMA_BACKEND, ctx_params)?;
         let n_batch = planned_n_ctx as usize;
 
+        // The batch limit is sequence IDs per token; each embedding token belongs to one sequence.
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
 
@@ -404,20 +430,18 @@ where
             big_batch,
             small_batch,
             projection_model,
-            n_batch,
+            BatchCapacity {
+                tokens: n_batch,
+                sequences: n_seq_max as usize,
+            },
             tokenizer,
             use_embeddings,
         );
         Ok(Worker { engine, extra })
     }
 
-    /// Reset the KV cache and token count. Delegates to the inference engine.
-    pub fn reset_context(&mut self) -> &mut Self {
-        self.engine.reset_context();
-        self
-    }
-
     /// Tokenize `text` and read it into the context under the global inference lock.
+    #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let inference_lock_token = acquire_inference_lock();

@@ -511,11 +511,19 @@ void main() {
 
       final encoder = await nobodywho.Encoder.fromPath(modelPath: modelPath);
       final embeddings = await encoder.encode(text: "Test text for embedding.");
+      final batched = await encoder.encodeBatch(
+        texts: ["Test text for embedding.", "Another text."],
+      );
 
       // Basic checks
       expect(embeddings, isA<List<double>>());
       expect(embeddings.length, greaterThan(0));
       expect(embeddings, isNotEmpty);
+      expect(batched.length, 2);
+      expect(batched.every((embedding) => embedding.length == embeddings.length), isTrue);
+      for (var i = 0; i < embeddings.length; i++) {
+        expect(batched.first[i], closeTo(embeddings[i], 1e-5));
+      }
 
       // Verify self-similarity is close to 1.0 (embeddings make sense)
       final selfSim = nobodywho.cosineSimilarity(a: embeddings, b: embeddings);

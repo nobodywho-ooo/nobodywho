@@ -761,6 +761,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file(
@@ -918,6 +920,8 @@ external fun uniffi_nobodywho_uniffi_fn_free_rustencoder(`handle`: Long,uniffi_o
 external fun uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(`ptr`: Long,`text`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(`ptr`: Long,`texts`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_clone_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1284,6 +1288,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() != 20675.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004.toShort()) {
@@ -3056,6 +3063,11 @@ public interface RustEncoderInterface {
      */
     suspend fun `encode`(`text`: kotlin.String): List<kotlin.Float>
     
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    suspend fun `encodeBatch`(`texts`: List<kotlin.String>): List<List<kotlin.Float>>
+    
     companion object
 }
 
@@ -3185,6 +3197,30 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterSequenceFloat.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `encodeBatch`(`texts`: List<kotlin.String>) : List<List<kotlin.Float>> {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                uniffiHandle,
+                FfiConverterSequenceString.lower(`texts`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceSequenceFloat.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -7206,6 +7242,34 @@ public object FfiConverterSequenceOptionalInt: FfiConverterRustBuffer<List<kotli
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterOptionalInt.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer<List<List<kotlin.Float>>> {
+    override fun read(buf: ByteBuffer): List<List<kotlin.Float>> {
+        val len = buf.getInt()
+        return List<List<kotlin.Float>>(len) {
+            FfiConverterSequenceFloat.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<List<kotlin.Float>>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterSequenceFloat.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<List<kotlin.Float>>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterSequenceFloat.write(it, buf)
         }
     }
 }

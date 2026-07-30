@@ -1,4 +1,5 @@
 use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
+use crate::inference::{BatchedReadError, EngineContext};
 use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
@@ -112,9 +113,6 @@ fn process_worker_msg(
 ) -> Result<(), CrossEncoderWorkerError> {
     match msg {
         CrossEncoderMsg::Rank(query, documents, respond) => {
-            // Clear context for each cross-encoder operation
-            worker_state.reset_context();
-
             let scores = worker_state.rank(query, documents)?;
 
             let _ = respond.blocking_send(scores);
@@ -138,20 +136,6 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         n_ctx: u32,
     ) -> Result<Worker<'_, CrossEncoderWorker>, InitWorkerError> {
         Worker::new_with_type(model, n_ctx, true, None, None, CrossEncoderWorker {})
-    }
-
-    pub fn get_classification_score(&self) -> Result<f32, CrossEncoderWorkerError> {
-        // Cross-encoder models process query+document as single sequence, outputting classification scores.
-        // For crossencodering, all tokens have embeddings enabled (logits=true) but only the final token's
-        // embedding contains the relevance score. embeddings_seq_ith(0) gets the sequence's embedding
-        // vector, and embeddings[0] extracts the classification score from the final token.
-        let embeddings = self.engine.ctx.embeddings_seq_ith(0)?;
-
-        if !embeddings.is_empty() {
-            Ok(embeddings[0])
-        } else {
-            Err(CrossEncoderWorkerError::EmptyClassificationHead)
-        }
     }
 
     pub fn rank(
@@ -181,16 +165,30 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
                 "</s>".to_string()
             });
 
-        let mut scores = Vec::new();
-        for document in documents {
-            self.reset_context();
-            // Format as: [CLS] query [SEP] document [SEP]
-            let input = format!("{cls}{query}{sep}{document}{sep}");
-            let score = self.read_string(input)?.get_classification_score()?;
-            scores.push(score);
-        }
-        Ok(scores)
+        let inputs = documents
+            .into_iter()
+            .map(|document| format!("{cls}{query}{sep}{document}{sep}"))
+            .collect();
+
+        self.engine
+            .read_strings_batched(inputs, classification_score_for)
+            .map_err(|error| match error {
+                BatchedReadError::Read(error) => CrossEncoderWorkerError::Read(error),
+                BatchedReadError::Output(error) => error,
+            })
     }
+}
+
+fn classification_score_for(
+    ctx: &EngineContext<'_>,
+    sequence_id: i32,
+) -> Result<f32, CrossEncoderWorkerError> {
+    // Rank pooling returns the classification head for each sequence.
+    let embeddings = ctx.embeddings_seq_ith(sequence_id)?;
+    embeddings
+        .first()
+        .copied()
+        .ok_or(CrossEncoderWorkerError::EmptyClassificationHead)
 }
 
 #[cfg(test)]
@@ -235,6 +233,98 @@ mod tests {
             seen_paris,
             "`Paris is the capital of France.` was not between the best four, the best three were: {}",
             best_docs.join(",")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_crossencoder_batch_matches_individual_scores() -> Result<(), Box<dyn std::error::Error>>
+    {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_crossencoder_model();
+        let encoder = CrossEncoder::new(model, 48);
+        let query = "What is the capital of France?".to_string();
+        let documents = vec![
+            "Paris is the capital of France.".to_string(),
+            "Berlin is the capital of Germany.".to_string(),
+            "The weather is nice today.".to_string(),
+            "The French government is based in Paris.".to_string(),
+        ];
+
+        let individual_scores = documents
+            .iter()
+            .map(|document| {
+                encoder
+                    .rank(query.clone(), vec![document.clone()])
+                    .map(|scores| scores[0])
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let batched_scores = encoder.rank(query, documents)?;
+
+        assert_eq!(individual_scores.len(), batched_scores.len());
+        for (individual_score, batched_score) in individual_scores.iter().zip(&batched_scores) {
+            assert!(
+                (individual_score - batched_score).abs() < 0.05,
+                "Individual score {individual_score} differed from batched score {batched_score}"
+            );
+        }
+
+        let mut individual_order = (0..individual_scores.len()).collect::<Vec<_>>();
+        individual_order.sort_by(|a, b| individual_scores[*b].total_cmp(&individual_scores[*a]));
+        let mut batched_order = (0..batched_scores.len()).collect::<Vec<_>>();
+        batched_order.sort_by(|a, b| batched_scores[*b].total_cmp(&batched_scores[*a]));
+        assert_eq!(individual_order, batched_order);
+
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "real-model benchmark; run with --ignored --nocapture"]
+    fn benchmark_crossencoder_batching() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_crossencoder_model();
+        let encoder = CrossEncoder::new(model, 4096);
+        let query = "What is the capital of France?".to_string();
+        let documents = (0..40)
+            .map(|index| {
+                format!(
+                    "Document {index}: Paris is the capital of France and the seat of its government."
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let sequential_start = std::time::Instant::now();
+        let sequential_scores = documents
+            .iter()
+            .map(|document| {
+                encoder
+                    .rank(query.clone(), vec![document.clone()])
+                    .map(|scores| scores[0])
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let sequential_elapsed = sequential_start.elapsed();
+
+        let batched_start = std::time::Instant::now();
+        let batched_scores = encoder.rank(query, documents.clone())?;
+        let batched_elapsed = batched_start.elapsed();
+
+        let max_score_difference = sequential_scores
+            .iter()
+            .zip(&batched_scores)
+            .map(|(sequential_score, batched_score)| (sequential_score - batched_score).abs())
+            .fold(0.0, f32::max);
+
+        eprintln!(
+            "Sequential: {} one-document rank calls in {:?}",
+            documents.len(),
+            sequential_elapsed
+        );
+        eprintln!(
+            "Batched: one {}-document rank call in {:?} ({:.2}x faster, max score difference {:.6})",
+            documents.len(),
+            batched_elapsed,
+            sequential_elapsed.as_secs_f64() / batched_elapsed.as_secs_f64(),
+            max_score_difference
         );
 
         Ok(())

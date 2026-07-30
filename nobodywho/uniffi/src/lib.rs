@@ -922,6 +922,16 @@ impl RustEncoder {
                 message: e.to_string(),
             })
     }
+
+    /// Encode multiple texts into embedding vectors, preserving input order.
+    pub async fn encode_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, NobodyWhoError> {
+        self.inner
+            .encode_batch(texts)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
 }
 
 /// Compute the cosine similarity between two vectors.

@@ -1,4 +1,5 @@
 use crate::errors::{EncoderWorkerError, InitWorkerError};
+use crate::inference::BatchedReadError;
 use crate::llm;
 use crate::llm::{Worker, WorkerGuard};
 use llama_cpp_2::context::params::LlamaPoolingType;
@@ -23,6 +24,10 @@ impl Encoder {
 
     pub fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
         futures::executor::block_on(async { self.async_handle.encode(text).await })
+    }
+
+    pub fn encode_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, EncoderWorkerError> {
+        futures::executor::block_on(async { self.async_handle.encode_batch(texts).await })
     }
 }
 
@@ -52,16 +57,27 @@ impl EncoderAsync {
     }
 
     pub async fn encode(&self, text: String) -> Result<Vec<f32>, EncoderWorkerError> {
+        self.encode_batch(vec![text])
+            .await?
+            .pop()
+            .ok_or_else(|| EncoderWorkerError::Encode("Encoder returned no embedding.".into()))
+    }
+
+    pub async fn encode_batch(
+        &self,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, EncoderWorkerError> {
         let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(EncoderMsg::Encode(text, embedding_tx));
+        self.guard
+            .send(EncoderMsg::EncodeBatch(texts, embedding_tx));
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
-            "Could not encode the text. Worker never responded.".into(),
+            "Could not encode the texts. Worker never responded.".into(),
         ))
     }
 }
 
 enum EncoderMsg {
-    Encode(String, tokio::sync::mpsc::Sender<Vec<f32>>),
+    EncodeBatch(Vec<String>, tokio::sync::mpsc::Sender<Vec<Vec<f32>>>),
 }
 
 fn process_worker_msg(
@@ -69,11 +85,23 @@ fn process_worker_msg(
     msg: EncoderMsg,
 ) -> Result<(), EncoderWorkerError> {
     match msg {
-        EncoderMsg::Encode(text, respond) => {
-            worker_state.reset_context();
-
-            let embedding = worker_state.read_string(text)?.get_embedding()?;
-            let _ = respond.blocking_send(embedding);
+        EncoderMsg::EncodeBatch(texts, respond) => {
+            let pooling = worker_state.extra.pooling;
+            let embeddings = worker_state
+                .engine
+                .read_strings_batched(texts, |ctx, sequence_id| {
+                    let embedding = if pooling == LlamaPoolingType::None {
+                        ctx.embeddings_ith(-1)?
+                    } else {
+                        ctx.embeddings_seq_ith(sequence_id)?
+                    };
+                    Ok::<_, llama_cpp_2::EmbeddingsError>(embedding.to_vec())
+                })
+                .map_err(|error| match error {
+                    BatchedReadError::Read(error) => EncoderWorkerError::Read(error),
+                    BatchedReadError::Output(error) => EncoderWorkerError::Embeddings(error),
+                })?;
+            let _ = respond.blocking_send(embeddings);
         }
     }
 
@@ -110,6 +138,7 @@ impl<'a> Worker<'a, EncoderWorker> {
         Worker::new_with_type(model, n_ctx, true, None, None, EncoderWorker { pooling })
     }
 
+    #[cfg(test)]
     pub fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
         Ok(self.engine.ctx.embeddings_seq_ith(0)?.to_vec())
     }
@@ -215,6 +244,35 @@ mod tests {
             cosine_similarity(&copenhagen_embedding, &insult_embedding)
                 < cosine_similarity(&copenhagen_embedding, &berlin_embedding)
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_encoder_batch_matches_individual_embeddings() -> Result<(), Box<dyn std::error::Error>>
+    {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_embeddings_model();
+        let encoder = Encoder::new(model, 20);
+        let texts = vec![
+            "Copenhagen is the capital of Denmark.".to_string(),
+            "Berlin is the capital of Germany.".to_string(),
+            "The weather is nice today.".to_string(),
+        ];
+
+        let individual = texts
+            .iter()
+            .map(|text| encoder.encode(text.clone()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let batched = encoder.encode_batch(texts)?;
+
+        assert_eq!(individual.len(), batched.len());
+        for (individual_embedding, batched_embedding) in individual.iter().zip(&batched) {
+            assert_eq!(individual_embedding.len(), batched_embedding.len());
+            assert!(individual_embedding.iter().zip(batched_embedding).all(
+                |(individual_value, batched_value)| (individual_value - batched_value).abs() < 1e-5
+            ));
+        }
 
         Ok(())
     }
