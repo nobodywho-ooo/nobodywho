@@ -18,15 +18,42 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: read
   pages: write
   id-token: write
   deployments: write
 
 jobs:
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      regen: ${{ steps.filter.outputs.regen }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            regen:
+              - 'nobodywho/core/**'
+              - 'nobodywho/uniffi/**'
+              - 'nobodywho/grammar/**'
+              - 'nobodywho/Cargo.toml'
+              - 'nobodywho/Cargo.lock'
+              - 'nobodywho/swift/generated/**'
+              - 'nobodywho/swift/Package.swift'
+              - 'nobodywho/kotlin/common/generated/**'
+              - 'nobodywho/kotlin/**/*.gradle.kts'
+              - 'nobodywho/react-native/generated/**'
+              - 'nobodywho/react-native/package.json'
+              - 'nobodywho/react-native/package-lock.json'
+
   linting:
     uses: ./.github/workflows/linting.yml
 
   regen-checks:
+    needs: changes
+    if: always() && (github.event_name != 'pull_request' || needs.changes.outputs.regen == 'true')
     uses: ./.github/workflows/regen-checks.yml
 
   python-ci:

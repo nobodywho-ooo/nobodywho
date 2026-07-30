@@ -29,15 +29,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
           uv venv
-          uv sync --locked
+          uv sync --locked --no-install-project
 
       - name: Format check
         working-directory: ./nobodywho/python
-        run: uv run ruff format --check
+        run: uv run --no-sync ruff format --check
 
       - name: Lint check
         working-directory: ./nobodywho/python
-        run: uv run ruff check
+        run: uv run --no-sync ruff check
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
@@ -51,7 +51,7 @@ jobs:
 
       - name: Format generated stubs
         working-directory: ./nobodywho/python
-        run: uv run ruff format nobodywho.pyi
+        run: uv run --no-sync ruff format nobodywho.pyi
 
       - name: Check generated stubs
         working-directory: ./nobodywho/python
@@ -69,7 +69,7 @@ jobs:
 
       - name: Type check
         working-directory: ./nobodywho/python
-        run: uv run ty check
+        run: uv run --no-sync ty check
 
   linux-build:
     if: inputs.full_ci
@@ -267,25 +267,41 @@ jobs:
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
+      - name: Restore test model cache
+        id: test-model-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: models
+          # Bump v1 whenever a URL or downloaded file changes.
+          key: linux-python-test-models-v1
       - name: Download test models
         run: |
-          mkdir -p models
-          curl -L --fail --progress-bar https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf -o models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
-          curl -L --fail --progress-bar https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf -o models/bge-small-en-v1.5-q8_0.gguf
-          curl -L --fail --progress-bar https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf -o models/bge-reranker-v2-m3-Q8_0.gguf
-          curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf -o models/google_gemma-4-E2B-it-Q4_K_M.gguf
-          curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf -o models/mmproj-google_gemma-4-E2B-it-f16.gguf
-          # Whisper ONNX — only the files we actually load. The STT tests
-          # request quantization="default" (fp32), so we download the unsuffixed
-          # ONNX files here. (Keep in sync with the tests and models.nix.)
-          WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
+          download_pids=()
+          download() {
+            test -f "$2" && return
+            if [ "${#download_pids[@]}" -ge 4 ]; then
+              wait "${download_pids[0]}"
+              download_pids=("${download_pids[@]:1}")
+            fi
+            curl -L --fail --progress-bar "$1" -o "$2" &
+            download_pids+=("$!")
+          }
           mkdir -p models/whisper-base/onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/decoder_model_merged.onnx" -o models/whisper-base/onnx/decoder_model_merged.onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/tokenizer.json"                 -o models/whisper-base/tokenizer.json
-          curl -L --fail --progress-bar "$WHISPER_BASE/generation_config.json"         -o models/whisper-base/generation_config.json
-          curl -L --fail --progress-bar "$WHISPER_BASE/config.json"                    -o models/whisper-base/config.json
-          curl -L --fail --progress-bar "$WHISPER_BASE/preprocessor_config.json"       -o models/whisper-base/preprocessor_config.json
+          download https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+          download https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf models/bge-small-en-v1.5-q8_0.gguf
+          download https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf models/bge-reranker-v2-m3-Q8_0.gguf
+          download https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf models/google_gemma-4-E2B-it-Q4_K_M.gguf
+          download https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          whisper_base=https://huggingface.co/onnx-community/whisper-base/resolve/main
+          download "$whisper_base/onnx/encoder_model.onnx" models/whisper-base/onnx/encoder_model.onnx
+          download "$whisper_base/onnx/decoder_model_merged.onnx" models/whisper-base/onnx/decoder_model_merged.onnx
+          download "$whisper_base/tokenizer.json" models/whisper-base/tokenizer.json
+          download "$whisper_base/generation_config.json" models/whisper-base/generation_config.json
+          download "$whisper_base/config.json" models/whisper-base/config.json
+          download "$whisper_base/preprocessor_config.json" models/whisper-base/preprocessor_config.json
+          for pid in "${download_pids[@]}"; do
+            wait "$pid"
+          done
       - name: Set up virtualenv and install dependencies
         working-directory: ./nobodywho/python
         run: |
@@ -309,6 +325,12 @@ jobs:
           python3 -m pytest --ignore=tests/test_model_downloading.py
           # docs tests
           python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences
+      - name: Save test model cache
+        if: success() && steps.test-model-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: models
+          key: ${{ steps.test-model-cache.outputs.cache-primary-key }}
 
   linux-multimodal-tests:
     if: inputs.full_ci
@@ -327,11 +349,16 @@ jobs:
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
+      - name: Restore test model cache
+        uses: actions/cache/restore@v5
+        with:
+          path: models
+          key: linux-python-test-models-v1
       - name: Download vision models
         run: |
           mkdir -p models
-          curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf -o models/google_gemma-4-E2B-it-Q4_K_M.gguf
-          curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf -o models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          test -f models/google_gemma-4-E2B-it-Q4_K_M.gguf || curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf -o models/google_gemma-4-E2B-it-Q4_K_M.gguf
+          test -f models/mmproj-google_gemma-4-E2B-it-f16.gguf || curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf -o models/mmproj-google_gemma-4-E2B-it-f16.gguf
       - name: Set up virtualenv and install dependencies
         working-directory: ./nobodywho/python
         run: |
