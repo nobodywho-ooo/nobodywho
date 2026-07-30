@@ -1,3 +1,25 @@
+## 2.5.0
+
+### Automatic model selection (#630)
+
+Pass `"auto"` as the model path to pick a recommended model that fits available memory, instead of hardcoding a model name.
+
+### Gemma 4 / MTP support (#636)
+
+Added MTP (multi-token prediction) support for attention models that ship separate MTP files — primarily Gemma 4.
+
+### Pocket TTS (#641)
+
+Added a Pocket TTS speech-synthesis backend, including Hugging Face authentication for downloading gated model files.
+
+### Configurable CPU thread count (#650)
+
+`Chat` now accepts a `threadCount` parameter to set the number of CPU worker threads, leaving headroom for other work. Inference now defaults to one thread per **physical** core (performance cores only on Apple silicon) instead of one per logical CPU, which measurably speeds up CPU-only generation.
+
+### Fixed
+
+- **Grammar-constrained GBNF presets (#644)** — the `json` and deprecated `grammar` presets now apply the grammar before the truncation samplers. Previously, models whose top-k candidates contained no grammar-valid token (e.g. thinking models like Qwen3) silently crashed during generation.
+
 ## 2.4.0
 
 ### Text-to-speech (#537, #596, #601, #623)
