@@ -4,9 +4,7 @@ on:
     branches: [main]
     tags: ['nobodywho-*']
   pull_request:
-    # ready_for_review needs to be in this list so flipping a draft PR to
-    # "ready" re-triggers CI with the full PR-base diff + cascade rules.
-    types: [opened, synchronize, reopened, labeled, ready_for_review]
+    types: [opened, synchronize, reopened, labeled]
   merge_group:
   workflow_dispatch:
     inputs:

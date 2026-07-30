@@ -56,16 +56,15 @@ jobs:
       is_full:           ${{ steps.decide.outputs.is_full }}
     steps:
       # fetch-depth: 0 is required so the `git diff` below can reach an
-      # arbitrary base SHA (we pass github.event.before for draft PRs). With
-      # the default shallow clone (depth 1) the base commit is unreachable and
-      # our draft-mode last-push diff stops working.
+      # arbitrary base SHA (github.event.before for a synchronize push). With
+      # the default shallow clone the base commit is unreachable and the diff
+      # would fail.
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      # Diagnostic line: surfaces what the event, action, and base SHA were
-      # so the next time draft-mode CI behaves oddly we can read it directly
-      # from the job summary instead of guessing.
+      # Diagnostic line: surfaces the event, action, and base SHA in the job
+      # summary so odd CI routing can be read directly instead of guessed.
       - name: "Echo event diagnostics"
         run: |
           echo "event:    ${{ github.event_name }}"
@@ -87,25 +86,12 @@ jobs:
             echo "| after | \`${{ github.event.after || '(empty)' }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Compute the changed-file list ourselves with `git diff`. We tried
-      # dorny/paths-filter v3 first but it silently kept returning the full
-      # PR diff on synchronize events even with `base:` set to the previous
-      # push SHA and `fetch-depth: 0` on the checkout. Bypassing it removes
-      # the unknown.
-      #
+      # Compute the changed-file list ourselves with `git diff`.
       # Diff base by event:
-      #   - draft PR + synchronize + non-empty `before`: base = before SHA
-      #       (cheap last-push diff while iterating in draft).
-      #   - draft PR + any other action (opened, labeled, ready_for_review[*],
-      #       edited): no meaningful "last push" — leave base empty, no diff.
-      #       Always-on jobs and label-driven `everything=true` still work.
-      #   - non-draft PR: base = PR base SHA → full PR diff + cascade.
+      #   - PR synchronize: base = github.event.before → just that push (incremental).
+      #   - PR opened/reopened/labeled: no "before", so base = PR base SHA.
       #   - push to main: base = github.event.before of the push.
-      #   - merge_group / workflow_dispatch / tag push: skip (decide step
-      #       forces everything=true).
-      #
-      # [*] ready_for_review flips pull_request.draft to false, so it falls
-      #     into the non-draft branch.
+      #   - merge_group / workflow_dispatch / tag: skipped (decide forces everything).
       - name: "Detect changed paths"
         id: paths
         run: |
@@ -116,21 +102,18 @@ jobs:
 
           case "${{ github.event_name }}" in
             pull_request)
-              DRAFT="${{ github.event.pull_request.draft }}"
               ACTION="${{ github.event.action }}"
               EVT_BEFORE="${{ github.event.before }}"
               PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
               PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-              if [[ "$DRAFT" == "true" ]]; then
-                if [[ "$ACTION" == "synchronize" ]] && [[ -n "$EVT_BEFORE" ]]; then
-                  BASE="$EVT_BEFORE"
-                  HEAD="$PR_HEAD_SHA"
-                fi
-                # else: draft non-synchronize → leave BASE empty, no buckets
+              # synchronize = a new push: diff just that push (incremental).
+              # opened/reopened have no `before`, so diff the PR base once.
+              if [[ "$ACTION" == "synchronize" && -n "$EVT_BEFORE" ]]; then
+                BASE="$EVT_BEFORE"
               else
                 BASE="$PR_BASE_SHA"
-                HEAD="$PR_HEAD_SHA"
               fi
+              HEAD="$PR_HEAD_SHA"
               ;;
             push)
               if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
@@ -163,8 +146,6 @@ jobs:
           out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
 
           # Emit one p_* per filter, mirroring the names the decide step reads.
-          contains '^\.github/workflows/'    && out workflows    true || out workflows    false
-          contains '^nobodywho/Cargo\.lock$' && out cargo_lock   true || out cargo_lock   false
           contains '^nobodywho/core/'        && out core         true || out core         false
           contains '^nobodywho/uniffi/'      && out uniffi       true || out uniffi       false
           contains '^nobodywho/python/'      && out python       true || out python       false
@@ -196,11 +177,8 @@ jobs:
         env:
           EVENT:            ${{ github.event_name }}
           REF:              ${{ github.ref }}
-          IS_DRAFT:         ${{ github.event.pull_request.draft }}
           LABELS:           ${{ toJSON(github.event.pull_request.labels.*.name) }}
           DISPATCH_FULL_CI: ${{ inputs.dispatch_full_ci }}
-          P_WORKFLOWS:      ${{ steps.paths.outputs.workflows }}
-          P_CARGO_LOCK:     ${{ steps.paths.outputs.cargo_lock }}
           P_CORE:           ${{ steps.paths.outputs.core }}
           P_UNIFFI:         ${{ steps.paths.outputs.uniffi }}
           P_PYTHON:         ${{ steps.paths.outputs.python }}
@@ -222,9 +200,7 @@ jobs:
           }
           has_label() { echo "${LABELS:-[]}" | grep -q "\"$1\""; }
 
-          # Normalize dorny outputs (may be empty when the step was skipped).
-          p_workflows="${P_WORKFLOWS:-false}"
-          p_cargo_lock="${P_CARGO_LOCK:-false}"
+          # Normalize path outputs (may be empty when no diff ran).
           p_core="${P_CORE:-false}"
           p_uniffi="${P_UNIFFI:-false}"
           p_python="${P_PYTHON:-false}"
@@ -242,64 +218,37 @@ jobs:
           push_main=false
           if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then push_main=true; fi
 
-          # ---- "run everything" conditions ---------------------------------
+          # ---- full CI (everything) ----------------------------------------
+          # A normal PR push never lands here — it runs only the buckets whose
+          # own paths changed. Full CI is authoritative/opt-in gates only:
           everything=false
-          # Release tag: full surface, then release.yml fires.
-          if [[ "$REF" == refs/tags/nobodywho-* ]]; then everything=true; fi
-          # Merge queue: full surface against the would-be merged tree.
-          if [[ "$EVENT" == "merge_group" ]]; then everything=true; fi
-          # workflow_dispatch with full_ci checked.
-          if [[ "$DISPATCH_FULL_CI" == "true" ]]; then everything=true; fi
-          # `full-ci` label on the PR.
-          if has_label "full-ci"; then everything=true; fi
-          # CI infra changes: safety net — verify everything still works.
-          if [[ "$p_workflows" == "true" ]]; then everything=true; fi
-          # Cargo.lock change: any Rust binding could be affected.
-          if [[ "$p_cargo_lock" == "true" ]]; then everything=true; fi
-
-          # ---- draft-PR mode ----------------------------------------------
-          # On a draft PR we run cheap mode: paths-filter already diffs the
-          # last push only (see the dorny step's `base:` input), and we
-          # disable the cross-bucket cascade rules so a one-off core touch
-          # doesn't drag every binding into CI on subsequent pushes.
-          # Marking the PR ready-for-review re-triggers CI with the full
-          # cumulative diff + cascade.
-          is_draft_pr=false
-          if [[ "$EVENT" == "pull_request" && "$IS_DRAFT" == "true" ]]; then
-            is_draft_pr=true
-          fi
-
-          # ---- cascading scopes --------------------------------------------
-          # core/** is shared by every binding — cascade to all of them.
-          # uniffi/** is shared by swift+kotlin+react-native.
-          # Both cascades disabled in draft mode.
-          if $is_draft_pr; then
-            core_cascade=false
-            uniffi_cascade=false
-          else
-            core_cascade="$p_core"
-            uniffi_cascade="$p_uniffi"
-          fi
+          if [[ "$REF" == refs/tags/nobodywho-* ]]; then everything=true; fi   # release tag
+          if [[ "$EVENT" == "merge_group" ]]; then everything=true; fi          # merge queue = the gate
+          if [[ "$DISPATCH_FULL_CI" == "true" ]]; then everything=true; fi      # workflow_dispatch full_ci
+          if has_label "full-ci"; then everything=true; fi                      # opt-in label / /full-ci
 
           # ---- per-bucket decisions ----------------------------------------
-          run_rust_core=$(any "$everything" "$core_cascade" "$p_core")
+          # Path-gated, no cascade — except uniffi/** → swift/kotlin/RN, which
+          # consume its generated FFI. core/** is core coverage → rust_core +
+          # the tool-calling matrix (python_models below), not the bindings.
+          run_rust_core=$(any "$everything" "$p_core")
           run_python=$(any "$everything" "$p_python")
-          run_godot=$(any "$everything" "$core_cascade" "$p_godot")
-          run_flutter=$(any "$everything" "$core_cascade" "$p_flutter")
-          run_swift=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_swift")
-          run_kotlin=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_kotlin")
-          run_react_native=$(any "$everything" "$core_cascade" "$uniffi_cascade" "$p_rn")
+          run_godot=$(any "$everything" "$p_godot")
+          run_flutter=$(any "$everything" "$p_flutter")
+          run_swift=$(any "$everything" "$p_uniffi" "$p_swift")
+          run_kotlin=$(any "$everything" "$p_uniffi" "$p_kotlin")
+          run_react_native=$(any "$everything" "$p_uniffi" "$p_rn")
 
-          # python_models: tool-calling matrix (core coverage) — also gated on core_cascade.
+          # python_models: tool-calling matrix (core coverage) — runs on any core change.
           run_python_models=false
-          if [[ "$everything" == "true" ]] || has_label "test:python-models" || [[ "$core_cascade" == "true" ]]; then
+          if [[ "$everything" == "true" ]] || [[ "$p_core" == "true" ]]; then
             run_python_models=true
           fi
 
           # push to main is deploy-only: the merge queue already validated this
           # exact tree, so force every build/test bucket off and only (re)deploy
           # docs below. Without this, buckets touched by the merge commit would
-          # still fire via their path/cascade triggers.
+          # still fire via their path triggers.
           if $push_main; then
             run_rust_core=false
             run_python=false
@@ -338,7 +287,7 @@ jobs:
           {
             echo "## CI Plan"
             echo
-            echo "Event: \`$EVENT\`  ·  Ref: \`$REF\`  ·  draft-mode: \`$is_draft_pr\`  ·  full-everything: \`$everything\`"
+            echo "Event: \`$EVENT\`  ·  Ref: \`$REF\`  ·  full-everything: \`$everything\`"
             echo
             echo "| bucket | run? |"
             echo "|---|---|"
