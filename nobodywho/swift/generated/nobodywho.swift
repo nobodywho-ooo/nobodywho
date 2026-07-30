@@ -1350,6 +1350,11 @@ public protocol RustEncoderProtocol: AnyObject, Sendable {
      */
     func encode(text: String) async throws  -> [Float]
     
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    func encodeBatch(texts: [String]) async throws  -> [[Float]]
+    
 }
 open class RustEncoder: RustEncoderProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -1427,6 +1432,26 @@ open func encode(text: String)async throws  -> [Float]  {
             completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceFloat.lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+    
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+open func encodeBatch(texts: [String])async throws  -> [[Float]]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                    self.uniffiCloneHandle(),
+                    FfiConverterSequenceString.lower(texts)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceSequenceFloat.lift,
             errorHandler: FfiConverterTypeNobodyWhoError_lift
         )
 }
@@ -4389,6 +4414,31 @@ fileprivate struct FfiConverterSequenceOptionInt32: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer {
+    typealias SwiftType = [[Float]]
+
+    public static func write(_ value: [[Float]], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterSequenceFloat.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [[Float]] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [[Float]]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterSequenceFloat.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterDictionaryStringBool: FfiConverterRustBuffer {
     public static func write(_ value: [String: Bool], into buf: inout [UInt8]) {
         let len = Int32(value.count)
@@ -4805,6 +4855,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() != 20675) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004) {

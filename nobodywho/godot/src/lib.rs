@@ -2454,12 +2454,16 @@ impl NobodyWhoEncoder {
     fn encoding_finished(encoding: PackedFloat32Array);
 
     #[signal]
+    /// Triggered when batch encoding has finished. Returns one encoding per input text.
+    fn batch_encoding_finished(encodings: Array<PackedFloat32Array>);
+
+    #[signal]
     /// Emitted once the encoder worker has finished loading (including any model download)
     /// and is ready to accept `encode()` calls.
     fn worker_started();
 
     #[signal]
-    /// Emitted if loading the model (or setting up the encoder worker) failed.
+    /// Emitted if loading the model, setting up the worker, or encoding failed.
     fn worker_failed(error: GString);
 
     /// Load the model and create the encoder worker. `yield_now()` ensures the
@@ -2573,6 +2577,90 @@ impl NobodyWhoEncoder {
 
         // returns signal, so that you can `var vec = await encode("Hello, world!")`
         godot::builtin::Signal::from_object_signal(&self.base_mut(), "encoding_finished")
+    }
+
+    #[func]
+    /// Generates encodings for multiple texts in input order.
+    /// Returns a signal that emits an Array of PackedFloat32Array values.
+    /// Failures emit `worker_failed` and complete with an empty Array.
+    fn encode_batch(&mut self, texts: PackedStringArray) -> Signal {
+        let existing_handle = self.encoder_handle.clone();
+        let model_node = if existing_handle.is_none() {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            match self.model_node.clone() {
+                Some(node) => Some(node),
+                None => {
+                    let error = GString::from("Model node was not set");
+                    godot_error!("encode_batch() dropped: {}", error);
+                    let emit_node = self.to_gd();
+                    godot::task::spawn(async move {
+                        emit_node.signals().worker_failed().emit(&error);
+                        emit_node
+                            .signals()
+                            .batch_encoding_finished()
+                            .emit(&Array::new());
+                    });
+                    return godot::builtin::Signal::from_object_signal(
+                        &self.base_mut(),
+                        "batch_encoding_finished",
+                    );
+                }
+            }
+        } else {
+            None
+        };
+
+        let texts = texts
+            .to_vec()
+            .into_iter()
+            .map(|text| text.to_string())
+            .collect();
+        let me = self.to_gd();
+        let emit_node = me.clone();
+        godot::task::spawn(async move {
+            let encoder_handle = match existing_handle {
+                Some(handle) => handle,
+                None => {
+                    let model_node = model_node.expect("model_node set when no existing handle");
+                    match Self::load_and_store_worker(me, model_node).await {
+                        Ok(handle) => handle,
+                        Err(error) => {
+                            godot_error!("encode_batch() dropped: {}", error);
+                            emit_node.signals().worker_failed().emit(&error);
+                            emit_node
+                                .signals()
+                                .batch_encoding_finished()
+                                .emit(&Array::new());
+                            return;
+                        }
+                    }
+                }
+            };
+            match encoder_handle.encode_batch(texts).await {
+                Ok(encodings) => {
+                    let encodings = encodings
+                        .into_iter()
+                        .map(PackedFloat32Array::from)
+                        .collect::<Array<_>>();
+                    emit_node
+                        .signals()
+                        .batch_encoding_finished()
+                        .emit(&encodings);
+                }
+                Err(error) => {
+                    let error = error.to_string();
+                    let error = GString::from(&error);
+                    godot_error!("Failed generating encodings: {}", error);
+                    emit_node.signals().worker_failed().emit(&error);
+                    emit_node
+                        .signals()
+                        .batch_encoding_finished()
+                        .emit(&Array::new());
+                }
+            }
+        });
+
+        godot::builtin::Signal::from_object_signal(&self.base_mut(), "batch_encoding_finished")
     }
 
     #[func]

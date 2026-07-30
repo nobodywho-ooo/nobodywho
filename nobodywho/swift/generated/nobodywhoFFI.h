@@ -430,6 +430,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(uint64_t model, 
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(uint64_t ptr, RustBuffer text
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTENCODER_ENCODE_BATCH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTENCODER_ENCODE_BATCH
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(uint64_t ptr, RustBuffer texts
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTMODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTMODEL
 uint64_t uniffi_nobodywho_uniffi_fn_clone_rustmodel(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -1256,6 +1261,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE_BATCH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE_BATCH
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(void
     
 );
 #endif

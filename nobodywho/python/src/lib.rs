@@ -668,7 +668,7 @@ impl TokenStreamAsync {
 /// `Encoder` will let you generate vector representations of text.
 /// It must be initialized with a model that specifically supports generating embeddings.
 /// A regular chat/text-generation model will not just work.
-/// Once initialized, you can call `.encode()` on a string, which returns a list of 32-bit floats.
+/// Once initialized, call `.encode()` for one string or `.encode_batch()` for multiple strings.
 /// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
@@ -726,6 +726,24 @@ impl Encoder {
         py.detach(|| {
             self.inner()
                 .encode(text)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+
+    /// Generate embedding vectors for multiple texts in input order. This method blocks until complete.
+    ///
+    /// Args:
+    ///     texts: The texts to encode
+    ///
+    /// Returns:
+    ///     One embedding vector per input text, in input order
+    ///
+    /// Raises:
+    ///     RuntimeError: If encoding fails
+    pub fn encode_batch(&self, texts: Vec<String>, py: Python) -> PyResult<Vec<Vec<f32>>> {
+        py.detach(|| {
+            self.inner()
+                .encode_batch(texts)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
     }
@@ -790,6 +808,24 @@ impl EncoderAsync {
         self.inner().encode(text).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Failed to receive embedding: {e}"
+            ))
+        })
+    }
+
+    /// Generate embedding vectors for multiple texts asynchronously.
+    ///
+    /// Args:
+    ///     texts: The texts to encode
+    ///
+    /// Returns:
+    ///     One embedding vector per input text, in input order
+    ///
+    /// Raises:
+    ///     RuntimeError: If encoding fails
+    async fn encode_batch(&self, texts: Vec<String>) -> PyResult<Vec<Vec<f32>>> {
+        self.inner().encode_batch(texts).await.map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to receive embeddings: {e}"
             ))
         })
     }

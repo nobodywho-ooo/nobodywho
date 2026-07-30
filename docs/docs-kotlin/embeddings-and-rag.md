@@ -24,6 +24,16 @@ val embedding = encoder.encode("What is the weather like?")
 println("Vector with ${embedding.size} dimensions")
 ```
 
+Use `encodeBatch` for multiple texts. It returns embeddings in input order:
+
+```kotlin
+val texts = listOf(
+    "Paris is the capital of France.",
+    "Berlin is the capital of Germany."
+)
+val embeddings = encoder.encodeBatch(texts = texts)
+```
+
 ### Comparing Embeddings
 
 Measure how similar two pieces of text are with cosine similarity:

@@ -141,6 +141,16 @@ def test_encoder_sync(encoder):
     )
 
 
+def test_encoder_batch_sync(encoder):
+    texts = ["Copenhagen is in Denmark.", "Berlin is in Germany."]
+    individual = [encoder.encode(text) for text in texts]
+    batched = encoder.encode_batch(texts)
+
+    assert len(batched) == len(texts)
+    for expected, actual in zip(individual, batched, strict=True):
+        assert actual == pytest.approx(expected, abs=1e-5)
+
+
 @pytest.mark.asyncio
 async def test_encoder_async(encoder_model):
     """Test that encoder can generate embeddings using async API"""
@@ -153,6 +163,18 @@ async def test_encoder_async(encoder_model):
     assert all(isinstance(x, float) for x in embedding), (
         "All embedding values should be floats"
     )
+
+
+@pytest.mark.asyncio
+async def test_encoder_batch_async(encoder_model):
+    encoder = nobodywho.EncoderAsync(encoder_model, n_ctx=1024)
+    texts = ["Copenhagen is in Denmark.", "Berlin is in Germany."]
+    individual = [await encoder.encode(text) for text in texts]
+    batched = await encoder.encode_batch(texts)
+
+    assert len(batched) == len(texts)
+    for expected, actual in zip(individual, batched, strict=True):
+        assert actual == pytest.approx(expected, abs=1e-5)
 
 
 def test_cosine_similarity():

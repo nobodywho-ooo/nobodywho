@@ -46,6 +46,11 @@ export class Encoder {
     return this._inner.encode(text);
   }
 
+  /** Encode multiple texts, preserving input order. */
+  async encodeBatch(texts: string[]): Promise<number[][]> {
+    return this._inner.encodeBatch(texts);
+  }
+
   /**
    * Immediately free the underlying Rust resources.
    * After calling this, the Encoder instance is no longer usable.

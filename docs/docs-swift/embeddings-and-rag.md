@@ -23,6 +23,16 @@ let similar = cosineSimilarity(a: embedding1, b: embedding2)    // High similari
 let different = cosineSimilarity(a: embedding1, b: embedding3)  // Low similarity
 ```
 
+Use `encodeBatch` for multiple texts. It returns embeddings in input order:
+
+```swift
+let texts = [
+    "Paris is the capital of France.",
+    "Berlin is the capital of Germany.",
+]
+let embeddings = try await encoder.encodeBatch(texts)
+```
+
 You can also create an encoder from an already-loaded model:
 
 ```swift
@@ -68,7 +78,7 @@ A typical RAG pipeline combines both tools:
 // 1. Embed your documents (do this once, store the results)
 let encoder = try await Encoder.fromPath(modelPath: "/path/to/embeddings.gguf", contextSize: 512, useGpu: true)
 let docs = ["Document 1...", "Document 2...", "Document 3..."]
-let docEmbeddings = try await docs.asyncMap { try await encoder.encode($0) }
+let docEmbeddings = try await encoder.encodeBatch(docs)
 
 // 2. Embed the query and find similar documents
 let queryEmbedding = try await encoder.encode("What is the return policy?")

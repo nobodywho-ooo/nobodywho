@@ -109,6 +109,28 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertEqual(tokens, [18665, 0])
     }
 
+    // MARK: - Encoder
+
+    func testEncoderBatch() async throws {
+        let modelPath = try requireEnv("TEST_EMBEDDINGS_MODEL")
+        let model = try await Model.load(modelPath: modelPath, useGpu: false)
+        let encoder = Encoder(model: model, contextSize: 1024)
+        let texts = ["Copenhagen is in Denmark.", "Berlin is in Germany."]
+        var individual: [[Float]] = []
+        for text in texts {
+            individual.append(try await encoder.encode(text))
+        }
+        let batched = try await encoder.encodeBatch(texts)
+
+        XCTAssertEqual(batched.count, texts.count)
+        for (expected, actual) in zip(individual, batched) {
+            XCTAssertEqual(expected.count, actual.count)
+            for (expectedValue, actualValue) in zip(expected, actual) {
+                XCTAssertEqual(expectedValue, actualValue, accuracy: 1e-5)
+            }
+        }
+    }
+
     // MARK: - Stats
 
     func testStats() async throws {

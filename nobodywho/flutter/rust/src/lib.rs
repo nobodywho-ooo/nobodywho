@@ -852,6 +852,14 @@ impl Encoder {
     ) -> Result<Vec<f32>, nobodywho::errors::EncoderWorkerError> {
         self.handle.encode(text).await
     }
+
+    /// Encode multiple texts, preserving input order.
+    pub async fn encode_batch(
+        &self,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, nobodywho::errors::EncoderWorkerError> {
+        self.handle.encode_batch(texts).await
+    }
 }
 
 #[flutter_rust_bridge::frb(opaque)]

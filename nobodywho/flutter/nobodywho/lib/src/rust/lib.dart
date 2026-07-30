@@ -133,6 +133,9 @@ abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});
 
+  /// Encode multiple texts, preserving input order.
+  Future<List<Float32List>> encodeBatch({required List<String> texts});
+
   /// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
   ///
   /// Args:

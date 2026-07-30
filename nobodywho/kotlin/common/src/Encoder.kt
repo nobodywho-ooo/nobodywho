@@ -28,6 +28,9 @@ class Encoder(
 
     suspend fun encode(text: String): List<Float> = inner.encode(text)
 
+    /** Encode multiple texts, preserving input order. */
+    suspend fun encodeBatch(texts: List<String>): List<List<Float>> = inner.encodeBatch(texts)
+
     /** Free the underlying Rust resources. */
     fun destroy() = inner.destroy()
     override fun close() { destroy() }

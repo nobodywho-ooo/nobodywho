@@ -13,6 +13,7 @@ use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::speculative::MtpSpeculative;
 use llama_cpp_2::token::LlamaToken;
+use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::MutexGuard;
@@ -101,14 +102,19 @@ impl<'a> EngineContext<'a> {
 }
 
 #[derive(Debug)]
+pub(crate) struct BatchCapacity {
+    pub(crate) tokens: usize,
+    pub(crate) sequences: usize,
+}
+
+#[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
     pub(crate) ctx: EngineContext<'a>,
     projection_model: Option<&'a ProjectionModel>,
     n_past: i32,
     tokenizer: Tokenizer<'a>,
-    // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
-    // Used to guard against sending more tokens than the context can decode in one batch.
-    n_batch: usize,
+    // Configured limits before llama.cpp's internal rounding.
+    batch_capacity: BatchCapacity,
     big_batch: LlamaBatch<'a>,
     small_batch: LlamaBatch<'a>,
     use_embeddings: bool,
@@ -130,17 +136,17 @@ impl<'a> InferenceEngine<'a> {
         big_batch: LlamaBatch<'a>,
         small_batch: LlamaBatch<'a>,
         projection_model: Option<&'a ProjectionModel>,
-        n_batch: usize,
+        batch_capacity: BatchCapacity,
         tokenizer: Tokenizer<'a>,
         use_embeddings: bool,
     ) -> Self {
         Self {
             n_past: 0,
             ctx,
+            batch_capacity,
             big_batch,
             small_batch,
             projection_model,
-            n_batch,
             tokenizer,
             use_embeddings,
             pending: None,
@@ -160,6 +166,75 @@ impl<'a> InferenceEngine<'a> {
     pub(crate) fn reset_mtp_stats(&mut self) {
         self.mtp_drafts_proposed = 0;
         self.mtp_drafts_accepted = 0;
+    }
+
+    pub(crate) fn read_strings_batched<T, E>(
+        &mut self,
+        texts: Vec<String>,
+        mut output_for_sequence: impl FnMut(&EngineContext<'a>, i32) -> Result<T, E>,
+    ) -> Result<Vec<T>, BatchedReadError<E>> {
+        let tokenized_inputs = texts
+            .into_iter()
+            .map(|text| {
+                let chunks = self.tokenize(text, vec![])?;
+                let mut tokens = vec![];
+                for chunk in chunks {
+                    match chunk {
+                        TokenizerChunk::Text(chunk_tokens, _) => tokens.extend(chunk_tokens),
+                        TokenizerChunk::Image(_, _) | TokenizerChunk::Audio(_, _) => {
+                            unreachable!("text tokenization produced media chunks")
+                        }
+                    }
+                }
+                Ok(tokens)
+            })
+            .collect::<Result<Vec<_>, crate::errors::TokenizationError>>()
+            .map_err(ReadError::FailedToTokenize)?;
+
+        let token_counts = tokenized_inputs.iter().map(Vec::len).collect::<Vec<_>>();
+        let ranges = embedding_batch_ranges(
+            &token_counts,
+            self.batch_capacity.tokens,
+            self.batch_capacity.sequences,
+        )?;
+        let mut outputs = Vec::with_capacity(tokenized_inputs.len());
+
+        for range in ranges {
+            self.big_batch.clear();
+            for (sequence_id, tokens) in tokenized_inputs[range.clone()].iter().enumerate() {
+                self.big_batch
+                    .add_sequence(tokens, sequence_id as i32, true)
+                    .map_err(ReadError::BatchAdd)?;
+            }
+
+            let n_tokens = self.big_batch.n_tokens();
+            let n_sequences = range.len();
+            let inference_lock_token = acquire_inference_lock();
+            self.reset_context();
+
+            let decode_span = debug_span!(
+                "read embedding batch",
+                n_tokens = n_tokens,
+                n_sequences = n_sequences
+            );
+            let decode_guard = decode_span.enter();
+            self.ctx
+                .decode(&mut self.big_batch)
+                .map_err(ReadError::Decode)?;
+            drop(decode_guard);
+
+            for sequence_id in 0..n_sequences {
+                outputs.push(
+                    output_for_sequence(&self.ctx, sequence_id as i32)
+                        .map_err(BatchedReadError::Output)?,
+                );
+            }
+            drop(inference_lock_token);
+
+            debug!(n_tokens, n_sequences, "Completed embedding batch");
+        }
+
+        Ok(outputs)
     }
 
     pub(crate) fn read_chunks(
@@ -233,10 +308,10 @@ impl<'a> InferenceEngine<'a> {
         // can't read nothing
         debug_assert!(!tokens.is_empty());
 
-        if n_tokens > self.n_batch {
+        if n_tokens > self.batch_capacity.tokens {
             return Err(ReadError::InputExceedsContext {
                 n_tokens,
-                n_ctx: self.n_batch,
+                n_ctx: self.batch_capacity.tokens,
             });
         }
 
@@ -523,5 +598,86 @@ impl<'a> InferenceEngine<'a> {
         emitted.push(pending);
         emitted.extend_from_slice(&accepted_drafts);
         Ok(emitted)
+    }
+}
+
+pub(crate) enum BatchedReadError<E> {
+    Read(ReadError),
+    Output(E),
+}
+
+impl<E> From<ReadError> for BatchedReadError<E> {
+    fn from(error: ReadError) -> Self {
+        Self::Read(error)
+    }
+}
+
+fn embedding_batch_ranges(
+    token_counts: &[usize],
+    n_batch: usize,
+    n_seq_max: usize,
+) -> Result<Vec<Range<usize>>, ReadError> {
+    let mut ranges = vec![];
+    let mut start = 0;
+
+    while start < token_counts.len() {
+        let mut end = start;
+        let mut n_tokens = 0;
+
+        while end < token_counts.len() && end - start < n_seq_max.max(1) {
+            let next_tokens = token_counts[end];
+            if next_tokens > n_batch {
+                return Err(ReadError::InputExceedsContext {
+                    n_tokens: next_tokens,
+                    n_ctx: n_batch,
+                });
+            }
+            if end > start && n_tokens + next_tokens > n_batch {
+                break;
+            }
+            n_tokens += next_tokens;
+            end += 1;
+        }
+
+        ranges.push(start..end);
+        start = end;
+    }
+
+    Ok(ranges)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embedding_batches_respect_token_capacity() {
+        assert_eq!(
+            embedding_batch_ranges(&[3, 4, 5], 7, 10).unwrap(),
+            vec![0..2, 2..3]
+        );
+    }
+
+    #[test]
+    fn embedding_batches_respect_sequence_capacity() {
+        assert_eq!(
+            embedding_batch_ranges(&[1, 1, 1, 1, 1], 10, 2).unwrap(),
+            vec![0..2, 2..4, 4..5]
+        );
+        assert_eq!(
+            embedding_batch_ranges(&[1, 1, 1], 10, 1).unwrap(),
+            vec![0..1, 1..2, 2..3]
+        );
+    }
+
+    #[test]
+    fn embedding_batches_reject_oversized_inputs() {
+        assert!(matches!(
+            embedding_batch_ranges(&[3, 8], 7, 10),
+            Err(ReadError::InputExceedsContext {
+                n_tokens: 8,
+                n_ctx: 7
+            })
+        ));
     }
 }
