@@ -108,14 +108,17 @@ jobs:
               EVT_BEFORE="${{ github.event.before }}"
               PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
               PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-              # synchronize = a new push: diff just that push (incremental).
-              # opened/reopened have no `before`, so diff the PR base once.
-              if [[ "$ACTION" == "synchronize" && -n "$EVT_BEFORE" ]]; then
+              HEAD="$PR_HEAD_SHA"
+              # synchronize = a new push: diff just that push (incremental). But
+              # a force-push/rebase orphans `before` (unreachable in the fetched
+              # history), and opened/reopened have no `before` — in both cases
+              # fall back to the PR base SHA (always reachable via the merge ref).
+              if [[ "$ACTION" == "synchronize" && -n "$EVT_BEFORE" ]] \
+                 && git cat-file -e "${EVT_BEFORE}^{commit}" 2>/dev/null; then
                 BASE="$EVT_BEFORE"
               else
                 BASE="$PR_BASE_SHA"
               fi
-              HEAD="$PR_HEAD_SHA"
               ;;
             push)
               if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
