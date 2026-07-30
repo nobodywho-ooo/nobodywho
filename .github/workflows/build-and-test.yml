@@ -39,6 +39,8 @@ jobs:
     uses: ./.github/workflows/linting.yml
 
   regen-checks:
+    needs: plan
+    if: needs.plan.outputs.run_regen == 'true'
     uses: ./.github/workflows/regen-checks.yml
 
   python-ci:

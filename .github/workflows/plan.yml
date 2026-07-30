@@ -30,13 +30,14 @@ on:
         value: ${{ jobs.plan.outputs.run_react_native }}
       run_docs:
         value: ${{ jobs.plan.outputs.run_docs }}
+      run_regen:
+        value: ${{ jobs.plan.outputs.run_regen }}
       run_release:
         value: ${{ jobs.plan.outputs.run_release }}
       is_full:
-        # True on the "run everything" events (main, tag, merge_group,
-        # dispatch full_ci, full-ci label, workflows/Cargo.lock change).
-        # Consumers use it to gate expensive-but-rarely-broken work (e.g. the
-        # visionOS/watchOS Apple targets) to full runs only.
+        # True on the "run everything" triggers (tag, merge_group, dispatch
+        # full_ci, full-ci label). Consumers use it to gate expensive work
+        # (e.g. visionOS/watchOS) to full runs only.
         value: ${{ jobs.plan.outputs.is_full }}
 
 jobs:
@@ -52,6 +53,7 @@ jobs:
       run_kotlin:        ${{ steps.decide.outputs.run_kotlin }}
       run_react_native:  ${{ steps.decide.outputs.run_react_native }}
       run_docs:          ${{ steps.decide.outputs.run_docs }}
+      run_regen:         ${{ steps.decide.outputs.run_regen }}
       run_release:       ${{ steps.decide.outputs.run_release }}
       is_full:           ${{ steps.decide.outputs.is_full }}
     steps:
@@ -155,6 +157,8 @@ jobs:
           contains '^nobodywho/kotlin/'      && out kotlin       true || out kotlin       false
           contains '^nobodywho/react-native/' && out react_native true || out react_native false
           contains '^docs/'                  && out docs         true || out docs         false
+          # regen-drift surface: anything that can change generated bindings/stubs.
+          contains '^nobodywho/(core/|uniffi/|grammar/|Cargo\.(toml|lock)$|swift/generated/|swift/Package\.swift$|kotlin/common/generated/|kotlin/.*\.gradle\.kts$|react-native/generated/|react-native/package(-lock)?\.json$)' && out regen true || out regen false
 
           {
             echo "## Path detection"
@@ -188,6 +192,7 @@ jobs:
           P_KOTLIN:         ${{ steps.paths.outputs.kotlin }}
           P_RN:             ${{ steps.paths.outputs.react_native }}
           P_DOCS:           ${{ steps.paths.outputs.docs }}
+          P_REGEN:          ${{ steps.paths.outputs.regen }}
         run: |
           set -euo pipefail
 
@@ -210,6 +215,7 @@ jobs:
           p_kotlin="${P_KOTLIN:-false}"
           p_rn="${P_RN:-false}"
           p_docs="${P_DOCS:-false}"
+          p_regen="${P_REGEN:-false}"
 
           # push to main: NOT a full run. The merge queue (merge_group below)
           # already validated this exact merged tree, so re-running the matrix
@@ -245,6 +251,9 @@ jobs:
             run_python_models=true
           fi
 
+          # regen-checks: only when the generated-binding surface changed (or full run).
+          run_regen=$(any "$everything" "$p_regen")
+
           # push to main is deploy-only: the merge queue already validated this
           # exact tree, so force every build/test bucket off and only (re)deploy
           # docs below. Without this, buckets touched by the merge commit would
@@ -258,6 +267,7 @@ jobs:
             run_swift=false
             run_kotlin=false
             run_react_native=false
+            run_regen=false
           fi
 
           # docs: deploy only on a push to main (the docs job is ref-gated to
@@ -279,6 +289,7 @@ jobs:
             echo "run_kotlin=$run_kotlin"
             echo "run_react_native=$run_react_native"
             echo "run_docs=$run_docs"
+            echo "run_regen=$run_regen"
             echo "run_release=$run_release"
             echo "is_full=$everything"
           } >> "$GITHUB_OUTPUT"

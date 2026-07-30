@@ -5,15 +5,15 @@
 ## Workflow
 
 - **Open a PR and push freely.** Each push runs only the bucket(s) whose paths it touched — cheap, fast feedback. (No draft/non-draft distinction.)
-- **Want the full matrix on the PR first?** Add the `full-ci` label or comment `/full-ci`.
-- **Merge via the merge queue.** It runs **full CI against the merged tree** — that's the gate. A push to `main` afterwards only deploys docs (the queue already validated it).
+- **Per-push CI is intentionally partial** — it's not complete or thorough, so green on a PR push does **not** mean the whole project passes. For the full matrix, add the `full-ci` label or comment `/full-ci`.
+- **Merge via the merge queue.** It runs **full CI against the merged tree** — that's the real gate, so nothing lands on `main` unvalidated even though PR runs are lean. A push to `main` afterwards only deploys docs.
 
 ## Buckets
 
 | bucket | what runs | path trigger | always on |
 |---|---|---|---|
 | `lint` | rustfmt + clippy | any | every event |
-| `regen` | uniffi/flutter regen-drift checks | any | every event |
+| `regen` | uniffi/flutter bindings regen-drift | `core/`, `uniffi/`, `grammar/`, `Cargo.*`, `*/generated/`, binding config | tag, merge queue |
 | `rust_core` | `nix flake check` | `core/` | tag, merge queue |
 | `python` | wheels + pytest + pip-install + multimodal (+ always-on static checks: ruff/ty/stubs) | `python/` | tag, merge queue |
 | `python_models` | 6-model tool-calling matrix (linux wheel only) | `core/` | tag, merge queue |
@@ -38,7 +38,7 @@ Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swif
 | push `main` | docs deploy + always-on floor only |
 | `[skip ci]` | nothing |
 
-Always-on floor (every event): lint, regen-drift, flutter doctest-drift. Concurrency: PR runs cancel on a new push; `merge_group`/`main`/tags/dispatch run to completion.
+Always-on floor (every event): lint + flutter doctest-drift. Concurrency: PR runs cancel on a new push; `merge_group`/`main`/tags/dispatch run to completion.
 
 ## macOS granularity
 
@@ -63,7 +63,7 @@ visionOS/watchOS compile ONNX Runtime from source and are swift-only, so they bu
 plan.yml            Source of truth: paths/labels/event → run_* flags.
 build-and-test.yml  Entry point: calls plan, gates children, defines `required`.
 linting.yml         Always-on rustfmt + clippy.
-regen-checks.yml    Always-on regen-drift checks.
+regen-checks.yml    Bindings regen-drift checks (gated by run_regen).
 build.yml           Per-platform cargo builds; matrix-gen computes integration + macOS matrix.
 test.yml            nix flake check (run_rust_core) + flutter tests (run_flutter) + always-on doctest-drift.
 python-ci.yml       Static checks always; wheels/tests by run_python; model matrix by run_python_models.
