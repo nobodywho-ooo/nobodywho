@@ -620,7 +620,7 @@ mod tests {
         let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
         let model = crate::llm::get_model(&path, false, None, None, None).expect("load model");
 
-        let res = SamplerPresets::json().to_stateful(&model.language_model);
+        let res = SamplerPresets::json().build_sampler(&model.language_model);
         assert!(res.is_ok(), "json preset failed: {:?}", res.err());
     }
 
