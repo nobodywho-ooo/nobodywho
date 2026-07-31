@@ -26,8 +26,9 @@ impl NobodyWhoTask {
     fn done(result: Variant);
 
     /// Await this. Resolves to the result whether completion is past or future.
+    /// Also the Rust-side entry point for value-or-Signal returns (see chat.rs).
     #[func]
-    fn wait(&self) -> Variant {
+    pub fn wait(&self) -> Variant {
         match &*self.result.borrow() {
             Some(v) => v.clone(), // latched: instant pass-through
             None => Signal::from_object_signal(&self.to_gd(), "done").to_variant(),
