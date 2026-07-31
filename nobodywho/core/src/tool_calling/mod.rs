@@ -698,7 +698,7 @@ mod tests {
 
         for (fmt, trigger) in cases {
             let lark = fmt
-                .to_lark(&[tool.clone()], None)
+                .to_lark(std::slice::from_ref(&tool), None)
                 .unwrap_or_else(|e| panic!("to_lark failed for {:?}: {}", fmt, e));
             assert!(
                 lark.starts_with("%llguidance {}"),
