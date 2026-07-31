@@ -39,7 +39,7 @@ on:
       run_release:
         value: ${{ jobs.plan.outputs.run_release }}
       is_full:
-        # True on the "run everything" triggers (tag, merge_group, dispatch
+        # True on the "run everything" triggers (push to main, tag, dispatch
         # full_ci, full-ci label). Consumers use it to gate expensive work
         # (e.g. visionOS/watchOS) to full runs only.
         value: ${{ jobs.plan.outputs.is_full }}
@@ -97,7 +97,7 @@ jobs:
       #   - PR synchronize: base = github.event.before → just that push (incremental).
       #   - PR opened/reopened/labeled: no "before", so base = PR base SHA.
       #   - push to main: base = github.event.before of the push.
-      #   - merge_group / workflow_dispatch / tag: skipped (decide forces everything).
+      #   - workflow_dispatch / tag: skipped (decide forces everything).
       - name: "Detect changed paths"
         id: paths
         run: |
@@ -225,19 +225,12 @@ jobs:
           p_docs="${P_DOCS:-false}"
           p_regen="${P_REGEN:-false}"
 
-          # push to main: NOT a full run. The merge queue (merge_group below)
-          # already validated this exact merged tree, so re-running the matrix
-          # here is pure duplication. Only main-only side effects run — docs
-          # deploy (via run_docs) and, on tags, release.
-          push_main=false
-          if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then push_main=true; fi
-
           # ---- full CI (everything) ----------------------------------------
           # A normal PR push never lands here — it runs only the buckets whose
-          # own paths changed. Full CI is authoritative/opt-in gates only:
+          # own paths changed. Full CI is the post-merge / opt-in gates:
           everything=false
+          if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then everything=true; fi  # post-merge canonical run
           if [[ "$REF" == refs/tags/nobodywho-* ]]; then everything=true; fi   # release tag
-          if [[ "$EVENT" == "merge_group" ]]; then everything=true; fi          # merge queue = the gate
           if [[ "$DISPATCH_FULL_CI" == "true" ]]; then everything=true; fi      # workflow_dispatch full_ci
           if has_label "full-ci"; then everything=true; fi                      # opt-in label / /full-ci
 
@@ -262,22 +255,6 @@ jobs:
           # regen-checks: only when the generated-binding surface changed (or full run).
           run_regen=$(any "$everything" "$p_regen")
 
-          # push to main is deploy-only: the merge queue already validated this
-          # exact tree, so force every build/test bucket off and only (re)deploy
-          # docs below. Without this, buckets touched by the merge commit would
-          # still fire via their path triggers.
-          if $push_main; then
-            run_rust_core=false
-            run_python=false
-            run_python_models=false
-            run_godot=false
-            run_flutter=false
-            run_swift=false
-            run_kotlin=false
-            run_react_native=false
-            run_regen=false
-          fi
-
           # workflow_dispatch with an explicit bucket list (a /<bucket>-ci PR
           # comment): force exactly those buckets on. Paths are empty on a
           # dispatch, so this is the sole selector.
@@ -294,9 +271,9 @@ jobs:
             has_bucket regen         && run_regen=true         || true
           fi
 
-          # docs: deploy only on a push to main (the docs job is ref-gated to
-          # main anyway, so this never fires on PRs or in the merge queue).
-          run_docs="$push_main"
+          # docs: on a full run or a docs/** change. The docs job is ref-gated
+          # to main, so this only actually deploys on a push to main.
+          run_docs=$(any "$everything" "$p_docs")
 
           # release: only on a release tag.
           run_release=false

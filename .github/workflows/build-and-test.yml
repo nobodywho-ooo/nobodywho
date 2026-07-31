@@ -5,7 +5,6 @@ on:
     tags: ['nobodywho-*']
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-  merge_group:
   workflow_dispatch:
     inputs:
       full_ci:
@@ -18,8 +17,8 @@ on:
         description: 'Space-separated bucket keys to run (set by /<bucket>-ci PR comments)'
 
 # Cancel in-flight PR runs when a new commit is pushed to that PR.
-# Don't cancel merge_group / main / tag / dispatch runs — those are
-# canonical signals we want to see through to completion.
+# Don't cancel main / tag / dispatch runs — those are canonical signals we
+# want to see through to completion.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

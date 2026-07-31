@@ -6,26 +6,26 @@
 
 - **Open a PR and push freely.** Each push runs only the bucket(s) whose paths it touched — cheap, fast feedback. (No draft/non-draft distinction.)
 - **Per-push CI is intentionally partial** — it's not complete or thorough, so green on a PR push does **not** mean the whole project passes. For the full matrix, add the `full-ci` label or comment `/full-ci`.
-- **Merge via the merge queue.** It runs **full CI against the merged tree** — that's the real gate, so nothing lands on `main` unvalidated even though PR runs are lean. A push to `main` afterwards only deploys docs.
+- **Merge on green PR checks; `main` runs the full matrix.** Because PR CI is partial, the **post-merge full run on `main`** is the real safety net — if a change breaks something its PR didn't cover, `main` goes red and you fix forward. Run `/full-ci` on the PR first when you want the full matrix before merging.
 
 ## Buckets
 
 | bucket | what runs | path trigger | always on |
 |---|---|---|---|
 | `lint` | rustfmt + clippy | any | every event |
-| `regen` | uniffi/flutter bindings regen-drift | `core/`, `uniffi/`, `grammar/`, `Cargo.*`, `*/generated/`, binding config | tag, merge queue |
-| `rust_core` | `nix flake check` | `core/` | tag, merge queue |
-| `python` | wheels + pytest + pip-install + multimodal (+ always-on static checks: ruff/ty/stubs) | `python/` | tag, merge queue |
-| `python_models` | 6-model tool-calling matrix (linux wheel only) | `core/` | tag, merge queue |
-| `godot` | godot build (linux/win/macos/android) | `godot/` | tag, merge queue |
-| `flutter` | flutter build + multimodal tests + xcframework | `flutter/` | tag, merge queue |
-| `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | tag, merge queue |
-| `kotlin` | uniffi build + JVM/Android tests | `kotlin/`, `uniffi/` | tag, merge queue |
-| `react_native` | uniffi build + RN xcframework | `react-native/`, `uniffi/` | tag, merge queue |
+| `regen` | uniffi/flutter bindings regen-drift | `core/`, `uniffi/`, `grammar/`, `Cargo.*`, `*/generated/`, binding config | main, tag |
+| `rust_core` | `nix flake check` | `core/` | main, tag |
+| `python` | wheels + pytest + pip-install + multimodal (+ always-on static checks: ruff/ty/stubs) | `python/` | main, tag |
+| `python_models` | 6-model tool-calling matrix (linux wheel only) | `core/` | main, tag |
+| `godot` | godot build (linux/win/macos/android) | `godot/` | main, tag |
+| `flutter` | flutter build + multimodal tests + xcframework | `flutter/` | main, tag |
+| `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | main, tag |
+| `kotlin` | uniffi build + JVM/Android tests | `kotlin/`, `uniffi/` | main, tag |
+| `react_native` | uniffi build + RN xcframework | `react-native/`, `uniffi/` | main, tag |
 | `docs` | docusaurus build + Cloudflare Pages deploy | — | main only |
 | `release` | publish PyPI / pub.dev / npm / Maven / Swift | — | release tag |
 
-Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`react_native`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci` or the merge queue.
+Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`react_native`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci`, or they're caught by the post-merge full run on `main`.
 
 ## Triggers
 
@@ -34,12 +34,11 @@ Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swif
 | PR push | buckets touched by that push (+ `uniffi → swift/kotlin/RN`) |
 | `full-ci` label / `/full-ci` comment / `workflow_dispatch` (full_ci) | everything |
 | `/<bucket>-ci` comment(s) | exactly the named buckets (see PR comment commands below) |
-| `merge_group` (merge queue) | everything, against the merged tree |
 | tag `nobodywho-*` | everything + release |
-| push `main` | docs deploy + always-on floor only |
+| push `main` | everything (post-merge full CI) + docs deploy |
 | `[skip ci]` | nothing |
 
-Always-on floor (every event): lint + flutter doctest-drift. Concurrency: PR runs cancel on a new push; `merge_group`/`main`/tags/dispatch run to completion.
+Always-on floor (every event): lint + flutter doctest-drift. Concurrency: PR runs cancel on a new push; `main`/tags/dispatch run to completion.
 
 ### PR comment commands
 
@@ -67,7 +66,7 @@ Example: `/swift-ci /kotlin-ci /python-ci` runs those three. `/full-ci` override
 | react-native | uniffi: iOS device/sim |
 | kotlin | none (CI tests use the Linux lib) |
 
-visionOS/watchOS compile ONNX Runtime from source and are swift-only, so they build only on full runs (`plan`'s `is_full` → `build.yml`'s `apple_extended`). Partial swift PRs package the xcframework from whatever slices exist; `swift-ci` tests the macOS slice, so it passes. The merge queue (full) verifies all 7 platforms before merge.
+visionOS/watchOS compile ONNX Runtime from source and are swift-only, so they build only on full runs (`plan`'s `is_full` → `build.yml`'s `apple_extended`). Partial swift PRs package the xcframework from whatever slices exist; `swift-ci` tests the macOS slice, so it passes. A full run (push to `main`, a tag, or `/full-ci`) verifies all 7 platforms.
 
 ## `required` aggregator
 
