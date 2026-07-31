@@ -12,6 +12,10 @@ on:
         type: boolean
         default: true
         description: 'Run full CI suite (all platforms, all tests)'
+      buckets:
+        type: string
+        default: ''
+        description: 'Space-separated bucket keys to run (set by /<bucket>-ci PR comments)'
 
 # Cancel in-flight PR runs when a new commit is pushed to that PR.
 # Don't cancel merge_group / main / tag / dispatch runs — those are
@@ -34,6 +38,7 @@ jobs:
     uses: ./.github/workflows/plan.yml
     with:
       dispatch_full_ci: ${{ github.event_name == 'workflow_dispatch' && inputs.full_ci }}
+      dispatch_buckets: ${{ (github.event_name == 'workflow_dispatch' && inputs.buckets) || '' }}
 
   linting:
     uses: ./.github/workflows/linting.yml

@@ -11,6 +11,10 @@ on:
         description: "True when build-and-test.yml was invoked via workflow_dispatch with full_ci=true."
         type: boolean
         default: false
+      dispatch_buckets:
+        description: "Space-separated bucket keys to force on (from a /<bucket>-ci PR comment)."
+        type: string
+        default: ""
     outputs:
       run_rust_core:
         value: ${{ jobs.plan.outputs.run_rust_core }}
@@ -186,6 +190,7 @@ jobs:
           REF:              ${{ github.ref }}
           LABELS:           ${{ toJSON(github.event.pull_request.labels.*.name) }}
           DISPATCH_FULL_CI: ${{ inputs.dispatch_full_ci }}
+          DISPATCH_BUCKETS: ${{ inputs.dispatch_buckets }}
           P_CORE:           ${{ steps.paths.outputs.core }}
           P_UNIFFI:         ${{ steps.paths.outputs.uniffi }}
           P_PYTHON:         ${{ steps.paths.outputs.python }}
@@ -271,6 +276,22 @@ jobs:
             run_kotlin=false
             run_react_native=false
             run_regen=false
+          fi
+
+          # workflow_dispatch with an explicit bucket list (a /<bucket>-ci PR
+          # comment): force exactly those buckets on. Paths are empty on a
+          # dispatch, so this is the sole selector.
+          if [[ -n "${DISPATCH_BUCKETS:-}" ]]; then
+            has_bucket() { [[ " $DISPATCH_BUCKETS " == *" $1 "* ]]; }
+            has_bucket rust_core     && run_rust_core=true     || true
+            has_bucket python        && run_python=true        || true
+            has_bucket python_models && run_python_models=true || true
+            has_bucket godot         && run_godot=true         || true
+            has_bucket flutter       && run_flutter=true       || true
+            has_bucket swift         && run_swift=true         || true
+            has_bucket kotlin        && run_kotlin=true        || true
+            has_bucket react_native  && run_react_native=true  || true
+            has_bucket regen         && run_regen=true         || true
           fi
 
           # docs: deploy only on a push to main (the docs job is ref-gated to
