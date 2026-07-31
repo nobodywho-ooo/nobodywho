@@ -4,6 +4,7 @@ use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::prelude::*;
 
 mod convert;
+mod model;
 mod task;
 
 // --- Logging -----------------------------------------------------------------
