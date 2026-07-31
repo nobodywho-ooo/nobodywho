@@ -3,6 +3,7 @@ use godot::prelude::*;
 use tracing_subscriber::filter::{LevelFilter, Targets};
 use tracing_subscriber::prelude::*;
 
+mod chat;
 mod convert;
 mod model;
 mod task;
