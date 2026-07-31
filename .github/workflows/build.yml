@@ -163,9 +163,11 @@ jobs:
       - name: "Cache Cargo Home"
         uses: actions/cache@v5
         with:
+          # The build moves sources to C:/ and compiles into --target-dir C:/t
+          # (see the build step). Cache C:/t, not nobodywho/target (empty here).
           path: |
             ~/.cargo
-            nobodywho/target
+            C:/t
           key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-

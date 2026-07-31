@@ -190,9 +190,22 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v5
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v5
+        with:
+          # The build moves sources to C:/ and maturin compiles into C:/target
+          # (see the build step + wheel artifact path). setup-rust-toolchain's
+          # built-in cache targets the pre-move workspace, so disable it below.
+          path: |
+            ~/.cargo
+            C:/target
+          key: ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
+          cache: false
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -325,10 +338,12 @@ jobs:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
         run: |
           source .venv/bin/activate
-          # python bindings tests (model downloading has its own dedicated job)
-          python3 -m pytest --ignore=tests/test_model_downloading.py
+          # bindings tests; model-downloading and multimodal have dedicated jobs
+          python3 -m pytest --durations=30 \
+            --ignore=tests/test_model_downloading.py \
+            --ignore=tests/test_multimodal.py
           # docs tests
-          python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences
+          python3 -m pytest --durations=30 --markdown-docs ../../docs --markdown-docs-syntax=superfences
       - name: Save test model cache
         if: success() && steps.test-model-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
