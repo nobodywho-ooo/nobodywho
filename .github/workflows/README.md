@@ -32,13 +32,29 @@ Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swif
 | trigger | runs |
 |---|---|
 | PR push | buckets touched by that push (+ `uniffi → swift/kotlin/RN`) |
-| `full-ci` label / `/full-ci` / `workflow_dispatch` (full_ci) | everything |
+| `full-ci` label / `/full-ci` comment / `workflow_dispatch` (full_ci) | everything |
+| `/<bucket>-ci` comment(s) | exactly the named buckets (see PR comment commands below) |
 | `merge_group` (merge queue) | everything, against the merged tree |
 | tag `nobodywho-*` | everything + release |
 | push `main` | docs deploy + always-on floor only |
 | `[skip ci]` | nothing |
 
 Always-on floor (every event): lint + flutter doctest-drift. Concurrency: PR runs cancel on a new push; `merge_group`/`main`/tags/dispatch run to completion.
+
+### PR comment commands
+
+Comment on a PR to run CI by hand (write/admin only). The comment must be **only** slash-commands, whitespace/newline separated — any other text, or any unknown command, is rejected and nothing runs. Multiple commands combine.
+
+| comment | runs |
+|---|---|
+| `/full-ci` | everything (shows a `full-ci` label while running) |
+| `/core-ci` | `rust_core` |
+| `/python-ci` | `python` |
+| `/python-models-ci` | `python_models` |
+| `/godot-ci` `/flutter-ci` `/swift-ci` `/kotlin-ci` `/react-native-ci` | that binding |
+| `/regen-ci` | `regen` |
+
+Example: `/swift-ci /kotlin-ci /python-ci` runs those three. `/full-ci` overrides any others in the same comment.
 
 ## macOS granularity
 
@@ -70,7 +86,8 @@ python-ci.yml       Static checks always; wheels/tests by run_python; model matr
 swift-ci.yml        Swift tests. kotlin-ci.yml  Kotlin/Android tests. (both gated upstream)
 docs.yml            Docusaurus deploy (main only).
 release.yml         Package publish (release tag).
-full-ci-comment.yml `/full-ci` comment → label + dispatch full CI.
+ci-command.yml      Parses /<bucket>-ci PR comments (strict; hard-rejects unknown) →
+                    dispatches build-and-test with the selected buckets.
 ai-review.yml       `/ai-review` comment. (independent, not plan-gated)
 rust-install-test.yml / test-npm-publish.yml  Standalone smoke tests (dispatch only).
 ```
