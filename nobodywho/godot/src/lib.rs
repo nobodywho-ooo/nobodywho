@@ -6,6 +6,7 @@ use tracing_subscriber::prelude::*;
 mod chat;
 mod convert;
 mod model;
+mod sampler;
 mod task;
 
 // --- Logging -----------------------------------------------------------------
