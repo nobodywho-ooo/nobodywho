@@ -1,0 +1,31 @@
+name: "Flutter native lib"
+description: >-
+  Download the prebuilt Linux flutter cdylib + its dynamic-link ggml/llama libs
+  from the build job, set up Flutter, and expose the libs via LD_LIBRARY_PATH.
+  Tests then exercise the shipped artifact rather than a local rebuild.
+runs:
+  using: "composite"
+  steps:
+    - name: Download flutter Linux artifact
+      uses: actions/download-artifact@v5
+      with:
+        name: nobodywho-flutter-x86_64-unknown-linux-gnu-release
+        path: ./native-lib
+    - name: Name the cdylib for flutter_rust_bridge
+      shell: bash
+      run: |
+        # frb dlopens the bare name `libnobodywho_flutter.so`; the sibling ggml/llama
+        # libs (unversioned, $ORIGIN rpath) resolve from the same dir.
+        cp ./native-lib/libnobodywho-flutter-x86_64-unknown-linux-gnu-release.so \
+          ./native-lib/libnobodywho_flutter.so
+        echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/native-lib" >> "$GITHUB_ENV"
+    - name: Install Vulkan runtime
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libvulkan1
+    - name: Setup Flutter SDK
+      uses: flutter-actions/setup-flutter@v4
+      with:
+        channel: stable
+        version: 3.35.5

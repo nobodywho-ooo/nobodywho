@@ -184,14 +184,38 @@ jobs:
           cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
       - name: Build linux python wheel
+        # Skip maturin's auditwheel (it can't graft the inter-dependent ggml libs — the next
+        # step vendors them). --compatibility forces the manylinux_2_34 tag (skip alone tags `linux`).
         run: |
           source "$HOME/.cargo/env"
-          maturin build --verbose --release --locked
+          maturin build --verbose --release --locked \
+            --auditwheel skip --compatibility manylinux_2_34
         working-directory: ./nobodywho/python
 
-      - name: Repair wheel to use manylinux
-        # auditwheel bundles external libraries and verifies manylinux compliance
-        run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
+      - name: Bundle native libs into the wheel
+        # Vendor the ggml/llama libs + OpenMP runtime next to the extension, each with an
+        # $ORIGIN rpath. libstdc++/libc/libm/Vulkan stay system.
+        run: |
+          set -eux
+          pip3 install wheel
+          whl="$(ls nobodywho/target/wheels/nobodywho*.whl)"
+          work="$(mktemp -d)"
+          python3 -m wheel unpack "$whl" -d "$work"
+          pkg="$(echo "$work"/nobodywho-*/)"
+          extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
+
+          # ggml/llama .so are nested in the build tree, so gather them recursively.
+          find "$(pwd)/nobodywho/target/release" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} "$extdir/" \;
+          # Bundle the OpenMP runtime (ggml-cpu needs libgomp.so.1); fail loudly if absent.
+          gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
+          if [ -z "$gomp" ]; then echo "libgomp.so.1 not found — cannot bundle OpenMP runtime" >&2; exit 1; fi
+          cp "$gomp" "$extdir"/libgomp.so.1
+          # Give the extension its own $ORIGIN rpath (the job's RUSTFLAGS override drops the config one).
+          find "$pkg" -name '*.abi3.so' -exec patchelf --set-rpath '$ORIGIN' {} \;
+
+          mkdir -p wheelhouse
+          python3 -m wheel pack "$pkg" -d wheelhouse
+          ls -l wheelhouse "$extdir"
 
       - name: Upload wheel
         uses: actions/upload-artifact@v5
@@ -265,11 +289,20 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+      - name: "Delvewheel repair (bundle ggml/llama DLLs)"
+        # --add-path points delvewheel at the built DLLs (in the short C:/target dir).
+        # delvewheel follows the DLL link graph; the dlopen'd backend modules (ggml-cpu-*.dll,
+        # ggml-vulkan.dll — GGML_BACKEND_DL) aren't in it, so force-include them by name
+        # (also carries ggml-base.dll under its real name, which the modules import at load).
+        run: |
+          pip install delvewheel
+          $mods = ((Get-ChildItem "C:/target/${{ matrix.target }}/release/ggml-*.dll").Name) -join ';'
+          delvewheel repair --add-path C:/target/${{ matrix.target }}/release --include "$mods" -w C:/wheelhouse (Get-Item C:/target/wheels/nobodywho*.whl).FullName
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
-          path: C:/target/wheels/nobodywho*.whl
+          path: C:/wheelhouse/nobodywho*.whl
 
   mac-os-build:
     if: inputs.run_python
@@ -298,11 +331,35 @@ jobs:
         run: maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
 
+      - name: "Delocate wheel (bundle ggml/llama dylibs + backend modules)"
+        # delocate vendors the DT_NEEDED dylib graph. The dlopen'd backend modules
+        # (libggml-*.so — GGML_BACKEND_DL) aren't in that graph, so insert them next to the
+        # extension BEFORE delocate; delocate then rewrites their @rpath libggml-base.dylib
+        # ref into nobodywho.dylibs/. DYLD_*_LIBRARY_PATH points delocate at the built dylibs.
+        run: |
+          set -eux
+          pip3 install delocate wheel
+          rel="$(pwd)/nobodywho/target/aarch64-apple-darwin/release"
+          # newest match: a cached target/wheels/ can hold wheels from a prior version, and
+          # `wheel unpack` takes a single wheel (unlike the multi-arg delocate-wheel below).
+          whl="$(ls -t nobodywho/target/wheels/nobodywho*.whl | head -1)"
+          work="$(mktemp -d)"
+          python3 -m wheel unpack "$whl" -d "$work"
+          pkg="$(echo "$work"/nobodywho-*/)"
+          extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
+          cp "$rel"/libggml-*.so "$extdir/"
+          mkdir -p repacked
+          python3 -m wheel pack "$pkg" -d repacked
+          export DYLD_LIBRARY_PATH="$rel:${DYLD_LIBRARY_PATH:-}"
+          export DYLD_FALLBACK_LIBRARY_PATH="$DYLD_LIBRARY_PATH"
+          mkdir -p wheelhouse
+          delocate-wheel -w wheelhouse -v repacked/nobodywho*.whl
+
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_macos
-          path: ./nobodywho/target/wheels/nobodywho*.whl
+          path: ./wheelhouse/nobodywho*.whl
 
   linux-pytest:
     if: inputs.run_python
@@ -380,6 +437,66 @@ jobs:
           # wheel is ~5x the work (each example re-run per version) and semantically
           # odd (old examples vs new code). Edited docs live in docs-python.
           python3 -m pytest --durations=30 --markdown-docs ../../docs/docs-python --markdown-docs-syntax=superfences
+
+  # Runtime smoke tests for the Windows/macOS wheels. Unlike Linux (which vendors the
+  # backend modules with an explicit `find … cp`), those wheels are repaired by
+  # delvewheel/delocate, which only follow the link graph — the dlopen'd backend modules
+  # aren't in it. A model load + generation is the only thing that proves the repaired
+  # wheel actually carries a working backend, so run one blocking generation off the
+  # published wheel; a missing backend fails here instead of silently on PyPI.
+  macos-pytest:
+    if: inputs.full_ci
+    needs: [mac-os-build]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Download wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_macos
+          path: ./wheels
+      - name: Download test model
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf -o models/model.gguf
+      - name: Install wheel and run smoke test
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/model.gguf
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pip install ../../wheels/nobodywho*.whl
+          python -m pytest tests/test_nobodywho.py -k test_blocking_completed -v
+
+  windows-pytest:
+    if: inputs.full_ci
+    needs: [windows-build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Download wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_windows_x86_64-pc-windows-msvc
+          path: ./wheels
+      - name: Download test model
+        run: |
+          mkdir models
+          curl.exe -L --fail https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf -o models/model.gguf
+      - name: Install wheel and run smoke test
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/model.gguf
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pip install (Get-ChildItem ../../wheels/nobodywho*.whl).FullName
+          python -m pytest tests/test_nobodywho.py -k test_blocking_completed -v
 
   linux-multimodal-tests:
     if: inputs.run_python

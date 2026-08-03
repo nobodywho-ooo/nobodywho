@@ -69,3 +69,33 @@ jobs:
           NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
         run: ./gradlew :nobodywho-core:test
+
+      # Bundle the binding + ggml/llama siblings into the JVM JAR resources (JNA layout), mirroring release.
+      - name: "Bundle native libs into JVM JAR resources"
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          d=./native-lib
+          dest=nobodywho/kotlin/jvm/src/main/resources/linux-x86-64
+          mkdir -p "$dest"
+          cp "$d/libnobodywho_uniffi.so" "$dest/"
+          libs=("$d"/libggml* "$d"/libllama*)
+          [ ${#libs[@]} -eq 0 ] || cp -P "${libs[@]}" "$dest/"
+          # jvmSmoke below would catch a missing sibling as an UnsatisfiedLinkError; assert
+          # here so the failure names the missing file instead. Mirrors release.yml.
+          # Quote glob entries so the `for` list doesn't nullglob-expand them against cwd;
+          # match them against $dest with compgen instead. libggml-cpu is per-microarch under
+          # GGML_CPU_ALL_VARIANTS, so there's no plain libggml-cpu.so — only libggml-cpu-*.so.
+          for f in libggml.so libggml-base.so "libggml-cpu*.so" libggml-vulkan.so libllama.so libllama-common.so; do
+            case "$f" in
+              *'*'*) compgen -G "$dest/$f" >/dev/null || { echo "::error::no $f in the uniffi build artifact"; exit 1; } ;;
+              *)     [ -f "$dest/$f" ]       || { echo "::error::$f missing from the uniffi build artifact"; exit 1; } ;;
+            esac
+          done
+
+      # Load the packaged JAR the way a real consumer does — no NOBODYWHO_LIB_DIR /
+      # jna.library.path shim — so the NativeLoader must resolve the sibling libs from the
+      # JAR. Catches release-only UnsatisfiedLinkError the co-located unit tests can't.
+      - name: "Run JVM packaging smoke test"
+        working-directory: ./nobodywho/kotlin
+        run: ./gradlew :jvm:jvmSmoke

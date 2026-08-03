@@ -3,6 +3,17 @@ entry_symbol = "gdext_rust_init"
 compatibility_minimum = 4.5
 reloadable = true
 
+# Per-target subdirectory: the ggml/llama libs (dynamic-link feature) have generic
+# filenames (libggml.so, ...) that would collide between same-OS architectures
+# (linux x86_64 vs arm64) in a flat dir. The binding's $ORIGIN/@loader_path rpath
+# finds its siblings in the same dir.
+#
+# macOS is the exception: both arches share one apple-darwin/ dir holding universal
+# (lipo'd) ggml/llama dylibs. Godot resolves [libraries] by most-specific tag match
+# but [dependencies] by *first* match (find_extension_dependencies breaks on the
+# first matching tag set), and the macos.debug/macos.release keys carry no arch tag,
+# so they always win over macos.*.arm64. An arch-split macOS dylib set is therefore
+# unexpressible: the arm64 binding would always be paired with x86_64 dylibs.
 [libraries]
 linux.debug.x86_64 =     "res://addons/nobodywho/libnobodywho-godot-x86_64-unknown-linux-gnu-release.so"
 linux.release.x86_64 =   "res://addons/nobodywho/libnobodywho-godot-x86_64-unknown-linux-gnu-release.so"

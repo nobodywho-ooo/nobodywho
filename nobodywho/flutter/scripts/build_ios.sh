@@ -92,86 +92,31 @@ fi
 echo ""
 echo "Step 4/4: Creating XCFramework..."
 
-# Create universal simulator dynamic library
-mkdir -p "$TARGET_DIR/universal-ios-sim/$BUILD_TYPE"
-lipo -create \
-    "$TARGET_DIR/aarch64-apple-ios-sim/$BUILD_TYPE/libnobodywho_flutter.dylib" \
-    "$TARGET_DIR/x86_64-apple-ios/$BUILD_TYPE/libnobodywho_flutter.dylib" \
-    -output "$TARGET_DIR/universal-ios-sim/$BUILD_TYPE/libnobodywho_flutter.dylib"
+SCRIPTS="$(cd "$(dirname "$0")/../.." && pwd)/scripts"
+HELPER="$SCRIPTS/make-apple-framework.sh"
 
-# Set install name for iOS simulator
-install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter \
-    "$TARGET_DIR/universal-ios-sim/$BUILD_TYPE/libnobodywho_flutter.dylib"
+# Universal iOS simulator source dir: lipo binding + each ggml/llama dylib.
+USIM="$TARGET_DIR/universal-ios-sim/$BUILD_TYPE"
+SIM_ARM="$TARGET_DIR/aarch64-apple-ios-sim/$BUILD_TYPE"
+SIM_X64="$TARGET_DIR/x86_64-apple-ios/$BUILD_TYPE"
+mkdir -p "$USIM"
+lipo -create "$SIM_ARM/libnobodywho_flutter.dylib" "$SIM_X64/libnobodywho_flutter.dylib" \
+    -output "$USIM/libnobodywho_flutter.dylib"
+bash "$SCRIPTS/lipo-apple-libs.sh" "$SIM_ARM" "$SIM_X64" "$USIM"
 
-# Create iOS simulator framework structure
-IOS_SIM_FRAMEWORK="$TARGET_DIR/universal-ios-sim/$BUILD_TYPE/nobodywho_flutter.framework"
-mkdir -p "$IOS_SIM_FRAMEWORK"
-cp "$TARGET_DIR/universal-ios-sim/$BUILD_TYPE/libnobodywho_flutter.dylib" \
-    "$IOS_SIM_FRAMEWORK/nobodywho_flutter"
+IOS_SIM_OUT="$USIM/fw"; rm -rf "$IOS_SIM_OUT"; mkdir -p "$IOS_SIM_OUT"
+bash "$HELPER" "$USIM" libnobodywho_flutter.dylib nobodywho_flutter flat "$IOS_SIM_OUT" "" ooo.nobodywho.flutter
 
-# Create Info.plist for simulator framework
-cat > "$IOS_SIM_FRAMEWORK/Info.plist" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>nobodywho_flutter</string>
-    <key>CFBundleIdentifier</key>
-    <string>ooo.nobodywho.flutter</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>nobodywho_flutter</string>
-    <key>CFBundlePackageType</key>
-    <string>FMWK</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-</dict>
-</plist>
-EOF
-
-# Set install name for iOS device
-install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter \
-    "$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE/libnobodywho_flutter.dylib"
-
-# Create iOS device framework structure
-IOS_DEVICE_FRAMEWORK="$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE/nobodywho_flutter.framework"
-mkdir -p "$IOS_DEVICE_FRAMEWORK"
-cp "$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE/libnobodywho_flutter.dylib" \
-    "$IOS_DEVICE_FRAMEWORK/nobodywho_flutter"
-
-# Create Info.plist for device framework
-cat > "$IOS_DEVICE_FRAMEWORK/Info.plist" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>nobodywho_flutter</string>
-    <key>CFBundleIdentifier</key>
-    <string>ooo.nobodywho.flutter</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>nobodywho_flutter</string>
-    <key>CFBundlePackageType</key>
-    <string>FMWK</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-</dict>
-</plist>
-EOF
+IOS_DEV_OUT="$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE/fw"; rm -rf "$IOS_DEV_OUT"; mkdir -p "$IOS_DEV_OUT"
+bash "$HELPER" "$TARGET_DIR/aarch64-apple-ios/$BUILD_TYPE" libnobodywho_flutter.dylib \
+    nobodywho_flutter flat "$IOS_DEV_OUT" "" ooo.nobodywho.flutter
 
 # Clean existing xcframework
 rm -rf "$XCFRAMEWORK_OUTPUT"
 
-# Create XCFramework
 xcodebuild -create-xcframework \
-    -framework "$IOS_DEVICE_FRAMEWORK" \
-    -framework "$IOS_SIM_FRAMEWORK" \
+    -framework "$IOS_DEV_OUT/nobodywho_flutter.framework" \
+    -framework "$IOS_SIM_OUT/nobodywho_flutter.framework" \
     -output "$XCFRAMEWORK_OUTPUT"
 
 echo ""

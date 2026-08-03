@@ -152,8 +152,20 @@ val resolveNativeLibraries by tasks.registering {
 
             copyLibcxxShared(abi, abiOutputDir)
 
+            // Copy the ggml/llama siblings into jniLibs/<abi>, where the Android loader resolves NEEDED libs.
+            val resolvedLibDir = File(resolvedLibPath).parentFile
+            copy {
+                from(resolvedLibDir) {
+                    // libonnxruntime.so exists for x86_64 android only (arm64 links ORT statically).
+                    include("libggml*.so", "libllama*.so", "libonnxruntime*.so")
+                }
+                into(abiOutputDir)
+            }
+
             // Only x86_64 needs onnxruntime as a separate .so (Microsoft ships
             // no static build for it); arm64 statically embeds it (see objdump -p).
+            // Runs after the sibling glob: this one comes from the Maven AAR
+            // (a separate cache dir, not resolvedLibDir), so it is authoritative.
             if (abi == "x86_64") {
                 val resolvedOrtPath = resolveLibrary(abi, "onnxruntime")
                 logger.lifecycle("[$abi] Resolved onnxruntime library: $resolvedOrtPath")

@@ -32,13 +32,103 @@ jobs:
   
         - name: "Make directory structure for release zip"
           run: |
-            mkdir -p nobodywho-release/bin/addons/nobodywho
-            # copy in nobodywho libs
-            cp ./artifacts/*/*nobodywho-godot* ./nobodywho-release/bin/addons/nobodywho/
+            set -euo pipefail
+            shopt -s nullglob
+            ADDON=nobodywho-release/bin/addons/nobodywho
+            UNIVERSAL=./artifacts/nobodywho-godot-macos-universal-dylibs
+            mkdir -p "$ADDON"
+
+            # Per-target subdir: the ggml/llama libs have generic filenames that would collide
+            # between same-OS arches in a flat dir; the binding's rpath finds its siblings there.
+            # Both macOS arches share apple-darwin/ with one universal ggml set — see the
+            # comments in nobodywho.gdextension for why an arch-split set can't work there.
+            addon_dir() {
+              case "$1" in
+                *-apple-darwin) echo "$ADDON/apple-darwin" ;;
+                *)              echo "$ADDON/$1" ;;
+              esac
+            }
+
+            for d in ./artifacts/nobodywho-godot-*/; do
+              name=$(basename "$d"); rest=${name#nobodywho-godot-}
+              # not a per-target build artifact; handled below
+              if [ "$rest" = "macos-universal-dylibs" ]; then continue; fi
+              triple=${rest%-debug}; triple=${triple%-release}
+              dest=$(addon_dir "$triple")
+              mkdir -p "$dest"
+              # binding library (+ .pdb) — profile-encoded name, debug & release coexist
+              bindings=("$d"/*nobodywho-godot*)
+              [ ${#bindings[@]} -gt 0 ] || { echo "::error::no binding library in $d"; exit 1; }
+              cp -P "${bindings[@]}" "$dest/"
+            done
+
+            # ggml/llama: copy once per target from the release artifact (a debug binding loads
+            # the release ggml — same ABI). Covers lib-prefixed (.so/.dylib) and MSVC (.dll) names.
+            for d in ./artifacts/nobodywho-godot-*-release/; do
+              name=$(basename "$d"); triple=${name#nobodywho-godot-}; triple=${triple%-release}
+              # macOS takes the lipo'd set from build-godot-macos-universal instead
+              case "$triple" in *-apple-darwin) continue ;; esac
+              libs=("$d"/libggml* "$d"/libllama* "$d"/ggml* "$d"/llama*)
+              [ ${#libs[@]} -gt 0 ] || { echo "::error::no ggml/llama libs in $d"; exit 1; }
+              cp -P "${libs[@]}" "$(addon_dir "$triple")/"
+            done
+
+            # Include the dlopen'd backend modules (*.so: libggml-metal.so, libggml-cpu-*.so),
+            # not just the DT_NEEDED *.dylib graph — under GGML_BACKEND_DL the backends are modules.
+            universal_libs=("$UNIVERSAL"/*.dylib "$UNIVERSAL"/*.so)
+            [ ${#universal_libs[@]} -gt 0 ] || { echo "::error::no universal macOS libs in $UNIVERSAL"; exit 1; }
+            mkdir -p "$ADDON/apple-darwin"
+            cp -P "${universal_libs[@]}" "$ADDON/apple-darwin/"
+
             # copy in gdextension metadata
-            cp ./nobodywho/godot/nobodywho.gdextension ./nobodywho-release/bin/addons/nobodywho/
-            cp ./assets/icon.svg ./nobodywho-release/bin/addons/nobodywho/
+            cp ./nobodywho/godot/nobodywho.gdextension "$ADDON/"
+            cp ./assets/icon.svg "$ADDON/"
             cp ./LICENSE ./nobodywho-release/bin/addons/nobodywho/
+
+            # Generate [dependencies] from the libs actually present in each per-target
+            # subdir (the CPU-variant set differs per arch — see nobodywho.gdextension).
+            # Godot bundles these next to the binding on export; the empty destination
+            # keeps them in the binding's dir, where its rpath / load_backends_from_path find them.
+            gd="$ADDON/nobodywho.gdextension"
+            printf '\n[dependencies]\n' >> "$gd"
+            emit_deps() { # $1=platform  $2=arch (may be empty)  $3=addon subdir
+              local dir="$ADDON/$3"; [ -d "$dir" ] || return 0
+              local entries=""
+              for f in "$dir"/libggml* "$dir"/libllama* "$dir"/ggml* "$dir"/llama*; do
+                [ -e "$f" ] || continue
+                case "$(basename "$f")" in *nobodywho-godot*) continue ;; esac
+                entries="$entries\"res://addons/nobodywho/$3/$(basename "$f")\": \"\", "
+              done
+              entries="${entries%, }"
+              for cfg in debug release; do
+                local key="$1.$cfg"; [ -n "$2" ] && key="$key.$2"
+                echo "$key = { $entries }" >> "$gd"
+              done
+            }
+            emit_deps linux   x86_64 x86_64-unknown-linux-gnu
+            emit_deps linux   arm64  aarch64-unknown-linux-gnu
+            emit_deps windows x86_64 x86_64-pc-windows-msvc
+            emit_deps macos   ""     apple-darwin
+            emit_deps macos   arm64  apple-darwin
+            emit_deps android arm64  aarch64-linux-android
+
+        - name: "Verify the addon has every file the .gdextension references"
+          # The godot bundle has no downstream load test (unlike flutter/kotlin/apple), so a
+          # missing ggml lib would otherwise ship silently and only surface as a user report.
+          # Every res:// path in [libraries], [dependencies] and [icons] must exist.
+          run: |
+            set -euo pipefail
+            grep -o 'res://[^"]*' nobodywho-release/bin/addons/nobodywho/nobodywho.gdextension | sort -u > refs.txt
+            missing=0
+            while read -r ref; do
+              path="nobodywho-release/bin/${ref#res://}"
+              if [ ! -e "$path" ]; then echo "missing: $ref"; missing=1; fi
+            done < refs.txt
+            [ "$missing" -eq 0 ] || {
+              echo "::error::godot addon is missing files referenced by nobodywho.gdextension"
+              exit 1
+            }
+            echo "all $(wc -l < refs.txt) referenced files present"
         - name: "Upload zipped godot build artifacts"
           uses: actions/upload-artifact@v7
           with:
@@ -167,19 +257,45 @@ jobs:
       - name: "Download all Flutter artifacts"
         uses: actions/download-artifact@v5
         with:
+          # No merge-multiple: generically-named ggml/llama libs would collide across targets.
           pattern: nobodywho-flutter-*
-          merge-multiple: true
-          path: ./nobodywho-flutter-release
+          path: ./artifacts
 
-      - name: "List artifacts to include in release"
-        run: ls -la ./nobodywho-flutter-release/
+      - name: "Assemble Flutter release assets"
+        run: |
+          set -euo pipefail
+          OUT=nobodywho-flutter-release
+          mkdir -p "$OUT"
+          # Apple xcframework (ggml embedded inside — shipped as one zip)
+          cp artifacts/nobodywho-flutter-xcframework/nobodywho_flutter.xcframework.zip "$OUT/"
+          # Desktop/Android: republish the binding + ggml/llama libs per-triple
+          # (base-<triple>-release.ext), matching what tool/resolve_binary.dart downloads.
+          for d in artifacts/nobodywho-flutter-*-release/; do
+            name=$(basename "$d"); triple=${name#nobodywho-flutter-}; triple=${triple%-release}
+            [ "$triple" = "xcframework" ] && continue
+            # Apple triples ship inside the xcframework zip above. Publishing their bare
+            # .dylib here would emit an asset nothing downloads (resolve_binary.dart takes
+            # the xcframework branch for ios/macos) and that cannot load anyway, since the
+            # sibling loop below only globs .so/.dll.
+            case "$triple" in *-apple-*) continue ;; esac
+            cp "$d"/libnobodywho-flutter-"$triple"-release.* "$OUT/"
+            # Manifest: the exact sibling-lib set for this triple (CPU variants included),
+            # so tool/resolve_binary.dart downloads them without a hardcoded list.
+            manifest="$OUT/nobodywho-siblings-$triple.txt"; : > "$manifest"
+            for f in "$d"/libggml*.so "$d"/libllama*.so "$d"/ggml*.dll "$d"/llama*.dll "$d"/libonnxruntime*.so; do
+              [ -e "$f" ] || continue
+              b=$(basename "$f"); stem=${b%.*}; ext=${b##*.}
+              cp "$f" "$OUT/${stem}-${triple}-release.${ext}"
+              echo "$b" >> "$manifest"
+            done
+          done
+          ls -la "$OUT"
 
       - name: "Verify XCFramework zip is present"
         working-directory: ./nobodywho-flutter-release
         run: |
           if [ ! -f "nobodywho_flutter.xcframework.zip" ]; then
             echo "ERROR: nobodywho_flutter.xcframework.zip not found!"
-            echo "Contents of release directory:"
             ls -la .
             exit 1
           fi
@@ -211,13 +327,13 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-aarch64-linux-android-release
-          path: ./nobodywho-react-native-release
+          path: ./rn-android-arm64
 
       - name: "Download Android x86_64 artifact"
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-uniffi-x86_64-linux-android-release
-          path: ./nobodywho-react-native-release
+          path: ./rn-android-x64
 
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v5
@@ -225,11 +341,28 @@ jobs:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
 
-      - name: "Keep only React Native artifacts (.so and xcframework)"
+      - name: "Collect React Native release assets"
         run: |
-          cd nobodywho-react-native-release
-          rm -f *.a *.dll *.dylib *.pdb
-          ls -la
+          set -euo pipefail
+          OUT=nobodywho-react-native-release
+          # Republish the generically-named ggml/llama .so with a triple suffix — release
+          # assets are a flat namespace where libggml.so from two ABIs would collide. The
+          # Android gradle downloader renames them back to their SONAME in jniLibs.
+          collect() { # $1=src-dir  $2=triple
+            cp "$1/libnobodywho-uniffi-$2-release.so" "$OUT/"
+            # Manifest: the exact sibling-lib set for this ABI (CPU variants + onnxruntime
+            # where present), so android/build.gradle downloads them without a hardcoded list.
+            local manifest="$OUT/nobodywho-siblings-$2.txt"; : > "$manifest"
+            for so in "$1"/libggml*.so "$1"/libllama*.so "$1"/libonnxruntime*.so; do
+              [ -e "$so" ] || continue
+              b=$(basename "$so" .so)
+              cp "$so" "$OUT/${b}-$2.so"
+              echo "${b}.so" >> "$manifest"
+            done
+          }
+          collect ./rn-android-arm64 aarch64-linux-android
+          collect ./rn-android-x64  x86_64-linux-android
+          ls -la "$OUT"
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
@@ -330,34 +463,80 @@ jobs:
       - name: "Download all uniffi release artifacts"
         uses: actions/download-artifact@v5
         with:
+          # No merge-multiple: generically-named ggml/llama libs would collide across targets.
           pattern: nobodywho-uniffi-*-release
-          merge-multiple: true
           path: ./artifacts
 
       - name: "List artifacts"
         run: ls -la artifacts/
 
-      # Place Android native libs for AAR
+      # Place Android native libs for the AAR; the loader resolves NEEDED libs from jniLibs/<abi>.
+      # The trailing filenames are the ggml/llama siblings that MUST be present: they are
+      # NEEDED entries of the binding, and neither the AAR nor the darwin/win32 JARs have a
+      # downstream smoke test, so a build regression that drops one has to fail here rather
+      # than reach users as an UnsatisfiedLinkError.
       - name: "Setup Android jniLibs"
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           mkdir -p nobodywho/kotlin/android/build/jniLibs/{arm64-v8a,x86_64}
-          cp artifacts/libnobodywho-uniffi-aarch64-linux-android-release.so \
-            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/libnobodywho_uniffi.so
-          cp artifacts/libnobodywho-uniffi-x86_64-linux-android-release.so \
-            nobodywho/kotlin/android/build/jniLibs/x86_64/libnobodywho_uniffi.so
+          place_android() { # $1=target $2=abi $3...=required sibling filenames
+            local d="artifacts/nobodywho-uniffi-$1-release"
+            local dest="nobodywho/kotlin/android/build/jniLibs/$2"
+            cp "$d/libnobodywho-uniffi-$1-release.so" "$dest/libnobodywho_uniffi.so"
+            # nullglob: an empty set would make cp bail with a usage error instead of the
+            # per-file diagnostic below, so only copy what matched.
+            local libs=("$d"/libggml*.so "$d"/libllama*.so)
+            [ ${#libs[@]} -eq 0 ] || cp -P "${libs[@]}" "$dest/"
+            # libonnxruntime.so ships for x86_64 only (arm64 links ORT statically).
+            local ort=("$d"/libonnxruntime*.so)
+            [ ${#ort[@]} -eq 0 ] || cp -P "${ort[@]}" "$dest/"
+            local abi=$2; shift 2
+            for f in "$@"; do
+              case "$f" in
+                *'*'*) compgen -G "$dest/$f" >/dev/null || { echo "::error::no $f in $d ($abi AAR)"; exit 1; } ;;
+                *)     [ -f "$dest/$f" ]       || { echo "::error::$f missing from $d ($abi AAR)"; exit 1; } ;;
+              esac
+            done
+          }
+          # libggml-cpu is per-microarch (GGML_CPU_ALL_VARIANTS); quote the glob so it isn't
+          # nullglob-expanded against cwd here — the check loop matches it against $dest.
+          ANDROID_LIBS=(libggml.so libggml-base.so "libggml-cpu*.so" libllama.so libllama-common.so)
+          place_android aarch64-linux-android arm64-v8a "${ANDROID_LIBS[@]}"
+          place_android x86_64-linux-android  x86_64    "${ANDROID_LIBS[@]}"
 
-      # Place desktop native libs for JVM JAR (JNA layout)
+      # Place desktop native libs for the JVM JAR (JNA layout): the binding lib plus its
+      # co-located ggml/llama siblings, staged at load time by the `common` NativeLoader
+      # (see nobodywho/kotlin/common/src/NativeLoader.kt).
       - name: "Setup JVM native libs"
         run: |
+          set -euo pipefail
+          shopt -s nullglob
           mkdir -p nobodywho/kotlin/jvm/src/main/resources/{linux-x86-64,linux-aarch64,darwin-aarch64,win32-x86-64}
-          cp artifacts/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
-            nobodywho/kotlin/jvm/src/main/resources/linux-x86-64/libnobodywho_uniffi.so
-          cp artifacts/libnobodywho-uniffi-aarch64-unknown-linux-gnu-release.so \
-            nobodywho/kotlin/jvm/src/main/resources/linux-aarch64/libnobodywho_uniffi.so
-          cp artifacts/libnobodywho-uniffi-aarch64-apple-darwin-release.dylib \
-            nobodywho/kotlin/jvm/src/main/resources/darwin-aarch64/libnobodywho_uniffi.dylib
-          cp artifacts/libnobodywho-uniffi-x86_64-pc-windows-msvc-release.dll \
-            nobodywho/kotlin/jvm/src/main/resources/win32-x86-64/nobodywho_uniffi.dll
+          place_jvm() { # $1=target $2=jna-dir $3=libname $4=ext $5...=required sibling filenames
+            local d="artifacts/nobodywho-uniffi-$1-release"
+            local dest="nobodywho/kotlin/jvm/src/main/resources/$2"
+            cp "$d/libnobodywho-uniffi-$1-release.$4" "$dest/$3"
+            # nullglob: see place_android — copy only what matched so the per-file check reports.
+            local libs=("$d"/libggml* "$d"/libllama* "$d"/ggml* "$d"/llama*)
+            [ ${#libs[@]} -eq 0 ] || cp -P "${libs[@]}" "$dest/"
+            local jna_dir=$2; shift 4
+            for f in "$@"; do
+              case "$f" in
+                *'*'*) compgen -G "$dest/$f" >/dev/null || { echo "::error::no $f in $d ($jna_dir JAR)"; exit 1; } ;;
+                *)     [ -f "$dest/$f" ]       || { echo "::error::$f missing from $d ($jna_dir JAR)"; exit 1; } ;;
+              esac
+            done
+          }
+          # Vulkan on linux/windows, Metal on macOS — see the target cfg blocks in core/Cargo.toml.
+          place_jvm x86_64-unknown-linux-gnu  linux-x86-64   libnobodywho_uniffi.so    so \
+            libggml.so libggml-base.so "libggml-cpu*.so" libggml-vulkan.so libllama.so libllama-common.so
+          place_jvm aarch64-unknown-linux-gnu linux-aarch64  libnobodywho_uniffi.so    so \
+            libggml.so libggml-base.so "libggml-cpu*.so" libggml-vulkan.so libllama.so libllama-common.so
+          place_jvm aarch64-apple-darwin      darwin-aarch64 libnobodywho_uniffi.dylib dylib \
+            libggml.dylib libggml-base.dylib "libggml-cpu*.so" libggml-metal.so libllama.dylib libllama-common.dylib
+          place_jvm x86_64-pc-windows-msvc    win32-x86-64   nobodywho_uniffi.dll      dll \
+            ggml.dll ggml-base.dll "ggml-cpu*.dll" ggml-vulkan.dll llama.dll llama-common.dll
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5

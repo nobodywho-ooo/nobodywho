@@ -1,0 +1,21 @@
+# Runtime discovery for the dynamically-linked ggml/llama libs (dynamic-link
+# feature). llama-cpp-sys-2 ships them next to each built artifact but emits no rpath, so
+# bake $ORIGIN / @loader_path into everything we link to find the co-located libs.
+#
+# RUSTFLAGS env wins over this config, so CI sets the same rpath itself
+# (see .github/workflows); this covers local dev. Android uses jniLibs, Windows the
+# loading module's dir.
+
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
+
+[target.'cfg(target_vendor = "apple")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,@loader_path"]
+
+[env]
+# Inject build overrides into llama.cpp's CMake configure (llama-cpp-sys-2 forwards
+# CMAKE_-prefixed env as -D): disable cpp-httplib's OpenSSL (dynamic-link's shared
+# `common` drags in TLS symbols the macOS cross build can't link) and strip the
+# ggml/llama versioned SONAMEs so they're born unversioned. See the file for details.
+# relative = true resolves the path against the dir holding .cargo/.
+CMAKE_PROJECT_INCLUDE = { value = "scripts/llama-build-overrides.cmake", relative = true }
