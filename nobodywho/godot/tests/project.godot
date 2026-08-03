@@ -1,0 +1,8 @@
+; Headless test project for the NobodyWho Godot bindings.
+config_version=5
+
+[application]
+
+config/name="NobodyWho Godot Tests"
+run/main_scene="res://tests.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
