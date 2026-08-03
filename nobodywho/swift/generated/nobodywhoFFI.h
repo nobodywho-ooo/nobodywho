@@ -575,6 +575,31 @@ RustBuffer uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(uint64_t ptr, Ru
 uint64_t uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(uint64_t ptr, RustBuffer text
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTVAD
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTVAD
+uint64_t uniffi_nobodywho_uniffi_fn_clone_rustvad(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTVAD
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FREE_RUSTVAD
+void uniffi_nobodywho_uniffi_fn_free_rustvad(uint64_t handle, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTVAD_NEW
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTVAD_NEW
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(RustBuffer source, uint32_t sample_rate, RustBuffer threshold, RustBuffer min_silence_duration_ms, RustBuffer min_speech_duration_ms, RustBuffer device, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTVAD_FINISH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTVAD_FINISH
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_finish(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTVAD_PUSH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTVAD_PUSH
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_push(uint64_t ptr, RustBuffer chunk, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_SAMPLERBUILDER
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_SAMPLERBUILDER
 uint64_t uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -1342,6 +1367,18 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTVAD_FINISH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTVAD_FINISH
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustvad_finish(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTVAD_PUSH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTVAD_PUSH
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustvad_push(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DIST
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DIST
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(void
@@ -1471,6 +1508,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTTS_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTTTS_NEW
 uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTVAD_NEW
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_CONSTRUCTOR_RUSTVAD_NEW
+uint16_t uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new(void
     
 );
 #endif

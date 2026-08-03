@@ -802,6 +802,83 @@ impl RustSTTStream {
     }
 }
 
+// ---------------------------------------------------------------------------
+// VAD
+// ---------------------------------------------------------------------------
+
+/// Voice activity event: a confirmed speech start or end boundary.
+#[flutter_rust_bridge::frb]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VadEvent {
+    SpeechStarted,
+    SpeechEnded,
+}
+
+impl From<nobodywho::vad::VadEvent> for VadEvent {
+    fn from(e: nobodywho::vad::VadEvent) -> Self {
+        match e {
+            nobodywho::vad::VadEvent::SpeechStarted => VadEvent::SpeechStarted,
+            nobodywho::vad::VadEvent::SpeechEnded => VadEvent::SpeechEnded,
+        }
+    }
+}
+
+/// Voice activity detector using Silero VAD. Create with `RustVad.new_()`,
+/// feed audio chunks via `push`; once it returns `SpeechEnded`, call `finish`
+/// to get that turn's captured audio (with pre-roll) and reset.
+#[flutter_rust_bridge::frb(opaque)]
+pub struct RustVad {
+    // `nobodywho::vad::Vad::push`/`finish` require `&mut self`; FRB opaque
+    // methods only get `&self`, so interior mutability via Mutex is needed.
+    vad: std::sync::Mutex<nobodywho::vad::Vad>,
+}
+
+impl RustVad {
+    /// Create a voice activity detector.
+    /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
+    /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
+    /// pass `None` to use the default (`hf://onnx-community/silero-vad`).
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn new_(
+        sample_rate: u32,
+        #[frb(default = "null")] source: Option<String>,
+        #[frb(default = "null")] threshold: Option<f64>,
+        #[frb(default = "null")] min_silence_duration_ms: Option<u32>,
+        #[frb(default = "null")] min_speech_duration_ms: Option<u32>,
+    ) -> Result<Self, String> {
+        let defaults = nobodywho::vad::VadConfig::default();
+        let config = nobodywho::vad::VadConfig {
+            source: source.unwrap_or(defaults.source),
+            sample_rate,
+            threshold: threshold.map(|t| t as f32).unwrap_or(defaults.threshold),
+            min_silence_duration_ms: min_silence_duration_ms
+                .unwrap_or(defaults.min_silence_duration_ms),
+            min_speech_duration_ms: min_speech_duration_ms
+                .unwrap_or(defaults.min_speech_duration_ms),
+        };
+        let vad = nobodywho::vad::Vad::new(config).map_err(|e| e.to_string())?;
+        Ok(Self {
+            vad: std::sync::Mutex::new(vad),
+        })
+    }
+
+    /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
+    /// buffer — the detector tracks the current turn internally). Returns
+    /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn push(&self, chunk: Vec<i16>) -> Option<VadEvent> {
+        self.vad.lock().unwrap().push(&chunk).map(Into::into)
+    }
+
+    /// Return the current turn's captured audio (from the confirmed
+    /// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
+    /// and reset internal state for the next turn. Empty if speech was never confirmed.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn finish(&self) -> Vec<i16> {
+        self.vad.lock().unwrap().finish()
+    }
+}
+
 #[flutter_rust_bridge::frb(opaque)]
 pub struct Encoder {
     handle: nobodywho::encoder::EncoderAsync,

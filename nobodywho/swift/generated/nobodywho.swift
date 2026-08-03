@@ -2446,6 +2446,184 @@ public func FfiConverterTypeRustTts_lower(_ value: RustTts) -> UInt64 {
 
 
 
+/**
+ * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+public protocol RustVadProtocol: AnyObject, Sendable {
+    
+    /**
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
+     */
+    func finish()  -> [Int16]
+    
+    /**
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Returns
+     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     */
+    func push(chunk: [Int16])  -> VadEvent?
+    
+}
+/**
+ * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+open class RustVad: RustVadProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_rustvad(self.handle, $0) }
+    }
+    /**
+     * Create a voice activity detector.
+     *
+     * `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
+     * for the Silero VAD ONNX model; `None` uses the default
+     * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+     * audio you'll pass to `push` — Silero runs at 16kHz internally,
+     * anything else is resampled. `threshold`, `min_silence_duration_ms`,
+     * and `min_speech_duration_ms` default to the core `VadConfig` defaults
+     * when omitted.
+     */
+public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, minSilenceDurationMs: UInt32?, minSpeechDurationMs: UInt32?, device: String?)throws  {
+    let handle =
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
+        FfiConverterOptionString.lower(source),
+        FfiConverterUInt32.lower(sampleRate),
+        FfiConverterOptionFloat.lower(threshold),
+        FfiConverterOptionUInt32.lower(minSilenceDurationMs),
+        FfiConverterOptionUInt32.lower(minSpeechDurationMs),
+        FfiConverterOptionString.lower(device),$0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustvad(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
+     */
+open func finish() -> [Int16]  {
+    return try!  FfiConverterSequenceInt16.lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Returns
+     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     */
+open func push(chunk: [Int16]) -> VadEvent?  {
+    return try!  FfiConverterOptionTypeVadEvent.lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_rustvad_push(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceInt16.lower(chunk),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustVad: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = RustVad
+
+    public static func lift(_ handle: UInt64) throws -> RustVad {
+        return RustVad(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: RustVad) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustVad {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: RustVad, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustVad_lift(_ handle: UInt64) throws -> RustVad {
+    return try FfiConverterTypeRustVad.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustVad_lower(_ value: RustVad) -> UInt64 {
+    return FfiConverterTypeRustVad.lower(value)
+}
+
+
+
+
+
+
 public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     
     /**
@@ -3586,6 +3764,74 @@ public func FfiConverterTypePromptPart_lower(_ value: PromptPart) -> RustBuffer 
 }
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Voice activity event: a confirmed speech start or end boundary.
+ */
+
+public enum VadEvent: Equatable, Hashable {
+    
+    case speechStarted
+    case speechEnded
+
+
+
+}
+
+#if compiler(>=6)
+extension VadEvent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeVadEvent: FfiConverterRustBuffer {
+    typealias SwiftType = VadEvent
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VadEvent {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .speechStarted
+        
+        case 2: return .speechEnded
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: VadEvent, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .speechStarted:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .speechEnded:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVadEvent_lift(_ buf: RustBuffer) throws -> VadEvent {
+    return try FfiConverterTypeVadEvent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVadEvent_lower(_ value: VadEvent) -> RustBuffer {
+    return FfiConverterTypeVadEvent.lower(value)
+}
+
+
 
 
 
@@ -4011,6 +4257,30 @@ fileprivate struct FfiConverterOptionTypePendingToolCall: FfiConverterRustBuffer
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypePendingToolCall.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeVadEvent: FfiConverterRustBuffer {
+    typealias SwiftType = VadEvent?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeVadEvent.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeVadEvent.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -4896,6 +5166,12 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async() != 54670) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() != 58578) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 39401) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4960,6 +5236,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 34899) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() != 21738) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214) {

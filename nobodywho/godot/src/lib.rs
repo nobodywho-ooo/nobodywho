@@ -3246,6 +3246,171 @@ enum TranscriptionInput {
     Pcm { samples: Vec<i16>, sample_rate: u32 },
 }
 
+#[derive(GodotClass)]
+#[class(base=Node)]
+struct NobodyWhoVad {
+    #[export]
+    /// HuggingFace repo ID or local directory path for the Silero VAD ONNX
+    /// model. Leave empty to use the default (`hf://onnx-community/silero-vad`).
+    model_path: GString,
+
+    #[export]
+    /// Sample rate of the audio buffers passed to `push`, in Hz. Silero runs
+    /// at 16kHz internally — anything else is resampled.
+    sample_rate: u32,
+
+    #[export]
+    /// Silero speech-probability cutoff above which a frame counts as speech.
+    threshold: f32,
+
+    #[export]
+    /// How long silence must persist before a confirmed `speech_ended` fires.
+    min_silence_duration_ms: u32,
+
+    #[export]
+    /// How long speech must persist before a confirmed `speech_started` fires.
+    min_speech_duration_ms: u32,
+
+    vad: Option<nobodywho::vad::Vad>,
+    base: Base<Node>,
+}
+
+#[godot_api]
+impl INode for NobodyWhoVad {
+    fn init(base: Base<Node>) -> Self {
+        let defaults = nobodywho::vad::VadConfig::default();
+        Self {
+            model_path: GString::from(""),
+            sample_rate: defaults.sample_rate,
+            threshold: defaults.threshold,
+            min_silence_duration_ms: defaults.min_silence_duration_ms,
+            min_speech_duration_ms: defaults.min_speech_duration_ms,
+            vad: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoVad {
+    #[signal]
+    /// Emitted once the model has loaded and is ready for audio.
+    fn worker_started();
+
+    #[signal]
+    /// Emitted if loading the model fails.
+    fn worker_failed(error: GString);
+
+    #[signal]
+    /// Emitted when a `push()` call crosses into confirmed speech.
+    fn speech_started();
+
+    #[signal]
+    /// Emitted when a `push()` call crosses into confirmed silence. Call
+    /// `finish()` to retrieve the captured turn's audio.
+    fn speech_ended();
+
+    #[func]
+    /// Download and initialise the Silero VAD model asynchronously. Returns
+    /// immediately. Connect to `worker_started` before calling `push` / `finish`.
+    fn start_worker(&mut self) {
+        if self.vad.is_some() {
+            self.signals().worker_started().emit();
+            return;
+        }
+
+        let source = self.model_path.to_string();
+        let config = nobodywho::vad::VadConfig {
+            source: if source.is_empty() {
+                nobodywho::vad::VadConfig::default().source
+            } else {
+                source
+            },
+            sample_rate: self.sample_rate,
+            threshold: self.threshold,
+            min_silence_duration_ms: self.min_silence_duration_ms,
+            min_speech_duration_ms: self.min_speech_duration_ms,
+        };
+
+        let mut me = self.to_gd();
+        godot::task::spawn(async move {
+            // tokio::task::spawn_blocking requires an active Tokio runtime, but
+            // godot::task::spawn runs on gdext's own executor. Use a plain thread
+            // with a oneshot channel instead — oneshot uses standard Rust wakers
+            // and works with any async executor.
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            std::thread::spawn(move || {
+                let _ = tx.send(nobodywho::vad::Vad::new(config));
+            });
+
+            match rx.await {
+                Ok(Ok(vad)) => {
+                    me.bind_mut().vad = Some(vad);
+                    me.signals().worker_started().emit();
+                }
+                Ok(Err(e)) => {
+                    let msg = GString::from(e.to_string().as_str());
+                    godot_error!("Failed to start VAD worker: {}", msg);
+                    me.signals().worker_failed().emit(&msg);
+                }
+                Err(_) => {
+                    let msg = GString::from("VAD worker thread panicked during model load");
+                    godot_error!("{}", msg);
+                    me.signals().worker_failed().emit(&msg);
+                }
+            }
+        });
+    }
+
+    #[func]
+    /// Feed the newest chunk of audio (not the whole accumulated buffer —
+    /// the detector tracks the current turn internally). `samples` is a
+    /// `PackedByteArray` of interleaved little-endian i16 samples. Emits
+    /// `speech_started` / `speech_ended` when this call crosses a confirmed
+    /// boundary.
+    fn push(&mut self, samples: PackedByteArray) {
+        let Some(vad) = self.vad.as_mut() else {
+            let err = GString::from("VAD worker not started. Call start_worker() first.");
+            godot_error!("{}", err);
+            self.signals().worker_failed().emit(&err);
+            return;
+        };
+        let bytes = samples.to_vec();
+        let samples_i16: Vec<i16> = bytes
+            .chunks_exact(2)
+            .map(|b| i16::from_le_bytes([b[0], b[1]]))
+            .collect();
+        let event = vad.push(&samples_i16);
+        match event {
+            Some(nobodywho::vad::VadEvent::SpeechStarted) => {
+                self.signals().speech_started().emit();
+            }
+            Some(nobodywho::vad::VadEvent::SpeechEnded) => {
+                self.signals().speech_ended().emit();
+            }
+            None => {}
+        }
+    }
+
+    #[func]
+    /// Return the current turn's captured audio (from the confirmed
+    /// `speech_started`, including a small pre-roll, through to
+    /// `speech_ended`) and reset internal state for the next turn. Empty if
+    /// speech was never confirmed. Returns a `PackedByteArray` of
+    /// interleaved little-endian i16 samples.
+    fn finish(&mut self) -> PackedByteArray {
+        let Some(vad) = self.vad.as_mut() else {
+            let err = GString::from("VAD worker not started. Call start_worker() first.");
+            godot_error!("{}", err);
+            self.signals().worker_failed().emit(&err);
+            return PackedByteArray::new();
+        };
+        let samples = vad.finish();
+        let bytes: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
+        PackedByteArray::from(bytes)
+    }
+}
+
 // LOGGING
 
 // Writer that forwards to Godot logging

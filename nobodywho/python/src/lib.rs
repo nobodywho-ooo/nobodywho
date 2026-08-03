@@ -362,6 +362,101 @@ impl STTAsync {
 }
 
 // ---------------------------------------------------------------------------
+// VAD
+// ---------------------------------------------------------------------------
+
+/// `VadEvent` is returned by `Vad.push` when a call crosses a confirmed
+/// speech/silence boundary.
+#[pyclass(eq, eq_int, skip_from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+pub enum VadEvent {
+    SpeechStarted,
+    SpeechEnded,
+}
+
+impl From<nobodywho::vad::VadEvent> for VadEvent {
+    fn from(e: nobodywho::vad::VadEvent) -> Self {
+        match e {
+            nobodywho::vad::VadEvent::SpeechStarted => VadEvent::SpeechStarted,
+            nobodywho::vad::VadEvent::SpeechEnded => VadEvent::SpeechEnded,
+        }
+    }
+}
+
+/// `Vad` detects speech start/end from streaming, live audio using Silero VAD.
+///
+/// `source` is a HuggingFace repo (`hf://owner/repo`) or local directory path
+/// for the Silero VAD ONNX model; omit or pass `None` to use the default
+/// (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+/// buffers you'll pass to `push` — anything other than 16kHz is resampled
+/// internally.
+///
+/// Example::
+///
+///     from nobodywho import Vad, VadEvent
+///
+///     vad = Vad(sample_rate=16000)
+///     for chunk in mic_chunks():
+///         event = vad.push(chunk)
+///         if event == VadEvent.SpeechEnded:
+///             audio = vad.finish()
+///             break
+#[pyclass]
+pub struct Vad {
+    // `nobodywho::vad::Vad` is Send but not Sync (rubato's resampler holds a
+    // `Box<dyn SincInterpolator>`, whose trait bound is `Send` only) — pyclass
+    // fields must be Sync, so this is wrapped in a Mutex purely to satisfy that.
+    vad: std::sync::Mutex<nobodywho::vad::Vad>,
+}
+
+#[pymethods]
+impl Vad {
+    #[new]
+    #[pyo3(signature = (source = None, sample_rate = 16_000, threshold = None, min_silence_duration_ms = None, min_speech_duration_ms = None))]
+    pub fn new(
+        source: Option<&str>,
+        sample_rate: u32,
+        threshold: Option<f32>,
+        min_silence_duration_ms: Option<u32>,
+        min_speech_duration_ms: Option<u32>,
+        py: Python,
+    ) -> PyResult<Self> {
+        let defaults = nobodywho::vad::VadConfig::default();
+        let config = nobodywho::vad::VadConfig {
+            source: source.map(String::from).unwrap_or(defaults.source),
+            sample_rate,
+            threshold: threshold.unwrap_or(defaults.threshold),
+            min_silence_duration_ms: min_silence_duration_ms
+                .unwrap_or(defaults.min_silence_duration_ms),
+            min_speech_duration_ms: min_speech_duration_ms
+                .unwrap_or(defaults.min_speech_duration_ms),
+        };
+        let vad = py
+            .detach(|| nobodywho::vad::Vad::new(config))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(Self {
+            vad: std::sync::Mutex::new(vad),
+        })
+    }
+
+    /// Feed the newest chunk of audio (not the whole accumulated buffer —
+    /// `Vad` tracks the current turn internally). Returns a `VadEvent` if this
+    /// call crossed a confirmed speech/silence boundary, else `None`.
+    pub fn push(&self, chunk: Vec<i16>, py: Python) -> Option<VadEvent> {
+        py.detach(|| self.vad.lock().unwrap().push(&chunk))
+            .map(Into::into)
+    }
+
+    /// Return the current turn's captured audio (from the confirmed
+    /// `VadEvent.SpeechStarted`, including a small pre-roll, through to
+    /// `VadEvent.SpeechEnded`) and reset internal state for the next turn.
+    /// Empty if speech was never confirmed.
+    pub fn finish(&self, py: Python) -> Vec<i16> {
+        py.detach(|| self.vad.lock().unwrap().finish())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Token streams (shared by Chat and STT)
 // ---------------------------------------------------------------------------
 
@@ -3318,6 +3413,10 @@ pub mod nobodywhopython {
     use super::Tool;
     #[pymodule_export]
     use super::Tts;
+    #[pymodule_export]
+    use super::Vad;
+    #[pymodule_export]
+    use super::VadEvent;
     #[pymodule_export]
     use super::STT;
 }

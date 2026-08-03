@@ -9,7 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_architecture`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -404,6 +404,37 @@ abstract class RustTool implements RustOpaqueInterface {
   String getSchemaJson();
 }
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>
+abstract class RustVad implements RustOpaqueInterface {
+  /// Return the current turn's captured audio (from the confirmed
+  /// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
+  /// and reset internal state for the next turn. Empty if speech was never confirmed.
+  Int16List finish();
+
+  /// Create a voice activity detector.
+  /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
+  /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
+  /// pass `None` to use the default (`hf://onnx-community/silero-vad`).
+  static RustVad new_({
+    required int sampleRate,
+    String? source = null,
+    double? threshold = null,
+    int? minSilenceDurationMs = null,
+    int? minSpeechDurationMs = null,
+  }) => NobodyWho.instance.api.crateRustVadNew(
+    sampleRate: sampleRate,
+    source: source,
+    threshold: threshold,
+    minSilenceDurationMs: minSilenceDurationMs,
+    minSpeechDurationMs: minSpeechDurationMs,
+  );
+
+  /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
+  /// buffer — the detector tracks the current turn internally). Returns
+  /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+  VadEvent? push({required List<int> chunk});
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Sample from the probability distribution (weighted random selection).
@@ -747,3 +778,6 @@ sealed class PromptPart with _$PromptPart {
   const factory PromptPart.image({required String path}) = PromptPart_Image;
   const factory PromptPart.audio({required String path}) = PromptPart_Audio;
 }
+
+/// Voice activity event: a confirmed speech start or end boundary.
+enum VadEvent { speechStarted, speechEnded }

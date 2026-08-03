@@ -58,6 +58,7 @@ export async function downloadModel(opts: {
 export { Model } from "./model";
 export { Chat } from "./chat";
 export { STT } from "./stt";
+export { Vad } from "./vad";
 export { Encoder } from "./encoder";
 export { CrossEncoder } from "./cross_encoder";
 export { Tts } from "./tts";
@@ -87,6 +88,8 @@ export type {
 } from "../generated/ts/nobodywho";
 export type { TtsArchitecture, TtsDevice, TtsOptions } from "./tts";
 export type { SttOptions } from "./stt";
+export { VadEvent } from "./vad";
+export type { VadOptions } from "./vad";
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";

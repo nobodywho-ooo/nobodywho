@@ -2,6 +2,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 export 'src/rust/lib.dart'
     hide
@@ -10,6 +11,7 @@ export 'src/rust/lib.dart'
         RustTool, // Users should use Tool
         RustStt, // Users should use Stt
         RustSttStream, // Users should use SttStream
+        RustVad, // Users should use Vad
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
         PromptPart, // Users should use the hand-written PromptPart sealed class
@@ -816,6 +818,52 @@ class Stt {
   /// [sampleRate] is the capture rate in Hz; resampled to 16 kHz internally.
   SttStream transcribePcm(List<int> samples, int sampleRate) =>
       SttStream._(_stt.transcribePcm(samples: samples, sampleRate: sampleRate));
+}
+
+/// Voice activity detection from live, streaming audio, backed by Silero VAD.
+///
+/// Feed each newest chunk to [push] as it arrives — [Vad] buffers the current
+/// turn internally, seeded with a small pre-roll so the confirmed speech
+/// isn't clipped at the start. Once [push] returns [VadEvent.speechEnded],
+/// call [finish] to get that turn's audio and reset for the next one.
+class Vad {
+  final nobodywho.RustVad _vad;
+
+  Vad._(this._vad);
+
+  /// Create a voice activity detector.
+  ///
+  /// [sampleRate] — rate of the audio you'll pass to [push]; anything other
+  /// than 16kHz is resampled internally.
+  /// [source] — HuggingFace repo (`hf://owner/repo`) or local dir for the
+  /// Silero VAD ONNX model; omit to use the default (`hf://onnx-community/silero-vad`).
+  factory Vad({
+    required int sampleRate,
+    String? source,
+    double? threshold,
+    int? minSilenceDurationMs,
+    int? minSpeechDurationMs,
+  }) {
+    final vad = nobodywho.RustVad.new_(
+      sampleRate: sampleRate,
+      source: source,
+      threshold: threshold,
+      minSilenceDurationMs: minSilenceDurationMs,
+      minSpeechDurationMs: minSpeechDurationMs,
+    );
+    return Vad._(vad);
+  }
+
+  /// Feed the newest chunk of audio (not the whole accumulated buffer —
+  /// [Vad] tracks the current turn internally). Returns a [VadEvent] if this
+  /// call crossed a confirmed speech/silence boundary.
+  nobodywho.VadEvent? push(List<int> chunk) => _vad.push(chunk: chunk);
+
+  /// Return the current turn's captured audio (from the confirmed
+  /// [VadEvent.speechStarted], including a small pre-roll, through to
+  /// [VadEvent.speechEnded]) and reset internal state for the next turn.
+  /// Empty if speech was never confirmed.
+  Int16List finish() => _vad.finish();
 }
 
 /// Sampler preset factory methods.

@@ -1253,6 +1253,107 @@ impl RustCrossEncoder {
     }
 }
 
+// ---------- RustVad ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `Vad`).
+
+/// Voice activity event: a confirmed speech start or end boundary.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VadEvent {
+    SpeechStarted,
+    SpeechEnded,
+}
+
+impl From<nobodywho::vad::VadEvent> for VadEvent {
+    fn from(e: nobodywho::vad::VadEvent) -> Self {
+        match e {
+            nobodywho::vad::VadEvent::SpeechStarted => VadEvent::SpeechStarted,
+            nobodywho::vad::VadEvent::SpeechEnded => VadEvent::SpeechEnded,
+        }
+    }
+}
+
+fn parse_vad_device(device: Option<String>) -> Result<nobodywho::vad::Device, NobodyWhoError> {
+    match device
+        .as_deref()
+        .unwrap_or("auto")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "auto" => Ok(nobodywho::vad::Device::Auto),
+        "cpu" => Ok(nobodywho::vad::Device::Cpu),
+        "cuda" => Ok(nobodywho::vad::Device::Cuda),
+        _ => Err(NobodyWhoError::Error {
+            message: "device must be one of 'auto', 'cpu', or 'cuda'".into(),
+        }),
+    }
+}
+
+/// Voice activity detector. Wraps `nobodywho::vad::Vad`.
+/// Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+/// `finish` to get that turn's captured audio (with pre-roll) and reset.
+#[derive(uniffi::Object)]
+pub struct RustVad {
+    inner: std::sync::Mutex<nobodywho::vad::Vad>,
+}
+
+#[uniffi::export]
+impl RustVad {
+    /// Create a voice activity detector.
+    ///
+    /// `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
+    /// for the Silero VAD ONNX model; `None` uses the default
+    /// (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+    /// audio you'll pass to `push` — Silero runs at 16kHz internally,
+    /// anything else is resampled. `threshold`, `min_silence_duration_ms`,
+    /// and `min_speech_duration_ms` default to the core `VadConfig` defaults
+    /// when omitted.
+    #[uniffi::constructor]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source: Option<String>,
+        sample_rate: u32,
+        threshold: Option<f32>,
+        min_silence_duration_ms: Option<u32>,
+        min_speech_duration_ms: Option<u32>,
+        device: Option<String>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
+        let defaults = nobodywho::vad::VadConfig::default();
+        let config = nobodywho::vad::VadConfig {
+            source: source.unwrap_or(defaults.source),
+            sample_rate,
+            threshold: threshold.unwrap_or(defaults.threshold),
+            min_silence_duration_ms: min_silence_duration_ms
+                .unwrap_or(defaults.min_silence_duration_ms),
+            min_speech_duration_ms: min_speech_duration_ms
+                .unwrap_or(defaults.min_speech_duration_ms),
+        };
+        let device = parse_vad_device(device)?;
+        let vad = nobodywho::vad::Vad::with_device(config, device).map_err(|e| {
+            NobodyWhoError::Error {
+                message: e.to_string(),
+            }
+        })?;
+        Ok(Arc::new(Self {
+            inner: std::sync::Mutex::new(vad),
+        }))
+    }
+
+    /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
+    /// buffer — the detector tracks the current turn internally). Returns
+    /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+    pub fn push(&self, chunk: Vec<i16>) -> Option<VadEvent> {
+        self.inner.lock().unwrap().push(&chunk).map(Into::into)
+    }
+
+    /// Return the current turn's captured audio (from the confirmed
+    /// `SpeechStarted`, including a small pre-roll, through to
+    /// `SpeechEnded`) and reset internal state for the next turn. Empty if
+    /// speech was never confirmed.
+    pub fn finish(&self) -> Vec<i16> {
+        self.inner.lock().unwrap().finish()
+    }
+}
+
 // ---------- SamplerConfig ----------
 
 #[derive(uniffi::Object)]
