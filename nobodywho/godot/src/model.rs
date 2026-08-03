@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use godot::prelude::*;
 
-use crate::convert::{resolve_godot_path, resolve_optional_path};
+use crate::convert::resolve_godot_path;
 use crate::task::{NobodyWhoTask, task};
 
 /// A loaded model. Cheap to share (internally `Arc`); pass it to
@@ -38,13 +38,11 @@ impl NobodyWhoModel {
         let mmproj_path = config
             .get("mmproj_path")
             .and_then(|v| v.try_to::<GString>().ok())
-            .as_ref()
-            .and_then(resolve_optional_path);
+            .map(|s| resolve_godot_path(&s));
         let draft_path = config
             .get("draft_path")
             .and_then(|v| v.try_to::<GString>().ok())
-            .as_ref()
-            .and_then(resolve_optional_path);
+            .map(|s| resolve_godot_path(&s));
         // TODO: expose `progress` (download progress) as a Godot signal on the
         // task/model, not a GDScript Callable param. Core takes
         // Option<DownloadProgressCallback>; emit a signal from inside the
@@ -74,10 +72,4 @@ impl NobodyWhoModel {
         })
     }
 
-    /// Sets the global NobodyWho log level. One of
-    /// "TRACE", "DEBUG", "INFO", "WARN", "ERROR".
-    #[func]
-    fn set_log_level(level: GString) {
-        crate::set_log_level(&level.to_string());
-    }
 }
