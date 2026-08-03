@@ -500,13 +500,13 @@ pub enum SetterError {
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum GetterError {
     #[error("Worker terminated before processing getter: {0}")]
     GetterError(String),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum TokenizeError {
     #[error("Worker terminated before processing tokenize request")]
     WorkerTerminated,

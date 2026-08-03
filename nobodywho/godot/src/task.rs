@@ -11,6 +11,11 @@ use godot::task::spawn;
 ///
 /// The result is stored (latched) on the object so a late awaiter never
 /// misses it — the lost-signal race is structurally impossible.
+///
+/// Internal machinery: no public NobodyWho method returns a task. Every
+/// async `#[func]` calls `.bind().wait()` Rust-side and returns the
+/// value-or-Signal Variant directly, so GDScript callers just
+/// `await chat.foo()` (and must await immediately).
 #[derive(GodotClass)]
 #[class(no_init, base=RefCounted)]
 pub struct NobodyWhoTask {
