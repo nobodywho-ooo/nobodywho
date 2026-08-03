@@ -131,10 +131,6 @@ fn self_lib_path() -> Option<std::path::PathBuf> {
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
 const MAX_EMBEDDING_SEQUENCES: u32 = 256;
 
-// llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
-// returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
-const MAX_EMBEDDING_SEQUENCES: u32 = 256;
-
 #[derive(Debug)]
 pub struct Model {
     pub(crate) language_model: LlamaModel,
