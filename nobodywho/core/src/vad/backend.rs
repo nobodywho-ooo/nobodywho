@@ -1,34 +1,28 @@
 use crate::errors::VadError;
 use crate::huggingface;
 use crate::onnx::{load_session, Device};
-use crate::stt::audio::{AudioResampler, DecodedAudio};
 use crate::vad::events::{DebounceConfig, Debouncer, VadEvent};
 use ort::session::Session;
 use ort::value::Tensor;
+use rubato::{
+    Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
+};
+use std::collections::VecDeque;
 
 /// Silero operates on exactly this many samples per frame at 16kHz.
 const FRAME_SAMPLES: usize = 512;
 const SILERO_SAMPLE_RATE: i64 = 16_000;
+const RESAMPLE_CHUNK_SIZE: usize = 1024;
 
 pub(super) struct VadBackend {
     session: Session,
-    sample_rate: u32,
+    resampler: Option<StreamResampler>,
     /// LSTM hidden state carried between frames: shape (2, 1, 128) flattened.
     model_state: Vec<f32>,
-    /// 16kHz f32 samples accumulated but not yet consumed as a full frame.
-    frame_buffer: Vec<f32>,
-    /// How many raw i16 samples of the caller's buffer we've already turned
-    /// into frame_buffer input. Used both to only process new tail data and
-    /// to detect "buffer got shorter -> new turn" (see push()). Always in
-    /// units of the caller's raw buffer, regardless of sample rate.
-    raw_processed_len: usize,
-    /// How many samples of the *resampled* 16kHz stream have already been
-    /// fed into frame_buffer. Only meaningful on the non-16kHz path, where
-    /// the whole accumulated buffer is re-resampled from scratch each call
-    /// (see push()) and we must avoid re-feeding samples we already consumed.
-    /// Stays 0 always on the native-16kHz path.
-    resampled_processed_len: usize,
+    frames: FrameAccumulator,
     debouncer: Debouncer,
+    preroll: Preroll,
+    capture: TurnCapture,
 }
 
 impl VadBackend {
@@ -40,97 +34,74 @@ impl VadBackend {
     ) -> Result<Self, VadError> {
         let model_dir = huggingface::download_onnx(source, &["onnx/model.onnx".to_string()], None)?;
         let session = load_session(&model_dir.join("onnx").join("model.onnx"), device)?;
+        let resampler = if sample_rate == SILERO_SAMPLE_RATE as u32 {
+            None
+        } else {
+            Some(StreamResampler::new(
+                sample_rate,
+                SILERO_SAMPLE_RATE as u32,
+            )?)
+        };
+        let preroll = Preroll::new(sample_rate, debounce_config.min_speech_duration_ms);
         Ok(Self {
             session,
-            sample_rate,
+            resampler,
             model_state: vec![0.0; 2 * 128],
-            frame_buffer: Vec::with_capacity(FRAME_SAMPLES * 2),
-            raw_processed_len: 0,
-            resampled_processed_len: 0,
+            frames: FrameAccumulator::new(),
             debouncer: Debouncer::new(debounce_config),
+            preroll,
+            capture: TurnCapture::new(),
         })
     }
 
     fn reset_detection_state(&mut self) {
         self.model_state = vec![0.0; 2 * 128];
-        self.frame_buffer.clear();
+        self.frames.clear();
         self.debouncer.reset();
     }
 
-    fn reset_for_new_buffer(&mut self) {
-        self.reset_detection_state();
-        self.raw_processed_len = 0;
-        self.resampled_processed_len = 0;
-    }
+    pub(super) fn push(&mut self, chunk: &[i16]) -> Result<Option<VadEvent>, VadError> {
+        self.preroll.push(chunk);
+        self.capture.push(chunk);
 
-    pub(super) fn push(&mut self, buffer: &[i16]) -> Result<Option<VadEvent>, VadError> {
-        if buffer.len() < self.raw_processed_len {
-            // Buffer got shorter than what we last saw -> caller started a
-            // new buffer for a new turn (e.g. after cancelling). Start over.
-            self.reset_for_new_buffer();
-        }
-
-        let new_samples_16k = if self.sample_rate == SILERO_SAMPLE_RATE as u32 {
-            // Native 16kHz: only the new tail needs converting, O(1)-amortized.
-            let new_raw = &buffer[self.raw_processed_len..];
-            new_raw.iter().map(|&s| s as f32 / 32768.0).collect()
-        } else {
-            // Non-16kHz: resample the *whole* accumulated buffer from scratch
-            // every call (see module doc for why), then only take the new
-            // tail of the *resampled* output that we haven't consumed yet.
-            let resampled = self.to_16khz_f32(buffer)?;
-            let start = self.resampled_processed_len.min(resampled.len());
-            let new_tail = resampled[start..].to_vec();
-            self.resampled_processed_len = resampled.len();
-            new_tail
+        let raw_f32: Vec<f32> = chunk.iter().map(|&s| s as f32 / 32768.0).collect();
+        let samples_16k = match &mut self.resampler {
+            Some(resampler) => resampler.push(&raw_f32)?,
+            None => raw_f32,
         };
-        self.raw_processed_len = buffer.len();
+        self.frames.extend(samples_16k);
 
-        self.frame_buffer.extend(new_samples_16k);
-
-        let mut last_event = None;
-        while self.frame_buffer.len() >= FRAME_SAMPLES {
-            let frame: Vec<f32> = self.frame_buffer.drain(..FRAME_SAMPLES).collect();
+        let mut event = None;
+        while let Some(frame) = self.frames.next_frame() {
             let prob = self.run_frame(&frame)?;
-            if let Some(event) = self.debouncer.step(prob) {
-                last_event = Some(event);
+            if let Some(e) = self.debouncer.step(prob) {
+                event = Some(e);
             }
         }
 
-        if last_event == Some(VadEvent::SpeechEnded) {
-            // Auto-reset: caller may keep extending the same buffer across
-            // multiple turns without ever shrinking it, so the shrink-based
-            // reset above wouldn't catch this case. Only the detection state
-            // resets here — the read cursors must stay put, since they
-            // already reflect "everything up to here is consumed" and
-            // zeroing them would cause the next push() to re-feed this
-            // turn's already-processed audio as if it were new.
-            self.reset_detection_state();
+        match event {
+            // preroll already includes this call's chunk, so it alone covers
+            // the not-yet-confirmed lead-in plus the confirming chunk.
+            Some(VadEvent::SpeechStarted) => self.capture.start(self.preroll.snapshot()),
+            Some(VadEvent::SpeechEnded) => {
+                self.capture.stop();
+                self.reset_detection_state();
+            }
+            None => {}
         }
 
-        Ok(last_event)
+        Ok(event)
     }
 
-    /// Resample the *whole* accumulated raw buffer to 16kHz f32 from scratch.
-    fn to_16khz_f32(&self, buffer: &[i16]) -> Result<Vec<f32>, VadError> {
-        let decoded = DecodedAudio {
-            samples: buffer.iter().map(|&s| s as f32 / 32768.0).collect(),
-            sample_rate: self.sample_rate,
-        };
-        let resampled = AudioResampler {
-            target_rate: SILERO_SAMPLE_RATE as u32,
-            ..AudioResampler::default()
-        }
-        .resample(decoded)
-        .map_err(|e| VadError::Audio(e.to_string()))?;
-        Ok(resampled.samples)
+    /// Return the captured turn's audio and reset all internal state for the
+    /// next turn. Empty if speech was never confirmed.
+    pub(super) fn finish(&mut self) -> Vec<i16> {
+        self.preroll.clear();
+        self.reset_detection_state();
+        self.capture.take()
     }
 
     /// Run one 512-sample 16kHz frame through the Silero ONNX model.
-    ///
-    /// Output tensors are named `output` (speech probability, shape [1,1])
-    /// and `stateN` (new LSTM state, shape [2,1,128]) — confirmed against
-    /// the real `onnx-community/silero-vad` `onnx/model.onnx` model.
     fn run_frame(&mut self, frame: &[f32]) -> Result<f32, VadError> {
         let input = Tensor::from_array(([1usize, FRAME_SAMPLES], frame.to_vec()))?;
         let state = Tensor::from_array(([2usize, 1usize, 128usize], self.model_state.clone()))?;
@@ -144,5 +115,141 @@ impl VadBackend {
         let (_, new_state) = outputs["stateN"].try_extract_tensor::<f32>()?;
         self.model_state = new_state.to_vec();
         Ok(prob_data[0])
+    }
+}
+
+/// Accumulates resampled 16kHz samples and hands out fixed-size frames as
+/// they become available.
+struct FrameAccumulator {
+    samples: Vec<f32>,
+}
+
+impl FrameAccumulator {
+    fn new() -> Self {
+        Self {
+            samples: Vec::with_capacity(FRAME_SAMPLES * 2),
+        }
+    }
+
+    fn extend(&mut self, samples: Vec<f32>) {
+        self.samples.extend(samples);
+    }
+
+    fn next_frame(&mut self) -> Option<Vec<f32>> {
+        (self.samples.len() >= FRAME_SAMPLES).then(|| self.samples.drain(..FRAME_SAMPLES).collect())
+    }
+
+    fn clear(&mut self) {
+        self.samples.clear();
+    }
+}
+
+/// Ring buffer of the most recent raw samples, capped to `min_speech_duration_ms`
+/// worth of audio — the not-yet-confirmed lead-in a `SpeechStarted` seeds from.
+struct Preroll {
+    samples: VecDeque<i16>,
+    capacity: usize,
+}
+
+impl Preroll {
+    fn new(sample_rate: u32, duration_ms: u32) -> Self {
+        let capacity = (sample_rate as u64 * duration_ms as u64 / 1000) as usize;
+        Self {
+            samples: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    fn push(&mut self, chunk: &[i16]) {
+        for &sample in chunk {
+            if self.samples.len() == self.capacity {
+                self.samples.pop_front();
+            }
+            self.samples.push_back(sample);
+        }
+    }
+
+    fn snapshot(&self) -> Vec<i16> {
+        self.samples.iter().copied().collect()
+    }
+
+    fn clear(&mut self) {
+        self.samples.clear();
+    }
+}
+
+/// Raw audio for the in-progress/just-finished turn: idle until `start()`,
+/// accumulates pushed chunks until `stop()` or `take()`.
+struct TurnCapture {
+    samples: Vec<i16>,
+    active: bool,
+}
+
+impl TurnCapture {
+    fn new() -> Self {
+        Self {
+            samples: Vec::new(),
+            active: false,
+        }
+    }
+
+    fn start(&mut self, preroll: Vec<i16>) {
+        self.samples = preroll;
+        self.active = true;
+    }
+
+    fn push(&mut self, chunk: &[i16]) {
+        if self.active {
+            self.samples.extend_from_slice(chunk);
+        }
+    }
+
+    fn stop(&mut self) {
+        self.active = false;
+    }
+
+    fn take(&mut self) -> Vec<i16> {
+        self.active = false;
+        std::mem::take(&mut self.samples)
+    }
+}
+
+/// Streaming wrapper around `rubato`'s chunked sinc resampler: filter state
+/// persists across `push()` calls instead of resampling from scratch each time.
+struct StreamResampler {
+    resampler: SincFixedIn<f32>,
+    pending: Vec<f32>,
+}
+
+impl StreamResampler {
+    fn new(from_rate: u32, to_rate: u32) -> Result<Self, VadError> {
+        let ratio = to_rate as f64 / from_rate as f64;
+        let params = SincInterpolationParameters {
+            sinc_len: 256,
+            f_cutoff: 0.95,
+            interpolation: SincInterpolationType::Linear,
+            oversampling_factor: 256,
+            window: WindowFunction::BlackmanHarris2,
+        };
+        let resampler = SincFixedIn::<f32>::new(ratio, 2.0, params, RESAMPLE_CHUNK_SIZE, 1)
+            .map_err(|e| VadError::Audio(format!("resampler init: {e}")))?;
+        Ok(Self {
+            resampler,
+            pending: Vec::new(),
+        })
+    }
+
+    fn push(&mut self, samples: &[f32]) -> Result<Vec<f32>, VadError> {
+        self.pending.extend_from_slice(samples);
+        let mut output = Vec::new();
+        while self.pending.len() >= RESAMPLE_CHUNK_SIZE {
+            let chunk: Vec<f32> = self.pending.drain(..RESAMPLE_CHUNK_SIZE).collect();
+            let mut waves = self
+                .resampler
+                .process(&[chunk], None)
+                .map_err(|e| VadError::Audio(format!("resample: {e}")))?;
+            output.extend(waves.remove(0));
+        }
+        Ok(output)
     }
 }

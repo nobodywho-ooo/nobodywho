@@ -6,6 +6,11 @@
 //! its models — first use requires network access, subsequent uses are
 //! offline. The model source is configurable via [`VadConfig::source`] for
 //! forks/mirrors that keep the same `onnx/model.onnx` layout.
+//!
+//! Feed each newest chunk to [`Vad::push`] as it arrives — `Vad` buffers the
+//! current turn internally, seeded with a small pre-roll so the confirmed
+//! speech isn't clipped at the start. Once a `SpeechEnded` comes back, call
+//! [`Vad::finish`] to get that turn's audio and reset for the next one.
 
 mod backend;
 mod events;
@@ -77,16 +82,25 @@ impl Vad {
         })
     }
 
-    /// Feed your entire accumulated buffer (not just the newest chunk).
-    /// Returns `Some(VadEvent)` if this call crossed a confirmed
-    /// speech/silence boundary.
-    pub fn push(&mut self, buffer: &[i16]) -> Option<VadEvent> {
+    /// Feed the newest chunk of audio (not the whole accumulated buffer —
+    /// `Vad` tracks the current turn internally). Returns `Some(VadEvent)`
+    /// if this call crossed a confirmed speech/silence boundary.
+    pub fn push(&mut self, chunk: &[i16]) -> Option<VadEvent> {
         // push() only fails on ONNX inference errors, which would indicate
         // a corrupt/incompatible downloaded model, not a caller error —
         // surfacing that as a silently-swallowed None would hide a real
         // bug, so unwrap here and let it surface loudly.
         self.backend
-            .push(buffer)
+            .push(chunk)
             .expect("Silero VAD inference failed — check the downloaded model is not corrupt")
+    }
+
+    /// Return the current turn's captured audio (from the confirmed
+    /// `SpeechStarted`, including a small pre-roll, through to
+    /// `SpeechEnded`) and reset internal state for the next turn. Call this
+    /// once you've handled a `SpeechEnded`, or at any point to abandon the
+    /// current turn early. Empty if speech was never confirmed.
+    pub fn finish(&mut self) -> Vec<i16> {
+        self.backend.finish()
     }
 }
