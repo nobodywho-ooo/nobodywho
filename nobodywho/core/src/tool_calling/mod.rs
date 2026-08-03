@@ -54,6 +54,38 @@ impl std::fmt::Debug for Tool {
     }
 }
 
+/// Serialize a JSON schema for embedding after a Lark `%json` directive.
+///
+/// Tags the schema with `x-guidance: { "lenient": true }`, which tells
+/// llguidance's `%json` compiler to *ignore* (with a warning) any schema
+/// keyword it doesn't implement — e.g. `uniqueItems`, `dependencies` — instead
+/// of failing the whole grammar build. Keywords it does implement are still
+/// enforced, so this keeps as much constraint as the sampler can, rather than
+/// the previous whitelist that dropped every constraint keyword outright.
+///
+/// The `x-guidance` tag is only honored at the root of the schema handed to a
+/// single `%json` node (its effect is global to that compile), so it is applied
+/// here at each embedding site rather than once on the whole tool schema.
+///
+/// Note: `lenient` also downgrades `oneOf` to `anyOf`. That is harmless for tool
+/// calling — the Qwen3 wrapper's alternatives are made mutually exclusive by a
+/// `name: { const }` discriminator, so `anyOf` accepts exactly the same inputs.
+pub(crate) fn json_schema_for_llguidance(
+    schema: &serde_json::Value,
+) -> Result<String, ToolFormatError> {
+    let mut schema = schema.clone();
+    if let Some(obj) = schema.as_object_mut() {
+        obj.insert(
+            "x-guidance".to_string(),
+            serde_json::json!({ "lenient": true }),
+        );
+    }
+    // Non-object schemas (bare `true`/`false`) carry no keywords to tolerate,
+    // so they are serialized untouched.
+    serde_json::to_string(&schema)
+        .map_err(|e| ToolFormatError::GrammarGenerationFailed(e.to_string()))
+}
+
 impl Tool {
     pub fn new<S: Into<String>>(
         name: S,
@@ -240,9 +272,6 @@ pub enum ToolFormatError {
     #[error("Failed to generate grammar: {0}")]
     GrammarGenerationFailed(String),
 
-    #[error("JSON schema error: {0}")]
-    JsonSchemaError(#[from] gbnf::json::JsonSchemaError),
-
     #[error("Lama.cpp failed fetching chat template from the model file. This is likely because you're using an older GGUF file, which might not include a chat template. For example, this is the case for most LLaMA2-based GGUF files. Try using a more recent GGUF model file. {0}")]
     ChatTemplateError(#[from] llama_cpp_2::ChatTemplateError),
 }
@@ -250,6 +279,59 @@ pub enum ToolFormatError {
 // ============================================================================
 // Trait & Format Enum
 // ============================================================================
+
+/// Escape user-controlled input for splicing into a double-quoted Lark literal.
+///
+/// Besides `"` and `\`, raw newline/tab/carriage-return make the literal
+/// malformed, so map them to their C-style escapes too. `\\` is replaced first
+/// so the backslashes introduced below are not re-escaped.
+pub(crate) fn escape_lark_string(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+/// Render a tool-call delimiter for embedding in a Lark grammar.
+///
+/// A delimiter that is a single **control token** (e.g. Ministral's
+/// `[TOOL_CALLS]`, LFM2's `<|tool_call_start|>`) is referenced as a Lark special
+/// token by id — `<[id]>` — so it matches the single control token the model
+/// emits. A quoted literal would instead match the token's text bytes, which
+/// never correspond to the control token. Ordinary text delimiters are emitted
+/// as an escaped quoted literal. With `model = None` (structure-only tests) the
+/// literal form is always used.
+pub(crate) fn lark_delimiter(model: Option<&LlamaModel>, s: &str) -> String {
+    if let Some(model) = model {
+        if let Ok(tokens) = model.str_to_token(s, llama_cpp_2::model::AddBos::Never) {
+            if tokens.len() == 1 {
+                let tok = tokens[0];
+                // A control token has no plaintext rendering: `special=false`
+                // yields empty bytes or errors. Anything else is ordinary text.
+                let is_control = model
+                    .token_to_piece_bytes(tok, 32, false, None)
+                    .map(|b| b.is_empty())
+                    .unwrap_or(true);
+                if is_control {
+                    return format!("<[{}]>", tok.0);
+                }
+            }
+        }
+    }
+    format!("\"{}\"", escape_lark_string(s))
+}
+
+/// Map any non-alphanumeric character to `_` for use in Lark rule names.
+///
+/// Tool/property names come from user-controlled input and are spliced into
+/// generated Lark rule names, which only allow a restricted identifier
+/// charset.
+pub(crate) fn sanitize_lark(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
+}
 
 /// Trait for handling different tool calling formats.
 pub trait ToolFormatHandler {
@@ -259,11 +341,33 @@ pub trait ToolFormatHandler {
     /// Returns the token that ends a tool call (e.g., "</tool_call>")
     fn end_token(&self) -> &str;
 
-    /// Generates a GBNF grammar for constrained sampling of tool calls.
-    fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError>;
-
     /// Extracts tool calls from the given text.
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>>;
+
+    /// Build a Lark grammar describing the tool call shape, for use with
+    /// [`crate::sampler::llguidance_sampler`]. The grammar's entry rule starts
+    /// with the begin token; activation is handled by the chat layer once that
+    /// token is seen (there is no lazy-trigger equivalent in Lark/llguidance).
+    fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&LlamaModel>,
+    ) -> Result<String, ToolFormatError>;
+
+    /// Regexes hinting which tokens are allowed at hot grammar positions;
+    /// llguidance precomputes a bitmask per pattern to skip full-vocab scans.
+    /// Empty by default — a bitmask that never applies is pure startup cost.
+    /// Opt in via `json_body_slice_regexes` (`%json` bodies) or a custom pattern
+    /// (see `FunctionGemmaHandler`'s `[^<>{},:]+`).
+    fn slice_regexes(&self) -> Vec<String> {
+        vec![]
+    }
+}
+
+/// Slice for a JSON string-value body (excludes `"`, `\`, control chars). The
+/// `slice_regexes` opt-in for formats whose tool-call body is `%json`-constrained.
+pub(crate) fn json_body_slice_regexes() -> Vec<String> {
+    vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
 }
 
 /// Enum representing different tool calling formats.
@@ -297,12 +401,20 @@ impl ToolFormat {
         self.handler().end_token()
     }
 
-    pub fn generate_grammar(&self, tools: &[Tool]) -> Result<gbnf::GbnfGrammar, ToolFormatError> {
-        self.handler().generate_grammar(tools)
+    pub fn to_lark(
+        &self,
+        tools: &[Tool],
+        model: Option<&LlamaModel>,
+    ) -> Result<String, ToolFormatError> {
+        self.handler().to_lark(tools, model)
     }
 
     pub fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
         self.handler().extract_tool_calls(input)
+    }
+
+    pub fn slice_regexes(&self) -> Vec<String> {
+        self.handler().slice_regexes()
     }
 }
 
@@ -445,6 +557,406 @@ mod tests {
         let format = ToolFormat::Qwen3(Qwen3Handler);
         assert_eq!(format.begin_token(), "<tool_call>");
         assert_eq!(format.end_token(), "</tool_call>");
+    }
+
+    fn weather_tool() -> Tool {
+        Tool {
+            name: "get_weather".to_string(),
+            description: "Get weather".to_string(),
+            json_schema: json!({
+                "type": "object",
+                "properties": { "city": {"type": "string"} },
+                "required": ["city"]
+            }),
+            function: Arc::new(|_| String::new()),
+        }
+    }
+
+    #[test]
+    fn tool_new_preserves_schema_and_helper_tags_lenient() {
+        // Unlike the old whitelist projection, `Tool::new` now stores the schema
+        // verbatim — including constraint keywords llguidance enforces
+        // (`maximum`) and ones it doesn't (`uniqueItems`). Tolerance is delegated
+        // to llguidance via the `x-guidance: {lenient: true}` tag that
+        // `json_schema_for_llguidance` injects at each `%json` embedding site.
+        let tool = Tool::new(
+            "set_intersection",
+            "intersect two sets",
+            json!({
+                "type": "object",
+                "properties": {
+                    "set1": {
+                        "type": "array",
+                        "items": {"type": "integer", "maximum": 100},
+                        "uniqueItems": true
+                    }
+                },
+                "required": ["set1"]
+            }),
+            Arc::new(|_| String::new()),
+        );
+
+        // Nothing is stripped: both the enforceable and the unimplemented
+        // keyword survive on the stored schema.
+        let items = &tool.json_schema["properties"]["set1"]["items"];
+        assert_eq!(items["maximum"], 100);
+        assert_eq!(tool.json_schema["properties"]["set1"]["uniqueItems"], true);
+
+        // The embedding helper tags the root leniently and keeps every keyword.
+        let embedded = json_schema_for_llguidance(&tool.json_schema).unwrap();
+        assert!(embedded.contains("x-guidance"), "missing tag: {embedded}");
+        assert!(embedded.contains("lenient"), "missing lenient: {embedded}");
+        assert!(
+            embedded.contains("uniqueItems"),
+            "keyword dropped: {embedded}"
+        );
+        assert!(embedded.contains("maximum"), "keyword dropped: {embedded}");
+
+        // Grammar generation (string level) still succeeds.
+        ToolFormat::Qwen3(Qwen3Handler)
+            .to_lark(&[tool], None)
+            .expect("schema should produce valid lark");
+    }
+
+    /// Regression: llguidance's `%json` compiler hard-errors on keywords it
+    /// hasn't implemented (e.g. `uniqueItems`). We no longer pre-strip those;
+    /// instead `json_schema_for_llguidance` tags the schema `lenient`, so the
+    /// grammar must still *compile* against a real tokenizer (create_parser
+    /// would otherwise fail at worker init). Simultaneously, a constraint
+    /// llguidance *does* implement (`maximum`) — which the old whitelist dropped
+    /// entirely — must now actually be enforced. Uses the TEST_MODEL tokenizer.
+    #[test]
+    fn unimplemented_keyword_tolerated_and_supported_constraint_enforced() {
+        let model = crate::test_utils::load_test_model();
+        let tool = Tool::new(
+            "rate",
+            "rate something",
+            json!({
+                "type": "object",
+                "properties": {
+                    // `uniqueItems` is unimplemented -> must be tolerated.
+                    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+                    // `maximum` is implemented -> must be enforced.
+                    "score": {"type": "integer", "minimum": 0, "maximum": 5}
+                },
+                "required": ["score"]
+            }),
+            Arc::new(|_| String::new()),
+        );
+        let grammar = ToolFormat::Qwen3(Qwen3Handler)
+            .to_lark(&[tool], Some(&model.language_model))
+            .unwrap();
+
+        // Compiles despite `uniqueItems`, and a within-range score is accepted.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>{\"name\":\"rate\",\"arguments\":{\"score\":3}}</tool_call>"
+            ),
+            "valid call should be accepted (proves lenient compile):\n{grammar}"
+        );
+        // `maximum: 5` is enforced: 9 is out of range and must be rejected.
+        assert!(
+            !grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>{\"name\":\"rate\",\"arguments\":{\"score\":9}}</tool_call>"
+            ),
+            "out-of-range score must be rejected (proves constraint kept):\n{grammar}"
+        );
+    }
+
+    #[test]
+    fn escape_lark_string_escapes_quotes_backslashes_and_control_chars() {
+        assert_eq!(escape_lark_string("a\"b\\c"), "a\\\"b\\\\c");
+        assert_eq!(escape_lark_string("l1\nl2\tx\r"), "l1\\nl2\\tx\\r");
+        // A literal backslash-n in the input must not collide with the newline
+        // escape: `\\` is replaced first, so `\n` (two chars) becomes `\\n`.
+        assert_eq!(escape_lark_string("a\\nb"), "a\\\\nb");
+    }
+
+    #[test]
+    fn to_lark_produces_valid_lark_for_all_handlers() {
+        // For each handler, to_lark() should produce a Lark grammar starting
+        // with the `%llguidance` header and a `start:` rule whose body
+        // contains a reference to the format's begin token (either as a Lark
+        // string literal or as a `<...>` special-token reference, depending
+        // on how the per-handler grammar represents it).
+        let tool = weather_tool();
+        let cases: &[(ToolFormat, &str)] = &[
+            (ToolFormat::Qwen3(Qwen3Handler), "<tool_call>"),
+            (ToolFormat::Qwen35_36(Qwen35_36Handler), "<tool_call>"),
+            (
+                ToolFormat::FunctionGemma(FunctionGemmaHandler),
+                "<start_function_call>",
+            ),
+            (ToolFormat::Gemma4(Gemma4Handler), "<|tool_call>"),
+            (ToolFormat::Ministral3(Ministral3Handler), "[TOOL_CALLS]"),
+            (ToolFormat::Lfm2(Lfm2Handler), "<|tool_call_start|>"),
+        ];
+
+        for (fmt, trigger) in cases {
+            let lark = fmt
+                .to_lark(std::slice::from_ref(&tool), None)
+                .unwrap_or_else(|e| panic!("to_lark failed for {:?}: {}", fmt, e));
+            assert!(
+                lark.starts_with("%llguidance {}"),
+                "{:?}: missing llguidance header:\n{}",
+                fmt,
+                lark
+            );
+            assert!(
+                lark.contains("\nstart:"),
+                "{:?}: missing start: rule:\n{}",
+                fmt,
+                lark
+            );
+            // The begin token should appear somewhere in the grammar body —
+            // either as a literal (`"..."`) or as a special-token reference
+            // (`<...>`). For literal handlers we check the quoted form; for
+            // Gemma4 (which uses TokenRef::ByString) the converter emits the
+            // bare `<...>` form.
+            let token_in_lark =
+                lark.contains(&format!("\"{}\"", trigger)) || lark.contains(trigger);
+            assert!(
+                token_in_lark,
+                "{:?}: trigger {:?} not found in grammar:\n{}",
+                fmt, trigger, lark
+            );
+        }
+    }
+
+    /// Does the model's tokenizer + `grammar` accept `input` as a COMPLETE
+    /// match? A real tokenizer is required: the free-form-string rules use
+    /// multi-character `suffix` stops, which a single-byte tokenizer can't
+    /// resolve. True only if every token is consumed and the parser ends
+    /// accepting.
+    /// Regression: LFM2's tool-call delimiters `<|tool_call_start|>` /
+    /// `<|tool_call_end|>` are control tokens, which the model emits as single
+    /// special tokens. The grammar must reference them as Lark special tokens
+    /// (`<...>`), not quoted literals — otherwise the special token (0xFF-marked
+    /// in the toktrie) fails the literal-bytes rule the moment the grammar
+    /// activates (`byte 'ÿ' fails parse`). Self-gated: skips unless the loaded
+    /// TEST_MODEL actually has these control tokens.
+    #[test]
+    fn lfm2_control_token_delimiters_accepted() {
+        use llguidance::toktrie::InferenceCapabilities;
+        use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+
+        let model = crate::test_utils::load_test_model();
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
+        if tok_env
+            .tok_trie()
+            .get_special_token("<|tool_call_start|>")
+            .is_none()
+        {
+            eprintln!("skipping: TEST_MODEL is not an LFM2 model (no <|tool_call_start|> token)");
+            return;
+        }
+
+        let grammar = ToolFormat::Lfm2(Lfm2Handler)
+            .to_lark(&[weather_tool()], Some(&model.language_model))
+            .unwrap();
+
+        let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
+            .expect("build ParserFactory");
+        let grm = TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
+        let parser = factory.create_parser(grm).expect("create parser");
+        let mut matcher = Matcher::new(Ok(parser));
+
+        // Tokenize the way real generation does (parse_special=true) so the
+        // delimiters become the single control tokens, not spelled-out text —
+        // this is the case the toktrie's `tokenize_special` can't reproduce.
+        let tokens: Vec<u32> = model
+            .language_model
+            .str_to_token(
+                "<|tool_call_start|>[get_weather(city=\"Paris\")]<|tool_call_end|>",
+                llama_cpp_2::model::AddBos::Never,
+            )
+            .unwrap()
+            .iter()
+            .map(|t| t.0 as u32)
+            .collect();
+        let consumed = matcher.try_consume_tokens(&tokens).unwrap_or(0);
+        assert!(
+            consumed == tokens.len() && matcher.is_accepting().unwrap_or(false),
+            "LFM2 call with control-token delimiters should be accepted \
+             (consumed {consumed}/{}):\n{grammar}",
+            tokens.len()
+        );
+    }
+
+    /// Regression: Ministral3's `[TOOL_CALLS]` / `[ARGS]` delimiters are control
+    /// tokens, so the grammar must reference them by id (`<[id]>`); as quoted
+    /// literals the grammar fails to constrain the control token the model emits.
+    /// Self-gated: skips unless the loaded TEST_MODEL has these control tokens.
+    #[test]
+    fn ministral3_control_token_delimiters_accepted() {
+        use llguidance::toktrie::InferenceCapabilities;
+        use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+
+        let model = crate::test_utils::load_test_model();
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
+        if tok_env
+            .tok_trie()
+            .get_special_token("[TOOL_CALLS]")
+            .is_none()
+        {
+            eprintln!("skipping: TEST_MODEL is not a Ministral model (no [TOOL_CALLS] token)");
+            return;
+        }
+
+        let grammar = ToolFormat::Ministral3(Ministral3Handler)
+            .to_lark(&[weather_tool()], Some(&model.language_model))
+            .unwrap();
+
+        let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
+            .expect("build ParserFactory");
+        let grm = TopLevelGrammar::from_tagged_str("lark", &grammar).expect("parse Lark grammar");
+        let parser = factory.create_parser(grm).expect("create parser");
+        let mut matcher = Matcher::new(Ok(parser));
+
+        let tokens: Vec<u32> = model
+            .language_model
+            .str_to_token(
+                "[TOOL_CALLS]get_weather[ARGS]{\"city\": \"Paris\"}",
+                llama_cpp_2::model::AddBos::Never,
+            )
+            .unwrap()
+            .iter()
+            .map(|t| t.0 as u32)
+            .collect();
+        let consumed = matcher.try_consume_tokens(&tokens).unwrap_or(0);
+        assert!(
+            consumed == tokens.len() && matcher.is_accepting().unwrap_or(false),
+            "Ministral call with control-token delimiters should be accepted \
+             (consumed {consumed}/{}):\n{grammar}",
+            tokens.len()
+        );
+    }
+
+    fn grammar_accepts_tok(model: &crate::llm::Model, grammar: &str, input: &str) -> bool {
+        use llguidance::toktrie::InferenceCapabilities;
+        use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+
+        let tok_env =
+            llama_cpp_2::sampling::LlamaSampler::llguidance_tok_env(&model.language_model);
+        let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &[])
+            .expect("build ParserFactory");
+        let grm = TopLevelGrammar::from_tagged_str("lark", grammar).expect("parse Lark grammar");
+        let parser = factory.create_parser(grm).expect("create parser");
+        let mut matcher = Matcher::new(Ok(parser));
+
+        let tokens = tok_env.tokenize_special(input);
+        let consumed = matcher.try_consume_tokens(&tokens).unwrap_or(0);
+        consumed == tokens.len() && matcher.is_accepting().unwrap_or(false)
+    }
+
+    /// Regression: Gemma4 free-form string values must allow a literal `<`
+    /// (e.g. "count < 5", HTML, generics). The old body rule `/[^<]*/` banned
+    /// every `<`, not just the closing `<|"|>` delimiter, so such values could
+    /// not be generated; the `gemmafour_strbody[suffix=...]` rule fixes it.
+    /// Requires a Gemma4 GGUF — set `GEMMA4_MODEL`; skipped otherwise.
+    #[test]
+    fn gemma4_string_value_allows_left_angle_bracket() {
+        let Ok(path) = std::env::var("GEMMA4_MODEL") else {
+            eprintln!("skipping: set GEMMA4_MODEL to a Gemma4 GGUF to run this test");
+            return;
+        };
+        let model = crate::llm::get_model(&path, true, None, None, None)
+            .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e:?}"));
+        let grammar = ToolFormat::Gemma4(Gemma4Handler)
+            .to_lark(&[weather_tool()], Some(&model.language_model))
+            .unwrap();
+
+        // Baseline: a plain value is accepted.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<|tool_call>call:get_weather{city:<|\"|>hello<|\"|>}<tool_call|>"
+            ),
+            "plain string value should be accepted:\n{grammar}"
+        );
+        // The regression: a value containing '<' is valid content.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<|tool_call>call:get_weather{city:<|\"|>count < 5<|\"|>}<tool_call|>"
+            ),
+            "string value containing '<' should be accepted:\n{grammar}"
+        );
+    }
+
+    /// Regression: Qwen3.5/3.6 free-form string values must be able to end in a
+    /// trailing newline. The old body rule `/([^\n]|\n[^<])*/` could not match a
+    /// value ending in `\n` before the `\n</parameter>\n` terminator (no valid
+    /// split of the bytes); the `..._body[suffix=...]` rule fixes it. Uses the
+    /// TEST_MODEL tokenizer to validate the generated grammar's byte language.
+    #[test]
+    fn qwen35_36_string_value_allows_trailing_newline() {
+        let model = crate::test_utils::load_test_model();
+        let grammar = ToolFormat::Qwen35_36(Qwen35_36Handler)
+            .to_lark(&[weather_tool()], Some(&model.language_model))
+            .unwrap();
+
+        // Baseline: a plain value is accepted.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>\n<function=get_weather>\n<parameter=city>\nsunny\n</parameter>\n</function>\n</tool_call>"
+            ),
+            "plain string value should be accepted:\n{grammar}"
+        );
+        // The regression: value "sunny\n" ends in a newline.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>\n<function=get_weather>\n<parameter=city>\nsunny\n\n</parameter>\n</function>\n</tool_call>"
+            ),
+            "string value ending in a newline should be accepted:\n{grammar}"
+        );
+    }
+
+    /// Regression: enum string values containing control characters (here a
+    /// newline) must be escaped when spliced into Lark literals, or the grammar
+    /// is malformed and `create_parser` fails at worker init. See
+    /// [`escape_lark_string`]. Uses the TEST_MODEL tokenizer.
+    #[test]
+    fn qwen35_36_enum_value_with_newline_produces_valid_grammar() {
+        let model = crate::test_utils::load_test_model();
+        let tool = Tool::new(
+            "set_mode",
+            "set the mode",
+            json!({
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "enum": ["plain", "with\nnewline"]}
+                },
+                "required": ["mode"]
+            }),
+            Arc::new(|_| String::new()),
+        );
+        let grammar = ToolFormat::Qwen35_36(Qwen35_36Handler)
+            .to_lark(&[tool], Some(&model.language_model))
+            .unwrap();
+
+        // Accepting the escaped-newline variant also proves the grammar parsed:
+        // a raw newline in the literal would make `create_parser` fail.
+        assert!(
+            grammar_accepts_tok(
+                &model,
+                &grammar,
+                "<tool_call>\n<function=set_mode>\n<parameter=mode>\nwith\nnewline\n</parameter>\n</function>\n</tool_call>"
+            ),
+            "enum value with an escaped newline should be accepted:\n{grammar}"
+        );
     }
 
     #[test]
