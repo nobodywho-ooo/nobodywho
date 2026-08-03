@@ -309,10 +309,8 @@ impl NobodyWhoSamplerPresets {
     #[func]
     fn constrain_with_json_schema(schema: Variant) -> Variant {
         match schema_to_string(&schema) {
-            Ok(s) => {
-                NobodyWhoSamplerConfig::wrap(SamplerPresets::constrain_with_json_schema(s))
-                    .to_variant()
-            }
+            Ok(s) => NobodyWhoSamplerConfig::wrap(SamplerPresets::constrain_with_json_schema(s))
+                .to_variant(),
             Err(e) => {
                 godot_error!("NobodyWhoSamplerPresets.constrain_with_json_schema: {e}");
                 Variant::nil()
@@ -342,6 +340,8 @@ fn schema_to_string(schema: &Variant) -> Result<String, String> {
             let json = variant_to_json(schema)?;
             serde_json::to_string(&json).map_err(|e| format!("failed to serialize schema: {e}"))
         }
-        other => Err(format!("expected a JSON string or a Dictionary, got {other:?}")),
+        other => Err(format!(
+            "expected a JSON string or a Dictionary, got {other:?}"
+        )),
     }
 }

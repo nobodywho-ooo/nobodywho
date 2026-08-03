@@ -50,14 +50,8 @@ impl NobodyWhoModel {
         // Option<DownloadProgressCallback>; emit a signal from inside the
         // callback instead of bridging a Callable. Deferred to a later chunk.
         task(async move {
-            match nobodywho::llm::get_model_async(
-                path,
-                use_gpu,
-                mmproj_path,
-                draft_path,
-                None,
-            )
-            .await
+            match nobodywho::llm::get_model_async(path, use_gpu, mmproj_path, draft_path, None)
+                .await
             {
                 Ok(model) => {
                     let gd = Gd::from_init_fn(|base| NobodyWhoModel {
@@ -81,7 +75,9 @@ impl NobodyWhoModel {
     /// Parse the `create` config Dictionary into `(use_gpu, mmproj_path,
     /// draft_path)`. Errors on any recognized key holding a value of the
     /// wrong type.
-    fn parse_config(config: &VarDictionary) -> Result<(bool, Option<String>, Option<String>), String> {
+    fn parse_config(
+        config: &VarDictionary,
+    ) -> Result<(bool, Option<String>, Option<String>), String> {
         Ok((
             dict_get::<bool>(config, "use_gpu")?.unwrap_or(true),
             dict_get::<GString>(config, "mmproj_path")?.map(|s| resolve_godot_path(&s)),
