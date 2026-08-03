@@ -317,12 +317,19 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
 
     // Add skip guard for vision tests that require multimodal models
     final needsVisionModel = code.contains('vision-model.gguf') || code.contains('mmproj.gguf');
+    // Add skip guard for MTP tests: they need a draft-heads gguf that CI does
+    // not provide (no TEST_MTP_MODEL is set), so they are analyzed for API
+    // correctness but skipped at runtime — same treatment as vision tests.
+    final needsMtpModel = code.contains('draftModelPath') || code.contains('MtpConfig');
 
     if (hasMainFunction(code)) {
       // Code has its own main - extract it as a separate function
       buffer.writeln("    test('$testDescription', () async {");
       if (needsVisionModel) {
         buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+      }
+      if (needsMtpModel) {
+        buffer.writeln("      if (Platform.environment['TEST_MTP_MODEL'] == null) return;");
       }
       buffer.writeln("      await _doctest_$testIndex();");
       buffer.writeln("    });");
@@ -331,6 +338,9 @@ String generateTestFile(List<CodeGroup> groups, String testName) {
       buffer.writeln("    test('$testDescription', () async {");
       if (needsVisionModel) {
         buffer.writeln("      if (Platform.environment['TEST_MULTIMODAL_MODEL'] == null || Platform.environment['TEST_MULTIMODAL_MMPROJ'] == null) return;");
+      }
+      if (needsMtpModel) {
+        buffer.writeln("      if (Platform.environment['TEST_MTP_MODEL'] == null) return;");
       }
 
       // Remove imports and init calls from inline code (they're handled in setup)

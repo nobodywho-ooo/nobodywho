@@ -89,23 +89,26 @@ impl SamplerPresets {
     }
 
     pub fn json() -> SamplerConfig {
-        let mut steps = SamplerConfig::default().steps;
-        steps.push(ShiftStep::Grammar {
+        // the grammar must run before the truncation samplers: if top-k
+        // runs first and none of the surviving candidates is grammar-valid,
+        // the grammar masks out every token and generation aborts
+        let mut steps = vec![ShiftStep::Grammar {
             trigger_on: None,
             root: "root".into(),
             grammar: JSON_GRAMMAR.into(),
-        });
+        }];
+        steps.extend(SamplerConfig::default().steps);
         SamplerConfig::new(steps, SampleStep::Dist, default_seed())
     }
 
     #[deprecated(note = "Use SamplerPresets::constrain_with_grammar() instead")]
     pub fn grammar(grammar: String) -> SamplerConfig {
-        let mut steps = SamplerConfig::default().steps;
-        steps.push(ShiftStep::Grammar {
+        let mut steps = vec![ShiftStep::Grammar {
             trigger_on: None,
             root: "root".into(),
             grammar,
-        });
+        }];
+        steps.extend(SamplerConfig::default().steps);
         SamplerConfig::new(steps, SampleStep::Dist, default_seed())
     }
 }
@@ -566,6 +569,79 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_json_preset_builds_sampler() {
+        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
+        let model = crate::llm::get_model(&path, false, None, None, None).expect("load model");
+
+        let res = SamplerPresets::json().to_stateful(&model.language_model);
+        assert!(res.is_ok(), "json preset failed: {:?}", res.err());
+    }
+
+    /// Model-independent regression test for issue #421: a grammar whose
+    /// only valid first token is never in the top-k forces an empty
+    /// candidate set when the grammar runs after truncation, which aborts
+    /// the process with an uncatchable C++ exception. With the grammar
+    /// first the literal is emitted regardless of the model.
+    #[test]
+    fn test_ordering_grammar_first_with_unlikely_literal() {
+        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
+        let model = std::sync::Arc::new(
+            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
+        );
+
+        let cfg = SamplerConfig::new(
+            vec![
+                ShiftStep::Grammar {
+                    trigger_on: None,
+                    root: "root".into(),
+                    grammar: "root ::= \"zqxjvkw\"".into(),
+                },
+                ShiftStep::TopK { top_k: 1 },
+            ],
+            SampleStep::Dist,
+            default_seed(),
+        );
+
+        let chat = crate::chat::ChatBuilder::new(model)
+            .build()
+            .expect("build chat");
+        chat.set_sampler_config(cfg).expect("set sampler config");
+        let response = chat
+            .ask("Say hello.")
+            .completed()
+            .expect("generation with grammar-first unlikely literal failed");
+
+        assert_eq!(response, "zqxjvkw");
+    }
+
+    /// Regression test for issue #421, mirroring the Godot repro (start
+    /// worker, set the json preset, ask). Before the fix the grammar step
+    /// ran after top-k, and models whose top candidates contained no
+    /// grammar-valid token (e.g. thinking models such as Qwen3) crashed
+    /// the process during generation.
+    #[test]
+    fn test_json_preset_full_generation() {
+        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
+        let model = std::sync::Arc::new(
+            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
+        );
+
+        let chat = crate::chat::ChatBuilder::new(model)
+            .build()
+            .expect("build chat");
+        chat.set_sampler_config(SamplerPresets::json())
+            .expect("set sampler config");
+        let response = chat
+            .ask("Return {\"hello\": \"world\"}.")
+            .completed()
+            .expect("generation with json preset failed");
+
+        assert!(!response.is_empty(), "empty response");
+        serde_json::from_str::<serde_json::Value>(&response)
+            .unwrap_or_else(|e| panic!("response is not valid JSON ({e}): {response}"));
+    }
 
     #[test]
     fn test_shift_appends_to_end() {

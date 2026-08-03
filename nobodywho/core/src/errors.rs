@@ -1,7 +1,34 @@
+// `miette`'s `Diagnostic` derive (we're on miette 5) expands `#[error(..)]` /
+// `#[diagnostic(help(..))]` format arguments into assignments that rustc 1.92+ reports as
+// `unused_assignments`, pointing at the enum's own field declarations. The lint is a
+// macro-expansion artifact — there is nothing to fix at these sites — and it fails
+// `cargo clippy -- -D warnings`. Drop this once miette is upgraded.
+#![allow(unused_assignments)]
+
 use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
 use std::path::PathBuf;
 
 // Memory errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum MemoryDetectionError {
+    #[error("could not read {path}")]
+    ReadFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("invalid memory information from {origin}: {reason}")]
+    InvalidData { origin: String, reason: String },
+    #[error("{operation} failed")]
+    SystemCall {
+        operation: &'static str,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("memory detection is unsupported on {platform}")]
+    UnsupportedPlatform { platform: &'static str },
+}
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum MemoryError {
@@ -196,6 +223,9 @@ pub enum LoadModelError {
 
     #[error("Could not determine cache directory: {0}")]
     CacheDir(#[from] GetCacheDirError),
+
+    #[error("Could not select a model automatically: {0}")]
+    AutomaticModelSelectionMemory(#[from] MemoryDetectionError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -376,6 +406,19 @@ pub enum InitWorkerError {
     #[error("Insufficient memory for context: {0}")]
     #[diagnostic(transparent)]
     Memory(#[from] MemoryError),
+
+    #[error("MTP speculative decoding failed to initialize: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("MTP requested but no draft model was loaded")]
+    #[diagnostic(
+        code(nobodywho::mtp_draft_model_not_loaded),
+        help(
+            "Load the model with a `draft_model_path` to enable MTP, or disable it on this chat. \
+             See https://docs.nobodywho.ooo/docs/llm-basics#speculative-decoding-mtp"
+        )
+    )]
+    MtpDraftModelNotLoaded,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -468,6 +511,9 @@ pub enum ReadError {
         )
     )]
     InputExceedsContext { n_tokens: usize, n_ctx: usize },
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
 // CrossEncoderWorker errors
@@ -511,7 +557,7 @@ pub enum EncoderWorkerError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum HuggingFaceError {
-    #[error("invalid model source {0:?}: must be an existing directory or `owner/repo`")]
+    #[error("invalid model source {0:?}: must be an existing directory or `hf://owner/repo`")]
     #[diagnostic(code(nobodywho::hf_invalid_source))]
     InvalidSource(String),
 
@@ -709,6 +755,10 @@ pub enum TtsError {
     #[error("Unknown Supertonic voice '{voice}'. Available voices: {available}")]
     #[diagnostic(code(nobodywho::tts_missing_voice))]
     MissingVoice { voice: String, available: String },
+
+    #[error("Unknown Pocket TTS voice '{voice}'. Available voices: {available}")]
+    #[diagnostic(code(nobodywho::tts_pocket_missing_voice))]
+    PocketMissingVoice { voice: String, available: String },
 
     #[error("Invalid TTS asset {path}: {message}")]
     #[diagnostic(code(nobodywho::tts_invalid_asset))]
@@ -914,6 +964,19 @@ pub enum DecodingError {
 
     #[error("Llama.cpp failed decoding: {0}")]
     Decode(#[from] llama_cpp_2::DecodeError),
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("KV cache rollback failed: {0}")]
+    KvCache(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
+
+    #[error(
+        "MTP speculative decoding requires a model whose KV cache supports partial removal \
+         (attention-based). This architecture (recurrent / hybrid-recurrent) rejected the \
+         partial rollback needed to discard mispredicted draft tokens."
+    )]
+    MtpPartialRollbackUnsupported,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

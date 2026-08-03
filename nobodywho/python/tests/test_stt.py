@@ -1,11 +1,16 @@
 """
 Smoke test for the STT (Whisper) binding.
 
-Requires the Whisper ONNX model — set TEST_WHISPER_MODEL to a HuggingFace repo ID
-or local directory path.  Defaults to "onnx-community/whisper-base" so the model is
+Requires the Whisper ONNX model — set TEST_WHISPER_MODEL to a HuggingFace repo
+(`hf://owner/repo`) or local directory path.  Defaults to
+"hf://onnx-community/whisper-base" so the model is
 downloaded automatically on first run (cached after).
 
 The test audio contains the phrase "Hey Ron. Hey Billy."
+
+Uses the fp32 (`"default"`) ONNX quantization rather than the library default
+(`"q4"`): the q4 `whisper-base` encoder mis-transcribes "Billy" as "Bailey",
+while fp32 transcribes it correctly, which is what the assertions below check.
 """
 
 import array
@@ -14,7 +19,7 @@ import wave
 import nobodywho
 import pytest
 
-MODEL = os.environ.get("TEST_WHISPER_MODEL", "onnx-community/whisper-base")
+MODEL = os.environ.get("TEST_WHISPER_MODEL", "hf://onnx-community/whisper-base")
 AUDIO = os.environ.get(
     "TEST_AUDIO_FILE",
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "assets", "sound.mp3"),
@@ -29,7 +34,7 @@ AUDIO_WAV = os.environ.get(
 
 @pytest.fixture(scope="module")
 def stt():
-    return nobodywho.STT(MODEL)
+    return nobodywho.STT(MODEL, quantization="default")
 
 
 def _read_wav_mono_i16(path):

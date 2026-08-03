@@ -100,14 +100,16 @@ where
     })
 }
 
-fn parse_tts_backend(
-    backend: Option<String>,
-) -> Result<Option<nobodywho::tts::TtsBackendKind>, String> {
-    backend
+fn parse_tts_architecture(
+    architecture: Option<String>,
+) -> Result<Option<nobodywho::tts::TtsArchitecture>, String> {
+    architecture
         .as_deref()
         .map(str::parse)
         .transpose()
-        .map_err(|()| "backend must be one of 'kokoro' or 'supertonic'".to_string())
+        .map_err(|()| {
+            "architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'".to_string()
+        })
 }
 
 fn tts_device_from_use_gpu(use_gpu: bool) -> nobodywho::tts::TtsDevice {
@@ -120,16 +122,19 @@ fn tts_device_from_use_gpu(use_gpu: bool) -> nobodywho::tts::TtsDevice {
 
 fn build_tts_config(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
 ) -> Result<nobodywho::tts::TtsConfig, String> {
-    let backend = parse_tts_backend(backend)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
-        "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'"
+    let architecture = parse_tts_architecture(architecture)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
+        "architecture is required for unknown TTS sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'"
             .to_string()
     })?;
 
@@ -144,6 +149,30 @@ fn build_tts_config(
             if let Some(speed) = speed {
                 config.speed = speed;
             }
+        }
+        nobodywho::tts::TtsConfig::PocketTts(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(steps) = steps {
+                config.lsd_steps = steps as usize;
+            }
+            if let Some(precision) = precision {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err("precision must be 'int8' or 'fp32' for Pocket TTS".to_string())
+                    }
+                };
+            }
+            if let Some(temperature) = temperature {
+                config.temperature = temperature;
+            }
+            config.huggingface_token = huggingface_token;
         }
         nobodywho::tts::TtsConfig::Supertonic(config) => {
             if let Some(voice) = voice {
@@ -186,15 +215,18 @@ pub struct Model {
 
 impl Model {
     /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
-    /// or HTTPS URL. Remote models are downloaded and cached automatically.
+    /// HTTPS URL, or `auto` for memory-based selection. Remote models are downloaded
+    /// and cached automatically.
     ///
     /// Args:
-    ///     model_path: Path or URL to a GGUF model file.
+    ///     model_path: Path, URL, or `auto`.
     ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
     ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
     ///         final emit on completion. Not invoked for cached/local files.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+    ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
+    ///         chats built from this model opt into MTP speculative decoding.
     pub fn max_ctx(&self) -> u32 {
         self.model.max_ctx()
     }
@@ -208,11 +240,13 @@ impl Model {
             + 'static,
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] draft_model_path: Option<String>,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
+            draft_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -259,33 +293,42 @@ impl Tts {
     /// Create a TTS synthesizer.
     ///
     /// Args:
-    ///     source: Local model directory or HuggingFace repo ID.
-    ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
-    ///     voice: Voice name. Backend default is used when omitted.
-    ///     language: Language code. Backend default is used when omitted.
-    ///     speed: Speaking speed. Backend default is used when omitted.
-    ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+    ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+    ///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+    ///     voice: Voice name. Architecture default is used when omitted.
+    ///     language: Language code. Architecture default is used when omitted.
+    ///     speed: Speaking speed. Architecture default is used when omitted.
+    ///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
     ///     silence_duration: Supertonic silence between chunks in seconds.
+    ///     precision: Pocket TTS precision: "int8" or "fp32".
+    ///     temperature: Pocket TTS generation temperature.
+    ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     #[flutter_rust_bridge::frb]
     pub fn load(
         source: String,
-        #[frb(default = "null")] backend: Option<String>,
+        #[frb(default = "null")] architecture: Option<String>,
         #[frb(default = "null")] voice: Option<String>,
         #[frb(default = "null")] language: Option<String>,
         #[frb(default = "null")] speed: Option<f32>,
         #[frb(default = "null")] steps: Option<u32>,
         #[frb(default = "null")] silence_duration: Option<f32>,
+        #[frb(default = "null")] precision: Option<String>,
+        #[frb(default = "null")] temperature: Option<f32>,
+        #[frb(default = "null")] huggingface_token: Option<String>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
         let config = build_tts_config(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
         )?;
         let device = tts_device_from_use_gpu(use_gpu);
         let handle = nobodywho::tts::Tts::with_device(config, device)
@@ -327,7 +370,15 @@ impl RustChat {
     ///     context_size: Context size (maximum conversation length in tokens)
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+    ///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
+    ///         Model to have been loaded with a compatible `draft_model_path`. Adds
+    ///         around 5% to VRAM usage. Defaults to null (disabled).
+    ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+    ///         device's physical core count (performance cores only, on Apple silicon) —
+    ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+    ///         headroom for the rest of the app. Clamped to the CPU count.
     #[flutter_rust_bridge::frb(sync)]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         model: &Model,
         #[frb(default = "null")] system_prompt: Option<String>,
@@ -336,6 +387,8 @@ impl RustChat {
         #[frb(default = "const {}")] template_variables: HashMap<String, bool>,
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
+        #[frb(default = "null")] mtp: Option<MtpConfig>,
+        #[frb(default = "null")] thread_count: Option<u32>,
     ) -> Result<Self, String> {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -349,12 +402,19 @@ impl RustChat {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.model))
+        let mut builder = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.model))
             .with_context_size(context_size)
             .with_template_variables(template_vars)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
-            .with_sampler(sampler_config)
+            .with_sampler(sampler_config);
+        if let Some(mtp) = mtp {
+            builder = builder.with_mtp(mtp.into());
+        }
+        if let Some(thread_count) = thread_count {
+            builder = builder.with_n_threads(thread_count);
+        }
+        let chat = builder
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
 
@@ -374,6 +434,10 @@ impl RustChat {
     ///     tools: List of Tool instances the model can call
     ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+    ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+    ///         device's physical core count (performance cores only, on Apple silicon) —
+    ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+    ///         headroom for the rest of the app. Clamped to the CPU count.
     #[flutter_rust_bridge::frb]
     #[allow(clippy::too_many_arguments)]
     pub fn from_path(
@@ -383,6 +447,7 @@ impl RustChat {
             + Sync
             + 'static,
         #[frb(default = "null")] projection_model_path: Option<String>,
+        #[frb(default = "null")] draft_model_path: Option<String>,
         #[frb(default = "null")] system_prompt: Option<String>,
         #[frb(default = 4096)] context_size: u32,
         #[frb(default = "null")] allow_thinking: Option<bool>,
@@ -390,11 +455,14 @@ impl RustChat {
         #[frb(default = "const []")] tools: Vec<RustTool>,
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = true)] use_gpu: bool,
+        #[frb(default = "null")] mtp: Option<MtpConfig>,
+        #[frb(default = "null")] thread_count: Option<u32>,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
             projection_model_path.as_deref(),
+            draft_model_path.as_deref(),
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -410,12 +478,19 @@ impl RustChat {
             template_vars.insert("enable_thinking".to_string(), allow);
         }
 
-        let chat = nobodywho::chat::ChatBuilder::new(Arc::new(model))
+        let mut builder = nobodywho::chat::ChatBuilder::new(Arc::new(model))
             .with_context_size(context_size)
             .with_template_variables(template_vars)
             .with_tools(tools.into_iter().map(|t| t.tool).collect())
             .with_system_prompt(system_prompt)
-            .with_sampler(sampler_config)
+            .with_sampler(sampler_config);
+        if let Some(mtp) = mtp {
+            builder = builder.with_mtp(mtp.into());
+        }
+        if let Some(thread_count) = thread_count {
+            builder = builder.with_n_threads(thread_count);
+        }
+        let chat = builder
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { chat })
@@ -561,6 +636,13 @@ impl RustChat {
         })
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+    /// Resets each generation (per-response, not cumulative). Null when MTP is
+    /// disabled or no drafts were proposed in the last generation.
+    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, nobodywho::errors::GetterError> {
+        self.chat.mtp_acceptance_rate().await
+    }
+
     pub async fn set_tools(
         &self,
         tools: Vec<RustTool>,
@@ -642,7 +724,7 @@ pub struct RustSTT {
 
 impl RustSTT {
     /// Create an STT handle.
-    /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
+    /// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
     /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
     /// `quantization` — ONNX precision variant to download and load: one of
     /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
@@ -663,7 +745,7 @@ impl RustSTT {
         Ok(Self { stt })
     }
 
-    /// Transcribe an audio file (WAV / MP3 / FLAC).
+    /// Transcribe an audio file (WAV / MP3).
     #[flutter_rust_bridge::frb(sync)]
     pub fn transcribe_file(&self, path: String) -> Result<RustSTTStream, String> {
         let stream = self
@@ -755,6 +837,7 @@ impl Encoder {
             model_path,
             use_gpu,
             None,
+            None,
             Some(wrap_progress(on_download_progress)),
         )
         .map_err(|e| nobodywho::render_miette(&e))?;
@@ -768,6 +851,14 @@ impl Encoder {
         text: String,
     ) -> Result<Vec<f32>, nobodywho::errors::EncoderWorkerError> {
         self.handle.encode(text).await
+    }
+
+    /// Encode multiple texts, preserving input order.
+    pub async fn encode_batch(
+        &self,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, nobodywho::errors::EncoderWorkerError> {
+        self.handle.encode_batch(texts).await
     }
 }
 
@@ -806,6 +897,7 @@ impl CrossEncoder {
         let model = nobodywho::llm::get_model(
             model_path,
             use_gpu,
+            None,
             None,
             Some(wrap_progress(on_download_progress)),
         )
@@ -1001,6 +1093,30 @@ fn dart_function_type_to_json_schema(
 // - blocking ask
 // - embeddings
 // - cross encoder
+
+/// Tuning for MTP speculative decoding. Pass one as the `mtp` argument to a
+/// chat constructor to enable MTP; pass null to disable. Requires the model to
+/// have been loaded with a compatible `draft_model_path`.
+#[flutter_rust_bridge::frb]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    // Default mirrors core `MtpConfig::default()`.
+    #[frb(default = 3)]
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp `p_min`).
+    // Default mirrors core `MtpConfig::default()`.
+    #[frb(default = 0.0)]
+    pub p_min: f32,
+}
+
+impl From<MtpConfig> for nobodywho::chat::MtpConfig {
+    fn from(c: MtpConfig) -> Self {
+        nobodywho::chat::MtpConfig {
+            k_max: c.k_max,
+            p_min: c.p_min,
+        }
+    }
+}
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
 /// NobodyWho will sample a token from the probability distribution, to include in the

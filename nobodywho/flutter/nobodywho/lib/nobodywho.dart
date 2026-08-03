@@ -8,6 +8,8 @@ export 'src/rust/lib.dart'
         RustChat, // Users should use Chat
         RustTokenStream, // Users should use TokenStream
         RustTool, // Users should use Tool
+        RustStt, // Users should use Stt
+        RustSttStream, // Users should use SttStream
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
         PromptPart, // Users should use the hand-written PromptPart sealed class
@@ -575,6 +577,10 @@ class Chat {
   /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
   /// final chat = Chat(model: model);
   /// ```
+  /// [threadCount] is the number of CPU threads used for inference. Leave it null to
+  /// detect the device's physical core count (performance cores only, on Apple silicon) —
+  /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
+  /// CPU headroom for the rest of the app.
   factory Chat({
     required nobodywho.Model model,
     String? systemPrompt,
@@ -583,6 +589,8 @@ class Chat {
     Map<String,bool> templateVariables = const {},
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
+    nobodywho.MtpConfig? mtp,
+    int? threadCount,
   }) {
     final chat = nobodywho.RustChat(
       model: model,
@@ -592,6 +600,8 @@ class Chat {
       allowThinking: allowThinking,
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
+      mtp: mtp,
+      threadCount: threadCount,
     );
     return Chat._(chat);
   }
@@ -608,9 +618,15 @@ class Chat {
   /// completion. It is not invoked for cached/local files. The callback may
   /// be sync or async; awaiting slow work inside it will stall the download
   /// thread.
+  ///
+  /// [threadCount] is the number of CPU threads used for inference. Leave it null to
+  /// detect the device's physical core count (performance cores only, on Apple silicon) —
+  /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
+  /// CPU headroom for the rest of the app.
   static Future<Chat> fromPath({
     required String modelPath,
     String? projectionModelPath,
+    String? draftModelPath,
     String? systemPrompt,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -618,6 +634,8 @@ class Chat {
     List<Tool> tools = const [],
     nobodywho.SamplerConfig? sampler,
     bool useGpu = true,
+    nobodywho.MtpConfig? mtp,
+    int? threadCount,
     FutureOr<void> Function(int downloaded, int total) onDownloadProgress =
         nobodywho.noopOnDownloadProgress,
   }) async {
@@ -625,6 +643,7 @@ class Chat {
       modelPath: modelPath,
       onDownloadProgress: onDownloadProgress,
       projectionModelPath: projectionModelPath,
+      draftModelPath: draftModelPath,
       systemPrompt: systemPrompt,
       contextSize: contextSize,
       allowThinking: allowThinking,
@@ -632,6 +651,8 @@ class Chat {
       tools: tools.map((t) => t._internalTool).toList(),
       sampler: sampler,
       useGpu: useGpu,
+      mtp: mtp,
+      threadCount: threadCount,
     );
     return Chat._(chat);
   }
@@ -722,8 +743,79 @@ class Chat {
   /// Get token usage statistics for the current context.
   Future<nobodywho.ChatStats> getStats() => _chat.getStats();
 
+  Future<double?> mtpAcceptanceRate() => _chat.mtpAcceptanceRate();
+
   /// Stop the current generation.
   void stopGeneration() => _chat.stopGeneration();
+}
+
+/// A stream of transcript tokens returned by [Stt.transcribeFile] and [Stt.transcribePcm].
+/// Implements [Stream<String>] so it can be used with `await for`.
+class SttStream extends Stream<String> {
+  final nobodywho.RustSttStream _sttStream;
+
+  SttStream._(this._sttStream);
+
+  @override
+  StreamSubscription<String> listen(
+    void Function(String event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return _generateStream().listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
+  }
+
+  Stream<String> _generateStream() async* {
+    while (true) {
+      final token = await _sttStream.nextToken();
+      if (token == null) break;
+      yield token;
+    }
+  }
+
+  /// Wait for the complete transcript and return it as a single string.
+  Future<String> completed() => _sttStream.completed();
+}
+
+// Wrapper for the RustStt class, mirroring Chat/TokenStream for a consistent public API.
+class Stt {
+  final nobodywho.RustStt _stt;
+
+  Stt._(this._stt);
+
+  /// Create an STT handle.
+  ///
+  /// [source] — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
+  /// [language] — ISO 639-1 code (e.g. `"en"`); omit for auto-detect.
+  /// [quantization] — ONNX precision variant to download and load: one of
+  /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit to use `"default"`.
+  factory Stt({
+    required String source,
+    String? language,
+    String? quantization,
+  }) {
+    final stt = nobodywho.RustStt.new_(
+      source: source,
+      language: language,
+      quantization: quantization,
+    );
+    return Stt._(stt);
+  }
+
+  /// Transcribe an audio file (WAV / MP3 / FLAC).
+  SttStream transcribeFile(String path) =>
+      SttStream._(_stt.transcribeFile(path: path));
+
+  /// Transcribe raw i16 PCM samples (e.g. from a microphone stream).
+  /// [sampleRate] is the capture rate in Hz; resampled to 16 kHz internally.
+  SttStream transcribePcm(List<int> samples, int sampleRate) =>
+      SttStream._(_stt.transcribePcm(samples: samples, sampleRate: sampleRate));
 }
 
 /// Sampler preset factory methods.

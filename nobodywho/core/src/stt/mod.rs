@@ -1,11 +1,11 @@
+mod architecture;
+mod architectures;
 pub(crate) mod audio;
-mod backend;
-mod backends;
 
 use crate::errors::SttError;
 pub use crate::onnx::Device;
 pub use crate::stream::{StreamOutput, TokenStream, TokenStreamAsync};
-pub use backends::WhisperConfig;
+pub use architectures::WhisperConfig;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -30,7 +30,7 @@ type SttRequest = (AudioInput, SttResponseChannel);
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Backend selection and model source for an [`Stt`] handle.
+/// Architecture selection and model source for an [`Stt`] handle.
 #[derive(Clone, Debug)]
 pub enum SttConfig {
     Whisper(WhisperConfig),
@@ -56,19 +56,19 @@ impl Stt {
     }
 
     pub fn with_device(config: SttConfig, device: Device) -> Result<Self, SttError> {
-        let mut backend = backend::load_backend(config, device)?;
+        let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SttRequest>();
         std::thread::spawn(move || {
             while let Ok((input, response)) = msg_rx.recv() {
                 match response {
                     SttResponseChannel::Full(tx) => {
-                        let result = backend::transcribe_sync(backend.as_mut(), input);
+                        let result = architecture::transcribe_sync(architecture.as_mut(), input);
                         if tx.blocking_send(result).is_err() {
                             tracing::warn!("STT caller dropped before result could be delivered");
                         }
                     }
                     SttResponseChannel::Stream(tx) => {
-                        backend::transcribe_streaming(backend.as_mut(), input, tx);
+                        architecture::transcribe_streaming(architecture.as_mut(), input, tx);
                     }
                 }
             }

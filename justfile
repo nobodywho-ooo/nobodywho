@@ -7,7 +7,7 @@ fmt:
     git diff --exit-code -- '*.rs' || (echo "cargo fmt made changes — commit them before pushing" && exit 1)
 
 clippy:
-    cd nobodywho/core && cargo clippy --no-deps -- -D warnings
+    cd nobodywho/core && cargo clippy --no-deps --all-targets -- -D warnings
 
 regen-python:
     cd nobodywho/python && maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check

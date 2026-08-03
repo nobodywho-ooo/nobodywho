@@ -1,0 +1,267 @@
+name: "CI commands from PR comments"
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  command:
+    # Cheap pre-filter; the strict whole-comment check runs in the parse step.
+    if: >-
+      github.event.issue.pull_request
+      && startsWith(github.event.comment.body, '/')
+      && contains(github.event.comment.body, '-ci')
+    runs-on: ubuntu-latest
+    timeout-minutes: 190
+    permissions:
+      actions: write
+      pull-requests: write
+      issues: write
+    concurrency:
+      group: ci-command-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Check permissions
+        id: auth
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            core.setOutput('allowed', ['admin', 'write'].includes(data.permission));
+
+      - name: Parse and validate commands
+        id: parse
+        if: steps.auth.outputs.allowed == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const body = context.payload.comment.body;
+            // Strict: the whole comment must be only /<name>-ci tokens.
+            if (!/^\s*(\/[a-z-]+-ci\s*)+$/.test(body)) {
+              core.setOutput('run', 'false');
+              return;
+            }
+            const MAP = {
+              'full-ci': 'full',
+              'core-ci': 'rust_core',
+              'python-ci': 'python',
+              'python-models-ci': 'python_models',
+              'godot-ci': 'godot',
+              'flutter-ci': 'flutter',
+              'swift-ci': 'swift',
+              'kotlin-ci': 'kotlin',
+              'react-native-ci': 'react_native',
+              'regen-ci': 'regen',
+            };
+            const tokens = [...body.matchAll(/\/([a-z-]+-ci)/g)].map((m) => m[1]);
+            const unknown = [...new Set(tokens.filter((t) => !(t in MAP)))];
+            if (unknown.length > 0) {
+              const valid = Object.keys(MAP).map((k) => `\`/${k}\``).join(', ');
+              const bad = unknown.map((u) => `\`/${u}\``).join(', ');
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `❌ Unrecognized command(s): ${bad}\n\nValid commands: ${valid}`,
+              });
+              core.setFailed('Unrecognized CI command(s); dispatching nothing.');
+              return;
+            }
+            const flags = new Set(tokens.map((t) => MAP[t]));
+            const full = flags.delete('full'); // /full-ci overrides the granular set
+            core.setOutput('run', 'true');
+            core.setOutput('full_ci', full ? 'true' : 'false');
+            core.setOutput('buckets', full ? '' : [...flags].join(' '));
+
+      - name: Get PR head
+        id: pr
+        if: steps.parse.outputs.run == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_sha', pr.head.sha);
+
+      - name: Dispatch CI
+        if: steps.parse.outputs.run == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build-and-test.yml',
+              ref: ${{ toJSON(steps.pr.outputs.head_ref) }},
+              inputs: {
+                full_ci: ${{ toJSON(steps.parse.outputs.full_ci) }},
+                buckets: ${{ toJSON(steps.parse.outputs.buckets) }},
+              },
+            });
+
+      - name: Mark PR as running full CI
+        # Visible marker on the PR/overview while a /full-ci run is in flight;
+        # removed by the final step when it finishes. Only for /full-ci.
+        if: steps.parse.outputs.run == 'true' && steps.parse.outputs.full_ci == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const name = 'full-ci';
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name,
+                color: '5319e7',
+                description: 'Full CI is running for this pull request',
+              });
+            }
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              labels: [name],
+            });
+
+      - name: Acknowledge
+        id: ack
+        if: steps.parse.outputs.run == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const full = ${{ toJSON(steps.parse.outputs.full_ci) }} === 'true';
+            const buckets = ${{ toJSON(steps.parse.outputs.buckets) }};
+            const what = full ? 'full CI' : `CI (${buckets})`;
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes',
+            });
+            const { data: comment } = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `Running ${what}.`,
+            });
+            core.setOutput('comment_id', comment.id);
+            core.setOutput('what', what);
+
+      - name: Find dispatched run
+        id: run
+        if: steps.parse.outputs.run == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const ref = ${{ toJSON(steps.pr.outputs.head_ref) }};
+            const headSha = ${{ toJSON(steps.pr.outputs.head_sha) }};
+            const fallbackUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/workflows/build-and-test.yml?query=branch%3A${encodeURIComponent(ref)}`;
+            const startedAt = Date.now();
+
+            for (let attempt = 0; attempt < 20; attempt++) {
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'build-and-test.yml',
+                branch: ref,
+                event: 'workflow_dispatch',
+                per_page: 30,
+              });
+              const run = data.workflow_runs.find((workflowRun) =>
+                workflowRun.head_sha === headSha
+                && Date.parse(workflowRun.created_at) >= startedAt - 60000
+              );
+              if (run) {
+                core.setOutput('id', run.id);
+                core.setOutput('url', run.html_url);
+                return;
+              }
+            }
+
+            core.setOutput('url', fallbackUrl);
+
+      - name: Link the run
+        if: steps.parse.outputs.run == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runUrl = ${{ toJSON(steps.run.outputs.url) }};
+            const what = ${{ toJSON(steps.ack.outputs.what) }};
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: Number(${{ toJSON(steps.ack.outputs.comment_id) }}),
+              body: `Running ${what}.\n\n[View run](${runUrl})`,
+            });
+
+      - name: Wait for result
+        if: steps.parse.outputs.run == 'true' && steps.run.outputs.id != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runId = Number(${{ toJSON(steps.run.outputs.id) }});
+            const runUrl = ${{ toJSON(steps.run.outputs.url) }};
+            const what = ${{ toJSON(steps.ack.outputs.what) }};
+            const startedAt = Date.now();
+            const timeoutMs = 180 * 60 * 1000;
+            const pollIntervalMs = 30000;
+
+            while (Date.now() - startedAt < timeoutMs) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId,
+              });
+
+              if (run.status === 'completed') {
+                const passed = run.conclusion === 'success';
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: Number(${{ toJSON(steps.ack.outputs.comment_id) }}),
+                  body: `${passed ? '✅' : '❌'} ${what} ${passed ? 'passed' : 'failed'}.\n\n[View run](${runUrl})`,
+                });
+                if (!passed) core.setFailed('CI run failed.');
+                return;
+              }
+
+              await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+            }
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: Number(${{ toJSON(steps.ack.outputs.comment_id) }}),
+              body: `${what} still running after 180 minutes.\n\n[View run](${runUrl})`,
+            });
+            core.warning('Timed out waiting for CI result.');
+
+      - name: Remove full-ci label
+        # Clear the marker when the run finishes (always, even on failure/timeout).
+        if: always() && steps.parse.outputs.full_ci == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: 'full-ci',
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }

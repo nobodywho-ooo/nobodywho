@@ -1,13 +1,13 @@
 extends Node
 
 # Smoke test for NobodyWhoSTT.
-# Uses onnx-community/whisper-base from HuggingFace (downloaded and cached on first run).
+# Uses hf://onnx-community/whisper-base from HuggingFace (downloaded and cached on first run).
 # The test audio says "Hey Ron. Hey Billy."
 #
 # TEST_AUDIO_FILE env var overrides the audio path; defaults to the shared asset
 # committed alongside the Python tests.
 
-const WHISPER_MODEL := "onnx-community/whisper-base"
+const WHISPER_MODEL := "hf://onnx-community/whisper-base"
 # Shared test asset in assets/ — relative to the Godot project root.
 const AUDIO_PATH := "res://../../../assets/sound.mp3"
 
@@ -19,6 +19,9 @@ func run_test() -> bool:
 
 	var stt := NobodyWhoSTT.new()
 	stt.model_path = WHISPER_MODEL
+	# Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
+	# "Billy" as "Bailey", while fp32 gets it right.
+	stt.quantization = "default"
 	add_child(stt)
 
 	stt.worker_failed.connect(func(err: String):

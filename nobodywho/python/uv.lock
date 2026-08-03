@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-06-19T13:39:04.415598Z"
+exclude-newer = "2026-07-16T09:11:14.967469831Z"
 exclude-newer-span = "P2W"
 
 [[package]]
@@ -178,7 +178,7 @@ wheels = [
 
 [[package]]
 name = "nobodywho"
-version = "1.5.0"
+version = "1.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "sounddevice" },

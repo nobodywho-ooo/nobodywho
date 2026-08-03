@@ -45,6 +45,8 @@ class Chat:
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
+        mtp: "MtpConfig | None" = None,
+        n_threads: "int | None" = None,
     ) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
@@ -59,6 +61,13 @@ class Chat:
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
+            mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+                Requires the `Model` to have been loaded with a compatible
+                `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+            n_threads: Number of CPU threads to use for inference. Defaults to None, which
+                detects the host's physical core count (performance cores only, on Apple
+                silicon) — hyperthreads and efficiency cores slow inference down. Set it
+                lower to leave CPU headroom for other work. Clamped to the logical CPU count.
 
         Returns:
             A Chat instance
@@ -116,6 +125,15 @@ class Chat:
 
         Raises:
             RuntimeError: If the variables cannot be retrieved
+        """
+    def mtp_acceptance_rate(self, /) -> float | None:
+        """
+        MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+
+        Resets each generation. None when MTP is disabled or no drafts were proposed.
+
+        Returns:
+            Optional[float]
         """
     def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """
@@ -260,6 +278,8 @@ class ChatAsync:
         tools: "list[Tool]" = ...,
         sampler: "SamplerConfig | None" = None,
         allow_thinking: "bool | None" = None,
+        mtp: "MtpConfig | None" = None,
+        n_threads: "int | None" = None,
     ) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
@@ -274,6 +294,13 @@ class ChatAsync:
                 embedded in the model file (general.sampling.* metadata) are used when
                 present, otherwise SamplerConfig.default().
             allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
+            mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+                Requires the `Model` to have been loaded with a compatible
+                `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+            n_threads: Number of CPU threads to use for inference. Defaults to None, which
+                detects the host's physical core count (performance cores only, on Apple
+                silicon) — hyperthreads and efficiency cores slow inference down. Set it
+                lower to leave CPU headroom for other work. Clamped to the logical CPU count.
 
         Returns:
             A ChatAsync instance
@@ -331,6 +358,15 @@ class ChatAsync:
 
         Raises:
             RuntimeError: If the variables cannot be retrieved
+        """
+    async def mtp_acceptance_rate(self, /) -> float | None:
+        """
+        MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+
+        Resets each generation. None when MTP is disabled or no drafts were proposed.
+
+        Returns:
+            Optional[float]
         """
     async def reset(self, /, system_prompt: str | None, tools: Sequence[Tool]) -> None:
         """
@@ -590,7 +626,7 @@ class Encoder:
     `Encoder` will let you generate vector representations of text.
     It must be initialized with a model that specifically supports generating embeddings.
     A regular chat/text-generation model will not just work.
-    Once initialized, you can call `.encode()` on a string, which returns a list of 32-bit floats.
+    Once initialized, call `.encode()` for one string or `.encode_batch()` for multiple strings.
     See `EncoderAsync` for the async version of this class.
     """
     def __new__(
@@ -618,6 +654,19 @@ class Encoder:
 
         Returns:
             A list of floats representing the embedding vector
+
+        Raises:
+            RuntimeError: If encoding fails
+        """
+    def encode_batch(self, /, texts: Sequence[str]) -> list[list[float]]:
+        """
+        Generate embedding vectors for multiple texts in input order. This method blocks until complete.
+
+        Args:
+            texts: The texts to encode
+
+        Returns:
+            One embedding vector per input text, in input order
 
         Raises:
             RuntimeError: If encoding fails
@@ -657,6 +706,19 @@ class EncoderAsync:
         Raises:
             RuntimeError: If encoding fails
         """
+    async def encode_batch(self, /, texts: Sequence[str]) -> list[list[float]]:
+        """
+        Generate embedding vectors for multiple texts asynchronously.
+
+        Args:
+            texts: The texts to encode
+
+        Returns:
+            One embedding vector per input text, in input order
+
+        Raises:
+            RuntimeError: If encoding fails
+        """
 
 @final
 class Image:
@@ -685,15 +747,17 @@ class Model:
         model_path: "os.PathLike | str",
         use_gpu_if_available: bool = True,
         projection_model_path: "os.PathLike | str | None" = None,
+        draft_model_path: "os.PathLike | str | None" = None,
         on_download_progress: "typing.Callable[[int, int], None] | None" = None,
     ) -> "Model":
         """
         Create a new Model from a GGUF file.
 
         Args:
-            model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
+            model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=MtpConfig()` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
             on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
 
         Returns:
@@ -707,6 +771,7 @@ class Model:
         model_path: "os.PathLike | str",
         use_gpu_if_available: bool = True,
         projection_model_path: "os.PathLike | str | None" = None,
+        draft_model_path: "os.PathLike | str | None" = None,
         on_download_progress: "typing.Callable[[int, int], None] | None" = None,
     ) -> "Model":
         """
@@ -717,9 +782,10 @@ class Model:
         a background thread, allowing other async tasks to continue running.
 
         Args:
-            model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
+            model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
             use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
             projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+            draft_model_path: Path or URL to a compatible MTP draft-heads gguf. See `Model.__init__` for details. Defaults to None.
             on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
 
         Returns:
@@ -732,6 +798,42 @@ class Model:
     def max_ctx(self, /) -> int:
         """
         The maximum context size this model was trained with.
+        """
+
+@final
+class MtpConfig:
+    """
+    Tuning for MTP speculative decoding. Pass an instance as the `mtp`
+    argument to `Chat`/`ChatAsync` to enable MTP; leave it `None` to disable.
+    Requires the `Model` to have been loaded with a compatible `draft_model_path`.
+    """
+    def __new__(cls, /, k_max: int = 3, p_min: float = 0.0) -> MtpConfig:
+        """
+        Create an MTP config. Defaults mirror core `MtpConfig::default()`.
+
+        Args:
+            k_max: Max draft tokens proposed per speculative step. Defaults to 3.
+            p_min: Minimum draft-token probability accepted. Defaults to 0.0.
+        """
+    @property
+    def k_max(self, /) -> int:
+        """
+        Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+        """
+    @k_max.setter
+    def k_max(self, /, value: int) -> None:
+        """
+        Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+        """
+    @property
+    def p_min(self, /) -> float:
+        """
+        Minimum draft-token probability the drafter will propose (llama.cpp p_min).
+        """
+    @p_min.setter
+    def p_min(self, /, value: float) -> None:
+        """
+        Minimum draft-token probability the drafter will propose (llama.cpp p_min).
         """
 
 @final
@@ -752,15 +854,16 @@ class STT:
     """
     `STT` transcribes speech to text using a Whisper ONNX model.
 
-    `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
-    a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
-    omit or pass `None` to auto-detect. `quantization` selects the ONNX
-    precision variant to download and load: one of `"default"`, `"fp16"`,
-    `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
+    `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
+    `"hf://onnx-community/whisper-base"`) or a local directory path. `language`
+    is an ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+    `quantization` selects the ONNX precision variant to download and load: one
+    of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`,
+    `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
 
     Example::
 
-        stt = nobodywho.STT("onnx-community/whisper-base")
+        stt = nobodywho.STT("hf://onnx-community/whisper-base")
         text = stt.transcribe_file("recording.mp3").completed()
 
         # Or stream tokens:
@@ -776,7 +879,7 @@ class STT:
     ) -> STT: ...
     def transcribe_file(self, /, path: str) -> TokenStream:
         """
-        Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
+        Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
         """
     def transcribe_pcm(
         self, /, samples: Sequence[int], sample_rate: int
@@ -1140,26 +1243,32 @@ class Tts:
         cls,
         /,
         source: "os.PathLike | str",
-        backend: "typing.Literal['kokoro', 'supertonic'] | None" = None,
+        architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None,
         voice: str | None = None,
         language: str | None = None,
         speed: float | None = None,
         steps: int | None = None,
         silence_duration: float | None = None,
+        precision: str | None = None,
+        temperature: float | None = None,
+        huggingface_token: str | None = None,
         device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
     ) -> "Tts":
         """
         Create a TTS synthesizer.
 
         Args:
-            source: Local model directory or HuggingFace repo ID.
-            backend: "kokoro" or "supertonic". Required for local or unknown sources.
-                Known sources infer the backend when omitted.
-            voice: Voice name. Backend default is used when omitted.
-            language: Language code. Backend default is used when omitted.
-            speed: Speaking speed. Backend default is used when omitted.
-            steps: Supertonic denoising steps. Ignored by Kokoro.
+            source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+            architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+                Sources containing an architecture name infer it when omitted.
+            voice: Voice name. Architecture default is used when omitted.
+            language: Language code. Architecture default is used when omitted.
+            speed: Speaking speed. Architecture default is used when omitted.
+            steps: Supertonic denoising steps or Pocket TTS LSD steps.
             silence_duration: Supertonic silence between chunks in seconds.
+            precision: Pocket TTS precision: "int8" or "fp32".
+            temperature: Pocket TTS generation temperature.
+            huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
             device: "auto", "cpu", or "cuda". Defaults to "auto".
         """
     def synthesize(self, /, text: str) -> bytes:

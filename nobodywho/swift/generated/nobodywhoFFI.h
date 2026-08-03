@@ -287,7 +287,7 @@ void uniffi_nobodywho_uniffi_fn_free_rustchat(uint64_t handle, RustCallStatus *_
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTCHAT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTCHAT_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, RustBuffer system_prompt, uint32_t context_size, RustBuffer template_variables, RustBuffer tools, RustBuffer sampler, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, RustBuffer system_prompt, uint32_t context_size, RustBuffer template_variables, RustBuffer tools, RustBuffer sampler, RustBuffer mtp, RustBuffer thread_count, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK
@@ -328,6 +328,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(uint64_t p
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_TEMPLATE_VARIABLES
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_TEMPLATE_VARIABLES
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(uint64_t ptr
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_MTP_ACCEPTANCE_RATE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_MTP_ACCEPTANCE_RATE
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(uint64_t ptr
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_RESET_CONTEXT
@@ -423,6 +428,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(uint64_t model, 
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTENCODER_ENCODE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTENCODER_ENCODE
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(uint64_t ptr, RustBuffer text
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTENCODER_ENCODE_BATCH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTENCODER_ENCODE_BATCH
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(uint64_t ptr, RustBuffer texts
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTMODEL
@@ -552,7 +562,7 @@ void uniffi_nobodywho_uniffi_fn_free_rusttts(uint64_t handle, RustCallStatus *_N
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTTS_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTTTS_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(RustBuffer source, RustBuffer backend, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer device, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature, RustBuffer huggingface_token, RustBuffer device, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTTTS_SYNTHESIZE
@@ -699,12 +709,12 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(RustCallStatus *_No
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_MODEL
-uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path, RustBuffer on_download_progress
+uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path, RustBuffer draft_model_path, RustBuffer on_download_progress
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
-uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(RustBuffer source, RustBuffer backend, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer device
+uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature, RustBuffer huggingface_token, RustBuffer device
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_CONSTRAIN_WITH_GRAMMAR
@@ -1170,6 +1180,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_MTP_ACCEPTANCE_RATE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_MTP_ACCEPTANCE_RATE
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_RESET_CONTEXT
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_RESET_CONTEXT
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(void
@@ -1245,6 +1261,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE_BATCH
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTENCODER_ENCODE_BATCH
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(void
     
 );
 #endif

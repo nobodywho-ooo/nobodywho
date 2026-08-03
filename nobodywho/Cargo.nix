@@ -1179,7 +1179,7 @@ rec {
           }
           {
             name = "itertools";
-            packageId = "itertools 0.13.0";
+            packageId = "itertools 0.10.5";
             usesDefaultFeatures = false;
           }
           {
@@ -3752,16 +3752,6 @@ rec {
           "rayon" = [ "dep:rayon-core" ];
         };
         resolvedDefaultFeatures = [ "default" "rayon" ];
-      };
-      "extended" = rec {
-        crateName = "extended";
-        version = "0.1.0";
-        edition = "2021";
-        sha256 = "0r830ak1a9775i9yl5lljm29zbnlncw7xlfz35mhgjrz43c775mg";
-        authors = [
-          "Dietrich Epp <depp@zdome.net>"
-        ];
-
       };
       "fancy-regex 0.13.0" = rec {
         crateName = "fancy-regex";
@@ -7483,26 +7473,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "use_alloc" "use_std" ];
       };
-      "itertools 0.13.0" = rec {
-        crateName = "itertools";
-        version = "0.13.0";
-        edition = "2018";
-        sha256 = "11hiy3qzl643zcigknclh446qb9zlg4dpdzfkjaa9q9fqpgyfgj1";
-        authors = [
-          "bluss"
-        ];
-        dependencies = [
-          {
-            name = "either";
-            packageId = "either";
-            usesDefaultFeatures = false;
-          }
-        ];
-        features = {
-          "default" = [ "use_std" ];
-          "use_std" = [ "use_alloc" "either/use_std" ];
-        };
-      };
       "itertools 0.14.0" = rec {
         crateName = "itertools";
         version = "0.14.0";
@@ -8307,13 +8277,13 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.150";
+        version = "0.1.152";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
-          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+          url = "https://github.com/utilityai/llama-cpp-rs";
+          rev = "223f5f1b1525ebd3cd04d28454e4a00a6d52ae70";
+          sha256 = "1q0pfdiv070brx5yfl0skx1fawsqlz9dzi82sg71wx5hiflb4kkh";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -8375,6 +8345,7 @@ rec {
           "dynamic-link" = [ "llama-cpp-sys-2/dynamic-link" ];
           "llguidance" = [ "dep:llguidance" "dep:toktrie" ];
           "metal" = [ "llama-cpp-sys-2/metal" ];
+          "mkl" = [ "llama-cpp-sys-2/mkl" ];
           "mtmd" = [ "llama-cpp-sys-2/mtmd" ];
           "opencl" = [ "llama-cpp-sys-2/opencl" ];
           "openmp" = [ "llama-cpp-sys-2/openmp" ];
@@ -8389,14 +8360,14 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.150";
+        version = "0.1.152";
         edition = "2021";
         links = "llama";
         workspace_member = null;
         src = pkgs.fetchgit {
-          url = "https://github.com/nobodywho-ooo/llama-cpp-rs";
-          rev = "2f5de95c2405a49350df5db11e113dd324cd639e";
-          sha256 = "0miq3m60dndlclwv3lwngqf34cl9aj7lcmihz70lm0cdgqq05lmj";
+          url = "https://github.com/utilityai/llama-cpp-rs";
+          rev = "223f5f1b1525ebd3cd04d28454e4a00a6d52ae70";
+          sha256 = "1q0pfdiv070brx5yfl0skx1fawsqlz9dzi82sg71wx5hiflb4kkh";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -9600,7 +9571,7 @@ rec {
       };
       "nobodywho" = rec {
         crateName = "nobodywho";
-        version = "2.3.0";
+        version = "2.4.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./core; };
         dependencies = [
@@ -9666,7 +9637,7 @@ rec {
           {
             name = "libc";
             packageId = "libc";
-            target = { target, features }: ("android" == target."os" or null);
+            target = { target, features }: (("android" == target."os" or null) || ("apple" == target."vendor" or null));
           }
           {
             name = "llama-cpp-2";
@@ -9766,6 +9737,10 @@ rec {
             packageId = "safetensors";
           }
           {
+            name = "sentencepiece-rs";
+            packageId = "sentencepiece-rs";
+          }
+          {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];
@@ -9775,10 +9750,14 @@ rec {
             packageId = "serde_json";
           }
           {
-            name = "symphonia";
-            packageId = "symphonia";
+            name = "symphonia-bundle-mp3";
+            packageId = "symphonia-bundle-mp3";
             usesDefaultFeatures = false;
-            features = [ "wav" "mp3" "flac" "pcm" ];
+            features = [ "mp3" ];
+          }
+          {
+            name = "symphonia-core";
+            packageId = "symphonia-core";
           }
           {
             name = "tempfile";
@@ -9829,12 +9808,18 @@ rec {
             name = "walkdir";
             packageId = "walkdir";
           }
+          {
+            name = "windows-sys";
+            packageId = "windows-sys 0.61.2";
+            target = { target, features }: ("windows" == target."os" or null);
+            features = [ "Win32_System_SystemInformation" ];
+          }
         ];
 
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "2.3.0";
+        version = "2.5.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -9882,7 +9867,7 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "9.4.0";
+        version = "9.6.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
@@ -9922,7 +9907,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "1.5.0";
+        version = "1.7.0";
         edition = "2021";
         crateBin = [
           {
@@ -10000,7 +9985,7 @@ rec {
       };
       "nobodywho-uniffi" = rec {
         crateName = "nobodywho-uniffi";
-        version = "0.2.0";
+        version = "0.3.0";
         edition = "2021";
         crateBin = [
           {
@@ -14427,6 +14412,14 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "serde" "std" ];
       };
+      "sentencepiece-rs" = rec {
+        crateName = "sentencepiece-rs";
+        version = "0.2.2";
+        edition = "2024";
+        sha256 = "1s6pw4nm7vxzcp09nbx9djb3sgaly5d00ngd4y3npmmz8lwlii3b";
+        libName = "sentencepiece_rs";
+
+      };
       "serde" = rec {
         crateName = "serde";
         version = "1.0.228";
@@ -15396,124 +15389,11 @@ rec {
         ];
 
       };
-      "symphonia" = rec {
-        crateName = "symphonia";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "0fbhlmvf1m9rb5xdy057vzymvirmzx39gx4hl3x9p7d1630a8wsp";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "lazy_static";
-            packageId = "lazy_static";
-          }
-          {
-            name = "symphonia-bundle-flac";
-            packageId = "symphonia-bundle-flac";
-            optional = true;
-          }
-          {
-            name = "symphonia-bundle-mp3";
-            packageId = "symphonia-bundle-mp3";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "symphonia-codec-pcm";
-            packageId = "symphonia-codec-pcm";
-            optional = true;
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-format-riff";
-            packageId = "symphonia-format-riff";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
-          }
-        ];
-        features = {
-          "aac" = [ "symphonia-codec-aac" ];
-          "adpcm" = [ "symphonia-codec-adpcm" ];
-          "aiff" = [ "symphonia-format-riff/aiff" ];
-          "alac" = [ "symphonia-codec-alac" ];
-          "all" = [ "all-codecs" "all-formats" ];
-          "all-codecs" = [ "aac" "adpcm" "alac" "flac" "mp1" "mp2" "mp3" "pcm" "vorbis" ];
-          "all-formats" = [ "caf" "isomp4" "mkv" "ogg" "aiff" "wav" ];
-          "caf" = [ "symphonia-format-caf" ];
-          "default" = [ "adpcm" "flac" "mkv" "ogg" "pcm" "vorbis" "wav" ];
-          "flac" = [ "symphonia-bundle-flac" ];
-          "isomp4" = [ "symphonia-format-isomp4" ];
-          "mkv" = [ "symphonia-format-mkv" ];
-          "mp1" = [ "symphonia-bundle-mp3/mp1" ];
-          "mp2" = [ "symphonia-bundle-mp3/mp2" ];
-          "mp3" = [ "symphonia-bundle-mp3/mp3" ];
-          "mpa" = [ "mp1" "mp2" "mp3" ];
-          "ogg" = [ "symphonia-format-ogg" ];
-          "opt-simd" = [ "opt-simd-sse" "opt-simd-avx" "opt-simd-neon" ];
-          "opt-simd-avx" = [ "symphonia-core/opt-simd-avx" ];
-          "opt-simd-neon" = [ "symphonia-core/opt-simd-neon" ];
-          "opt-simd-sse" = [ "symphonia-core/opt-simd-sse" ];
-          "pcm" = [ "symphonia-codec-pcm" ];
-          "symphonia-bundle-flac" = [ "dep:symphonia-bundle-flac" ];
-          "symphonia-bundle-mp3" = [ "dep:symphonia-bundle-mp3" ];
-          "symphonia-codec-aac" = [ "dep:symphonia-codec-aac" ];
-          "symphonia-codec-adpcm" = [ "dep:symphonia-codec-adpcm" ];
-          "symphonia-codec-alac" = [ "dep:symphonia-codec-alac" ];
-          "symphonia-codec-pcm" = [ "dep:symphonia-codec-pcm" ];
-          "symphonia-codec-vorbis" = [ "dep:symphonia-codec-vorbis" ];
-          "symphonia-format-caf" = [ "dep:symphonia-format-caf" ];
-          "symphonia-format-isomp4" = [ "dep:symphonia-format-isomp4" ];
-          "symphonia-format-mkv" = [ "dep:symphonia-format-mkv" ];
-          "symphonia-format-ogg" = [ "dep:symphonia-format-ogg" ];
-          "symphonia-format-riff" = [ "dep:symphonia-format-riff" ];
-          "vorbis" = [ "symphonia-codec-vorbis" ];
-          "wav" = [ "symphonia-format-riff/wav" ];
-        };
-        resolvedDefaultFeatures = [ "flac" "mp3" "pcm" "symphonia-bundle-flac" "symphonia-bundle-mp3" "symphonia-codec-pcm" "symphonia-format-riff" "wav" ];
-      };
-      "symphonia-bundle-flac" = rec {
-        crateName = "symphonia-bundle-flac";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "0xlrdil9prgbwds8j2rd0z8gy9i5h13ca459h2dmv8mfh3hna5f9";
-        libName = "symphonia_bundle_flac";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "log";
-            packageId = "log";
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
-          }
-          {
-            name = "symphonia-utils-xiph";
-            packageId = "symphonia-utils-xiph";
-          }
-        ];
-
-      };
       "symphonia-bundle-mp3" = rec {
         crateName = "symphonia-bundle-mp3";
         version = "0.5.5";
         edition = "2018";
-        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./patches/symphonia-bundle-mp3; };
+        sha256 = "1vapgi7haxmi4fnf09rvc4z6q24136m5gsg3k73ymxbbnmmxswj8";
         libName = "symphonia_bundle_mp3";
         authors = [
           "Philip Deljanov <philip.deljanov@gmail.com>"
@@ -15540,27 +15420,6 @@ rec {
           "default" = [ "mp1" "mp2" "mp3" ];
         };
         resolvedDefaultFeatures = [ "mp3" ];
-      };
-      "symphonia-codec-pcm" = rec {
-        crateName = "symphonia-codec-pcm";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "158x0g5v13qh1c4jyyrzd8kcz9rqim6cx4bwpqzash8mq0bdg2af";
-        libName = "symphonia_codec_pcm";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "log";
-            packageId = "log";
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-        ];
-
       };
       "symphonia-core" = rec {
         crateName = "symphonia-core";
@@ -15602,39 +15461,6 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" ];
       };
-      "symphonia-format-riff" = rec {
-        crateName = "symphonia-format-riff";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "0vx9247jsn9cjr0s3hay1ns04g77x831kn01hjvfz53x1vgw7my2";
-        libName = "symphonia_format_riff";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-          "dedobbin <dedobbindedobbin@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "extended";
-            packageId = "extended";
-          }
-          {
-            name = "log";
-            packageId = "log";
-          }
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
-          }
-        ];
-        features = {
-          "default" = [ "aiff" "wav" ];
-        };
-        resolvedDefaultFeatures = [ "wav" ];
-      };
       "symphonia-metadata" = rec {
         crateName = "symphonia-metadata";
         version = "0.5.5";
@@ -15660,27 +15486,6 @@ rec {
           {
             name = "symphonia-core";
             packageId = "symphonia-core";
-          }
-        ];
-
-      };
-      "symphonia-utils-xiph" = rec {
-        crateName = "symphonia-utils-xiph";
-        version = "0.5.5";
-        edition = "2018";
-        sha256 = "05lzmgxppqn647hmc1j9pgqsdqa2pxxcgvk8dd23i8wrnxdch9zf";
-        libName = "symphonia_utils_xiph";
-        authors = [
-          "Philip Deljanov <philip.deljanov@gmail.com>"
-        ];
-        dependencies = [
-          {
-            name = "symphonia-core";
-            packageId = "symphonia-core";
-          }
-          {
-            name = "symphonia-metadata";
-            packageId = "symphonia-metadata";
           }
         ];
 
@@ -19420,7 +19225,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.61.2";
+            packageId = "windows-sys 0.48.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -19867,7 +19672,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.52.0" = rec {
         crateName = "windows-sys";

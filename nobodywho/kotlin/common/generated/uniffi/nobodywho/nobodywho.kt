@@ -733,6 +733,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(
@@ -758,6 +760,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
     ): Short
@@ -859,7 +863,7 @@ internal object UniffiLib {
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,`threadCount`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -876,6 +880,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(`ptr`: Long,
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(`ptr`: Long,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(`ptr`: Long,`systemPrompt`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,
 ): Long
@@ -914,6 +920,8 @@ external fun uniffi_nobodywho_uniffi_fn_free_rustencoder(`handle`: Long,uniffi_o
 external fun uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(`model`: Long,`contextSize`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(`ptr`: Long,`text`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(`ptr`: Long,`texts`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_clone_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -965,7 +973,7 @@ external fun uniffi_nobodywho_uniffi_fn_clone_rusttts(`handle`: Long,uniffi_out_
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(`source`: RustBuffer.ByValue,`backend`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1023,9 +1031,9 @@ external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuf
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`backend`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1177,10 +1185,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 1569.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 26587.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
@@ -1240,6 +1248,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1279,10 +1290,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() != 20675.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 47529.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 43975.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() != 61166.toShort()) {
@@ -1360,7 +1374,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 2313.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -1369,7 +1383,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 21941.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 44850.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431.toShort()) {
@@ -1378,7 +1392,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 12955.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 34899.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
@@ -1981,6 +1995,13 @@ public interface RustChatInterface {
     suspend fun `getTemplateVariables`(): Map<kotlin.String, kotlin.Boolean>
     
     /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    suspend fun `mtpAcceptanceRate`(): kotlin.Float?
+    
+    /**
      * Reset the chat context with a new system prompt and tools.
      */
     suspend fun `resetContext`(`systemPrompt`: kotlin.String?, `tools`: List<RustTool>?)
@@ -2060,13 +2081,23 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     }
     /**
      * Create a new chat session.
+     *
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
+     *
+     * `thread_count` is the number of CPU threads used for inference; `null`
+     * detects the device's physical core count (performance cores only, on
+     * Apple silicon), since hyperthreads and efficiency cores make inference
+     * slower. Clamped to the CPU count.
      */
-    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?) :
+    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?, `threadCount`: kotlin.UInt?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),_status)
+        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),FfiConverterOptionalUInt.lower(`threadCount`),_status)
 }
     )
 
@@ -2311,6 +2342,32 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterMapStringBoolean.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `mtpAcceptanceRate`() : kotlin.Float? {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterOptionalFloat.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -3006,6 +3063,11 @@ public interface RustEncoderInterface {
      */
     suspend fun `encode`(`text`: kotlin.String): List<kotlin.Float>
     
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    suspend fun `encodeBatch`(`texts`: List<kotlin.String>): List<List<kotlin.Float>>
+    
     companion object
 }
 
@@ -3135,6 +3197,30 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterSequenceFloat.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `encodeBatch`(`texts`: List<kotlin.String>) : List<List<kotlin.Float>> {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                uniffiHandle,
+                FfiConverterSequenceString.lower(`texts`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceSequenceFloat.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -3533,7 +3619,7 @@ public object FfiConverterTypeRustModel: FfiConverter<RustModel, Long> {
 public interface RustSttInterface {
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     fun `transcribeFile`(`path`: kotlin.String): RustSttStream
@@ -3576,8 +3662,8 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
     /**
-     * Create an STT handle. `source` is a HuggingFace repo ID
-     * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+     * Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+     * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
      * `quantization` selects the ONNX precision variant to download and load:
      * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
@@ -3665,7 +3751,7 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
 
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     @Throws(NobodyWhoException::class)override fun `transcribeFile`(`path`: kotlin.String): RustSttStream {
@@ -4802,12 +4888,12 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
     /**
      * Create a TTS synthesizer.
      */
-    constructor(`source`: kotlin.String, `backend`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) :
+    constructor(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
     
-        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`backend`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),_status)
+        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),_status)
 }
     )
 
@@ -5889,6 +5975,56 @@ public object FfiConverterTypeChatStats: FfiConverterRustBuffer<ChatStats> {
 
 
 /**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+data class MtpConfig (
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    var `kMax`: kotlin.UInt = 3u 
+    , 
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    var `pMin`: kotlin.Float = 0.0f 
+    
+){
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeMtpConfig: FfiConverterRustBuffer<MtpConfig> {
+    override fun read(buf: ByteBuffer): MtpConfig {
+        return MtpConfig(
+            FfiConverterUInt.read(buf),
+            FfiConverterFloat.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: MtpConfig) = (
+            FfiConverterUInt.allocationSize(value.`kMax`) +
+            FfiConverterFloat.allocationSize(value.`pMin`)
+    )
+
+    override fun write(value: MtpConfig, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`kMax`, buf)
+            FfiConverterFloat.write(value.`pMin`, buf)
+    }
+}
+
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 data class PendingToolCall (
@@ -6584,6 +6720,38 @@ public object FfiConverterOptionalTypeSamplerConfig: FfiConverterRustBuffer<Samp
 /**
  * @suppress
  */
+public object FfiConverterOptionalTypeMtpConfig: FfiConverterRustBuffer<MtpConfig?> {
+    override fun read(buf: ByteBuffer): MtpConfig? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeMtpConfig.read(buf)
+    }
+
+    override fun allocationSize(value: MtpConfig?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeMtpConfig.allocationSize(value)
+        }
+    }
+
+    override fun write(value: MtpConfig?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeMtpConfig.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalTypePendingToolCall: FfiConverterRustBuffer<PendingToolCall?> {
     override fun read(buf: ByteBuffer): PendingToolCall? {
         if (buf.get().toInt() == 0) {
@@ -7084,6 +7252,34 @@ public object FfiConverterSequenceOptionalInt: FfiConverterRustBuffer<List<kotli
 /**
  * @suppress
  */
+public object FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer<List<List<kotlin.Float>>> {
+    override fun read(buf: ByteBuffer): List<List<kotlin.Float>> {
+        val len = buf.getInt()
+        return List<List<kotlin.Float>>(len) {
+            FfiConverterSequenceFloat.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<List<kotlin.Float>>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterSequenceFloat.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<List<kotlin.Float>>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterSequenceFloat.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterMapStringBoolean: FfiConverterRustBuffer<Map<kotlin.String, kotlin.Boolean>> {
     override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.Boolean> {
         val len = buf.getInt()
@@ -7214,8 +7410,16 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         /**
          * Load a GGUF model from a local path or remote URL.
          *
-         * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
-         * or `https://` URLs. Downloaded models are cached automatically.
+         * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
+         * or `auto` for memory-based selection. Downloaded models are cached automatically.
+         *
+         * # MTP speculative decoding
+         *
+         * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+         * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+         * speculative decoding on chats built from this model. Whether MTP is
+         * actually used is a per-chat decision — pass it through
+         * `Chat`-level config on the wrapping binding.
          *
          * This is a free function instead of an async constructor because
          * uniffi-bindgen-react-native generates invalid JS (`async static` instead
@@ -7223,9 +7427,9 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
+     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `draftModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalString.lower(`draftModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
@@ -7241,9 +7445,9 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadTts`(`source`: kotlin.String, `backend`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) : RustTts {
+     suspend fun `loadTts`(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) : RustTts {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`backend`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },

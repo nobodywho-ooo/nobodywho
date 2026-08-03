@@ -1,0 +1,316 @@
+name: "plan"
+
+# Reads event, labels, and changed paths and emits a `run_*` boolean per CI
+# bucket. Every other workflow gates on these outputs. This is the only place
+# that knows about routing — child workflows just consume their input.
+
+on:
+  workflow_call:
+    inputs:
+      dispatch_full_ci:
+        description: "True when build-and-test.yml was invoked via workflow_dispatch with full_ci=true."
+        type: boolean
+        default: false
+      dispatch_buckets:
+        description: "Space-separated bucket keys to force on (from a /<bucket>-ci PR comment)."
+        type: string
+        default: ""
+    outputs:
+      run_rust_core:
+        value: ${{ jobs.plan.outputs.run_rust_core }}
+      run_python:
+        value: ${{ jobs.plan.outputs.run_python }}
+      run_python_models:
+        value: ${{ jobs.plan.outputs.run_python_models }}
+      run_godot:
+        value: ${{ jobs.plan.outputs.run_godot }}
+      run_flutter:
+        value: ${{ jobs.plan.outputs.run_flutter }}
+      run_swift:
+        value: ${{ jobs.plan.outputs.run_swift }}
+      run_kotlin:
+        value: ${{ jobs.plan.outputs.run_kotlin }}
+      run_react_native:
+        value: ${{ jobs.plan.outputs.run_react_native }}
+      run_docs:
+        value: ${{ jobs.plan.outputs.run_docs }}
+      run_regen:
+        value: ${{ jobs.plan.outputs.run_regen }}
+      run_release:
+        value: ${{ jobs.plan.outputs.run_release }}
+      is_full:
+        # True on the "run everything" triggers (push to main, tag, dispatch
+        # full_ci, full-ci label). Consumers use it to gate expensive work
+        # (e.g. visionOS/watchOS) to full runs only.
+        value: ${{ jobs.plan.outputs.is_full }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      run_rust_core:     ${{ steps.decide.outputs.run_rust_core }}
+      run_python:        ${{ steps.decide.outputs.run_python }}
+      run_python_models: ${{ steps.decide.outputs.run_python_models }}
+      run_godot:         ${{ steps.decide.outputs.run_godot }}
+      run_flutter:       ${{ steps.decide.outputs.run_flutter }}
+      run_swift:         ${{ steps.decide.outputs.run_swift }}
+      run_kotlin:        ${{ steps.decide.outputs.run_kotlin }}
+      run_react_native:  ${{ steps.decide.outputs.run_react_native }}
+      run_docs:          ${{ steps.decide.outputs.run_docs }}
+      run_regen:         ${{ steps.decide.outputs.run_regen }}
+      run_release:       ${{ steps.decide.outputs.run_release }}
+      is_full:           ${{ steps.decide.outputs.is_full }}
+    steps:
+      # fetch-depth: 0 is required so the `git diff` below can reach an
+      # arbitrary base SHA (github.event.before for a synchronize push). With
+      # the default shallow clone the base commit is unreachable and the diff
+      # would fail.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Diagnostic line: surfaces the event, action, and base SHA in the job
+      # summary so odd CI routing can be read directly instead of guessed.
+      - name: "Echo event diagnostics"
+        run: |
+          echo "event:    ${{ github.event_name }}"
+          echo "action:   ${{ github.event.action }}"
+          echo "ref:      ${{ github.ref }}"
+          echo "draft:    ${{ github.event.pull_request.draft }}"
+          echo "before:   ${{ github.event.before }}"
+          echo "after:    ${{ github.event.after }}"
+          {
+            echo "## Event diagnostics"
+            echo
+            echo "| field | value |"
+            echo "|---|---|"
+            echo "| event | \`${{ github.event_name }}\` |"
+            echo "| action | \`${{ github.event.action }}\` |"
+            echo "| ref | \`${{ github.ref }}\` |"
+            echo "| draft | \`${{ github.event.pull_request.draft }}\` |"
+            echo "| before | \`${{ github.event.before || '(empty)' }}\` |"
+            echo "| after | \`${{ github.event.after || '(empty)' }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Compute the changed-file list ourselves with `git diff`.
+      # Diff base by event:
+      #   - PR synchronize: base = github.event.before → just that push (incremental).
+      #   - PR opened/reopened/labeled: no "before", so base = PR base SHA.
+      #   - push to main: base = github.event.before of the push.
+      #   - workflow_dispatch / tag: skipped (decide forces everything).
+      - name: "Detect changed paths"
+        id: paths
+        run: |
+          set -uo pipefail
+
+          BASE=""
+          HEAD=""
+
+          case "${{ github.event_name }}" in
+            pull_request)
+              ACTION="${{ github.event.action }}"
+              EVT_BEFORE="${{ github.event.before }}"
+              PR_BASE_SHA="${{ github.event.pull_request.base.sha }}"
+              PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+              HEAD="$PR_HEAD_SHA"
+              # synchronize = a new push: diff just that push (incremental). But
+              # a force-push/rebase orphans `before` (unreachable in the fetched
+              # history), and opened/reopened have no `before` — in both cases
+              # fall back to the PR base SHA (always reachable via the merge ref).
+              if [[ "$ACTION" == "synchronize" && -n "$EVT_BEFORE" ]] \
+                 && git cat-file -e "${EVT_BEFORE}^{commit}" 2>/dev/null; then
+                BASE="$EVT_BEFORE"
+              else
+                BASE="$PR_BASE_SHA"
+              fi
+              ;;
+            push)
+              if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+                BASE="${{ github.event.before }}"
+                HEAD="${{ github.event.after }}"
+              fi
+              ;;
+          esac
+
+          if [[ -n "$BASE" ]] && [[ -n "$HEAD" ]]; then
+            echo "Diffing $BASE..$HEAD"
+            CHANGED="$(git diff --name-only "$BASE..$HEAD" 2>&1)"
+            git_rc=$?
+            if [[ $git_rc -ne 0 ]]; then
+              echo "::warning::git diff failed (exit $git_rc); treating as no changes"
+              CHANGED=""
+            fi
+          else
+            echo "No diff base; treating as no changes"
+            CHANGED=""
+          fi
+
+          echo "---- Changed files ----"
+          if [[ -z "$CHANGED" ]]; then echo "(none)"; else echo "$CHANGED"; fi
+          echo "-----------------------"
+
+          contains() {
+            [[ -n "$CHANGED" ]] && echo "$CHANGED" | grep -qE "$1"
+          }
+          out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+
+          # Emit one p_* per filter, mirroring the names the decide step reads.
+          contains '^nobodywho/core/'        && out core         true || out core         false
+          contains '^nobodywho/uniffi/'      && out uniffi       true || out uniffi       false
+          contains '^nobodywho/python/'      && out python       true || out python       false
+          contains '^nobodywho/godot/'       && out godot        true || out godot        false
+          contains '^nobodywho/flutter/'     && out flutter      true || out flutter      false
+          contains '^nobodywho/swift/'       && out swift        true || out swift        false
+          contains '^nobodywho/kotlin/'      && out kotlin       true || out kotlin       false
+          contains '^nobodywho/react-native/' && out react_native true || out react_native false
+          contains '^docs/'                  && out docs         true || out docs         false
+          # regen-drift surface: anything that can change generated bindings/stubs.
+          contains '^nobodywho/(core/|uniffi/|grammar/|Cargo\.(toml|lock)$|swift/generated/|swift/Package\.swift$|kotlin/common/generated/|kotlin/.*\.gradle\.kts$|react-native/generated/|react-native/package(-lock)?\.json$)' && out regen true || out regen false
+
+          {
+            echo "## Path detection"
+            echo
+            echo "Base: \`${BASE:-(none)}\`  ·  Head: \`${HEAD:-(none)}\`"
+            echo
+            if [[ -z "$CHANGED" ]]; then
+              echo "Changed files: _none_"
+            else
+              echo "Changed files:"
+              echo
+              echo '```'
+              echo "$CHANGED"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: "Decide which buckets to run"
+        id: decide
+        env:
+          EVENT:            ${{ github.event_name }}
+          REF:              ${{ github.ref }}
+          LABELS:           ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          DISPATCH_FULL_CI: ${{ inputs.dispatch_full_ci }}
+          DISPATCH_BUCKETS: ${{ inputs.dispatch_buckets }}
+          P_CORE:           ${{ steps.paths.outputs.core }}
+          P_UNIFFI:         ${{ steps.paths.outputs.uniffi }}
+          P_PYTHON:         ${{ steps.paths.outputs.python }}
+          P_GODOT:          ${{ steps.paths.outputs.godot }}
+          P_FLUTTER:        ${{ steps.paths.outputs.flutter }}
+          P_SWIFT:          ${{ steps.paths.outputs.swift }}
+          P_KOTLIN:         ${{ steps.paths.outputs.kotlin }}
+          P_RN:             ${{ steps.paths.outputs.react_native }}
+          P_DOCS:           ${{ steps.paths.outputs.docs }}
+          P_REGEN:          ${{ steps.paths.outputs.regen }}
+        run: |
+          set -euo pipefail
+
+          # Returns "true" if any positional arg equals "true".
+          any() {
+            for v in "$@"; do
+              if [[ "$v" == "true" ]]; then echo true; return; fi
+            done
+            echo false
+          }
+          has_label() { echo "${LABELS:-[]}" | grep -q "\"$1\""; }
+
+          # Normalize path outputs (may be empty when no diff ran).
+          p_core="${P_CORE:-false}"
+          p_uniffi="${P_UNIFFI:-false}"
+          p_python="${P_PYTHON:-false}"
+          p_godot="${P_GODOT:-false}"
+          p_flutter="${P_FLUTTER:-false}"
+          p_swift="${P_SWIFT:-false}"
+          p_kotlin="${P_KOTLIN:-false}"
+          p_rn="${P_RN:-false}"
+          p_docs="${P_DOCS:-false}"
+          p_regen="${P_REGEN:-false}"
+
+          # ---- full CI (everything) ----------------------------------------
+          # A normal PR push never lands here — it runs only the buckets whose
+          # own paths changed. Full CI is the post-merge / opt-in gates:
+          everything=false
+          if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then everything=true; fi  # post-merge canonical run
+          if [[ "$REF" == refs/tags/nobodywho-* ]]; then everything=true; fi   # release tag
+          if [[ "$DISPATCH_FULL_CI" == "true" ]]; then everything=true; fi      # workflow_dispatch full_ci
+          if has_label "full-ci"; then everything=true; fi                      # opt-in label / /full-ci
+
+          # ---- per-bucket decisions ----------------------------------------
+          # Path-gated, no cascade — except uniffi/** → swift/kotlin/RN, which
+          # consume its generated FFI. core/** is core coverage → rust_core +
+          # the tool-calling matrix (python_models below), not the bindings.
+          run_rust_core=$(any "$everything" "$p_core")
+          run_python=$(any "$everything" "$p_python")
+          run_godot=$(any "$everything" "$p_godot")
+          run_flutter=$(any "$everything" "$p_flutter")
+          run_swift=$(any "$everything" "$p_uniffi" "$p_swift")
+          run_kotlin=$(any "$everything" "$p_uniffi" "$p_kotlin")
+          run_react_native=$(any "$everything" "$p_uniffi" "$p_rn")
+
+          # python_models: tool-calling matrix (core coverage) — runs on any core change.
+          run_python_models=false
+          if [[ "$everything" == "true" ]] || [[ "$p_core" == "true" ]]; then
+            run_python_models=true
+          fi
+
+          # regen-checks: only when the generated-binding surface changed (or full run).
+          run_regen=$(any "$everything" "$p_regen")
+
+          # workflow_dispatch with an explicit bucket list (a /<bucket>-ci PR
+          # comment): force exactly those buckets on. Paths are empty on a
+          # dispatch, so this is the sole selector.
+          if [[ -n "${DISPATCH_BUCKETS:-}" ]]; then
+            has_bucket() { [[ " $DISPATCH_BUCKETS " == *" $1 "* ]]; }
+            has_bucket rust_core     && run_rust_core=true     || true
+            has_bucket python        && run_python=true        || true
+            has_bucket python_models && run_python_models=true || true
+            has_bucket godot         && run_godot=true         || true
+            has_bucket flutter       && run_flutter=true       || true
+            has_bucket swift         && run_swift=true         || true
+            has_bucket kotlin        && run_kotlin=true        || true
+            has_bucket react_native  && run_react_native=true  || true
+            has_bucket regen         && run_regen=true         || true
+          fi
+
+          # docs: on a full run or a docs/** change. The docs job is ref-gated
+          # to main, so this only actually deploys on a push to main.
+          run_docs=$(any "$everything" "$p_docs")
+
+          # release: only on a release tag.
+          run_release=false
+          if [[ "$REF" == refs/tags/nobodywho-* ]]; then run_release=true; fi
+
+          # ---- emit --------------------------------------------------------
+          {
+            echo "run_rust_core=$run_rust_core"
+            echo "run_python=$run_python"
+            echo "run_python_models=$run_python_models"
+            echo "run_godot=$run_godot"
+            echo "run_flutter=$run_flutter"
+            echo "run_swift=$run_swift"
+            echo "run_kotlin=$run_kotlin"
+            echo "run_react_native=$run_react_native"
+            echo "run_docs=$run_docs"
+            echo "run_regen=$run_regen"
+            echo "run_release=$run_release"
+            echo "is_full=$everything"
+          } >> "$GITHUB_OUTPUT"
+
+          # ---- run summary -------------------------------------------------
+          {
+            echo "## CI Plan"
+            echo
+            echo "Event: \`$EVENT\`  ·  Ref: \`$REF\`  ·  full-everything: \`$everything\`"
+            echo
+            echo "| bucket | run? |"
+            echo "|---|---|"
+            echo "| rust_core | $run_rust_core |"
+            echo "| python | $run_python |"
+            echo "| python_models | $run_python_models |"
+            echo "| godot | $run_godot |"
+            echo "| flutter | $run_flutter |"
+            echo "| swift | $run_swift |"
+            echo "| kotlin | $run_kotlin |"
+            echo "| react_native | $run_react_native |"
+            echo "| docs | $run_docs |"
+            echo "| release | $run_release |"
+          } >> "$GITHUB_STEP_SUMMARY"

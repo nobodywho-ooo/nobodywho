@@ -1,8 +1,9 @@
 import Foundation
 import NobodyWhoGenerated
 
-public enum TtsBackend: String {
+public enum TtsArchitecture: String {
     case kokoro
+    case pocketTts = "pocket-tts"
     case supertonic
 }
 
@@ -19,22 +20,28 @@ public class Tts {
     /// Create a TTS synthesizer synchronously.
     public init(
         source: String,
-        backend: TtsBackend? = nil,
+        architecture: TtsArchitecture? = nil,
         voice: String? = nil,
         language: String? = nil,
         speed: Float? = nil,
         steps: UInt32? = nil,
         silenceDuration: Float? = nil,
+        precision: String? = nil,
+        temperature: Float? = nil,
+        huggingfaceToken: String? = nil,
         device: TtsDevice = .auto
     ) throws {
         self.inner = try NobodyWhoGenerated.RustTts(
             source: source,
-            backend: backend?.rawValue,
+            architecture: architecture?.rawValue,
             voice: voice,
             language: language,
             speed: speed,
             steps: steps,
             silenceDuration: silenceDuration,
+            precision: precision,
+            temperature: temperature,
+            huggingfaceToken: huggingfaceToken,
             device: device.rawValue
         )
     }
@@ -46,22 +53,28 @@ public class Tts {
     /// Create a TTS synthesizer asynchronously.
     public static func load(
         source: String,
-        backend: TtsBackend? = nil,
+        architecture: TtsArchitecture? = nil,
         voice: String? = nil,
         language: String? = nil,
         speed: Float? = nil,
         steps: UInt32? = nil,
         silenceDuration: Float? = nil,
+        precision: String? = nil,
+        temperature: Float? = nil,
+        huggingfaceToken: String? = nil,
         device: TtsDevice = .auto
     ) async throws -> Tts {
         let inner = try await NobodyWhoGenerated.loadTts(
             source: source,
-            backend: backend?.rawValue,
+            architecture: architecture?.rawValue,
             voice: voice,
             language: language,
             speed: speed,
             steps: steps,
             silenceDuration: silenceDuration,
+            precision: precision,
+            temperature: temperature,
+            huggingfaceToken: huggingfaceToken,
             device: device.rawValue
         )
         return Tts(inner: inner)

@@ -473,6 +473,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
+  MtpConfig dco_decode_box_autoadd_mtp_config(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -521,6 +524,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<Float32List> dco_decode_list_list_prim_f_32_strict(dynamic raw);
+
+  @protected
   List<Message> dco_decode_list_message(dynamic raw);
 
   @protected
@@ -560,6 +566,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Message dco_decode_message(dynamic raw);
 
   @protected
+  MtpConfig dco_decode_mtp_config(dynamic raw);
+
+  @protected
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
@@ -576,6 +585,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  MtpConfig? dco_decode_opt_box_autoadd_mtp_config(dynamic raw);
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
@@ -995,6 +1007,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
+  MtpConfig sse_decode_box_autoadd_mtp_config(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -1041,6 +1056,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<Float32List> sse_decode_list_list_prim_f_32_strict(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<Message> sse_decode_list_message(SseDeserializer deserializer);
@@ -1090,6 +1110,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Message sse_decode_message(SseDeserializer deserializer);
 
   @protected
+  MtpConfig sse_decode_mtp_config(SseDeserializer deserializer);
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
@@ -1106,6 +1129,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  MtpConfig? sse_decode_opt_box_autoadd_mtp_config(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
@@ -1601,6 +1629,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_mtp_config(
+    MtpConfig self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
@@ -1650,6 +1684,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_list_prim_f_32_strict(
+    List<Float32List> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_message(List<Message> self, SseSerializer serializer);
@@ -1724,6 +1764,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_message(Message self, SseSerializer serializer);
 
   @protected
+  void sse_encode_mtp_config(MtpConfig self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
@@ -1741,6 +1784,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_mtp_config(
+    MtpConfig? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);

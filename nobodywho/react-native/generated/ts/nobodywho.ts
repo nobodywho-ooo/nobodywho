@@ -145,20 +145,28 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
 /**
  * Load a GGUF model from a local path or remote URL.
  *
- * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
- * or `https://` URLs. Downloaded models are cached automatically.
+ * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
+ * or `auto` for memory-based selection. Downloaded models are cached automatically.
+ *
+ * # MTP speculative decoding
+ *
+ * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+ * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+ * speculative decoding on chats built from this model. Whether MTP is
+ * actually used is a per-chat decision — pass it through
+ * `Chat`-level config on the wrapping binding.
  *
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, draftModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalString.lower(draftModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -180,13 +188,13 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
 /**
  * Create a TTS synthesizer.
  */
-export async function loadTts(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
+export async function loadTts(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, precision: string | undefined, temperature: /*f32*/number | undefined, huggingfaceToken: string | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(backend),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(device)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(architecture),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(precision),FfiConverterOptionalFloat32.lower(temperature),FfiConverterOptionalString.lower(huggingfaceToken),FfiConverterOptionalString.lower(device)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -649,6 +657,78 @@ const FfiConverterTypeChatStats = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterUInt32.allocationSize(value.contextSize) + 
             FfiConverterUInt32.allocationSize(value.contextUsed);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
+/**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+export type MtpConfig = {
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    kMax: /*u32*/number,
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    pMin: /*f32*/number
+}
+
+/**
+ * Generated factory for {@link MtpConfig} record objects.
+ */
+export const MtpConfig = (() => {
+    const defaults = () => ({kMax: 3,pMin: 0.0
+    });
+    const create = (() => {
+        return uniffiCreateRecord<MtpConfig, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link MtpConfig}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link MtpConfig}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<MtpConfig>,
+
+    });
+})();
+
+const FfiConverterTypeMtpConfig = (() => {
+    type TypeName = MtpConfig;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                kMax: FfiConverterUInt32.read(from), 
+                pMin: FfiConverterFloat32.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterUInt32.write(value.kMax, into);
+            FfiConverterFloat32.write(value.pMin, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterUInt32.allocationSize(value.kMax) + 
+            FfiConverterFloat32.allocationSize(value.pMin);
             
         }
     };
@@ -1419,6 +1499,12 @@ export interface RustChatInterface {
      */
     getTemplateVariables(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Map<string, boolean>>;
     /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise</*f32*/number | undefined>;
+    /**
      * Reset the chat context with a new system prompt and tools.
      */
     resetContext(systemPrompt: string | undefined, tools: Array<RustToolInterface> | undefined, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
@@ -1469,8 +1555,18 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
      * Create a new chat session.
+     *
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
+     *
+     * `thread_count` is the number of CPU threads used for inference; `null`
+     * detects the device's physical core count (performance cores only, on
+     * Apple silicon), since hyperthreads and efficiency cores make inference
+     * slower. Clamped to the CPU count.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) /*throws*/ {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: MtpConfig | undefined, threadCount: /*u32*/number | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -1484,6 +1580,8 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
         FfiConverterOptionalMapStringBool.lower(templateVariables),
         FfiConverterOptionalArrayTypeRustTool.lower(tools),
         FfiConverterOptionalTypeSamplerConfig.lower(sampler),
+        FfiConverterOptionalTypeMtpConfig.lower(mtp),
+        FfiConverterOptionalUInt32.lower(threadCount),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -1688,6 +1786,39 @@ async  getTemplateVariables(asyncOpts_?: { signal: AbortSignal }): Promise<Map<s
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             /*liftFunc:*/ FfiConverterMapStringBool.lift.bind(FfiConverterMapStringBool),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+async  mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal }): Promise</*f32*/number | undefined> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterOptionalFloat32.lift.bind(FfiConverterOptionalFloat32),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -2253,6 +2384,10 @@ export interface RustEncoderInterface {
      * Encode text into an embedding vector.
      */
     encode(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    encodeBatch(texts: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array<Array</*f32*/number>>>;
 }
 
 
@@ -2302,6 +2437,37 @@ async  encode(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             /*liftFunc:*/ FfiConverterArrayFloat32.lift.bind(FfiConverterArrayFloat32),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+async  encodeBatch(texts: Array<string>, asyncOpts_?: { signal: AbortSignal }): Promise<Array<Array</*f32*/number>>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                    uniffiTypeRustEncoderObjectFactory.clonePointer(this),
+                    FfiConverterArrayString.lower(texts)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayArrayFloat32.lift.bind(FfiConverterArrayArrayFloat32),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -2502,7 +2668,7 @@ const FfiConverterTypeRustModel =  new FfiConverterObject(uniffiTypeRustModelObj
 export interface RustSttInterface {
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
     transcribeFile(path: string)  /*throws*/: RustSttStreamInterface;
@@ -2524,8 +2690,8 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
     readonly [destructorGuardSymbol]: UniffiGcObject;
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
-     * Create an STT handle. `source` is a HuggingFace repo ID
-     * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+     * Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+     * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
      * `quantization` selects the ONNX precision variant to download and load:
      * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
@@ -2554,7 +2720,7 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
 
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
+     * Start transcribing an audio file (WAV / MP3).
      * Returns a `RustSTTStream` to consume tokens as they are generated.
      */
  transcribeFile(path: string): RustSttStreamInterface /*throws*/ {
@@ -3218,7 +3384,7 @@ export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
     /**
      * Create a TTS synthesizer.
      */
-    constructor(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined) /*throws*/ {
+    constructor(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, precision: string | undefined, temperature: /*f32*/number | undefined, huggingfaceToken: string | undefined, device: string | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -3227,12 +3393,15 @@ export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
         FfiConverterString.lower(source),
-        FfiConverterOptionalString.lower(backend),
+        FfiConverterOptionalString.lower(architecture),
         FfiConverterOptionalString.lower(voice),
         FfiConverterOptionalString.lower(language),
         FfiConverterOptionalFloat32.lower(speed),
         FfiConverterOptionalUInt32.lower(steps),
         FfiConverterOptionalFloat32.lower(silenceDuration),
+        FfiConverterOptionalString.lower(precision),
+        FfiConverterOptionalFloat32.lower(temperature),
+        FfiConverterOptionalString.lower(huggingfaceToken),
         FfiConverterOptionalString.lower(device),
                 callStatus);
             },
@@ -3883,6 +4052,10 @@ const FfiConverterOptionalFloat32 = new FfiConverterOptional(FfiConverterFloat32
 const FfiConverterOptionalInt32 = new FfiConverterOptional(FfiConverterInt32);
 
 
+// FfiConverter for MtpConfig | undefined
+const FfiConverterOptionalTypeMtpConfig = new FfiConverterOptional(FfiConverterTypeMtpConfig);
+
+
 // FfiConverter for PendingToolCall | undefined
 const FfiConverterOptionalTypePendingToolCall = new FfiConverterOptional(FfiConverterTypePendingToolCall);
 
@@ -3955,6 +4128,10 @@ const FfiConverterArrayTypeRustTool = new FfiConverterArray(FfiConverterTypeRust
 const FfiConverterArrayOptionalInt32 = new FfiConverterArray(FfiConverterOptionalInt32);
 
 
+// FfiConverter for Array<Array</*f32*/number>>
+const FfiConverterArrayArrayFloat32 = new FfiConverterArray(FfiConverterArrayFloat32);
+
+
 // FfiConverter for Array<RustToolInterface> | undefined
 const FfiConverterOptionalArrayTypeRustTool = new FfiConverterOptional(FfiConverterArrayTypeRustTool);
 
@@ -3985,10 +4162,10 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models() !== 12002) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_get_cached_models");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 22964) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 1569) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 26587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_tts");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() !== 13698) {
@@ -4048,6 +4225,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() !== 19616) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() !== 727) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() !== 47191) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context");
     }
@@ -4087,10 +4267,13 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() !== 52601) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() !== 20675) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() !== 52004) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() !== 47529) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() !== 43975) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() !== 61166) {
@@ -4168,7 +4351,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 24505) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 2313) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {
@@ -4177,7 +4360,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 27902) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() !== 21941) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() !== 44850) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 9431) {
@@ -4186,7 +4369,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() !== 54521) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 12955) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 34899) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {
@@ -4213,6 +4396,7 @@ export default Object.freeze({
     FfiConverterTypeCachedModel,
     FfiConverterTypeChatStats,
     FfiConverterTypeMessage,
+    FfiConverterTypeMtpConfig,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePendingToolCall,
     FfiConverterTypePromptPart,

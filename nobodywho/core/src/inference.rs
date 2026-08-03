@@ -11,7 +11,9 @@ use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::speculative::MtpSpeculative;
 use llama_cpp_2::token::LlamaToken;
+use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::MutexGuard;
@@ -55,39 +57,101 @@ where
 /// Holds everything needed to read tokens/media into the KV cache and sample new tokens,
 /// independent of any higher-level concept like chat history. Both `Worker` (encoder /
 /// crossencoder) and `Chat` own one of these.
+/// The context(s) an inference engine owns.
+///
+/// A solo engine holds one [`LlamaContext`] and drives it directly. An
+/// MTP-speculative engine holds a target + draft pair wrapped in
+/// [`MtpSpeculative`]; call sites that just need "the target context"
+/// go through [`Deref`] / [`DerefMut`], so most of the engine code is
+/// unchanged.
+#[derive(Debug)]
+pub(crate) enum EngineContext<'a> {
+    Solo(LlamaContext<'a>),
+    Speculative(MtpSpeculative<'a>),
+}
+
+impl<'a> std::ops::Deref for EngineContext<'a> {
+    type Target = LlamaContext<'a>;
+    fn deref(&self) -> &LlamaContext<'a> {
+        match self {
+            Self::Solo(c) => c,
+            Self::Speculative(s) => s.target_context(),
+        }
+    }
+}
+
+impl<'a> std::ops::DerefMut for EngineContext<'a> {
+    fn deref_mut(&mut self) -> &mut LlamaContext<'a> {
+        match self {
+            Self::Solo(c) => c,
+            Self::Speculative(s) => s.target_context_mut(),
+        }
+    }
+}
+
+impl<'a> EngineContext<'a> {
+    fn mtp_process(
+        &mut self,
+        batch: &LlamaBatch<'a>,
+    ) -> Result<(), llama_cpp_2::speculative::MtpSpeculativeError> {
+        if let Self::Speculative(spec) = self {
+            spec.process(batch)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct BatchCapacity {
+    pub(crate) tokens: usize,
+    pub(crate) sequences: usize,
+}
+
 #[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
-    pub(crate) ctx: LlamaContext<'a>,
+    pub(crate) ctx: EngineContext<'a>,
     projection_model: Option<&'a ProjectionModel>,
     n_past: i32,
     tokenizer: Tokenizer<'a>,
-    // The configured n_batch (= planned n_ctx before llama.cpp's internal rounding).
-    // Used to guard against sending more tokens than the context can decode in one batch.
-    n_batch: usize,
+    // Configured limits before llama.cpp's internal rounding.
+    batch_capacity: BatchCapacity,
     big_batch: LlamaBatch<'a>,
     small_batch: LlamaBatch<'a>,
     use_embeddings: bool,
+    /// Deferred-decode "pending sample": a token sampled from the
+    /// target but not yet decoded into the KV cache
+    /// Invariants:
+    /// - `None` after `read_text_tokens` and `reset_context`.
+    /// - `Some(t)` between speculative iterations, where `t` is the
+    ///   target's sample for the next-to-emit position and is *not* in
+    ///   the KV cache.
+    pending: Option<LlamaToken>,
+    pub(crate) mtp_drafts_proposed: u64,
+    pub(crate) mtp_drafts_accepted: u64,
 }
 
 impl<'a> InferenceEngine<'a> {
     pub(crate) fn new(
-        ctx: LlamaContext<'a>,
+        ctx: EngineContext<'a>,
         big_batch: LlamaBatch<'a>,
         small_batch: LlamaBatch<'a>,
         projection_model: Option<&'a ProjectionModel>,
-        n_batch: usize,
+        batch_capacity: BatchCapacity,
         tokenizer: Tokenizer<'a>,
         use_embeddings: bool,
     ) -> Self {
         Self {
             n_past: 0,
             ctx,
+            batch_capacity,
             big_batch,
             small_batch,
             projection_model,
-            n_batch,
             tokenizer,
             use_embeddings,
+            pending: None,
+            mtp_drafts_proposed: 0,
+            mtp_drafts_accepted: 0,
         }
     }
 
@@ -95,7 +159,82 @@ impl<'a> InferenceEngine<'a> {
     pub(crate) fn reset_context(&mut self) -> &mut Self {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
+        self.pending = None;
         self
+    }
+
+    pub(crate) fn reset_mtp_stats(&mut self) {
+        self.mtp_drafts_proposed = 0;
+        self.mtp_drafts_accepted = 0;
+    }
+
+    pub(crate) fn read_strings_batched<T, E>(
+        &mut self,
+        texts: Vec<String>,
+        mut output_for_sequence: impl FnMut(&EngineContext<'a>, i32) -> Result<T, E>,
+    ) -> Result<Vec<T>, BatchedReadError<E>> {
+        let tokenized_inputs = texts
+            .into_iter()
+            .map(|text| {
+                let chunks = self.tokenize(text, vec![])?;
+                let mut tokens = vec![];
+                for chunk in chunks {
+                    match chunk {
+                        TokenizerChunk::Text(chunk_tokens, _) => tokens.extend(chunk_tokens),
+                        TokenizerChunk::Image(_, _) | TokenizerChunk::Audio(_, _) => {
+                            unreachable!("text tokenization produced media chunks")
+                        }
+                    }
+                }
+                Ok(tokens)
+            })
+            .collect::<Result<Vec<_>, crate::errors::TokenizationError>>()
+            .map_err(ReadError::FailedToTokenize)?;
+
+        let token_counts = tokenized_inputs.iter().map(Vec::len).collect::<Vec<_>>();
+        let ranges = embedding_batch_ranges(
+            &token_counts,
+            self.batch_capacity.tokens,
+            self.batch_capacity.sequences,
+        )?;
+        let mut outputs = Vec::with_capacity(tokenized_inputs.len());
+
+        for range in ranges {
+            self.big_batch.clear();
+            for (sequence_id, tokens) in tokenized_inputs[range.clone()].iter().enumerate() {
+                self.big_batch
+                    .add_sequence(tokens, sequence_id as i32, true)
+                    .map_err(ReadError::BatchAdd)?;
+            }
+
+            let n_tokens = self.big_batch.n_tokens();
+            let n_sequences = range.len();
+            let inference_lock_token = acquire_inference_lock();
+            self.reset_context();
+
+            let decode_span = debug_span!(
+                "read embedding batch",
+                n_tokens = n_tokens,
+                n_sequences = n_sequences
+            );
+            let decode_guard = decode_span.enter();
+            self.ctx
+                .decode(&mut self.big_batch)
+                .map_err(ReadError::Decode)?;
+            drop(decode_guard);
+
+            for sequence_id in 0..n_sequences {
+                outputs.push(
+                    output_for_sequence(&self.ctx, sequence_id as i32)
+                        .map_err(BatchedReadError::Output)?,
+                );
+            }
+            drop(inference_lock_token);
+
+            debug!(n_tokens, n_sequences, "Completed embedding batch");
+        }
+
+        Ok(outputs)
     }
 
     pub(crate) fn read_chunks(
@@ -169,10 +308,10 @@ impl<'a> InferenceEngine<'a> {
         // can't read nothing
         debug_assert!(!tokens.is_empty());
 
-        if n_tokens > self.n_batch {
+        if n_tokens > self.batch_capacity.tokens {
             return Err(ReadError::InputExceedsContext {
                 n_tokens,
-                n_ctx: self.n_batch,
+                n_ctx: self.batch_capacity.tokens,
             });
         }
 
@@ -200,7 +339,13 @@ impl<'a> InferenceEngine<'a> {
         drop(decode_guard);
         // brrr
 
+        // Keep the MTP draft ctx's hidden state in sync (no-op on solo).
+        self.ctx.mtp_process(&self.big_batch)?;
+
         self.n_past += tokens.len() as i32;
+        // A new prompt (or context-shift replay) invalidates any deferred
+        // pending sample from a previous generation.
+        self.pending = None;
 
         debug!("Completed read tokens operation, n_past: {}", self.n_past);
 
@@ -269,6 +414,16 @@ impl<'a> InferenceEngine<'a> {
         self.n_past as u32
     }
 
+    /// Detach the deferred MTP `pending` token so a context-shift KV replay
+    /// can run without desyncing the stateful sampler.
+    pub(crate) fn take_pending(&mut self) -> Option<LlamaToken> {
+        self.pending.take()
+    }
+
+    pub(crate) fn restore_pending(&mut self, pending: Option<LlamaToken>) {
+        self.pending = pending;
+    }
+
     pub(crate) fn is_context_full(&self) -> bool {
         self.n_past as u32 == self.ctx.n_ctx()
     }
@@ -295,11 +450,21 @@ impl<'a> InferenceEngine<'a> {
             .load_audio(path)
     }
 
-    pub(crate) fn sample_and_decode_next_token(
+    pub(crate) fn sample_and_decode_next_tokens(
         &mut self,
         sampler: &mut LlamaSampler,
-    ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler");
+    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        match &self.ctx {
+            EngineContext::Solo(_) => self.sample_and_decode_solo(sampler),
+            EngineContext::Speculative(_) => self.sample_and_decode_speculative(sampler),
+        }
+    }
+
+    fn sample_and_decode_solo(
+        &mut self,
+        sampler: &mut LlamaSampler,
+    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        trace!("Applying sampler (solo)");
         let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
 
         self.small_batch.clear();
@@ -311,6 +476,208 @@ impl<'a> InferenceEngine<'a> {
         drop(decode_guard);
         self.n_past += 1;
 
-        Ok(new_token)
+        Ok(vec![new_token])
+    }
+
+    fn sample_and_decode_speculative(
+        &mut self,
+        sampler: &mut LlamaSampler,
+    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        trace!("Applying sampler (MTP speculative, deferred)");
+        let pending = match self.pending {
+            Some(p) => p,
+            None => sampler.sample(&self.ctx, -1),
+        };
+
+        if self.ctx.model.is_eog_token(pending) {
+            trace!(?pending, "MTP: pending is EOG, short-circuiting");
+            self.pending = None;
+            return Ok(vec![pending]);
+        }
+
+        let mut drafts = {
+            let EngineContext::Speculative(spec) = &mut self.ctx else {
+                unreachable!("sample_and_decode_speculative called on solo ctx");
+            };
+            spec.draft(self.n_past, pending, &[])?
+        };
+        let accept_owed = !drafts.is_empty();
+
+        // Clamp drafts so the verify batch [pending, drafts...] stays
+        // within the context window:
+        let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
+        drafts.truncate(room);
+        let k_max = drafts.len();
+
+        if k_max == 0 {
+            trace!(?pending, "MTP: no draft proposals to verify");
+            self.small_batch.clear();
+            self.small_batch.add(pending, self.n_past, &[0], true)?;
+            self.ctx.decode(&mut self.small_batch)?;
+            self.ctx.mtp_process(&self.small_batch)?;
+            if accept_owed {
+                let EngineContext::Speculative(spec) = &mut self.ctx else {
+                    unreachable!();
+                };
+                spec.accept(0)?;
+            }
+            let new_pending = sampler.sample(&self.ctx, -1);
+            self.n_past += 1;
+            self.pending = Some(new_pending);
+            return Ok(vec![pending]);
+        }
+
+        self.big_batch.clear();
+        self.big_batch.add(pending, self.n_past, &[0], true)?;
+        for (i, &d) in drafts.iter().enumerate() {
+            self.big_batch
+                .add(d, self.n_past + 1 + i as i32, &[0], true)?;
+        }
+        {
+            let decode_span = trace_span!("mtp verify decode", n_past = self.n_past, k_max);
+            let _decode_guard = decode_span.enter();
+            self.ctx.decode(&mut self.big_batch)?;
+        }
+        self.ctx.mtp_process(&self.big_batch)?;
+
+        let mut accepted_drafts: Vec<LlamaToken> = Vec::with_capacity(k_max);
+        let mut new_pending = None;
+        for (i, &draft) in drafts.iter().enumerate() {
+            let ti = sampler.sample(&self.ctx, i as i32);
+            if self.ctx.model.is_eog_token(ti) {
+                trace!(?ti, "MTP: target sampled EOG during verify, stopping");
+                new_pending = Some(ti);
+                break;
+            }
+            if ti != draft {
+                new_pending = Some(ti);
+                break;
+            }
+            accepted_drafts.push(draft);
+        }
+        let new_pending = new_pending.unwrap_or_else(|| sampler.sample(&self.ctx, k_max as i32));
+        let j = accepted_drafts.len();
+
+        if j < k_max {
+            let keep_up_to = (self.n_past + 1 + j as i32) as u32;
+            let rolled_back = self
+                .ctx
+                .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
+            if !rolled_back {
+                // Recurrent / hybrid-recurrent memory types reject partial
+                // removal (Ok(false)). Unlike `remove_all_tokens_from_index_from_ctx`
+                // we cannot fall back to a full reset here — that would drop the
+                // prompt mid-generation. Leaving the rejected drafts' KV in place
+                // would silently corrupt subsequent decodes, so fail loudly. MTP
+                // targets attention models, where partial removal is supported.
+                return Err(DecodingError::MtpPartialRollbackUnsupported);
+            }
+        }
+
+        {
+            let EngineContext::Speculative(spec) = &mut self.ctx else {
+                unreachable!();
+            };
+            spec.accept(j as u16)?;
+        }
+
+        self.n_past += 1 + j as i32;
+        self.pending = Some(new_pending);
+        self.mtp_drafts_proposed += k_max as u64;
+        self.mtp_drafts_accepted += j as u64;
+
+        trace!(
+            j,
+            k_max,
+            ?pending,
+            ?new_pending,
+            "MTP: deferred iteration complete"
+        );
+
+        let mut emitted = Vec::with_capacity(1 + j);
+        emitted.push(pending);
+        emitted.extend_from_slice(&accepted_drafts);
+        Ok(emitted)
+    }
+}
+
+pub(crate) enum BatchedReadError<E> {
+    Read(ReadError),
+    Output(E),
+}
+
+impl<E> From<ReadError> for BatchedReadError<E> {
+    fn from(error: ReadError) -> Self {
+        Self::Read(error)
+    }
+}
+
+fn embedding_batch_ranges(
+    token_counts: &[usize],
+    n_batch: usize,
+    n_seq_max: usize,
+) -> Result<Vec<Range<usize>>, ReadError> {
+    let mut ranges = vec![];
+    let mut start = 0;
+
+    while start < token_counts.len() {
+        let mut end = start;
+        let mut n_tokens = 0;
+
+        while end < token_counts.len() && end - start < n_seq_max.max(1) {
+            let next_tokens = token_counts[end];
+            if next_tokens > n_batch {
+                return Err(ReadError::InputExceedsContext {
+                    n_tokens: next_tokens,
+                    n_ctx: n_batch,
+                });
+            }
+            if end > start && n_tokens + next_tokens > n_batch {
+                break;
+            }
+            n_tokens += next_tokens;
+            end += 1;
+        }
+
+        ranges.push(start..end);
+        start = end;
+    }
+
+    Ok(ranges)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embedding_batches_respect_token_capacity() {
+        assert_eq!(
+            embedding_batch_ranges(&[3, 4, 5], 7, 10).unwrap(),
+            vec![0..2, 2..3]
+        );
+    }
+
+    #[test]
+    fn embedding_batches_respect_sequence_capacity() {
+        assert_eq!(
+            embedding_batch_ranges(&[1, 1, 1, 1, 1], 10, 2).unwrap(),
+            vec![0..2, 2..4, 4..5]
+        );
+        assert_eq!(
+            embedding_batch_ranges(&[1, 1, 1], 10, 1).unwrap(),
+            vec![0..1, 1..2, 2..3]
+        );
+    }
+
+    #[test]
+    fn embedding_batches_reject_oversized_inputs() {
+        assert!(matches!(
+            embedding_batch_ranges(&[3, 8], 7, 10),
+            Err(ReadError::InputExceedsContext {
+                n_tokens: 8,
+                n_ctx: 7
+            })
+        ));
     }
 }

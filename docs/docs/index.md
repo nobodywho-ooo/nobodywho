@@ -27,7 +27,7 @@ If you are already familiar with the basics of LLMs we suggest you go straight t
   <Link to="/swift/" className="button button--secondary button--sm">Swift</Link>
   <Link to="/react-native/" className="button button--secondary button--sm">React Native</Link>
   <Link to="/flutter/" className="button button--secondary button--sm">Flutter</Link>
-  <Link to="/godot/install" className="button button--secondary button--sm">Godot</Link>
+  <Link to="/godot/" className="button button--secondary button--sm">Godot</Link>
 </div>
 
 ## Basic LLM concepts

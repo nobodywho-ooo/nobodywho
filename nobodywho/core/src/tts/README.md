@@ -1,18 +1,36 @@
 # TTS
 
-Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Supertonic](https://huggingface.co/Supertone/supertonic-3) ONNX backends.
+Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Supertonic](https://huggingface.co/Supertone/supertonic-3) ONNX architectures.
 
 ## Quick start
 
 ```rust
 use nobodywho::tts::{Tts, TtsConfig};
 
-let tts = Tts::new(TtsConfig::kokoro("NobodyWho/Kokoro-82M"))?;
+let tts = Tts::new(TtsConfig::kokoro("hf://NobodyWho/Kokoro-82M"))?;
 let wav: Vec<u8> = tts.synthesize("Hello from NobodyWho!")?;
 std::fs::write("out.wav", wav)?;
 ```
 
-The model is downloaded from HuggingFace on first use and cached locally. Pass a local directory path instead of a repo ID to skip the download.
+The model is downloaded from HuggingFace on first use and cached locally. Pass a local directory path instead of an `hf://` repo to skip the download.
+
+## Pocket TTS
+
+[KevinAHM/pocket-tts-onnx](https://huggingface.co/KevinAHM/pocket-tts-onnx) is supported with its published language bundles and built-in voices. It defaults to CPU-friendly INT8 models and 24 kHz WAV output.
+
+Kyutai keeps the built-in voice-state files in its gated `kyutai/pocket-tts` repository. Browse its [voice catalogue](https://github.com/kyutai-labs/pocket-tts?tab=readme-ov-file#voices), accept its terms, and set `HF_TOKEN`, or pass a token explicitly in the config (which takes precedence):
+
+```rust
+use nobodywho::tts::{PocketTtsConfig, Tts, TtsConfig};
+
+let mut cfg = PocketTtsConfig::new("hf://KevinAHM/pocket-tts-onnx");
+cfg.language = "english_2026-04".into();
+cfg.voice = "alba".into();
+cfg.huggingface_token = Some("hf_...".into());
+let tts = Tts::new(TtsConfig::PocketTts(cfg))?;
+```
+
+Set `precision` to `PocketTtsPrecision::Fp32` to use full-precision ONNX weights. `temperature` controls generation variation and `lsd_steps` trades speed for flow-matching quality.
 
 ## Supertonic
 
@@ -23,7 +41,7 @@ The upstream [Supertone/supertonic-3](https://huggingface.co/Supertone/supertoni
 ```rust
 use nobodywho::tts::{SupertonicConfig, Tts, TtsConfig};
 
-let mut cfg = SupertonicConfig::new("Supertone/supertonic-3");
+let mut cfg = SupertonicConfig::new("hf://Supertone/supertonic-3");
 cfg.language = "en".into();
 cfg.voice = "M1".into();
 
@@ -49,7 +67,7 @@ Japanese (`ja`) and Chinese (`zh`) voices are not supported.
 ```rust
 use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
 
-let mut cfg = KokoroConfig::new("NobodyWho/Kokoro-82M");
+let mut cfg = KokoroConfig::new("hf://NobodyWho/Kokoro-82M");
 cfg.voice = "ff_siwis".into();
 cfg.language = "fr".into();
 cfg.speed = 1.0;

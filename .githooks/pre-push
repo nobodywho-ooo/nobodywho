@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 recipes=(fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze godot-build)
 pids=()

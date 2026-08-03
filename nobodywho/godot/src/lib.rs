@@ -47,14 +47,17 @@ fn resolve_godot_path(path: &GString) -> String {
     }
 }
 
-fn parse_tts_backend(backend: String) -> Result<Option<nobodywho::tts::TtsBackendKind>, GString> {
-    if backend.is_empty() {
+fn parse_tts_architecture(
+    architecture: String,
+) -> Result<Option<nobodywho::tts::TtsArchitecture>, GString> {
+    if architecture.is_empty() {
         return Ok(None);
     }
-    backend
-        .parse()
-        .map(Some)
-        .map_err(|()| GString::from("backend must be empty or one of 'kokoro' or 'supertonic'"))
+    architecture.parse().map(Some).map_err(|()| {
+        GString::from(
+            "architecture must be empty or one of 'kokoro', 'pocket-tts', or 'supertonic'",
+        )
+    })
 }
 
 fn parse_tts_device(device: String) -> Result<nobodywho::tts::TtsDevice, GString> {
@@ -70,17 +73,20 @@ fn parse_tts_device(device: String) -> Result<nobodywho::tts::TtsDevice, GString
 
 fn build_tts_config(
     source: String,
-    backend: String,
+    architecture: String,
     voice: String,
     language: String,
     speed: f32,
     steps: i64,
     silence_duration: f32,
+    precision: String,
+    temperature: f32,
+    huggingface_token: String,
 ) -> Result<nobodywho::tts::TtsConfig, GString> {
-    let backend = parse_tts_backend(backend)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
+    let architecture = parse_tts_architecture(architecture)?;
+    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
         GString::from(
-            "backend is required for unknown TTS sources; set backend to 'kokoro' or 'supertonic'",
+            "architecture is required for unknown TTS sources; set architecture to 'kokoro', 'pocket-tts', or 'supertonic'",
         )
     })?;
 
@@ -94,6 +100,34 @@ fn build_tts_config(
             }
             if speed > 0.0 {
                 config.speed = speed;
+            }
+        }
+        nobodywho::tts::TtsConfig::PocketTts(config) => {
+            if !voice.is_empty() {
+                config.voice = voice;
+            }
+            if !language.is_empty() {
+                config.language = language;
+            }
+            if steps > 0 {
+                config.lsd_steps = steps as usize;
+            }
+            if !precision.is_empty() {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err(GString::from(
+                            "precision must be 'int8' or 'fp32' for Pocket TTS",
+                        ))
+                    }
+                };
+            }
+            if temperature >= 0.0 {
+                config.temperature = temperature;
+            }
+            if !huggingface_token.is_empty() {
+                config.huggingface_token = Some(huggingface_token);
             }
         }
         nobodywho::tts::TtsConfig::Supertonic(config) => {
@@ -125,7 +159,8 @@ fn build_tts_config(
 /// - a local filesystem path (`/absolute/path/to/model.gguf` or `./relative.gguf`),
 /// - a Godot-virtual path (`res://models/foo.gguf`, `user://downloaded.gguf`),
 /// - a HuggingFace reference (`huggingface:owner/repo/file.gguf` or `hf://owner/repo/file.gguf`),
-/// - a plain HTTPS URL (`https://example.com/model.gguf`).
+/// - a plain HTTPS URL (`https://example.com/model.gguf`),
+/// - `auto` to select a text-generation model based on available memory.
 ///
 /// Remote models are downloaded to the platform cache directory once and re-used on
 /// subsequent loads. Downloads run on a background thread; connect to the consumer
@@ -139,6 +174,12 @@ struct NobodyWhoModel {
     #[export(file = "*.gguf")]
     /// Optional multimodal projection model path for vision/image support.
     projection_model_path: GString,
+
+    #[export(file = "*.gguf")]
+    /// Optional MTP draft-heads gguf. Loading it lets consumer chats
+    /// opt into MTP speculative decoding via `NobodyWhoChat.mtp`.
+    /// Adds around 5% to VRAM usage.
+    draft_model_path: GString,
 
     #[export]
     use_gpu_if_available: bool,
@@ -160,6 +201,7 @@ impl INode for NobodyWhoModel {
         Self {
             model_path,
             projection_model_path: GString::from(""),
+            draft_model_path: GString::from(""),
             use_gpu_if_available: true,
             model: None,
             load_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -202,16 +244,21 @@ impl NobodyWhoModel {
         }
 
         // Extract config, then drop the guard before awaiting.
-        let (path, use_gpu, mmproj) = {
+        let (path, use_gpu, mmproj, draft) = {
             let b = gd.bind();
             let mmproj = {
                 let s = b.projection_model_path.to_string();
                 (!s.is_empty()).then(|| resolve_godot_path(&b.projection_model_path))
             };
+            let draft = {
+                let s = b.draft_model_path.to_string();
+                (!s.is_empty()).then(|| resolve_godot_path(&b.draft_model_path))
+            };
             (
                 resolve_godot_path(&b.model_path),
                 b.use_gpu_if_available,
                 mmproj,
+                draft,
             )
         };
 
@@ -233,7 +280,7 @@ impl NobodyWhoModel {
             let _ = tx.send((d, t));
         });
 
-        let load_fut = llm::get_model_async(path, use_gpu, mmproj, Some(progress));
+        let load_fut = llm::get_model_async(path, use_gpu, mmproj, draft, Some(progress));
         tokio::pin!(load_fut);
 
         // select! lets one task drive the load AND drain progress on the same
@@ -608,6 +655,29 @@ struct NobodyWhoChat {
     /// Higher values use more VRAM, but allow for longer "short term memory" for the LLM.
     context_length: u32,
 
+    #[export]
+    /// Number of CPU threads used for inference. Leave at 0 to detect the machine's physical
+    /// core count (performance cores only, on Apple silicon) — hyperthreads and efficiency
+    /// cores make inference slower, not faster. Lower it to leave CPU headroom for rendering
+    /// and game logic. Values above the CPU count are clamped.
+    thread_count: u32,
+
+    #[export]
+    /// Enable MTP speculative decoding for this chat. Requires the
+    /// linked `NobodyWhoModel` to have a `draft_model_path` set.
+    /// Adds around 5% to VRAM usage.
+    mtp: bool,
+
+    #[export]
+    /// MTP: maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Only used when `mtp` is enabled.
+    mtp_k_max: u32,
+
+    #[export]
+    /// MTP: minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). Only used when `mtp` is enabled.
+    mtp_p_min: f32,
+
     // internal state
     chat_handle: Option<nobodywho::chat::ChatHandleAsync>,
     tools: Vec<nobodywho::tool_calling::Tool>,
@@ -619,13 +689,23 @@ struct NobodyWhoChat {
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
         let default_config = ChatConfig::default();
+        // MTP defaults mirror core `MtpConfig::default()`.
+        let mtp_defaults = nobodywho::chat::MtpConfig::default();
 
         Self {
             // defaults
             tools: default_config.tools,
             system_prompt: GString::from(""),
             context_length: default_config.n_ctx,
+            // `n_threads` on ChatConfig is Option<u32>; 0 is the exported spelling of
+            // "detect it", since the Godot inspector has no null for ints.
+            thread_count: default_config.n_threads.unwrap_or(0),
             allow_thinking: true,
+            // `mtp` on ChatConfig is now Option<MtpConfig>; expose the flattened
+            // toggle + tuning as separate exported properties, off by default.
+            mtp: default_config.mtp.is_some(),
+            mtp_k_max: mtp_defaults.k_max,
+            mtp_p_min: mtp_defaults.p_min,
 
             // config
             model_node: None,
@@ -634,6 +714,19 @@ impl INode for NobodyWhoChat {
             base,
         }
     }
+}
+
+/// Everything `NobodyWhoChat` needs to build its worker, snapshotted synchronously before
+/// the async spawn. A named struct rather than a tuple on purpose: several fields are `u32`,
+/// and a transposed pair would compile silently.
+struct ChatWorkerConfig {
+    model_node: Gd<NobodyWhoModel>,
+    system_prompt: String,
+    tools: Vec<nobodywho::tool_calling::Tool>,
+    n_ctx: u32,
+    n_threads: Option<u32>,
+    allow_thinking: bool,
+    mtp: Option<nobodywho::chat::MtpConfig>,
 }
 
 #[godot_api]
@@ -645,28 +738,26 @@ impl NobodyWhoChat {
     /// forces a single executor round-trip so the outer borrow always drops first.
     async fn load_and_store_worker(
         mut me: Gd<Self>,
-        model_node: Gd<NobodyWhoModel>,
-        system_prompt: String,
-        tools: Vec<nobodywho::tool_calling::Tool>,
-        n_ctx: u32,
-        allow_thinking: bool,
+        config: ChatWorkerConfig,
     ) -> Result<nobodywho::chat::ChatHandleAsync, GString> {
         tokio::task::yield_now().await;
 
-        let model = NobodyWhoModel::load_model_detached(model_node)
+        let model = NobodyWhoModel::load_model_detached(config.model_node)
             .await
             .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         let mut template_variables = HashMap::new();
-        template_variables.insert("enable_thinking".to_string(), allow_thinking);
+        template_variables.insert("enable_thinking".to_string(), config.allow_thinking);
         let handle = nobodywho::chat::ChatHandleAsync::new(
             model,
             nobodywho::chat::ChatConfig {
-                system_prompt: Some(system_prompt),
-                tools,
-                n_ctx,
+                system_prompt: Some(config.system_prompt),
+                tools: config.tools,
+                n_ctx: config.n_ctx,
                 template_variables,
                 sampler_config: None,
+                mtp: config.mtp,
+                n_threads: config.n_threads,
             },
         )
         .map_err(|e| GString::from(e.to_string().as_str()))?;
@@ -684,28 +775,27 @@ impl NobodyWhoChat {
 
     /// Synchronously snapshot the config needed for worker init. Returns an error string
     /// if model_node isn't set. Must be called from a `&mut self` (or `&self`) context.
-    fn snapshot_worker_config(
-        &self,
-    ) -> Result<
-        (
-            Gd<NobodyWhoModel>,
-            String,
-            Vec<nobodywho::tool_calling::Tool>,
-            u32,
-            bool,
-        ),
-        GString,
-    > {
+    fn snapshot_worker_config(&self) -> Result<ChatWorkerConfig, GString> {
         let Some(model_node) = self.model_node.clone() else {
             return Err(GString::from("Model node was not set"));
         };
-        Ok((
+        // Assemble the flattened MTP properties into the core config; `None`
+        // (MTP disabled) unless the `mtp` toggle is on.
+        let mtp = self.mtp.then_some(nobodywho::chat::MtpConfig {
+            k_max: self.mtp_k_max,
+            p_min: self.mtp_p_min,
+        });
+        Ok(ChatWorkerConfig {
             model_node,
-            self.system_prompt.to_string(),
-            self.tools.clone(),
-            self.context_length,
-            self.allow_thinking,
-        ))
+            system_prompt: self.system_prompt.to_string(),
+            tools: self.tools.clone(),
+            n_ctx: self.context_length,
+            // The exported property is a plain int, so 0 spells "detect it" — core takes
+            // `None` for that.
+            n_threads: (self.thread_count > 0).then_some(self.thread_count),
+            allow_thinking: self.allow_thinking,
+            mtp,
+        })
     }
 
     #[func]
@@ -722,29 +812,19 @@ impl NobodyWhoChat {
             return;
         }
 
-        let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
-            match self.snapshot_worker_config() {
-                Ok(c) => c,
-                Err(e) => {
-                    godot_error!("Error starting worker: {}", e);
-                    self.signals().worker_failed().emit(&e);
-                    return;
-                }
-            };
+        let config = match self.snapshot_worker_config() {
+            Ok(c) => c,
+            Err(e) => {
+                godot_error!("Error starting worker: {}", e);
+                self.signals().worker_failed().emit(&e);
+                return;
+            }
+        };
 
         let me = self.to_gd();
         godot::task::spawn(async move {
             let me_emit = me.clone();
-            match Self::load_and_store_worker(
-                me,
-                model_node,
-                system_prompt,
-                tools,
-                n_ctx,
-                allow_thinking,
-            )
-            .await
-            {
+            match Self::load_and_store_worker(me, config).await {
                 Ok(_) => me_emit.signals().worker_started().emit(),
                 Err(e) => {
                     godot_error!("Error running model: {}", e);
@@ -801,18 +881,8 @@ impl NobodyWhoChat {
             let chat_handle = match existing_handle {
                 Some(h) => h,
                 None => {
-                    let (model_node, system_prompt, tools, n_ctx, allow_thinking) =
-                        load_config.expect("load_config set when no existing handle");
-                    match Self::load_and_store_worker(
-                        me,
-                        model_node,
-                        system_prompt,
-                        tools,
-                        n_ctx,
-                        allow_thinking,
-                    )
-                    .await
-                    {
+                    let config = load_config.expect("load_config set when no existing handle");
+                    match Self::load_and_store_worker(me, config).await {
                         Ok(h) => h,
                         Err(e) => {
                             godot_error!("ask() dropped: {}", e);
@@ -994,6 +1064,58 @@ impl NobodyWhoChat {
         });
 
         // returns signal, so that you can `var stats = await get_stats()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    /// Returns a Signal resolving to a float, or `null` if MTP is off or no drafts
+    /// were proposed. Use `var rate = await chat.mtp_acceptance_rate()`.
+    fn mtp_acceptance_rate(&mut self) -> Variant {
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to get MTP acceptance rate, but no worker is running. Returning nil."
+                );
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "mtp_acceptance_rate_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let Ok(rate) = chat_handle.mtp_acceptance_rate().await else {
+                error!("Chat worker died while waiting for mtp_acceptance_rate.");
+                emit_node.emit_signal(&signal_name_copy, &[]);
+                return;
+            };
+
+            let value = match rate {
+                Some(r) => Variant::from(r),
+                None => Variant::nil(),
+            };
+
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("Failed getting MTP acceptance rate: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[value]);
+        });
+
         Variant::from(godot::builtin::Signal::from_object_signal(
             &self.base_mut(),
             &signal_name,
@@ -2031,36 +2153,48 @@ fn json_schema_from_callable(
 /// The TTS node synthesizes text into WAV bytes.
 ///
 /// `source` accepts a local model directory, a Godot path (`res://` or `user://`),
-/// or a HuggingFace repo ID such as `NobodyWho/Kokoro-82M` or `Supertone/supertonic-3`.
-/// Leave `backend` empty for known official sources, or set it to `kokoro` or `supertonic`.
+/// or a HuggingFace repo such as `hf://hexgrad/Kokoro-82M`, `hf://KevinAHM/pocket-tts-onnx`, or `hf://Supertone/supertonic-3`.
+/// Leave `architecture` empty for recognizable sources, or set it to `kokoro`, `pocket-tts`, or `supertonic`.
 struct NobodyWhoTts {
     #[export]
-    /// Local model directory, Godot path, or HuggingFace repo ID.
+    /// Local model directory, Godot path, or HuggingFace repo (`hf://owner/repo`).
     source: GString,
 
     #[export]
-    /// Empty for known sources, or one of: kokoro, supertonic.
-    backend: GString,
+    /// Empty for recognizable sources, or one of: kokoro, pocket-tts, supertonic.
+    architecture: GString,
 
     #[export]
-    /// Optional voice name. Empty uses the backend default.
+    /// Optional voice name. Empty uses the architecture default.
     voice: GString,
 
     #[export]
-    /// Optional language code. Empty uses the backend default.
+    /// Optional language code. Empty uses the architecture default.
     language: GString,
 
     #[export]
-    /// Optional speed override. Use 0 to keep the backend default.
+    /// Optional speed override. Use 0 to keep the architecture default.
     speed: f32,
 
     #[export]
-    /// Optional Supertonic denoising steps. Use 0 to keep the backend default.
+    /// Optional Supertonic denoising steps. Use 0 to keep the architecture default.
     steps: i64,
 
     #[export]
-    /// Optional Supertonic silence between chunks. Use -1 to keep the backend default.
+    /// Optional Supertonic silence between chunks. Use -1 to keep the architecture default.
     silence_duration: f32,
+
+    #[export]
+    /// Optional Pocket TTS precision: int8 or fp32. Empty uses int8.
+    precision: GString,
+
+    #[export]
+    /// Optional Pocket TTS temperature. Use -1 to keep the architecture default.
+    temperature: f32,
+
+    #[export]
+    /// Optional Pocket TTS HuggingFace token for gated voices. Empty uses HF_TOKEN.
+    huggingface_token: GString,
 
     #[export]
     /// TTS device: auto, cpu, or cuda.
@@ -2076,13 +2210,16 @@ struct NobodyWhoTts {
 impl INode for NobodyWhoTts {
     fn init(base: Base<Node>) -> Self {
         Self {
-            source: GString::from("Supertone/supertonic-3"),
-            backend: GString::from(""),
+            source: GString::from("hf://Supertone/supertonic-3"),
+            architecture: GString::from(""),
             voice: GString::from(""),
             language: GString::from(""),
             speed: 0.0,
             steps: 0,
             silence_duration: -1.0,
+            precision: GString::new(),
+            temperature: -1.0,
+            huggingface_token: GString::new(),
             device: GString::from("auto"),
             tts_handle: None,
             load_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -2124,12 +2261,15 @@ impl NobodyWhoTts {
             let b = me.bind();
             let config = build_tts_config(
                 resolve_godot_path(&b.source),
-                b.backend.to_string(),
+                b.architecture.to_string(),
                 b.voice.to_string(),
                 b.language.to_string(),
                 b.speed,
                 b.steps,
                 b.silence_duration,
+                b.precision.to_string(),
+                b.temperature,
+                b.huggingface_token.to_string(),
             )?;
             let device = parse_tts_device(b.device.to_string())?;
             (config, device)
@@ -2314,12 +2454,16 @@ impl NobodyWhoEncoder {
     fn encoding_finished(encoding: PackedFloat32Array);
 
     #[signal]
+    /// Triggered when batch encoding has finished. Returns one encoding per input text.
+    fn batch_encoding_finished(encodings: Array<PackedFloat32Array>);
+
+    #[signal]
     /// Emitted once the encoder worker has finished loading (including any model download)
     /// and is ready to accept `encode()` calls.
     fn worker_started();
 
     #[signal]
-    /// Emitted if loading the model (or setting up the encoder worker) failed.
+    /// Emitted if loading the model, setting up the worker, or encoding failed.
     fn worker_failed(error: GString);
 
     /// Load the model and create the encoder worker. `yield_now()` ensures the
@@ -2433,6 +2577,90 @@ impl NobodyWhoEncoder {
 
         // returns signal, so that you can `var vec = await encode("Hello, world!")`
         godot::builtin::Signal::from_object_signal(&self.base_mut(), "encoding_finished")
+    }
+
+    #[func]
+    /// Generates encodings for multiple texts in input order.
+    /// Returns a signal that emits an Array of PackedFloat32Array values.
+    /// Failures emit `worker_failed` and complete with an empty Array.
+    fn encode_batch(&mut self, texts: PackedStringArray) -> Signal {
+        let existing_handle = self.encoder_handle.clone();
+        let model_node = if existing_handle.is_none() {
+            godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
+            match self.model_node.clone() {
+                Some(node) => Some(node),
+                None => {
+                    let error = GString::from("Model node was not set");
+                    godot_error!("encode_batch() dropped: {}", error);
+                    let emit_node = self.to_gd();
+                    godot::task::spawn(async move {
+                        emit_node.signals().worker_failed().emit(&error);
+                        emit_node
+                            .signals()
+                            .batch_encoding_finished()
+                            .emit(&Array::new());
+                    });
+                    return godot::builtin::Signal::from_object_signal(
+                        &self.base_mut(),
+                        "batch_encoding_finished",
+                    );
+                }
+            }
+        } else {
+            None
+        };
+
+        let texts = texts
+            .to_vec()
+            .into_iter()
+            .map(|text| text.to_string())
+            .collect();
+        let me = self.to_gd();
+        let emit_node = me.clone();
+        godot::task::spawn(async move {
+            let encoder_handle = match existing_handle {
+                Some(handle) => handle,
+                None => {
+                    let model_node = model_node.expect("model_node set when no existing handle");
+                    match Self::load_and_store_worker(me, model_node).await {
+                        Ok(handle) => handle,
+                        Err(error) => {
+                            godot_error!("encode_batch() dropped: {}", error);
+                            emit_node.signals().worker_failed().emit(&error);
+                            emit_node
+                                .signals()
+                                .batch_encoding_finished()
+                                .emit(&Array::new());
+                            return;
+                        }
+                    }
+                }
+            };
+            match encoder_handle.encode_batch(texts).await {
+                Ok(encodings) => {
+                    let encodings = encodings
+                        .into_iter()
+                        .map(PackedFloat32Array::from)
+                        .collect::<Array<_>>();
+                    emit_node
+                        .signals()
+                        .batch_encoding_finished()
+                        .emit(&encodings);
+                }
+                Err(error) => {
+                    let error = error.to_string();
+                    let error = GString::from(&error);
+                    godot_error!("Failed generating encodings: {}", error);
+                    emit_node.signals().worker_failed().emit(&error);
+                    emit_node
+                        .signals()
+                        .batch_encoding_finished()
+                        .emit(&Array::new());
+                }
+            }
+        });
+
+        godot::builtin::Signal::from_object_signal(&self.base_mut(), "batch_encoding_finished")
     }
 
     #[func]
@@ -2793,8 +3021,9 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
 
 /// NobodyWhoSTT is a Godot node for local speech-to-text using Whisper.
 ///
-/// Set `model_path` to a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`)
-/// or a local directory path, then call `transcribe_file()` or `transcribe_pcm()`.
+/// Set `model_path` to a HuggingFace repo (`hf://owner/repo`, e.g.
+/// `"hf://onnx-community/whisper-base"`) or a local directory path, then call
+/// `transcribe_file()` or `transcribe_pcm()`.
 /// Tokens stream out via the `transcription_updated` signal; the full transcript
 /// arrives via `transcription_finished`.
 ///
@@ -2803,7 +3032,7 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
 ///     extends NobodyWhoSTT
 ///
 ///     func _ready():
-///         model_path = "onnx-community/whisper-base"
+///         model_path = "hf://onnx-community/whisper-base"
 ///         transcription_updated.connect(func(piece): $Label.text += piece)
 ///         transcription_finished.connect(func(text): print("Done:", text))
 ///         transcribe_file("res://recording.wav")
@@ -2973,7 +3202,7 @@ impl NobodyWhoSTT {
     }
 
     #[func]
-    /// Transcribe an audio file (WAV / MP3 / FLAC). Call `start_worker()` and wait for
+    /// Transcribe an audio file (WAV / MP3). Call `start_worker()` and wait for
     /// `worker_started` before calling this.
     fn transcribe_file(&mut self, path: String) {
         let Some(stt) = self.stt.clone() else {

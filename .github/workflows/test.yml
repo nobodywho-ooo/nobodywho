@@ -2,12 +2,12 @@ name: "Test"
 on:
   workflow_call:
     inputs:
-      full_ci:
-        description: "Run full test suite. If false, only lightweight checks run."
+      run_rust_core:
+        description: "Run the canonical core test suite (nix flake check)."
         type: boolean
         default: false
-      run_nix:
-        description: "Run nix flake check."
+      run_flutter:
+        description: "Run Flutter doctest/multimodal/STT tests."
         type: boolean
         default: false
     secrets:
@@ -49,7 +49,7 @@ jobs:
   # cachix actions as per these docs:
   # https://nix.dev/guides/recipes/continuous-integration-github-actions
   nix-flake-check:
-    if: inputs.run_nix
+    if: inputs.run_rust_core
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 360
     steps:
@@ -80,7 +80,7 @@ jobs:
 
 
   flutter-multimodal-tests:
-    if: inputs.full_ci
+    if: inputs.run_flutter
     runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
@@ -121,7 +121,7 @@ jobs:
 
 
   flutter-stt-tests:
-    if: inputs.full_ci
+    if: inputs.run_flutter
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -148,6 +148,7 @@ jobs:
 
       - name: Download Whisper model
         run: |
+          # fp32 ("default") files, matching the Flutter STT test's quantization='default'.
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
           mkdir -p models/whisper-base/onnx
           curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
@@ -161,5 +162,6 @@ jobs:
         working-directory: ./nobodywho/flutter/nobodywho
         env:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
+          TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
           LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_test.dart --name "STT" --reporter expanded

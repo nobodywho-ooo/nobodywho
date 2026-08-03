@@ -85,7 +85,8 @@ export type {
   CachedModel,
   ChatStats,
 } from "../generated/ts/nobodywho";
-export type { TtsBackend, TtsDevice, TtsOptions } from "./tts";
+export type { TtsArchitecture, TtsDevice, TtsOptions } from "./tts";
+export type { SttOptions } from "./stt";
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";

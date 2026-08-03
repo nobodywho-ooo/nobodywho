@@ -8,6 +8,8 @@
 // 4. Download from GitHub releases
 
 import java.io.ByteArrayOutputStream
+import org.gradle.process.ExecOperations
+import org.gradle.kotlin.dsl.support.serviceOf
 
 plugins {
     id("com.android.library")
@@ -58,6 +60,11 @@ val resolveNativeLibraries by tasks.registering {
     inputs.file("${projectDir}/../tool/resolve_binary.dart")
     outputs.dir(jniLibsDir)
 
+    // Capture the ExecOperations service at configuration time. Project.exec() was
+    // deprecated in Gradle 8.x and removed in Gradle 9.0, so we inject the service
+    // instead of calling project.exec { } during task execution (see issue #624).
+    val execOperations = serviceOf<ExecOperations>()
+
     doLast {
         val toolDir = file("${projectDir}/../tool")
         val workingDir = file("${projectDir}/..")
@@ -70,7 +77,7 @@ val resolveNativeLibraries by tasks.registering {
             val stdout = ByteArrayOutputStream()
             val stderr = ByteArrayOutputStream()
 
-            val execResult = project.exec {
+            val execResult = execOperations.exec {
                 commandLine(
                     "dart", "run", "${toolDir}/resolve_binary.dart",
                     "--platform=android",

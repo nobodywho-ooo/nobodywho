@@ -4,17 +4,20 @@ import {
   type RustTtsInterface,
 } from "../generated/ts/nobodywho";
 
-export type TtsBackend = "kokoro" | "supertonic";
+export type TtsArchitecture = "kokoro" | "pocket-tts" | "supertonic";
 export type TtsDevice = "auto" | "cpu" | "cuda";
 
 export type TtsOptions = {
   source: string;
-  backend?: TtsBackend;
+  architecture?: TtsArchitecture;
   voice?: string;
   language?: string;
   speed?: number;
   steps?: number;
   silenceDuration?: number;
+  precision?: "int8" | "fp32";
+  temperature?: number;
+  huggingfaceToken?: string;
   device?: TtsDevice;
 };
 
@@ -27,12 +30,15 @@ export class Tts {
   constructor(opts: TtsOptions) {
     this._inner = new RustTts(
       opts.source,
-      opts.backend,
+      opts.architecture,
       opts.voice,
       opts.language,
       opts.speed,
       opts.steps,
       opts.silenceDuration,
+      opts.precision,
+      opts.temperature,
+      opts.huggingfaceToken,
       opts.device ?? "auto",
     );
   }
@@ -47,12 +53,15 @@ export class Tts {
   static async load(opts: TtsOptions): Promise<Tts> {
     const inner = await loadTts(
       opts.source,
-      opts.backend,
+      opts.architecture,
       opts.voice,
       opts.language,
       opts.speed,
       opts.steps,
       opts.silenceDuration,
+      opts.precision,
+      opts.temperature,
+      opts.huggingfaceToken,
       opts.device ?? "auto",
     );
     return Tts.fromInner(inner);

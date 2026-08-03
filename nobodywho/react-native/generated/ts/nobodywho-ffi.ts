@@ -20,7 +20,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_internal_fn_func_ffi__arraybuffer_to_string(buffer: Uint8Array, uniffi_out_err: UniffiRustCallStatus): string;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustchat(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(model: bigint, systemPrompt: Uint8Array, contextSize: number, templateVariables: Uint8Array, tools: Uint8Array, sampler: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(model: bigint, systemPrompt: Uint8Array, contextSize: number, templateVariables: Uint8Array, tools: Uint8Array, sampler: Uint8Array, mtp: Uint8Array, threadCount: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(ptr: bigint, message: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(ptr: bigint, json: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(ptr: bigint, parts: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -29,6 +29,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(ptr: bigint): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(ptr: bigint, systemPrompt: Uint8Array, tools: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(ptr: bigint, messages: Uint8Array): bigint;
@@ -48,6 +49,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustencoder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(model: bigint, contextSize: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(ptr: bigint, text: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(ptr: bigint, texts: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): number;
@@ -73,7 +75,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(ptr: bigint, callId: Uint8Array, result: Uint8Array, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttts(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rusttts(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(source: Uint8Array, backend: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, device: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(source: Uint8Array, architecture: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, precision: Uint8Array, temperature: Uint8Array, huggingfaceToken: Uint8Array, device: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(ptr: bigint, text: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(ptr: bigint, text: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -102,8 +104,8 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_func_cosine_similarity(a: Uint8Array, b: Uint8Array, uniffi_out_err: UniffiRustCallStatus): number;
     ubrn_uniffi_nobodywho_uniffi_fn_func_download_model(modelPath: Uint8Array, headers: Uint8Array, onDownloadProgress: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus): Uint8Array;
-    ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, onDownloadProgress: Uint8Array): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(source: Uint8Array, backend: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, device: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, draftModelPath: Uint8Array, onDownloadProgress: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(source: Uint8Array, architecture: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, precision: Uint8Array, temperature: Uint8Array, huggingfaceToken: Uint8Array, device: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(grammar: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(schema: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(pattern: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -187,6 +189,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_stats(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_system_prompt(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(): number;
@@ -200,6 +203,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm(): number;

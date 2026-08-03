@@ -6,12 +6,12 @@ import type * as Preset from '@docusaurus/preset-classic';
 // at /<binding>/. Bumping this requires a matching snapshot in
 // `<binding>_versioned_docs/` (see docs/README.md).
 const latestReleases: Record<string, string> = {
-  kotlin: '2.0.0',
-  python: '1.5.0',
-  swift: '2.1.0',
-  'react-native': '2.3.0',
-  flutter: '2.3.0',
-  godot: '9.4.0',
+  kotlin: '2.2.0',
+  python: '1.7.0',
+  swift: '2.3.0',
+  'react-native': '2.5.0',
+  flutter: '2.5.0',
+  godot: '9.6.0',
 };
 
 // `current` reflects the `main` branch — possibly ahead of the latest tag.
@@ -190,7 +190,7 @@ const config: Config = {
         {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/'},
         {to: '/react-native/', label: 'React Native', position: 'left', activeBaseRegex: '/react-native/'},
         {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/'},
-        {to: '/godot/install', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
+        {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',
