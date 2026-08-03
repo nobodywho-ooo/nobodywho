@@ -3,7 +3,7 @@ import typing
 from collections.abc import Sequence
 from os import PathLike
 from pathlib import Path
-from typing import Any, Final, final
+from typing import Final, final
 
 T = typing.TypeVar(
     "T", str, typing.Awaitable[str]
