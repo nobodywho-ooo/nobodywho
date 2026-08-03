@@ -248,7 +248,10 @@ impl NobodyWhoChat {
             match handle.get_sampler_config().await {
                 Ok(cfg) => NobodyWhoSamplerConfig::wrap(cfg).to_variant(),
                 Err(e) => {
-                    godot_error!("get_sampler_config failed: {}", nobodywho::render_miette(&e));
+                    godot_error!(
+                        "get_sampler_config failed: {}",
+                        nobodywho::render_miette(&e)
+                    );
                     Variant::nil()
                 }
             }
@@ -267,7 +270,10 @@ impl NobodyWhoChat {
             match handle.set_sampler_config(cfg).await {
                 Ok(()) => Variant::nil(),
                 Err(e) => {
-                    godot_error!("set_sampler_config failed: {}", nobodywho::render_miette(&e));
+                    godot_error!(
+                        "set_sampler_config failed: {}",
+                        nobodywho::render_miette(&e)
+                    );
                     Variant::nil()
                 }
             }
@@ -291,7 +297,10 @@ impl NobodyWhoChat {
                     dict.to_variant()
                 }
                 Err(e) => {
-                    godot_error!("get_template_variables failed: {}", nobodywho::render_miette(&e));
+                    godot_error!(
+                        "get_template_variables failed: {}",
+                        nobodywho::render_miette(&e)
+                    );
                     Variant::nil()
                 }
             }
@@ -310,7 +319,10 @@ impl NobodyWhoChat {
             match handle.set_template_variable(name, value).await {
                 Ok(()) => Variant::nil(),
                 Err(e) => {
-                    godot_error!("set_template_variable failed: {}", nobodywho::render_miette(&e));
+                    godot_error!(
+                        "set_template_variable failed: {}",
+                        nobodywho::render_miette(&e)
+                    );
                     Variant::nil()
                 }
             }
@@ -335,7 +347,10 @@ impl NobodyWhoChat {
             match handle.set_template_variables(vars).await {
                 Ok(()) => Variant::nil(),
                 Err(e) => {
-                    godot_error!("set_template_variables failed: {}", nobodywho::render_miette(&e));
+                    godot_error!(
+                        "set_template_variables failed: {}",
+                        nobodywho::render_miette(&e)
+                    );
                     Variant::nil()
                 }
             }
@@ -383,7 +398,10 @@ impl NobodyWhoChat {
                 Ok(Some(rate)) => rate.to_variant(),
                 Ok(None) => Variant::nil(),
                 Err(e) => {
-                    godot_error!("mtp_acceptance_rate failed: {}", nobodywho::render_miette(&e));
+                    godot_error!(
+                        "mtp_acceptance_rate failed: {}",
+                        nobodywho::render_miette(&e)
+                    );
                     Variant::nil()
                 }
             }
