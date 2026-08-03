@@ -71,5 +71,4 @@ impl NobodyWhoModel {
             }
         })
     }
-
 }
