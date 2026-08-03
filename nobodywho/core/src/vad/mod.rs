@@ -1,9 +1,9 @@
 //! Voice Activity Detection (speech start/end) from live, streaming audio.
 //!
 //! Backed by [Silero VAD](https://github.com/snakers4/silero-vad) (MIT
-//! licensed) by default (`onnx-community/silero-vad` on HuggingFace),
-//! downloaded and cached the same way `Stt`'s Whisper backend resolves its
-//! models — first use requires network access, subsequent uses are
+//! licensed) by default (`hf://onnx-community/silero-vad`),
+//! downloaded and cached the same way `Stt`'s Whisper architecture resolves
+//! its models — first use requires network access, subsequent uses are
 //! offline. The model source is configurable via [`VadConfig::source`] for
 //! forks/mirrors that keep the same `onnx/model.onnx` layout.
 
@@ -19,12 +19,12 @@ pub use events::VadEvent;
 /// Configuration for [`Vad`].
 #[derive(Clone, Debug)]
 pub struct VadConfig {
-    /// HuggingFace repo ID (`owner/repo`) or local directory path for the
+    /// `hf://owner/repo` HuggingFace source or local directory path for the
     /// VAD ONNX model. Expected to contain `onnx/model.onnx` at the
     /// standard Silero VAD layout — a fork or mirror of the reference
     /// model works as long as it matches that layout. Defaults to
-    /// `onnx-community/silero-vad`, the canonical Silero VAD mirror; most
-    /// users should leave this as-is.
+    /// `hf://onnx-community/silero-vad`, the canonical Silero VAD mirror;
+    /// most users should leave this as-is.
     pub source: String,
     /// Sample rate of the buffers you'll pass to [`Vad::push`]. Silero
     /// natively runs at 16kHz — anything else is resampled internally.
@@ -44,7 +44,7 @@ impl Default for VadConfig {
     fn default() -> Self {
         let debounce = DebounceConfig::default();
         Self {
-            source: "onnx-community/silero-vad".to_string(),
+            source: "hf://onnx-community/silero-vad".to_string(),
             sample_rate: 16_000,
             threshold: debounce.threshold,
             min_silence_duration_ms: debounce.min_silence_duration_ms,

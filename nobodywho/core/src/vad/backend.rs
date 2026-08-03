@@ -38,7 +38,7 @@ impl VadBackend {
         debounce_config: DebounceConfig,
         device: Device,
     ) -> Result<Self, VadError> {
-        let model_dir = huggingface::download_onnx(source, &["onnx/model.onnx".to_string()])?;
+        let model_dir = huggingface::download_onnx(source, &["onnx/model.onnx".to_string()], None)?;
         let session = load_session(&model_dir.join("onnx").join("model.onnx"), device)?;
         Ok(Self {
             session,
