@@ -107,6 +107,34 @@ pub fn set_log_level(level_str: &str) {
     }
 }
 
+// --- NobodyWho namespace class ---------------------------------------------
+
+/// Global entry point for NobodyWho utilities.
+///
+/// A pure namespace class: not instantiable (`no_init`), exists only to host
+/// instance-free static `#[func]`s — gdext has no true free/global functions,
+/// so a registered class is the only home for them. Static functions are
+/// callable on the class name without an instance.
+///
+/// ```gdscript
+/// NobodyWho.set_log_level("DEBUG")
+/// ```
+#[derive(GodotClass)]
+#[class(no_init, base=RefCounted)]
+pub struct NobodyWho {
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl NobodyWho {
+    /// Sets the global NobodyWho log level. One of
+    /// "TRACE", "DEBUG", "INFO", "WARN", "ERROR".
+    #[func]
+    fn set_log_level(level: GString) {
+        set_log_level(&level.to_string());
+    }
+}
+
 // --- Extension entry ---------------------------------------------------------
 
 struct NobodyWhoExtension;
