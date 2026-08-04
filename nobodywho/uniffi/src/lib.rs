@@ -618,6 +618,48 @@ pub struct RustSTT {
     inner: nobodywho::stt::Stt,
 }
 
+fn create_stt(
+    source: String,
+    language: Option<String>,
+    quantization: Option<String>,
+) -> Result<Arc<RustSTT>, NobodyWhoError> {
+    let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+    cfg.language = language;
+    if let Some(quantization) = quantization {
+        cfg.quantization = quantization;
+    }
+    let inner = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)).map_err(|e| {
+        NobodyWhoError::Error {
+            message: e.to_string(),
+        }
+    })?;
+    Ok(Arc::new(RustSTT { inner }))
+}
+
+/// Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+/// e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+/// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+/// `quantization` selects the ONNX precision variant to download and load:
+/// one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+/// pass `None` to use `"default"`.
+#[uniffi::export]
+pub async fn load_stt(
+    source: String,
+    language: Option<String>,
+    quantization: Option<String>,
+) -> Result<Arc<RustSTT>, NobodyWhoError> {
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = create_stt(source, language, quantization);
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "STT load thread terminated unexpectedly".into(),
+    })?
+}
+
 #[uniffi::export]
 impl RustSTT {
     /// Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
@@ -632,18 +674,7 @@ impl RustSTT {
         language: Option<String>,
         quantization: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
-        cfg.language = language;
-        if let Some(quantization) = quantization {
-            cfg.quantization = quantization;
-        }
-        let inner =
-            nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)).map_err(|e| {
-                NobodyWhoError::Error {
-                    message: e.to_string(),
-                }
-            })?;
-        Ok(Arc::new(Self { inner }))
+        create_stt(source, language, quantization)
     }
 
     /// Start transcribing an audio file (WAV / MP3).

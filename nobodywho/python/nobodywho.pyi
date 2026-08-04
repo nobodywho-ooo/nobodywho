@@ -877,6 +877,30 @@ class STT:
         language: str | None = None,
         quantization: str | None = None,
     ) -> STT: ...
+    @staticmethod
+    async def load(
+        source: str, language: str | None = None, quantization: str | None = None
+    ) -> STT:
+        """
+        Asynchronously load an STT model.
+
+        This static method loads the model asynchronously, which is useful for loading large models
+        without blocking the async event loop. The blocking model load operation is offloaded to
+        a background thread, allowing other async tasks to continue running.
+
+        Args:
+            source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+            language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+            quantization: ONNX precision variant to download and load: one of
+                `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+                omit or pass `None` to use `"default"`.
+
+        Returns:
+            An STT instance wrapped in an awaitable (async function returns a coroutine)
+
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
     def transcribe_file(self, /, path: str) -> TokenStream:
         """
         Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
@@ -900,6 +924,30 @@ class STTAsync:
         language: str | None = None,
         quantization: str | None = None,
     ) -> STTAsync: ...
+    @staticmethod
+    async def load(
+        source: str, language: str | None = None, quantization: str | None = None
+    ) -> STTAsync:
+        """
+        Asynchronously load an STT model.
+
+        This static method loads the model asynchronously, which is useful for loading large models
+        without blocking the async event loop. The blocking model load operation is offloaded to
+        a background thread, allowing other async tasks to continue running.
+
+        Args:
+            source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+            language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+            quantization: ONNX precision variant to download and load: one of
+                `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+                omit or pass `None` to use `"default"`.
+
+        Returns:
+            An STTAsync instance wrapped in an awaitable (async function returns a coroutine)
+
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
     def transcribe_file(self, /, path: str) -> TokenStreamAsync: ...
     def transcribe_pcm(
         self, /, samples: Sequence[int], sample_rate: int

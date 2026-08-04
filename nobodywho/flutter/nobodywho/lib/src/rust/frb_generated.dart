@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 829442270;
+  int get rustContentHash => 1715708007;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -252,7 +252,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<String?> crateRustSttStreamNextToken({required RustSttStream that});
 
-  RustStt crateRustSttNew({
+  Future<RustStt> crateRustSttLoad({
     required String source,
     String? language = null,
     String? quantization = null,
@@ -2082,34 +2082,39 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  RustStt crateRustSttNew({
+  Future<RustStt> crateRustSttLoad({
     required String source,
     String? language = null,
     String? quantization = null,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(source, serializer);
           sse_encode_opt_String(language, serializer);
           sse_encode_opt_String(quantization, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 37,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustSttNewConstMeta,
+        constMeta: kCrateRustSttLoadConstMeta,
         argValues: [source, language, quantization],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustSttNewConstMeta => const TaskConstMeta(
-    debugName: "RustStt_new_",
+  TaskConstMeta get kCrateRustSttLoadConstMeta => const TaskConstMeta(
+    debugName: "RustStt_load",
     argNames: ["source", "language", "quantization"],
   );
 

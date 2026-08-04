@@ -13,7 +13,7 @@ export type SttOptions = {
  *
  * @example
  * ```typescript
- * const stt = new STT({
+ * const stt = await STT.load({
  *   source: "hf://onnx-community/whisper-base",
  *   language: "en",
  * });
@@ -30,15 +30,23 @@ export class STT {
   /** @internal */
   private readonly _inner: RustSttInterface;
 
+  /** @internal */
+  private constructor(inner: RustSttInterface) {
+    this._inner = inner;
+  }
+
   /**
+   * Load a Whisper STT model.
+   *
    * @param opts - See {@link SttOptions}.
    */
-  constructor(opts: SttOptions) {
-    this._inner = new nobodywho.RustStt(
+  static async load(opts: SttOptions): Promise<STT> {
+    const inner = await nobodywho.loadStt(
       opts.source,
       opts.language,
       opts.quantization,
     );
+    return new STT(inner);
   }
 
   /**

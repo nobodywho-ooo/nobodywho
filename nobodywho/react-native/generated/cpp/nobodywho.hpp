@@ -298,6 +298,9 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_stt(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_tts(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -491,6 +494,9 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_model(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_stt(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_tts(

@@ -715,7 +715,7 @@ impl RustTokenStream {
 // STT
 // ---------------------------------------------------------------------------
 
-/// Speech-to-text handle. Create with `RustSTT.new_()`, then call
+/// Speech-to-text handle. Create with `RustSTT.load()`, then call
 /// `transcribeFile` or `transcribePcm` to get a `RustSTTStream`.
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustSTT {
@@ -729,8 +729,8 @@ impl RustSTT {
     /// `quantization` — ONNX precision variant to download and load: one of
     /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
     /// to use `"default"`.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn new_(
+    #[flutter_rust_bridge::frb]
+    pub fn load(
         source: String,
         #[frb(default = "null")] language: Option<String>,
         #[frb(default = "null")] quantization: Option<String>,
