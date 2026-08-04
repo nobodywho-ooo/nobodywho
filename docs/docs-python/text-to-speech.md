@@ -8,9 +8,9 @@ Generate natural-sounding speech from text, ready to save as a WAV file or play 
 
 ```python notest
 from pathlib import Path
-from nobodywho import Tts
+from nobodywho import TextToSpeech
 
-tts = Tts(
+tts = TextToSpeech(
     source="hf://NobodyWho/Kokoro-82M",  # Hugging Face repo ID or local folder with the model files.
     voice="bf_emma",  # Voice to use from the model.
     language="en-gb",  # Language code for the input text.
@@ -37,7 +37,7 @@ NobodyWho supports three speech synthesis architectures, all in ONNX format:
 For Kokoro, set `voice` and `language` together. They must agree with the model's available voices.
 
 ```python notest
-tts = Tts(
+tts = TextToSpeech(
     source="hf://NobodyWho/Kokoro-82M",
     voice="bf_emma",
     language="en-gb",
@@ -55,7 +55,7 @@ Optional settings include:
 For Supertonic, you can start with the default `voice` and `language`, or set them explicitly.
 
 ```python notest
-tts = Tts(
+tts = TextToSpeech(
     source="hf://Supertone/supertonic-3",
     language="en",
 )
@@ -74,7 +74,7 @@ Optional settings include:
 For Pocket TTS, start with the default voice and language, or set them explicitly.
 
 ```python notest
-tts = Tts(
+tts = TextToSpeech(
     source="hf://KevinAHM/pocket-tts-onnx",
     voice="alba",
     language="english_2026-04",
@@ -94,12 +94,12 @@ Pocket TTS voice states are gated in [`kyutai/pocket-tts`](https://huggingface.c
 
 ## Architecture
 
-`architecture` is the TTS model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
+`architecture` is the TextToSpeech model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
 
 Set `architecture` when you use a local directory or a custom source that NobodyWho cannot recognize:
 
 ```python notest
-tts = Tts(
+tts = TextToSpeech(
     source="/path/to/local/kokoro-folder",
     architecture="kokoro",
 )
@@ -109,10 +109,10 @@ Supported architecture values are `kokoro`, `pocket-tts`, and `supertonic`.
 
 ## GPU
 
-TTS uses GPU acceleration by default when available. Disable it with `device="cpu"`:
+TextToSpeech uses GPU acceleration by default when available. Disable it with `device="cpu"`:
 
 ```python notest
-tts = Tts(
+tts = TextToSpeech(
     source="hf://Supertone/supertonic-3",
     device="cpu",
 )

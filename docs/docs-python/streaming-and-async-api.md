@@ -52,4 +52,4 @@ asyncio.run(main())
 Similarly, the other model types we support also implement async behaviour, so
 you can go for `EncoderAsync` and `CrossEncoderAsync`, which are
 both part of the [embeddings & rag functionality](./embeddings-and-rag), or
-`STTAsync`, part of the [speech-to-text functionality](./speech-to-text).
+`SpeechToTextAsync`, part of the [speech-to-text functionality](./speech-to-text).

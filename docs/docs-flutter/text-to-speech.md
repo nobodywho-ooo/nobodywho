@@ -11,7 +11,7 @@ import 'dart:io';
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 // ... after NobodyWho.init().
-final tts = await nobodywho.Tts.load(
+final tts = await nobodywho.TextToSpeech.load(
   source: 'hf://NobodyWho/Kokoro-82M', // Hugging Face repo (hf://owner/repo) or local folder with the model files.
   voice: 'bf_emma', // Voice to use from the model.
   language: 'en-gb', // Language code for the input text.
@@ -39,7 +39,7 @@ For Kokoro, set `voice` and `language` together. They must agree with the model'
 
 ```dart
 // ... after NobodyWho.init().
-final tts = await nobodywho.Tts.load(
+final tts = await nobodywho.TextToSpeech.load(
   source: 'hf://NobodyWho/Kokoro-82M',
   voice: 'bf_emma',
   language: 'en-gb',
@@ -58,7 +58,7 @@ For Supertonic, you can start with the default `voice` and `language`, or set th
 
 ```dart
 // ... after NobodyWho.init().
-final tts = await nobodywho.Tts.load(
+final tts = await nobodywho.TextToSpeech.load(
   source: 'hf://Supertone/supertonic-3',
   language: 'en',
 );
@@ -77,7 +77,7 @@ Optional settings include:
 For Pocket TTS, start with the default voice and language, or set them explicitly.
 
 ```dart
-final tts = await nobodywho.Tts.load(
+final tts = await nobodywho.TextToSpeech.load(
   source: 'hf://KevinAHM/pocket-tts-onnx',
   voice: 'alba',
   language: 'english_2026-04',
@@ -97,13 +97,13 @@ Pocket TTS voice states are gated in [`kyutai/pocket-tts`](https://huggingface.c
 
 ## Architecture
 
-`architecture` is the TTS model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
+`architecture` is the TextToSpeech model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
 
 Set `architecture` when you use a local directory or a custom source that NobodyWho cannot recognize:
 
 ```dart
 // ... after NobodyWho.init().
-final tts = await nobodywho.Tts.load(
+final tts = await nobodywho.TextToSpeech.load(
   source: '/path/to/local/kokoro-folder',
   architecture: .kokoro',
 );
@@ -113,11 +113,11 @@ Supported architecture values are `kokoro`, `pocket-tts`, and `supertonic`.
 
 ## GPU
 
-TTS uses GPU acceleration by default when available. Disable it with `useGpu: false`:
+TextToSpeech uses GPU acceleration by default when available. Disable it with `useGpu: false`:
 
 ```dart
 // ... after NobodyWho.init().
-final tts = await nobodywho.Tts.load(
+final tts = await nobodywho.TextToSpeech.load(
   source: 'hf://Supertone/supertonic-3',
   useGpu: false,
 );

@@ -8,12 +8,12 @@ Generate natural-sounding speech from text, ready to save as a WAV file or play 
 
 ## Quick start
 
-Add a `NobodyWhoTts` node to your scene, then use it from a script:
+Add a `NobodyWhoTextToSpeech` node to your scene, then use it from a script:
 
 ```gdscript
 extends Node
 
-@onready var tts: NobodyWhoTts = $NobodyWhoTts
+@onready var tts: NobodyWhoTextToSpeech = $NobodyWhoTextToSpeech
 
 func _ready():
     tts.source = "hf://NobodyWho/Kokoro-82M" # Hugging Face repo ID or local folder with the model files.
@@ -100,7 +100,7 @@ Pocket TTS voice states are gated in [`kyutai/pocket-tts`](https://huggingface.c
 
 ## Architecture
 
-`architecture` is the TTS model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
+`architecture` is the TextToSpeech model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
 
 Set `architecture` when you use a local directory, Godot path, or a custom source that NobodyWho cannot recognize:
 
@@ -113,7 +113,7 @@ Supported architecture values are `kokoro`, `pocket-tts`, and `supertonic`.
 
 ## GPU
 
-TTS uses GPU acceleration by default when available. Disable it with `device = "cpu"`:
+TextToSpeech uses GPU acceleration by default when available. Disable it with `device = "cpu"`:
 
 ```gdscript
 tts.source = "hf://Supertone/supertonic-3"
