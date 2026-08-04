@@ -44,10 +44,14 @@ jobs:
         run: uv run --no-sync ruff check
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+        uses: WarpBuilds/cache@v1
         with:
-          workspaces: nobodywho
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-static-checks-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-static-checks-cargo-
 
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
@@ -93,10 +97,18 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
+      # Passed through so WarpBuilds/cache can authenticate from inside the container.
+      env:
+        WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
     env:
       RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v5
+
+      # Warp cache in a container needs zstd + wget available before the cache
+      # step (the token is passed in via container.env above).
+      - name: "Install cache prerequisites"
+        run: yum install -y zstd wget
 
       - name: Install Rust
         run: |
@@ -105,9 +117,9 @@ jobs:
           source "$HOME/.cargo/env"
 
       - name: "Cache Cargo Home"
-        # No cache here means every wheel build recompiles llama.cpp + ORT cold,
-        # per arch. Keyed on manylinux_target to keep x86_64/aarch64 separate.
-        uses: actions/cache@v5
+        # Warp cache (off GitHub's 10 GiB budget). Without it every wheel build
+        # recompiles llama.cpp + ORT cold; keyed per manylinux_target/arch.
+        uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
@@ -265,6 +277,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: false
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-macos-wheel-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-macos-wheel-cargo-
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
