@@ -258,6 +258,18 @@ jobs:
           rustup target add ${{ matrix.target }} || true
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: "Cache Cargo Home"
+        # Warp cache — macOS runners are ephemeral now, so a Cargo.lock-keyed
+        # cache safely reuses the build instead of compiling cold every run.
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-macos-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-macos-${{ matrix.integration }}-${{ matrix.target }}-release-
+
       - name: "Setup Rust nightly for tier 3 targets"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
         run: |
@@ -284,11 +296,6 @@ jobs:
         with:
           channel: stable
           version: 3.35.5
-
-      - name: "Clean target dir"
-        # Self-hosted runners persist the workspace between runs; clean to avoid stale build artifacts.
-        run: cargo clean
-        working-directory: ./nobodywho
 
       # Build ORT for targets where pyke ships no prebuilts: x86_64 macOS
       # (MS dropped Intel Mac in 1.20+) and visionOS/watchOS device + sim
