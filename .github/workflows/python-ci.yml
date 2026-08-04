@@ -103,6 +103,18 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           source "$HOME/.cargo/env"
+
+      - name: "Cache Cargo Home"
+        # No cache here means every wheel build recompiles llama.cpp + ORT cold,
+        # per arch. Keyed on manylinux_target to keep x86_64/aarch64 separate.
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ matrix.manylinux_target }}-cargo-wheel-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.manylinux_target }}-cargo-wheel-
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
