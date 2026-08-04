@@ -373,8 +373,11 @@ jobs:
           python3 -m pytest --durations=30 \
             --ignore=tests/test_model_downloading.py \
             --ignore=tests/test_multimodal.py
-          # docs tests
-          python3 -m pytest --durations=30 --markdown-docs ../../docs --markdown-docs-syntax=superfences
+          # docs tests — current docs only. python_versioned_docs/* are frozen
+          # snapshots of shipped releases; doctesting them against the current
+          # wheel is ~5x the work (each example re-run per version) and semantically
+          # odd (old examples vs new code). Edited docs live in docs-python.
+          python3 -m pytest --durations=30 --markdown-docs ../../docs/docs-python --markdown-docs-syntax=superfences
 
   linux-multimodal-tests:
     if: inputs.run_python
