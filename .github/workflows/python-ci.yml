@@ -296,13 +296,9 @@ jobs:
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
-      - name: Restore test model cache
-        id: test-model-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: models
-          # Bump v1 whenever a URL or downloaded file changes.
-          key: linux-python-test-models-v1
+      # Test models are downloaded fresh, not cached: the ~4.8 GiB model cache
+      # filled the repo's 10 GiB Actions budget and evicted the Rust build
+      # caches, which cost far more to rebuild than models cost to re-download.
       - name: Download test models
         run: |
           download_pids=()
@@ -356,12 +352,6 @@ jobs:
             --ignore=tests/test_multimodal.py
           # docs tests
           python3 -m pytest --durations=30 --markdown-docs ../../docs --markdown-docs-syntax=superfences
-      - name: Save test model cache
-        if: success() && steps.test-model-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: models
-          key: ${{ steps.test-model-cache.outputs.cache-primary-key }}
 
   linux-multimodal-tests:
     if: inputs.run_python
@@ -380,11 +370,6 @@ jobs:
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
-      - name: Restore test model cache
-        uses: actions/cache/restore@v5
-        with:
-          path: models
-          key: linux-python-test-models-v1
       - name: Download vision models
         run: |
           mkdir -p models
