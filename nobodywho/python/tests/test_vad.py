@@ -1,6 +1,11 @@
 """
 Smoke test for the Vad (Silero VAD) binding.
 
+Requires the Silero VAD ONNX model — set TEST_VAD_MODEL to a HuggingFace repo
+(`hf://owner/repo`) or local directory path. Defaults to
+"hf://onnx-community/silero-vad" so the model is downloaded automatically on
+first run (cached after).
+
 Uses the same shared test asset as test_stt.py (assets/sound_16k.wav), which
 contains real speech ("Hey Ron. Hey Billy.").
 
@@ -15,6 +20,7 @@ import wave
 import nobodywho
 import pytest
 
+MODEL = os.environ.get("TEST_VAD_MODEL", "hf://onnx-community/silero-vad")
 AUDIO_WAV = os.environ.get(
     "TEST_AUDIO_FILE_WAV",
     os.path.join(
@@ -50,6 +56,7 @@ def audio():
 def test_push_detects_speech_and_finish_returns_audio(audio):
     samples, sample_rate = audio
     vad = nobodywho.Vad(
+        source=MODEL,
         sample_rate=sample_rate,
         threshold=0.3,
         min_speech_duration_ms=90,
@@ -76,7 +83,7 @@ def test_push_detects_speech_and_finish_returns_audio(audio):
 
 
 def test_finish_is_empty_when_no_speech_confirmed():
-    vad = nobodywho.Vad(sample_rate=16000)
+    vad = nobodywho.Vad(source=MODEL, sample_rate=16000)
     silence = [0] * 512
     for _ in range(5):
         event = vad.push(silence)

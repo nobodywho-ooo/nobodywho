@@ -60,6 +60,18 @@
     }} $out/generation_config.json
   '';
 
+  # onnx-community/silero-vad — single-file ONNX model. Vad only ever
+  # requests onnx/model.onnx (see VadBackend::new), so a plain local dir
+  # (not a full HF cache layout) is enough, same as TEST_WHISPER_MODEL.
+  TEST_VAD_MODEL = runCommand "silero-vad-model" { } ''
+    mkdir -p $out/onnx
+    cp ${fetchurl {
+      name = "model.onnx";
+      url = "https://huggingface.co/onnx-community/silero-vad/resolve/main/onnx/model.onnx";
+      sha256 = "sha256-pKBozWzx6oNVuEMnWVg4ynSOwpolvJH8gubCmczcWAg=";
+    }} $out/onnx/model.onnx
+  '';
+
   # The whole whisper-base repo laid out as the HF download cache expects
   # (see `OnnxSource` in core/src/huggingface.rs): $out/onnx-community/whisper-base/
   # with a `.nobodywho-complete` marker so it resolves offline, no network.
