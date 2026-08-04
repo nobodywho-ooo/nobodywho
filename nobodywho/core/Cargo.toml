@@ -46,14 +46,14 @@ walkdir = "2.5"
 tempfile = "3"
 hound = "3"
 safetensors = "0.5"
-# STT audio pipeline: WAV via hound, MP3 via symphonia-bundle-mp3 directly
+# SpeechToText audio pipeline: WAV via hound, MP3 via symphonia-bundle-mp3 directly
 symphonia-core = "0.5"
 symphonia-bundle-mp3 = { version = "0.5", default-features = false, features = ["mp3"] }
 rubato = "0.16"
 mel_spec = "0.4"
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 sentencepiece-rs = "0.2"
-# Shared by STT (via mel_spec) and TTS (supertonic); use 0.17 as the workspace default
+# Shared by SpeechToText (via mel_spec) and TextToSpeech (supertonic); use 0.17 as the workspace default
 ndarray = "0.17"
 rand_distr = "0.5"
 unicode-normalization = "0.1"

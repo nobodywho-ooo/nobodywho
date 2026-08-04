@@ -1,4 +1,4 @@
-//! Audio decoding and preprocessing for the STT pipeline.
+//! Audio decoding and preprocessing for the SpeechToText pipeline.
 //!
 //! All functions are pure (no model I/O) and unit-testable without a GPU.
 //!
@@ -6,7 +6,7 @@
 //! (no generic multi-format probing registry — these are the only two
 //! formats we support, dispatched by file extension).
 
-use crate::errors::SttError;
+use crate::errors::SpeechToTextError;
 use rubato::{
     Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
 };
@@ -33,7 +33,7 @@ impl DecodedAudio {
     /// Multi-channel audio is downmixed to mono by averaging all channels.
     /// Dispatched by file extension: `.mp3` decodes via the MP3 backend,
     /// anything else is decoded as WAV.
-    pub fn from_file(path: &Path) -> Result<Self, SttError> {
+    pub fn from_file(path: &Path) -> Result<Self, SpeechToTextError> {
         match path.extension().and_then(|e| e.to_str()) {
             Some(ext) if ext.eq_ignore_ascii_case("mp3") => decode_mp3(path),
             _ => decode_wav(path),
@@ -84,9 +84,9 @@ fn to_mono(interleaved: &[f32], n_channels: usize) -> Vec<f32> {
 // Internals — WAV decoding (hound)
 // ---------------------------------------------------------------------------
 
-fn decode_wav(path: &Path) -> Result<DecodedAudio, SttError> {
+fn decode_wav(path: &Path) -> Result<DecodedAudio, SpeechToTextError> {
     let mut reader = hound::WavReader::open(path)
-        .map_err(|e| SttError::Audio(format!("open {}: {e}", path.display())))?;
+        .map_err(|e| SpeechToTextError::Audio(format!("open {}: {e}", path.display())))?;
     let spec = reader.spec();
     let n_channels = spec.channels as usize;
 
@@ -94,14 +94,14 @@ fn decode_wav(path: &Path) -> Result<DecodedAudio, SttError> {
         hound::SampleFormat::Float => reader
             .samples::<f32>()
             .collect::<Result<_, _>>()
-            .map_err(|e| SttError::Audio(format!("decode {}: {e}", path.display())))?,
+            .map_err(|e| SpeechToTextError::Audio(format!("decode {}: {e}", path.display())))?,
         hound::SampleFormat::Int => {
             let max_value = 2f32.powi(spec.bits_per_sample as i32 - 1);
             reader
                 .samples::<i32>()
                 .map(|s| s.map(|v| v as f32 / max_value))
                 .collect::<Result<_, _>>()
-                .map_err(|e| SttError::Audio(format!("decode {}: {e}", path.display())))?
+                .map_err(|e| SpeechToTextError::Audio(format!("decode {}: {e}", path.display())))?
         }
     };
 
@@ -123,22 +123,22 @@ struct TrackInfo {
 }
 
 impl TrackInfo {
-    fn from_format(format: &MpaReader) -> Result<Self, SttError> {
+    fn from_format(format: &MpaReader) -> Result<Self, SpeechToTextError> {
         let track = format
             .tracks()
             .iter()
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .ok_or_else(|| SttError::Audio("no audio track found".into()))?;
+            .ok_or_else(|| SpeechToTextError::Audio("no audio track found".into()))?;
 
         let sample_rate = track
             .codec_params
             .sample_rate
-            .ok_or_else(|| SttError::Audio("unknown sample rate".into()))?;
+            .ok_or_else(|| SpeechToTextError::Audio("unknown sample rate".into()))?;
         let n_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
         let track_id = track.id;
 
         let decoder = MpaDecoder::try_new(&track.codec_params, &DecoderOptions::default())
-            .map_err(|e| SttError::Audio(format!("decoder init: {e}")))?;
+            .map_err(|e| SpeechToTextError::Audio(format!("decoder init: {e}")))?;
 
         Ok(Self {
             sample_rate,
@@ -149,12 +149,12 @@ impl TrackInfo {
     }
 }
 
-fn decode_mp3(path: &Path) -> Result<DecodedAudio, SttError> {
+fn decode_mp3(path: &Path) -> Result<DecodedAudio, SpeechToTextError> {
     let file = std::fs::File::open(path)
-        .map_err(|e| SttError::Audio(format!("open {}: {e}", path.display())))?;
+        .map_err(|e| SpeechToTextError::Audio(format!("open {}: {e}", path.display())))?;
     let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
     let mut format = MpaReader::try_new(mss, &FormatOptions::default())
-        .map_err(|e| SttError::Audio(format!("probe {}: {e}", path.display())))?;
+        .map_err(|e| SpeechToTextError::Audio(format!("probe {}: {e}", path.display())))?;
 
     let mut info = TrackInfo::from_format(&format)?;
     let samples = decode_packets(&mut format, &mut info)?;
@@ -179,7 +179,7 @@ impl<'a> PacketIter<'a> {
 }
 
 impl Iterator for PacketIter<'_> {
-    type Item = Result<Packet, SttError>;
+    type Item = Result<Packet, SpeechToTextError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -191,7 +191,7 @@ impl Iterator for PacketIter<'_> {
                 {
                     return None
                 }
-                Err(e) => return Some(Err(SttError::Audio(format!("read packet: {e}")))),
+                Err(e) => return Some(Err(SpeechToTextError::Audio(format!("read packet: {e}")))),
             }
         }
     }
@@ -203,13 +203,16 @@ fn to_mono_samples(decoded: AudioBufferRef, n_channels: usize) -> Vec<f32> {
     to_mono(buf.samples(), n_channels)
 }
 
-fn decode_packets(format: &mut MpaReader, info: &mut TrackInfo) -> Result<Vec<f32>, SttError> {
+fn decode_packets(
+    format: &mut MpaReader,
+    info: &mut TrackInfo,
+) -> Result<Vec<f32>, SpeechToTextError> {
     let mut samples: Vec<f32> = Vec::new();
     for packet in PacketIter::new(format, info.track_id) {
         match info.decoder.decode(&packet?) {
             Ok(decoded) => samples.extend(to_mono_samples(decoded, info.n_channels)),
             Err(SymphoniaError::DecodeError(_)) => continue,
-            Err(e) => return Err(SttError::Audio(format!("decode: {e}"))),
+            Err(e) => return Err(SpeechToTextError::Audio(format!("decode: {e}"))),
         }
     }
     Ok(samples)
@@ -242,7 +245,7 @@ impl Default for AudioResampler {
 }
 
 impl AudioResampler {
-    pub fn resample(self, audio: DecodedAudio) -> Result<DecodedAudio, SttError> {
+    pub fn resample(self, audio: DecodedAudio) -> Result<DecodedAudio, SpeechToTextError> {
         if audio.sample_rate == self.target_rate {
             return Ok(audio);
         }
@@ -253,7 +256,7 @@ impl AudioResampler {
         } = self;
         let ratio = target_rate as f64 / audio.sample_rate as f64;
         let mut resampler = SincFixedIn::<f32>::new(ratio, 2.0, sinc_params, chunk_size, 1)
-            .map_err(|e| SttError::Audio(format!("resampler init: {e}")))?;
+            .map_err(|e| SpeechToTextError::Audio(format!("resampler init: {e}")))?;
         let output_capacity = (audio.samples.len() as f64 * ratio) as usize + chunk_size;
         let mut output = Vec::with_capacity(output_capacity);
         for chunk in audio.samples.chunks(chunk_size) {
@@ -269,13 +272,13 @@ impl AudioResampler {
         resampler: &mut SincFixedIn<f32>,
         chunk: &[f32],
         chunk_size: usize,
-    ) -> Result<Vec<f32>, SttError> {
+    ) -> Result<Vec<f32>, SpeechToTextError> {
         let mut padded = chunk.to_vec();
         padded.resize(chunk_size, 0.0);
         resampler
             .process(&[padded], None)
             .map(|mut waves| waves.remove(0))
-            .map_err(|e| SttError::Audio(format!("resample: {e}")))
+            .map_err(|e| SpeechToTextError::Audio(format!("resample: {e}")))
     }
 }
 

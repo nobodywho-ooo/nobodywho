@@ -3,7 +3,7 @@
 //! Two independent use cases share the low-level cache/download machinery
 //! ([`ModelCache`]) below:
 //! - [`GgufSource`] — a single GGUF file (LLM / embedding / reranker models).
-//! - [`OnnxSource`] — a whole multi-file ONNX model repo (STT / TTS models).
+//! - [`OnnxSource`] — a whole multi-file ONNX model repo (SpeechToText / TextToSpeech models).
 
 use crate::errors::{GetCacheDirError, GetCachedModelsError, HuggingFaceError, LoadModelError};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -550,7 +550,7 @@ pub(crate) fn download_gguf(
 }
 
 // =========================================================================
-// OnnxSource — a whole multi-file ONNX model repo (STT / TTS models)
+// OnnxSource — a whole multi-file ONNX model repo (SpeechToText / TextToSpeech models)
 // =========================================================================
 
 /// Name of the local marker file recording which repo files a previous call
@@ -682,7 +682,7 @@ impl ModelCache {
 
         // Skip the network round-trip if a previous call already downloaded
         // everything this call needs. We can't infer that from `required_files`
-        // alone: an empty list (e.g. TTS backends, which don't filter) matches
+        // alone: an empty list (e.g. TextToSpeech backends, which don't filter) matches
         // vacuously without proving anything is on disk, and a non-empty list
         // may omit ONNX external-data sidecars that only `select_required_files`
         // discovers from the live repo tree. So completeness is recorded in a
@@ -766,7 +766,7 @@ impl ModelCache {
     }
 }
 
-/// A parsed STT/TTS `source` string, before it's resolved to a local directory.
+/// A parsed SpeechToText/TextToSpeech `source` string, before it's resolved to a local directory.
 ///
 /// This mirrors [`ParsedModelPath`] but only needs `owner/repo` (a whole repo
 /// download), never a filename. `http(s)://` URLs and bare `owner/repo` IDs
@@ -777,7 +777,7 @@ pub(crate) enum ParsedOnnxPath {
     Local(PathBuf),
 }
 
-/// Parse an STT/TTS source string. Recognized forms:
+/// Parse an SpeechToText/TextToSpeech source string. Recognized forms:
 /// - `hf://owner/repo`, `hf:owner/repo`, `huggingface://owner/repo`,
 ///   `huggingface:owner/repo` → [`ParsedOnnxPath::HuggingFace`]. A trailing
 ///   path (e.g. `hf://owner/repo/extra`) is rejected — ONNX download is

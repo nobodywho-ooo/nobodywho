@@ -726,9 +726,9 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // STT (Whisper)
+  // SpeechToText (Whisper)
   // ---------------------------------------------------------------------------
-  group('STT', () {
+  group('SpeechToText', () {
     final whisperModel = Platform.environment['TEST_WHISPER_MODEL'];
     final audioFile = Platform.environment['TEST_AUDIO_FILE'];
 
@@ -738,7 +738,7 @@ void main() {
       }
       // Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
       // "Billy" as "Bailey", while fp32 gets it right.
-      final stt = nobodywho.Stt(source: whisperModel, quantization: 'default');
+      final stt = nobodywho.SpeechToText(source: whisperModel, quantization: 'default');
       final stream = stt.transcribeFile(audioFile);
       final text = await stream.completed();
       expect(text.toLowerCase(), contains('ron'));

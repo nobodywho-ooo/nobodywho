@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 829442270;
+  int get rustContentHash => 173075158;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -246,25 +246,31 @@ abstract class NobodyWhoApi extends BaseApi {
     required List<PromptPart> parts,
   });
 
-  Future<String> crateRustSttStreamCompleted({required RustSttStream that});
+  Future<String> crateRustSpeechToTextStreamCompleted({
+    required RustSpeechToTextStream that,
+  });
 
-  Stream<String> crateRustSttStreamIter({required RustSttStream that});
+  Stream<String> crateRustSpeechToTextStreamIter({
+    required RustSpeechToTextStream that,
+  });
 
-  Future<String?> crateRustSttStreamNextToken({required RustSttStream that});
+  Future<String?> crateRustSpeechToTextStreamNextToken({
+    required RustSpeechToTextStream that,
+  });
 
-  RustStt crateRustSttNew({
+  RustSpeechToText crateRustSpeechToTextNew({
     required String source,
     String? language = null,
     String? quantization = null,
   });
 
-  RustSttStream crateRustSttTranscribeFile({
-    required RustStt that,
+  RustSpeechToTextStream crateRustSpeechToTextTranscribeFile({
+    required RustSpeechToText that,
     required String path,
   });
 
-  RustSttStream crateRustSttTranscribePcm({
-    required RustStt that,
+  RustSpeechToTextStream crateRustSpeechToTextTranscribePcm({
+    required RustSpeechToText that,
     required List<int> samples,
     required int sampleRate,
   });
@@ -394,21 +400,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   SamplerConfig crateSamplerPresetsTopP({required double topP});
 
-  Value crateToolCallAutoAccessorGetArguments({required ToolCall that});
-
-  String crateToolCallAutoAccessorGetName({required ToolCall that});
-
-  void crateToolCallAutoAccessorSetArguments({
-    required ToolCall that,
-    required Value arguments,
-  });
-
-  void crateToolCallAutoAccessorSetName({
-    required ToolCall that,
-    required String name,
-  });
-
-  Future<Tts> crateTtsLoad({
+  Future<TextToSpeech> crateTextToSpeechLoad({
     required String source,
     String? architecture = null,
     String? voice = null,
@@ -422,9 +414,23 @@ abstract class NobodyWhoApi extends BaseApi {
     bool useGpu = true,
   });
 
-  Future<Uint8List> crateTtsSynthesize({
-    required Tts that,
+  Future<Uint8List> crateTextToSpeechSynthesize({
+    required TextToSpeech that,
     required String text,
+  });
+
+  Value crateToolCallAutoAccessorGetArguments({required ToolCall that});
+
+  String crateToolCallAutoAccessorGetName({required ToolCall that});
+
+  void crateToolCallAutoAccessorSetArguments({
+    required ToolCall that,
+    required Value arguments,
+  });
+
+  void crateToolCallAutoAccessorSetName({
+    required ToolCall that,
+    required String name,
   });
 
   double crateCosineSimilarity({
@@ -535,20 +541,23 @@ abstract class NobodyWhoApi extends BaseApi {
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_RustChatPtr;
 
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_RustStt;
-
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_RustStt;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_RustSttPtr;
-
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_RustSttStream;
+  get rust_arc_increment_strong_count_RustSpeechToText;
 
   RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_RustSttStream;
+  get rust_arc_decrement_strong_count_RustSpeechToText;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_RustSttStreamPtr;
+  get rust_arc_decrement_strong_count_RustSpeechToTextPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_RustSpeechToTextStream;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_RustSpeechToTextStream;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_RustSpeechToTextStreamPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_RustTokenStream;
@@ -603,6 +612,14 @@ abstract class NobodyWhoApi extends BaseApi {
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_SetterErrorPtr;
 
   RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_TextToSpeech;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_TextToSpeech;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_TextToSpeechPtr;
+
+  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TokenizeError;
 
   RustArcDecrementStrongCountFnType
@@ -618,12 +635,6 @@ abstract class NobodyWhoApi extends BaseApi {
   get rust_arc_decrement_strong_count_ToolCall;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ToolCallPtr;
-
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Tts;
-
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Tts;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_TtsPtr;
 
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Value;
 
@@ -1976,12 +1987,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  Future<String> crateRustSttStreamCompleted({required RustSttStream that}) {
+  Future<String> crateRustSpeechToTextStreamCompleted({
+    required RustSpeechToTextStream that,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
             that,
             serializer,
           );
@@ -1996,28 +2009,30 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustSttStreamCompletedConstMeta,
+        constMeta: kCrateRustSpeechToTextStreamCompletedConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustSttStreamCompletedConstMeta =>
+  TaskConstMeta get kCrateRustSpeechToTextStreamCompletedConstMeta =>
       const TaskConstMeta(
-        debugName: "RustSttStream_completed",
+        debugName: "RustSpeechToTextStream_completed",
         argNames: ["that"],
       );
 
   @override
-  Stream<String> crateRustSttStreamIter({required RustSttStream that}) {
+  Stream<String> crateRustSpeechToTextStreamIter({
+    required RustSpeechToTextStream that,
+  }) {
     final sink = RustStreamSink<String>();
     unawaited(
       handler.executeNormal(
         NormalTask(
           callFfi: (port_) {
             final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+            sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
               that,
               serializer,
             );
@@ -2033,7 +2048,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_String,
           ),
-          constMeta: kCrateRustSttStreamIterConstMeta,
+          constMeta: kCrateRustSpeechToTextStreamIterConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -2042,18 +2057,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateRustSttStreamIterConstMeta => const TaskConstMeta(
-    debugName: "RustSttStream_iter",
-    argNames: ["that", "sink"],
-  );
+  TaskConstMeta get kCrateRustSpeechToTextStreamIterConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustSpeechToTextStream_iter",
+        argNames: ["that", "sink"],
+      );
 
   @override
-  Future<String?> crateRustSttStreamNextToken({required RustSttStream that}) {
+  Future<String?> crateRustSpeechToTextStreamNextToken({
+    required RustSpeechToTextStream that,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+          sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
             that,
             serializer,
           );
@@ -2068,21 +2086,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_opt_String,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustSttStreamNextTokenConstMeta,
+        constMeta: kCrateRustSpeechToTextStreamNextTokenConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustSttStreamNextTokenConstMeta =>
+  TaskConstMeta get kCrateRustSpeechToTextStreamNextTokenConstMeta =>
       const TaskConstMeta(
-        debugName: "RustSttStream_next_token",
+        debugName: "RustSpeechToTextStream_next_token",
         argNames: ["that"],
       );
 
   @override
-  RustStt crateRustSttNew({
+  RustSpeechToText crateRustSpeechToTextNew({
     required String source,
     String? language = null,
     String? quantization = null,
@@ -2098,31 +2116,31 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustSttNewConstMeta,
+        constMeta: kCrateRustSpeechToTextNewConstMeta,
         argValues: [source, language, quantization],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustSttNewConstMeta => const TaskConstMeta(
-    debugName: "RustStt_new_",
+  TaskConstMeta get kCrateRustSpeechToTextNewConstMeta => const TaskConstMeta(
+    debugName: "RustSpeechToText_new_",
     argNames: ["source", "language", "quantization"],
   );
 
   @override
-  RustSttStream crateRustSttTranscribeFile({
-    required RustStt that,
+  RustSpeechToTextStream crateRustSpeechToTextTranscribeFile({
+    required RustSpeechToText that,
     required String path,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
             that,
             serializer,
           );
@@ -2131,24 +2149,25 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustSttTranscribeFileConstMeta,
+        constMeta: kCrateRustSpeechToTextTranscribeFileConstMeta,
         argValues: [that, path],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustSttTranscribeFileConstMeta => const TaskConstMeta(
-    debugName: "RustStt_transcribe_file",
-    argNames: ["that", "path"],
-  );
+  TaskConstMeta get kCrateRustSpeechToTextTranscribeFileConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustSpeechToText_transcribe_file",
+        argNames: ["that", "path"],
+      );
 
   @override
-  RustSttStream crateRustSttTranscribePcm({
-    required RustStt that,
+  RustSpeechToTextStream crateRustSpeechToTextTranscribePcm({
+    required RustSpeechToText that,
     required List<int> samples,
     required int sampleRate,
   }) {
@@ -2156,7 +2175,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
             that,
             serializer,
           );
@@ -2166,20 +2185,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustSttTranscribePcmConstMeta,
+        constMeta: kCrateRustSpeechToTextTranscribePcmConstMeta,
         argValues: [that, samples, sampleRate],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustSttTranscribePcmConstMeta => const TaskConstMeta(
-    debugName: "RustStt_transcribe_pcm",
-    argNames: ["that", "samples", "sampleRate"],
-  );
+  TaskConstMeta get kCrateRustSpeechToTextTranscribePcmConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustSpeechToText_transcribe_pcm",
+        argNames: ["that", "samples", "sampleRate"],
+      );
 
   @override
   Future<String> crateRustTokenStreamCompleted({
@@ -3202,6 +3222,121 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
+  Future<TextToSpeech> crateTextToSpeechLoad({
+    required String source,
+    String? architecture = null,
+    String? voice = null,
+    String? language = null,
+    double? speed = null,
+    int? steps = null,
+    double? silenceDuration = null,
+    String? precision = null,
+    double? temperature = null,
+    String? huggingfaceToken = null,
+    bool useGpu = true,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(source, serializer);
+          sse_encode_opt_String(architecture, serializer);
+          sse_encode_opt_String(voice, serializer);
+          sse_encode_opt_String(language, serializer);
+          sse_encode_opt_box_autoadd_f_32(speed, serializer);
+          sse_encode_opt_box_autoadd_u_32(steps, serializer);
+          sse_encode_opt_box_autoadd_f_32(silenceDuration, serializer);
+          sse_encode_opt_String(precision, serializer);
+          sse_encode_opt_box_autoadd_f_32(temperature, serializer);
+          sse_encode_opt_String(huggingfaceToken, serializer);
+          sse_encode_bool(useGpu, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 72,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateTextToSpeechLoadConstMeta,
+        argValues: [
+          source,
+          architecture,
+          voice,
+          language,
+          speed,
+          steps,
+          silenceDuration,
+          precision,
+          temperature,
+          huggingfaceToken,
+          useGpu,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateTextToSpeechLoadConstMeta => const TaskConstMeta(
+    debugName: "TextToSpeech_load",
+    argNames: [
+      "source",
+      "architecture",
+      "voice",
+      "language",
+      "speed",
+      "steps",
+      "silenceDuration",
+      "precision",
+      "temperature",
+      "huggingfaceToken",
+      "useGpu",
+    ],
+  );
+
+  @override
+  Future<Uint8List> crateTextToSpeechSynthesize({
+    required TextToSpeech that,
+    required String text,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+            that,
+            serializer,
+          );
+          sse_encode_String(text, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 73,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateTextToSpeechSynthesizeConstMeta,
+        argValues: [that, text],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateTextToSpeechSynthesizeConstMeta =>
+      const TaskConstMeta(
+        debugName: "TextToSpeech_synthesize",
+        argNames: ["that", "text"],
+      );
+
+  @override
   Value crateToolCallAutoAccessorGetArguments({required ToolCall that}) {
     return handler.executeSync(
       SyncTask(
@@ -3211,7 +3346,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3241,7 +3376,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3277,7 +3412,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             arguments,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3310,7 +3445,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3328,120 +3463,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         debugName: "ToolCall_auto_accessor_set_name",
         argNames: ["that", "name"],
       );
-
-  @override
-  Future<Tts> crateTtsLoad({
-    required String source,
-    String? architecture = null,
-    String? voice = null,
-    String? language = null,
-    double? speed = null,
-    int? steps = null,
-    double? silenceDuration = null,
-    String? precision = null,
-    double? temperature = null,
-    String? huggingfaceToken = null,
-    bool useGpu = true,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(source, serializer);
-          sse_encode_opt_String(architecture, serializer);
-          sse_encode_opt_String(voice, serializer);
-          sse_encode_opt_String(language, serializer);
-          sse_encode_opt_box_autoadd_f_32(speed, serializer);
-          sse_encode_opt_box_autoadd_u_32(steps, serializer);
-          sse_encode_opt_box_autoadd_f_32(silenceDuration, serializer);
-          sse_encode_opt_String(precision, serializer);
-          sse_encode_opt_box_autoadd_f_32(temperature, serializer);
-          sse_encode_opt_String(huggingfaceToken, serializer);
-          sse_encode_bool(useGpu, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 76,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts,
-          decodeErrorData: sse_decode_String,
-        ),
-        constMeta: kCrateTtsLoadConstMeta,
-        argValues: [
-          source,
-          architecture,
-          voice,
-          language,
-          speed,
-          steps,
-          silenceDuration,
-          precision,
-          temperature,
-          huggingfaceToken,
-          useGpu,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateTtsLoadConstMeta => const TaskConstMeta(
-    debugName: "Tts_load",
-    argNames: [
-      "source",
-      "architecture",
-      "voice",
-      "language",
-      "speed",
-      "steps",
-      "silenceDuration",
-      "precision",
-      "temperature",
-      "huggingfaceToken",
-      "useGpu",
-    ],
-  );
-
-  @override
-  Future<Uint8List> crateTtsSynthesize({
-    required Tts that,
-    required String text,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-            that,
-            serializer,
-          );
-          sse_encode_String(text, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 77,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_prim_u_8_strict,
-          decodeErrorData: sse_decode_String,
-        ),
-        constMeta: kCrateTtsSynthesizeConstMeta,
-        argValues: [that, text],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateTtsSynthesizeConstMeta => const TaskConstMeta(
-    debugName: "Tts_synthesize",
-    argNames: ["that", "text"],
-  );
 
   @override
   double crateCosineSimilarity({
@@ -3870,20 +3891,20 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_RustStt => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT;
+  get rust_arc_increment_strong_count_RustSpeechToText => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText;
 
   RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_RustStt => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT;
+  get rust_arc_decrement_strong_count_RustSpeechToText => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_RustSttStream => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream;
+  get rust_arc_increment_strong_count_RustSpeechToTextStream => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream;
 
   RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_RustSttStream => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream;
+  get rust_arc_decrement_strong_count_RustSpeechToTextStream => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_RustTokenStream => wire
@@ -3934,6 +3955,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError;
 
   RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_TextToSpeech => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_TextToSpeech => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech;
+
+  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TokenizeError => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError;
 
@@ -3948,14 +3977,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_ToolCall => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall;
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_Tts => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_Tts => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_Value => wire
@@ -4055,21 +4076,23 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustStt
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustSttImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustSpeechToTextImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
-  RustSttStream
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustSttStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustSpeechToTextStreamImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
   }
 
   @protected
@@ -4127,6 +4150,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  TextToSpeech
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return TextToSpeechImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   TokenizeError
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     dynamic raw,
@@ -4145,15 +4177,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  Tts
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return TtsImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   Value
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     dynamic raw,
@@ -4163,12 +4186,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustSttStream
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustSttStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustSpeechToTextStreamImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
   }
 
   @protected
@@ -4226,12 +4251,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustStt
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustSttImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustSpeechToTextImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4262,21 +4287,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  TextToSpeech
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return TextToSpeechImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   ToolCall
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return ToolCallImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  Tts
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return TtsImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4401,21 +4426,23 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustStt
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustSttImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustSpeechToTextImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
-  RustSttStream
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustSttStreamImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustSpeechToTextStreamImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
   }
 
   @protected
@@ -4473,6 +4500,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  TextToSpeech
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return TextToSpeechImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   TokenizeError
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     dynamic raw,
@@ -4488,15 +4524,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return ToolCallImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  Tts
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return TtsImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -5065,24 +5092,24 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustStt
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustSttImpl.frbInternalSseDecode(
+    return RustSpeechToTextImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
   }
 
   @protected
-  RustSttStream
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustSttStreamImpl.frbInternalSseDecode(
+    return RustSpeechToTextStreamImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5161,6 +5188,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  TextToSpeech
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return TextToSpeechImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   TokenizeError
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     SseDeserializer deserializer,
@@ -5185,18 +5224,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  Tts
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return TtsImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   Value
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     SseDeserializer deserializer,
@@ -5209,12 +5236,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustSttStream
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustSttStreamImpl.frbInternalSseDecode(
+    return RustSpeechToTextStreamImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5293,12 +5320,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustStt
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustSttImpl.frbInternalSseDecode(
+    return RustSpeechToTextImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5341,24 +5368,24 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  ToolCall
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+  TextToSpeech
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return ToolCallImpl.frbInternalSseDecode(
+    return TextToSpeechImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
   }
 
   @protected
-  Tts
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
+  ToolCall
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return TtsImpl.frbInternalSseDecode(
+    return ToolCallImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5498,24 +5525,24 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustStt
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustSttImpl.frbInternalSseDecode(
+    return RustSpeechToTextImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
   }
 
   @protected
-  RustSttStream
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustSttStreamImpl.frbInternalSseDecode(
+    return RustSpeechToTextStreamImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5594,6 +5621,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  TextToSpeech
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return TextToSpeechImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   TokenizeError
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     SseDeserializer deserializer,
@@ -5612,18 +5651,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return ToolCallImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  Tts
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return TtsImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -6346,26 +6373,26 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
-    RustStt self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
+    RustSpeechToText self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustSttImpl).frbInternalSseEncode(move: true),
+      (self as RustSpeechToTextImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
-    RustSttStream self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
+    RustSpeechToTextStream self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustSttStreamImpl).frbInternalSseEncode(move: true),
+      (self as RustSpeechToTextStreamImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -6450,6 +6477,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    TextToSpeech self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as TextToSpeechImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     TokenizeError self,
     SseSerializer serializer,
@@ -6476,19 +6516,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    Tts self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as TtsImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     Value self,
     SseSerializer serializer,
@@ -6502,13 +6529,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
-    RustSttStream self,
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
+    RustSpeechToTextStream self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustSttStreamImpl).frbInternalSseEncode(move: false),
+      (self as RustSpeechToTextStreamImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -6593,13 +6620,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
-    RustStt self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
+    RustSpeechToText self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustSttImpl).frbInternalSseEncode(move: false),
+      (self as RustSpeechToTextImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -6645,6 +6672,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    TextToSpeech self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as TextToSpeechImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     ToolCall self,
     SseSerializer serializer,
@@ -6652,19 +6692,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as ToolCallImpl).frbInternalSseEncode(move: false),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    Tts self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as TtsImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -6851,26 +6878,26 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
-    RustStt self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
+    RustSpeechToText self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustSttImpl).frbInternalSseEncode(move: null),
+      (self as RustSpeechToTextImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
-    RustSttStream self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
+    RustSpeechToTextStream self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustSttStreamImpl).frbInternalSseEncode(move: null),
+      (self as RustSpeechToTextStreamImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -6955,6 +6982,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    TextToSpeech self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as TextToSpeechImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     TokenizeError self,
     SseSerializer serializer,
@@ -6975,19 +7015,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as ToolCallImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    Tts self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as TtsImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -7921,34 +7948,40 @@ class RustChatImpl extends RustOpaque implements RustChat {
 }
 
 @sealed
-class RustSttImpl extends RustOpaque implements RustStt {
+class RustSpeechToTextImpl extends RustOpaque implements RustSpeechToText {
   // Not to be used by end users
-  RustSttImpl.frbInternalDcoDecode(List<dynamic> wire)
+  RustSpeechToTextImpl.frbInternalDcoDecode(List<dynamic> wire)
     : super.frbInternalDcoDecode(wire, _kStaticData);
 
   // Not to be used by end users
-  RustSttImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+  RustSpeechToTextImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
     rustArcIncrementStrongCount:
-        NobodyWho.instance.api.rust_arc_increment_strong_count_RustStt,
+        NobodyWho.instance.api.rust_arc_increment_strong_count_RustSpeechToText,
     rustArcDecrementStrongCount:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_RustStt,
-    rustArcDecrementStrongCountPtr:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_RustSttPtr,
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_RustSpeechToText,
+    rustArcDecrementStrongCountPtr: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_RustSpeechToTextPtr,
   );
 
   /// Transcribe an audio file (WAV / MP3).
-  RustSttStream transcribeFile({required String path}) =>
-      NobodyWho.instance.api.crateRustSttTranscribeFile(that: this, path: path);
+  RustSpeechToTextStream transcribeFile({required String path}) => NobodyWho
+      .instance
+      .api
+      .crateRustSpeechToTextTranscribeFile(that: this, path: path);
 
   /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
   /// `sample_rate` is the capture rate in Hz; resampled to 16 kHz internally.
-  RustSttStream transcribePcm({
+  RustSpeechToTextStream transcribePcm({
     required List<int> samples,
     required int sampleRate,
-  }) => NobodyWho.instance.api.crateRustSttTranscribePcm(
+  }) => NobodyWho.instance.api.crateRustSpeechToTextTranscribePcm(
     that: this,
     samples: samples,
     sampleRate: sampleRate,
@@ -7956,33 +7989,42 @@ class RustSttImpl extends RustOpaque implements RustStt {
 }
 
 @sealed
-class RustSttStreamImpl extends RustOpaque implements RustSttStream {
+class RustSpeechToTextStreamImpl extends RustOpaque
+    implements RustSpeechToTextStream {
   // Not to be used by end users
-  RustSttStreamImpl.frbInternalDcoDecode(List<dynamic> wire)
+  RustSpeechToTextStreamImpl.frbInternalDcoDecode(List<dynamic> wire)
     : super.frbInternalDcoDecode(wire, _kStaticData);
 
   // Not to be used by end users
-  RustSttStreamImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+  RustSpeechToTextStreamImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        NobodyWho.instance.api.rust_arc_increment_strong_count_RustSttStream,
-    rustArcDecrementStrongCount:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_RustSttStream,
-    rustArcDecrementStrongCountPtr:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_RustSttStreamPtr,
+    rustArcIncrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_increment_strong_count_RustSpeechToTextStream,
+    rustArcDecrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_RustSpeechToTextStream,
+    rustArcDecrementStrongCountPtr: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_RustSpeechToTextStreamPtr,
   );
 
   Future<String> completed() =>
-      NobodyWho.instance.api.crateRustSttStreamCompleted(that: this);
+      NobodyWho.instance.api.crateRustSpeechToTextStreamCompleted(that: this);
 
   /// Stream all tokens into `sink`. Resolves when transcription is complete.
   Stream<String> iter() =>
-      NobodyWho.instance.api.crateRustSttStreamIter(that: this);
+      NobodyWho.instance.api.crateRustSpeechToTextStreamIter(that: this);
 
   Future<String?> nextToken() =>
-      NobodyWho.instance.api.crateRustSttStreamNextToken(that: this);
+      NobodyWho.instance.api.crateRustSpeechToTextStreamNextToken(that: this);
 }
 
 @sealed
@@ -8308,6 +8350,30 @@ class SetterErrorImpl extends RustOpaque implements SetterError {
 }
 
 @sealed
+class TextToSpeechImpl extends RustOpaque implements TextToSpeech {
+  // Not to be used by end users
+  TextToSpeechImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  TextToSpeechImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        NobodyWho.instance.api.rust_arc_increment_strong_count_TextToSpeech,
+    rustArcDecrementStrongCount:
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_TextToSpeech,
+    rustArcDecrementStrongCountPtr:
+        NobodyWho.instance.api.rust_arc_decrement_strong_count_TextToSpeechPtr,
+  );
+
+  /// Synthesize text and return WAV bytes.
+  Future<Uint8List> synthesize({required String text}) => NobodyWho.instance.api
+      .crateTextToSpeechSynthesize(that: this, text: text);
+}
+
+@sealed
 class TokenizeErrorImpl extends RustOpaque implements TokenizeError {
   // Not to be used by end users
   TokenizeErrorImpl.frbInternalDcoDecode(List<dynamic> wire)
@@ -8357,30 +8423,6 @@ class ToolCallImpl extends RustOpaque implements ToolCall {
 
   set name(String name) => NobodyWho.instance.api
       .crateToolCallAutoAccessorSetName(that: this, name: name);
-}
-
-@sealed
-class TtsImpl extends RustOpaque implements Tts {
-  // Not to be used by end users
-  TtsImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  TtsImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        NobodyWho.instance.api.rust_arc_increment_strong_count_Tts,
-    rustArcDecrementStrongCount:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_Tts,
-    rustArcDecrementStrongCountPtr:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_TtsPtr,
-  );
-
-  /// Synthesize text and return WAV bytes.
-  Future<Uint8List> synthesize({required String text}) =>
-      NobodyWho.instance.api.crateTtsSynthesize(that: this, text: text);
 }
 
 @sealed

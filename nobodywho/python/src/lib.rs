@@ -237,10 +237,10 @@ impl<'py> ModelOrPath<'py> {
 }
 
 // ---------------------------------------------------------------------------
-// STT
+// SpeechToText
 // ---------------------------------------------------------------------------
 
-/// `STT` transcribes speech to text using a Whisper ONNX model.
+/// `SpeechToText` transcribes speech to text using a Whisper ONNX model.
 ///
 /// `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
 /// `"hf://onnx-community/whisper-base"`) or a local directory path. `language`
@@ -251,19 +251,19 @@ impl<'py> ModelOrPath<'py> {
 ///
 /// Example::
 ///
-///     stt = nobodywho.STT("hf://onnx-community/whisper-base")
+///     stt = nobodywho.SpeechToText("hf://onnx-community/whisper-base")
 ///     text = stt.transcribe_file("recording.mp3").completed()
 ///
 ///     # Or stream tokens:
 ///     for piece in stt.transcribe_file("recording.mp3"):
 ///         print(piece, end="", flush=True)
 #[pyclass]
-pub struct STT {
-    stt: nobodywho::stt::Stt,
+pub struct SpeechToText {
+    stt: nobodywho::speech_to_text::SpeechToText,
 }
 
 #[pymethods]
-impl STT {
+impl SpeechToText {
     #[new]
     #[pyo3(signature = (source, language = None, quantization = None))]
     pub fn new(
@@ -272,13 +272,17 @@ impl STT {
         quantization: Option<&str>,
         py: Python,
     ) -> PyResult<Self> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(source);
+        let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
         if let Some(quantization) = quantization {
             cfg.quantization = quantization.to_string();
         }
         let stt = py
-            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+            .detach(|| {
+                nobodywho::speech_to_text::SpeechToText::new(
+                    nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+                )
+            })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self { stt })
     }
@@ -289,7 +293,7 @@ impl STT {
             .detach(|| self.stt.transcribe_file_stream(path))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStream {
-            inner: SyncStreamInner::Stt(stream),
+            inner: SyncStreamInner::SpeechToText(stream),
         })
     }
 
@@ -304,19 +308,19 @@ impl STT {
             .detach(|| self.stt.transcribe_pcm_stream(samples, sample_rate))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStream {
-            inner: SyncStreamInner::Stt(stream),
+            inner: SyncStreamInner::SpeechToText(stream),
         })
     }
 }
 
-/// `STTAsync` is the async variant of `STT`.
+/// `SpeechToTextAsync` is the async variant of `SpeechToText`.
 #[pyclass]
-pub struct STTAsync {
-    stt: nobodywho::stt::Stt,
+pub struct SpeechToTextAsync {
+    stt: nobodywho::speech_to_text::SpeechToText,
 }
 
 #[pymethods]
-impl STTAsync {
+impl SpeechToTextAsync {
     #[new]
     #[pyo3(signature = (source, language = None, quantization = None))]
     pub fn new(
@@ -325,13 +329,17 @@ impl STTAsync {
         quantization: Option<&str>,
         py: Python,
     ) -> PyResult<Self> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(source);
+        let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
         if let Some(quantization) = quantization {
             cfg.quantization = quantization.to_string();
         }
         let stt = py
-            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+            .detach(|| {
+                nobodywho::speech_to_text::SpeechToText::new(
+                    nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+                )
+            })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self { stt })
     }
@@ -342,7 +350,9 @@ impl STTAsync {
             .transcribe_file_stream_async(path)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStreamAsync {
-            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::SpeechToText(
+                stream,
+            ))),
         })
     }
 
@@ -356,32 +366,34 @@ impl STTAsync {
             .transcribe_pcm_stream_async(samples, sample_rate)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStreamAsync {
-            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::SpeechToText(
+                stream,
+            ))),
         })
     }
 }
 
 // ---------------------------------------------------------------------------
-// Token streams (shared by Chat and STT)
+// Token streams (shared by Chat and SpeechToText)
 // ---------------------------------------------------------------------------
 
-// Type-erased inner for sync streams — lets Chat and STT share one pyclass.
+// Type-erased inner for sync streams — lets Chat and SpeechToText share one pyclass.
 enum SyncStreamInner {
     Chat(nobodywho::chat::TokenStream),
-    Stt(nobodywho::stream::TokenStream<nobodywho::errors::SttError>),
+    SpeechToText(nobodywho::stream::TokenStream<nobodywho::errors::SpeechToTextError>),
 }
 
 impl SyncStreamInner {
     fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
             Self::Chat(s) => s.next_token().map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.next_token().map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.next_token().map_err(|e| e.to_string()),
         }
     }
     fn completed(&mut self) -> Result<String, String> {
         match self {
             Self::Chat(s) => s.completed().map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.completed().map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.completed().map_err(|e| e.to_string()),
         }
     }
 }
@@ -389,40 +401,44 @@ impl SyncStreamInner {
 // Type-erased inner for async streams.
 enum AsyncStreamInner {
     Chat(nobodywho::chat::TokenStreamAsync),
-    Stt(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SttError>),
+    SpeechToText(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SpeechToTextError>),
 }
 
 impl AsyncStreamInner {
     async fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
             Self::Chat(s) => s.next_token().await.map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.next_token().await.map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.next_token().await.map_err(|e| e.to_string()),
         }
     }
     async fn completed(&mut self) -> Result<String, String> {
         match self {
             Self::Chat(s) => s.completed().await.map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.completed().await.map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.completed().await.map_err(|e| e.to_string()),
         }
     }
 }
 
-/// `TokenStream` is returned by `Chat.ask`, `STT.transcribe_file`, and `STT.transcribe_pcm`.
+/// `TokenStream` is returned by `Chat.ask`, `SpeechToText.transcribe_file`, and `SpeechToText.transcribe_pcm`.
 /// Iterate over it token-by-token or call `.completed()` for the full text at once.
 /// Also see `TokenStreamAsync` for the async variant.
 
-fn parse_tts_device(device: &str) -> PyResult<nobodywho::tts::TtsDevice> {
+fn parse_text_to_speech_device(
+    device: &str,
+) -> PyResult<nobodywho::text_to_speech::TextToSpeechDevice> {
     match device.to_ascii_lowercase().as_str() {
-        "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
-        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
-        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        "auto" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Auto),
+        "cpu" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cpu),
+        "cuda" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cuda),
         _ => Err(pyo3::exceptions::PyValueError::new_err(
             "device must be one of 'auto', 'cpu', or 'cuda'",
         )),
     }
 }
 
-fn parse_tts_architecture(architecture: &str) -> PyResult<nobodywho::tts::TtsArchitecture> {
+fn parse_text_to_speech_architecture(
+    architecture: &str,
+) -> PyResult<nobodywho::text_to_speech::TextToSpeechArchitecture> {
     architecture.parse().map_err(|()| {
         pyo3::exceptions::PyValueError::new_err(
             "architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'",
@@ -430,7 +446,7 @@ fn parse_tts_architecture(architecture: &str) -> PyResult<nobodywho::tts::TtsArc
     })
 }
 
-fn build_tts_config(
+fn build_text_to_speech_config(
     source: std::path::PathBuf,
     architecture: Option<&str>,
     voice: Option<String>,
@@ -441,22 +457,24 @@ fn build_tts_config(
     precision: Option<String>,
     temperature: Option<f32>,
     huggingface_token: Option<String>,
-) -> PyResult<nobodywho::tts::TtsConfig> {
+) -> PyResult<nobodywho::text_to_speech::TextToSpeechConfig> {
     let source = source.to_str().ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!(
             "Path contains invalid UTF-8: {}",
             source.display()
         ))
     })?;
-    let architecture = architecture.map(parse_tts_architecture).transpose()?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(source, architecture).ok_or_else(|| {
+    let architecture = architecture
+        .map(parse_text_to_speech_architecture)
+        .transpose()?;
+    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(source, architecture).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(
-            "architecture is required for unknown TTS sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
+            "architecture is required for unknown TextToSpeech sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
         )
     })?;
 
     match &mut config {
-        nobodywho::tts::TtsConfig::Kokoro(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Kokoro(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -467,7 +485,7 @@ fn build_tts_config(
                 config.speed = speed;
             }
         }
-        nobodywho::tts::TtsConfig::PocketTts(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::PocketTts(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -479,8 +497,8 @@ fn build_tts_config(
             }
             if let Some(precision) = precision {
                 config.precision = match precision.to_ascii_lowercase().as_str() {
-                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
-                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    "int8" => nobodywho::text_to_speech::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::text_to_speech::PocketTtsPrecision::Fp32,
                     _ => {
                         return Err(pyo3::exceptions::PyValueError::new_err(
                             "precision must be 'int8' or 'fp32' for Pocket TTS",
@@ -493,7 +511,7 @@ fn build_tts_config(
             }
             config.huggingface_token = huggingface_token;
         }
-        nobodywho::tts::TtsConfig::Supertonic(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Supertonic(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -514,15 +532,15 @@ fn build_tts_config(
     Ok(config)
 }
 
-/// `Tts` synthesizes speech to WAV bytes.
+/// `TextToSpeech` synthesizes speech to WAV bytes.
 #[pyclass]
-pub struct Tts {
-    tts: nobodywho::tts::Tts,
+pub struct TextToSpeech {
+    tts: nobodywho::text_to_speech::TextToSpeech,
 }
 
 #[pymethods]
-impl Tts {
-    /// Create a TTS synthesizer.
+impl TextToSpeech {
+    /// Create a TextToSpeech synthesizer.
     ///
     /// Args:
     ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
@@ -538,7 +556,7 @@ impl Tts {
     ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
     ///     device: "auto", "cpu", or "cuda". Defaults to "auto".
     #[new]
-    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, precision = None, temperature = None, huggingface_token = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
+    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, precision = None, temperature = None, huggingface_token = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "TextToSpeech")]
     pub fn new(
         source: std::path::PathBuf,
         architecture: Option<&str>,
@@ -552,8 +570,8 @@ impl Tts {
         huggingface_token: Option<String>,
         device: &str,
     ) -> PyResult<Self> {
-        let device = parse_tts_device(device)?;
-        let config = build_tts_config(
+        let device = parse_text_to_speech_device(device)?;
+        let config = build_text_to_speech_config(
             source,
             architecture,
             voice,
@@ -565,7 +583,7 @@ impl Tts {
             temperature,
             huggingface_token,
         )?;
-        let tts = nobodywho::tts::Tts::with_device(config, device)
+        let tts = nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self { tts })
     }
@@ -3301,23 +3319,23 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Prompt;
     #[pymodule_export]
-    use super::STTAsync;
-    #[pymodule_export]
     use super::SamplerBuilder;
     #[pymodule_export]
     use super::SamplerConfig;
     #[pymodule_export]
     use super::SamplerPresets;
     #[pymodule_export]
+    use super::SpeechToText;
+    #[pymodule_export]
+    use super::SpeechToTextAsync;
+    #[pymodule_export]
     use super::Text;
+    #[pymodule_export]
+    use super::TextToSpeech;
     #[pymodule_export]
     use super::TokenStream;
     #[pymodule_export]
     use super::TokenStreamAsync;
     #[pymodule_export]
     use super::Tool;
-    #[pymodule_export]
-    use super::Tts;
-    #[pymodule_export]
-    use super::STT;
 }

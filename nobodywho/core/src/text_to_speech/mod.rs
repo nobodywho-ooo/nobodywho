@@ -1,13 +1,13 @@
 //! Text-to-speech synthesis using the Kokoro model family.
 //!
-//! [`Tts::new`] takes a [`TtsConfig`] pointing at either a local directory
+//! [`TextToSpeech::new`] takes a [`TextToSpeechConfig`] pointing at either a local directory
 //! or a HuggingFace Hub repo (`hf://owner/repo`). HF repos are downloaded
 //! into the user's cache on first use, then reused.
 //!
 //! ```no_run
-//! # use nobodywho::tts::{Tts, TtsConfig};
+//! # use nobodywho::text_to_speech::{TextToSpeech, TextToSpeechConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let tts = Tts::new(TtsConfig::kokoro("hf://hexgrad/Kokoro-82M"))?;
+//! let tts = TextToSpeech::new(TextToSpeechConfig::kokoro("hf://hexgrad/Kokoro-82M"))?;
 //! let wav = tts.synthesize("Hello from NobodyWho!")?;
 //! # let _ = wav;
 //! # Ok(())
@@ -18,23 +18,23 @@
 //! list of voices lives on the model's HuggingFace page:
 //!
 //! ```no_run
-//! # use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
+//! # use nobodywho::text_to_speech::{KokoroConfig, TextToSpeech, TextToSpeechConfig};
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut cfg = KokoroConfig::new("hf://hexgrad/Kokoro-82M");
 //! cfg.voice = "am_michael".into();
 //! cfg.speed = 1.1;
 //! cfg.language = "en-us".into();
-//! let tts = Tts::new(TtsConfig::Kokoro(cfg))?;
+//! let tts = TextToSpeech::new(TextToSpeechConfig::Kokoro(cfg))?;
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! From an async context use [`Tts::synthesize_async`]:
+//! From an async context use [`TextToSpeech::synthesize_async`]:
 //!
 //! ```no_run
-//! # use nobodywho::tts::{Tts, TtsConfig};
+//! # use nobodywho::text_to_speech::{TextToSpeech, TextToSpeechConfig};
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let tts = Tts::new(TtsConfig::kokoro("hf://hexgrad/Kokoro-82M"))?;
+//! let tts = TextToSpeech::new(TextToSpeechConfig::kokoro("hf://hexgrad/Kokoro-82M"))?;
 //! let wav = tts.synthesize_async("Hello from NobodyWho!").await?;
 //! # let _ = wav;
 //! # Ok(())
@@ -46,25 +46,25 @@ mod kokoro;
 mod pocket;
 mod supertonic;
 
-use crate::errors::TtsError;
-pub use crate::onnx::Device as TtsDevice;
+use crate::errors::TextToSpeechError;
+pub use crate::onnx::Device as TextToSpeechDevice;
 pub use kokoro::KokoroConfig;
 pub use pocket::{PocketTtsConfig, PocketTtsPrecision};
 use std::{str::FromStr, sync::mpsc};
 pub use supertonic::SupertonicConfig;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TtsArchitecture {
+pub enum TextToSpeechArchitecture {
     Kokoro,
     PocketTts,
     Supertonic,
 }
 
-impl TtsArchitecture {
+impl TextToSpeechArchitecture {
     /// Infer the architecture from the source string by case-insensitive
     /// substring matching. A source containing `"kokoro"` resolves to
-    /// [`TtsArchitecture::Kokoro`], one containing `"supertonic"` to
-    /// [`TtsArchitecture::Supertonic`], otherwise `None`. Forks and renamed
+    /// [`TextToSpeechArchitecture::Kokoro`], one containing `"supertonic"` to
+    /// [`TextToSpeechArchitecture::Supertonic`], otherwise `None`. Forks and renamed
     /// repos are detected as long as the architecture name appears in the path.
     pub fn infer_from_source(source: &str) -> Option<Self> {
         let lower = source.to_ascii_lowercase();
@@ -80,7 +80,7 @@ impl TtsArchitecture {
     }
 }
 
-impl FromStr for TtsArchitecture {
+impl FromStr for TextToSpeechArchitecture {
     type Err = ();
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -94,22 +94,22 @@ impl FromStr for TtsArchitecture {
 }
 
 #[derive(Clone, Debug)]
-pub enum TtsConfig {
+pub enum TextToSpeechConfig {
     Kokoro(KokoroConfig),
     PocketTts(PocketTtsConfig),
     Supertonic(SupertonicConfig),
 }
 
-impl TtsConfig {
+impl TextToSpeechConfig {
     pub fn from_source(
         source: impl AsRef<str>,
-        architecture: Option<TtsArchitecture>,
+        architecture: Option<TextToSpeechArchitecture>,
     ) -> Option<Self> {
         let source = source.as_ref();
-        match architecture.or_else(|| TtsArchitecture::infer_from_source(source))? {
-            TtsArchitecture::Kokoro => Some(Self::kokoro(source)),
-            TtsArchitecture::PocketTts => Some(Self::pocket_tts(source)),
-            TtsArchitecture::Supertonic => Some(Self::supertonic(source)),
+        match architecture.or_else(|| TextToSpeechArchitecture::infer_from_source(source))? {
+            TextToSpeechArchitecture::Kokoro => Some(Self::kokoro(source)),
+            TextToSpeechArchitecture::PocketTts => Some(Self::pocket_tts(source)),
+            TextToSpeechArchitecture::Supertonic => Some(Self::supertonic(source)),
         }
     }
 
@@ -128,26 +128,32 @@ impl TtsConfig {
 
 pub(super) const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
-type SynthRequest = (String, tokio::sync::mpsc::Sender<Result<Vec<u8>, TtsError>>);
+type SynthRequest = (
+    String,
+    tokio::sync::mpsc::Sender<Result<Vec<u8>, TextToSpeechError>>,
+);
 
 #[derive(Clone)]
-pub struct Tts {
+pub struct TextToSpeech {
     msg_tx: mpsc::Sender<SynthRequest>,
 }
 
-impl Tts {
-    pub fn new(config: TtsConfig) -> Result<Self, TtsError> {
-        Self::with_device(config, TtsDevice::Auto)
+impl TextToSpeech {
+    pub fn new(config: TextToSpeechConfig) -> Result<Self, TextToSpeechError> {
+        Self::with_device(config, TextToSpeechDevice::Auto)
     }
 
-    pub fn with_device(config: TtsConfig, device: TtsDevice) -> Result<Self, TtsError> {
+    pub fn with_device(
+        config: TextToSpeechConfig,
+        device: TextToSpeechDevice,
+    ) -> Result<Self, TextToSpeechError> {
         let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
         std::thread::spawn(move || {
             while let Ok((text, response_tx)) = msg_rx.recv() {
                 let result = architecture.synthesize(&text);
                 if response_tx.blocking_send(result).is_err() {
-                    tracing::warn!("TTS caller dropped before result could be delivered");
+                    tracing::warn!("TextToSpeech caller dropped before result could be delivered");
                 }
             }
         });
@@ -157,25 +163,29 @@ impl Tts {
     fn enqueue(
         &self,
         text: String,
-    ) -> Result<tokio::sync::mpsc::Receiver<Result<Vec<u8>, TtsError>>, TtsError> {
+    ) -> Result<tokio::sync::mpsc::Receiver<Result<Vec<u8>, TextToSpeechError>>, TextToSpeechError>
+    {
         let (response_tx, response_rx) = tokio::sync::mpsc::channel(1);
         self.msg_tx
             .send((text, response_tx))
-            .map_err(|_| TtsError::WorkerDead)?;
+            .map_err(|_| TextToSpeechError::WorkerDead)?;
         Ok(response_rx)
     }
 
-    pub fn synthesize(&self, text: impl Into<String>) -> Result<Vec<u8>, TtsError> {
+    pub fn synthesize(&self, text: impl Into<String>) -> Result<Vec<u8>, TextToSpeechError> {
         self.enqueue(text.into())?
             .blocking_recv()
-            .ok_or(TtsError::WorkerDead)?
+            .ok_or(TextToSpeechError::WorkerDead)?
     }
 
-    pub async fn synthesize_async(&self, text: impl Into<String>) -> Result<Vec<u8>, TtsError> {
+    pub async fn synthesize_async(
+        &self,
+        text: impl Into<String>,
+    ) -> Result<Vec<u8>, TextToSpeechError> {
         self.enqueue(text.into())?
             .recv()
             .await
-            .ok_or(TtsError::WorkerDead)?
+            .ok_or(TextToSpeechError::WorkerDead)?
     }
 }
 
@@ -186,55 +196,60 @@ mod tests {
     #[test]
     fn infers_kokoro_from_substring() {
         assert_eq!(
-            TtsArchitecture::infer_from_source("hf://hexgrad/Kokoro-82M"),
-            Some(TtsArchitecture::Kokoro)
+            TextToSpeechArchitecture::infer_from_source("hf://hexgrad/Kokoro-82M"),
+            Some(TextToSpeechArchitecture::Kokoro)
         );
         assert_eq!(
-            TtsArchitecture::infer_from_source("hf://my-org/my-kokoro-fork"),
-            Some(TtsArchitecture::Kokoro)
+            TextToSpeechArchitecture::infer_from_source("hf://my-org/my-kokoro-fork"),
+            Some(TextToSpeechArchitecture::Kokoro)
         );
     }
 
     #[test]
     fn infers_pocket_tts_from_substring() {
         assert_eq!(
-            TtsArchitecture::infer_from_source("hf://KevinAHM/pocket-tts-onnx"),
-            Some(TtsArchitecture::PocketTts)
+            TextToSpeechArchitecture::infer_from_source("hf://KevinAHM/pocket-tts-onnx"),
+            Some(TextToSpeechArchitecture::PocketTts)
         );
     }
 
     #[test]
     fn infers_supertonic_from_substring() {
         assert_eq!(
-            TtsArchitecture::infer_from_source("hf://Supertone/supertonic-3"),
-            Some(TtsArchitecture::Supertonic)
+            TextToSpeechArchitecture::infer_from_source("hf://Supertone/supertonic-3"),
+            Some(TextToSpeechArchitecture::Supertonic)
         );
     }
 
     #[test]
     fn inference_is_case_insensitive() {
         assert_eq!(
-            TtsArchitecture::infer_from_source("hf://org/KOKORO-big"),
-            Some(TtsArchitecture::Kokoro)
+            TextToSpeechArchitecture::infer_from_source("hf://org/KOKORO-big"),
+            Some(TextToSpeechArchitecture::Kokoro)
         );
     }
 
     #[test]
     fn infers_none_for_unknown_source() {
-        assert_eq!(TtsArchitecture::infer_from_source("hf://random/repo"), None);
+        assert_eq!(
+            TextToSpeechArchitecture::infer_from_source("hf://random/repo"),
+            None
+        );
     }
 
     #[test]
     fn explicit_architecture_overrides_inference() {
         // If the user passes an explicit architecture, it wins even when the
         // source string would infer a different one.
-        let config =
-            TtsConfig::from_source("hf://org/supertonic-style", Some(TtsArchitecture::Kokoro));
-        assert!(matches!(config, Some(TtsConfig::Kokoro(_))));
+        let config = TextToSpeechConfig::from_source(
+            "hf://org/supertonic-style",
+            Some(TextToSpeechArchitecture::Kokoro),
+        );
+        assert!(matches!(config, Some(TextToSpeechConfig::Kokoro(_))));
     }
 
     #[test]
     fn from_source_returns_none_when_architecture_unknown() {
-        assert!(TtsConfig::from_source("hf://random/repo", None).is_none());
+        assert!(TextToSpeechConfig::from_source("hf://random/repo", None).is_none());
     }
 }

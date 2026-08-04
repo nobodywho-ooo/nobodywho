@@ -139,31 +139,51 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_ruststt(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_ruststt(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustspeechtotext_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_file(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_pcm(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_ruststtstream(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotextstream(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_ruststtstream(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustspeechtotextstream(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_completed(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_next_token(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rusttexttospeech(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize_async(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(
@@ -198,21 +218,6 @@ protected:
       size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rusttts(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rusttts(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(
@@ -298,7 +303,7 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_model(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_tts(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
@@ -493,7 +498,7 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_model(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_tts(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
@@ -621,18 +626,27 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm(
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_method_ruststtstream_completed(
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_method_ruststtstream_next_token(
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
@@ -653,13 +667,6 @@ protected:
       size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
@@ -722,7 +729,12 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
@@ -730,9 +742,6 @@ protected:
       size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
@@ -765,19 +774,20 @@ protected:
   jsi::Value cpp_uniffi_internal_fn_method_rustmodel_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_internal_fn_method_ruststt_ffi__bless_pointer(
+  jsi::Value cpp_uniffi_internal_fn_method_rustspeechtotext_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_internal_fn_method_ruststtstream_ffi__bless_pointer(
+  jsi::Value
+  cpp_uniffi_internal_fn_method_rustspeechtotextstream_ffi__bless_pointer(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_internal_fn_method_rusttexttospeech_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_rusttokenstream_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_rusttool_ffi__bless_pointer(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_internal_fn_method_rusttts_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_samplerbuilder_ffi__bless_pointer(

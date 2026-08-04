@@ -609,18 +609,18 @@ impl RustChat {
     }
 }
 
-// ---------- RustSTT ----------
+// ---------- RustSpeechToText ----------
 
-/// Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
-/// Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+/// Speech-to-text handle. Wraps `nobodywho::speech_to_text::SpeechToText`.
+/// Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
 #[derive(uniffi::Object)]
-pub struct RustSTT {
-    inner: nobodywho::stt::Stt,
+pub struct RustSpeechToText {
+    inner: nobodywho::speech_to_text::SpeechToText,
 }
 
 #[uniffi::export]
-impl RustSTT {
-    /// Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+impl RustSpeechToText {
+    /// Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
     /// e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
     /// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
     /// `quantization` selects the ONNX precision variant to download and load:
@@ -632,30 +632,33 @@ impl RustSTT {
         language: Option<String>,
         quantization: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+        let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(&source);
         cfg.language = language;
         if let Some(quantization) = quantization {
             cfg.quantization = quantization;
         }
-        let inner =
-            nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)).map_err(|e| {
-                NobodyWhoError::Error {
-                    message: e.to_string(),
-                }
-            })?;
+        let inner = nobodywho::speech_to_text::SpeechToText::new(
+            nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+        )
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })?;
         Ok(Arc::new(Self { inner }))
     }
 
     /// Start transcribing an audio file (WAV / MP3).
-    /// Returns a `RustSTTStream` to consume tokens as they are generated.
-    pub fn transcribe_file(&self, path: String) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
+    /// Returns a `RustSpeechToTextStream` to consume tokens as they are generated.
+    pub fn transcribe_file(
+        &self,
+        path: String,
+    ) -> Result<Arc<RustSpeechToTextStream>, NobodyWhoError> {
         let stream =
             self.inner
                 .transcribe_file_stream_async(path)
                 .map_err(|e| NobodyWhoError::Error {
                     message: e.to_string(),
                 })?;
-        Ok(Arc::new(RustSTTStream {
+        Ok(Arc::new(RustSpeechToTextStream {
             inner: tokio::sync::Mutex::new(stream),
         }))
     }
@@ -666,29 +669,31 @@ impl RustSTT {
         &self,
         samples: Vec<i16>,
         sample_rate: u32,
-    ) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
+    ) -> Result<Arc<RustSpeechToTextStream>, NobodyWhoError> {
         let stream = self
             .inner
             .transcribe_pcm_stream_async(samples, sample_rate)
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })?;
-        Ok(Arc::new(RustSTTStream {
+        Ok(Arc::new(RustSpeechToTextStream {
             inner: tokio::sync::Mutex::new(stream),
         }))
     }
 }
 
-// ---------- RustSTTStream ----------
+// ---------- RustSpeechToTextStream ----------
 
-/// A stream of transcript tokens from a Whisper STT run.
+/// A stream of transcript tokens from a Whisper SpeechToText run.
 #[derive(uniffi::Object)]
-pub struct RustSTTStream {
-    inner: tokio::sync::Mutex<nobodywho::stt::TokenStreamAsync<nobodywho::errors::SttError>>,
+pub struct RustSpeechToTextStream {
+    inner: tokio::sync::Mutex<
+        nobodywho::speech_to_text::TokenStreamAsync<nobodywho::errors::SpeechToTextError>,
+    >,
 }
 
 #[uniffi::export]
-impl RustSTTStream {
+impl RustSpeechToTextStream {
     /// Get the next transcript token. Returns `None` when transcription is complete.
     pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
         self.inner
@@ -962,47 +967,53 @@ pub fn get_cached_models() -> Result<Vec<CachedModel>, NobodyWhoError> {
         .collect())
 }
 
-// ---------- RustTts ----------
-// Wrapper intended to be wrapped again in the target language (e.g. as `Tts`).
+// ---------- RustTextToSpeech ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `TextToSpeech`).
 
 #[derive(uniffi::Object)]
-pub struct RustTts {
-    inner: nobodywho::tts::Tts,
+pub struct RustTextToSpeech {
+    inner: nobodywho::text_to_speech::TextToSpeech,
 }
 
-fn tts_error(message: impl Into<String>) -> NobodyWhoError {
+fn text_to_speech_error(message: impl Into<String>) -> NobodyWhoError {
     NobodyWhoError::Error {
         message: message.into(),
     }
 }
 
-fn parse_tts_architecture(
+fn parse_text_to_speech_architecture(
     architecture: Option<String>,
-) -> Result<Option<nobodywho::tts::TtsArchitecture>, NobodyWhoError> {
+) -> Result<Option<nobodywho::text_to_speech::TextToSpeechArchitecture>, NobodyWhoError> {
     architecture
         .as_deref()
         .map(str::parse)
         .transpose()
         .map_err(|()| {
-            tts_error("architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'")
+            text_to_speech_error(
+                "architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'",
+            )
         })
 }
 
-fn parse_tts_device(device: Option<String>) -> Result<nobodywho::tts::TtsDevice, NobodyWhoError> {
+fn parse_text_to_speech_device(
+    device: Option<String>,
+) -> Result<nobodywho::text_to_speech::TextToSpeechDevice, NobodyWhoError> {
     match device
         .as_deref()
         .unwrap_or("auto")
         .to_ascii_lowercase()
         .as_str()
     {
-        "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
-        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
-        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
-        _ => Err(tts_error("device must be one of 'auto', 'cpu', or 'cuda'")),
+        "auto" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Auto),
+        "cpu" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cpu),
+        "cuda" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cuda),
+        _ => Err(text_to_speech_error(
+            "device must be one of 'auto', 'cpu', or 'cuda'",
+        )),
     }
 }
 
-fn build_tts_config(
+fn build_text_to_speech_config(
     source: String,
     architecture: Option<String>,
     voice: Option<String>,
@@ -1013,16 +1024,16 @@ fn build_tts_config(
     precision: Option<String>,
     temperature: Option<f32>,
     huggingface_token: Option<String>,
-) -> Result<nobodywho::tts::TtsConfig, NobodyWhoError> {
-    let architecture = parse_tts_architecture(architecture)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
-        tts_error(
-            "architecture is required for unknown TTS sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
+) -> Result<nobodywho::text_to_speech::TextToSpeechConfig, NobodyWhoError> {
+    let architecture = parse_text_to_speech_architecture(architecture)?;
+    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(&source, architecture).ok_or_else(|| {
+        text_to_speech_error(
+            "architecture is required for unknown TextToSpeech sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
         )
     })?;
 
     match &mut config {
-        nobodywho::tts::TtsConfig::Kokoro(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Kokoro(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -1033,7 +1044,7 @@ fn build_tts_config(
                 config.speed = speed;
             }
         }
-        nobodywho::tts::TtsConfig::PocketTts(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::PocketTts(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -1045,10 +1056,10 @@ fn build_tts_config(
             }
             if let Some(precision) = precision {
                 config.precision = match precision.to_ascii_lowercase().as_str() {
-                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
-                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    "int8" => nobodywho::text_to_speech::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::text_to_speech::PocketTtsPrecision::Fp32,
                     _ => {
-                        return Err(tts_error(
+                        return Err(text_to_speech_error(
                             "precision must be 'int8' or 'fp32' for Pocket TTS",
                         ))
                     }
@@ -1059,7 +1070,7 @@ fn build_tts_config(
             }
             config.huggingface_token = huggingface_token;
         }
-        nobodywho::tts::TtsConfig::Supertonic(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Supertonic(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -1080,7 +1091,7 @@ fn build_tts_config(
     Ok(config)
 }
 
-fn create_tts(
+fn create_text_to_speech(
     source: String,
     architecture: Option<String>,
     voice: Option<String>,
@@ -1092,8 +1103,8 @@ fn create_tts(
     temperature: Option<f32>,
     huggingface_token: Option<String>,
     device: Option<String>,
-) -> Result<Arc<RustTts>, NobodyWhoError> {
-    let config = build_tts_config(
+) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
+    let config = build_text_to_speech_config(
         source,
         architecture,
         voice,
@@ -1105,15 +1116,15 @@ fn create_tts(
         temperature,
         huggingface_token,
     )?;
-    let device = parse_tts_device(device)?;
-    let inner = nobodywho::tts::Tts::with_device(config, device)
-        .map_err(|e| tts_error(nobodywho::render_miette(&e)))?;
-    Ok(Arc::new(RustTts { inner }))
+    let device = parse_text_to_speech_device(device)?;
+    let inner = nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
+        .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))?;
+    Ok(Arc::new(RustTextToSpeech { inner }))
 }
 
-/// Create a TTS synthesizer.
+/// Create a TextToSpeech synthesizer.
 #[uniffi::export]
-pub async fn load_tts(
+pub async fn load_text_to_speech(
     source: String,
     architecture: Option<String>,
     voice: Option<String>,
@@ -1125,12 +1136,12 @@ pub async fn load_tts(
     temperature: Option<f32>,
     huggingface_token: Option<String>,
     device: Option<String>,
-) -> Result<Arc<RustTts>, NobodyWhoError> {
+) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
     // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
     // because UniFFI's async bridge doesn't provide a Tokio runtime.
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
     std::thread::spawn(move || {
-        let result = create_tts(
+        let result = create_text_to_speech(
             source,
             architecture,
             voice,
@@ -1146,13 +1157,13 @@ pub async fn load_tts(
         let _ = tx.blocking_send(result);
     });
     rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "TTS load thread terminated unexpectedly".into(),
+        message: "TextToSpeech load thread terminated unexpectedly".into(),
     })?
 }
 
 #[uniffi::export]
-impl RustTts {
-    /// Create a TTS synthesizer.
+impl RustTextToSpeech {
+    /// Create a TextToSpeech synthesizer.
     #[uniffi::constructor]
     pub fn new(
         source: String,
@@ -1167,7 +1178,7 @@ impl RustTts {
         huggingface_token: Option<String>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        create_tts(
+        create_text_to_speech(
             source,
             architecture,
             voice,
@@ -1186,7 +1197,7 @@ impl RustTts {
     pub fn synthesize(&self, text: String) -> Result<Vec<u8>, NobodyWhoError> {
         self.inner
             .synthesize(text)
-            .map_err(|e| tts_error(nobodywho::render_miette(&e)))
+            .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
     }
 
     /// Synthesize text asynchronously and return WAV bytes.
@@ -1194,7 +1205,7 @@ impl RustTts {
         self.inner
             .synthesize_async(text)
             .await
-            .map_err(|e| tts_error(nobodywho::render_miette(&e)))
+            .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
     }
 }
 

@@ -1,4 +1,4 @@
-//! Kokoro TTS via ONNX Runtime + espeak-ng phonemization.
+//! Kokoro TextToSpeech via ONNX Runtime + espeak-ng phonemization.
 //!
 //! Pipeline: text → espeak IPA → misaki phonemes → phoneme IDs → ONNX → 24 kHz waveform.
 //!
@@ -17,9 +17,9 @@
 //! (matching upstream `pack[len(ps)-1]`). `max_input_phonemes = rows - 1` is
 //! the largest input length the voice has a style row for.
 
-use crate::errors::TtsError;
-use crate::tts::architecture::TtsArchitectureImpl;
-use crate::tts::{TtsDevice, DEFAULT_SAMPLE_RATE};
+use crate::errors::TextToSpeechError;
+use crate::text_to_speech::architecture::TextToSpeechArchitectureImpl;
+use crate::text_to_speech::{TextToSpeechDevice, DEFAULT_SAMPLE_RATE};
 use espeak_ng::Translator;
 use misaki_rs::{language::Language, G2P};
 use ort::session::Session;
@@ -188,7 +188,7 @@ impl MisakiPhonemes {
     }
 }
 
-pub(in crate::tts) struct KokoroBackend {
+pub(in crate::text_to_speech) struct KokoroBackend {
     session: Session,
     voice: KokoroVoice,
     /// IPA character → token id
@@ -203,15 +203,15 @@ impl KokoroBackend {
         voice_name: &str,
         language: &str,
         speed: f32,
-        device: TtsDevice,
-    ) -> Result<Self, TtsError> {
+        device: TextToSpeechDevice,
+    ) -> Result<Self, TextToSpeechError> {
         let session = crate::onnx::load_session(&model_dir.join("model.onnx"), device)
-            .map_err(TtsError::Ort)?;
+            .map_err(TextToSpeechError::Ort)?;
         let vocab = Self::load_vocab(&model_dir.join("config.json"))?;
         let voice = KokoroVoice::load(&model_dir.join("voices"), voice_name)?;
 
         if !SUPPORTED_LANGS.contains(&language) {
-            return Err(TtsError::UnsupportedLanguage {
+            return Err(TextToSpeechError::UnsupportedLanguage {
                 language: language.into(),
                 supported: SUPPORTED_LANGS.join(", "),
             });
@@ -258,7 +258,7 @@ struct Phonemizer {
 }
 
 impl Phonemizer {
-    fn new(dialect: EspeakDialect, espeak_lang: &str) -> Result<Self, TtsError> {
+    fn new(dialect: EspeakDialect, espeak_lang: &str) -> Result<Self, TextToSpeechError> {
         let g2p = match dialect {
             EspeakDialect::EnGb => Some(G2P::new(Language::EnglishGB)),
             EspeakDialect::EnUs => Some(G2P::new(Language::EnglishUS)),
@@ -272,7 +272,7 @@ impl Phonemizer {
         })
     }
 
-    fn phonemize(&self, text: &str) -> Result<MisakiPhonemes, TtsError> {
+    fn phonemize(&self, text: &str) -> Result<MisakiPhonemes, TextToSpeechError> {
         let text = MisakiPhonemes::normalize_input(text);
         match &self.g2p {
             Some(g2p) => self.phonemize_english(g2p, &text),
@@ -284,26 +284,26 @@ impl Phonemizer {
         &self,
         g2p: &misaki_rs::G2P,
         text: &str,
-    ) -> Result<MisakiPhonemes, TtsError> {
+    ) -> Result<MisakiPhonemes, TextToSpeechError> {
         let (_, mut tokens) = g2p
             .g2p(text)
-            .map_err(|source| TtsError::MisakiG2p { source })?;
+            .map_err(|source| TextToSpeechError::MisakiG2p { source })?;
         self.fill_oov_tokens(&mut tokens)?;
         Ok(MisakiPhonemes::from_tokens(&tokens))
     }
 
-    fn phonemize_non_english(&self, text: &str) -> Result<MisakiPhonemes, TtsError> {
+    fn phonemize_non_english(&self, text: &str) -> Result<MisakiPhonemes, TextToSpeechError> {
         let ipa = EspeakIpa::from_text(&self.translator, text)
-            .map_err(|source| TtsError::EspeakPhonemize { source })?;
+            .map_err(|source| TextToSpeechError::EspeakPhonemize { source })?;
         Ok(MisakiPhonemes::from_espeak(&ipa, self.dialect))
     }
 
-    fn fill_oov_tokens(&self, tokens: &mut [misaki_rs::MToken]) -> Result<(), TtsError> {
+    fn fill_oov_tokens(&self, tokens: &mut [misaki_rs::MToken]) -> Result<(), TextToSpeechError> {
         for token in tokens.iter_mut() {
             if token.phonemes.as_deref() == Some("❓") {
                 let ipa =
                     EspeakIpa::from_text(&self.translator, &token.text).map_err(|source| {
-                        TtsError::EspeakOov {
+                        TextToSpeechError::EspeakOov {
                             word: token.text.clone(),
                             source,
                         }
@@ -336,25 +336,26 @@ fn espeak_data_dir() -> PathBuf {
 }
 
 /// Extract bundled espeak-ng data on first use and build a Translator, idempotent.
-fn init_translator(language: &str) -> Result<Translator, TtsError> {
+fn init_translator(language: &str) -> Result<Translator, TextToSpeechError> {
     let data_dir = espeak_data_dir();
-    std::fs::create_dir_all(&data_dir).map_err(|source| TtsError::EspeakDataDir { source })?;
+    std::fs::create_dir_all(&data_dir)
+        .map_err(|source| TextToSpeechError::EspeakDataDir { source })?;
     // Extract phonemes + the requested language dict. The language sub-tag
     // ("en-us" → "en") is what bundled-data is keyed on.
     let base_lang = language.split('-').next().unwrap_or(language);
     espeak_ng::install_bundled_language(&data_dir, base_lang).map_err(|source| {
-        TtsError::EspeakInstallLanguage {
+        TextToSpeechError::EspeakInstallLanguage {
             lang: base_lang.into(),
             dir: data_dir.display().to_string(),
             source,
         }
     })?;
     Translator::new(language, Some(data_dir.as_path()))
-        .map_err(|source| TtsError::EspeakInit { source })
+        .map_err(|source| TextToSpeechError::EspeakInit { source })
 }
 
-impl TtsArchitectureImpl for KokoroBackend {
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
+impl TextToSpeechArchitectureImpl for KokoroBackend {
+    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         let phoneme_ids = self.text_to_phoneme_ids(text)?;
         let style = self.voice.style_for_len(phoneme_ids.len()).to_vec();
         self.run_model(phoneme_ids, style)
@@ -368,7 +369,7 @@ impl TtsArchitectureImpl for KokoroBackend {
 impl KokoroBackend {
     /// Run the full text → phoneme-ID pipeline: phonemize, trim, validate
     /// non-empty, then look up each phoneme in the vocab.
-    fn text_to_phoneme_ids(&self, text: &str) -> Result<Vec<i64>, TtsError> {
+    fn text_to_phoneme_ids(&self, text: &str) -> Result<Vec<i64>, TextToSpeechError> {
         let phonemes = self.phonemizer.phonemize(text)?;
         let phonemes = phonemes.as_str().trim();
         debug!(
@@ -376,7 +377,7 @@ impl KokoroBackend {
             phonemes, "kokoro phonemes"
         );
         if phonemes.is_empty() {
-            return Err(TtsError::NoPhonemes);
+            return Err(TextToSpeechError::NoPhonemes);
         }
         self.phonemes_to_vocab_ids(phonemes)
     }
@@ -386,7 +387,11 @@ impl KokoroBackend {
     /// upstream's `KModel.forward` — our ONNX export captures only the
     /// `forward_with_tokens` path. See
     /// https://github.com/hexgrad/kokoro/blob/main/kokoro/model.py#L130
-    fn run_model(&mut self, phoneme_ids: Vec<i64>, style: Vec<f32>) -> Result<Vec<f32>, TtsError> {
+    fn run_model(
+        &mut self,
+        phoneme_ids: Vec<i64>,
+        style: Vec<f32>,
+    ) -> Result<Vec<f32>, TextToSpeechError> {
         let n_phonemes = phoneme_ids.len();
         let tokens = Self::wrap_bos_eos(phoneme_ids);
         let token_len = tokens.len();
@@ -422,7 +427,7 @@ impl KokoroBackend {
     /// resulting token IDs. Characters with no vocab entry are dropped
     /// silently, matching upstream — see
     /// https://github.com/hexgrad/kokoro/blob/main/kokoro/model.py#L128
-    fn phonemes_to_vocab_ids(&self, phonemes: &str) -> Result<Vec<i64>, TtsError> {
+    fn phonemes_to_vocab_ids(&self, phonemes: &str) -> Result<Vec<i64>, TextToSpeechError> {
         let mut ids: Vec<i64> = Vec::with_capacity(phonemes.len());
         for ch in phonemes.chars() {
             let mut buf = [0u8; 4];
@@ -432,10 +437,10 @@ impl KokoroBackend {
             }
         }
         if ids.is_empty() {
-            return Err(TtsError::NoVocabMatch);
+            return Err(TextToSpeechError::NoVocabMatch);
         }
         if ids.len() > self.voice.max_input_phonemes() {
-            return Err(TtsError::TooManyPhonemes {
+            return Err(TextToSpeechError::TooManyPhonemes {
                 count: ids.len(),
                 max: self.voice.max_input_phonemes(),
             });
@@ -444,24 +449,25 @@ impl KokoroBackend {
     }
 
     /// Read the IPA-character → token-id map from `config.json["vocab"]`.
-    fn load_vocab(config_path: &Path) -> Result<HashMap<String, i64>, TtsError> {
+    fn load_vocab(config_path: &Path) -> Result<HashMap<String, i64>, TextToSpeechError> {
         #[derive(serde::Deserialize)]
         struct Config {
             vocab: HashMap<String, i64>,
         }
 
         let path = config_path.display().to_string();
-        let file = std::fs::File::open(config_path).map_err(|source| TtsError::ConfigOpen {
-            path: path.clone(),
-            source,
-        })?;
+        let file =
+            std::fs::File::open(config_path).map_err(|source| TextToSpeechError::ConfigOpen {
+                path: path.clone(),
+                source,
+            })?;
         let Config { vocab } =
-            serde_json::from_reader(file).map_err(|source| TtsError::ConfigParse {
+            serde_json::from_reader(file).map_err(|source| TextToSpeechError::ConfigParse {
                 path: path.clone(),
                 source,
             })?;
         if vocab.is_empty() {
-            return Err(TtsError::VocabEmpty { path });
+            return Err(TextToSpeechError::VocabEmpty { path });
         }
         Ok(vocab)
     }
@@ -481,21 +487,21 @@ struct KokoroVoice {
 
 impl KokoroVoice {
     /// Load `<voices_dir>/<voice>.safetensors`.
-    fn load(voices_dir: &Path, voice: &str) -> Result<Self, TtsError> {
+    fn load(voices_dir: &Path, voice: &str) -> Result<Self, TextToSpeechError> {
         let path = voices_dir.join(format!("{voice}.safetensors"));
-        let bytes = std::fs::read(&path).map_err(|source| TtsError::VoiceRead {
+        let bytes = std::fs::read(&path).map_err(|source| TextToSpeechError::VoiceRead {
             voice: voice.into(),
             source,
         })?;
         let safetensors =
-            SafeTensors::deserialize(&bytes).map_err(|source| TtsError::VoiceParse {
+            SafeTensors::deserialize(&bytes).map_err(|source| TextToSpeechError::VoiceParse {
                 voice: voice.into(),
                 source,
             })?;
         let style_tensor =
             safetensors
                 .tensor("style")
-                .map_err(|source| TtsError::VoiceMissingStyle {
+                .map_err(|source| TextToSpeechError::VoiceMissingStyle {
                     voice: voice.into(),
                     source,
                 })?;
@@ -520,16 +526,16 @@ impl KokoroVoice {
     fn validate_style_shape(
         view: &safetensors::tensor::TensorView<'_>,
         voice: &str,
-    ) -> Result<usize, TtsError> {
+    ) -> Result<usize, TextToSpeechError> {
         if view.dtype() != Dtype::F32 {
-            return Err(TtsError::VoiceBadDtype {
+            return Err(TextToSpeechError::VoiceBadDtype {
                 voice: voice.into(),
                 dtype: view.dtype(),
             });
         }
         let shape = view.shape();
         if shape.len() != 2 || shape[1] != STYLE_DIM || shape[0] < 2 {
-            return Err(TtsError::VoiceBadShape {
+            return Err(TextToSpeechError::VoiceBadShape {
                 voice: voice.into(),
                 shape: shape.to_vec(),
                 style_dim: STYLE_DIM,

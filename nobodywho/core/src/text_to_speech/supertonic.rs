@@ -1,6 +1,6 @@
-use crate::errors::TtsError;
-use crate::tts::architecture::TtsArchitectureImpl;
-use crate::tts::TtsDevice;
+use crate::errors::TextToSpeechError;
+use crate::text_to_speech::architecture::TextToSpeechArchitectureImpl;
+use crate::text_to_speech::TextToSpeechDevice;
 use ndarray::{Array, Array3};
 use ort::session::Session;
 use ort::value::Tensor;
@@ -31,8 +31,8 @@ const SUPPORTED_LANGS: &[&str] = &[
     "id", "it", "lt", "lv", "nl", "pl", "pt", "ro", "ru", "sk", "sl", "sv", "tr", "uk", "vi", "na",
 ];
 
-pub(in crate::tts) struct SupertonicBackend {
-    config: SupertonicTtsJsonConfig,
+pub(in crate::text_to_speech) struct SupertonicBackend {
+    config: SupertonicTextToSpeechJsonConfig,
     text_processor: UnicodeProcessor,
     duration_predictor: Session,
     text_encoder: Session,
@@ -47,11 +47,11 @@ pub(in crate::tts) struct SupertonicBackend {
 struct SupertonicLanguage(String);
 
 impl SupertonicLanguage {
-    fn new(language: &str) -> Result<Self, TtsError> {
+    fn new(language: &str) -> Result<Self, TextToSpeechError> {
         if SUPPORTED_LANGS.contains(&language) {
             Ok(Self(language.to_string()))
         } else {
-            Err(TtsError::UnsupportedLanguage {
+            Err(TextToSpeechError::UnsupportedLanguage {
                 language: language.into(),
                 supported: SUPPORTED_LANGS.join(", "),
             })
@@ -79,19 +79,19 @@ struct SupertonicSettings {
 }
 
 impl SupertonicSettings {
-    fn new(steps: usize, speed: f32, silence_duration: f32) -> Result<Self, TtsError> {
+    fn new(steps: usize, speed: f32, silence_duration: f32) -> Result<Self, TextToSpeechError> {
         if steps == 0 {
-            return Err(TtsError::InvalidConfig {
+            return Err(TextToSpeechError::InvalidConfig {
                 message: "Supertonic steps must be greater than 0".into(),
             });
         }
         if !speed.is_finite() || speed <= 0.0 {
-            return Err(TtsError::InvalidConfig {
+            return Err(TextToSpeechError::InvalidConfig {
                 message: "Supertonic speed must be finite and greater than 0".into(),
             });
         }
         if !silence_duration.is_finite() || silence_duration < 0.0 {
-            return Err(TtsError::InvalidConfig {
+            return Err(TextToSpeechError::InvalidConfig {
                 message: "Supertonic silence duration must be finite and non-negative".into(),
             });
         }
@@ -109,7 +109,7 @@ struct SupertonicAssets {
 }
 
 impl SupertonicAssets {
-    fn new(model_dir: &Path, voice: &str) -> Result<Self, TtsError> {
+    fn new(model_dir: &Path, voice: &str) -> Result<Self, TextToSpeechError> {
         let onnx_dir = model_dir.join("onnx");
         for asset in REQUIRED_ONNX_ASSETS {
             ensure_asset_exists(&onnx_dir.join(asset))?;
@@ -117,7 +117,7 @@ impl SupertonicAssets {
 
         let voice_style_path = model_dir.join("voice_styles").join(format!("{voice}.json"));
         if !voice_style_path.exists() {
-            return Err(TtsError::MissingVoice {
+            return Err(TextToSpeechError::MissingVoice {
                 voice: voice.to_string(),
                 available: list_voices(model_dir),
             });
@@ -138,12 +138,13 @@ impl SupertonicBackend {
         steps: usize,
         speed: f32,
         silence_duration: f32,
-        device: TtsDevice,
-    ) -> Result<Self, TtsError> {
+        device: TextToSpeechDevice,
+    ) -> Result<Self, TextToSpeechError> {
         let language = SupertonicLanguage::new(language)?;
         let settings = SupertonicSettings::new(steps, speed, silence_duration)?;
         let assets = SupertonicAssets::new(model_dir, voice)?;
-        let config: SupertonicTtsJsonConfig = read_json(&assets.onnx_dir.join("tts.json"))?;
+        let config: SupertonicTextToSpeechJsonConfig =
+            read_json(&assets.onnx_dir.join("tts.json"))?;
         let text_processor = UnicodeProcessor::new(&assets.onnx_dir.join("unicode_indexer.json"))?;
         let duration_predictor =
             crate::onnx::load_session(&assets.onnx_dir.join("duration_predictor.onnx"), device)?;
@@ -179,11 +180,11 @@ impl SupertonicBackend {
     }
 }
 
-impl TtsArchitectureImpl for SupertonicBackend {
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
+impl TextToSpeechArchitectureImpl for SupertonicBackend {
+    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         let text = text.trim();
         if text.is_empty() {
-            return Err(TtsError::EmptyText);
+            return Err(TextToSpeechError::EmptyText);
         }
         self.call(text)
     }
@@ -218,7 +219,7 @@ impl SupertonicConfig {
 
 // Matches the nested sections of tts.json, deserializing only fields needed at runtime.
 #[derive(Debug, Clone, Deserialize)]
-struct SupertonicTtsJsonConfig {
+struct SupertonicTextToSpeechJsonConfig {
     ae: SpeechAutoencoderConfig,
     ttl: TextToLatentConfig,
 }
@@ -253,18 +254,18 @@ struct Style {
 }
 
 impl Style {
-    fn load(path: &Path) -> Result<Self, TtsError> {
+    fn load(path: &Path) -> Result<Self, TextToSpeechError> {
         let data: VoiceStyleData = read_json(path)?;
         let ttl = component_to_array(&data.style_ttl, path, "style_ttl")?;
         let dp = component_to_array(&data.style_dp, path, "style_dp")?;
         Ok(Self { ttl, dp })
     }
 
-    fn ttl_tensor(&self) -> Result<Tensor<f32>, TtsError> {
+    fn ttl_tensor(&self) -> Result<Tensor<f32>, TextToSpeechError> {
         Ok(Tensor::from_array(self.ttl.clone())?)
     }
 
-    fn dp_tensor(&self) -> Result<Tensor<f32>, TtsError> {
+    fn dp_tensor(&self) -> Result<Tensor<f32>, TextToSpeechError> {
         Ok(Tensor::from_array(self.dp.clone())?)
     }
 }
@@ -279,7 +280,7 @@ struct EncodedTexts {
 }
 
 impl UnicodeProcessor {
-    fn new(path: &Path) -> Result<Self, TtsError> {
+    fn new(path: &Path) -> Result<Self, TextToSpeechError> {
         Ok(Self {
             indexer: read_json(path)?,
         })
@@ -289,7 +290,7 @@ impl UnicodeProcessor {
         &self,
         text_list: &[String],
         language: &SupertonicLanguage,
-    ) -> Result<EncodedTexts, TtsError> {
+    ) -> Result<EncodedTexts, TextToSpeechError> {
         let processed_texts: Vec<String> = text_list
             .iter()
             .map(|text| language.preprocess_text(text))
@@ -317,7 +318,7 @@ impl UnicodeProcessor {
 }
 
 impl SupertonicBackend {
-    fn call(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
+    fn call(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         let max_len = if self.language.uses_short_chunks() {
             MAX_CJK_CHUNK_LENGTH
         } else {
@@ -341,7 +342,7 @@ impl SupertonicBackend {
         Ok(wav)
     }
 
-    fn infer(&mut self, text_list: &[String]) -> Result<(Vec<f32>, Vec<f32>), TtsError> {
+    fn infer(&mut self, text_list: &[String]) -> Result<(Vec<f32>, Vec<f32>), TextToSpeechError> {
         let batch_size = text_list.len();
         let encoded_texts = self
             .text_processor
@@ -366,7 +367,10 @@ impl SupertonicBackend {
         Ok((wav_data, duration))
     }
 
-    fn predict_duration(&mut self, encoded_texts: &EncodedTexts) -> Result<Vec<f32>, TtsError> {
+    fn predict_duration(
+        &mut self,
+        encoded_texts: &EncodedTexts,
+    ) -> Result<Vec<f32>, TextToSpeechError> {
         let style_dp_tensor = self.style.dp_tensor()?;
         let duration_outputs = self.duration_predictor.run(ort::inputs! {
             "text_ids" => &encoded_texts.text_ids,
@@ -385,7 +389,7 @@ impl SupertonicBackend {
         &mut self,
         encoded_texts: &EncodedTexts,
         style_ttl_tensor: &Tensor<f32>,
-    ) -> Result<Array3<f32>, TtsError> {
+    ) -> Result<Array3<f32>, TextToSpeechError> {
         let text_outputs = self.text_encoder.run(ort::inputs! {
             "text_ids" => &encoded_texts.text_ids,
             "style_ttl" => style_ttl_tensor,
@@ -410,7 +414,7 @@ impl SupertonicBackend {
         text_emb: &Array3<f32>,
         style_ttl_tensor: &Tensor<f32>,
         batch_size: usize,
-    ) -> Result<Array3<f32>, TtsError> {
+    ) -> Result<Array3<f32>, TextToSpeechError> {
         let (mut noisy_latent, latent_mask) = sample_noisy_latent(
             duration,
             self.sample_rate,
@@ -452,7 +456,7 @@ impl SupertonicBackend {
         Ok(noisy_latent)
     }
 
-    fn vocode(&mut self, latent: Array3<f32>) -> Result<Vec<f32>, TtsError> {
+    fn vocode(&mut self, latent: Array3<f32>) -> Result<Vec<f32>, TextToSpeechError> {
         let latent_tensor = Tensor::from_array(latent)?;
         let outputs = self
             .vocoder
@@ -498,16 +502,16 @@ fn list_voices(model_dir: &Path) -> String {
     voices.join(", ")
 }
 
-fn ensure_asset_exists(path: &Path) -> Result<(), TtsError> {
+fn ensure_asset_exists(path: &Path) -> Result<(), TextToSpeechError> {
     if !path.exists() {
-        return Err(TtsError::MissingAsset {
+        return Err(TextToSpeechError::MissingAsset {
             path: path.display().to_string(),
         });
     }
     Ok(())
 }
 
-fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, TtsError> {
+fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, TextToSpeechError> {
     let file = File::open(path)?;
     Ok(serde_json::from_reader(BufReader::new(file))?)
 }
@@ -516,9 +520,9 @@ fn component_to_array(
     component: &StyleComponent,
     path: &Path,
     name: &str,
-) -> Result<Array3<f32>, TtsError> {
+) -> Result<Array3<f32>, TextToSpeechError> {
     if component.dims.len() != 3 || component.dims[0] != 1 {
-        return Err(TtsError::InvalidAsset {
+        return Err(TextToSpeechError::InvalidAsset {
             path: path.display().to_string(),
             message: format!("{name} must have dims [1, rows, cols]"),
         });
@@ -596,7 +600,7 @@ mod tests {
     fn rejects_unknown_language() {
         assert!(matches!(
             SupertonicLanguage::new("xx"),
-            Err(TtsError::UnsupportedLanguage { .. })
+            Err(TextToSpeechError::UnsupportedLanguage { .. })
         ));
     }
 
@@ -604,15 +608,15 @@ mod tests {
     fn rejects_invalid_numeric_config() {
         assert!(matches!(
             SupertonicSettings::new(8, 0.0, DEFAULT_SILENCE_DURATION),
-            Err(TtsError::InvalidConfig { .. })
+            Err(TextToSpeechError::InvalidConfig { .. })
         ));
         assert!(matches!(
             SupertonicSettings::new(0, 1.0, DEFAULT_SILENCE_DURATION),
-            Err(TtsError::InvalidConfig { .. })
+            Err(TextToSpeechError::InvalidConfig { .. })
         ));
         assert!(matches!(
             SupertonicSettings::new(8, 1.0, f32::INFINITY),
-            Err(TtsError::InvalidConfig { .. })
+            Err(TextToSpeechError::InvalidConfig { .. })
         ));
     }
 
@@ -649,7 +653,7 @@ mod tests {
             panic!("expected missing voice");
         };
         match err {
-            TtsError::MissingVoice { voice, available } => {
+            TextToSpeechError::MissingVoice { voice, available } => {
                 assert_eq!(voice, "M24");
                 assert_eq!(available, "F2, M1");
             }
