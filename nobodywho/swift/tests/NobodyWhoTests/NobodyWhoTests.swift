@@ -183,7 +183,7 @@ final class NobodyWhoTests: XCTestCase {
 
         // Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
         // "Billy" as "Bailey", while fp32 gets it right.
-        let stt = try STT(source: model, quantization: "default")
+        let stt = try await STT.load(source: model, quantization: "default")
         let text = try await stt.transcribeFile(path: audioFile).completed()
         XCTAssertTrue(text.lowercased().contains("ron"))
         XCTAssertTrue(text.lowercased().contains("billy"))

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import uniffi.nobodywho.RustStt as InternalStt
 import uniffi.nobodywho.RustSttStream as InternalSttStream
+import uniffi.nobodywho.loadStt
 
 /**
  * A stream of transcript tokens from a Whisper STT run.
@@ -44,20 +45,31 @@ class SttStream internal constructor(
  * Speech-to-text handle that transcribes audio using Whisper models in ONNX format.
  *
  * ```kotlin
- * val stt = Stt(source = "hf://onnx-community/whisper-base")
+ * val stt = Stt.load(source = "hf://onnx-community/whisper-base")
  * val text = stt.transcribeFile("recording.mp3").completed()
  * ```
  */
-class Stt(
-    source: String,
-    language: String? = null,
-    quantization: String? = null
+class Stt internal constructor(
+    private val inner: InternalStt
 ) : Closeable {
-    private val inner: InternalStt = InternalStt(
-        source = source,
-        language = language,
-        quantization = quantization
-    )
+    companion object {
+        /**
+         * Load a Whisper STT model.
+         *
+         * @param source HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+         * @param language ISO 639-1 code (e.g. `"en"`); pass `null` to auto-detect.
+         * @param quantization ONNX precision variant to download and load: one of
+         *   `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+         *   pass `null` to use `"default"`.
+         */
+        suspend fun load(
+            source: String,
+            language: String? = null,
+            quantization: String? = null
+        ): Stt {
+            return Stt(loadStt(source = source, language = language, quantization = quantization))
+        }
+    }
 
     /**
      * Start transcribing an audio file (WAV / MP3 / FLAC).

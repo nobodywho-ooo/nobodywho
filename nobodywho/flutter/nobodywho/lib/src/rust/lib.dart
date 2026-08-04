@@ -358,11 +358,11 @@ abstract class RustStt implements RustOpaqueInterface {
   /// `quantization` — ONNX precision variant to download and load: one of
   /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
   /// to use `"default"`.
-  static RustStt new_({
+  static Future<RustStt> load({
     required String source,
     String? language = null,
     String? quantization = null,
-  }) => NobodyWho.instance.api.crateRustSttNew(
+  }) => NobodyWho.instance.api.crateRustSttLoad(
     source: source,
     language: language,
     quantization: quantization,

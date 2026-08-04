@@ -712,6 +712,11 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(RustCallStatus *_No
 uint64_t uniffi_nobodywho_uniffi_fn_func_load_model(RustBuffer model_path, int8_t use_gpu, RustBuffer projection_model_path, RustBuffer draft_model_path, RustBuffer on_download_progress
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_STT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_STT
+uint64_t uniffi_nobodywho_uniffi_fn_func_load_stt(RustBuffer source, RustBuffer language, RustBuffer quantization
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_LOAD_TTS
 uint64_t uniffi_nobodywho_uniffi_fn_func_load_tts(RustBuffer source, RustBuffer architecture, RustBuffer voice, RustBuffer language, RustBuffer speed, RustBuffer steps, RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature, RustBuffer huggingface_token, RustBuffer device
@@ -1057,6 +1062,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_get_cached_models(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_MODEL
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_MODEL
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_STT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_LOAD_STT
+uint16_t uniffi_nobodywho_uniffi_checksum_func_load_stt(void
     
 );
 #endif

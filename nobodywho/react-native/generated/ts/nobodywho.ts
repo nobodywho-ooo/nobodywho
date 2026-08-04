@@ -186,6 +186,39 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
     }
     }
 /**
+ * Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+ * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+ * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+ * `quantization` selects the ONNX precision variant to download and load:
+ * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+ * pass `None` to use `"default"`.
+ */
+export async function loadStt(source: string, language: string | undefined, quantization: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustSttInterface> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_stt(FfiConverterString.lower(source),FfiConverterOptionalString.lower(language),FfiConverterOptionalString.lower(quantization)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+            /*liftFunc:*/ FfiConverterTypeRustSTT.lift.bind(FfiConverterTypeRustSTT),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+/**
  * Create a TTS synthesizer.
  */
 export async function loadTts(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, precision: string | undefined, temperature: /*f32*/number | undefined, huggingfaceToken: string | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
@@ -4164,6 +4197,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 22964) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_stt() !== 9096) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_stt");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 26587) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_tts");

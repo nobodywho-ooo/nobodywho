@@ -283,6 +283,47 @@ impl STT {
         Ok(Self { stt })
     }
 
+    /// Asynchronously load an STT model.
+    ///
+    /// This static method loads the model asynchronously, which is useful for loading large models
+    /// without blocking the async event loop. The blocking model load operation is offloaded to
+    /// a background thread, allowing other async tasks to continue running.
+    ///
+    /// Args:
+    ///     source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+    ///     language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+    ///     quantization: ONNX precision variant to download and load: one of
+    ///         `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+    ///         omit or pass `None` to use `"default"`.
+    ///
+    /// Returns:
+    ///     An STT instance wrapped in an awaitable (async function returns a coroutine)
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[staticmethod]
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub async fn load(
+        source: String,
+        language: Option<String>,
+        quantization: Option<String>,
+    ) -> PyResult<Self> {
+        tokio::task::spawn_blocking(move || {
+            let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+            cfg.language = language;
+            if let Some(quantization) = quantization {
+                cfg.quantization = quantization;
+            }
+            nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
+        })
+        .await
+        .map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("STT load task panicked: {e}"))
+        })?
+        .map(|stt| Self { stt })
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
     /// Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
     pub fn transcribe_file(&self, path: &str, py: Python) -> PyResult<TokenStream> {
         let stream = py
@@ -334,6 +375,47 @@ impl STTAsync {
             .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self { stt })
+    }
+
+    /// Asynchronously load an STT model.
+    ///
+    /// This static method loads the model asynchronously, which is useful for loading large models
+    /// without blocking the async event loop. The blocking model load operation is offloaded to
+    /// a background thread, allowing other async tasks to continue running.
+    ///
+    /// Args:
+    ///     source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+    ///     language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+    ///     quantization: ONNX precision variant to download and load: one of
+    ///         `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+    ///         omit or pass `None` to use `"default"`.
+    ///
+    /// Returns:
+    ///     An STTAsync instance wrapped in an awaitable (async function returns a coroutine)
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[staticmethod]
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub async fn load(
+        source: String,
+        language: Option<String>,
+        quantization: Option<String>,
+    ) -> PyResult<Self> {
+        tokio::task::spawn_blocking(move || {
+            let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+            cfg.language = language;
+            if let Some(quantization) = quantization {
+                cfg.quantization = quantization;
+            }
+            nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
+        })
+        .await
+        .map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("STT load task panicked: {e}"))
+        })?
+        .map(|stt| Self { stt })
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     pub fn transcribe_file(&self, path: String) -> PyResult<TokenStreamAsync> {

@@ -693,6 +693,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_stt(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_tts(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
@@ -1033,6 +1035,8 @@ external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: U
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_func_load_stt(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,
+): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1186,6 +1190,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_stt() != 9096.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 26587.toShort()) {
@@ -7435,6 +7442,29 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
         // lift function
         { FfiConverterTypeRustModel.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Create an STT handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+         * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+         * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+         * `quantization` selects the ONNX precision variant to download and load:
+         * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+         * pass `None` to use `"default"`.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `loadStt`(`source`: kotlin.String, `language`: kotlin.String?, `quantization`: kotlin.String?) : RustStt {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_stt(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalString.lower(`quantization`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustSTT.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )

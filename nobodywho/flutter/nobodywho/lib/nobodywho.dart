@@ -789,18 +789,18 @@ class Stt {
 
   Stt._(this._stt);
 
-  /// Create an STT handle.
+  /// Load an STT handle.
   ///
   /// [source] — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
   /// [language] — ISO 639-1 code (e.g. `"en"`); omit for auto-detect.
   /// [quantization] — ONNX precision variant to download and load: one of
   /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit to use `"default"`.
-  factory Stt({
+  static Future<Stt> load({
     required String source,
     String? language,
     String? quantization,
-  }) {
-    final stt = nobodywho.RustStt.new_(
+  }) async {
+    final stt = await nobodywho.RustStt.load(
       source: source,
       language: language,
       quantization: quantization,
