@@ -25,6 +25,17 @@ jobs:
           unzip -o xcframework-zip/NobodyWhoNative.xcframework.zip -d nobodywho/swift/Frameworks/
           ls -la nobodywho/swift/Frameworks/NobodyWhoNative.xcframework/
 
+      - name: "Cache SwiftPM build"
+        # swift-syntax (macros) is a multi-minute compile; cache the SwiftPM
+        # build dir so it's reused across runs (Warp — non-Windows runner).
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            nobodywho/swift/.build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('nobodywho/swift/Package.resolved', 'nobodywho/swift/Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
       - name: "Run macro tests"
         working-directory: ./nobodywho/swift
         run: swift test --filter MacroTests

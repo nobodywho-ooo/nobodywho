@@ -90,6 +90,16 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-flutter-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-cargo-
+
       - name: Install Vulkan dependencies
         run: |
           sudo apt-get update
@@ -122,7 +132,7 @@ jobs:
 
   flutter-stt-tests:
     if: inputs.run_flutter
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v4
 
@@ -130,6 +140,16 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-flutter-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-cargo-
 
       - name: Install Vulkan dependencies
         run: |
