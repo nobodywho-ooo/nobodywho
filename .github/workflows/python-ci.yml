@@ -135,7 +135,9 @@ jobs:
           # job's .2): jakoch's ARM-Linux mirror (jakoch/vulkan-sdk-arm) only
           # publishes 1.4.313.0, and 1.4.313.2 fails to download for arm64.
           vulkan_version: 1.4.313.0
-          cache: true
+          # cache off: restoring/saving the ~550 MB SDK in-container took ~7-9
+          # min, far longer than the ~1 min fresh install.
+          cache: false
 
       - name: Install build dependencies
         run: |
