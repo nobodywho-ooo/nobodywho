@@ -738,7 +738,7 @@ void main() {
       }
       // Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
       // "Billy" as "Bailey", while fp32 gets it right.
-      final stt = nobodywho.SpeechToText(source: whisperModel, quantization: 'default');
+      final stt = await nobodywho.SpeechToText.load(source: whisperModel, quantization: 'default');
       final stream = stt.transcribeFile(audioFile);
       final text = await stream.completed();
       expect(text.toLowerCase(), contains('ron'));

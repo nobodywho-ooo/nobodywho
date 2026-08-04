@@ -789,18 +789,18 @@ class SpeechToText {
 
   SpeechToText._(this._stt);
 
-  /// Create an SpeechToText handle.
+  /// Load an SpeechToText handle.
   ///
   /// [source] — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
   /// [language] — ISO 639-1 code (e.g. `"en"`); omit for auto-detect.
   /// [quantization] — ONNX precision variant to download and load: one of
   /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit to use `"default"`.
-  factory SpeechToText({
+  static Future<SpeechToText> load({
     required String source,
     String? language,
     String? quantization,
-  }) {
-    final stt = nobodywho.RustSpeechToText.new_(
+  }) async {
+    final stt = await nobodywho.RustSpeechToText.load(
       source: source,
       language: language,
       quantization: quantization,

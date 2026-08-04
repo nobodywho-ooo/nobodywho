@@ -4608,6 +4608,28 @@ public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: Stri
         )
 }
 /**
+ * Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+ * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+ * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+ * `quantization` selects the ONNX precision variant to download and load:
+ * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+ * pass `None` to use `"default"`.
+ */
+public func loadSpeechToText(source: String, language: String?, quantization: String?)async throws  -> RustSpeechToText  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(FfiConverterString.lower(source),FfiConverterOptionString.lower(language),FfiConverterOptionString.lower(quantization)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustSpeechToText_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+/**
  * Create a TextToSpeech synthesizer.
  */
 public func loadTextToSpeech(source: String, architecture: String?, voice: String?, language: String?, speed: Float?, steps: UInt32?, silenceDuration: Float?, precision: String?, temperature: Float?, huggingfaceToken: String?, device: String?)async throws  -> RustTextToSpeech  {
@@ -4753,6 +4775,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176) {

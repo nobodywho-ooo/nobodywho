@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 173075158;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 629835537;
 
 // Section: executor
 
@@ -2043,16 +2043,17 @@ fn wire__crate__RustSpeechToTextStream_next_token_impl(
         },
     )
 }
-fn wire__crate__RustSpeechToText_new__impl(
+fn wire__crate__RustSpeechToText_load_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "RustSpeechToText_new_",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            debug_name: "RustSpeechToText_load",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let message = unsafe {
@@ -2068,11 +2069,13 @@ fn wire__crate__RustSpeechToText_new__impl(
             let api_language = <Option<String>>::sse_decode(&mut deserializer);
             let api_quantization = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, String>((move || {
-                let output_ok =
-                    crate::RustSpeechToText::new_(api_source, api_language, api_quantization)?;
-                Ok(output_ok)
-            })())
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::RustSpeechToText::load(api_source, api_language, api_quantization)?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -5322,6 +5325,7 @@ fn pde_ffi_dispatcher_primary_impl(
         36 => {
             wire__crate__RustSpeechToTextStream_next_token_impl(port, ptr, rust_vec_len, data_len)
         }
+        37 => wire__crate__RustSpeechToText_load_impl(port, ptr, rust_vec_len, data_len),
         40 => wire__crate__RustTokenStream_completed_impl(port, ptr, rust_vec_len, data_len),
         41 => wire__crate__RustTokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
         42 => wire__crate__RustTokenStream_next_token_impl(port, ptr, rust_vec_len, data_len),
@@ -5348,7 +5352,6 @@ fn pde_ffi_dispatcher_sync_impl(
         13 => wire__crate__RustChat_ask_with_prompt_impl(ptr, rust_vec_len, data_len),
         21 => wire__crate__RustChat_new_impl(ptr, rust_vec_len, data_len),
         31 => wire__crate__RustChat_stop_generation_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__RustSpeechToText_new__impl(ptr, rust_vec_len, data_len),
         38 => wire__crate__RustSpeechToText_transcribe_file_impl(ptr, rust_vec_len, data_len),
         39 => wire__crate__RustSpeechToText_transcribe_pcm_impl(ptr, rust_vec_len, data_len),
         43 => wire__crate__RustTool_get_schema_json_impl(ptr, rust_vec_len, data_len),

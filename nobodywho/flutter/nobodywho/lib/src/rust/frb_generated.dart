@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 173075158;
+  int get rustContentHash => 629835537;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -258,7 +258,7 @@ abstract class NobodyWhoApi extends BaseApi {
     required RustSpeechToTextStream that,
   });
 
-  RustSpeechToText crateRustSpeechToTextNew({
+  Future<RustSpeechToText> crateRustSpeechToTextLoad({
     required String source,
     String? language = null,
     String? quantization = null,
@@ -2100,34 +2100,39 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  RustSpeechToText crateRustSpeechToTextNew({
+  Future<RustSpeechToText> crateRustSpeechToTextLoad({
     required String source,
     String? language = null,
     String? quantization = null,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(source, serializer);
           sse_encode_opt_String(language, serializer);
           sse_encode_opt_String(quantization, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 37,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustSpeechToTextNewConstMeta,
+        constMeta: kCrateRustSpeechToTextLoadConstMeta,
         argValues: [source, language, quantization],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustSpeechToTextNewConstMeta => const TaskConstMeta(
-    debugName: "RustSpeechToText_new_",
+  TaskConstMeta get kCrateRustSpeechToTextLoadConstMeta => const TaskConstMeta(
+    debugName: "RustSpeechToText_load",
     argNames: ["source", "language", "quantization"],
   );
 

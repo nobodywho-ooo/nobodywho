@@ -13,7 +13,7 @@ export type SpeechToTextOptions = {
  *
  * @example
  * ```typescript
- * const stt = new SpeechToText({
+ * const stt = await SpeechToText.load({
  *   source: "hf://onnx-community/whisper-base",
  *   language: "en",
  * });
@@ -30,15 +30,23 @@ export class SpeechToText {
   /** @internal */
   private readonly _inner: RustSpeechToTextInterface;
 
+  /** @internal */
+  private constructor(inner: RustSpeechToTextInterface) {
+    this._inner = inner;
+  }
+
   /**
+   * Load a Whisper SpeechToText model.
+   *
    * @param opts - See {@link SpeechToTextOptions}.
    */
-  constructor(opts: SpeechToTextOptions) {
-    this._inner = new nobodywho.RustSpeechToText(
+  static async load(opts: SpeechToTextOptions): Promise<SpeechToText> {
+    const inner = await nobodywho.loadSpeechToText(
       opts.source,
       opts.language,
       opts.quantization,
     );
+    return new SpeechToText(inner);
   }
 
   /**

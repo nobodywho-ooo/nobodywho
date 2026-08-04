@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import uniffi.nobodywho.RustSpeechToText as InternalSpeechToText
 import uniffi.nobodywho.RustSpeechToTextStream as InternalSpeechToTextStream
+import uniffi.nobodywho.loadSpeechToText
 
 /**
  * A stream of transcript tokens from a Whisper SpeechToText run.
@@ -44,20 +45,31 @@ class SpeechToTextStream internal constructor(
  * Speech-to-text handle that transcribes audio using Whisper models in ONNX format.
  *
  * ```kotlin
- * val stt = SpeechToText(source = "hf://onnx-community/whisper-base")
+ * val stt = SpeechToText.load(source = "hf://onnx-community/whisper-base")
  * val text = stt.transcribeFile("recording.mp3").completed()
  * ```
  */
-class SpeechToText(
-    source: String,
-    language: String? = null,
-    quantization: String? = null
+class SpeechToText internal constructor(
+    private val inner: InternalSpeechToText
 ) : Closeable {
-    private val inner: InternalSpeechToText = InternalSpeechToText(
-        source = source,
-        language = language,
-        quantization = quantization
-    )
+    companion object {
+        /**
+         * Load a Whisper SpeechToText model.
+         *
+         * @param source HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+         * @param language ISO 639-1 code (e.g. `"en"`); pass `null` to auto-detect.
+         * @param quantization ONNX precision variant to download and load: one of
+         *   `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+         *   pass `null` to use `"default"`.
+         */
+        suspend fun load(
+            source: String,
+            language: String? = null,
+            quantization: String? = null
+        ): SpeechToText {
+            return SpeechToText(loadSpeechToText(source = source, language = language, quantization = quantization))
+        }
+    }
 
     /**
      * Start transcribing an audio file (WAV / MP3 / FLAC).

@@ -358,11 +358,11 @@ abstract class RustSpeechToText implements RustOpaqueInterface {
   /// `quantization` — ONNX precision variant to download and load: one of
   /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
   /// to use `"default"`.
-  static RustSpeechToText new_({
+  static Future<RustSpeechToText> load({
     required String source,
     String? language = null,
     String? quantization = null,
-  }) => NobodyWho.instance.api.crateRustSpeechToTextNew(
+  }) => NobodyWho.instance.api.crateRustSpeechToTextLoad(
     source: source,
     language: language,
     quantization: quantization,

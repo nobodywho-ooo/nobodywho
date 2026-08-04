@@ -50,7 +50,7 @@ public struct SpeechToTextStream: AsyncSequence {
 /// downloaded and cached on first use.
 ///
 /// ```swift
-/// let stt = try SpeechToText(source: "hf://onnx-community/whisper-base")
+/// let stt = try await SpeechToText.load(source: "hf://onnx-community/whisper-base")
 /// let text = try await stt.transcribeFile(path: "recording.mp3").completed()
 ///
 /// // Stream tokens as they arrive:
@@ -61,14 +61,21 @@ public struct SpeechToTextStream: AsyncSequence {
 public class SpeechToText {
     private let inner: RustSpeechToText
 
+    private init(inner: RustSpeechToText) {
+        self.inner = inner
+    }
+
+    /// Load a Whisper SpeechToText model.
+    ///
     /// - Parameters:
     ///   - source: HuggingFace repo ID or local directory path.
     ///   - language: ISO 639-1 language code (e.g. `"en"`). Pass `nil` to auto-detect.
     ///   - quantization: ONNX precision variant to download and load: one of
     ///     `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`.
     ///     Pass `nil` to use `"default"`.
-    public init(source: String, language: String? = nil, quantization: String? = nil) throws {
-        self.inner = try RustSpeechToText(source: source, language: language, quantization: quantization)
+    public static func load(source: String, language: String? = nil, quantization: String? = nil) async throws -> SpeechToText {
+        let inner = try await NobodyWhoGenerated.loadSpeechToText(source: source, language: language, quantization: quantization)
+        return SpeechToText(inner: inner)
     }
 
     /// Transcribe an audio file (WAV / MP3). Returns an `SpeechToTextStream`.
