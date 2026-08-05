@@ -8,6 +8,7 @@ mod convert;
 mod model;
 mod sampler;
 mod task;
+mod tools;
 
 // --- Logging -----------------------------------------------------------------
 

@@ -87,7 +87,11 @@ pub fn variant_to_json(value: &Variant) -> Result<serde_json::Value, String> {
         }
         VariantType::STRING => Ok(serde_json::Value::String(value.to::<GString>().to_string())),
         VariantType::ARRAY => {
-            let arr = value.to::<VarArray>();
+            // AnyArray, not VarArray: gdext 0.5 refuses to convert *typed*
+            // arrays (e.g. GDScript's `Array[String]`) into `Array<Variant>`
+            // ("expected array of type Untyped, got ..."). AnyArray is the
+            // type-erased view that accepts both.
+            let arr = value.to::<godot::builtin::AnyArray>();
             let mut out = Vec::with_capacity(arr.len());
             for v in arr.iter_shared() {
                 out.push(variant_to_json(&v)?);
