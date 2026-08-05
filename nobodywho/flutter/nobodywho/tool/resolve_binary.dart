@@ -8,15 +8,9 @@
 
 import 'dart:io';
 
-// onnxruntime is only ever a genuinely separate shared library on Android
-// x86_64 - Microsoft's official onnxruntime-android prebuild has no static
-// archive for that ABI, so `ort` links it dynamically there (see
-// `[target.'cfg(target_os = "android")'.dependencies]` in core/Cargo.toml
-// and the x86_64 branch of the cargo-build-android job in
-// .github/workflows/build.yml). On arm64-v8a, onnxruntime is statically
-// linked directly into libnobodywho_flutter.so, so no separate file exists.
-//
-// Keep this in sync with ORT_VERSION in .github/workflows/build.yml.
+// onnxruntime is a separate .so only on Android x86_64 (Microsoft ships no
+// static build for it there); arm64 links it statically into the main lib.
+// Keep onnxRuntimeVersion in sync with ORT_VERSION in .github/workflows/build.yml.
 const onnxRuntimeVersion = '1.24.2';
 const onnxRuntimeArches = {
   'android': ['x86_64'],
@@ -187,11 +181,8 @@ Future<String> resolveOnnxRuntime(Config config) async {
     return cachedFile.absolute.path;
   }
 
-  // Strategy 2: download Microsoft's official prebuilt AAR from Maven Central
-  // and extract just the .so for this ABI. This is the same artifact CI uses
-  // to link `nobodywho-flutter` for x86_64 Android (see build.yml), fetched
-  // independently of our own release process since it's versioned by the
-  // upstream ONNX Runtime release, not by the nobodywho package version.
+  // Strategy 2: download Microsoft's prebuilt AAR from Maven Central and
+  // extract the .so - same artifact CI uses to link x86_64 (see build.yml).
   final url = 'https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/'
       '$onnxRuntimeVersion/onnxruntime-android-$onnxRuntimeVersion.aar';
   stderr.writeln('Downloading onnxruntime AAR: $url');

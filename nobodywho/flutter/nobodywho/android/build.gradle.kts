@@ -111,25 +111,9 @@ val resolveNativeLibraries by tasks.registering {
             return stdout.toString().trim()
         }
 
-        targetAbis.forEach { abi ->
-            val abiOutputDir = jniLibsDir.get().dir(abi).asFile
-            abiOutputDir.mkdirs()
-
-            // Copy the resolved library to jniLibs
-            val resolvedLibPath = resolveLibrary(abi, "main")
-            logger.lifecycle("[$abi] Resolved library: $resolvedLibPath")
-            copy {
-                from(resolvedLibPath)
-                into(abiOutputDir)
-                rename { "libnobodywho_flutter.so" }
-            }
-
-            // Copy libc++_shared.so from the NDK. libnobodywho_flutter.so links
-            // against it dynamically (llama-cpp-2's "android-static-stdcxx"
-            // feature does not fully statically embed libc++ - confirmed via
-            // `objdump -p` showing a NEEDED libc++_shared.so entry), so it must
-            // ship alongside the plugin's own library or the app fails to load
-            // it at runtime with a dlopen UnsatisfiedLinkError.
+        // libnobodywho_flutter.so dynamically needs libc++_shared.so at runtime
+        // (android-static-stdcxx doesn't fully embed it - confirmed via `objdump -p`).
+        fun copyLibcxxShared(abi: String, abiOutputDir: File) {
             val ndkDir = android.ndkDirectory
             val ndkTriple = abiToNdkTriple[abi]
                 ?: throw GradleException("Unknown ABI: $abi")
@@ -151,14 +135,25 @@ val resolveNativeLibraries by tasks.registering {
             } else {
                 throw GradleException("libc++_shared.so not found at: ${libcxxShared.absolutePath}")
             }
+        }
 
-            // x86_64 links against onnxruntime as a genuinely separate shared
-            // library (Microsoft's official onnxruntime-android prebuild has
-            // no static archive for x86_64, so `ort` links it dynamically
-            // there). arm64-v8a statically embeds onnxruntime directly into
-            // libnobodywho_flutter.so (confirmed via `objdump -p`: no
-            // NEEDED libonnxruntime.so, and no separate .so produced by the
-            // Rust build), so no separate file is needed for that ABI.
+        targetAbis.forEach { abi ->
+            val abiOutputDir = jniLibsDir.get().dir(abi).asFile
+            abiOutputDir.mkdirs()
+
+            // Copy the resolved library to jniLibs
+            val resolvedLibPath = resolveLibrary(abi, "main")
+            logger.lifecycle("[$abi] Resolved library: $resolvedLibPath")
+            copy {
+                from(resolvedLibPath)
+                into(abiOutputDir)
+                rename { "libnobodywho_flutter.so" }
+            }
+
+            copyLibcxxShared(abi, abiOutputDir)
+
+            // Only x86_64 needs onnxruntime as a separate .so (Microsoft ships
+            // no static build for it); arm64 statically embeds it (see objdump -p).
             if (abi == "x86_64") {
                 val resolvedOrtPath = resolveLibrary(abi, "onnxruntime")
                 logger.lifecycle("[$abi] Resolved onnxruntime library: $resolvedOrtPath")
