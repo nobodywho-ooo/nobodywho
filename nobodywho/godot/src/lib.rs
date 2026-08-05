@@ -47,9 +47,9 @@ fn resolve_godot_path(path: &GString) -> String {
     }
 }
 
-fn parse_tts_architecture(
+fn parse_text_to_speech_architecture(
     architecture: String,
-) -> Result<Option<nobodywho::tts::TtsArchitecture>, GString> {
+) -> Result<Option<nobodywho::text_to_speech::TextToSpeechArchitecture>, GString> {
     if architecture.is_empty() {
         return Ok(None);
     }
@@ -60,18 +60,20 @@ fn parse_tts_architecture(
     })
 }
 
-fn parse_tts_device(device: String) -> Result<nobodywho::tts::TtsDevice, GString> {
+fn parse_text_to_speech_device(
+    device: String,
+) -> Result<nobodywho::text_to_speech::TextToSpeechDevice, GString> {
     match device.to_ascii_lowercase().as_str() {
-        "" | "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
-        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
-        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        "" | "auto" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Auto),
+        "cpu" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cpu),
+        "cuda" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cuda),
         _ => Err(GString::from(
             "device must be one of 'auto', 'cpu', or 'cuda'",
         )),
     }
 }
 
-fn build_tts_config(
+fn build_text_to_speech_config(
     source: String,
     architecture: String,
     voice: String,
@@ -82,16 +84,16 @@ fn build_tts_config(
     precision: String,
     temperature: f32,
     huggingface_token: String,
-) -> Result<nobodywho::tts::TtsConfig, GString> {
-    let architecture = parse_tts_architecture(architecture)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
+) -> Result<nobodywho::text_to_speech::TextToSpeechConfig, GString> {
+    let architecture = parse_text_to_speech_architecture(architecture)?;
+    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(&source, architecture).ok_or_else(|| {
         GString::from(
-            "architecture is required for unknown TTS sources; set architecture to 'kokoro', 'pocket-tts', or 'supertonic'",
+            "architecture is required for unknown TextToSpeech sources; set architecture to 'kokoro', 'pocket-tts', or 'supertonic'",
         )
     })?;
 
     match &mut config {
-        nobodywho::tts::TtsConfig::Kokoro(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Kokoro(config) => {
             if !voice.is_empty() {
                 config.voice = voice;
             }
@@ -102,7 +104,7 @@ fn build_tts_config(
                 config.speed = speed;
             }
         }
-        nobodywho::tts::TtsConfig::PocketTts(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::PocketTts(config) => {
             if !voice.is_empty() {
                 config.voice = voice;
             }
@@ -114,8 +116,8 @@ fn build_tts_config(
             }
             if !precision.is_empty() {
                 config.precision = match precision.to_ascii_lowercase().as_str() {
-                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
-                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    "int8" => nobodywho::text_to_speech::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::text_to_speech::PocketTtsPrecision::Fp32,
                     _ => {
                         return Err(GString::from(
                             "precision must be 'int8' or 'fp32' for Pocket TTS",
@@ -130,7 +132,7 @@ fn build_tts_config(
                 config.huggingface_token = Some(huggingface_token);
             }
         }
-        nobodywho::tts::TtsConfig::Supertonic(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Supertonic(config) => {
             if !voice.is_empty() {
                 config.voice = voice;
             }
@@ -1983,7 +1985,7 @@ async fn wait_for_chat_signal_connect(
 }
 
 async fn wait_for_tts_signal_connect(
-    node: &Gd<NobodyWhoTts>,
+    node: &Gd<NobodyWhoTextToSpeech>,
     signal_name: &str,
 ) -> Result<(), String> {
     let signal = Signal::from_object_signal(node, signal_name);
@@ -2021,7 +2023,11 @@ fn tts_error_result(error: &GString) -> Variant {
     Variant::from(dict)
 }
 
-async fn emit_tts_result_signal(node: &mut Gd<NobodyWhoTts>, signal_name: &str, result: Variant) {
+async fn emit_tts_result_signal(
+    node: &mut Gd<NobodyWhoTextToSpeech>,
+    signal_name: &str,
+    result: Variant,
+) {
     match wait_for_tts_signal_connect(node, signal_name).await {
         Ok(()) => (),
         Err(e) => {
@@ -2150,12 +2156,12 @@ fn json_schema_from_callable(
 
 #[derive(GodotClass)]
 #[class(base=Node)]
-/// The TTS node synthesizes text into WAV bytes.
+/// The TextToSpeech node synthesizes text into WAV bytes.
 ///
 /// `source` accepts a local model directory, a Godot path (`res://` or `user://`),
 /// or a HuggingFace repo such as `hf://hexgrad/Kokoro-82M`, `hf://KevinAHM/pocket-tts-onnx`, or `hf://Supertone/supertonic-3`.
 /// Leave `architecture` empty for recognizable sources, or set it to `kokoro`, `pocket-tts`, or `supertonic`.
-struct NobodyWhoTts {
+struct NobodyWhoTextToSpeech {
     #[export]
     /// Local model directory, Godot path, or HuggingFace repo (`hf://owner/repo`).
     source: GString,
@@ -2197,17 +2203,17 @@ struct NobodyWhoTts {
     huggingface_token: GString,
 
     #[export]
-    /// TTS device: auto, cpu, or cuda.
+    /// TextToSpeech device: auto, cpu, or cuda.
     device: GString,
 
-    tts_handle: Option<nobodywho::tts::Tts>,
+    tts_handle: Option<nobodywho::text_to_speech::TextToSpeech>,
     load_lock: Arc<tokio::sync::Mutex<()>>,
     signal_counter: AtomicU64,
     base: Base<Node>,
 }
 
 #[godot_api]
-impl INode for NobodyWhoTts {
+impl INode for NobodyWhoTextToSpeech {
     fn init(base: Base<Node>) -> Self {
         Self {
             source: GString::from("hf://Supertone/supertonic-3"),
@@ -2230,20 +2236,22 @@ impl INode for NobodyWhoTts {
 }
 
 #[godot_api]
-impl NobodyWhoTts {
+impl NobodyWhoTextToSpeech {
     #[signal]
     /// Emitted with WAV bytes when synthesis finishes.
     fn synthesis_finished(wav: PackedByteArray);
 
     #[signal]
-    /// Emitted once the TTS worker has finished loading and is ready.
+    /// Emitted once the TextToSpeech worker has finished loading and is ready.
     fn worker_started();
 
     #[signal]
     /// Emitted if loading or synthesis failed.
     fn worker_failed(error: GString);
 
-    async fn load_and_store_worker(mut me: Gd<Self>) -> Result<nobodywho::tts::Tts, GString> {
+    async fn load_and_store_worker(
+        mut me: Gd<Self>,
+    ) -> Result<nobodywho::text_to_speech::TextToSpeech, GString> {
         tokio::task::yield_now().await;
 
         if let Some(existing) = me.bind().tts_handle.as_ref() {
@@ -2259,7 +2267,7 @@ impl NobodyWhoTts {
 
         let (config, device) = {
             let b = me.bind();
-            let config = build_tts_config(
+            let config = build_text_to_speech_config(
                 resolve_godot_path(&b.source),
                 b.architecture.to_string(),
                 b.voice.to_string(),
@@ -2271,15 +2279,16 @@ impl NobodyWhoTts {
                 b.temperature,
                 b.huggingface_token.to_string(),
             )?;
-            let device = parse_tts_device(b.device.to_string())?;
+            let device = parse_text_to_speech_device(b.device.to_string())?;
             (config, device)
         };
 
-        let handle =
-            tokio::task::spawn_blocking(move || nobodywho::tts::Tts::with_device(config, device))
-                .await
-                .map_err(|e| GString::from(format!("TTS load task failed: {e}").as_str()))?
-                .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
+        let handle = tokio::task::spawn_blocking(move || {
+            nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
+        })
+        .await
+        .map_err(|e| GString::from(format!("TextToSpeech load task failed: {e}").as_str()))?
+        .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         let mut b = me.bind_mut();
         if let Some(existing) = &b.tts_handle {
@@ -2291,7 +2300,7 @@ impl NobodyWhoTts {
     }
 
     #[func]
-    /// Starts the TTS worker asynchronously. Connect to `worker_started` or
+    /// Starts the TextToSpeech worker asynchronously. Connect to `worker_started` or
     /// `worker_failed(error)` to observe readiness.
     fn start_worker(&mut self) {
         if self.tts_handle.is_some() {
@@ -2305,7 +2314,7 @@ impl NobodyWhoTts {
             match Self::load_and_store_worker(me).await {
                 Ok(_) => me_emit.signals().worker_started().emit(),
                 Err(e) => {
-                    godot_error!("Error starting TTS worker: {}", e);
+                    godot_error!("Error starting TextToSpeech worker: {}", e);
                     me_emit.signals().worker_failed().emit(&e);
                 }
             }
@@ -3016,10 +3025,10 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
 }
 
 // ---------------------------------------------------------------------------
-// NobodyWhoSTT
+// NobodyWhoSpeechToText
 // ---------------------------------------------------------------------------
 
-/// NobodyWhoSTT is a Godot node for local speech-to-text using Whisper.
+/// NobodyWhoSpeechToText is a Godot node for local speech-to-text using Whisper.
 ///
 /// Set `model_path` to a HuggingFace repo (`hf://owner/repo`, e.g.
 /// `"hf://onnx-community/whisper-base"`) or a local directory path, then call
@@ -3029,7 +3038,7 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
 ///
 /// Example::
 ///
-///     extends NobodyWhoSTT
+///     extends NobodyWhoSpeechToText
 ///
 ///     func _ready():
 ///         model_path = "hf://onnx-community/whisper-base"
@@ -3039,7 +3048,7 @@ fn dictionaries_to_messages(dicts: Array<Variant>) -> Result<Vec<Message>, Strin
 ///
 #[derive(GodotClass)]
 #[class(base=Node)]
-struct NobodyWhoSTT {
+struct NobodyWhoSpeechToText {
     #[export]
     /// HuggingFace repo ID or local directory path for the Whisper ONNX model.
     model_path: GString,
@@ -3054,12 +3063,12 @@ struct NobodyWhoSTT {
     /// the default ("q4", falling back to "default"/fp32 if unavailable).
     quantization: GString,
 
-    stt: Option<nobodywho::stt::Stt>,
+    stt: Option<nobodywho::speech_to_text::SpeechToText>,
     base: Base<Node>,
 }
 
 #[godot_api]
-impl INode for NobodyWhoSTT {
+impl INode for NobodyWhoSpeechToText {
     fn init(base: Base<Node>) -> Self {
         Self {
             model_path: GString::from(""),
@@ -3072,7 +3081,7 @@ impl INode for NobodyWhoSTT {
 }
 
 #[godot_api]
-impl NobodyWhoSTT {
+impl NobodyWhoSpeechToText {
     #[signal]
     /// Emitted for each decoded token piece as transcription progresses.
     fn transcription_updated(piece: GString);
@@ -3125,13 +3134,13 @@ impl NobodyWhoSTT {
             // and works with any async executor.
             let (tx, rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+                let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(&source);
                 cfg.language = language;
                 if !quantization.is_empty() {
                     cfg.quantization = quantization;
                 }
-                let _ = tx.send(nobodywho::stt::Stt::new(
-                    nobodywho::stt::SttConfig::Whisper(cfg),
+                let _ = tx.send(nobodywho::speech_to_text::SpeechToText::new(
+                    nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
                 ));
             });
 
@@ -3142,11 +3151,12 @@ impl NobodyWhoSTT {
                 }
                 Ok(Err(e)) => {
                     let msg = GString::from(e.to_string().as_str());
-                    godot_error!("Failed to start STT worker: {}", msg);
+                    godot_error!("Failed to start SpeechToText worker: {}", msg);
                     me.signals().worker_failed().emit(&msg);
                 }
                 Err(_) => {
-                    let msg = GString::from("STT worker thread panicked during model load");
+                    let msg =
+                        GString::from("SpeechToText worker thread panicked during model load");
                     godot_error!("{}", msg);
                     me.signals().worker_failed().emit(&msg);
                 }
@@ -3156,7 +3166,7 @@ impl NobodyWhoSTT {
 
     fn spawn_transcription(
         emit_node: Gd<Self>,
-        stt: nobodywho::stt::Stt,
+        stt: nobodywho::speech_to_text::SpeechToText,
         input: TranscriptionInput,
     ) {
         godot::task::spawn(async move {
@@ -3206,7 +3216,7 @@ impl NobodyWhoSTT {
     /// `worker_started` before calling this.
     fn transcribe_file(&mut self, path: String) {
         let Some(stt) = self.stt.clone() else {
-            let err = GString::from("STT worker not started. Call start_worker() first.");
+            let err = GString::from("SpeechToText worker not started. Call start_worker() first.");
             godot_error!("{}", err);
             self.signals().worker_failed().emit(&err);
             return;
@@ -3220,7 +3230,7 @@ impl NobodyWhoSTT {
     /// `sample_rate` is the capture rate in Hz (e.g. 44100).
     fn transcribe_pcm(&mut self, samples: PackedByteArray, sample_rate: u32) {
         let Some(stt) = self.stt.clone() else {
-            let err = GString::from("STT worker not started. Call start_worker() first.");
+            let err = GString::from("SpeechToText worker not started. Call start_worker() first.");
             godot_error!("{}", err);
             self.signals().worker_failed().emit(&err);
             return;

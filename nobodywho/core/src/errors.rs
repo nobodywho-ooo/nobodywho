@@ -611,10 +611,10 @@ pub enum HuggingFaceError {
     },
 }
 
-// TTS errors
+// TextToSpeech errors
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
-pub enum TtsError {
+pub enum TextToSpeechError {
     // ── Config / language ────────────────────────────────────────────
     #[error("Language {language:?} is not supported")]
     #[diagnostic(
@@ -754,7 +754,7 @@ pub enum TtsError {
     #[diagnostic(code(nobodywho::tts_empty_text))]
     EmptyText,
 
-    #[error("Missing TTS asset: {path}")]
+    #[error("Missing TextToSpeech asset: {path}")]
     #[diagnostic(code(nobodywho::tts_missing_asset))]
     MissingAsset { path: String },
 
@@ -766,16 +766,16 @@ pub enum TtsError {
     #[diagnostic(code(nobodywho::tts_pocket_missing_voice))]
     PocketMissingVoice { voice: String, available: String },
 
-    #[error("Invalid TTS asset {path}: {message}")]
+    #[error("Invalid TextToSpeech asset {path}: {message}")]
     #[diagnostic(code(nobodywho::tts_invalid_asset))]
     InvalidAsset { path: String, message: String },
 
-    #[error("Invalid TTS config: {message}")]
+    #[error("Invalid TextToSpeech config: {message}")]
     #[diagnostic(code(nobodywho::tts_invalid_config))]
     InvalidConfig { message: String },
 
     // ── Worker thread plumbing ───────────────────────────────────────
-    #[error("TTS worker thread is no longer running")]
+    #[error("TextToSpeech worker thread is no longer running")]
     #[diagnostic(code(nobodywho::tts_worker_dead))]
     WorkerDead,
 
@@ -799,11 +799,11 @@ pub enum TtsError {
     HuggingFace(#[from] HuggingFaceError),
 }
 
-// STT errors
+// SpeechToText errors
 
 #[derive(Debug, thiserror::Error)]
-pub enum SttError {
-    #[error("Error initializing STT: {0}")]
+pub enum SpeechToTextError {
+    #[error("Error initializing SpeechToText: {0}")]
     Init(String),
 
     #[error("Error during transcription: {0}")]
@@ -816,9 +816,9 @@ pub enum SttError {
     Audio(String),
 }
 
-impl From<HuggingFaceError> for SttError {
+impl From<HuggingFaceError> for SpeechToTextError {
     fn from(e: HuggingFaceError) -> Self {
-        SttError::Init(e.to_string())
+        SpeechToTextError::Init(e.to_string())
     }
 }
 

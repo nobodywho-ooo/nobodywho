@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_architecture`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
+// These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `dart_function_type_to_json_schema`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
@@ -350,37 +350,37 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<List<int?>> tokenizeWithPrompt({required List<PromptPart> parts});
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTT>>
-abstract class RustStt implements RustOpaqueInterface {
-  /// Create an STT handle.
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSpeechToText>>
+abstract class RustSpeechToText implements RustOpaqueInterface {
+  /// Create an SpeechToText handle.
   /// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
   /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
   /// `quantization` — ONNX precision variant to download and load: one of
   /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
   /// to use `"default"`.
-  static Future<RustStt> load({
+  static Future<RustSpeechToText> load({
     required String source,
     String? language = null,
     String? quantization = null,
-  }) => NobodyWho.instance.api.crateRustSttLoad(
+  }) => NobodyWho.instance.api.crateRustSpeechToTextLoad(
     source: source,
     language: language,
     quantization: quantization,
   );
 
   /// Transcribe an audio file (WAV / MP3).
-  RustSttStream transcribeFile({required String path});
+  RustSpeechToTextStream transcribeFile({required String path});
 
   /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
   /// `sample_rate` is the capture rate in Hz; resampled to 16 kHz internally.
-  RustSttStream transcribePcm({
+  RustSpeechToTextStream transcribePcm({
     required List<int> samples,
     required int sampleRate,
   });
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTTStream>>
-abstract class RustSttStream implements RustOpaqueInterface {
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSpeechToTextStream>>
+abstract class RustSpeechToTextStream implements RustOpaqueInterface {
   Future<String> completed();
 
   /// Stream all tokens into `sink`. Resolves when transcription is complete.
@@ -617,23 +617,9 @@ abstract class SamplerPresets implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
 abstract class SetterError implements RustOpaqueInterface {}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< TokenizeError>>
-abstract class TokenizeError implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
-abstract class ToolCall implements RustOpaqueInterface {
-  Value get arguments;
-
-  String get name;
-
-  set arguments(Value arguments);
-
-  set name(String name);
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tts>>
-abstract class Tts implements RustOpaqueInterface {
-  /// Create a TTS synthesizer.
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TextToSpeech>>
+abstract class TextToSpeech implements RustOpaqueInterface {
+  /// Create a TextToSpeech synthesizer.
   ///
   /// Args:
   ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
@@ -647,7 +633,7 @@ abstract class Tts implements RustOpaqueInterface {
   ///     temperature: Pocket TTS generation temperature.
   ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static Future<Tts> load({
+  static Future<TextToSpeech> load({
     required String source,
     String? architecture = null,
     String? voice = null,
@@ -659,7 +645,7 @@ abstract class Tts implements RustOpaqueInterface {
     double? temperature = null,
     String? huggingfaceToken = null,
     bool useGpu = true,
-  }) => NobodyWho.instance.api.crateTtsLoad(
+  }) => NobodyWho.instance.api.crateTextToSpeechLoad(
     source: source,
     architecture: architecture,
     voice: voice,
@@ -675,6 +661,20 @@ abstract class Tts implements RustOpaqueInterface {
 
   /// Synthesize text and return WAV bytes.
   Future<Uint8List> synthesize({required String text});
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< TokenizeError>>
+abstract class TokenizeError implements RustOpaqueInterface {}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
+abstract class ToolCall implements RustOpaqueInterface {
+  Value get arguments;
+
+  String get name;
+
+  set arguments(Value arguments);
+
+  set name(String name);
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>

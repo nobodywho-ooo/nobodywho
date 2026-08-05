@@ -1,6 +1,6 @@
-use crate::errors::TtsError;
-use crate::tts::architecture::TtsArchitectureImpl;
-use crate::tts::TtsDevice;
+use crate::errors::TextToSpeechError;
+use crate::text_to_speech::architecture::TextToSpeechArchitectureImpl;
+use crate::text_to_speech::TextToSpeechDevice;
 use ndarray::{Array, ArrayD, IxDyn};
 use ort::session::{Session, SessionInputValue, SessionOutputs};
 use ort::value::{DynTensor, DynValue, Tensor};
@@ -18,7 +18,7 @@ const DEFAULT_VOICE: &str = "alba";
 const DEFAULT_TEMPERATURE: f32 = 0.7;
 const DEFAULT_EOS_THRESHOLD: f32 = -4.0; // Speech ends if the logit is above this.
 
-pub(in crate::tts) struct PocketTtsBackend {
+pub(in crate::text_to_speech) struct PocketTtsBackend {
     tokenizer: SentencePieceProcessor,
     text_conditioner: Session,
     flow_lm_main: Session,
@@ -38,7 +38,10 @@ pub(in crate::tts) struct PocketTtsBackend {
 }
 
 impl PocketTtsBackend {
-    pub fn new(config: &PocketTtsConfig, device: TtsDevice) -> Result<Self, TtsError> {
+    pub fn new(
+        config: &PocketTtsConfig,
+        device: TextToSpeechDevice,
+    ) -> Result<Self, TextToSpeechError> {
         config.validate()?;
         let files = config.required_files();
         let model_dir = crate::huggingface::download_onnx(&config.source, &files, None)?;
@@ -46,7 +49,7 @@ impl PocketTtsBackend {
         let metadata: BundleMetadata = read_json(&bundle_dir.join("bundle.json"))?;
         let precision = config.precision.file_suffix();
         let tokenizer = SentencePieceProcessor::open(bundle_dir.join(&metadata.tokenizer_file))
-            .map_err(|error| TtsError::InvalidAsset {
+            .map_err(|error| TextToSpeechError::InvalidAsset {
                 path: bundle_dir
                     .join(&metadata.tokenizer_file)
                     .display()
@@ -54,7 +57,7 @@ impl PocketTtsBackend {
                 message: error.to_string(),
             })?;
         if !metadata.predefined_voices.contains(&config.voice) {
-            return Err(TtsError::PocketMissingVoice {
+            return Err(TextToSpeechError::PocketMissingVoice {
                 voice: config.voice.clone(),
                 available: metadata.predefined_voices.join(", "),
             });
@@ -63,7 +66,7 @@ impl PocketTtsBackend {
         let huggingface_token = crate::huggingface::resolve_token(
             config.huggingface_token.as_deref(),
         )
-        .map_err(|_| TtsError::InvalidConfig {
+        .map_err(|_| TextToSpeechError::InvalidConfig {
             message: "HF_TOKEN must be valid Unicode".into(),
         })?;
         let voice_path = download_voice_state(
@@ -105,7 +108,7 @@ impl PocketTtsBackend {
         })
     }
 
-    fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
+    fn synthesize(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         let chunks = self.chunk_text(text)?;
         let mut audio = Vec::new();
         for chunk in chunks {
@@ -116,7 +119,7 @@ impl PocketTtsBackend {
         Ok(audio)
     }
 
-    fn chunk_text(&self, text: &str) -> Result<Vec<String>, TtsError> {
+    fn chunk_text(&self, text: &str) -> Result<Vec<String>, TextToSpeechError> {
         let text = prepare_text(text)?;
         let words: Vec<&str> = text.split_whitespace().collect();
         let mut chunks = Vec::new();
@@ -130,7 +133,7 @@ impl PocketTtsBackend {
             let len = self
                 .tokenizer
                 .encode_to_ids(&candidate)
-                .map_err(|error| TtsError::InvalidConfig {
+                .map_err(|error| TextToSpeechError::InvalidConfig {
                     message: format!("Pocket TTS tokenization failed: {error}"),
                 })?
                 .len();
@@ -147,18 +150,20 @@ impl PocketTtsBackend {
         Ok(chunks)
     }
 
-    fn tokenize(&self, text: &str) -> Result<DynTensor, TtsError> {
-        let token_ids =
-            self.tokenizer
-                .encode_to_ids(text)
-                .map_err(|error| TtsError::InvalidConfig {
-                    message: format!("Pocket TTS tokenization failed: {error}"),
-                })?;
+    fn tokenize(&self, text: &str) -> Result<DynTensor, TextToSpeechError> {
+        let token_ids = self.tokenizer.encode_to_ids(text).map_err(|error| {
+            TextToSpeechError::InvalidConfig {
+                message: format!("Pocket TTS tokenization failed: {error}"),
+            }
+        })?;
         let token_ids: Vec<i64> = token_ids.into_iter().map(|id| id as i64).collect();
         Ok(Tensor::from_array(Array::from_shape_vec((1, token_ids.len()), token_ids)?)?.upcast())
     }
 
-    fn generate_latents(&mut self, token_ids: DynTensor) -> Result<Vec<DynTensor>, TtsError> {
+    fn generate_latents(
+        &mut self,
+        token_ids: DynTensor,
+    ) -> Result<Vec<DynTensor>, TextToSpeechError> {
         let token_count = token_ids.shape().iter().product::<i64>();
         let text_embeddings = {
             let outputs = self
@@ -187,7 +192,7 @@ impl PocketTtsBackend {
             let mut noise = vec![0.0; self.latent_dim];
             if self.temperature > 0.0 {
                 let distribution = Normal::new(0.0, self.temperature.sqrt()).map_err(|error| {
-                    TtsError::InvalidConfig {
+                    TextToSpeechError::InvalidConfig {
                         message: error.to_string(),
                     }
                 })?;
@@ -221,7 +226,7 @@ impl PocketTtsBackend {
         sequence: &DynTensor,
         text_embeddings: &DynTensor,
         state: &mut State,
-    ) -> Result<(DynTensor, f32), TtsError> {
+    ) -> Result<(DynTensor, f32), TextToSpeechError> {
         let mut inputs = ort::inputs! {
             "sequence" => sequence,
             "text_embeddings" => text_embeddings,
@@ -234,7 +239,7 @@ impl PocketTtsBackend {
         Ok((conditioning, eos))
     }
 
-    fn decode_latents(&mut self, latents: Vec<DynTensor>) -> Result<Vec<f32>, TtsError> {
+    fn decode_latents(&mut self, latents: Vec<DynTensor>) -> Result<Vec<f32>, TextToSpeechError> {
         let mut state = <State as StateExt>::new(&self.mimi_state_manifest)?;
         let mut audio = Vec::new();
         for chunk in latents.chunks(12) {
@@ -257,8 +262,8 @@ impl PocketTtsBackend {
     }
 }
 
-impl TtsArchitectureImpl for PocketTtsBackend {
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError> {
+impl TextToSpeechArchitectureImpl for PocketTtsBackend {
+    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
         self.synthesize(text)
     }
 
@@ -292,14 +297,14 @@ impl PocketTtsConfig {
         }
     }
 
-    fn validate(&self) -> Result<(), TtsError> {
+    fn validate(&self) -> Result<(), TextToSpeechError> {
         if !self.temperature.is_finite() || self.temperature < 0.0 {
-            return Err(TtsError::InvalidConfig {
+            return Err(TextToSpeechError::InvalidConfig {
                 message: "Pocket TTS temperature must be finite and non-negative".into(),
             });
         }
         if self.lsd_steps == 0 {
-            return Err(TtsError::InvalidConfig {
+            return Err(TextToSpeechError::InvalidConfig {
                 message: "Pocket TTS lsd_steps must be greater than 0".into(),
             });
         }
@@ -373,34 +378,37 @@ enum StateValue {
 type State = HashMap<String, StateValue>;
 
 trait StateExt {
-    fn new(manifest: &[StateEntry]) -> Result<Self, TtsError>
+    fn new(manifest: &[StateEntry]) -> Result<Self, TextToSpeechError>
     where
         Self: Sized;
-    fn from_safetensors(path: &Path, manifest: &[StateEntry]) -> Result<Self, TtsError>
+    fn from_safetensors(path: &Path, manifest: &[StateEntry]) -> Result<Self, TextToSpeechError>
     where
         Self: Sized;
-    fn inputs(&self) -> Result<Vec<(Cow<'static, str>, SessionInputValue<'static>)>, TtsError>;
+    fn inputs(
+        &self,
+    ) -> Result<Vec<(Cow<'static, str>, SessionInputValue<'static>)>, TextToSpeechError>;
     fn update(
         &mut self,
         outputs: &SessionOutputs<'_>,
         manifest: &[StateEntry],
-    ) -> Result<(), TtsError>;
+    ) -> Result<(), TextToSpeechError>;
 }
 
 impl StateExt for State {
-    fn new(manifest: &[StateEntry]) -> Result<Self, TtsError> {
+    fn new(manifest: &[StateEntry]) -> Result<Self, TextToSpeechError> {
         Ok(manifest
             .iter()
             .map(|entry| (entry.input_name.clone(), StateValue::filled(entry)))
             .collect())
     }
 
-    fn from_safetensors(path: &Path, manifest: &[StateEntry]) -> Result<Self, TtsError> {
+    fn from_safetensors(path: &Path, manifest: &[StateEntry]) -> Result<Self, TextToSpeechError> {
         let bytes = std::fs::read(path)?;
-        let tensors = SafeTensors::deserialize(&bytes).map_err(|error| TtsError::InvalidAsset {
-            path: path.display().to_string(),
-            message: error.to_string(),
-        })?;
+        let tensors =
+            SafeTensors::deserialize(&bytes).map_err(|error| TextToSpeechError::InvalidAsset {
+                path: path.display().to_string(),
+                message: error.to_string(),
+            })?;
         let mut state = <State as StateExt>::new(manifest)?;
         for entry in manifest {
             let name = format!("{}/{}", entry.module, entry.key);
@@ -422,7 +430,9 @@ impl StateExt for State {
         Ok(state)
     }
 
-    fn inputs(&self) -> Result<Vec<(Cow<'static, str>, SessionInputValue<'static>)>, TtsError> {
+    fn inputs(
+        &self,
+    ) -> Result<Vec<(Cow<'static, str>, SessionInputValue<'static>)>, TextToSpeechError> {
         self.iter()
             .map(|(name, value)| {
                 Ok((
@@ -437,7 +447,7 @@ impl StateExt for State {
         &mut self,
         outputs: &SessionOutputs<'_>,
         manifest: &[StateEntry],
-    ) -> Result<(), TtsError> {
+    ) -> Result<(), TextToSpeechError> {
         for entry in manifest {
             let output = &outputs[entry.output_name.as_str()];
             self.insert(
@@ -466,7 +476,7 @@ impl StateValue {
     fn from_tensor(
         tensor: &safetensors::tensor::TensorView<'_>,
         entry: &StateEntry,
-    ) -> Result<Self, TtsError> {
+    ) -> Result<Self, TextToSpeechError> {
         let mut value = Self::filled(entry);
         match (&mut value, tensor.dtype()) {
             (Self::Float(data, shape), Dtype::F32) => {
@@ -476,7 +486,7 @@ impl StateValue {
                 copy_bytes_i64(data, shape, tensor.data(), tensor.shape())
             }
             _ => {
-                return Err(TtsError::InvalidAsset {
+                return Err(TextToSpeechError::InvalidAsset {
                     path: format!("Pocket TTS voice state: {}/{}", entry.module, entry.key),
                     message: format!("expected {}, found {:?}", entry.dtype, tensor.dtype()),
                 });
@@ -485,7 +495,7 @@ impl StateValue {
         Ok(value)
     }
 
-    fn from_output(tensor: &DynValue, entry: &StateEntry) -> Result<Self, TtsError> {
+    fn from_output(tensor: &DynValue, entry: &StateEntry) -> Result<Self, TextToSpeechError> {
         match entry.dtype.as_str() {
             "float32" => {
                 let (shape, data) = tensor.try_extract_tensor::<f32>()?;
@@ -508,14 +518,14 @@ impl StateValue {
                     shape.iter().map(|&value| value as usize).collect(),
                 ))
             }
-            _ => Err(TtsError::InvalidAsset {
+            _ => Err(TextToSpeechError::InvalidAsset {
                 path: "Pocket TTS state".into(),
                 message: format!("unsupported dtype {}", entry.dtype),
             }),
         }
     }
 
-    fn tensor(&self) -> Result<DynTensor, TtsError> {
+    fn tensor(&self) -> Result<DynTensor, TextToSpeechError> {
         match self {
             Self::Float(data, shape) => Ok(Tensor::from_array(ArrayD::from_shape_vec(
                 IxDyn(shape),
@@ -540,7 +550,7 @@ fn download_voice_state(
     language: &str,
     voice: &str,
     token: Option<&str>,
-) -> Result<PathBuf, TtsError> {
+) -> Result<PathBuf, TextToSpeechError> {
     let filename = format!("languages/{language}/embeddings/{voice}.safetensors");
     let directory = crate::huggingface::download_onnx(
         VOICE_REPOSITORY,
@@ -550,11 +560,11 @@ fn download_voice_state(
     Ok(directory.join(filename))
 }
 
-fn tensor_f32(shape: &[usize], value: f32) -> Result<DynTensor, TtsError> {
+fn tensor_f32(shape: &[usize], value: f32) -> Result<DynTensor, TextToSpeechError> {
     Ok(Tensor::from_array(ArrayD::from_elem(IxDyn(shape), value))?.upcast())
 }
 
-fn tensor_from_output_f32(value: &DynValue) -> Result<DynTensor, TtsError> {
+fn tensor_from_output_f32(value: &DynValue) -> Result<DynTensor, TextToSpeechError> {
     let (shape, data) = value.try_extract_tensor::<f32>()?;
     Ok(Tensor::from_array(ArrayD::from_shape_vec(
         IxDyn(
@@ -568,10 +578,10 @@ fn tensor_from_output_f32(value: &DynValue) -> Result<DynTensor, TtsError> {
     .upcast())
 }
 
-fn prepare_text(text: &str) -> Result<String, TtsError> {
+fn prepare_text(text: &str) -> Result<String, TextToSpeechError> {
     let mut text = text.trim().replace(['\n', '\r'], " ");
     if text.is_empty() {
-        return Err(TtsError::EmptyText);
+        return Err(TextToSpeechError::EmptyText);
     }
     while text.contains("  ") {
         text = text.replace("  ", " ");
@@ -585,7 +595,7 @@ fn prepare_text(text: &str) -> Result<String, TtsError> {
     Ok(text)
 }
 
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, TtsError> {
+fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, TextToSpeechError> {
     Ok(serde_json::from_reader(std::fs::File::open(path)?)?)
 }
 

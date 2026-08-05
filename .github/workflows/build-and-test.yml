@@ -85,7 +85,7 @@ jobs:
 
   test:
     # Always invoked so the flutter doctest-drift check runs on every event.
-    # The heavy jobs inside (nix flake check, flutter multimodal/STT) gate
+    # The heavy jobs inside (nix flake check, flutter multimodal/SpeechToText) gate
     # themselves on run_rust_core / run_flutter.
     needs: plan
     uses: ./.github/workflows/test.yml

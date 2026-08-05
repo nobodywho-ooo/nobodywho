@@ -1,6 +1,6 @@
 extends Node
 
-# Smoke test for NobodyWhoSTT.
+# Smoke test for NobodyWhoSpeechToText.
 # Uses hf://onnx-community/whisper-base from HuggingFace (downloaded and cached on first run).
 # The test audio says "Hey Ron. Hey Billy."
 #
@@ -17,7 +17,7 @@ func run_test() -> bool:
 
 	var audio_path := ProjectSettings.globalize_path(AUDIO_PATH)
 
-	var stt := NobodyWhoSTT.new()
+	var stt := NobodyWhoSpeechToText.new()
 	stt.model_path = WHISPER_MODEL
 	# Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
 	# "Billy" as "Bailey", while fp32 gets it right.

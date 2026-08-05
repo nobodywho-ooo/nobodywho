@@ -1,5 +1,5 @@
 """
-Smoke test for the STT (Whisper) binding.
+Smoke test for the SpeechToText (Whisper) binding.
 
 Requires the Whisper ONNX model — set TEST_WHISPER_MODEL to a HuggingFace repo
 (`hf://owner/repo`) or local directory path.  Defaults to
@@ -34,7 +34,7 @@ AUDIO_WAV = os.environ.get(
 
 @pytest.fixture(scope="module")
 def stt():
-    return nobodywho.STT(MODEL, quantization="default")
+    return nobodywho.SpeechToText(MODEL, quantization="default")
 
 
 def _read_wav_mono_i16(path):

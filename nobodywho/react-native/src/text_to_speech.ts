@@ -1,15 +1,15 @@
 import {
-  RustTts,
-  loadTts,
-  type RustTtsInterface,
+  RustTextToSpeech,
+  loadTextToSpeech,
+  type RustTextToSpeechInterface,
 } from "../generated/ts/nobodywho";
 
-export type TtsArchitecture = "kokoro" | "pocket-tts" | "supertonic";
-export type TtsDevice = "auto" | "cpu" | "cuda";
+export type TextToSpeechArchitecture = "kokoro" | "pocket-tts" | "supertonic";
+export type TextToSpeechDevice = "auto" | "cpu" | "cuda";
 
-export type TtsOptions = {
+export type TextToSpeechOptions = {
   source: string;
-  architecture?: TtsArchitecture;
+  architecture?: TextToSpeechArchitecture;
   voice?: string;
   language?: string;
   speed?: number;
@@ -18,17 +18,17 @@ export type TtsOptions = {
   precision?: "int8" | "fp32";
   temperature?: number;
   huggingfaceToken?: string;
-  device?: TtsDevice;
+  device?: TextToSpeechDevice;
 };
 
 /** Text-to-speech synthesizer that returns WAV bytes. */
-export class Tts {
+export class TextToSpeech {
   /** @internal */
-  private _inner: RustTtsInterface;
+  private _inner: RustTextToSpeechInterface;
 
-  /** Create a TTS synthesizer synchronously. */
-  constructor(opts: TtsOptions) {
-    this._inner = new RustTts(
+  /** Create a TextToSpeech synthesizer synchronously. */
+  constructor(opts: TextToSpeechOptions) {
+    this._inner = new RustTextToSpeech(
       opts.source,
       opts.architecture,
       opts.voice,
@@ -43,15 +43,15 @@ export class Tts {
     );
   }
 
-  private static fromInner(inner: RustTtsInterface): Tts {
-    const tts = Object.create(Tts.prototype) as Tts;
+  private static fromInner(inner: RustTextToSpeechInterface): TextToSpeech {
+    const tts = Object.create(TextToSpeech.prototype) as TextToSpeech;
     tts._inner = inner;
     return tts;
   }
 
-  /** Create a TTS synthesizer asynchronously. */
-  static async load(opts: TtsOptions): Promise<Tts> {
-    const inner = await loadTts(
+  /** Create a TextToSpeech synthesizer asynchronously. */
+  static async load(opts: TextToSpeechOptions): Promise<TextToSpeech> {
+    const inner = await loadTextToSpeech(
       opts.source,
       opts.architecture,
       opts.voice,
@@ -64,7 +64,7 @@ export class Tts {
       opts.huggingfaceToken,
       opts.device ?? "auto",
     );
-    return Tts.fromInner(inner);
+    return TextToSpeech.fromInner(inner);
   }
 
   /** Synthesize text and return WAV bytes. */
@@ -79,7 +79,7 @@ export class Tts {
 
   /**
    * Immediately free the underlying Rust resources.
-   * After calling this, the Tts instance is no longer usable.
+   * After calling this, the TextToSpeech instance is no longer usable.
    */
   destroy(): void {
     (this._inner as any).uniffiDestroy();

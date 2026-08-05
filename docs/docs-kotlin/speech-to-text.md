@@ -7,9 +7,9 @@ sidebar_position: 4
 To transcribe audio into text, NobodyWho provides an integration with the Whisper models in ONNX format.
 
 ```kotlin
-import ai.nobodywho.Stt
+import ai.nobodywho.SpeechToText
 
-val stt = Stt.load(source = "hf://onnx-community/whisper-base")
+val stt = SpeechToText.load(source = "hf://onnx-community/whisper-base")
 
 val text = stt.transcribeFile("recording.mp3").completed()
 println(text)
@@ -38,7 +38,7 @@ NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging
 You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
 
 ```kotlin
-val stt = Stt.load(
+val stt = SpeechToText.load(
     source = "hf://onnx-community/whisper-base",
     quantization = "q4"
 )
@@ -49,7 +49,7 @@ val stt = Stt.load(
 By default, Whisper auto-detects the spoken language, which costs a bit of extra processing. If you already know the language, pass its ISO 639-1 code as `language` to skip detection and improve performance:
 
 ```kotlin
-val stt = Stt.load(
+val stt = SpeechToText.load(
     source = "hf://onnx-community/whisper-base",
     language = "en"
 )

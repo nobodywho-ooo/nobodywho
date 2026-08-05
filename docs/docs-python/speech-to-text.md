@@ -7,9 +7,9 @@ sidebar_position: 4
 To transcribe audio into text, NobodyWho provides an integration with the Whisper models in ONNX format.
 
 ```python notest
-from nobodywho import STT
+from nobodywho import SpeechToText
 
-stt = STT(source="hf://onnx-community/whisper-base")
+stt = SpeechToText(source="hf://onnx-community/whisper-base")
 
 text = stt.transcribe_file("recording.mp3").completed()
 print(text)
@@ -37,7 +37,7 @@ NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging
 You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
 
 ```python notest
-stt = STT(
+stt = SpeechToText(
     source="hf://onnx-community/whisper-base",
     quantization="q4",
 )
@@ -48,7 +48,7 @@ stt = STT(
 By default, Whisper auto-detects the spoken language, which costs a bit of extra processing. If you already know the language, pass its ISO 639-1 code as `language` to skip detection and improve performance:
 
 ```python notest
-stt = STT(
+stt = SpeechToText(
     source="hf://onnx-community/whisper-base",
     language="en",
 )

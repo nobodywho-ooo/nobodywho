@@ -850,110 +850,6 @@ class Prompt:
     def from_json(data: "object") -> "Prompt": ...
 
 @final
-class STT:
-    """
-    `STT` transcribes speech to text using a Whisper ONNX model.
-
-    `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
-    `"hf://onnx-community/whisper-base"`) or a local directory path. `language`
-    is an ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
-    `quantization` selects the ONNX precision variant to download and load: one
-    of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`,
-    `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
-
-    Example::
-
-        stt = nobodywho.STT("hf://onnx-community/whisper-base")
-        text = stt.transcribe_file("recording.mp3").completed()
-
-        # Or stream tokens:
-        for piece in stt.transcribe_file("recording.mp3"):
-            print(piece, end="", flush=True)
-    """
-    def __new__(
-        cls,
-        /,
-        source: str,
-        language: str | None = None,
-        quantization: str | None = None,
-    ) -> STT: ...
-    @staticmethod
-    async def load(
-        source: str, language: str | None = None, quantization: str | None = None
-    ) -> STT:
-        """
-        Asynchronously load an STT model.
-
-        This static method loads the model asynchronously, which is useful for loading large models
-        without blocking the async event loop. The blocking model load operation is offloaded to
-        a background thread, allowing other async tasks to continue running.
-
-        Args:
-            source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
-            language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
-            quantization: ONNX precision variant to download and load: one of
-                `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
-                omit or pass `None` to use `"default"`.
-
-        Returns:
-            An STT instance wrapped in an awaitable (async function returns a coroutine)
-
-        Raises:
-            RuntimeError: If the model cannot be loaded
-        """
-    def transcribe_file(self, /, path: str) -> TokenStream:
-        """
-        Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
-        """
-    def transcribe_pcm(
-        self, /, samples: Sequence[int], sample_rate: int
-    ) -> TokenStream:
-        """
-        Transcribe raw i16 PCM samples from a microphone. Returns a `TokenStream`.
-        """
-
-@final
-class STTAsync:
-    """
-    `STTAsync` is the async variant of `STT`.
-    """
-    def __new__(
-        cls,
-        /,
-        source: str,
-        language: str | None = None,
-        quantization: str | None = None,
-    ) -> STTAsync: ...
-    @staticmethod
-    async def load(
-        source: str, language: str | None = None, quantization: str | None = None
-    ) -> STTAsync:
-        """
-        Asynchronously load an STT model.
-
-        This static method loads the model asynchronously, which is useful for loading large models
-        without blocking the async event loop. The blocking model load operation is offloaded to
-        a background thread, allowing other async tasks to continue running.
-
-        Args:
-            source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
-            language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
-            quantization: ONNX precision variant to download and load: one of
-                `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
-                omit or pass `None` to use `"default"`.
-
-        Returns:
-            An STTAsync instance wrapped in an awaitable (async function returns a coroutine)
-
-        Raises:
-            RuntimeError: If the model cannot be loaded
-        """
-    def transcribe_file(self, /, path: str) -> TokenStreamAsync: ...
-    def transcribe_pcm(
-        self, /, samples: Sequence[int], sample_rate: int
-    ) -> TokenStreamAsync: ...
-
-@final
 class SamplerBuilder:
     """
     `SamplerBuilder` is used to manually construct a sampler chain.
@@ -1237,6 +1133,110 @@ class SamplerPresets:
         """
 
 @final
+class SpeechToText:
+    """
+    `SpeechToText` transcribes speech to text using a Whisper ONNX model.
+
+    `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
+    `"hf://onnx-community/whisper-base"`) or a local directory path. `language`
+    is an ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+    `quantization` selects the ONNX precision variant to download and load: one
+    of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`,
+    `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
+
+    Example::
+
+        stt = nobodywho.SpeechToText("hf://onnx-community/whisper-base")
+        text = stt.transcribe_file("recording.mp3").completed()
+
+        # Or stream tokens:
+        for piece in stt.transcribe_file("recording.mp3"):
+            print(piece, end="", flush=True)
+    """
+    def __new__(
+        cls,
+        /,
+        source: str,
+        language: str | None = None,
+        quantization: str | None = None,
+    ) -> SpeechToText: ...
+    @staticmethod
+    async def load(
+        source: str, language: str | None = None, quantization: str | None = None
+    ) -> SpeechToText:
+        """
+        Asynchronously load an SpeechToText model.
+
+        This static method loads the model asynchronously, which is useful for loading large models
+        without blocking the async event loop. The blocking model load operation is offloaded to
+        a background thread, allowing other async tasks to continue running.
+
+        Args:
+            source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+            language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+            quantization: ONNX precision variant to download and load: one of
+                `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+                omit or pass `None` to use `"default"`.
+
+        Returns:
+            An SpeechToText instance wrapped in an awaitable (async function returns a coroutine)
+
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
+    def transcribe_file(self, /, path: str) -> TokenStream:
+        """
+        Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
+        """
+    def transcribe_pcm(
+        self, /, samples: Sequence[int], sample_rate: int
+    ) -> TokenStream:
+        """
+        Transcribe raw i16 PCM samples from a microphone. Returns a `TokenStream`.
+        """
+
+@final
+class SpeechToTextAsync:
+    """
+    `SpeechToTextAsync` is the async variant of `SpeechToText`.
+    """
+    def __new__(
+        cls,
+        /,
+        source: str,
+        language: str | None = None,
+        quantization: str | None = None,
+    ) -> SpeechToTextAsync: ...
+    @staticmethod
+    async def load(
+        source: str, language: str | None = None, quantization: str | None = None
+    ) -> SpeechToTextAsync:
+        """
+        Asynchronously load an SpeechToText model.
+
+        This static method loads the model asynchronously, which is useful for loading large models
+        without blocking the async event loop. The blocking model load operation is offloaded to
+        a background thread, allowing other async tasks to continue running.
+
+        Args:
+            source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+            language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+            quantization: ONNX precision variant to download and load: one of
+                `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+                omit or pass `None` to use `"default"`.
+
+        Returns:
+            An SpeechToTextAsync instance wrapped in an awaitable (async function returns a coroutine)
+
+        Raises:
+            RuntimeError: If the model cannot be loaded
+        """
+    def transcribe_file(self, /, path: str) -> TokenStreamAsync: ...
+    def transcribe_pcm(
+        self, /, samples: Sequence[int], sample_rate: int
+    ) -> TokenStreamAsync: ...
+
+@final
 class Text:
     """
     A `Text` prompt part, used to build multimodal `Prompt`s.
@@ -1248,6 +1248,52 @@ class Text:
     def __repr__(self, /) -> str: ...
     @property
     def text(self, /) -> str: ...
+
+@final
+class TextToSpeech:
+    """
+    `TextToSpeech` synthesizes speech to WAV bytes.
+    """
+    def __new__(
+        cls,
+        /,
+        source: "os.PathLike | str",
+        architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None,
+        voice: str | None = None,
+        language: str | None = None,
+        speed: float | None = None,
+        steps: int | None = None,
+        silence_duration: float | None = None,
+        precision: str | None = None,
+        temperature: float | None = None,
+        huggingface_token: str | None = None,
+        device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
+    ) -> "TextToSpeech":
+        """
+        Create a TextToSpeech synthesizer.
+
+        Args:
+            source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+            architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+                Sources containing an architecture name infer it when omitted.
+            voice: Voice name. Architecture default is used when omitted.
+            language: Language code. Architecture default is used when omitted.
+            speed: Speaking speed. Architecture default is used when omitted.
+            steps: Supertonic denoising steps or Pocket TTS LSD steps.
+            silence_duration: Supertonic silence between chunks in seconds.
+            precision: Pocket TTS precision: "int8" or "fp32".
+            temperature: Pocket TTS generation temperature.
+            huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
+            device: "auto", "cpu", or "cuda". Defaults to "auto".
+        """
+    def synthesize(self, /, text: str) -> bytes:
+        """
+        Synthesize text and return WAV bytes.
+        """
+    async def synthesize_async(self, /, text: str) -> bytes:
+        """
+        Synthesize text asynchronously and return WAV bytes.
+        """
 
 @final
 class TokenStream:
@@ -1281,52 +1327,6 @@ class Tool(typing.Generic[T]):
     `Tool`s are constructed using the `@tool` decorator.
     """
     def __call__(self, /, *args, **kwargs) -> "T": ...
-
-@final
-class Tts:
-    """
-    `Tts` synthesizes speech to WAV bytes.
-    """
-    def __new__(
-        cls,
-        /,
-        source: "os.PathLike | str",
-        architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None,
-        voice: str | None = None,
-        language: str | None = None,
-        speed: float | None = None,
-        steps: int | None = None,
-        silence_duration: float | None = None,
-        precision: str | None = None,
-        temperature: float | None = None,
-        huggingface_token: str | None = None,
-        device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
-    ) -> "Tts":
-        """
-        Create a TTS synthesizer.
-
-        Args:
-            source: Local model directory or HuggingFace repo (`hf://owner/repo`).
-            architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
-                Sources containing an architecture name infer it when omitted.
-            voice: Voice name. Architecture default is used when omitted.
-            language: Language code. Architecture default is used when omitted.
-            speed: Speaking speed. Architecture default is used when omitted.
-            steps: Supertonic denoising steps or Pocket TTS LSD steps.
-            silence_duration: Supertonic silence between chunks in seconds.
-            precision: Pocket TTS precision: "int8" or "fp32".
-            temperature: Pocket TTS generation temperature.
-            huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
-            device: "auto", "cpu", or "cuda". Defaults to "auto".
-        """
-    def synthesize(self, /, text: str) -> bytes:
-        """
-        Synthesize text and return WAV bytes.
-        """
-    async def synthesize_async(self, /, text: str) -> bytes:
-        """
-        Synthesize text asynchronously and return WAV bytes.
-        """
 
 def bash_tool(max_commands: int | None = None) -> Tool:
     """

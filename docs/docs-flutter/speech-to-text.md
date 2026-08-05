@@ -10,7 +10,7 @@ To transcribe audio into text, NobodyWho provides an integration with the Whispe
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 // ... after NobodyWho.init().
-final stt = await nobodywho.Stt.load(source: 'hf://onnx-community/whisper-base');
+final stt = await nobodywho.SpeechToText.load(source: 'hf://onnx-community/whisper-base');
 
 final text = await stt.transcribeFile('recording.mp3').completed();
 print(text);
@@ -39,7 +39,7 @@ NobodyWho only supports Whisper models in **ONNX** format. `source` is a Hugging
 You can also pick a `quantization` variant of the model to download and load. Lower-precision variants are smaller and faster, but can lose some transcription accuracy. Supported values are `default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `default`.
 
 ```dart
-final stt = await nobodywho.Stt.load(
+final stt = await nobodywho.SpeechToText.load(
   source: 'hf://onnx-community/whisper-base',
   quantization: 'q4',
 );
@@ -50,7 +50,7 @@ final stt = await nobodywho.Stt.load(
 By default, Whisper auto-detects the spoken language, which costs a bit of extra processing. If you already know the language, pass its ISO 639-1 code as `language` to skip detection and improve performance:
 
 ```dart
-final stt = await nobodywho.Stt.load(
+final stt = await nobodywho.SpeechToText.load(
   source: 'hf://onnx-community/whisper-base',
   language: 'en',
 );

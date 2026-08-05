@@ -53,12 +53,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChatPtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_RustSttPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTPtr;
+  get rust_arc_decrement_strong_count_RustSpeechToTextPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextPtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_RustSttStreamPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStreamPtr;
+  get rust_arc_decrement_strong_count_RustSpeechToTextStreamPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStreamPtr;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_RustTokenStreamPtr => wire
@@ -85,15 +85,16 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterErrorPtr;
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_TextToSpeechPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeechPtr;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_TokenizeErrorPtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeErrorPtr;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_ToolCallPtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCallPtr;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_TtsPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTtsPtr;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ValuePtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValuePtr;
@@ -156,14 +157,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustStt
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     dynamic raw,
   );
 
   @protected
-  RustSttStream
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     dynamic raw,
   );
 
@@ -204,6 +205,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  TextToSpeech
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    dynamic raw,
+  );
+
+  @protected
   TokenizeError
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     dynamic raw,
@@ -216,20 +223,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  Tts
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    dynamic raw,
-  );
-
-  @protected
   Value
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     dynamic raw,
   );
 
   @protected
-  RustSttStream
-  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  dco_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     dynamic raw,
   );
 
@@ -270,8 +271,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustStt
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     dynamic raw,
   );
 
@@ -294,14 +295,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  ToolCall
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+  TextToSpeech
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
     dynamic raw,
   );
 
   @protected
-  Tts
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
+  ToolCall
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     dynamic raw,
   );
 
@@ -377,14 +378,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustStt
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     dynamic raw,
   );
 
   @protected
-  RustSttStream
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     dynamic raw,
   );
 
@@ -425,6 +426,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  TextToSpeech
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    dynamic raw,
+  );
+
+  @protected
   TokenizeError
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     dynamic raw,
@@ -433,12 +440,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   @protected
   ToolCall
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
-    dynamic raw,
-  );
-
-  @protected
-  Tts
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
     dynamic raw,
   );
 
@@ -692,14 +693,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustStt
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     SseDeserializer deserializer,
   );
 
   @protected
-  RustSttStream
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     SseDeserializer deserializer,
   );
 
@@ -740,6 +741,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  TextToSpeech
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TokenizeError
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     SseDeserializer deserializer,
@@ -752,20 +759,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  Tts
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   Value
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     SseDeserializer deserializer,
   );
 
   @protected
-  RustSttStream
-  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  sse_decode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     SseDeserializer deserializer,
   );
 
@@ -806,8 +807,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustStt
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     SseDeserializer deserializer,
   );
 
@@ -830,14 +831,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  ToolCall
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+  TextToSpeech
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
     SseDeserializer deserializer,
   );
 
   @protected
-  Tts
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
+  ToolCall
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     SseDeserializer deserializer,
   );
 
@@ -909,14 +910,14 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustStt
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  RustSpeechToText
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     SseDeserializer deserializer,
   );
 
   @protected
-  RustSttStream
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  RustSpeechToTextStream
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     SseDeserializer deserializer,
   );
 
@@ -957,6 +958,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  TextToSpeech
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TokenizeError
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     SseDeserializer deserializer,
@@ -965,12 +972,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   @protected
   ToolCall
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  Tts
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
     SseDeserializer deserializer,
   );
 
@@ -1253,15 +1254,15 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
-    RustStt self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
+    RustSpeechToText self,
     SseSerializer serializer,
   );
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
-    RustSttStream self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
+    RustSpeechToTextStream self,
     SseSerializer serializer,
   );
 
@@ -1309,6 +1310,13 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    TextToSpeech self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     TokenizeError self,
     SseSerializer serializer,
@@ -1323,13 +1331,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    Tts self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerValue(
     Value self,
     SseSerializer serializer,
@@ -1337,8 +1338,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
-    RustSttStream self,
+  sse_encode_Auto_RefMut_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
+    RustSpeechToTextStream self,
     SseSerializer serializer,
   );
 
@@ -1386,8 +1387,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
-    RustStt self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
+    RustSpeechToText self,
     SseSerializer serializer,
   );
 
@@ -1414,15 +1415,15 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
-    ToolCall self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    TextToSpeech self,
     SseSerializer serializer,
   );
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    Tts self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
+    ToolCall self,
     SseSerializer serializer,
   );
 
@@ -1518,15 +1519,15 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
-    RustStt self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
+    RustSpeechToText self,
     SseSerializer serializer,
   );
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
-    RustSttStream self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
+    RustSpeechToTextStream self,
     SseSerializer serializer,
   );
 
@@ -1574,6 +1575,13 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    TextToSpeech self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     TokenizeError self,
     SseSerializer serializer,
@@ -1583,13 +1591,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     ToolCall self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    Tts self,
     SseSerializer serializer,
   );
 
@@ -2171,71 +2172,71 @@ class NobodyWhoWire implements BaseWire {
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     ffi.Pointer<ffi.Void> ptr,
   ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
       ptr,
     );
   }
 
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTPtr =
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT',
+        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText',
       );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTPtr
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
     ffi.Pointer<ffi.Void> ptr,
   ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT(
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText(
       ptr,
     );
   }
 
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTPtr =
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT',
+        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText',
       );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTT =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTPtr
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToText =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     ffi.Pointer<ffi.Void> ptr,
   ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
       ptr,
     );
   }
 
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStreamPtr =
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStreamPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream',
+        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream',
       );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStreamPtr
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStreamPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
     ffi.Pointer<ffi.Void> ptr,
   ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream(
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream(
       ptr,
     );
   }
 
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStreamPtr =
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStreamPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream',
+        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream',
       );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStream =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSTTStreamPtr
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStream =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustSpeechToTextStreamPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
@@ -2443,6 +2444,40 @@ class NobodyWhoWire implements BaseWire {
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeechPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeechPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeechPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeechPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTokenizeError(
     ffi.Pointer<ffi.Void> ptr,
   ) {
@@ -2508,40 +2543,6 @@ class NobodyWhoWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCallPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTtsPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTtsPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTtsPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTts =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTtsPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void

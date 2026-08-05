@@ -1,29 +1,29 @@
 package ai.nobodywho
 
 import java.io.Closeable
-import uniffi.nobodywho.RustTts as InternalTts
-import uniffi.nobodywho.loadTts as loadInternalTts
+import uniffi.nobodywho.RustTextToSpeech as InternalTts
+import uniffi.nobodywho.loadTextToSpeech as loadInternalTextToSpeech
 
-enum class TtsArchitecture(internal val value: String) {
+enum class TextToSpeechArchitecture(internal val value: String) {
     KOKORO("kokoro"),
     POCKET_TTS("pocket-tts"),
     SUPERTONIC("supertonic")
 }
 
-enum class TtsDevice(internal val value: String) {
+enum class TextToSpeechDevice(internal val value: String) {
     AUTO("auto"),
     CPU("cpu"),
     CUDA("cuda")
 }
 
 /** Text-to-speech synthesizer that returns WAV bytes. */
-class Tts private constructor(
+class TextToSpeech private constructor(
     private val inner: InternalTts
 ) : Closeable {
-    /** Create a TTS synthesizer synchronously. */
+    /** Create a TextToSpeech synthesizer synchronously. */
     constructor(
         source: String,
-        architecture: TtsArchitecture? = null,
+        architecture: TextToSpeechArchitecture? = null,
         voice: String? = null,
         language: String? = null,
         speed: Float? = null,
@@ -32,7 +32,7 @@ class Tts private constructor(
         precision: String? = null,
         temperature: Float? = null,
         huggingfaceToken: String? = null,
-        device: TtsDevice = TtsDevice.AUTO
+        device: TextToSpeechDevice = TextToSpeechDevice.AUTO
     ) : this(
         InternalTts(
             source = source,
@@ -50,10 +50,10 @@ class Tts private constructor(
     )
 
     companion object {
-        /** Create a TTS synthesizer asynchronously. */
+        /** Create a TextToSpeech synthesizer asynchronously. */
         suspend fun load(
             source: String,
-            architecture: TtsArchitecture? = null,
+            architecture: TextToSpeechArchitecture? = null,
             voice: String? = null,
             language: String? = null,
             speed: Float? = null,
@@ -62,9 +62,9 @@ class Tts private constructor(
             precision: String? = null,
             temperature: Float? = null,
             huggingfaceToken: String? = null,
-            device: TtsDevice = TtsDevice.AUTO
-        ): Tts = Tts(
-            loadInternalTts(
+            device: TextToSpeechDevice = TextToSpeechDevice.AUTO
+        ): TextToSpeech = TextToSpeech(
+            loadInternalTextToSpeech(
                 source = source,
                 architecture = architecture?.value,
                 voice = voice,

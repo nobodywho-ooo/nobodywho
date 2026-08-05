@@ -16,7 +16,7 @@ def main() -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     for name, source in SOURCES.items():
-        tts = nobodywho.Tts(source=source)
+        tts = nobodywho.TextToSpeech(source=source)
         wav = tts.synthesize(text=TEXT)
         output_path = OUTPUT_DIR / f"{name}.wav"
         output_path.write_bytes(wav)

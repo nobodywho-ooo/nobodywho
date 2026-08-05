@@ -1,4 +1,4 @@
-//! Whisper STT architecture via ONNX Runtime.
+//! Whisper SpeechToText architecture via ONNX Runtime.
 //!
 //! Pipeline: 16 kHz mono f32 audio → log-mel spectrogram → encoder → greedy
 //! token decode with KV cache → text.
@@ -7,9 +7,9 @@
 //!   `onnx/encoder_model.onnx`, `onnx/decoder_model_merged.onnx`,
 //!   `tokenizer.json`, `generation_config.json`, `config.json`.
 
-use crate::errors::{HuggingFaceError, SttError};
+use crate::errors::{HuggingFaceError, SpeechToTextError};
 use crate::onnx::Device;
-use crate::stt::architecture::SttArchitectureImpl;
+use crate::speech_to_text::architecture::SpeechToTextArchitectureImpl;
 use mel_spec::prelude::*;
 use ort::session::Session;
 use ort::value::{DynValue, Tensor};
@@ -47,7 +47,7 @@ const FALLBACK_QUANTIZATION: &str = "default";
 /// exported at several precisions (see [`WhisperBackend`] docs for why only
 /// the *merged* decoder variant is used, never the `_with_past` ones).
 /// Picking one avoids downloading every variant just to use one of them.
-fn quantization_suffix(quantization: &str) -> Result<&'static str, SttError> {
+fn quantization_suffix(quantization: &str) -> Result<&'static str, SpeechToTextError> {
     match quantization.to_ascii_lowercase().as_str() {
         "default" | "fp32" => Ok(""),
         "fp16" => Ok("_fp16"),
@@ -57,14 +57,14 @@ fn quantization_suffix(quantization: &str) -> Result<&'static str, SttError> {
         "q4" => Ok("_q4"),
         "q4f16" => Ok("_q4f16"),
         "quantized" => Ok("_quantized"),
-        other => Err(SttError::Init(format!(
+        other => Err(SpeechToTextError::Init(format!(
             "unknown Whisper quantization {other:?}; expected one of: \
              default, fp32, fp16, int8, uint8, bnb4, q4, q4f16, quantized"
         ))),
     }
 }
 
-/// Configuration for the Whisper STT architecture.
+/// Configuration for the Whisper SpeechToText architecture.
 #[derive(Clone, Debug)]
 pub struct WhisperConfig {
     /// HuggingFace Hub repo (`"hf://onnx-community/whisper-base"`) or local directory path.
@@ -92,7 +92,9 @@ impl WhisperConfig {
 /// of the many ONNX precision variants a `onnx-community/whisper-*` repo
 /// ships. Downloading only these avoids pulling down gigabytes of unused
 /// variants and the never-used `_with_past` graphs.
-pub(in crate::stt) fn required_files(quantization: &str) -> Result<Vec<String>, SttError> {
+pub(in crate::speech_to_text) fn required_files(
+    quantization: &str,
+) -> Result<Vec<String>, SpeechToTextError> {
     let suffix = quantization_suffix(quantization)?;
     Ok(vec![
         "config.json".into(),
@@ -105,7 +107,10 @@ pub(in crate::stt) fn required_files(quantization: &str) -> Result<Vec<String>, 
 
 /// Resolve `source` to a local model directory for `quantization`. Called by
 /// [`WhisperBackend::new`] before it loads anything.
-fn resolve_model_dir(source: &str, quantization: &str) -> Result<(PathBuf, String), SttError> {
+fn resolve_model_dir(
+    source: &str,
+    quantization: &str,
+) -> Result<(PathBuf, String), SpeechToTextError> {
     let is_default = quantization == DEFAULT_QUANTIZATION;
     let files = required_files(quantization)?;
 
@@ -152,7 +157,7 @@ impl KVCache {
         outputs: &ort::session::SessionOutputs<'_>,
         num_layers: usize,
         prev: Option<&Self>,
-    ) -> Result<Self, SttError> {
+    ) -> Result<Self, SpeechToTextError> {
         let mut entries = Vec::new();
         for i in 0..num_layers {
             for kind in &["decoder", "encoder"] {
@@ -181,7 +186,7 @@ impl KVCache {
         &self,
         num_heads: usize,
         head_dim: usize,
-    ) -> Result<Vec<(Cow<'static, str>, DynValue)>, SttError> {
+    ) -> Result<Vec<(Cow<'static, str>, DynValue)>, SpeechToTextError> {
         self.iter()
             .map(|(name, data)| {
                 let seq_len = data.len() / (num_heads * head_dim);
@@ -220,7 +225,7 @@ impl<'a> IntoIterator for &'a KVCache {
 // Backend
 // ---------------------------------------------------------------------------
 
-pub(in crate::stt) struct WhisperBackend {
+pub(in crate::speech_to_text) struct WhisperBackend {
     encoder: Session,
     decoder: Session,
     tokenizer: Tokenizer,
@@ -246,11 +251,11 @@ impl WhisperBackend {
         language: Option<&str>,
         quantization: &str,
         device: Device,
-    ) -> Result<Self, SttError> {
+    ) -> Result<Self, SpeechToTextError> {
         let (model_dir, quantization) = resolve_model_dir(source, quantization)?;
         let (encoder, decoder) = load_sessions(&model_dir.join("onnx"), &quantization, device)?;
         let tokenizer = Tokenizer::from_file(model_dir.join("tokenizer.json"))
-            .map_err(|e| SttError::Init(format!("load tokenizer: {e}")))?;
+            .map_err(|e| SpeechToTextError::Init(format!("load tokenizer: {e}")))?;
         let sot_id = token_id(&tokenizer, "<|startoftranscript|>")?;
         let eot_id = token_id(&tokenizer, "<|endoftext|>")?;
         let transcribe_id = token_id(&tokenizer, "<|transcribe|>")?;
@@ -265,7 +270,7 @@ impl WhisperBackend {
             head_dim = model_cfg.head_dim,
             lang_count = gen_cfg.lang_to_id.len(),
             language = language.unwrap_or("auto"),
-            "Loaded Whisper STT"
+            "Loaded Whisper SpeechToText"
         );
 
         Ok(Self {
@@ -291,7 +296,7 @@ impl WhisperBackend {
     // Encode
     // -----------------------------------------------------------------------
 
-    fn encode(&mut self, window: &[f32]) -> Result<Vec<f32>, SttError> {
+    fn encode(&mut self, window: &[f32]) -> Result<Vec<f32>, SpeechToTextError> {
         let mel = compute_mel(window, self.n_mels);
         let features = Tensor::from_array(([1usize, self.n_mels, N_MEL_FRAMES], mel))?;
         let enc_out = self
@@ -304,19 +309,19 @@ impl WhisperBackend {
     // Language detection
     // -----------------------------------------------------------------------
 
-    fn resolve_language(&mut self, enc_hidden: &[f32]) -> Result<u32, SttError> {
+    fn resolve_language(&mut self, enc_hidden: &[f32]) -> Result<u32, SpeechToTextError> {
         match self.language.as_deref() {
             Some(lang) => {
                 let tok = format!("<|{lang}|>");
                 self.lang_to_id.get(&tok).copied().ok_or_else(|| {
-                    SttError::Transcription(format!("unknown language code: {lang:?}"))
+                    SpeechToTextError::Transcription(format!("unknown language code: {lang:?}"))
                 })
             }
             None => self.detect_language(enc_hidden),
         }
     }
 
-    fn detect_language(&mut self, enc_hidden: &[f32]) -> Result<u32, SttError> {
+    fn detect_language(&mut self, enc_hidden: &[f32]) -> Result<u32, SpeechToTextError> {
         let logits = self.run_decoder(&[self.sot_id as i64], enc_hidden)?;
 
         let (best, _) = self
@@ -331,7 +336,9 @@ impl WhisperBackend {
                 (tok, score)
             })
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .ok_or_else(|| SttError::Transcription("no language tokens in vocabulary".into()))?;
+            .ok_or_else(|| {
+                SpeechToTextError::Transcription("no language tokens in vocabulary".into())
+            })?;
 
         info!(detected = %best, "Language detected");
         Ok(self.lang_to_id[best])
@@ -347,7 +354,7 @@ impl WhisperBackend {
         input_ids: Tensor<i64>,
         enc_tensor: Tensor<f32>,
         kv: &KVCache,
-    ) -> Result<Vec<(Cow<'static, str>, DynValue)>, SttError> {
+    ) -> Result<Vec<(Cow<'static, str>, DynValue)>, SpeechToTextError> {
         let mut inputs: Vec<(Cow<'static, str>, DynValue)> = vec![
             ("input_ids".into(), input_ids.into_dyn()),
             ("encoder_hidden_states".into(), enc_tensor.into_dyn()),
@@ -365,7 +372,11 @@ impl WhisperBackend {
     /// Moves `self.kv` out via `mem::take` to avoid a borrow conflict while
     /// the decoder session holds a reference to `self.decoder`, then writes
     /// the updated cache back to `self.kv` before returning.
-    fn run_decoder(&mut self, tokens: &[i64], enc_hidden: &[f32]) -> Result<Vec<f32>, SttError> {
+    fn run_decoder(
+        &mut self,
+        tokens: &[i64],
+        enc_hidden: &[f32],
+    ) -> Result<Vec<f32>, SpeechToTextError> {
         let prev_kv = std::mem::take(&mut self.kv);
         let seq_len = tokens.len();
         let input_ids = Tensor::from_array(([1usize, seq_len], tokens.to_vec()))?;
@@ -394,7 +405,7 @@ impl WhisperBackend {
         enc_hidden: &[f32],
         lang_id: u32,
         on_token: &mut dyn FnMut(String),
-    ) -> Result<Vec<u32>, SttError> {
+    ) -> Result<Vec<u32>, SpeechToTextError> {
         self.kv = KVCache::new();
 
         let prompt: Vec<i64> = vec![
@@ -423,19 +434,19 @@ impl WhisperBackend {
     }
 }
 
-impl SttArchitectureImpl for WhisperBackend {
+impl SpeechToTextArchitectureImpl for WhisperBackend {
     fn transcribe_window(
         &mut self,
         window: &[f32],
         on_token: &mut dyn FnMut(String),
-    ) -> Result<String, SttError> {
+    ) -> Result<String, SpeechToTextError> {
         let enc_hidden = self.encode(window)?;
         let lang_id = self.resolve_language(&enc_hidden)?;
         let generated = self.greedy_decode(&enc_hidden, lang_id, on_token)?;
         let text = self
             .tokenizer
             .decode(&generated, true)
-            .map_err(|e| SttError::Transcription(format!("tokenizer decode: {e}")))?;
+            .map_err(|e| SpeechToTextError::Transcription(format!("tokenizer decode: {e}")))?;
         debug!(tokens = generated.len(), text = %text, "Window transcribed");
         Ok(text)
     }
@@ -449,7 +460,7 @@ fn load_sessions(
     onnx_dir: &Path,
     quantization: &str,
     device: Device,
-) -> Result<(Session, Session), SttError> {
+) -> Result<(Session, Session), SpeechToTextError> {
     let suffix = quantization_suffix(quantization)?;
     let encoder = crate::onnx::load_session(
         &onnx_dir.join(format!("encoder_model{suffix}.onnx")),
@@ -462,10 +473,10 @@ fn load_sessions(
     Ok((encoder, decoder))
 }
 
-fn token_id(tokenizer: &Tokenizer, token: &str) -> Result<u32, SttError> {
-    tokenizer
-        .token_to_id(token)
-        .ok_or_else(|| SttError::Init(format!("special token not found in vocabulary: {token:?}")))
+fn token_id(tokenizer: &Tokenizer, token: &str) -> Result<u32, SpeechToTextError> {
+    tokenizer.token_to_id(token).ok_or_else(|| {
+        SpeechToTextError::Init(format!("special token not found in vocabulary: {token:?}"))
+    })
 }
 
 fn compute_mel(window: &[f32], n_mels: usize) -> Vec<f32> {
@@ -497,11 +508,11 @@ struct ModelConfig {
 }
 
 impl ModelConfig {
-    fn from_dir(model_dir: &Path) -> Result<Self, SttError> {
+    fn from_dir(model_dir: &Path) -> Result<Self, SpeechToTextError> {
         let f = std::fs::File::open(model_dir.join("config.json"))
-            .map_err(|e| SttError::Init(format!("open config.json: {e}")))?;
+            .map_err(|e| SpeechToTextError::Init(format!("open config.json: {e}")))?;
         let cfg: serde_json::Value = serde_json::from_reader(f)
-            .map_err(|e| SttError::Init(format!("parse config.json: {e}")))?;
+            .map_err(|e| SpeechToTextError::Init(format!("parse config.json: {e}")))?;
         let num_heads = cfg["decoder_attention_heads"].as_u64().unwrap_or(8) as usize;
         let d_model = cfg["d_model"].as_u64().unwrap_or(512) as usize;
         Ok(Self {
@@ -518,14 +529,16 @@ struct GenerationConfig {
 }
 
 impl GenerationConfig {
-    fn from_dir(model_dir: &Path) -> Result<Self, SttError> {
+    fn from_dir(model_dir: &Path) -> Result<Self, SpeechToTextError> {
         let f = std::fs::File::open(model_dir.join("generation_config.json"))
-            .map_err(|e| SttError::Init(format!("open generation_config.json: {e}")))?;
+            .map_err(|e| SpeechToTextError::Init(format!("open generation_config.json: {e}")))?;
         let cfg: serde_json::Value = serde_json::from_reader(f)
-            .map_err(|e| SttError::Init(format!("parse generation_config.json: {e}")))?;
+            .map_err(|e| SpeechToTextError::Init(format!("parse generation_config.json: {e}")))?;
         let lang_to_id = cfg["lang_to_id"]
             .as_object()
-            .ok_or_else(|| SttError::Init("generation_config.json missing `lang_to_id`".into()))?
+            .ok_or_else(|| {
+                SpeechToTextError::Init("generation_config.json missing `lang_to_id`".into())
+            })?
             .iter()
             .filter_map(|(k, v)| v.as_u64().map(|id| (k.clone(), id as u32)))
             .collect();

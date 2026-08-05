@@ -19,8 +19,8 @@ These types are intentionally thin FFI wrappers. Each target language must provi
 | `RustToolCallback` | (internal) | Implemented by the `Tool` wrapper internally, never exposed to consumers |
 | `RustEncoder` | `Encoder` | Convenience factory (`Encoder.fromPath()`), resource cleanup |
 | `RustCrossEncoder` | `CrossEncoder` | Convenience factory (`CrossEncoder.fromPath()`), `rankAndSort()` JSON parsing, resource cleanup |
-| `RustTts` | `Tts` | Async factory (`Tts.load()`), also keeps a sync constructor for cheap re-wrapping |
-| `RustSTT` | `Stt` / `STT` | Async factory (`Stt.load()`), also keeps a sync constructor for cheap re-wrapping |
+| `RustTextToSpeech` | `TextToSpeech` | Async factory (`TextToSpeech.load()`), also keeps a sync constructor for cheap re-wrapping |
+| `RustSpeechToText` | `SpeechToText` | Async factory (`SpeechToText.load()`), also keeps a sync constructor for cheap re-wrapping |
 
 ### What each wrapper should provide
 
@@ -30,8 +30,8 @@ These types are intentionally thin FFI wrappers. Each target language must provi
 - **`Tool`**: Accepts a user-friendly parameter definition (name, description, ordered parameter array with JSON Schema properties, callback). Arguments from the LLM are passed positionally to the callback in parameter array order, so any regular function can be used directly. Internally constructs `RustTool` and handles JSON parsing and type coercion.
 - **`Encoder`**: `Encoder.fromPath(opts)` factory. `encode(text)` returns embeddings. `destroy()`.
 - **`CrossEncoder`**: `CrossEncoder.fromPath(opts)` factory. `rank()` and `rankAndSort()` (parses JSON tuples). `destroy()`.
-- **`Tts`**: `Tts.load(opts)` async factory (wraps `load_tts` free function).
-- **`Stt`/`STT`**: `Stt.load(opts)` async factory (wraps `load_stt` free function).
+- **`TextToSpeech`**: `TextToSpeech.load(opts)` async factory (wraps `load_text_to_speech` free function).
+- **`SpeechToText`**: `SpeechToText.load(opts)` async factory (wraps `load_speech_to_text` free function).
 
 ## Direct Re-exports (no wrapper needed)
 
@@ -56,8 +56,8 @@ These types are used internally by the wrapper layer but should not be exposed t
 | `PromptPart` | Enum | Implementation detail of `Prompt` wrapper class. |
 | `ToolParameter` | Record | Implementation detail of `Tool` wrapper. Consumers declare parameters as an ordered array. |
 | `load_model` | Function | Replaced by `Model.load()` factory. |
-| `load_tts` | Function | Replaced by `Tts.load()` factory. |
-| `load_stt` | Function | Replaced by `Stt.load()` / `STT.load()` factory. |
+| `load_text_to_speech` | Function | Replaced by `TextToSpeech.load()` factory. |
+| `load_speech_to_text` | Function | Replaced by `SpeechToText.load()` factory. |
 
 ## Adding a New Type
 

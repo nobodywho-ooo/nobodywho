@@ -100,9 +100,9 @@ where
     })
 }
 
-fn parse_tts_architecture(
+fn parse_text_to_speech_architecture(
     architecture: Option<String>,
-) -> Result<Option<nobodywho::tts::TtsArchitecture>, String> {
+) -> Result<Option<nobodywho::text_to_speech::TextToSpeechArchitecture>, String> {
     architecture
         .as_deref()
         .map(str::parse)
@@ -112,15 +112,17 @@ fn parse_tts_architecture(
         })
 }
 
-fn tts_device_from_use_gpu(use_gpu: bool) -> nobodywho::tts::TtsDevice {
+fn text_to_speech_device_from_use_gpu(
+    use_gpu: bool,
+) -> nobodywho::text_to_speech::TextToSpeechDevice {
     if use_gpu {
-        nobodywho::tts::TtsDevice::Auto
+        nobodywho::text_to_speech::TextToSpeechDevice::Auto
     } else {
-        nobodywho::tts::TtsDevice::Cpu
+        nobodywho::text_to_speech::TextToSpeechDevice::Cpu
     }
 }
 
-fn build_tts_config(
+fn build_text_to_speech_config(
     source: String,
     architecture: Option<String>,
     voice: Option<String>,
@@ -131,15 +133,15 @@ fn build_tts_config(
     precision: Option<String>,
     temperature: Option<f32>,
     huggingface_token: Option<String>,
-) -> Result<nobodywho::tts::TtsConfig, String> {
-    let architecture = parse_tts_architecture(architecture)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, architecture).ok_or_else(|| {
-        "architecture is required for unknown TTS sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'"
+) -> Result<nobodywho::text_to_speech::TextToSpeechConfig, String> {
+    let architecture = parse_text_to_speech_architecture(architecture)?;
+    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(&source, architecture).ok_or_else(|| {
+        "architecture is required for unknown TextToSpeech sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'"
             .to_string()
     })?;
 
     match &mut config {
-        nobodywho::tts::TtsConfig::Kokoro(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Kokoro(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -150,7 +152,7 @@ fn build_tts_config(
                 config.speed = speed;
             }
         }
-        nobodywho::tts::TtsConfig::PocketTts(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::PocketTts(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -162,8 +164,8 @@ fn build_tts_config(
             }
             if let Some(precision) = precision {
                 config.precision = match precision.to_ascii_lowercase().as_str() {
-                    "int8" => nobodywho::tts::PocketTtsPrecision::Int8,
-                    "fp32" => nobodywho::tts::PocketTtsPrecision::Fp32,
+                    "int8" => nobodywho::text_to_speech::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::text_to_speech::PocketTtsPrecision::Fp32,
                     _ => {
                         return Err("precision must be 'int8' or 'fp32' for Pocket TTS".to_string())
                     }
@@ -174,7 +176,7 @@ fn build_tts_config(
             }
             config.huggingface_token = huggingface_token;
         }
-        nobodywho::tts::TtsConfig::Supertonic(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Supertonic(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -285,12 +287,12 @@ pub fn download_model(
 }
 
 #[flutter_rust_bridge::frb(opaque)]
-pub struct Tts {
-    handle: nobodywho::tts::Tts,
+pub struct TextToSpeech {
+    handle: nobodywho::text_to_speech::TextToSpeech,
 }
 
-impl Tts {
-    /// Create a TTS synthesizer.
+impl TextToSpeech {
+    /// Create a TextToSpeech synthesizer.
     ///
     /// Args:
     ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
@@ -318,7 +320,7 @@ impl Tts {
         #[frb(default = "null")] huggingface_token: Option<String>,
         #[frb(default = true)] use_gpu: bool,
     ) -> Result<Self, String> {
-        let config = build_tts_config(
+        let config = build_text_to_speech_config(
             source,
             architecture,
             voice,
@@ -330,8 +332,8 @@ impl Tts {
             temperature,
             huggingface_token,
         )?;
-        let device = tts_device_from_use_gpu(use_gpu);
-        let handle = nobodywho::tts::Tts::with_device(config, device)
+        let device = text_to_speech_device_from_use_gpu(use_gpu);
+        let handle = nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
             .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(Self { handle })
     }
@@ -712,18 +714,18 @@ impl RustTokenStream {
 }
 
 // ---------------------------------------------------------------------------
-// STT
+// SpeechToText
 // ---------------------------------------------------------------------------
 
-/// Speech-to-text handle. Create with `RustSTT.load()`, then call
-/// `transcribeFile` or `transcribePcm` to get a `RustSTTStream`.
+/// Speech-to-text handle. Create with `RustSpeechToText.load()`, then call
+/// `transcribeFile` or `transcribePcm` to get a `RustSpeechToTextStream`.
 #[flutter_rust_bridge::frb(opaque)]
-pub struct RustSTT {
-    stt: nobodywho::stt::Stt,
+pub struct RustSpeechToText {
+    stt: nobodywho::speech_to_text::SpeechToText,
 }
 
-impl RustSTT {
-    /// Create an STT handle.
+impl RustSpeechToText {
+    /// Create an SpeechToText handle.
     /// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
     /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
     /// `quantization` — ONNX precision variant to download and load: one of
@@ -735,24 +737,26 @@ impl RustSTT {
         #[frb(default = "null")] language: Option<String>,
         #[frb(default = "null")] quantization: Option<String>,
     ) -> Result<Self, String> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
+        let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(&source);
         cfg.language = language;
         if let Some(quantization) = quantization {
             cfg.quantization = quantization;
         }
-        let stt = nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg))
-            .map_err(|e| e.to_string())?;
+        let stt = nobodywho::speech_to_text::SpeechToText::new(
+            nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+        )
+        .map_err(|e| e.to_string())?;
         Ok(Self { stt })
     }
 
     /// Transcribe an audio file (WAV / MP3).
     #[flutter_rust_bridge::frb(sync)]
-    pub fn transcribe_file(&self, path: String) -> Result<RustSTTStream, String> {
+    pub fn transcribe_file(&self, path: String) -> Result<RustSpeechToTextStream, String> {
         let stream = self
             .stt
             .transcribe_file_stream_async(path)
             .map_err(|e| e.to_string())?;
-        Ok(RustSTTStream { stream })
+        Ok(RustSpeechToTextStream { stream })
     }
 
     /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
@@ -762,22 +766,22 @@ impl RustSTT {
         &self,
         samples: Vec<i16>,
         sample_rate: u32,
-    ) -> Result<RustSTTStream, String> {
+    ) -> Result<RustSpeechToTextStream, String> {
         let stream = self
             .stt
             .transcribe_pcm_stream_async(samples, sample_rate)
             .map_err(|e| e.to_string())?;
-        Ok(RustSTTStream { stream })
+        Ok(RustSpeechToTextStream { stream })
     }
 }
 
 /// A stream of transcript tokens. Consume via `iter(sink)`, `nextToken()`, or `completed()`.
 #[flutter_rust_bridge::frb(opaque)]
-pub struct RustSTTStream {
-    stream: nobodywho::stt::TokenStreamAsync<nobodywho::errors::SttError>,
+pub struct RustSpeechToTextStream {
+    stream: nobodywho::speech_to_text::TokenStreamAsync<nobodywho::errors::SpeechToTextError>,
 }
 
-impl RustSTTStream {
+impl RustSpeechToTextStream {
     /// Stream all tokens into `sink`. Resolves when transcription is complete.
     pub async fn iter(
         &mut self,
