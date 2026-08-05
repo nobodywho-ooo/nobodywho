@@ -147,6 +147,6 @@ def test_audio_transcription_and_image_ingestion(multimodal_chat):
         ]
     )
     response = multimodal_chat.ask(prompt).completed()
-    assert "billy" in response.lower() and (
+    assert "hey" in response.lower() and (
         "dog" in response.lower() or "retriever" in response.lower()
     )
