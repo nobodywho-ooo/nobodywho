@@ -21,9 +21,18 @@ version = "1.0"
 // Supported ABIs (32-bit not supported due to llama.cpp build issues)
 val targetAbis = listOf("arm64-v8a", "x86_64")
 
+// Map Android ABI to NDK triple (for finding libc++_shared.so)
+val abiToNdkTriple = mapOf(
+    "arm64-v8a" to "aarch64-linux-android",
+    "x86_64" to "x86_64-linux-android"
+)
+
 android {
     namespace = "ooo.nobodywho.nobodywho"
     compileSdk = 36
+
+    // NDK version can be configured by downstream apps via gradle.properties
+    findProperty("android.ndkVersion")?.let { ndkVersion = it.toString() }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -69,11 +78,8 @@ val resolveNativeLibraries by tasks.registering {
         val toolDir = file("${projectDir}/../tool")
         val workingDir = file("${projectDir}/..")
 
-        targetAbis.forEach { abi ->
-            val abiOutputDir = jniLibsDir.get().dir(abi).asFile
-            abiOutputDir.mkdirs()
-
-            // Run the Dart script to resolve the library path
+        // Runs resolve_binary.dart for the given ABI/component and returns the resolved path.
+        fun resolveLibrary(abi: String, component: String): String {
             val stdout = ByteArrayOutputStream()
             val stderr = ByteArrayOutputStream()
 
@@ -83,7 +89,8 @@ val resolveNativeLibraries by tasks.registering {
                     "--platform=android",
                     "--arch=$abi",
                     "--build-type=release",
-                    "--cache-dir=${cacheDir.get().asFile.absolutePath}"
+                    "--cache-dir=${cacheDir.get().asFile.absolutePath}",
+                    "--component=$component"
                 )
                 setWorkingDir(workingDir)
                 standardOutput = stdout
@@ -98,17 +105,68 @@ val resolveNativeLibraries by tasks.registering {
             }
 
             if (execResult.exitValue != 0) {
-                throw GradleException("Failed to resolve NobodyWho library for $abi:\n$stderrText")
+                throw GradleException("Failed to resolve $component library for $abi:\n$stderrText")
             }
 
-            val resolvedLibPath = stdout.toString().trim()
-            logger.lifecycle("[$abi] Resolved library: $resolvedLibPath")
+            return stdout.toString().trim()
+        }
+
+        targetAbis.forEach { abi ->
+            val abiOutputDir = jniLibsDir.get().dir(abi).asFile
+            abiOutputDir.mkdirs()
 
             // Copy the resolved library to jniLibs
+            val resolvedLibPath = resolveLibrary(abi, "main")
+            logger.lifecycle("[$abi] Resolved library: $resolvedLibPath")
             copy {
                 from(resolvedLibPath)
                 into(abiOutputDir)
                 rename { "libnobodywho_flutter.so" }
+            }
+
+            // Copy libc++_shared.so from the NDK. libnobodywho_flutter.so links
+            // against it dynamically (llama-cpp-2's "android-static-stdcxx"
+            // feature does not fully statically embed libc++ - confirmed via
+            // `objdump -p` showing a NEEDED libc++_shared.so entry), so it must
+            // ship alongside the plugin's own library or the app fails to load
+            // it at runtime with a dlopen UnsatisfiedLinkError.
+            val ndkDir = android.ndkDirectory
+            val ndkTriple = abiToNdkTriple[abi]
+                ?: throw GradleException("Unknown ABI: $abi")
+
+            // Find the prebuilt directory (works on any host platform)
+            val prebuiltDir = file("${ndkDir}/toolchains/llvm/prebuilt")
+                .listFiles()
+                ?.firstOrNull { it.isDirectory }
+                ?: throw GradleException("Could not find NDK prebuilt directory")
+
+            val libcxxShared = file("${prebuiltDir}/sysroot/usr/lib/${ndkTriple}/libc++_shared.so")
+
+            if (libcxxShared.exists()) {
+                logger.lifecycle("[$abi] Copying libc++_shared.so")
+                copy {
+                    from(libcxxShared)
+                    into(abiOutputDir)
+                }
+            } else {
+                throw GradleException("libc++_shared.so not found at: ${libcxxShared.absolutePath}")
+            }
+
+            // x86_64 links against onnxruntime as a genuinely separate shared
+            // library (Microsoft's official onnxruntime-android prebuild has
+            // no static archive for x86_64, so `ort` links it dynamically
+            // there). arm64-v8a statically embeds onnxruntime directly into
+            // libnobodywho_flutter.so (confirmed via `objdump -p`: no
+            // NEEDED libonnxruntime.so, and no separate .so produced by the
+            // Rust build), so no separate file is needed for that ABI.
+            if (abi == "x86_64") {
+                val resolvedOrtPath = resolveLibrary(abi, "onnxruntime")
+                logger.lifecycle("[$abi] Resolved onnxruntime library: $resolvedOrtPath")
+                copy {
+                    from(resolvedOrtPath)
+                    into(abiOutputDir)
+                    rename { "libonnxruntime.so" }
+                }
             }
         }
     }

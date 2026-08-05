@@ -8,6 +8,20 @@
 
 import 'dart:io';
 
+// onnxruntime is only ever a genuinely separate shared library on Android
+// x86_64 - Microsoft's official onnxruntime-android prebuild has no static
+// archive for that ABI, so `ort` links it dynamically there (see
+// `[target.'cfg(target_os = "android")'.dependencies]` in core/Cargo.toml
+// and the x86_64 branch of the cargo-build-android job in
+// .github/workflows/build.yml). On arm64-v8a, onnxruntime is statically
+// linked directly into libnobodywho_flutter.so, so no separate file exists.
+//
+// Keep this in sync with ORT_VERSION in .github/workflows/build.yml.
+const onnxRuntimeVersion = '1.24.2';
+const onnxRuntimeArches = {
+  'android': ['x86_64'],
+};
+
 // Platform/architecture mappings to Rust triples and library names
 const platformMappings = {
   'linux': {
@@ -42,7 +56,9 @@ const platformMappings = {
 void main(List<String> arguments) async {
   try {
     final config = parseArguments(arguments);
-    final resolvedPath = await resolveBinary(config);
+    final resolvedPath = config.component == 'onnxruntime'
+        ? await resolveOnnxRuntime(config)
+        : await resolveBinary(config);
     stdout.writeln(resolvedPath);
     exit(0);
   } catch (e) {
@@ -56,12 +72,14 @@ class Config {
   final String? arch;
   final String buildType;
   final String cacheDir;
+  final String component;
 
   Config({
     required this.platform,
     this.arch,
     required this.buildType,
     required this.cacheDir,
+    this.component = 'main',
   });
 
   bool get isApplePlatform => platform == 'ios' || platform == 'macos';
@@ -72,6 +90,7 @@ Config parseArguments(List<String> args) {
   String? arch;
   String? buildType;
   String? cacheDir;
+  String component = 'main';
 
   for (int i = 0; i < args.length; i++) {
     if (args[i].startsWith('--')) {
@@ -91,6 +110,9 @@ Config parseArguments(List<String> args) {
           break;
         case 'cache-dir':
           cacheDir = value;
+          break;
+        case 'component':
+          component = value ?? 'main';
           break;
       }
     }
@@ -120,6 +142,7 @@ Config parseArguments(List<String> args) {
     arch: arch,
     buildType: buildType,
     cacheDir: cacheDir,
+    component: component,
   );
 }
 
@@ -144,6 +167,79 @@ Future<String> resolveBinary(Config config) async {
 
   // Strategy 4: Download from GitHub
   return await downloadFromGitHub(config);
+}
+
+Future<String> resolveOnnxRuntime(Config config) async {
+  final needsIt = onnxRuntimeArches[config.platform]?.contains(config.arch) ?? false;
+  if (!needsIt) {
+    throw Exception(
+      'onnxruntime component was requested for ${config.platform}/${config.arch}, '
+      'but it is only needed on: '
+      '${onnxRuntimeArches.entries.map((e) => '${e.key}/${e.value.join(",")}').join("; ")}'
+    );
+  }
+
+  // Strategy 1: cached extraction from a previous run
+  final cacheBasePath = '${config.cacheDir}/onnxruntime/$onnxRuntimeVersion/${config.platform}-${config.arch}';
+  final cachedFile = File('$cacheBasePath/libonnxruntime.so');
+  if (cachedFile.existsSync()) {
+    stderr.writeln('Using cached onnxruntime library: ${cachedFile.path}');
+    return cachedFile.absolute.path;
+  }
+
+  // Strategy 2: download Microsoft's official prebuilt AAR from Maven Central
+  // and extract just the .so for this ABI. This is the same artifact CI uses
+  // to link `nobodywho-flutter` for x86_64 Android (see build.yml), fetched
+  // independently of our own release process since it's versioned by the
+  // upstream ONNX Runtime release, not by the nobodywho package version.
+  final url = 'https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/'
+      '$onnxRuntimeVersion/onnxruntime-android-$onnxRuntimeVersion.aar';
+  stderr.writeln('Downloading onnxruntime AAR: $url');
+
+  final cacheDirObj = Directory(cacheBasePath);
+  await cacheDirObj.create(recursive: true);
+  final aarFile = File('$cacheBasePath/onnxruntime-android-$onnxRuntimeVersion.aar');
+
+  try {
+    final httpClient = HttpClient();
+    final request = await httpClient.getUrl(Uri.parse(url));
+    final response = await request.close();
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download onnxruntime AAR: HTTP ${response.statusCode}\nURL: $url');
+    }
+
+    final sink = aarFile.openWrite();
+    await response.pipe(sink);
+    await sink.close();
+    httpClient.close();
+
+    stderr.writeln('Extracting jni/${config.arch}/libonnxruntime.so...');
+    final unzipResult = await Process.run('unzip', [
+      '-j', '-o', '-q',
+      aarFile.path,
+      'jni/${config.arch}/libonnxruntime.so',
+      '-d', cacheBasePath,
+    ]);
+
+    if (unzipResult.exitCode != 0) {
+      throw Exception('Failed to extract libonnxruntime.so from AAR: ${unzipResult.stderr}');
+    }
+
+    aarFile.deleteSync();
+
+    if (!cachedFile.existsSync()) {
+      throw Exception('libonnxruntime.so not found in AAR after extraction: ${cachedFile.path}');
+    }
+
+    stderr.writeln('Extracted to: ${cachedFile.path}');
+    return cachedFile.absolute.path;
+  } catch (e) {
+    if (aarFile.existsSync()) {
+      aarFile.deleteSync();
+    }
+    rethrow;
+  }
 }
 
 String? checkEnvironmentOverride(Config config) {
