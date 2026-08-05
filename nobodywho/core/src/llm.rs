@@ -42,6 +42,15 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> =
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
 const MAX_EMBEDDING_SEQUENCES: u32 = 256;
 
+fn inference_thread_counts(requested: Option<u32>, logical: u32) -> (u32, u32) {
+    let logical = logical.max(1);
+    let generation = requested
+        .unwrap_or_else(|| (logical / 2).max(1))
+        .clamp(1, logical);
+    let batch = requested.map_or(logical, |_| generation);
+    (generation, batch)
+}
+
 #[derive(Debug)]
 pub struct Model {
     pub(crate) language_model: LlamaModel,
@@ -331,10 +340,16 @@ where
 
         let projection_model = model.projection_model.as_ref();
 
-        // Set up context parameters. Without an explicit request this uses physical cores
-        // rather than logical ones: hyperthread siblings and efficiency cores slow down
-        // ggml's per-node barrier.
-        let n_threads = crate::cpu::inference_thread_count(n_threads) as i32;
+        // Match llama-cpp-python's defaults: half the logical CPUs for token generation and
+        // all logical CPUs for prompt batches. An explicit count applies to both.
+        let logical_threads = std::thread::available_parallelism()?.get() as u32;
+        let (n_threads, n_threads_batch) = inference_thread_counts(n_threads, logical_threads);
+        let n_threads = n_threads as i32;
+        let n_threads_batch = n_threads_batch as i32;
+        info!(
+            n_threads,
+            n_threads_batch, "Selected inference thread counts"
+        );
         let ctx_plan = memory::plan_context(
             std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
             projection_model.is_some(),
@@ -372,7 +387,7 @@ where
             .with_n_ubatch(n_ubatch)
             .with_n_seq_max(n_seq_max)
             .with_n_threads(n_threads)
-            .with_n_threads_batch(n_threads)
+            .with_n_threads_batch(n_threads_batch)
             .with_embeddings(use_embeddings)
             .with_pooling_type(pooling_type)
             .with_kv_unified(n_seq_max > 1);
@@ -396,7 +411,7 @@ where
                         .with_n_batch(draft_batch_cap)
                         .with_n_ubatch(draft_batch_cap)
                         .with_n_threads(n_threads)
-                        .with_n_threads_batch(n_threads)
+                        .with_n_threads_batch(n_threads_batch)
                         .with_context_type(LlamaContextType::Mtp)
                         .with_n_rs_seq(0);
                     let draft_ctx = draft_model.new_context_with_ctx_other(
@@ -506,6 +521,19 @@ impl<T> Drop for WorkerGuard<T> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn defaults_to_half_logical_threads_for_generation() {
+        assert_eq!(inference_thread_counts(None, 16), (8, 16));
+        assert_eq!(inference_thread_counts(None, 1), (1, 1));
+    }
+
+    #[test]
+    fn explicit_thread_count_applies_to_generation_and_batches() {
+        assert_eq!(inference_thread_counts(Some(6), 16), (6, 6));
+        assert_eq!(inference_thread_counts(Some(0), 16), (1, 1));
+        assert_eq!(inference_thread_counts(Some(32), 16), (16, 16));
+    }
 
     #[test]
     fn rejects_projection_model_with_auto_selection() {
