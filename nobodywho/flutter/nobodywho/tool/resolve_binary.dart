@@ -6,7 +6,12 @@
 // 3. Cached download
 // 4. Download from GitHub releases
 
+import 'dart:async';
 import 'dart:io';
+
+// Applied to HttpClient.connectionTimeout and as an overall timeout on
+// request.close(), so a stalled download fails fast instead of hanging.
+const httpTimeout = Duration(seconds: 30);
 
 // onnxruntime is a separate .so only on Android x86_64 (Microsoft ships no
 // static build for it there); arm64 links it statically into the main lib.
@@ -191,10 +196,10 @@ Future<String> resolveOnnxRuntime(Config config) async {
   await cacheDirObj.create(recursive: true);
   final aarFile = File('$cacheBasePath/onnxruntime-android-$onnxRuntimeVersion.aar');
 
+  final httpClient = HttpClient()..connectionTimeout = httpTimeout;
   try {
-    final httpClient = HttpClient();
     final request = await httpClient.getUrl(Uri.parse(url));
-    final response = await request.close();
+    final response = await request.close().timeout(httpTimeout);
 
     if (response.statusCode != 200) {
       throw Exception('Failed to download onnxruntime AAR: HTTP ${response.statusCode}\nURL: $url');
@@ -203,7 +208,6 @@ Future<String> resolveOnnxRuntime(Config config) async {
     final sink = aarFile.openWrite();
     await response.pipe(sink);
     await sink.close();
-    httpClient.close();
 
     stderr.writeln('Extracting jni/${config.arch}/libonnxruntime.so...');
     final unzipResult = await Process.run('unzip', [
@@ -229,7 +233,15 @@ Future<String> resolveOnnxRuntime(Config config) async {
     if (aarFile.existsSync()) {
       aarFile.deleteSync();
     }
+    if (e is TimeoutException) {
+      throw Exception('Timed out downloading onnxruntime AAR from $url');
+    }
+    if (e is SocketException) {
+      throw Exception('Network error downloading onnxruntime AAR from $url: $e');
+    }
     rethrow;
+  } finally {
+    httpClient.close(force: true);
   }
 }
 
@@ -397,10 +409,10 @@ Future<String> downloadLibrary(Config config, String version) async {
 
   stderr.writeln('Downloading: $url');
 
+  final httpClient = HttpClient()..connectionTimeout = httpTimeout;
   try {
-    final httpClient = HttpClient();
     final request = await httpClient.getUrl(Uri.parse(url));
-    final response = await request.close();
+    final response = await request.close().timeout(httpTimeout);
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -413,7 +425,6 @@ Future<String> downloadLibrary(Config config, String version) async {
     final sink = outputFile.openWrite();
     await response.pipe(sink);
     await sink.close();
-    httpClient.close();
 
     stderr.writeln('Downloaded to: $outputPath');
     return outputFile.absolute.path;
@@ -422,7 +433,15 @@ Future<String> downloadLibrary(Config config, String version) async {
     if (outputFile.existsSync()) {
       outputFile.deleteSync();
     }
+    if (e is TimeoutException) {
+      throw Exception('Timed out downloading library from $url');
+    }
+    if (e is SocketException) {
+      throw Exception('Network error downloading library from $url: $e');
+    }
     rethrow;
+  } finally {
+    httpClient.close(force: true);
   }
 }
 
@@ -442,10 +461,10 @@ Future<String> downloadXCFramework(Config config, String version) async {
 
   stderr.writeln('Downloading: $url');
 
+  final httpClient = HttpClient()..connectionTimeout = httpTimeout;
   try {
-    final httpClient = HttpClient();
     final request = await httpClient.getUrl(Uri.parse(url));
-    final response = await request.close();
+    final response = await request.close().timeout(httpTimeout);
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -458,7 +477,6 @@ Future<String> downloadXCFramework(Config config, String version) async {
     final sink = zipFile.openWrite();
     await response.pipe(sink);
     await sink.close();
-    httpClient.close();
 
     stderr.writeln('Downloaded to: $zipPath');
 
@@ -492,7 +510,15 @@ Future<String> downloadXCFramework(Config config, String version) async {
     if (Directory(xcframeworkPath).existsSync()) {
       Directory(xcframeworkPath).deleteSync(recursive: true);
     }
+    if (e is TimeoutException) {
+      throw Exception('Timed out downloading xcframework from $url');
+    }
+    if (e is SocketException) {
+      throw Exception('Network error downloading xcframework from $url: $e');
+    }
     rethrow;
+  } finally {
+    httpClient.close(force: true);
   }
 }
 
