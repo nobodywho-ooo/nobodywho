@@ -2793,7 +2793,9 @@ mod tests {
 
         test_utils::init_test_tracing();
         let Ok(model_path) = std::env::var("TEST_RECURRENT_MODEL") else {
-            eprintln!("skipping test_checkpointing_survives_tool_calling: set TEST_RECURRENT_MODEL");
+            eprintln!(
+                "skipping test_checkpointing_survives_tool_calling: set TEST_RECURRENT_MODEL"
+            );
             return;
         };
 
@@ -2850,7 +2852,10 @@ mod tests {
                 Arc::new(AtomicBool::new(false)),
             )
             .expect("chat init");
-            assert!(worker.engine.needs_checkpointing(), "model is not recurrent-hybrid");
+            assert!(
+                worker.engine.needs_checkpointing(),
+                "model is not recurrent-hybrid"
+            );
 
             // A tool call each turn; correct answers prove the tool actually ran.
             for (prompt, expected) in [
@@ -2867,7 +2872,10 @@ mod tests {
                     })
                     .expect("ask failed");
                 let answer = rx.recv().unwrap();
-                assert!(answer.contains(expected), "turn missing {expected:?} in: {answer}");
+                assert!(
+                    answer.contains(expected),
+                    "turn missing {expected:?} in: {answer}"
+                );
             }
         });
 
