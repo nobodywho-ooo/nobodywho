@@ -12,6 +12,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 - Batch embedding through `Encoder.encode_batch()`. Available for all bindings.
 - Added `VoiceActivityDetection` for detecting when audio includes speech.
+- Simple checkpointing for hybrid models like Qwen3.5. This will reduce how often the chat needs to redecode the entire history for hybrid models. Available for all bindings.
 
 ### Changed
 
