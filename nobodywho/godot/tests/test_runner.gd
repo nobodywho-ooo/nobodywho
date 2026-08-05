@@ -18,6 +18,7 @@ func _run_all() -> void:
 		preload("res://task_test.gd").new(),
 		preload("res://token_stream_test.gd").new(),
 		preload("res://chat_test.gd").new(),
+		preload("res://tools_test.gd").new(),
 	]
 	for suite in suites:
 		await suite.run(self)
