@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use godot::prelude::*;
 
@@ -7,6 +8,7 @@ use crate::convert::{dict_get, json_to_variant, resolve_godot_path, variant_to_j
 use crate::model::NobodyWhoModel;
 use crate::sampler::NobodyWhoSamplerConfig;
 use crate::task::{on_blocking_thread, task};
+use crate::tools::NobodyWhoTool;
 
 /// A chat session over a loaded model. Cheap to share (internally `Arc`).
 ///
@@ -24,6 +26,10 @@ use crate::task::{on_blocking_thread, task};
 #[class(no_init, base=RefCounted)]
 pub struct NobodyWhoChat {
     handle: nobodywho::chat::ChatHandleAsync,
+    /// Set while one of this chat's tools is running (the worker is blocked
+    /// waiting for it). Chat methods check it and fail fast instead of
+    /// hanging — see `guarded()` and TOOLS_DESIGN.md §3.
+    reentrancy_flag: Arc<AtomicBool>,
     base: Base<RefCounted>,
 }
 
@@ -45,12 +51,14 @@ impl NobodyWhoChat {
     /// - `"sampler"` (NobodyWhoSamplerConfig): sampler chain. Default: the
     ///   core default (top_k=20, top_p=0.95, temperature=0.6, dist).
     /// - `"template_variables"` (Dictionary String->bool): chat-template vars.
+    /// - `"tools"` (Array of NobodyWhoTool): tools the model can call.
     ///
     /// Pass `{}` for defaults. Unrecognized keys are ignored; a recognized
     /// key with a value of the wrong type is an error (resolves to null).
     #[func]
     fn create(model: Variant, config: VarDictionary) -> Variant {
-        let (chat_config, use_gpu) = match Self::parse_config(&config) {
+        let reentrancy_flag = Arc::new(AtomicBool::new(false));
+        let (chat_config, use_gpu) = match Self::parse_config(&config, &reentrancy_flag) {
             Ok(parsed) => parsed,
             Err(e) => {
                 godot_error!("NobodyWhoChat.create: {e}");
@@ -82,9 +90,12 @@ impl NobodyWhoChat {
                 on_blocking_thread(move || nobodywho::chat::ChatHandleAsync::new(arc, chat_config))
                     .await;
             match result {
-                Some(Ok(handle)) => {
-                    Gd::from_init_fn(|base| NobodyWhoChat { handle, base }).to_variant()
-                }
+                Some(Ok(handle)) => Gd::from_init_fn(|base| NobodyWhoChat {
+                    handle,
+                    reentrancy_flag,
+                    base,
+                })
+                .to_variant(),
                 Some(Err(e)) => {
                     godot_error!("Failed to create chat: {}", nobodywho::render_miette(&e));
                     Variant::nil()
@@ -102,6 +113,10 @@ impl NobodyWhoChat {
     /// Start generating a response. Returns immediately with a per-call token
     /// stream; pull tokens via `next_token()`, or await the full text via
     /// `completed()`.
+    ///
+    /// Calling this from inside one of this chat's own tools queues the ask
+    /// behind the current generation — but do **not** await its stream from
+    /// inside the tool (the worker won't reach it until the tool returns).
     #[func]
     fn ask(&self, prompt: GString) -> Gd<NobodyWhoTokenStream> {
         NobodyWhoTokenStream::wrap(self.handle.ask(prompt.to_string()))
@@ -114,31 +129,60 @@ impl NobodyWhoChat {
         self.handle.stop_generation();
     }
 
-    // --- Phase 2: query/mutation. Each returns the internal task's wait()
-    // value directly (value-or-Signal); the caller awaits it immediately. ---
+    /// Replace the chat's tools. `tools` is an Array of `NobodyWhoTool`.
+    /// Resolves to null on success, or null + `godot_error!` on failure.
+    /// Each GDScript tool spawns its own main-thread loop; the previous
+    /// tools' loops end themselves when core drops the old closures.
+    #[func]
+    fn set_tools(&self, tools: VarArray) -> Variant {
+        let core_tools = build_core_tools(&tools, &self.reentrancy_flag);
+        let handle = self.handle.clone();
+        self.guarded("set_tools", async move {
+            handle
+                .set_tools(core_tools)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| e.to_string())
+        })
+    }
+
+    /// Reset the chat with a new system prompt and tool set. `system_prompt`
+    /// is a String or null (clear). `tools` is an Array of `NobodyWhoTool`.
+    /// Resolves to null on success, or null + `godot_error!` on failure.
+    #[func]
+    fn reset_chat(&self, system_prompt: Variant, tools: VarArray) -> Variant {
+        let prompt = match opt_string(&system_prompt) {
+            Ok(p) => p,
+            Err(_) => {
+                godot_error!("reset_chat: system_prompt must be a String or null");
+                return Variant::nil();
+            }
+        };
+        let core_tools = build_core_tools(&tools, &self.reentrancy_flag);
+        let handle = self.handle.clone();
+        self.guarded("reset_chat", async move {
+            handle
+                .reset_chat(prompt, core_tools)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| e.to_string())
+        })
+    }
 
     /// Get the chat history as an Array of message dicts (`{role, content, ...}`).
     /// Resolves to the Array, or null on failure.
     #[func]
     fn get_chat_history(&self) -> Variant {
         let handle = self.handle.clone();
-        task(async move {
-            match handle.get_chat_history().await {
-                Ok(msgs) => match serde_json::to_value(&msgs) {
-                    Ok(json) => json_to_variant(&json),
-                    Err(e) => {
-                        godot_error!("get_chat_history: failed to serialize messages: {e}");
-                        Variant::nil()
-                    }
-                },
-                Err(e) => {
-                    godot_error!("get_chat_history failed: {}", nobodywho::render_miette(&e));
-                    Variant::nil()
-                }
-            }
+        self.guarded("get_chat_history", async move {
+            let msgs = handle
+                .get_chat_history()
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            let json = serde_json::to_value(&msgs)
+                .map_err(|e| format!("failed to serialize messages: {e}"))?;
+            Ok(json_to_variant(&json))
         })
-        .bind()
-        .wait()
     }
 
     /// Replace the chat history. `messages` is an Array of message dicts
@@ -146,31 +190,16 @@ impl NobodyWhoChat {
     #[func]
     fn set_chat_history(&self, messages: VarArray) -> Variant {
         let handle = self.handle.clone();
-        let json = match variant_to_json(&messages.to_variant()) {
-            Ok(v) => v,
-            Err(e) => {
-                godot_error!("set_chat_history: bad message shape: {e}");
-                return Variant::nil();
-            }
-        };
-        let msgs: Vec<nobodywho::chat::Message> = match serde_json::from_value(json) {
-            Ok(m) => m,
-            Err(e) => {
-                godot_error!("set_chat_history: invalid messages: {e}");
-                return Variant::nil();
-            }
-        };
-        task(async move {
-            match handle.set_chat_history(msgs).await {
-                Ok(()) => Variant::nil(),
-                Err(e) => {
-                    godot_error!("set_chat_history failed: {}", nobodywho::render_miette(&e));
-                    Variant::nil()
-                }
-            }
+        let json = variant_to_json(&messages.to_variant());
+        self.guarded("set_chat_history", async move {
+            let msgs: Vec<nobodywho::chat::Message> =
+                serde_json::from_value(json?).map_err(|e| format!("invalid messages: {e}"))?;
+            handle
+                .set_chat_history(msgs)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| nobodywho::render_miette(&e))
         })
-        .bind()
-        .wait()
     }
 
     /// Clear the conversation history, keeping the system prompt and tools.
@@ -178,17 +207,13 @@ impl NobodyWhoChat {
     #[func]
     fn reset_history(&self) -> Variant {
         let handle = self.handle.clone();
-        task(async move {
-            match handle.reset_history().await {
-                Ok(()) => Variant::nil(),
-                Err(e) => {
-                    godot_error!("reset_history failed: {}", nobodywho::render_miette(&e));
-                    Variant::nil()
-                }
-            }
+        self.guarded("reset_history", async move {
+            handle
+                .reset_history()
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| nobodywho::render_miette(&e))
         })
-        .bind()
-        .wait()
     }
 
     /// Get the system prompt. Resolves to a String, or null if none is set
@@ -196,47 +221,34 @@ impl NobodyWhoChat {
     #[func]
     fn get_system_prompt(&self) -> Variant {
         let handle = self.handle.clone();
-        task(async move {
-            match handle.get_system_prompt().await {
-                Ok(Some(s)) => GString::from(&s).to_variant(),
-                Ok(None) => Variant::nil(),
-                Err(e) => {
-                    godot_error!("get_system_prompt failed: {}", nobodywho::render_miette(&e));
-                    Variant::nil()
-                }
-            }
+        self.guarded("get_system_prompt", async move {
+            let prompt = handle
+                .get_system_prompt()
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            Ok(prompt.map_or(Variant::nil(), |s| GString::from(&s).to_variant()))
         })
-        .bind()
-        .wait()
     }
 
     /// Update the system prompt without resetting history. Pass a String to
     /// set it, or null to clear it. Resolves to null (success) or null + error.
     #[func]
     fn set_system_prompt(&self, prompt: Variant) -> Variant {
-        let handle = self.handle.clone();
-        let prompt = if prompt.get_type() == godot::builtin::VariantType::NIL {
-            None
-        } else {
-            match prompt.try_to::<GString>() {
-                Ok(s) => Some(s.to_string()),
-                Err(_) => {
-                    godot_error!("set_system_prompt: expected String or null");
-                    return Variant::nil();
-                }
+        let prompt = match opt_string(&prompt) {
+            Ok(p) => p,
+            Err(_) => {
+                godot_error!("set_system_prompt: expected String or null");
+                return Variant::nil();
             }
         };
-        task(async move {
-            match handle.set_system_prompt(prompt).await {
-                Ok(()) => Variant::nil(),
-                Err(e) => {
-                    godot_error!("set_system_prompt failed: {}", nobodywho::render_miette(&e));
-                    Variant::nil()
-                }
-            }
+        let handle = self.handle.clone();
+        self.guarded("set_system_prompt", async move {
+            handle
+                .set_system_prompt(prompt)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| nobodywho::render_miette(&e))
         })
-        .bind()
-        .wait()
     }
 
     /// Get the current sampler config as a NobodyWhoSamplerConfig.
@@ -244,42 +256,28 @@ impl NobodyWhoChat {
     #[func]
     fn get_sampler_config(&self) -> Variant {
         let handle = self.handle.clone();
-        task(async move {
-            match handle.get_sampler_config().await {
-                Ok(cfg) => NobodyWhoSamplerConfig::wrap(cfg).to_variant(),
-                Err(e) => {
-                    godot_error!(
-                        "get_sampler_config failed: {}",
-                        nobodywho::render_miette(&e)
-                    );
-                    Variant::nil()
-                }
-            }
+        self.guarded("get_sampler_config", async move {
+            let cfg = handle
+                .get_sampler_config()
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            Ok(NobodyWhoSamplerConfig::wrap(cfg).to_variant())
         })
-        .bind()
-        .wait()
     }
 
     /// Update the sampler config. `config` is a NobodyWhoSamplerConfig.
     /// Resolves to null (success) or null + error.
     #[func]
     fn set_sampler_config(&self, config: Gd<NobodyWhoSamplerConfig>) -> Variant {
-        let handle = self.handle.clone();
         let cfg = config.bind().inner.clone();
-        task(async move {
-            match handle.set_sampler_config(cfg).await {
-                Ok(()) => Variant::nil(),
-                Err(e) => {
-                    godot_error!(
-                        "set_sampler_config failed: {}",
-                        nobodywho::render_miette(&e)
-                    );
-                    Variant::nil()
-                }
-            }
+        let handle = self.handle.clone();
+        self.guarded("set_sampler_config", async move {
+            handle
+                .set_sampler_config(cfg)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| nobodywho::render_miette(&e))
         })
-        .bind()
-        .wait()
     }
 
     /// Get all chat-template variables as a Dictionary String->bool.
@@ -287,76 +285,47 @@ impl NobodyWhoChat {
     #[func]
     fn get_template_variables(&self) -> Variant {
         let handle = self.handle.clone();
-        task(async move {
-            match handle.get_template_variables().await {
-                Ok(vars) => {
-                    let mut dict: VarDictionary = Dictionary::new();
-                    for (k, v) in vars {
-                        let _ = dict.insert(&GString::from(&k), &v.to_variant());
-                    }
-                    dict.to_variant()
-                }
-                Err(e) => {
-                    godot_error!(
-                        "get_template_variables failed: {}",
-                        nobodywho::render_miette(&e)
-                    );
-                    Variant::nil()
-                }
+        self.guarded("get_template_variables", async move {
+            let vars = handle
+                .get_template_variables()
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            let mut dict: VarDictionary = Dictionary::new();
+            for (k, v) in vars {
+                let _ = dict.insert(&GString::from(&k), &v.to_variant());
             }
+            Ok(dict.to_variant())
         })
-        .bind()
-        .wait()
     }
 
     /// Set a single chat-template variable. Resolves to null (success) or
     /// null + error.
     #[func]
     fn set_template_variable(&self, name: GString, value: bool) -> Variant {
-        let handle = self.handle.clone();
         let name = name.to_string();
-        task(async move {
-            match handle.set_template_variable(name, value).await {
-                Ok(()) => Variant::nil(),
-                Err(e) => {
-                    godot_error!(
-                        "set_template_variable failed: {}",
-                        nobodywho::render_miette(&e)
-                    );
-                    Variant::nil()
-                }
-            }
+        let handle = self.handle.clone();
+        self.guarded("set_template_variable", async move {
+            handle
+                .set_template_variable(name, value)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| nobodywho::render_miette(&e))
         })
-        .bind()
-        .wait()
     }
 
     /// Replace all chat-template variables. `vars` is a Dictionary String->bool.
     /// Resolves to null (success) or null + error.
     #[func]
     fn set_template_variables(&self, vars: VarDictionary) -> Variant {
+        let vars = collect_template_variables(&vars);
         let handle = self.handle.clone();
-        let vars = match collect_template_variables(&vars) {
-            Ok(v) => v,
-            Err(e) => {
-                godot_error!("set_template_variables: {e}");
-                return Variant::nil();
-            }
-        };
-        task(async move {
-            match handle.set_template_variables(vars).await {
-                Ok(()) => Variant::nil(),
-                Err(e) => {
-                    godot_error!(
-                        "set_template_variables failed: {}",
-                        nobodywho::render_miette(&e)
-                    );
-                    Variant::nil()
-                }
-            }
+        self.guarded("set_template_variables", async move {
+            handle
+                .set_template_variables(vars?)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| nobodywho::render_miette(&e))
         })
-        .bind()
-        .wait()
     }
 
     /// Context usage statistics. Resolves to a Dictionary
@@ -364,28 +333,22 @@ impl NobodyWhoChat {
     #[func]
     fn get_stats(&self) -> Variant {
         let handle = self.handle.clone();
-        task(async move {
-            match handle.get_stats().await {
-                Ok(stats) => {
-                    let mut dict: VarDictionary = Dictionary::new();
-                    let _ = dict.insert(
-                        &GString::from("context_size"),
-                        &stats.context_size.to_variant(),
-                    );
-                    let _ = dict.insert(
-                        &GString::from("context_used"),
-                        &stats.context_used.to_variant(),
-                    );
-                    dict.to_variant()
-                }
-                Err(e) => {
-                    godot_error!("get_stats failed: {}", nobodywho::render_miette(&e));
-                    Variant::nil()
-                }
-            }
+        self.guarded("get_stats", async move {
+            let stats = handle
+                .get_stats()
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            let mut dict: VarDictionary = Dictionary::new();
+            let _ = dict.insert(
+                &GString::from("context_size"),
+                &stats.context_size.to_variant(),
+            );
+            let _ = dict.insert(
+                &GString::from("context_used"),
+                &stats.context_used.to_variant(),
+            );
+            Ok(dict.to_variant())
         })
-        .bind()
-        .wait()
     }
 
     /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
@@ -393,58 +356,73 @@ impl NobodyWhoChat {
     #[func]
     fn mtp_acceptance_rate(&self) -> Variant {
         let handle = self.handle.clone();
-        task(async move {
-            match handle.mtp_acceptance_rate().await {
-                Ok(Some(rate)) => rate.to_variant(),
-                Ok(None) => Variant::nil(),
-                Err(e) => {
-                    godot_error!(
-                        "mtp_acceptance_rate failed: {}",
-                        nobodywho::render_miette(&e)
-                    );
-                    Variant::nil()
-                }
-            }
+        self.guarded("mtp_acceptance_rate", async move {
+            let rate = handle
+                .mtp_acceptance_rate()
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            Ok(rate.map_or(Variant::nil(), |r| r.to_variant()))
         })
-        .bind()
-        .wait()
     }
 
     /// Tokenize a prompt. Resolves to an Array of ints (with null slots for
     /// media embedding positions), or null on failure.
     #[func]
     fn tokenize(&self, prompt: GString) -> Variant {
-        let handle = self.handle.clone();
         let prompt = prompt.to_string();
-        task(async move {
-            match handle.tokenize(prompt).await {
-                Ok(ids) => {
-                    let mut arr: VarArray = Array::new();
-                    for id in ids {
-                        match id {
-                            Some(i) => arr.push(&i.to_variant()),
-                            None => arr.push(&Variant::nil()),
-                        }
-                    }
-                    arr.to_variant()
-                }
-                Err(e) => {
-                    godot_error!("tokenize failed: {}", nobodywho::render_miette(&e));
-                    Variant::nil()
-                }
-            }
+        let handle = self.handle.clone();
+        self.guarded("tokenize", async move {
+            let ids = handle
+                .tokenize(prompt)
+                .await
+                .map_err(|e| nobodywho::render_miette(&e))?;
+            let arr: VarArray = ids
+                .iter()
+                .map(|id| id.map_or(Variant::nil(), |i| i.to_variant()))
+                .collect();
+            Ok(arr.to_variant())
         })
-        .bind()
-        .wait()
     }
 }
 
 impl NobodyWhoChat {
+    /// The one shape every async chat method shares: check the re-entrancy
+    /// guard, run the op as a latched task, and resolve errors to null +
+    /// `godot_error!`. Returns the task's value-or-Signal Variant (await it
+    /// immediately).
+    fn guarded<Fut>(&self, op: &'static str, fut: Fut) -> Variant
+    where
+        Fut: std::future::Future<Output = Result<Variant, String>> + 'static,
+    {
+        if self.reentrancy_flag.load(Ordering::Acquire) {
+            godot_error!(
+                "{op}: called back into this chat from one of its own tools — the worker is \
+                 blocked waiting for the tool to return, so this call can never complete. \
+                 Use a different chat, or return from the tool first."
+            );
+            return Variant::nil();
+        }
+        task(async move {
+            fut.await.unwrap_or_else(|e| {
+                godot_error!("{op} failed: {e}");
+                Variant::nil()
+            })
+        })
+        .bind()
+        .wait()
+    }
+
     /// Parse the `create` config Dictionary into a core `ChatConfig` plus the
     /// `use_gpu` flag (used only when the model is given as a path). Errors
     /// on any recognized key holding a value of the wrong type.
-    fn parse_config(config: &VarDictionary) -> Result<(nobodywho::chat::ChatConfig, bool), String> {
+    fn parse_config(
+        config: &VarDictionary,
+        reentrancy_flag: &Arc<AtomicBool>,
+    ) -> Result<(nobodywho::chat::ChatConfig, bool), String> {
         let defaults = nobodywho::chat::ChatConfig::default();
+        let tools = dict_get::<VarArray>(config, "tools")?
+            .map(|arr| build_core_tools(&arr, reentrancy_flag))
+            .unwrap_or_default();
         let chat_config = nobodywho::chat::ChatConfig {
             system_prompt: dict_get::<GString>(config, "system_prompt")?
                 .map(|s| s.to_string())
@@ -457,10 +435,22 @@ impl NobodyWhoChat {
                 .map(|d| collect_template_variables(&d))
                 .transpose()?
                 .unwrap_or_default(),
+            tools,
             ..defaults
         };
         let use_gpu = dict_get::<bool>(config, "use_gpu")?.unwrap_or(true);
         Ok((chat_config, use_gpu))
+    }
+}
+
+/// A `String`-or-null Variant -> `Option<String>`; `Err` for anything else.
+fn opt_string(v: &Variant) -> Result<Option<String>, ()> {
+    if v.get_type() == godot::builtin::VariantType::NIL {
+        Ok(None)
+    } else {
+        v.try_to::<GString>()
+            .map(|s| Some(s.to_string()))
+            .map_err(|_| ())
     }
 }
 
@@ -478,6 +468,33 @@ fn collect_template_variables(
                 .try_to::<bool>()
                 .map_err(|_| format!("template variable \"{key}\" is not a bool"))?;
             Ok((key.to_string(), value))
+        })
+        .collect()
+}
+
+/// Build core `Tool`s from a GDScript Array of `Gd<NobodyWhoTool>`.
+/// GDScript tools spawn their per-registration main-thread loop here (on the
+/// main thread, which is where this runs) and capture this chat's
+/// re-entrancy flag; built-in tools pass through. Tools that failed to build
+/// are skipped with a `godot_error!` so one bad tool doesn't abort the set.
+fn build_core_tools(
+    tools: &VarArray,
+    reentrancy_flag: &Arc<AtomicBool>,
+) -> Vec<nobodywho::tool_calling::Tool> {
+    tools
+        .iter_shared()
+        .filter_map(|v| match v.try_to::<Gd<NobodyWhoTool>>() {
+            Ok(gd) => {
+                let tool = gd.bind().build_core_tool(reentrancy_flag.clone());
+                if tool.is_none() {
+                    godot_error!("tools: skipped a tool that failed to build");
+                }
+                tool
+            }
+            Err(_) => {
+                godot_error!("tools: element is not a NobodyWhoTool");
+                None
+            }
         })
         .collect()
 }
