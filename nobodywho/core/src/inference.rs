@@ -189,6 +189,10 @@ impl<'a> InferenceEngine<'a> {
         self
     }
 
+    pub(crate) fn discard_checkpoint(&mut self) {
+        self.checkpoint = None;
+    }
+
     pub(crate) fn reset_mtp_stats(&mut self) {
         self.mtp_drafts_proposed = 0;
         self.mtp_drafts_accepted = 0;
@@ -313,8 +317,9 @@ impl<'a> InferenceEngine<'a> {
             warn!(?err, "Failed to restore sequence checkpoint");
             return false;
         }
+        // Keep the checkpoint: its prefix is stable, so intra-round restores can
+        // reuse it. It's refreshed at the next round start, or dropped on reset/shift.
         let restored_pos = ckpt.n_past;
-        self.checkpoint = None;
         self.n_past = restored_pos;
         match self
             .ctx

@@ -1662,7 +1662,11 @@ impl<'a> Chat<'a> {
         self.context.chunks = new_committed;
         self.context.garbage_collect_bitmaps(&self.messages);
 
-        self.engine.save_checkpoint();
+        // Anchor the checkpoint at the round start (last user-message boundary)
+        // only; see `test_checkpointing_survives_tool_calling`.
+        if self.messages.last().is_some_and(Message::is_user) {
+            self.engine.save_checkpoint();
+        }
 
         // Transient tail: read into the KV cache only, not stored in context.chunks.
         if let Some(tail) = gen_prompt_tail {
@@ -1735,6 +1739,7 @@ impl<'a> Chat<'a> {
         }
 
         self.messages = messages;
+        self.engine.discard_checkpoint();
         Ok(())
     }
 
@@ -2772,6 +2777,105 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    /// Regression guard: multi-turn tool calling on a recurrent/hybrid model must
+    /// rewind via checkpoint restore, never degrade to a full context reset. The
+    /// extra commit boundary a tool call adds (user → tool-call+response → answer)
+    /// used to leave the single checkpoint past the next turn's rewind target,
+    /// silently defeating checkpointing. Skipped unless `TEST_RECURRENT_MODEL` is set.
+    #[test]
+    fn test_checkpointing_survives_tool_calling() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tracing::field::{Field, Visit};
+        use tracing::{Event, Subscriber};
+        use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
+
+        test_utils::init_test_tracing();
+        let Ok(model_path) = std::env::var("TEST_RECURRENT_MODEL") else {
+            eprintln!("skipping test_checkpointing_survives_tool_calling: set TEST_RECURRENT_MODEL");
+            return;
+        };
+
+        // Counts full-reset fallbacks, the same way
+        // test_checkpoint_restore_fires_on_recurrent_model counts restores.
+        struct MessageMatchCounter {
+            substring: &'static str,
+            count: Arc<AtomicUsize>,
+        }
+        impl<S: Subscriber> Layer<S> for MessageMatchCounter {
+            fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+                struct MsgVisitor<'a> {
+                    substring: &'a str,
+                    matched: bool,
+                }
+                impl<'a> Visit for MsgVisitor<'a> {
+                    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+                        if field.name() == "message"
+                            && format!("{value:?}").contains(self.substring)
+                        {
+                            self.matched = true;
+                        }
+                    }
+                }
+                let mut v = MsgVisitor {
+                    substring: self.substring,
+                    matched: false,
+                };
+                event.record(&mut v);
+                if v.matched {
+                    self.count.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+
+        let resets = Arc::new(AtomicUsize::new(0));
+        let subscriber = tracing_subscriber::registry().with(MessageMatchCounter {
+            substring: "falling back to full context reset",
+            count: Arc::clone(&resets),
+        });
+
+        let model = Arc::new(crate::llm::get_model(&model_path, true, None, None, None).unwrap());
+        tracing::subscriber::with_default(subscriber, || {
+            let mut worker = Chat::new_chat_worker(
+                &model,
+                ChatConfig {
+                    system_prompt: Some("You're a helpful assistant.".into()),
+                    tools: vec![test_tool()],
+                    // Deterministic, and matches the reported failure conditions.
+                    template_variables: [("enable_thinking".to_string(), false)].into(),
+                    sampler_config: Some(crate::sampler::SamplerPresets::greedy()),
+                    ..Default::default()
+                },
+                Arc::new(AtomicBool::new(false)),
+            )
+            .expect("chat init");
+            assert!(worker.engine.needs_checkpointing(), "model is not recurrent-hybrid");
+
+            // A tool call each turn; correct answers prove the tool actually ran.
+            for (prompt, expected) in [
+                ("What is the temperature in Copenhagen?", "13.37"),
+                ("What is the temperature in Beijing?", "42.69"),
+                ("And Copenhagen again?", "13.37"),
+            ] {
+                let (tx, rx) = std::sync::mpsc::channel();
+                worker
+                    .ask(prompt.into(), move |x| {
+                        if let llm::WriteOutput::Done(resp) = x {
+                            tx.send(resp).unwrap();
+                        }
+                    })
+                    .expect("ask failed");
+                let answer = rx.recv().unwrap();
+                assert!(answer.contains(expected), "turn missing {expected:?} in: {answer}");
+            }
+        });
+
+        assert_eq!(
+            resets.load(Ordering::Relaxed),
+            0,
+            "tool calling forced a full context reset — checkpointing was defeated",
+        );
     }
 
     #[test]
