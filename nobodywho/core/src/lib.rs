@@ -6,6 +6,7 @@ pub mod errors;
 mod host_memory;
 pub mod huggingface;
 pub mod inference;
+mod join_on_drop;
 pub mod llm;
 pub mod memory;
 mod model_selection;

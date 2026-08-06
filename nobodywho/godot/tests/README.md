@@ -65,24 +65,37 @@ nix shell nixpkgs#godot_4 --command godot --headless --path .
 
 ## Model-backed tests
 
-Some suites (currently `chat_test.gd`) need a live model, which needs a
-`.gguf` path. They self-skip when the `TEST_MODEL` environment variable is
-unset, so the model-free suites still run green on their own:
+Some suites need a live model or a download, which needs a source path.
+They self-skip when their environment variable is unset, so the model-free
+suites still run green on their own:
 
 ```sh
-# Model-free only (task + token stream):
-nix shell nixpkgs#godot_4 --command godot --headless --path .
-
-# Including model-backed tests:
+# Chat + tool-calling tests (GGUF LLM):
 TEST_MODEL=/path/to/model.gguf \
+  nix shell nixpkgs#godot_4 --command godot --headless --path .
+
+# Text-to-speech (downloads from HF or a local dir):
+TEST_TTS_SOURCE=hf://NobodyWho/Kokoro-82M \
+  nix shell nixpkgs#godot_4 --command godot --headless --path .
+
+# Speech-to-text (Whisper ONNX + an audio file with known speech):
+TEST_STT_SOURCE=hf://onnx-community/whisper-base \
+TEST_AUDIO_FILE=/path/to/hello.wav \
+  nix shell nixpkgs#godot_4 --command godot --headless --path .
+
+# All at once:
+TEST_MODEL=/path/to/model.gguf \
+TEST_TTS_SOURCE=hf://NobodyWho/Kokoro-82M \
+TEST_STT_SOURCE=hf://onnx-community/whisper-base \
+TEST_AUDIO_FILE=/path/to/hello.wav \
   nix shell nixpkgs#godot_4 --command godot --headless --path .
 ```
 
-A small CPU-friendly model works fine (e.g. `Qwen_Qwen3-0.6B-Q4_K_M.gguf`).
-The first run will download/load it and print a lot of `llama_model_loader`
-log noise — that's expected. Tests that need a model read `TEST_MODEL` in
-`_ready`/`run` and print `SKIP: ...` if it's empty, so a missing var never
-fails the suite or hangs.
+A small CPU-friendly model works fine for `TEST_MODEL` (e.g.
+`Qwen_Qwen3-0.6B-Q4_K_M.gguf`). The first run will download/load it and print
+a lot of `llama_model_loader` / ONNX log noise — that's expected. Tests that
+need a model read their env var in `run()` and print `SKIP: ...` if it's
+empty, so a missing var never fails the suite or hangs.
 
 ## Layout
 
@@ -91,9 +104,10 @@ project.godot             # minimal headless project, main scene = tests.tscn
 nobodywho.gdextension     # loads the built .so from ../../target/
 tests.tscn                # main scene: a Node running test_runner.gd
 test_runner.gd            # loads each *_test.gd suite, runs them, quits
-task_test.gd              # NobodyWhoTask latch + panic-path tests
-token_stream_test.gd      # NobodyWhoTokenStream pull-path tests
 chat_test.gd              # NobodyWhoChat query/mutation tests (needs TEST_MODEL)
+tools_test.gd             # NobodyWhoTool tests (needs TEST_MODEL)
+tts_test.gd               # NobodyWhoTextToSpeech tests (needs TEST_TTS_SOURCE)
+stt_test.gd               # NobodyWhoSpeechToText tests (needs TEST_STT_SOURCE + TEST_AUDIO_FILE)
 ```
 
 ## Adding a test suite
@@ -116,6 +130,8 @@ chat_test.gd              # NobodyWhoChat query/mutation tests (needs TEST_MODEL
    var suites: Array = [
        preload("res://chat_test.gd").new(),
        preload("res://tools_test.gd").new(),
+       preload("res://tts_test.gd").new(),
+       preload("res://stt_test.gd").new(),
        preload("res://your_test.gd").new(),   # <-- add here
    ]
    ```

@@ -20,5 +20,13 @@ android.release.arm64 =    "res://addons/nobodywho/libnobodywho-godot-aarch64-li
 [icons]
 NobodyWhoModel =            "res://addons/nobodywho/icon.svg"
 NobodyWhoChat =             "res://addons/nobodywho/icon.svg"
+NobodyWhoTokenStream =      "res://addons/nobodywho/icon.svg"
+NobodyWhoTool =             "res://addons/nobodywho/icon.svg"
+NobodyWhoSamplerConfig =    "res://addons/nobodywho/icon.svg"
+NobodyWhoSamplerBuilder =   "res://addons/nobodywho/icon.svg"
+NobodyWhoSamplerPresets =   "res://addons/nobodywho/icon.svg"
+NobodyWho =                 "res://addons/nobodywho/icon.svg"
+NobodyWhoSpeechToText =     "res://addons/nobodywho/icon.svg"
+NobodyWhoTextToSpeech =     "res://addons/nobodywho/icon.svg"
 NobodyWhoEmbedding =             "res://addons/nobodywho/icon.svg"
 NobodyWhoCrossEncoder =             "res://addons/nobodywho/icon.svg"

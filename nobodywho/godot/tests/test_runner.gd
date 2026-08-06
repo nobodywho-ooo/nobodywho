@@ -17,6 +17,8 @@ func _run_all() -> void:
 	var suites: Array = [
 		preload("res://chat_test.gd").new(),
 		preload("res://tools_test.gd").new(),
+		preload("res://tts_test.gd").new(),
+		preload("res://stt_test.gd").new(),
 	]
 	for suite in suites:
 		await suite.run(self)

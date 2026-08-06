@@ -119,7 +119,7 @@ impl NobodyWhoChat {
     /// inside the tool (the worker won't reach it until the tool returns).
     #[func]
     fn ask(&self, prompt: GString) -> Gd<NobodyWhoTokenStream> {
-        NobodyWhoTokenStream::wrap(self.handle.ask(prompt.to_string()))
+        NobodyWhoTokenStream::wrap_chat(self.handle.ask(prompt.to_string()))
     }
 
     /// Stop the current generation early. Chat-scoped: with queued concurrent
@@ -501,7 +501,8 @@ fn build_core_tools(
 
 // --- NobodyWhoTokenStream ---------------------------------------------------
 
-/// A per-call token stream from `NobodyWhoChat.ask`. One object per call,
+/// A per-call token stream from `NobodyWhoChat.ask` or
+/// `NobodyWhoSpeechToText.transcribe_*_stream`. One object per call,
 /// isolating concurrent generations and their errors.
 ///
 /// A thin lazy wrapper around core's `TokenStreamAsync` (mirrors the Python
@@ -523,9 +524,50 @@ pub struct NobodyWhoTokenStream {
     /// The core stream. Shared with in-flight pull tasks: a pull future needs
     /// `&mut` across an await, and neither a `bind()` nor a `RefCell` guard
     /// may be held across a suspension — so pulls clone the `Rc` and
-    /// `lock().await` instead.
-    stream: Rc<tokio::sync::Mutex<nobodywho::chat::TokenStreamAsync>>,
+    /// `lock().await` instead. The enum dispatches chat vs STT streams (both
+    /// are `TokenStreamAsync` over different error types; both resolve errors
+    /// to `null` + `godot_error!`, so the Godot-visible behavior is identical).
+    stream: Rc<tokio::sync::Mutex<StreamInner>>,
     base: Base<RefCounted>,
+}
+
+/// Type-erased core stream. Chat and SpeechToText both produce a
+/// `TokenStreamAsync<E>` with the same `next_token`/`completed` shape; the
+/// only difference is the error type, which is rendered to a string either
+/// way. Mirrors the Python binding's `AsyncStreamInner` enum.
+pub(crate) enum StreamInner {
+    Chat(nobodywho::chat::TokenStreamAsync),
+    Stt(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SpeechToTextError>),
+}
+
+impl StreamInner {
+    async fn next_token(&mut self) -> Result<Option<String>, StreamError> {
+        match self {
+            StreamInner::Chat(s) => s.next_token().await.map_err(StreamError::Chat),
+            StreamInner::Stt(s) => s.next_token().await.map_err(StreamError::Stt),
+        }
+    }
+    async fn completed(&mut self) -> Result<String, StreamError> {
+        match self {
+            StreamInner::Chat(s) => s.completed().await.map_err(StreamError::Chat),
+            StreamInner::Stt(s) => s.completed().await.map_err(StreamError::Stt),
+        }
+    }
+}
+
+/// Boxed error from either stream type, for uniform rendering.
+pub(crate) enum StreamError {
+    Chat(nobodywho::errors::CompletionError),
+    Stt(nobodywho::errors::SpeechToTextError),
+}
+
+fn render_stream_error(e: &StreamError) -> String {
+    match e {
+        // CompletionError is miette::Diagnostic — rich rendering.
+        StreamError::Chat(c) => nobodywho::render_miette(c),
+        // SpeechToTextError is thiserror-only — plain to_string().
+        StreamError::Stt(s) => s.to_string(),
+    }
 }
 
 #[godot_api]
@@ -541,7 +583,7 @@ impl NobodyWhoTokenStream {
                 Ok(Some(tok)) => GString::from(&tok).to_variant(),
                 Ok(None) => Variant::nil(),
                 Err(e) => {
-                    godot_error!("Generation failed: {}", nobodywho::render_miette(&e));
+                    godot_error!("Stream failed: {}", render_stream_error(&e));
                     Variant::nil()
                 }
             }
@@ -552,7 +594,7 @@ impl NobodyWhoTokenStream {
 
     /// Await the full response text, draining the rest of the stream.
     /// Resolves to the full text (repeat calls included — core latches it),
-    /// or null if this call observes a generation failure.
+    /// or null if this call observes a failure.
     #[func]
     fn completed(&self) -> Variant {
         let stream = self.stream.clone();
@@ -560,7 +602,7 @@ impl NobodyWhoTokenStream {
             match stream.lock().await.completed().await {
                 Ok(full) => GString::from(&full).to_variant(),
                 Err(e) => {
-                    godot_error!("Generation failed: {}", nobodywho::render_miette(&e));
+                    godot_error!("Stream failed: {}", render_stream_error(&e));
                     Variant::nil()
                 }
             }
@@ -571,10 +613,20 @@ impl NobodyWhoTokenStream {
 }
 
 impl NobodyWhoTokenStream {
-    /// Wrap a core token stream.
-    fn wrap(stream: nobodywho::chat::TokenStreamAsync) -> Gd<Self> {
+    /// Wrap a chat token stream.
+    pub(crate) fn wrap_chat(stream: nobodywho::chat::TokenStreamAsync) -> Gd<Self> {
         Gd::from_init_fn(|base| Self {
-            stream: Rc::new(tokio::sync::Mutex::new(stream)),
+            stream: Rc::new(tokio::sync::Mutex::new(StreamInner::Chat(stream))),
+            base,
+        })
+    }
+
+    /// Wrap a SpeechToText token stream.
+    pub(crate) fn wrap_stt(
+        stream: nobodywho::stream::TokenStreamAsync<nobodywho::errors::SpeechToTextError>,
+    ) -> Gd<Self> {
+        Gd::from_init_fn(|base| Self {
+            stream: Rc::new(tokio::sync::Mutex::new(StreamInner::Stt(stream))),
             base,
         })
     }
