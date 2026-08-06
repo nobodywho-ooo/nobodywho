@@ -1758,7 +1758,8 @@ impl<'a> Chat<'a> {
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
-        let mut tokens_written_until_now = TokenizerChunks::new();
+        let mut tokens_written_until_now = Vec::new();
+        let mut new_tokens = Vec::new();
 
         self.sampler.reset();
 
@@ -1772,8 +1773,13 @@ impl<'a> Chat<'a> {
                 let deferred_pending = self.engine.take_pending();
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
-                self.engine
-                    .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
+                if !tokens_written_until_now.is_empty() {
+                    let mut generated_chunks = TokenizerChunks::new();
+                    generated_chunks
+                        .append(TokenizerChunk::new_text(tokens_written_until_now.clone()));
+                    self.engine
+                        .read_chunks(generated_chunks, inference_lock_token)?;
+                }
                 self.engine.restore_pending(deferred_pending);
                 // do not update tokens_in_context as this is done later by ask
             }
@@ -1781,20 +1787,19 @@ impl<'a> Chat<'a> {
             // Sample next token(s), no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_tokens = self
-                .engine
-                .sample_and_decode_next_tokens(&mut self.sampler)?;
+            self.engine
+                .sample_and_decode_next_tokens(&mut self.sampler, &mut new_tokens)?;
 
-            tokens_written_until_now.append(TokenizerChunk::new_text(new_tokens.clone()));
+            tokens_written_until_now.extend_from_slice(&new_tokens);
 
             let mut hit_eog = false;
-            for new_token in new_tokens {
+            for &new_token in &new_tokens {
                 // Attempt to convert token(s) to bytes
                 let token_bytes = match self
                     .engine
                     .ctx
                     .model
-                    .token_to_piece_bytes(new_token, 8, true, None)
+                    .token_to_piece_bytes(new_token, 64, true, None)
                 {
                     Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
                         self.engine.ctx.model.token_to_piece_bytes(
@@ -1832,7 +1837,7 @@ impl<'a> Chat<'a> {
                 if !has_eog {
                     full_response.push_str(&token_str);
                     trace!(?token_str, "Sending out token:");
-                    respond(WriteOutput::Token(token_str.to_string()));
+                    respond(WriteOutput::Token(token_str));
                 }
 
                 if has_eog {
