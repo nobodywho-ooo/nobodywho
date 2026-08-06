@@ -357,14 +357,26 @@ two-places-for-one-fact bug the rewrite exists to eliminate
 refs: a `Callable` bound to a `RefCounted` keeps it alive, so stale registry
 entries pin user objects indefinitely.
 
-**Rejected: per-request execution.** "Pure" per-request is impossible
-(point 3 above). The realizable version — a persistent dispatcher that
-spawns a sub-task per request — only buys concurrency *between* tool calls,
-which is unreachable: core executes tool calls strictly serially within a
-generation (§1), and per-tool loops already isolate chats from each other.
-It adds `TaskHandle` management and still needs a registry or per-tool
-channels underneath to get the `Callable`s to the main thread. Machinery
-with no benefit.
+**Partially adopted: per-request execution *inside* the per-tool loop.**
+"Pure" per-request is impossible (point 3 above). An earlier revision of
+this document rejected the realizable version — a persistent dispatcher
+that spawns a sub-task per request — on the grounds that it only buys
+concurrency between tool calls, which is unreachable (core executes tool
+calls strictly serially within a generation, §1). That argument was right
+about concurrency but missed the real benefit: **fault isolation**. With
+inline execution, an async tool whose coroutine never completes (awaiting a
+signal that never fires) parks the loop *forever* — the worker's
+`recv_timeout` unblocks generation, but every later call to that tool
+queues behind the wedged await and times out: the tool is silently dead for
+the rest of the session. (The freed-state error branch can't save it either:
+the loop itself holds a `Gd` clone of the coroutine state, so it is never
+freed.) The implementation therefore keeps the per-tool loop as the
+`Callable`-owning **dispatcher**, but each request runs in its own spawned
+sub-task (legal: the dispatcher runs on the main thread, where `spawn` is
+allowed). A wedged coroutine wedges only its own call; the timeout becomes
+genuinely recoverable; and the timeout measures execution rather than
+queue-wait. Verified by the timeout-recovery test: first call wedges, the
+second call to the same tool runs and succeeds.
 
 **Chosen: per-tool-registration loops.** The decisive property is that the
 **loop's lifetime is mechanically derived from core's ownership of the
@@ -438,11 +450,24 @@ recover) rather than hanging or crashing:
   never fires — or a coroutine that dies on a script error mid-await, so
   `completed` never emits — would otherwise wedge the worker forever, and
   `stop_generation()` can't reach it (the worker is parked in `recv()`,
-  not generating). The worker-side closure therefore uses
+  not generating). Two layers handle this: the worker-side closure uses
   `recv_timeout(TOOL_TIMEOUT)` with a generous default (60s; per-tool
   override via an optional `timeout_secs` on the factories) and returns
-  `"Error: tool '<name>' timed out"` on expiry. A timed-out tool that
-  *later* completes sends its result into a dropped channel — harmless.
+  `"Error: tool '<name>' timed out"` on expiry, and the dispatcher runs
+  each request in its own sub-task so the wedged await doesn't poison the
+  tool for later calls (see "Partially adopted: per-request execution"
+  above). A timed-out tool that *later* completes sends its result into a
+  dropped channel — harmless.
+- **`Callable.bind()` pre-filled arguments.** Godot appends bound args
+  after the caller-provided ones (they fill the declaration from the
+  right), so schema reflection excludes the last
+  `get_bound_arguments_count()` declared args — otherwise the model would
+  supply them too and every call would be an arg-count script error.
+- **Invalid tool names.** Names flow into the tool-call GBNF grammar and
+  the chat template; `create_with_schema` validates identifier shape
+  (`[a-zA-Z_][a-zA-Z0-9_]*`) at construction, where the error is
+  actionable, instead of failing at ask-time inside grammar generation.
+  (The auto path is safe by construction — method names are identifiers.)
 - **Freed `GDScriptFunctionState`.** Awaiting the `completed` signal must
   use `FallibleSignalFuture` (`to_fallible_future()`), **never**
   `SignalFuture`/`to_future()` — the latter panics if the signal object is
@@ -451,42 +476,41 @@ recover) rather than hanging or crashing:
   fallible branch resolves to an error string. This is a requirement, not
   a spike question (§6).
 
-### Open blocker (gdext 0.5.4): `Callable` arg + `Gd<NobodyWhoTool>` return
+### Resolved false alarm: the "gdext 0.5.4 Callable factory bug"
 
-During implementation, a gdext 0.5.4 bug was hit that blocks the GDScript-
-tool factory path (`make`/`make_with_schema`): **a `#[func]` that returns
-`Gd<NobodyWhoTool>` and receives a `Callable` — directly, as a `Variant`
-holding one, or inside a `VarDictionary` — panics in
-`FromGodot::from_variant` with "expected array of type Untyped, got
-Builtin(DICTIONARY)"** (the Callable's internal Dictionary repr confuses
-the `Gd<NobodyWhoTool>` construction). Reproduced with every parameter
-shape tried: `(Callable, GString)`, `(Variant, Variant)`, `(GString,
-Variant)`, `(VarDictionary,)`. A function with the *same* param shape but
-returning `Gd<NobodyWhoSamplerConfig>` works; and `NobodyWhoTool.python()`
-(returns `Gd<NobodyWhoTool>`, takes `#[opt] i64`s, no Callable) works. So
-the trigger is specifically the combination of a Callable-typed arg and a
-`Gd<NobodyWhoTool>` return.
+During implementation, the GDScript-tool factories were briefly blocked on
+what looked like a gdext bug: the factories panicked in
+`FromGodot::from_variant` with *"expected array of type Untyped, got
+Builtin(DICTIONARY)"*, and the failure was attributed to "a `#[func]` with
+a `Callable` arg returning `Gd<NobodyWhoTool>`". **That diagnosis was
+wrong.** The real cause, confirmed from primary sources:
 
-The built-in `python()`/`bash()` tools are unaffected (they take no
-Callable) and work end-to-end. The per-tool main-thread loop, the worker-
-side `Fn` bridge, the argument marshalling, and the §6 async-detection +
-`FallibleSignalFuture` await are all implemented and correct — they're just
-unreachable from GDScript until the factory bug is resolved.
+- Godot returns each method-info dict's `args` field as a **typed**
+  `Array[Dictionary]` (`core/object/object.cpp`: `MethodInfo::to_dict()`
+  → `d["args"] = convert_property_list(...)`, which returns
+  `TypedArray<Dictionary>`).
+- gdext 0.5 **strictly refuses** to convert a typed array into
+  `Array<Variant>` (`array.rs` `with_checked_type`: `Untyped` is not
+  compatible with `Builtin(DICTIONARY)`) — producing exactly that error.
+- The panic site was our own schema reflection:
+  `method_info.get_or_nil("args").to::<VarArray>()`. Every factory shape
+  "reproduced" it because every shape ran schema reflection on a real
+  Callable; the `Gd<NobodyWhoSamplerConfig>` and `python()` controls
+  "worked" because they never reached that line. The Callable parameter
+  and the `Gd<NobodyWhoTool>` return were never involved.
 
-**Resolution options (not yet pursued):** (a) report upstream to
- godot-rust/gdext and wait for a fix; (b) construct the `NobodyWhoTool` via
- a *separate* registered class whose `#[func]` doesn't take a Callable and
- returns `Gd<NobodyWhoTool>` indirectly (e.g. a builder that stashes the
- Callable in a main-thread side table keyed by an id, then `make(id)`);
- (c) use `Object::call("new", ...)` / a `Callable::from_fn` factory that
- constructs the Gd on the Rust side without going through `#[func]` arg
- marshalling. The cleanest is likely (b) or (c); needs a small spike.
+**Fix:** use the correctly-typed `Array<VarDictionary>` for `args` (as the
+old bindings did). Additionally, `variant_to_json`'s `ARRAY` branch had the
+same latent panic for *any* typed array (a tool returning `Array[String]`
+would panic inside a `godot::task` future → silent hang); fixed by using
+gdext 0.5's type-erased `AnyArray`, which accepts typed and untyped arrays
+alike. Both factories are enabled and the full path — sync tool, async
+tool (coroutine awaited via `completed`), auto-schema — passes the
+model-backed test suite.
 
-The `make`/`make_with_schema` `#[func]`s are currently commented out in
-`src/tools.rs`; the rest of the tool machinery (`build_gdscript_tool`,
-`run_tool_call`, `as_gdscript_function_state`, `stringify_result`) is
-retained and covered by unit-level reasoning, ready to wire up once the
-factory bug is fixed.
+**Rule to carry forward:** any conversion of an engine-supplied array
+must either name the exact element type (`Array<VarDictionary>`) or use
+`AnyArray` — never `.to::<VarArray>()`, which panics on typed arrays.
 
 ## 6. Async-tool detection
 
@@ -547,11 +571,13 @@ old bindings shipped for years. Confirmed shape: class-name string compare
 hold a `Gd` clone of the state across the await + `FallibleSignalFuture`
 typed as `(Variant,)` — `completed` emits one arg (the return value).
 
-**Status: mechanism confirmed by the §9 spike, but the GDScript-tool path
-is currently blocked by an unrelated gdext 0.5.4 bug — see §5 note.** The
-async-detection + await mechanism itself is verified; what's blocked is
-*delivering* a `Callable` into `NobodyWhoTool.make` (the factory), before
-any tool ever runs.
+**Status: confirmed end-to-end.** The §9 spike verified the mechanism, and
+the model-backed test suite exercises the full path: sync GDScript tool
+(auto-schema, correct arg, result reaches the model) and async GDScript
+tool (coroutine suspends on a timer, `completed` awaited from the per-tool
+loop, return value reaches the model's final answer). The factory panic
+that briefly blocked this path was a misdiagnosis — see §5 "Resolved false
+alarm".
 
 Known limitation this bakes in, to document: only **GDScript** coroutines
 are detected. A C# `async` method invoked via `Callable` returns a .NET
