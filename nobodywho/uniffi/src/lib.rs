@@ -1296,21 +1296,25 @@ impl RustCrossEncoder {
     }
 }
 
-// ---------- RustVad ----------
-// Wrapper intended to be wrapped again in the target language (e.g. as `Vad`).
+// ---------- RustVoiceActivityDetection ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `VoiceActivityDetection`).
 
 /// Voice activity event: a confirmed speech start or end boundary.
 #[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VadEvent {
+pub enum VoiceActivityDetectionEvent {
     SpeechStarted,
     SpeechEnded,
 }
 
-impl From<nobodywho::vad::VadEvent> for VadEvent {
-    fn from(e: nobodywho::vad::VadEvent) -> Self {
+impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectionEvent {
+    fn from(e: nobodywho::vad::VoiceActivityDetectionEvent) -> Self {
         match e {
-            nobodywho::vad::VadEvent::SpeechStarted => VadEvent::SpeechStarted,
-            nobodywho::vad::VadEvent::SpeechEnded => VadEvent::SpeechEnded,
+            nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted => {
+                VoiceActivityDetectionEvent::SpeechStarted
+            }
+            nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded => {
+                VoiceActivityDetectionEvent::SpeechEnded
+            }
         }
     }
 }
@@ -1331,16 +1335,16 @@ fn parse_vad_device(device: Option<String>) -> Result<nobodywho::vad::Device, No
     }
 }
 
-/// Voice activity detector. Wraps `nobodywho::vad::Vad`.
+/// Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
 /// Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
 /// `finish` to get that turn's captured audio (with pre-roll) and reset.
 #[derive(uniffi::Object)]
-pub struct RustVad {
-    inner: std::sync::Mutex<nobodywho::vad::Vad>,
+pub struct RustVoiceActivityDetection {
+    inner: std::sync::Mutex<nobodywho::vad::VoiceActivityDetection>,
 }
 
 #[uniffi::export]
-impl RustVad {
+impl RustVoiceActivityDetection {
     /// Create a voice activity detector.
     ///
     /// `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
@@ -1349,7 +1353,7 @@ impl RustVad {
     /// audio you'll pass to `push` — Silero runs at 16kHz internally,
     /// anything else is resampled. `threshold`, `min_silence_duration_ms`,
     /// `min_speech_duration_ms`, and `preroll_duration_ms` default to the
-    /// core `VadConfig` defaults when omitted.
+    /// core `VoiceActivityDetectionConfig` defaults when omitted.
     #[uniffi::constructor]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -1361,8 +1365,8 @@ impl RustVad {
         preroll_duration_ms: Option<u32>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        let defaults = nobodywho::vad::VadConfig::default();
-        let config = nobodywho::vad::VadConfig {
+        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::vad::VoiceActivityDetectionConfig {
             source: source.unwrap_or(defaults.source),
             sample_rate,
             threshold: threshold.unwrap_or(defaults.threshold),
@@ -1373,11 +1377,12 @@ impl RustVad {
             preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
         let device = parse_vad_device(device)?;
-        let vad = nobodywho::vad::Vad::with_device(config, device).map_err(|e| {
-            NobodyWhoError::Error {
-                message: e.to_string(),
-            }
-        })?;
+        let vad =
+            nobodywho::vad::VoiceActivityDetection::with_device(config, device).map_err(|e| {
+                NobodyWhoError::Error {
+                    message: e.to_string(),
+                }
+            })?;
         Ok(Arc::new(Self {
             inner: std::sync::Mutex::new(vad),
         }))
@@ -1385,8 +1390,11 @@ impl RustVad {
 
     /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
     /// buffer — the detector tracks the current turn internally). Returns
-    /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
-    pub fn push(&self, chunk: Vec<i16>) -> Result<Option<VadEvent>, NobodyWhoError> {
+    /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
+    pub fn push(
+        &self,
+        chunk: Vec<i16>,
+    ) -> Result<Option<VoiceActivityDetectionEvent>, NobodyWhoError> {
         self.inner
             .lock()
             .unwrap()
@@ -1411,7 +1419,7 @@ impl RustVad {
     /// thresholding instead of `push`'s built-in debounce logic, or who want
     /// zero memory overhead beyond fixed model state. Safe to call with any
     /// chunk size, from a live mic buffer up to an entire recording at once.
-    /// If you reuse one `Vad` across unrelated audio sessions, call `finish`
+    /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
     /// in between to clear state so it doesn't leak across sessions.
     pub fn predict(&self, chunk: Vec<i16>) -> Result<Vec<f32>, NobodyWhoError> {
         self.inner

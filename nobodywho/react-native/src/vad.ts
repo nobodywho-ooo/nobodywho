@@ -1,9 +1,9 @@
-import type { RustVadInterface, VadEvent } from "../generated/ts/nobodywho";
+import type { RustVoiceActivityDetectionInterface, VoiceActivityDetectionEvent } from "../generated/ts/nobodywho";
 import * as nobodywho from "../generated/ts/nobodywho";
 
-export { VadEvent } from "../generated/ts/nobodywho";
+export { VoiceActivityDetectionEvent } from "../generated/ts/nobodywho";
 
-export type VadOptions = {
+export type VoiceActivityDetectionOptions = {
   source?: string;
   sampleRate: number;
   threshold?: number;
@@ -18,27 +18,27 @@ export type VadOptions = {
  *
  * @example
  * ```typescript
- * const vad = new Vad({ sampleRate: 16000 });
+ * const vad = new VoiceActivityDetection({ sampleRate: 16000 });
  *
- * // Feed each newest chunk as it arrives (not the whole buffer — Vad
+ * // Feed each newest chunk as it arrives (not the whole buffer — VoiceActivityDetection
  * // tracks the current turn internally).
  * const event = vad.push(chunk);
- * if (event === VadEvent.SpeechEnded) {
+ * if (event === VoiceActivityDetectionEvent.SpeechEnded) {
  *   const audio = vad.finish();
  *   // audio: Int16Array-like number[] spanning SpeechStarted (with a
  *   // small pre-roll) through SpeechEnded.
  * }
  * ```
  */
-export class Vad {
+export class VoiceActivityDetection {
   /** @internal */
-  private readonly _inner: RustVadInterface;
+  private readonly _inner: RustVoiceActivityDetectionInterface;
 
   /**
-   * @param opts - See {@link VadOptions}.
+   * @param opts - See {@link VoiceActivityDetectionOptions}.
    */
-  constructor(opts: VadOptions) {
-    this._inner = new nobodywho.RustVad(
+  constructor(opts: VoiceActivityDetectionOptions) {
+    this._inner = new nobodywho.RustVoiceActivityDetection(
       opts.source,
       opts.sampleRate,
       opts.threshold,
@@ -51,12 +51,12 @@ export class Vad {
 
   /**
    * Feed the newest chunk of audio (not the whole accumulated buffer —
-   * `Vad` tracks the current turn internally). Returns a `VadEvent` if this
+   * `VoiceActivityDetection` tracks the current turn internally). Returns a `VoiceActivityDetectionEvent` if this
    * call crossed a confirmed speech/silence boundary.
    *
    * @param chunk - Flat array of signed 16-bit samples (mono).
    */
-  push(chunk: Int16Array | number[]): VadEvent | undefined {
+  push(chunk: Int16Array | number[]): VoiceActivityDetectionEvent | undefined {
     const arr = chunk instanceof Int16Array ? Array.from(chunk) : chunk;
     return this._inner.push(arr);
   }
@@ -78,7 +78,7 @@ export class Vad {
    * thresholding instead of `push`'s built-in debounce logic, or who want
    * zero memory overhead beyond fixed model state. Safe to call with any
    * chunk size, from a live mic buffer up to an entire recording at once.
-   * If you reuse this `Vad` across unrelated audio sessions, call `finish`
+   * If you reuse this `VoiceActivityDetection` across unrelated audio sessions, call `finish`
    * in between to clear state so it doesn't leak across sessions.
    */
   predict(chunk: Int16Array | number[]): number[] {

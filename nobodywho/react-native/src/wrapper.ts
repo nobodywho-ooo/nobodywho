@@ -58,7 +58,7 @@ export async function downloadModel(opts: {
 export { Model } from "./model";
 export { Chat } from "./chat";
 export { SpeechToText } from "./speech_to_text";
-export { Vad } from "./vad";
+export { VoiceActivityDetection } from "./vad";
 export { Encoder } from "./encoder";
 export { CrossEncoder } from "./cross_encoder";
 export { TextToSpeech } from "./text_to_speech";
@@ -88,8 +88,8 @@ export type {
 } from "../generated/ts/nobodywho";
 export type { TextToSpeechArchitecture, TextToSpeechDevice, TextToSpeechOptions } from "./text_to_speech";
 export type { SpeechToTextOptions } from "./speech_to_text";
-export { VadEvent } from "./vad";
-export type { VadOptions } from "./vad";
+export { VoiceActivityDetectionEvent } from "./vad";
+export type { VoiceActivityDetectionOptions } from "./vad";
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";

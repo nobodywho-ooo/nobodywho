@@ -3,20 +3,20 @@ import NobodyWhoGenerated
 
 /// Voice activity detection from live, streaming audio, backed by Silero VAD.
 ///
-/// Feed each newest chunk to `push` as it arrives — `Vad` buffers the current
+/// Feed each newest chunk to `push` as it arrives — `VoiceActivityDetection` buffers the current
 /// turn internally, seeded with a small pre-roll so the confirmed speech
 /// isn't clipped at the start. Once `push` returns `.speechEnded`, call
 /// `finish` to get that turn's audio and reset for the next one.
 ///
 /// ```swift
-/// let vad = try Vad(sampleRate: 16000)
+/// let vad = try VoiceActivityDetection(sampleRate: 16000)
 /// let event = vad.push(chunk: chunk)
 /// if event == .speechEnded {
 ///     let audio = vad.finish()
 /// }
 /// ```
-public class Vad {
-    private let inner: RustVad
+public class VoiceActivityDetection {
+    private let inner: RustVoiceActivityDetection
 
     /// - Parameters:
     ///   - sampleRate: Rate of the audio you'll pass to `push`. Anything
@@ -32,7 +32,7 @@ public class Vad {
         minSpeechDurationMs: UInt32? = nil,
         prerollDurationMs: UInt32? = nil
     ) throws {
-        self.inner = try RustVad(
+        self.inner = try RustVoiceActivityDetection(
             source: source,
             sampleRate: sampleRate,
             threshold: threshold,
@@ -44,10 +44,10 @@ public class Vad {
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
-    /// `Vad` tracks the current turn internally). Returns a `VadEvent` if
+    /// `VoiceActivityDetection` tracks the current turn internally). Returns a `VoiceActivityDetectionEvent` if
     /// this call crossed a confirmed speech/silence boundary. Throws on
     /// ONNX inference or resampling failure.
-    public func push(chunk: [Int16]) throws -> VadEvent? {
+    public func push(chunk: [Int16]) throws -> VoiceActivityDetectionEvent? {
         return try inner.push(chunk: chunk)
     }
 
@@ -65,7 +65,7 @@ public class Vad {
     /// thresholding instead of `push`'s built-in debounce logic, or who want
     /// zero memory overhead beyond fixed model state. Safe to call with any
     /// chunk size, from a live mic buffer up to an entire recording at once.
-    /// If you reuse one `Vad` across unrelated audio sessions, call `finish`
+    /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
     /// in between to clear state so it doesn't leak across sessions.
     public func predict(chunk: [Int16]) throws -> [Float] {
         return try inner.predict(chunk: chunk)

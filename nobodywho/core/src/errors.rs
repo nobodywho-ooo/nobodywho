@@ -825,7 +825,7 @@ impl From<HuggingFaceError> for SpeechToTextError {
 // VAD errors
 
 #[derive(Debug, thiserror::Error)]
-pub enum VadError {
+pub enum VoiceActivityDetectionError {
     #[error("Error initializing VAD: {0}")]
     Init(String),
 
@@ -836,9 +836,9 @@ pub enum VadError {
     Audio(String),
 }
 
-impl From<HuggingFaceError> for VadError {
+impl From<HuggingFaceError> for VoiceActivityDetectionError {
     fn from(e: HuggingFaceError) -> Self {
-        VadError::Init(e.to_string())
+        VoiceActivityDetectionError::Init(e.to_string())
     }
 }
 

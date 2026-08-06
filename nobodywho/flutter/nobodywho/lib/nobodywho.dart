@@ -11,7 +11,7 @@ export 'src/rust/lib.dart'
         RustTool, // Users should use Tool
         RustSpeechToText, // Users should use SpeechToText
         RustSpeechToTextStream, // Users should use SpeechToTextStream
-        RustVad, // Users should use Vad
+        RustVoiceActivityDetection, // Users should use VoiceActivityDetection
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
         PromptPart, // Users should use the hand-written PromptPart sealed class
@@ -822,14 +822,14 @@ class SpeechToText {
 
 /// Voice activity detection from live, streaming audio, backed by Silero VAD.
 ///
-/// Feed each newest chunk to [push] as it arrives — [Vad] buffers the current
+/// Feed each newest chunk to [push] as it arrives — [VoiceActivityDetection] buffers the current
 /// turn internally, seeded with a small pre-roll so the confirmed speech
-/// isn't clipped at the start. Once [push] returns [VadEvent.speechEnded],
+/// isn't clipped at the start. Once [push] returns [VoiceActivityDetectionEvent.speechEnded],
 /// call [finish] to get that turn's audio and reset for the next one.
-class Vad {
-  final nobodywho.RustVad _vad;
+class VoiceActivityDetection {
+  final nobodywho.RustVoiceActivityDetection _vad;
 
-  Vad._(this._vad);
+  VoiceActivityDetection._(this._vad);
 
   /// Create a voice activity detector.
   ///
@@ -837,7 +837,7 @@ class Vad {
   /// than 16kHz is resampled internally.
   /// [source] — HuggingFace repo (`hf://owner/repo`) or local dir for the
   /// Silero VAD ONNX model; omit to use the default (`hf://onnx-community/silero-vad`).
-  factory Vad({
+  factory VoiceActivityDetection({
     required int sampleRate,
     String? source,
     double? threshold,
@@ -845,7 +845,7 @@ class Vad {
     int? minSpeechDurationMs,
     int? prerollDurationMs,
   }) {
-    final vad = nobodywho.RustVad.new_(
+    final vad = nobodywho.RustVoiceActivityDetection.new_(
       sampleRate: sampleRate,
       source: source,
       threshold: threshold,
@@ -853,17 +853,17 @@ class Vad {
       minSpeechDurationMs: minSpeechDurationMs,
       prerollDurationMs: prerollDurationMs,
     );
-    return Vad._(vad);
+    return VoiceActivityDetection._(vad);
   }
 
   /// Feed the newest chunk of audio (not the whole accumulated buffer —
-  /// [Vad] tracks the current turn internally). Returns a [VadEvent] if this
+  /// [VoiceActivityDetection] tracks the current turn internally). Returns a [VoiceActivityDetectionEvent] if this
   /// call crossed a confirmed speech/silence boundary.
-  nobodywho.VadEvent? push(List<int> chunk) => _vad.push(chunk: chunk);
+  nobodywho.VoiceActivityDetectionEvent? push(List<int> chunk) => _vad.push(chunk: chunk);
 
   /// Return the current turn's captured audio (from the confirmed
-  /// [VadEvent.speechStarted], including a small pre-roll, through to
-  /// [VadEvent.speechEnded]) and reset internal state for the next turn.
+  /// [VoiceActivityDetectionEvent.speechStarted], including a small pre-roll, through to
+  /// [VoiceActivityDetectionEvent.speechEnded]) and reset internal state for the next turn.
   /// Empty if speech was never confirmed.
   Int16List finish() => _vad.finish();
 
@@ -873,7 +873,7 @@ class Vad {
   /// thresholding instead of [push]'s built-in debounce logic, or who want
   /// zero memory overhead beyond fixed model state. Safe to call with any
   /// chunk size, from a live mic buffer up to an entire recording at once.
-  /// If you reuse this [Vad] across unrelated audio sessions, call [finish]
+  /// If you reuse this [VoiceActivityDetection] across unrelated audio sessions, call [finish]
   /// in between to clear state so it doesn't leak across sessions.
   Float32List predict(List<int> chunk) => _vad.predict(chunk: chunk);
 

@@ -464,28 +464,32 @@ impl SpeechToTextAsync {
 }
 
 // ---------------------------------------------------------------------------
-// VAD
+// VoiceActivityDetection
 // ---------------------------------------------------------------------------
 
-/// `VadEvent` is returned by `Vad.push` when a call crosses a confirmed
+/// `VoiceActivityDetectionEvent` is returned by `VoiceActivityDetection.push` when a call crosses a confirmed
 /// speech/silence boundary.
 #[pyclass(eq, eq_int, skip_from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
-pub enum VadEvent {
+pub enum VoiceActivityDetectionEvent {
     SpeechStarted,
     SpeechEnded,
 }
 
-impl From<nobodywho::vad::VadEvent> for VadEvent {
-    fn from(e: nobodywho::vad::VadEvent) -> Self {
+impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectionEvent {
+    fn from(e: nobodywho::vad::VoiceActivityDetectionEvent) -> Self {
         match e {
-            nobodywho::vad::VadEvent::SpeechStarted => VadEvent::SpeechStarted,
-            nobodywho::vad::VadEvent::SpeechEnded => VadEvent::SpeechEnded,
+            nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted => {
+                VoiceActivityDetectionEvent::SpeechStarted
+            }
+            nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded => {
+                VoiceActivityDetectionEvent::SpeechEnded
+            }
         }
     }
 }
 
-/// `Vad` detects speech start/end from streaming, live audio using Silero VAD.
+/// `VoiceActivityDetection` detects speech start/end from streaming, live audio using Silero VAD.
 ///
 /// `source` is a HuggingFace repo (`hf://owner/repo`) or local directory path
 /// for the Silero VAD ONNX model; omit or pass `None` to use the default
@@ -495,24 +499,24 @@ impl From<nobodywho::vad::VadEvent> for VadEvent {
 ///
 /// Example::
 ///
-///     from nobodywho import Vad, VadEvent
+///     from nobodywho import VoiceActivityDetection, VoiceActivityDetectionEvent
 ///
-///     vad = Vad(sample_rate=16000)
+///     vad = VoiceActivityDetection(sample_rate=16000)
 ///     for chunk in mic_chunks():
 ///         event = vad.push(chunk)
-///         if event == VadEvent.SpeechEnded:
+///         if event == VoiceActivityDetectionEvent.SpeechEnded:
 ///             audio = vad.finish()
 ///             break
 #[pyclass]
-pub struct Vad {
-    // `nobodywho::vad::Vad` is Send but not Sync (rubato's resampler holds a
+pub struct VoiceActivityDetection {
+    // `nobodywho::vad::VoiceActivityDetection` is Send but not Sync (rubato's resampler holds a
     // `Box<dyn SincInterpolator>`, whose trait bound is `Send` only) — pyclass
     // fields must be Sync, so this is wrapped in a Mutex purely to satisfy that.
-    vad: std::sync::Mutex<nobodywho::vad::Vad>,
+    vad: std::sync::Mutex<nobodywho::vad::VoiceActivityDetection>,
 }
 
 #[pymethods]
-impl Vad {
+impl VoiceActivityDetection {
     #[new]
     #[pyo3(signature = (source = None, sample_rate = 16_000, threshold = None, min_silence_duration_ms = None, min_speech_duration_ms = None, preroll_duration_ms = None))]
     pub fn new(
@@ -524,8 +528,8 @@ impl Vad {
         preroll_duration_ms: Option<u32>,
         py: Python,
     ) -> PyResult<Self> {
-        let defaults = nobodywho::vad::VadConfig::default();
-        let config = nobodywho::vad::VadConfig {
+        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::vad::VoiceActivityDetectionConfig {
             source: source.map(String::from).unwrap_or(defaults.source),
             sample_rate,
             threshold: threshold.unwrap_or(defaults.threshold),
@@ -536,7 +540,7 @@ impl Vad {
             preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
         let vad = py
-            .detach(|| nobodywho::vad::Vad::new(config))
+            .detach(|| nobodywho::vad::VoiceActivityDetection::new(config))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self {
             vad: std::sync::Mutex::new(vad),
@@ -544,17 +548,21 @@ impl Vad {
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
-    /// `Vad` tracks the current turn internally). Returns a `VadEvent` if this
+    /// `VoiceActivityDetection` tracks the current turn internally). Returns a `VoiceActivityDetectionEvent` if this
     /// call crossed a confirmed speech/silence boundary, else `None`.
-    pub fn push(&self, chunk: Vec<i16>, py: Python) -> PyResult<Option<VadEvent>> {
+    pub fn push(
+        &self,
+        chunk: Vec<i16>,
+        py: Python,
+    ) -> PyResult<Option<VoiceActivityDetectionEvent>> {
         py.detach(|| self.vad.lock().unwrap().push(&chunk))
             .map(|event| event.map(Into::into))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Return the current turn's captured audio (from the confirmed
-    /// `VadEvent.SpeechStarted`, including a small pre-roll, through to
-    /// `VadEvent.SpeechEnded`) and reset internal state for the next turn.
+    /// `VoiceActivityDetectionEvent.SpeechStarted`, including a small pre-roll, through to
+    /// `VoiceActivityDetectionEvent.SpeechEnded`) and reset internal state for the next turn.
     /// Empty if speech was never confirmed.
     pub fn finish(&self, py: Python) -> Vec<i16> {
         py.detach(|| self.vad.lock().unwrap().finish())
@@ -566,7 +574,7 @@ impl Vad {
     /// thresholding instead of `push`'s built-in debounce logic, or who want
     /// zero memory overhead beyond fixed model state. Safe to call with any
     /// chunk size, from a live mic buffer up to an entire recording at once.
-    /// If you reuse one `Vad` across unrelated audio sessions, call `finish`
+    /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
     /// in between to clear state so it doesn't leak across sessions.
     pub fn predict(&self, chunk: Vec<i16>, py: Python) -> PyResult<Vec<f32>> {
         py.detach(|| self.vad.lock().unwrap().predict(&chunk))
@@ -3550,7 +3558,7 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Tool;
     #[pymodule_export]
-    use super::Vad;
+    use super::VoiceActivityDetection;
     #[pymodule_export]
-    use super::VadEvent;
+    use super::VoiceActivityDetectionEvent;
 }

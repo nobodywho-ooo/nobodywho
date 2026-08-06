@@ -1486,26 +1486,26 @@ const FfiConverterTypePromptPart = (() => {
 /**
  * Voice activity event: a confirmed speech start or end boundary.
  */
-export enum VadEvent {
+export enum VoiceActivityDetectionEvent {
     SpeechStarted,
     SpeechEnded
 }
 
-const FfiConverterTypeVadEvent = (() => {
+const FfiConverterTypeVoiceActivityDetectionEvent = (() => {
     const ordinalConverter = FfiConverterInt32;
-    type TypeName = VadEvent;
+    type TypeName = VoiceActivityDetectionEvent;
     class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
         read(from: RustBuffer): TypeName {
             switch (ordinalConverter.read(from)) {
-                case 1: return VadEvent.SpeechStarted;
-                case 2: return VadEvent.SpeechEnded;
+                case 1: return VoiceActivityDetectionEvent.SpeechStarted;
+                case 2: return VoiceActivityDetectionEvent.SpeechEnded;
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
         write(value: TypeName, into: RustBuffer): void {
             switch (value) {
-                case VadEvent.SpeechStarted: return ordinalConverter.write(1, into);
-                case VadEvent.SpeechEnded: return ordinalConverter.write(2, into);
+                case VoiceActivityDetectionEvent.SpeechStarted: return ordinalConverter.write(1, into);
+                case VoiceActivityDetectionEvent.SpeechEnded: return ordinalConverter.write(2, into);
             }
         }
         allocationSize(value: TypeName): number {
@@ -3606,11 +3606,11 @@ const FfiConverterTypeRustTool =  new FfiConverterObject(uniffiTypeRustToolObjec
 
 
 /**
- * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */
-export interface RustVadInterface {
+export interface RustVoiceActivityDetectionInterface {
     
     /**
      * Return the current turn's captured audio (from the confirmed
@@ -3626,16 +3626,16 @@ export interface RustVadInterface {
      * thresholding instead of `push`'s built-in debounce logic, or who want
      * zero memory overhead beyond fixed model state. Safe to call with any
      * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
      * in between to clear state so it doesn't leak across sessions.
      */
     predict(chunk: Array</*i16*/number>)  /*throws*/: Array</*f32*/number>;
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-    push(chunk: Array</*i16*/number>)  /*throws*/: VadEvent | undefined;
+    push(chunk: Array</*i16*/number>)  /*throws*/: VoiceActivityDetectionEvent | undefined;
     /**
      * Detect every speech segment in a complete audio buffer at once,
      * returning each segment's audio (with a small pre-roll lead-in) in
@@ -3648,13 +3648,13 @@ export interface RustVadInterface {
 
 
 /**
- * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */
-export class RustVad extends UniffiAbstractObject implements RustVadInterface {
+export class RustVoiceActivityDetection extends UniffiAbstractObject implements RustVoiceActivityDetectionInterface {
 
-    readonly [uniffiTypeNameSymbol] = "RustVad";
+    readonly [uniffiTypeNameSymbol] = "RustVoiceActivityDetection";
     readonly [destructorGuardSymbol]: UniffiGcObject;
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
@@ -3666,7 +3666,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
      * audio you'll pass to `push` — Silero runs at 16kHz internally,
      * anything else is resampled. `threshold`, `min_silence_duration_ms`,
      * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
-     * core `VadConfig` defaults when omitted.
+     * core `VoiceActivityDetectionConfig` defaults when omitted.
      */
     constructor(source: string | undefined, sampleRate: /*u32*/number, threshold: /*f32*/number | undefined, minSilenceDurationMs: /*u32*/number | undefined, minSpeechDurationMs: /*u32*/number | undefined, prerollDurationMs: /*u32*/number | undefined, device: string | undefined) /*throws*/ {
         super();
@@ -3675,7 +3675,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
         FfiConverterOptionalString.lower(source),
         FfiConverterUInt32.lower(sampleRate),
         FfiConverterOptionalFloat32.lower(threshold),
@@ -3688,7 +3688,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
             /*liftString:*/ FfiConverterString.lift,
     );
         this[pointerLiteralSymbol] = pointer;
-        this[destructorGuardSymbol] = uniffiTypeRustVadObjectFactory.bless(pointer);
+        this[destructorGuardSymbol] = uniffiTypeRustVoiceActivityDetectionObjectFactory.bless(pointer);
     }
 
     
@@ -3703,7 +3703,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
  finish(): Array</*i16*/number> {
     return FfiConverterArrayInt16.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_finish(uniffiTypeRustVadObjectFactory.clonePointer(this), 
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -3717,7 +3717,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
      * thresholding instead of `push`'s built-in debounce logic, or who want
      * zero memory overhead beyond fixed model state. Safe to call with any
      * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
      * in between to clear state so it doesn't leak across sessions.
      */
  predict(chunk: Array</*i16*/number>): Array</*f32*/number> /*throws*/ {
@@ -3725,7 +3725,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_predict(uniffiTypeRustVadObjectFactory.clonePointer(this), 
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
         FfiConverterArrayInt16.lower(chunk),
                 callStatus);
             },
@@ -3736,14 +3736,14 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
      */
- push(chunk: Array</*i16*/number>): VadEvent | undefined /*throws*/ {
-    return FfiConverterOptionalTypeVadEvent.lift(
+ push(chunk: Array</*i16*/number>): VoiceActivityDetectionEvent | undefined /*throws*/ {
+    return FfiConverterOptionalTypeVoiceActivityDetectionEvent.lift(
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_push(uniffiTypeRustVadObjectFactory.clonePointer(this), 
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
         FfiConverterArrayInt16.lower(chunk),
                 callStatus);
             },
@@ -3763,7 +3763,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_segment(uniffiTypeRustVadObjectFactory.clonePointer(this), 
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
         FfiConverterArrayInt16.lower(samples),
                 callStatus);
             },
@@ -3778,28 +3778,28 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
     uniffiDestroy(): void {
         const ptr = (this as any)[destructorGuardSymbol];
         if (ptr !== undefined) {
-            const pointer = uniffiTypeRustVadObjectFactory.pointer(this);
-            uniffiTypeRustVadObjectFactory.freePointer(pointer);
-            uniffiTypeRustVadObjectFactory.unbless(ptr);
+            const pointer = uniffiTypeRustVoiceActivityDetectionObjectFactory.pointer(this);
+            uniffiTypeRustVoiceActivityDetectionObjectFactory.freePointer(pointer);
+            uniffiTypeRustVoiceActivityDetectionObjectFactory.unbless(ptr);
             delete (this as any)[destructorGuardSymbol];
         }
     }
 
-    static instanceOf(obj: any): obj is RustVad {
-        return uniffiTypeRustVadObjectFactory.isConcreteType(obj);
+    static instanceOf(obj: any): obj is RustVoiceActivityDetection {
+        return uniffiTypeRustVoiceActivityDetectionObjectFactory.isConcreteType(obj);
     }
 
     
 }
 
-const uniffiTypeRustVadObjectFactory: UniffiObjectFactory<RustVadInterface> = (() => {
+const uniffiTypeRustVoiceActivityDetectionObjectFactory: UniffiObjectFactory<RustVoiceActivityDetectionInterface> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustVadInterface {
-        const instance = Object.create(RustVad.prototype);
+    create(pointer: UniffiHandle): RustVoiceActivityDetectionInterface {
+        const instance = Object.create(RustVoiceActivityDetection.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "RustVad";
+        instance[uniffiTypeNameSymbol] = "RustVoiceActivityDetection";
         return instance;
     },
 
@@ -3807,7 +3807,7 @@ const uniffiTypeRustVadObjectFactory: UniffiObjectFactory<RustVadInterface> = ((
     bless(p: UniffiHandle): UniffiGcObject {
         return uniffiCaller.rustCall(
             /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_rustvad_ffi__bless_pointer(p, status),
+                nativeModule().ubrn_uniffi_internal_fn_method_rustvoiceactivitydetection_ffi__bless_pointer(p, status),
             /*liftString:*/ FfiConverterString.lift
         );
     },
@@ -3816,34 +3816,34 @@ const uniffiTypeRustVadObjectFactory: UniffiObjectFactory<RustVadInterface> = ((
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustVadInterface): UniffiHandle {
+    pointer(obj: RustVoiceActivityDetectionInterface): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustVadInterface): UniffiHandle {
+    clonePointer(obj: RustVoiceActivityDetectionInterface): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustvad(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
     freePointer(pointer: UniffiHandle): void {
         uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustvad(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
-    isConcreteType(obj: any): obj is RustVadInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustVad";
+    isConcreteType(obj: any): obj is RustVoiceActivityDetectionInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustVoiceActivityDetection";
     },
 }})();
-// FfiConverter for RustVadInterface
-const FfiConverterTypeRustVad =  new FfiConverterObject(uniffiTypeRustVadObjectFactory);
+// FfiConverter for RustVoiceActivityDetectionInterface
+const FfiConverterTypeRustVoiceActivityDetection =  new FfiConverterObject(uniffiTypeRustVoiceActivityDetectionObjectFactory);
 
 
 export interface SamplerBuilderInterface {
@@ -4406,8 +4406,8 @@ const FfiConverterArrayTypeToolParameter = new FfiConverterArray(FfiConverterTyp
 const FfiConverterArrayString = new FfiConverterArray(FfiConverterString);
 
 
-// FfiConverter for VadEvent | undefined
-const FfiConverterOptionalTypeVadEvent = new FfiConverterOptional(FfiConverterTypeVadEvent);
+// FfiConverter for VoiceActivityDetectionEvent | undefined
+const FfiConverterOptionalTypeVoiceActivityDetectionEvent = new FfiConverterOptional(FfiConverterTypeVoiceActivityDetectionEvent);
 
 
 // FfiConverter for Map<string, boolean> | undefined
@@ -4627,17 +4627,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() !== 10096) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() !== 58578) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_finish");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() !== 1447) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict() !== 26282) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_predict");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict() !== 27565) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_push() !== 13327) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_push");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() !== 19729) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment() !== 1943) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_segment");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() !== 22520) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
@@ -4705,8 +4705,8 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() !== 54521) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() !== 35490) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() !== 47351) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new");
@@ -4745,11 +4745,11 @@ export default Object.freeze({
     FfiConverterTypeRustTextToSpeech,
     FfiConverterTypeRustTokenStream,
     FfiConverterTypeRustTool,
-    FfiConverterTypeRustVad,
+    FfiConverterTypeRustVoiceActivityDetection,
     FfiConverterTypeSamplerBuilder,
     FfiConverterTypeSamplerConfig,
     FfiConverterTypeToolCall,
     FfiConverterTypeToolParameter,
-    FfiConverterTypeVadEvent,
+    FfiConverterTypeVoiceActivityDetectionEvent,
   }
 });

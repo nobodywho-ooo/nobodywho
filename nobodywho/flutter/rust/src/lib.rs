@@ -813,31 +813,35 @@ impl RustSpeechToTextStream {
 /// Voice activity event: a confirmed speech start or end boundary.
 #[flutter_rust_bridge::frb]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VadEvent {
+pub enum VoiceActivityDetectionEvent {
     SpeechStarted,
     SpeechEnded,
 }
 
-impl From<nobodywho::vad::VadEvent> for VadEvent {
-    fn from(e: nobodywho::vad::VadEvent) -> Self {
+impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectionEvent {
+    fn from(e: nobodywho::vad::VoiceActivityDetectionEvent) -> Self {
         match e {
-            nobodywho::vad::VadEvent::SpeechStarted => VadEvent::SpeechStarted,
-            nobodywho::vad::VadEvent::SpeechEnded => VadEvent::SpeechEnded,
+            nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted => {
+                VoiceActivityDetectionEvent::SpeechStarted
+            }
+            nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded => {
+                VoiceActivityDetectionEvent::SpeechEnded
+            }
         }
     }
 }
 
-/// Voice activity detector using Silero VAD. Create with `RustVad.new_()`,
+/// Voice activity detector using Silero VAD. Create with `RustVoiceActivityDetection.new_()`,
 /// feed audio chunks via `push`; once it returns `SpeechEnded`, call `finish`
 /// to get that turn's captured audio (with pre-roll) and reset.
 #[flutter_rust_bridge::frb(opaque)]
-pub struct RustVad {
-    // `nobodywho::vad::Vad::push`/`finish` require `&mut self`; FRB opaque
+pub struct RustVoiceActivityDetection {
+    // `nobodywho::vad::VoiceActivityDetection::push`/`finish` require `&mut self`; FRB opaque
     // methods only get `&self`, so interior mutability via Mutex is needed.
-    vad: std::sync::Mutex<nobodywho::vad::Vad>,
+    vad: std::sync::Mutex<nobodywho::vad::VoiceActivityDetection>,
 }
 
-impl RustVad {
+impl RustVoiceActivityDetection {
     /// Create a voice activity detector.
     /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
     /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
@@ -851,8 +855,8 @@ impl RustVad {
         #[frb(default = "null")] min_speech_duration_ms: Option<u32>,
         #[frb(default = "null")] preroll_duration_ms: Option<u32>,
     ) -> Result<Self, String> {
-        let defaults = nobodywho::vad::VadConfig::default();
-        let config = nobodywho::vad::VadConfig {
+        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::vad::VoiceActivityDetectionConfig {
             source: source.unwrap_or(defaults.source),
             sample_rate,
             threshold: threshold.map(|t| t as f32).unwrap_or(defaults.threshold),
@@ -862,7 +866,7 @@ impl RustVad {
                 .unwrap_or(defaults.min_speech_duration_ms),
             preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
-        let vad = nobodywho::vad::Vad::new(config).map_err(|e| e.to_string())?;
+        let vad = nobodywho::vad::VoiceActivityDetection::new(config).map_err(|e| e.to_string())?;
         Ok(Self {
             vad: std::sync::Mutex::new(vad),
         })
@@ -870,9 +874,9 @@ impl RustVad {
 
     /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
     /// buffer — the detector tracks the current turn internally). Returns
-    /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+    /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
     #[flutter_rust_bridge::frb(sync)]
-    pub fn push(&self, chunk: Vec<i16>) -> Result<Option<VadEvent>, String> {
+    pub fn push(&self, chunk: Vec<i16>) -> Result<Option<VoiceActivityDetectionEvent>, String> {
         self.vad
             .lock()
             .unwrap()
@@ -895,8 +899,8 @@ impl RustVad {
     /// thresholding instead of `push`'s built-in debounce logic, or who want
     /// zero memory overhead beyond fixed model state. Safe to call with any
     /// chunk size, from a live mic buffer up to an entire recording at once.
-    /// If you reuse one `Vad` across unrelated audio sessions, call `finish`
-    /// in between to clear state so it doesn't leak across sessions.
+    /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions,
+    /// call `finish` in between to clear state so it doesn't leak across sessions.
     #[flutter_rust_bridge::frb(sync)]
     pub fn predict(&self, chunk: Vec<i16>) -> Result<Vec<f32>, String> {
         self.vad

@@ -69,8 +69,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustToolPtr;
 
   CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_RustVadPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVadPtr;
+  get rust_arc_decrement_strong_count_RustVoiceActivityDetectionPtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetectionPtr;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_SamplerBuilderPtr => wire
@@ -185,8 +185,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustVad
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     dynamic raw,
   );
 
@@ -293,8 +293,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustVad
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     dynamic raw,
   );
 
@@ -418,8 +418,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustVad
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     dynamic raw,
   );
 
@@ -511,7 +511,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt dco_decode_box_autoadd_usize(dynamic raw);
 
   @protected
-  VadEvent dco_decode_box_autoadd_vad_event(dynamic raw);
+  VoiceActivityDetectionEvent
+  dco_decode_box_autoadd_voice_activity_detection_event(dynamic raw);
 
   @protected
   ChatStats dco_decode_chat_stats(dynamic raw);
@@ -637,7 +638,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw);
 
   @protected
-  VadEvent? dco_decode_opt_box_autoadd_vad_event(dynamic raw);
+  VoiceActivityDetectionEvent?
+  dco_decode_opt_box_autoadd_voice_activity_detection_event(dynamic raw);
 
   @protected
   List<ToolCall>?
@@ -676,7 +678,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
-  VadEvent dco_decode_vad_event(dynamic raw);
+  VoiceActivityDetectionEvent dco_decode_voice_activity_detection_event(
+    dynamic raw,
+  );
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -760,8 +764,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustVad
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     SseDeserializer deserializer,
   );
 
@@ -868,8 +872,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustVad
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     SseDeserializer deserializer,
   );
 
@@ -989,8 +993,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  RustVad
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     SseDeserializer deserializer,
   );
 
@@ -1084,7 +1088,10 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt sse_decode_box_autoadd_usize(SseDeserializer deserializer);
 
   @protected
-  VadEvent sse_decode_box_autoadd_vad_event(SseDeserializer deserializer);
+  VoiceActivityDetectionEvent
+  sse_decode_box_autoadd_voice_activity_detection_event(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ChatStats sse_decode_chat_stats(SseDeserializer deserializer);
@@ -1224,7 +1231,10 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt? sse_decode_opt_box_autoadd_usize(SseDeserializer deserializer);
 
   @protected
-  VadEvent? sse_decode_opt_box_autoadd_vad_event(SseDeserializer deserializer);
+  VoiceActivityDetectionEvent?
+  sse_decode_opt_box_autoadd_voice_activity_detection_event(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<ToolCall>?
@@ -1265,7 +1275,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  VadEvent sse_decode_vad_event(SseDeserializer deserializer);
+  VoiceActivityDetectionEvent sse_decode_voice_activity_detection_event(
+    SseDeserializer deserializer,
+  );
 
   @protected
   void sse_encode_AnyhowException(
@@ -1366,8 +1378,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
-    RustVad self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
+    RustVoiceActivityDetection self,
     SseSerializer serializer,
   );
 
@@ -1492,8 +1504,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
-    RustVad self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
+    RustVoiceActivityDetection self,
     SseSerializer serializer,
   );
 
@@ -1645,8 +1657,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
-    RustVad self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
+    RustVoiceActivityDetection self,
     SseSerializer serializer,
   );
 
@@ -1753,8 +1765,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_box_autoadd_usize(BigInt self, SseSerializer serializer);
 
   @protected
-  void sse_encode_box_autoadd_vad_event(
-    VadEvent self,
+  void sse_encode_box_autoadd_voice_activity_detection_event(
+    VoiceActivityDetectionEvent self,
     SseSerializer serializer,
   );
 
@@ -1928,8 +1940,8 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_opt_box_autoadd_usize(BigInt? self, SseSerializer serializer);
 
   @protected
-  void sse_encode_opt_box_autoadd_vad_event(
-    VadEvent? self,
+  void sse_encode_opt_box_autoadd_voice_activity_detection_event(
+    VoiceActivityDetectionEvent? self,
     SseSerializer serializer,
   );
 
@@ -1983,7 +1995,10 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_usize(BigInt self, SseSerializer serializer);
 
   @protected
-  void sse_encode_vad_event(VadEvent self, SseSerializer serializer);
+  void sse_encode_voice_activity_detection_event(
+    VoiceActivityDetectionEvent self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class
@@ -2443,37 +2458,37 @@ class NobodyWhoWire implements BaseWire {
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     ffi.Pointer<ffi.Void> ptr,
   ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
       ptr,
     );
   }
 
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVadPtr =
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetectionPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad',
+        'frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection',
       );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVadPtr
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetectionPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     ffi.Pointer<ffi.Void> ptr,
   ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
       ptr,
     );
   }
 
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVadPtr =
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetectionPtr =
       _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad',
+        'frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection',
       );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVadPtr
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetectionPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
   void

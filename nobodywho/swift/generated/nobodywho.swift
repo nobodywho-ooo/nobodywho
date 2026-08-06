@@ -2447,11 +2447,11 @@ public func FfiConverterTypeRustTool_lower(_ value: RustTool) -> UInt64 {
 
 
 /**
- * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */
-public protocol RustVadProtocol: AnyObject, Sendable {
+public protocol RustVoiceActivityDetectionProtocol: AnyObject, Sendable {
     
     /**
      * Return the current turn's captured audio (from the confirmed
@@ -2468,7 +2468,7 @@ public protocol RustVadProtocol: AnyObject, Sendable {
      * thresholding instead of `push`'s built-in debounce logic, or who want
      * zero memory overhead beyond fixed model state. Safe to call with any
      * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
      * in between to clear state so it doesn't leak across sessions.
      */
     func predict(chunk: [Int16]) throws  -> [Float]
@@ -2476,9 +2476,9 @@ public protocol RustVadProtocol: AnyObject, Sendable {
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-    func push(chunk: [Int16]) throws  -> VadEvent?
+    func push(chunk: [Int16]) throws  -> VoiceActivityDetectionEvent?
     
     /**
      * Detect every speech segment in a complete audio buffer at once,
@@ -2491,11 +2491,11 @@ public protocol RustVadProtocol: AnyObject, Sendable {
     
 }
 /**
- * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */
-open class RustVad: RustVadProtocol, @unchecked Sendable {
+open class RustVoiceActivityDetection: RustVoiceActivityDetectionProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
 
     /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
@@ -2532,7 +2532,7 @@ open class RustVad: RustVadProtocol, @unchecked Sendable {
     @_documentation(visibility: private)
 #endif
     public func uniffiCloneHandle() -> UInt64 {
-        return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_rustvad(self.handle, $0) }
+        return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(self.handle, $0) }
     }
     /**
      * Create a voice activity detector.
@@ -2543,12 +2543,12 @@ open class RustVad: RustVadProtocol, @unchecked Sendable {
      * audio you'll pass to `push` — Silero runs at 16kHz internally,
      * anything else is resampled. `threshold`, `min_silence_duration_ms`,
      * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
-     * core `VadConfig` defaults when omitted.
+     * core `VoiceActivityDetectionConfig` defaults when omitted.
      */
 public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, minSilenceDurationMs: UInt32?, minSpeechDurationMs: UInt32?, prerollDurationMs: UInt32?, device: String?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
-    uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
+    uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
         FfiConverterOptionString.lower(source),
         FfiConverterUInt32.lower(sampleRate),
         FfiConverterOptionFloat.lower(threshold),
@@ -2562,7 +2562,7 @@ public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, 
 }
 
     deinit {
-        try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustvad(handle, $0) }
+        try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(handle, $0) }
     }
 
     
@@ -2576,7 +2576,7 @@ public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, 
      */
 open func finish() -> [Int16]  {
     return try!  FfiConverterSequenceInt16.lift(try! rustCall() {
-    uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
+    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(
             self.uniffiCloneHandle(),$0
     )
 })
@@ -2589,12 +2589,12 @@ open func finish() -> [Int16]  {
      * thresholding instead of `push`'s built-in debounce logic, or who want
      * zero memory overhead beyond fixed model state. Safe to call with any
      * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
      * in between to clear state so it doesn't leak across sessions.
      */
 open func predict(chunk: [Int16])throws  -> [Float]  {
     return try  FfiConverterSequenceFloat.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
-    uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
             self.uniffiCloneHandle(),
         FfiConverterSequenceInt16.lower(chunk),$0
     )
@@ -2604,11 +2604,11 @@ open func predict(chunk: [Int16])throws  -> [Float]  {
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-open func push(chunk: [Int16])throws  -> VadEvent?  {
-    return try  FfiConverterOptionTypeVadEvent.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
-    uniffi_nobodywho_uniffi_fn_method_rustvad_push(
+open func push(chunk: [Int16])throws  -> VoiceActivityDetectionEvent?  {
+    return try  FfiConverterOptionTypeVoiceActivityDetectionEvent.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
             self.uniffiCloneHandle(),
         FfiConverterSequenceInt16.lower(chunk),$0
     )
@@ -2624,7 +2624,7 @@ open func push(chunk: [Int16])throws  -> VadEvent?  {
      */
 open func segment(samples: [Int16])throws  -> [[Int16]]  {
     return try  FfiConverterSequenceSequenceInt16.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
-    uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
+    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(
             self.uniffiCloneHandle(),
         FfiConverterSequenceInt16.lower(samples),$0
     )
@@ -2639,24 +2639,24 @@ open func segment(samples: [Int16])throws  -> [[Int16]]  {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeRustVad: FfiConverter {
+public struct FfiConverterTypeRustVoiceActivityDetection: FfiConverter {
     typealias FfiType = UInt64
-    typealias SwiftType = RustVad
+    typealias SwiftType = RustVoiceActivityDetection
 
-    public static func lift(_ handle: UInt64) throws -> RustVad {
-        return RustVad(unsafeFromHandle: handle)
+    public static func lift(_ handle: UInt64) throws -> RustVoiceActivityDetection {
+        return RustVoiceActivityDetection(unsafeFromHandle: handle)
     }
 
-    public static func lower(_ value: RustVad) -> UInt64 {
+    public static func lower(_ value: RustVoiceActivityDetection) -> UInt64 {
         return value.uniffiCloneHandle()
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustVad {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustVoiceActivityDetection {
         let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func write(_ value: RustVad, into buf: inout [UInt8]) {
+    public static func write(_ value: RustVoiceActivityDetection, into buf: inout [UInt8]) {
         writeInt(&buf, lower(value))
     }
 }
@@ -2665,15 +2665,15 @@ public struct FfiConverterTypeRustVad: FfiConverter {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeRustVad_lift(_ handle: UInt64) throws -> RustVad {
-    return try FfiConverterTypeRustVad.lift(handle)
+public func FfiConverterTypeRustVoiceActivityDetection_lift(_ handle: UInt64) throws -> RustVoiceActivityDetection {
+    return try FfiConverterTypeRustVoiceActivityDetection.lift(handle)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeRustVad_lower(_ value: RustVad) -> UInt64 {
-    return FfiConverterTypeRustVad.lower(value)
+public func FfiConverterTypeRustVoiceActivityDetection_lower(_ value: RustVoiceActivityDetection) -> UInt64 {
+    return FfiConverterTypeRustVoiceActivityDetection.lower(value)
 }
 
 
@@ -3827,7 +3827,7 @@ public func FfiConverterTypePromptPart_lower(_ value: PromptPart) -> RustBuffer 
  * Voice activity event: a confirmed speech start or end boundary.
  */
 
-public enum VadEvent: Equatable, Hashable {
+public enum VoiceActivityDetectionEvent: Equatable, Hashable {
     
     case speechStarted
     case speechEnded
@@ -3837,16 +3837,16 @@ public enum VadEvent: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension VadEvent: Sendable {}
+extension VoiceActivityDetectionEvent: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeVadEvent: FfiConverterRustBuffer {
-    typealias SwiftType = VadEvent
+public struct FfiConverterTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer {
+    typealias SwiftType = VoiceActivityDetectionEvent
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VadEvent {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VoiceActivityDetectionEvent {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
@@ -3858,7 +3858,7 @@ public struct FfiConverterTypeVadEvent: FfiConverterRustBuffer {
         }
     }
 
-    public static func write(_ value: VadEvent, into buf: inout [UInt8]) {
+    public static func write(_ value: VoiceActivityDetectionEvent, into buf: inout [UInt8]) {
         switch value {
         
         
@@ -3877,15 +3877,15 @@ public struct FfiConverterTypeVadEvent: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeVadEvent_lift(_ buf: RustBuffer) throws -> VadEvent {
-    return try FfiConverterTypeVadEvent.lift(buf)
+public func FfiConverterTypeVoiceActivityDetectionEvent_lift(_ buf: RustBuffer) throws -> VoiceActivityDetectionEvent {
+    return try FfiConverterTypeVoiceActivityDetectionEvent.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeVadEvent_lower(_ value: VadEvent) -> RustBuffer {
-    return FfiConverterTypeVadEvent.lower(value)
+public func FfiConverterTypeVoiceActivityDetectionEvent_lower(_ value: VoiceActivityDetectionEvent) -> RustBuffer {
+    return FfiConverterTypeVoiceActivityDetectionEvent.lower(value)
 }
 
 
@@ -4322,8 +4322,8 @@ fileprivate struct FfiConverterOptionTypePendingToolCall: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeVadEvent: FfiConverterRustBuffer {
-    typealias SwiftType = VadEvent?
+fileprivate struct FfiConverterOptionTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer {
+    typealias SwiftType = VoiceActivityDetectionEvent?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -4331,13 +4331,13 @@ fileprivate struct FfiConverterOptionTypeVadEvent: FfiConverterRustBuffer {
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeVadEvent.write(value, into: &buf)
+        FfiConverterTypeVoiceActivityDetectionEvent.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeVadEvent.read(from: &buf)
+        case 1: return try FfiConverterTypeVoiceActivityDetectionEvent.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -5273,16 +5273,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() != 58578) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_predict() != 26282) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict() != 27565) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 13327) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 19729) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_segment() != 1943) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 22520) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
@@ -5351,7 +5351,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() != 35490) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() != 47351) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214) {

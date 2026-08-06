@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 50605952;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1919965224;
 
 // Section: executor
 
@@ -2398,14 +2398,14 @@ fn wire__crate__RustTool_get_schema_json_impl(
         },
     )
 }
-fn wire__crate__RustVad_finish_impl(
+fn wire__crate__RustVoiceActivityDetection_finish_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "RustVad_finish",
+            debug_name: "RustVoiceActivityDetection_finish",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -2420,7 +2420,7 @@ fn wire__crate__RustVad_finish_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
@@ -2438,20 +2438,22 @@ fn wire__crate__RustVad_finish_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(crate::RustVad::finish(&*api_that_guard))?;
+                let output_ok = Result::<_, ()>::Ok(crate::RustVoiceActivityDetection::finish(
+                    &*api_that_guard,
+                ))?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__RustVad_new__impl(
+fn wire__crate__RustVoiceActivityDetection_new__impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "RustVad_new_",
+            debug_name: "RustVoiceActivityDetection_new_",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -2473,7 +2475,7 @@ fn wire__crate__RustVad_new__impl(
             let api_preroll_duration_ms = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
-                let output_ok = crate::RustVad::new_(
+                let output_ok = crate::RustVoiceActivityDetection::new_(
                     api_sample_rate,
                     api_source,
                     api_threshold,
@@ -2486,14 +2488,14 @@ fn wire__crate__RustVad_new__impl(
         },
     )
 }
-fn wire__crate__RustVad_predict_impl(
+fn wire__crate__RustVoiceActivityDetection_predict_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "RustVad_predict",
+            debug_name: "RustVoiceActivityDetection_predict",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -2508,7 +2510,7 @@ fn wire__crate__RustVad_predict_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
             >>::sse_decode(&mut deserializer);
             let api_chunk = <Vec<i16>>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -2527,20 +2529,21 @@ fn wire__crate__RustVad_predict_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = crate::RustVad::predict(&*api_that_guard, api_chunk)?;
+                let output_ok =
+                    crate::RustVoiceActivityDetection::predict(&*api_that_guard, api_chunk)?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__RustVad_push_impl(
+fn wire__crate__RustVoiceActivityDetection_push_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "RustVad_push",
+            debug_name: "RustVoiceActivityDetection_push",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -2555,7 +2558,7 @@ fn wire__crate__RustVad_push_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
             >>::sse_decode(&mut deserializer);
             let api_chunk = <Vec<i16>>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -2574,20 +2577,21 @@ fn wire__crate__RustVad_push_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = crate::RustVad::push(&*api_that_guard, api_chunk)?;
+                let output_ok =
+                    crate::RustVoiceActivityDetection::push(&*api_that_guard, api_chunk)?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__RustVad_segment_impl(
+fn wire__crate__RustVoiceActivityDetection_segment_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "RustVad_segment",
+            debug_name: "RustVoiceActivityDetection_segment",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
@@ -2602,7 +2606,7 @@ fn wire__crate__RustVad_segment_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>,
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
             >>::sse_decode(&mut deserializer);
             let api_samples = <Vec<i16>>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -2621,7 +2625,8 @@ fn wire__crate__RustVad_segment_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = crate::RustVad::segment(&*api_that_guard, api_samples)?;
+                let output_ok =
+                    crate::RustVoiceActivityDetection::segment(&*api_that_guard, api_samples)?;
                 Ok(output_ok)
             })())
         },
@@ -4531,7 +4536,7 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
-    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>
@@ -4698,11 +4703,11 @@ impl SseDecode for RustTool {
     }
 }
 
-impl SseDecode for RustVad {
+impl SseDecode for RustVoiceActivityDetection {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
-            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>,
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -4940,7 +4945,11 @@ impl SseDecode
     }
 }
 
-impl SseDecode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>> {
+impl SseDecode
+    for RustOpaqueMoi<
+        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
+    >
+{
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <usize>::sse_decode(deserializer);
@@ -5459,11 +5468,13 @@ impl SseDecode for Option<usize> {
     }
 }
 
-impl SseDecode for Option<crate::VadEvent> {
+impl SseDecode for Option<crate::VoiceActivityDetectionEvent> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::VadEvent>::sse_decode(deserializer));
+            return Some(<crate::VoiceActivityDetectionEvent>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -5576,14 +5587,14 @@ impl SseDecode for usize {
     }
 }
 
-impl SseDecode for crate::VadEvent {
+impl SseDecode for crate::VoiceActivityDetectionEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::VadEvent::SpeechStarted,
-            1 => crate::VadEvent::SpeechEnded,
-            _ => unreachable!("Invalid variant for VadEvent: {}", inner),
+            0 => crate::VoiceActivityDetectionEvent::SpeechStarted,
+            1 => crate::VoiceActivityDetectionEvent::SpeechEnded,
+            _ => unreachable!("Invalid variant for VoiceActivityDetectionEvent: {}", inner),
         };
     }
 }
@@ -5658,11 +5669,11 @@ fn pde_ffi_dispatcher_sync_impl(
         38 => wire__crate__RustSpeechToText_transcribe_file_impl(ptr, rust_vec_len, data_len),
         39 => wire__crate__RustSpeechToText_transcribe_pcm_impl(ptr, rust_vec_len, data_len),
         43 => wire__crate__RustTool_get_schema_json_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__RustVad_finish_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__RustVad_new__impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__RustVad_predict_impl(ptr, rust_vec_len, data_len),
-        47 => wire__crate__RustVad_push_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__RustVad_segment_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__RustVoiceActivityDetection_finish_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__RustVoiceActivityDetection_new__impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__RustVoiceActivityDetection_predict_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__RustVoiceActivityDetection_push_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__RustVoiceActivityDetection_segment_impl(ptr, rust_vec_len, data_len),
         49 => wire__crate__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
         50 => wire__crate__SamplerBuilder_dry_impl(ptr, rust_vec_len, data_len),
         51 => wire__crate__SamplerBuilder_grammar_impl(ptr, rust_vec_len, data_len),
@@ -5919,16 +5930,21 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<RustTool>> for RustTool {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<RustVad> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<RustVoiceActivityDetection> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
             .into_dart()
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<RustVad> {}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<RustVoiceActivityDetection>
+{
+}
 
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<RustVad>> for RustVad {
-    fn into_into_dart(self) -> FrbWrapper<RustVad> {
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<RustVoiceActivityDetection>>
+    for RustVoiceActivityDetection
+{
+    fn into_into_dart(self) -> FrbWrapper<RustVoiceActivityDetection> {
         self.into()
     }
 }
@@ -6151,7 +6167,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::PromptPart> for crate::PromptPart 
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::VadEvent {
+impl flutter_rust_bridge::IntoDart for crate::VoiceActivityDetectionEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
             Self::SpeechStarted => 0.into_dart(),
@@ -6160,9 +6176,14 @@ impl flutter_rust_bridge::IntoDart for crate::VadEvent {
         }
     }
 }
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::VadEvent {}
-impl flutter_rust_bridge::IntoIntoDart<crate::VadEvent> for crate::VadEvent {
-    fn into_into_dart(self) -> crate::VadEvent {
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::VoiceActivityDetectionEvent
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::VoiceActivityDetectionEvent>
+    for crate::VoiceActivityDetectionEvent
+{
+    fn into_into_dart(self) -> crate::VoiceActivityDetectionEvent {
         self
     }
 }
@@ -6281,10 +6302,15 @@ impl SseEncode for RustTool {
     }
 }
 
-impl SseEncode for RustVad {
+impl SseEncode for RustVoiceActivityDetection {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+        <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
+        >>::sse_encode(
+            flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self),
+            serializer,
+        );
     }
 }
 
@@ -6509,7 +6535,11 @@ impl SseEncode
     }
 }
 
-impl SseEncode for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>> {
+impl SseEncode
+    for RustOpaqueMoi<
+        flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>,
+    >
+{
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         let (ptr, size) = self.sse_encode_raw();
@@ -6979,12 +7009,12 @@ impl SseEncode for Option<usize> {
     }
 }
 
-impl SseEncode for Option<crate::VadEvent> {
+impl SseEncode for Option<crate::VoiceActivityDetectionEvent> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::VadEvent>::sse_encode(value, serializer);
+            <crate::VoiceActivityDetectionEvent>::sse_encode(value, serializer);
         }
     }
 }
@@ -7090,13 +7120,13 @@ impl SseEncode for usize {
     }
 }
 
-impl SseEncode for crate::VadEvent {
+impl SseEncode for crate::VoiceActivityDetectionEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::VadEvent::SpeechStarted => 0,
-                crate::VadEvent::SpeechEnded => 1,
+                crate::VoiceActivityDetectionEvent::SpeechStarted => 0,
+                crate::VoiceActivityDetectionEvent::SpeechEnded => 1,
                 _ => {
                     unimplemented!("");
                 }
@@ -7312,17 +7342,17 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>>::increment_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+    pub extern "C" fn frbgen_nobodywho_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -7649,17 +7679,17 @@ mod web {
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>::increment_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>>::increment_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]
-    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
         ptr: *const std::ffi::c_void,
     ) {
-        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>::decrement_strong_count(ptr as _);
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

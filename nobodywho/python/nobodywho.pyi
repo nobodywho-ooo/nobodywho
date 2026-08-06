@@ -1329,9 +1329,9 @@ class Tool(typing.Generic[T]):
     def __call__(self, /, *args, **kwargs) -> "T": ...
 
 @final
-class Vad:
+class VoiceActivityDetection:
     """
-    `Vad` detects speech start/end from streaming, live audio using Silero VAD.
+    `VoiceActivityDetection` detects speech start/end from streaming, live audio using Silero VAD.
 
     `source` is a HuggingFace repo (`hf://owner/repo`) or local directory path
     for the Silero VAD ONNX model; omit or pass `None` to use the default
@@ -1341,12 +1341,12 @@ class Vad:
 
     Example::
 
-        from nobodywho import Vad, VadEvent
+        from nobodywho import VoiceActivityDetection, VoiceActivityDetectionEvent
 
-        vad = Vad(sample_rate=16000)
+        vad = VoiceActivityDetection(sample_rate=16000)
         for chunk in mic_chunks():
             event = vad.push(chunk)
-            if event == VadEvent.SpeechEnded:
+            if event == VoiceActivityDetectionEvent.SpeechEnded:
                 audio = vad.finish()
                 break
     """
@@ -1359,12 +1359,12 @@ class Vad:
         min_silence_duration_ms: int | None = None,
         min_speech_duration_ms: int | None = None,
         preroll_duration_ms: int | None = None,
-    ) -> Vad: ...
+    ) -> VoiceActivityDetection: ...
     def finish(self, /) -> list[int]:
         """
         Return the current turn's captured audio (from the confirmed
-        `VadEvent.SpeechStarted`, including a small pre-roll, through to
-        `VadEvent.SpeechEnded`) and reset internal state for the next turn.
+        `VoiceActivityDetectionEvent.SpeechStarted`, including a small pre-roll, through to
+        `VoiceActivityDetectionEvent.SpeechEnded`) and reset internal state for the next turn.
         Empty if speech was never confirmed.
         """
     def predict(self, /, chunk: Sequence[int]) -> list[float]:
@@ -1375,13 +1375,13 @@ class Vad:
         thresholding instead of `push`'s built-in debounce logic, or who want
         zero memory overhead beyond fixed model state. Safe to call with any
         chunk size, from a live mic buffer up to an entire recording at once.
-        If you reuse one `Vad` across unrelated audio sessions, call `finish`
+        If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
         in between to clear state so it doesn't leak across sessions.
         """
-    def push(self, /, chunk: Sequence[int]) -> VadEvent | None:
+    def push(self, /, chunk: Sequence[int]) -> VoiceActivityDetectionEvent | None:
         """
         Feed the newest chunk of audio (not the whole accumulated buffer —
-        `Vad` tracks the current turn internally). Returns a `VadEvent` if this
+        `VoiceActivityDetection` tracks the current turn internally). Returns a `VoiceActivityDetectionEvent` if this
         call crossed a confirmed speech/silence boundary, else `None`.
         """
     def segment(self, /, samples: Sequence[int]) -> list[list[int]]:
@@ -1394,14 +1394,14 @@ class Vad:
         """
 
 @final
-class VadEvent:
+class VoiceActivityDetectionEvent:
     """
-    `VadEvent` is returned by `Vad.push` when a call crosses a confirmed
+    `VoiceActivityDetectionEvent` is returned by `VoiceActivityDetection.push` when a call crosses a confirmed
     speech/silence boundary.
     """
 
-    SpeechEnded: Final[VadEvent]
-    SpeechStarted: Final[VadEvent]
+    SpeechEnded: Final[VoiceActivityDetectionEvent]
+    SpeechStarted: Final[VoiceActivityDetectionEvent]
     def __eq__(self, /, other: object) -> bool: ...
     def __int__(self, /) -> int: ...
     def __ne__(self, /, other: object) -> bool: ...

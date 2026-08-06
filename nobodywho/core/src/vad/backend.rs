@@ -1,7 +1,7 @@
-use crate::errors::VadError;
+use crate::errors::VoiceActivityDetectionError;
 use crate::huggingface;
 use crate::onnx::{load_session, Device};
-use crate::vad::events::{DebounceConfig, Debouncer, VadEvent};
+use crate::vad::events::{DebounceConfig, Debouncer, VoiceActivityDetectionEvent};
 use ort::session::Session;
 use ort::value::Tensor;
 use rubato::{
@@ -14,7 +14,7 @@ const FRAME_SAMPLES: usize = 512;
 const SILERO_SAMPLE_RATE: i64 = 16_000;
 const RESAMPLE_CHUNK_SIZE: usize = 1024;
 
-pub(super) struct VadBackend {
+pub(super) struct VoiceActivityDetectionBackend {
     session: Session,
     resampler: Option<StreamResampler>,
     sample_rate: u32,
@@ -27,14 +27,14 @@ pub(super) struct VadBackend {
     capture: TurnCapture,
 }
 
-impl VadBackend {
+impl VoiceActivityDetectionBackend {
     pub(super) fn new(
         source: &str,
         sample_rate: u32,
         preroll_duration_ms: u32,
         debounce_config: DebounceConfig,
         device: Device,
-    ) -> Result<Self, VadError> {
+    ) -> Result<Self, VoiceActivityDetectionError> {
         let model_dir = huggingface::download_onnx(source, &["onnx/model.onnx".to_string()], None)?;
         let session = load_session(&model_dir.join("onnx").join("model.onnx"), device)?;
         let resampler = if sample_rate == SILERO_SAMPLE_RATE as u32 {
@@ -64,7 +64,10 @@ impl VadBackend {
         self.debouncer.reset();
     }
 
-    pub(super) fn predict(&mut self, chunk: &[i16]) -> Result<Vec<f32>, VadError> {
+    pub(super) fn predict(
+        &mut self,
+        chunk: &[i16],
+    ) -> Result<Vec<f32>, VoiceActivityDetectionError> {
         let raw_f32: Vec<f32> = chunk.iter().map(|&s| s as f32 / 32768.0).collect();
         let samples_16k = match &mut self.resampler {
             Some(resampler) => resampler.push(&raw_f32)?,
@@ -79,7 +82,10 @@ impl VadBackend {
         Ok(probs)
     }
 
-    pub(super) fn push(&mut self, chunk: &[i16]) -> Result<Option<VadEvent>, VadError> {
+    pub(super) fn push(
+        &mut self,
+        chunk: &[i16],
+    ) -> Result<Option<VoiceActivityDetectionEvent>, VoiceActivityDetectionError> {
         self.preroll.push(chunk);
         self.capture.push(chunk);
 
@@ -93,8 +99,10 @@ impl VadBackend {
         match event {
             // preroll already includes this call's chunk, so it alone covers
             // the not-yet-confirmed lead-in plus the confirming chunk.
-            Some(VadEvent::SpeechStarted) => self.capture.start(self.preroll.snapshot()),
-            Some(VadEvent::SpeechEnded) => {
+            Some(VoiceActivityDetectionEvent::SpeechStarted) => {
+                self.capture.start(self.preroll.snapshot())
+            }
+            Some(VoiceActivityDetectionEvent::SpeechEnded) => {
                 self.capture.stop();
                 self.reset();
             }
@@ -110,7 +118,10 @@ impl VadBackend {
         self.capture.take()
     }
 
-    pub(super) fn segment(&mut self, samples: &[i16]) -> Result<Vec<Vec<i16>>, VadError> {
+    pub(super) fn segment(
+        &mut self,
+        samples: &[i16],
+    ) -> Result<Vec<Vec<i16>>, VoiceActivityDetectionError> {
         self.reset();
 
         let probs = self.predict(samples)?;
@@ -124,10 +135,10 @@ impl VadBackend {
             let end_native = ((i + 1) as u64 * FRAME_SAMPLES as u64 * self.sample_rate as u64
                 / SILERO_SAMPLE_RATE as u64) as usize;
             match self.debouncer.step(prob) {
-                Some(VadEvent::SpeechStarted) => {
+                Some(VoiceActivityDetectionEvent::SpeechStarted) => {
                     start = Some(end_native.saturating_sub(preroll_native));
                 }
-                Some(VadEvent::SpeechEnded) => {
+                Some(VoiceActivityDetectionEvent::SpeechEnded) => {
                     if let Some(s) = start.take() {
                         segments.push(
                             samples[s.min(samples.len())..end_native.min(samples.len())].to_vec(),
@@ -148,7 +159,7 @@ impl VadBackend {
     }
 
     /// Run one 512-sample 16kHz frame through the Silero ONNX model.
-    fn run_frame(&mut self, frame: &[f32]) -> Result<f32, VadError> {
+    fn run_frame(&mut self, frame: &[f32]) -> Result<f32, VoiceActivityDetectionError> {
         let input = Tensor::from_array(([1usize, FRAME_SAMPLES], frame.to_vec()))?;
         let state = Tensor::from_array(([2usize, 1usize, 128usize], self.model_state.clone()))?;
         let sr = Tensor::from_array(([1usize], vec![SILERO_SAMPLE_RATE]))?;
@@ -268,7 +279,7 @@ struct StreamResampler {
 }
 
 impl StreamResampler {
-    fn new(from_rate: u32, to_rate: u32) -> Result<Self, VadError> {
+    fn new(from_rate: u32, to_rate: u32) -> Result<Self, VoiceActivityDetectionError> {
         let ratio = to_rate as f64 / from_rate as f64;
         let params = SincInterpolationParameters {
             sinc_len: 256,
@@ -278,14 +289,14 @@ impl StreamResampler {
             window: WindowFunction::BlackmanHarris2,
         };
         let resampler = SincFixedIn::<f32>::new(ratio, 2.0, params, RESAMPLE_CHUNK_SIZE, 1)
-            .map_err(|e| VadError::Audio(format!("resampler init: {e}")))?;
+            .map_err(|e| VoiceActivityDetectionError::Audio(format!("resampler init: {e}")))?;
         Ok(Self {
             resampler,
             pending: Vec::new(),
         })
     }
 
-    fn push(&mut self, samples: &[f32]) -> Result<Vec<f32>, VadError> {
+    fn push(&mut self, samples: &[f32]) -> Result<Vec<f32>, VoiceActivityDetectionError> {
         self.pending.extend_from_slice(samples);
         let mut output = Vec::new();
         while self.pending.len() >= RESAMPLE_CHUNK_SIZE {
@@ -293,7 +304,7 @@ impl StreamResampler {
             let mut waves = self
                 .resampler
                 .process(&[chunk], None)
-                .map_err(|e| VadError::Audio(format!("resample: {e}")))?;
+                .map_err(|e| VoiceActivityDetectionError::Audio(format!("resample: {e}")))?;
             output.extend(waves.remove(0));
         }
         Ok(output)

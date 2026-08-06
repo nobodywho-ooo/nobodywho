@@ -6,7 +6,7 @@ typealias SamplerConfig = uniffi.nobodywho.SamplerConfig
 typealias Asset = uniffi.nobodywho.Asset
 typealias ToolCall = uniffi.nobodywho.ToolCall
 typealias CachedModel = uniffi.nobodywho.CachedModel
-typealias VadEvent = uniffi.nobodywho.VadEvent
+typealias VoiceActivityDetectionEvent = uniffi.nobodywho.VoiceActivityDetectionEvent
 
 /**
  * A message in the chat history.

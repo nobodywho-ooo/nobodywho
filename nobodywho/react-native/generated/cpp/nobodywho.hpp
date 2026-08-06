@@ -220,25 +220,30 @@ protected:
   cpp_uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustvad(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustvad(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_push(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(
@@ -696,16 +701,20 @@ protected:
   cpp_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_finish(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_push(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
@@ -783,7 +792,8 @@ protected:
   cpp_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new(
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
@@ -832,7 +842,8 @@ protected:
   jsi::Value cpp_uniffi_internal_fn_method_rusttool_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_internal_fn_method_rustvad_ffi__bless_pointer(
+  jsi::Value
+  cpp_uniffi_internal_fn_method_rustvoiceactivitydetection_ffi__bless_pointer(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_internal_fn_method_samplerbuilder_ffi__bless_pointer(

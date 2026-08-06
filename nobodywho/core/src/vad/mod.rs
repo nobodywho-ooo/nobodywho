@@ -4,26 +4,26 @@
 //! licensed) by default (`hf://onnx-community/silero-vad`),
 //! downloaded and cached the same way `Stt`'s Whisper architecture resolves
 //! its models — first use requires network access, subsequent uses are
-//! offline. The model source is configurable via [`VadConfig::source`] for
+//! offline. The model source is configurable via [`VoiceActivityDetectionConfig::source`] for
 //! forks/mirrors that keep the same `onnx/model.onnx` layout.
 //!
-//! Feed each newest chunk to [`Vad::push`] as it arrives — `Vad` buffers the
-//! current turn internally, seeded with a small pre-roll so the confirmed
+//! Feed each newest chunk to [`VoiceActivityDetection::push`] as it arrives — `VoiceActivityDetection`
+//! buffers the current turn internally, seeded with a small pre-roll so the confirmed
 //! speech isn't clipped at the start. Once a `SpeechEnded` comes back, call
-//! [`Vad::finish`] to get that turn's audio and reset for the next one.
+//! [`VoiceActivityDetection::finish`] to get that turn's audio and reset for the next one.
 
 mod backend;
 mod events;
 
-use crate::errors::VadError;
+use crate::errors::VoiceActivityDetectionError;
 pub use crate::onnx::Device;
-use backend::VadBackend;
+use backend::VoiceActivityDetectionBackend;
 use events::DebounceConfig;
-pub use events::VadEvent;
+pub use events::VoiceActivityDetectionEvent;
 
-/// Configuration for [`Vad`].
+/// Configuration for [`VoiceActivityDetection`].
 #[derive(Clone, Debug)]
-pub struct VadConfig {
+pub struct VoiceActivityDetectionConfig {
     /// `hf://owner/repo` HuggingFace source or local directory path for the
     /// VAD ONNX model. Expected to contain `onnx/model.onnx` at the
     /// standard Silero VAD layout — a fork or mirror of the reference
@@ -31,7 +31,7 @@ pub struct VadConfig {
     /// `hf://onnx-community/silero-vad`, the canonical Silero VAD mirror;
     /// most users should leave this as-is.
     pub source: String,
-    /// Sample rate of the buffers you'll pass to [`Vad::push`]. Silero
+    /// Sample rate of the buffers you'll pass to [`VoiceActivityDetection::push`]. Silero
     /// natively runs at 16kHz — anything else is resampled internally.
     /// Must be non-zero.
     pub sample_rate: u32,
@@ -48,7 +48,7 @@ pub struct VadConfig {
     pub preroll_duration_ms: u32,
 }
 
-impl Default for VadConfig {
+impl Default for VoiceActivityDetectionConfig {
     fn default() -> Self {
         let debounce = DebounceConfig::default();
         Self {
@@ -63,18 +63,23 @@ impl Default for VadConfig {
 }
 
 /// Voice activity detector. See the module docs for usage.
-pub struct Vad {
-    backend: VadBackend,
+pub struct VoiceActivityDetection {
+    backend: VoiceActivityDetectionBackend,
 }
 
-impl Vad {
-    pub fn new(config: VadConfig) -> Result<Self, VadError> {
+impl VoiceActivityDetection {
+    pub fn new(config: VoiceActivityDetectionConfig) -> Result<Self, VoiceActivityDetectionError> {
         Self::with_device(config, Device::Auto)
     }
 
-    pub fn with_device(config: VadConfig, device: Device) -> Result<Self, VadError> {
+    pub fn with_device(
+        config: VoiceActivityDetectionConfig,
+        device: Device,
+    ) -> Result<Self, VoiceActivityDetectionError> {
         if config.sample_rate == 0 {
-            return Err(VadError::Init("sample_rate must be non-zero".into()));
+            return Err(VoiceActivityDetectionError::Init(
+                "sample_rate must be non-zero".into(),
+            ));
         }
         let debounce_config = DebounceConfig {
             threshold: config.threshold,
@@ -82,7 +87,7 @@ impl Vad {
             min_speech_duration_ms: config.min_speech_duration_ms,
         };
         Ok(Self {
-            backend: VadBackend::new(
+            backend: VoiceActivityDetectionBackend::new(
                 &config.source,
                 config.sample_rate,
                 config.preroll_duration_ms,
@@ -93,11 +98,14 @@ impl Vad {
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
-    /// `Vad` tracks the current turn internally). Returns `Some(VadEvent)`
+    /// `VoiceActivityDetection` tracks the current turn internally). Returns `Some(VoiceActivityDetectionEvent)`
     /// if this call crossed a confirmed speech/silence boundary. Errors on
     /// ONNX inference or resampling failures — typically a corrupt or
     /// incompatible downloaded model.
-    pub fn push(&mut self, chunk: &[i16]) -> Result<Option<VadEvent>, VadError> {
+    pub fn push(
+        &mut self,
+        chunk: &[i16],
+    ) -> Result<Option<VoiceActivityDetectionEvent>, VoiceActivityDetectionError> {
         self.backend.push(chunk)
     }
 
@@ -116,10 +124,10 @@ impl Vad {
     /// thresholding/smoothing instead of using `push`'s built-in debounce
     /// logic, or who want zero memory overhead beyond fixed model state.
     /// Safe to call with any chunk size, from a live mic buffer up to an
-    /// entire recording at once. If you reuse one `Vad` across unrelated
+    /// entire recording at once. If you reuse one `VoiceActivityDetection` across unrelated
     /// audio sessions, call `finish` in between to clear state so it doesn't
     /// leak across sessions.
-    pub fn predict(&mut self, chunk: &[i16]) -> Result<Vec<f32>, VadError> {
+    pub fn predict(&mut self, chunk: &[i16]) -> Result<Vec<f32>, VoiceActivityDetectionError> {
         self.backend.predict(chunk)
     }
 
@@ -128,7 +136,10 @@ impl Vad {
     /// order. Unlike `push`, this is guaranteed not to drop a transition
     /// regardless of buffer size — the right tool for offline/batch
     /// processing of a full recording rather than live streaming.
-    pub fn segment(&mut self, samples: &[i16]) -> Result<Vec<Vec<i16>>, VadError> {
+    pub fn segment(
+        &mut self,
+        samples: &[i16],
+    ) -> Result<Vec<Vec<i16>>, VoiceActivityDetectionError> {
         self.backend.segment(samples)
     }
 }

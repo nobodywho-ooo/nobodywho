@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 50605952;
+  int get rustContentHash => -1919965224;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -285,9 +285,11 @@ abstract class NobodyWhoApi extends BaseApi {
 
   String crateRustToolGetSchemaJson({required RustTool that});
 
-  Int16List crateRustVadFinish({required RustVad that});
+  Int16List crateRustVoiceActivityDetectionFinish({
+    required RustVoiceActivityDetection that,
+  });
 
-  RustVad crateRustVadNew({
+  RustVoiceActivityDetection crateRustVoiceActivityDetectionNew({
     required int sampleRate,
     String? source = null,
     double? threshold = null,
@@ -296,15 +298,18 @@ abstract class NobodyWhoApi extends BaseApi {
     int? prerollDurationMs = null,
   });
 
-  Float32List crateRustVadPredict({
-    required RustVad that,
+  Float32List crateRustVoiceActivityDetectionPredict({
+    required RustVoiceActivityDetection that,
     required List<int> chunk,
   });
 
-  VadEvent? crateRustVadPush({required RustVad that, required List<int> chunk});
+  VoiceActivityDetectionEvent? crateRustVoiceActivityDetectionPush({
+    required RustVoiceActivityDetection that,
+    required List<int> chunk,
+  });
 
-  List<Int16List> crateRustVadSegment({
-    required RustVad that,
+  List<Int16List> crateRustVoiceActivityDetectionSegment({
+    required RustVoiceActivityDetection that,
     required List<int> samples,
   });
 
@@ -599,11 +604,14 @@ abstract class NobodyWhoApi extends BaseApi {
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_RustToolPtr;
 
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_RustVad;
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_RustVoiceActivityDetection;
 
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_RustVad;
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_RustVoiceActivityDetection;
 
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_RustVadPtr;
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_RustVoiceActivityDetectionPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_SamplerBuilder;
@@ -2375,12 +2383,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
-  Int16List crateRustVadFinish({required RustVad that}) {
+  Int16List crateRustVoiceActivityDetectionFinish({
+    required RustVoiceActivityDetection that,
+  }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
             that,
             serializer,
           );
@@ -2390,18 +2400,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_list_prim_i_16_strict,
           decodeErrorData: null,
         ),
-        constMeta: kCrateRustVadFinishConstMeta,
+        constMeta: kCrateRustVoiceActivityDetectionFinishConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustVadFinishConstMeta =>
-      const TaskConstMeta(debugName: "RustVad_finish", argNames: ["that"]);
+  TaskConstMeta get kCrateRustVoiceActivityDetectionFinishConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustVoiceActivityDetection_finish",
+        argNames: ["that"],
+      );
 
   @override
-  RustVad crateRustVadNew({
+  RustVoiceActivityDetection crateRustVoiceActivityDetectionNew({
     required int sampleRate,
     String? source = null,
     double? threshold = null,
@@ -2423,10 +2436,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustVadNewConstMeta,
+        constMeta: kCrateRustVoiceActivityDetectionNewConstMeta,
         argValues: [
           sampleRate,
           source,
@@ -2440,28 +2453,29 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateRustVadNewConstMeta => const TaskConstMeta(
-    debugName: "RustVad_new_",
-    argNames: [
-      "sampleRate",
-      "source",
-      "threshold",
-      "minSilenceDurationMs",
-      "minSpeechDurationMs",
-      "prerollDurationMs",
-    ],
-  );
+  TaskConstMeta get kCrateRustVoiceActivityDetectionNewConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustVoiceActivityDetection_new_",
+        argNames: [
+          "sampleRate",
+          "source",
+          "threshold",
+          "minSilenceDurationMs",
+          "minSpeechDurationMs",
+          "prerollDurationMs",
+        ],
+      );
 
   @override
-  Float32List crateRustVadPredict({
-    required RustVad that,
+  Float32List crateRustVoiceActivityDetectionPredict({
+    required RustVoiceActivityDetection that,
     required List<int> chunk,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
             that,
             serializer,
           );
@@ -2472,28 +2486,29 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_list_prim_f_32_strict,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustVadPredictConstMeta,
+        constMeta: kCrateRustVoiceActivityDetectionPredictConstMeta,
         argValues: [that, chunk],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustVadPredictConstMeta => const TaskConstMeta(
-    debugName: "RustVad_predict",
-    argNames: ["that", "chunk"],
-  );
+  TaskConstMeta get kCrateRustVoiceActivityDetectionPredictConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustVoiceActivityDetection_predict",
+        argNames: ["that", "chunk"],
+      );
 
   @override
-  VadEvent? crateRustVadPush({
-    required RustVad that,
+  VoiceActivityDetectionEvent? crateRustVoiceActivityDetectionPush({
+    required RustVoiceActivityDetection that,
     required List<int> chunk,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
             that,
             serializer,
           );
@@ -2501,31 +2516,33 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_vad_event,
+          decodeSuccessData:
+              sse_decode_opt_box_autoadd_voice_activity_detection_event,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustVadPushConstMeta,
+        constMeta: kCrateRustVoiceActivityDetectionPushConstMeta,
         argValues: [that, chunk],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustVadPushConstMeta => const TaskConstMeta(
-    debugName: "RustVad_push",
-    argNames: ["that", "chunk"],
-  );
+  TaskConstMeta get kCrateRustVoiceActivityDetectionPushConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustVoiceActivityDetection_push",
+        argNames: ["that", "chunk"],
+      );
 
   @override
-  List<Int16List> crateRustVadSegment({
-    required RustVad that,
+  List<Int16List> crateRustVoiceActivityDetectionSegment({
+    required RustVoiceActivityDetection that,
     required List<int> samples,
   }) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
             that,
             serializer,
           );
@@ -2536,17 +2553,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeSuccessData: sse_decode_list_list_prim_i_16_strict,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustVadSegmentConstMeta,
+        constMeta: kCrateRustVoiceActivityDetectionSegmentConstMeta,
         argValues: [that, samples],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateRustVadSegmentConstMeta => const TaskConstMeta(
-    debugName: "RustVad_segment",
-    argNames: ["that", "samples"],
-  );
+  TaskConstMeta get kCrateRustVoiceActivityDetectionSegmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "RustVoiceActivityDetection_segment",
+        argNames: ["that", "samples"],
+      );
 
   @override
   SamplerConfig crateSamplerBuilderDist({required SamplerBuilder that}) {
@@ -4131,12 +4149,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_RustVad => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad;
+  get rust_arc_increment_strong_count_RustVoiceActivityDetection => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection;
 
   RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_RustVad => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad;
+  get rust_arc_decrement_strong_count_RustVoiceActivityDetection => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_SamplerBuilder => wire
@@ -4330,12 +4348,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustVad
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustVadImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustVoiceActivityDetectionImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
   }
 
   @protected
@@ -4494,12 +4514,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustVad
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustVadImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustVoiceActivityDetectionImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
   }
 
   @protected
@@ -4698,12 +4720,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustVad
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return RustVadImpl.frbInternalDcoDecode(raw as List<dynamic>);
+    return RustVoiceActivityDetectionImpl.frbInternalDcoDecode(
+      raw as List<dynamic>,
+    );
   }
 
   @protected
@@ -4856,9 +4880,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VadEvent dco_decode_box_autoadd_vad_event(dynamic raw) {
+  VoiceActivityDetectionEvent
+  dco_decode_box_autoadd_voice_activity_detection_event(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_vad_event(raw);
+    return dco_decode_voice_activity_detection_event(raw);
   }
 
   @protected
@@ -5154,9 +5179,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VadEvent? dco_decode_opt_box_autoadd_vad_event(dynamic raw) {
+  VoiceActivityDetectionEvent?
+  dco_decode_opt_box_autoadd_voice_activity_detection_event(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_vad_event(raw);
+    return raw == null
+        ? null
+        : dco_decode_box_autoadd_voice_activity_detection_event(raw);
   }
 
   @protected
@@ -5258,9 +5286,11 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VadEvent dco_decode_vad_event(dynamic raw) {
+  VoiceActivityDetectionEvent dco_decode_voice_activity_detection_event(
+    dynamic raw,
+  ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return VadEvent.values[raw as int];
+    return VoiceActivityDetectionEvent.values[raw as int];
   }
 
   @protected
@@ -5427,12 +5457,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustVad
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustVadImpl.frbInternalSseDecode(
+    return RustVoiceActivityDetectionImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5643,12 +5673,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustVad
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustVadImpl.frbInternalSseDecode(
+    return RustVoiceActivityDetectionImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -5884,12 +5914,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  RustVad
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
+  RustVoiceActivityDetection
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return RustVadImpl.frbInternalSseDecode(
+    return RustVoiceActivityDetectionImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -6072,9 +6102,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VadEvent sse_decode_box_autoadd_vad_event(SseDeserializer deserializer) {
+  VoiceActivityDetectionEvent
+  sse_decode_box_autoadd_voice_activity_detection_event(
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_vad_event(deserializer));
+    return (sse_decode_voice_activity_detection_event(deserializer));
   }
 
   @protected
@@ -6511,11 +6544,16 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VadEvent? sse_decode_opt_box_autoadd_vad_event(SseDeserializer deserializer) {
+  VoiceActivityDetectionEvent?
+  sse_decode_opt_box_autoadd_voice_activity_detection_event(
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_vad_event(deserializer));
+      return (sse_decode_box_autoadd_voice_activity_detection_event(
+        deserializer,
+      ));
     } else {
       return null;
     }
@@ -6623,10 +6661,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VadEvent sse_decode_vad_event(SseDeserializer deserializer) {
+  VoiceActivityDetectionEvent sse_decode_voice_activity_detection_event(
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
-    return VadEvent.values[inner];
+    return VoiceActivityDetectionEvent.values[inner];
   }
 
   @protected
@@ -6809,13 +6849,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
-    RustVad self,
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
+    RustVoiceActivityDetection self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustVadImpl).frbInternalSseEncode(move: true),
+      (self as RustVoiceActivityDetectionImpl).frbInternalSseEncode(move: true),
       serializer,
     );
   }
@@ -7043,13 +7083,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
-    RustVad self,
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
+    RustVoiceActivityDetection self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustVadImpl).frbInternalSseEncode(move: false),
+      (self as RustVoiceActivityDetectionImpl).frbInternalSseEncode(
+        move: false,
+      ),
       serializer,
     );
   }
@@ -7340,13 +7382,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVad(
-    RustVad self,
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
+    RustVoiceActivityDetection self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
-      (self as RustVadImpl).frbInternalSseEncode(move: null),
+      (self as RustVoiceActivityDetectionImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -7549,12 +7591,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  void sse_encode_box_autoadd_vad_event(
-    VadEvent self,
+  void sse_encode_box_autoadd_voice_activity_detection_event(
+    VoiceActivityDetectionEvent self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_vad_event(self, serializer);
+    sse_encode_voice_activity_detection_event(self, serializer);
   }
 
   @protected
@@ -7968,15 +8010,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_vad_event(
-    VadEvent? self,
+  void sse_encode_opt_box_autoadd_voice_activity_detection_event(
+    VoiceActivityDetectionEvent? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_vad_event(self, serializer);
+      sse_encode_box_autoadd_voice_activity_detection_event(self, serializer);
     }
   }
 
@@ -8083,7 +8125,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  void sse_encode_vad_event(VadEvent self, SseSerializer serializer) {
+  void sse_encode_voice_activity_detection_event(
+    VoiceActivityDetectionEvent self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
   }
@@ -8568,28 +8613,38 @@ class RustToolImpl extends RustOpaque implements RustTool {
 }
 
 @sealed
-class RustVadImpl extends RustOpaque implements RustVad {
+class RustVoiceActivityDetectionImpl extends RustOpaque
+    implements RustVoiceActivityDetection {
   // Not to be used by end users
-  RustVadImpl.frbInternalDcoDecode(List<dynamic> wire)
+  RustVoiceActivityDetectionImpl.frbInternalDcoDecode(List<dynamic> wire)
     : super.frbInternalDcoDecode(wire, _kStaticData);
 
   // Not to be used by end users
-  RustVadImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+  RustVoiceActivityDetectionImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
 
   static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        NobodyWho.instance.api.rust_arc_increment_strong_count_RustVad,
-    rustArcDecrementStrongCount:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_RustVad,
-    rustArcDecrementStrongCountPtr:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_RustVadPtr,
+    rustArcIncrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_increment_strong_count_RustVoiceActivityDetection,
+    rustArcDecrementStrongCount: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_RustVoiceActivityDetection,
+    rustArcDecrementStrongCountPtr: NobodyWho
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_RustVoiceActivityDetectionPtr,
   );
 
   /// Return the current turn's captured audio (from the confirmed
   /// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
   /// and reset internal state for the next turn. Empty if speech was never confirmed.
-  Int16List finish() => NobodyWho.instance.api.crateRustVadFinish(that: this);
+  Int16List finish() =>
+      NobodyWho.instance.api.crateRustVoiceActivityDetectionFinish(that: this);
 
   /// Run whatever complete Silero frames `chunk` completes through the
   /// model and return their raw speech probabilities, in order — no
@@ -8597,24 +8652,28 @@ class RustVadImpl extends RustOpaque implements RustVad {
   /// thresholding instead of `push`'s built-in debounce logic, or who want
   /// zero memory overhead beyond fixed model state. Safe to call with any
   /// chunk size, from a live mic buffer up to an entire recording at once.
-  /// If you reuse one `Vad` across unrelated audio sessions, call `finish`
-  /// in between to clear state so it doesn't leak across sessions.
-  Float32List predict({required List<int> chunk}) =>
-      NobodyWho.instance.api.crateRustVadPredict(that: this, chunk: chunk);
+  /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions,
+  /// call `finish` in between to clear state so it doesn't leak across sessions.
+  Float32List predict({required List<int> chunk}) => NobodyWho.instance.api
+      .crateRustVoiceActivityDetectionPredict(that: this, chunk: chunk);
 
   /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
   /// buffer — the detector tracks the current turn internally). Returns
-  /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
-  VadEvent? push({required List<int> chunk}) =>
-      NobodyWho.instance.api.crateRustVadPush(that: this, chunk: chunk);
+  /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
+  VoiceActivityDetectionEvent? push({required List<int> chunk}) => NobodyWho
+      .instance
+      .api
+      .crateRustVoiceActivityDetectionPush(that: this, chunk: chunk);
 
   /// Detect every speech segment in a complete audio buffer at once,
   /// returning each segment's audio (with a small pre-roll lead-in) in
   /// order. Unlike `push`, this is guaranteed not to drop a transition
   /// regardless of buffer size — the right tool for offline/batch
   /// processing of a full recording rather than live streaming.
-  List<Int16List> segment({required List<int> samples}) =>
-      NobodyWho.instance.api.crateRustVadSegment(that: this, samples: samples);
+  List<Int16List> segment({required List<int> samples}) => NobodyWho
+      .instance
+      .api
+      .crateRustVoiceActivityDetectionSegment(that: this, samples: samples);
 }
 
 @sealed

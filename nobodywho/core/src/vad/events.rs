@@ -8,7 +8,7 @@ const FRAME_MS: u32 = 32;
 const DEBOUNCING_FRACTION: f32 = 0.3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VadEvent {
+pub enum VoiceActivityDetectionEvent {
     SpeechStarted,
     SpeechEnded,
 }
@@ -63,7 +63,7 @@ impl Debouncer {
         self.state = State::Silence;
     }
 
-    pub fn step(&mut self, speech_prob: f32) -> Option<VadEvent> {
+    pub fn step(&mut self, speech_prob: f32) -> Option<VoiceActivityDetectionEvent> {
         let min_speech_frames = (self.config.min_speech_duration_ms / FRAME_MS).max(1);
         let min_silence_frames = (self.config.min_silence_duration_ms / FRAME_MS).max(1);
 
@@ -85,7 +85,7 @@ impl Debouncer {
                 if is_speech {
                     if min_speech_frames <= 1 {
                         self.state = State::Speech;
-                        return Some(VadEvent::SpeechStarted);
+                        return Some(VoiceActivityDetectionEvent::SpeechStarted);
                     }
                     self.state = State::PendingSpeech { frames: 1 };
                 }
@@ -96,7 +96,7 @@ impl Debouncer {
                     let frames = frames + 1;
                     if frames >= min_speech_frames {
                         self.state = State::Speech;
-                        Some(VadEvent::SpeechStarted)
+                        Some(VoiceActivityDetectionEvent::SpeechStarted)
                     } else {
                         self.state = State::PendingSpeech { frames };
                         None
@@ -110,7 +110,7 @@ impl Debouncer {
                 if is_silence {
                     if min_silence_frames <= 1 {
                         self.state = State::Silence;
-                        return Some(VadEvent::SpeechEnded);
+                        return Some(VoiceActivityDetectionEvent::SpeechEnded);
                     }
                     self.state = State::PendingSilence { frames: 1 };
                 }
@@ -121,7 +121,7 @@ impl Debouncer {
                     let frames = frames + 1;
                     if frames >= min_silence_frames {
                         self.state = State::Silence;
-                        Some(VadEvent::SpeechEnded)
+                        Some(VoiceActivityDetectionEvent::SpeechEnded)
                     } else {
                         self.state = State::PendingSilence { frames };
                         None

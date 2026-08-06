@@ -789,13 +789,13 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_finish(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_predict(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_push(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_segment(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
     ): Short
@@ -841,7 +841,7 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new(
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(
     ): Short
@@ -991,19 +991,19 @@ external fun uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(`ptr`:
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(`ptr`: Long,`callId`: RustBuffer.ByValue,`result`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_clone_rustvad(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rustvad(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustvad_finish(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_method_rustvad_predict(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_method_rustvad_push(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_method_rustvad_segment(`ptr`: Long,`samples`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(`ptr`: Long,`samples`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1360,16 +1360,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() != 58578.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_predict() != 26282.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict() != 27565.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 13327.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 19729.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_segment() != 1943.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 22520.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
@@ -1438,7 +1438,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() != 35490.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() != 47351.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
@@ -5191,11 +5191,11 @@ public object FfiConverterTypeRustTool: FfiConverter<RustTool, Long> {
 
 //
 /**
- * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */
-public interface RustVadInterface {
+public interface RustVoiceActivityDetectionInterface {
     
     /**
      * Return the current turn's captured audio (from the confirmed
@@ -5212,7 +5212,7 @@ public interface RustVadInterface {
      * thresholding instead of `push`'s built-in debounce logic, or who want
      * zero memory overhead beyond fixed model state. Safe to call with any
      * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
      * in between to clear state so it doesn't leak across sessions.
      */
     fun `predict`(`chunk`: List<kotlin.Short>): List<kotlin.Float>
@@ -5220,9 +5220,9 @@ public interface RustVadInterface {
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-    fun `push`(`chunk`: List<kotlin.Short>): VadEvent?
+    fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent?
     
     /**
      * Detect every speech segment in a complete audio buffer at once,
@@ -5237,11 +5237,11 @@ public interface RustVadInterface {
 }
 
 /**
- * Voice activity detector. Wraps `nobodywho::vad::Vad`.
+ * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */
-open class RustVad: Disposable, AutoCloseable, RustVadInterface
+open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActivityDetectionInterface
 {
 
     @Suppress("UNUSED_PARAMETER")
@@ -5274,12 +5274,12 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
      * audio you'll pass to `push` — Silero runs at 16kHz internally,
      * anything else is resampled. `threshold`, `min_silence_duration_ms`,
      * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
-     * core `VadConfig` defaults when omitted.
+     * core `VoiceActivityDetectionConfig` defaults when omitted.
      */
     constructor(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `prerollDurationMs`: kotlin.UInt?, `device`: kotlin.String?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
     
         FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalUInt.lower(`prerollDurationMs`),FfiConverterOptionalString.lower(`device`),_status)
 }
@@ -5339,7 +5339,7 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
                 return;
             }
             uniffiRustCall { status ->
-                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rustvad(handle, status)
+                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(handle, status)
             }
         }
     }
@@ -5352,7 +5352,7 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
             throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
         return uniffiRustCall() { status ->
-            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rustvad(handle, status)
+            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(handle, status)
         }
     }
 
@@ -5366,7 +5366,7 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
             return FfiConverterSequenceShort.lift(
     callWithHandle {
     uniffiRustCall() { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(
         it,
         _status)
 }
@@ -5383,14 +5383,14 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
      * thresholding instead of `push`'s built-in debounce logic, or who want
      * zero memory overhead beyond fixed model state. Safe to call with any
      * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
      * in between to clear state so it doesn't leak across sessions.
      */
     @Throws(NobodyWhoException::class)override fun `predict`(`chunk`: List<kotlin.Short>): List<kotlin.Float> {
             return FfiConverterSequenceFloat.lift(
     callWithHandle {
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
         it,
         FfiConverterSequenceShort.lower(`chunk`),_status)
 }
@@ -5403,13 +5403,13 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-    @Throws(NobodyWhoException::class)override fun `push`(`chunk`: List<kotlin.Short>): VadEvent? {
-            return FfiConverterOptionalTypeVadEvent.lift(
+    @Throws(NobodyWhoException::class)override fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent? {
+            return FfiConverterOptionalTypeVoiceActivityDetectionEvent.lift(
     callWithHandle {
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_push(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
         it,
         FfiConverterSequenceShort.lower(`chunk`),_status)
 }
@@ -5430,7 +5430,7 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
             return FfiConverterSequenceSequenceShort.lift(
     callWithHandle {
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(
         it,
         FfiConverterSequenceShort.lower(`samples`),_status)
 }
@@ -5457,22 +5457,22 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
 /**
  * @suppress
  */
-public object FfiConverterTypeRustVad: FfiConverter<RustVad, Long> {
-    override fun lower(value: RustVad): Long {
+public object FfiConverterTypeRustVoiceActivityDetection: FfiConverter<RustVoiceActivityDetection, Long> {
+    override fun lower(value: RustVoiceActivityDetection): Long {
         return value.uniffiCloneHandle()
     }
 
-    override fun lift(value: Long): RustVad {
-        return RustVad(UniffiWithHandle, value)
+    override fun lift(value: Long): RustVoiceActivityDetection {
+        return RustVoiceActivityDetection(UniffiWithHandle, value)
     }
 
-    override fun read(buf: ByteBuffer): RustVad {
+    override fun read(buf: ByteBuffer): RustVoiceActivityDetection {
         return lift(buf.getLong())
     }
 
-    override fun allocationSize(value: RustVad) = 8UL
+    override fun allocationSize(value: RustVoiceActivityDetection) = 8UL
 
-    override fun write(value: RustVad, buf: ByteBuffer) {
+    override fun write(value: RustVoiceActivityDetection, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
@@ -6857,7 +6857,7 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
  * Voice activity event: a confirmed speech start or end boundary.
  */
 
-enum class VadEvent {
+enum class VoiceActivityDetectionEvent {
     
     SPEECH_STARTED,
     SPEECH_ENDED;
@@ -6868,16 +6868,16 @@ enum class VadEvent {
 /**
  * @suppress
  */
-public object FfiConverterTypeVadEvent: FfiConverterRustBuffer<VadEvent> {
+public object FfiConverterTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer<VoiceActivityDetectionEvent> {
     override fun read(buf: ByteBuffer) = try {
-        VadEvent.values()[buf.getInt() - 1]
+        VoiceActivityDetectionEvent.values()[buf.getInt() - 1]
     } catch (e: IndexOutOfBoundsException) {
         throw RuntimeException("invalid enum value, something is very wrong!!", e)
     }
 
-    override fun allocationSize(value: VadEvent) = 4UL
+    override fun allocationSize(value: VoiceActivityDetectionEvent) = 4UL
 
-    override fun write(value: VadEvent, buf: ByteBuffer) {
+    override fun write(value: VoiceActivityDetectionEvent, buf: ByteBuffer) {
         buf.putInt(value.ordinal + 1)
     }
 }
@@ -7247,28 +7247,28 @@ public object FfiConverterOptionalTypePendingToolCall: FfiConverterRustBuffer<Pe
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeVadEvent: FfiConverterRustBuffer<VadEvent?> {
-    override fun read(buf: ByteBuffer): VadEvent? {
+public object FfiConverterOptionalTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer<VoiceActivityDetectionEvent?> {
+    override fun read(buf: ByteBuffer): VoiceActivityDetectionEvent? {
         if (buf.get().toInt() == 0) {
             return null
         }
-        return FfiConverterTypeVadEvent.read(buf)
+        return FfiConverterTypeVoiceActivityDetectionEvent.read(buf)
     }
 
-    override fun allocationSize(value: VadEvent?): ULong {
+    override fun allocationSize(value: VoiceActivityDetectionEvent?): ULong {
         if (value == null) {
             return 1UL
         } else {
-            return 1UL + FfiConverterTypeVadEvent.allocationSize(value)
+            return 1UL + FfiConverterTypeVoiceActivityDetectionEvent.allocationSize(value)
         }
     }
 
-    override fun write(value: VadEvent?, buf: ByteBuffer) {
+    override fun write(value: VoiceActivityDetectionEvent?, buf: ByteBuffer) {
         if (value == null) {
             buf.put(0)
         } else {
             buf.put(1)
-            FfiConverterTypeVadEvent.write(value, buf)
+            FfiConverterTypeVoiceActivityDetectionEvent.write(value, buf)
         }
     }
 }

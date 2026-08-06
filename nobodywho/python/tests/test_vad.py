@@ -1,5 +1,5 @@
 """
-Smoke test for the Vad (Silero VAD) binding.
+Smoke test for the VoiceActivityDetection (Silero VAD) binding.
 
 Requires the Silero VAD ONNX model — set TEST_VAD_MODEL to a HuggingFace repo
 (`hf://owner/repo`) or local directory path. Defaults to
@@ -55,7 +55,7 @@ def audio():
 
 def test_push_detects_speech_and_finish_returns_audio(audio):
     samples, sample_rate = audio
-    vad = nobodywho.Vad(
+    vad = nobodywho.VoiceActivityDetection(
         source=MODEL,
         sample_rate=sample_rate,
         threshold=0.3,
@@ -67,9 +67,9 @@ def test_push_detects_speech_and_finish_returns_audio(audio):
     ended = False
     for i in range(0, len(samples), chunk_size):
         event = vad.push(list(samples[i : i + chunk_size]))
-        if event == nobodywho.VadEvent.SpeechStarted:
+        if event == nobodywho.VoiceActivityDetectionEvent.SpeechStarted:
             started = True
-        elif event == nobodywho.VadEvent.SpeechEnded:
+        elif event == nobodywho.VoiceActivityDetectionEvent.SpeechEnded:
             ended = True
             break
 
@@ -83,7 +83,7 @@ def test_push_detects_speech_and_finish_returns_audio(audio):
 
 
 def test_finish_is_empty_when_no_speech_confirmed():
-    vad = nobodywho.Vad(source=MODEL, sample_rate=16000)
+    vad = nobodywho.VoiceActivityDetection(source=MODEL, sample_rate=16000)
     silence = [0] * 512
     for _ in range(5):
         event = vad.push(silence)
@@ -93,7 +93,7 @@ def test_finish_is_empty_when_no_speech_confirmed():
 
 def test_predict_returns_one_probability_per_frame(audio):
     samples, sample_rate = audio
-    vad = nobodywho.Vad(source=MODEL, sample_rate=sample_rate)
+    vad = nobodywho.VoiceActivityDetection(source=MODEL, sample_rate=sample_rate)
     probs = vad.predict(list(samples))
     assert len(probs) > 0
     assert all(0.0 <= p <= 1.0 for p in probs)
@@ -101,7 +101,7 @@ def test_predict_returns_one_probability_per_frame(audio):
 
 def test_segment_finds_speech_in_full_recording(audio):
     samples, sample_rate = audio
-    vad = nobodywho.Vad(
+    vad = nobodywho.VoiceActivityDetection(
         source=MODEL,
         sample_rate=sample_rate,
         threshold=0.3,

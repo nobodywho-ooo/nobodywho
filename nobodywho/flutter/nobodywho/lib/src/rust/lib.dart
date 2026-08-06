@@ -404,8 +404,8 @@ abstract class RustTool implements RustOpaqueInterface {
   String getSchemaJson();
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>
-abstract class RustVad implements RustOpaqueInterface {
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>>
+abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
   /// Return the current turn's captured audio (from the confirmed
   /// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
   /// and reset internal state for the next turn. Empty if speech was never confirmed.
@@ -415,14 +415,14 @@ abstract class RustVad implements RustOpaqueInterface {
   /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
   /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
   /// pass `None` to use the default (`hf://onnx-community/silero-vad`).
-  static RustVad new_({
+  static RustVoiceActivityDetection new_({
     required int sampleRate,
     String? source = null,
     double? threshold = null,
     int? minSilenceDurationMs = null,
     int? minSpeechDurationMs = null,
     int? prerollDurationMs = null,
-  }) => NobodyWho.instance.api.crateRustVadNew(
+  }) => NobodyWho.instance.api.crateRustVoiceActivityDetectionNew(
     sampleRate: sampleRate,
     source: source,
     threshold: threshold,
@@ -437,14 +437,14 @@ abstract class RustVad implements RustOpaqueInterface {
   /// thresholding instead of `push`'s built-in debounce logic, or who want
   /// zero memory overhead beyond fixed model state. Safe to call with any
   /// chunk size, from a live mic buffer up to an entire recording at once.
-  /// If you reuse one `Vad` across unrelated audio sessions, call `finish`
-  /// in between to clear state so it doesn't leak across sessions.
+  /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions,
+  /// call `finish` in between to clear state so it doesn't leak across sessions.
   Float32List predict({required List<int> chunk});
 
   /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
   /// buffer — the detector tracks the current turn internally). Returns
-  /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
-  VadEvent? push({required List<int> chunk});
+  /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
+  VoiceActivityDetectionEvent? push({required List<int> chunk});
 
   /// Detect every speech segment in a complete audio buffer at once,
   /// returning each segment's audio (with a small pre-roll lead-in) in
@@ -799,4 +799,4 @@ sealed class PromptPart with _$PromptPart {
 }
 
 /// Voice activity event: a confirmed speech start or end boundary.
-enum VadEvent { speechStarted, speechEnded }
+enum VoiceActivityDetectionEvent { speechStarted, speechEnded }

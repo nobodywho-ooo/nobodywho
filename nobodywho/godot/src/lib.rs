@@ -3258,7 +3258,7 @@ enum TranscriptionInput {
 
 #[derive(GodotClass)]
 #[class(base=Node)]
-struct NobodyWhoVad {
+struct NobodyWhoVoiceActivityDetection {
     #[export]
     /// HuggingFace repo ID or local directory path for the Silero VAD ONNX
     /// model. Leave empty to use the default (`hf://onnx-community/silero-vad`).
@@ -3286,14 +3286,14 @@ struct NobodyWhoVad {
     /// so the captured turn isn't clipped while the VAD is still "unsure".
     preroll_duration_ms: u32,
 
-    vad: Option<nobodywho::vad::Vad>,
+    vad: Option<nobodywho::vad::VoiceActivityDetection>,
     base: Base<Node>,
 }
 
 #[godot_api]
-impl INode for NobodyWhoVad {
+impl INode for NobodyWhoVoiceActivityDetection {
     fn init(base: Base<Node>) -> Self {
-        let defaults = nobodywho::vad::VadConfig::default();
+        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
         Self {
             model_path: GString::from(""),
             sample_rate: defaults.sample_rate,
@@ -3308,7 +3308,7 @@ impl INode for NobodyWhoVad {
 }
 
 #[godot_api]
-impl NobodyWhoVad {
+impl NobodyWhoVoiceActivityDetection {
     #[signal]
     /// Emitted once the model has loaded and is ready for audio.
     fn worker_started();
@@ -3336,9 +3336,9 @@ impl NobodyWhoVad {
         }
 
         let source = self.model_path.to_string();
-        let config = nobodywho::vad::VadConfig {
+        let config = nobodywho::vad::VoiceActivityDetectionConfig {
             source: if source.is_empty() {
-                nobodywho::vad::VadConfig::default().source
+                nobodywho::vad::VoiceActivityDetectionConfig::default().source
             } else {
                 source
             },
@@ -3357,7 +3357,7 @@ impl NobodyWhoVad {
             // and works with any async executor.
             let (tx, rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                let _ = tx.send(nobodywho::vad::Vad::new(config));
+                let _ = tx.send(nobodywho::vad::VoiceActivityDetection::new(config));
             });
 
             match rx.await {
@@ -3398,10 +3398,10 @@ impl NobodyWhoVad {
             .map(|b| i16::from_le_bytes([b[0], b[1]]))
             .collect();
         match vad.push(&samples_i16) {
-            Ok(Some(nobodywho::vad::VadEvent::SpeechStarted)) => {
+            Ok(Some(nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted)) => {
                 self.signals().speech_started().emit();
             }
-            Ok(Some(nobodywho::vad::VadEvent::SpeechEnded)) => {
+            Ok(Some(nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded)) => {
                 self.signals().speech_ended().emit();
             }
             Ok(None) => {}
