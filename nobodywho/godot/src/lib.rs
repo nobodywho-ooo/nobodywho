@@ -5,6 +5,8 @@ use tracing_subscriber::prelude::*;
 
 mod chat;
 mod convert;
+mod crossencoder;
+mod embedding;
 mod model;
 mod sampler;
 mod speech_to_text;
