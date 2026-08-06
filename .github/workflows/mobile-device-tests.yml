@@ -167,4 +167,5 @@ jobs:
             "${DEVICES[@]}" \
             --other-files "${MODEL_DEVICE_PATH}=test-models/model.gguf" \
             --environment-variables "modelPath=${MODEL_DEVICE_PATH}" \
+            --results-bucket "nobodywho-android-ci-ftl-results" \
             --timeout "${{ inputs.test_timeout || '30m' }}"
