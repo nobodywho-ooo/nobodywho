@@ -8,6 +8,12 @@ name: "Mobile Device Tests"
 # Auth is keyless via Workload Identity Federation. Requires three repo secrets:
 #   GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT, GCP_WORKLOAD_IDENTITY_PROVIDER
 on:
+  # TEMPORARY: run on push to the feature branch so we can iterate without
+  # merging to main (workflow_dispatch requires the file on the default branch).
+  # Remove this push trigger before merging to main.
+  push:
+    branches:
+      - feat/android-testing
   workflow_dispatch:
     inputs:
       device:
@@ -19,9 +25,9 @@ on:
           - pixel8-mali
           - s24ultra-adreno
       test_timeout:
-        description: "Per-device test timeout (e.g. 15m)"
+        description: "Per-device test timeout (e.g. 30m)"
         type: string
-        default: "15m"
+        default: "30m"
 
 permissions:
   contents: read
@@ -146,7 +152,7 @@ jobs:
           # arg (modelPath), matching DeviceInferenceTest.modelPath().
           MODEL_DEVICE_PATH="/sdcard/Android/data/ai.nobodywho.testapp/files/model.gguf"
 
-          case "${{ inputs.device }}" in
+          case "${{ inputs.device || 'both' }}" in
             pixel8-mali)     DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait) ;;
             s24ultra-adreno) DEVICES=(--device model=e3q,version=34,locale=en,orientation=portrait) ;;
             *)               DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait \
@@ -161,4 +167,4 @@ jobs:
             "${DEVICES[@]}" \
             --other-files "${MODEL_DEVICE_PATH}=test-models/model.gguf" \
             --environment-variables "modelPath=${MODEL_DEVICE_PATH}" \
-            --timeout "${{ inputs.test_timeout }}"
+            --timeout "${{ inputs.test_timeout || '30m' }}"
