@@ -3,7 +3,7 @@ use std::sync::Arc;
 use godot::builtin::PackedFloat32Array;
 use godot::prelude::*;
 
-use nobodywho::encoder::{cosine_similarity, EncoderAsync};
+use nobodywho::encoder::{EncoderAsync, cosine_similarity};
 
 use crate::convert::{dict_get, resolve_godot_path};
 use crate::model::NobodyWhoModel;
@@ -58,7 +58,9 @@ impl NobodyWhoEmbedding {
                     }
                 }
             } else {
-                godot_error!("NobodyWhoEmbedding.create() expects a NobodyWhoModel or a path String");
+                godot_error!(
+                    "NobodyWhoEmbedding.create() expects a NobodyWhoModel or a path String"
+                );
                 return Variant::nil();
             };
             // EncoderAsync::new is non-blocking (spawns a worker thread).
