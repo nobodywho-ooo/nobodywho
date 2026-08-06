@@ -44,10 +44,14 @@ jobs:
         run: uv run --no-sync ruff check
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+        uses: WarpBuilds/cache@v1
         with:
-          workspaces: nobodywho
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-static-checks-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-static-checks-cargo-
 
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
@@ -93,16 +97,36 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container:
       image: quay.io/pypa/${{ matrix.manylinux_target }}
+      # Passed through so WarpBuilds/cache can authenticate from inside the container.
+      env:
+        WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
     env:
       RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
     steps:
       - uses: actions/checkout@v5
+
+      # Warp cache in a container needs zstd + wget available before the cache
+      # step (the token is passed in via container.env above).
+      - name: "Install cache prerequisites"
+        run: yum install -y zstd wget
 
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           source "$HOME/.cargo/env"
+
+      - name: "Cache Cargo Home"
+        # Warp cache (off GitHub's 10 GiB budget). Without it every wheel build
+        # recompiles llama.cpp + ORT cold; keyed per manylinux_target/arch.
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ matrix.manylinux_target }}-cargo-wheel-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.manylinux_target }}-cargo-wheel-
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
@@ -111,7 +135,9 @@ jobs:
           # job's .2): jakoch's ARM-Linux mirror (jakoch/vulkan-sdk-arm) only
           # publishes 1.4.313.0, and 1.4.313.2 fails to download for arm64.
           vulkan_version: 1.4.313.0
-          cache: true
+          # cache off: restoring/saving the ~550 MB SDK in-container took ~7-9
+          # min, far longer than the ~1 min fresh install.
+          cache: false
 
       - name: Install build dependencies
         run: |
@@ -190,9 +216,22 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v5
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v5
+        with:
+          # The build moves sources to C:/ and maturin compiles into C:/target
+          # (see the build step + wheel artifact path). setup-rust-toolchain's
+          # built-in cache targets the pre-move workspace, so disable it below.
+          path: |
+            ~/.cargo
+            C:/target
+          key: ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
+          cache: false
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -240,6 +279,17 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: false
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-macos-wheel-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-macos-wheel-cargo-
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -271,13 +321,9 @@ jobs:
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
-      - name: Restore test model cache
-        id: test-model-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: models
-          # Bump v1 whenever a URL or downloaded file changes.
-          key: linux-python-test-models-v1
+      # Test models are downloaded fresh, not cached: the ~4.8 GiB model cache
+      # filled the repo's 10 GiB Actions budget and evicted the Rust build
+      # caches, which cost far more to rebuild than models cost to re-download.
       - name: Download test models
         run: |
           download_pids=()
@@ -325,16 +371,15 @@ jobs:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
         run: |
           source .venv/bin/activate
-          # python bindings tests (model downloading has its own dedicated job)
-          python3 -m pytest --ignore=tests/test_model_downloading.py
-          # docs tests
-          python3 -m pytest --markdown-docs ../../docs --markdown-docs-syntax=superfences
-      - name: Save test model cache
-        if: success() && steps.test-model-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
-        with:
-          path: models
-          key: ${{ steps.test-model-cache.outputs.cache-primary-key }}
+          # bindings tests; model-downloading and multimodal have dedicated jobs
+          python3 -m pytest --durations=30 \
+            --ignore=tests/test_model_downloading.py \
+            --ignore=tests/test_multimodal.py
+          # docs tests — current docs only. python_versioned_docs/* are frozen
+          # snapshots of shipped releases; doctesting them against the current
+          # wheel is ~5x the work (each example re-run per version) and semantically
+          # odd (old examples vs new code). Edited docs live in docs-python.
+          python3 -m pytest --durations=30 --markdown-docs ../../docs/docs-python --markdown-docs-syntax=superfences
 
   linux-multimodal-tests:
     if: inputs.run_python
@@ -353,11 +398,6 @@ jobs:
         with:
           name: nobodywho_python_linux_manylinux_2_34_x86_64
           path: ./wheels
-      - name: Restore test model cache
-        uses: actions/cache/restore@v5
-        with:
-          path: models
-          key: linux-python-test-models-v1
       - name: Download vision models
         run: |
           mkdir -p models
@@ -618,12 +658,15 @@ jobs:
 
       - name: "Download wheel"
         uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_macos
+          path: ./wheels
 
       - name: Install wheel
         run: |
           python3 -m venv maturinvenv
           source ./maturinvenv/bin/activate
-          pip install nobodywho_python_macos/nobodywho*macosx*.whl
+          pip install wheels/nobodywho*.whl
 
       - name: Download models
         run: |

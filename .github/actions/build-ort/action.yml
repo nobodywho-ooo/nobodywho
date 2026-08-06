@@ -103,7 +103,9 @@ runs:
 
     - name: "Cache ORT build"
       id: cache
-      uses: actions/cache@v5
+      # Warp cache — this action only runs on the Warp macOS runner, so keep it
+      # off GitHub's 10 GiB budget.
+      uses: WarpBuilds/cache@v1
       with:
         path: ${{ runner.temp }}/ort-${{ inputs.target }}-build
         key: ort-${{ inputs.target }}-${{ inputs.ort_version }}

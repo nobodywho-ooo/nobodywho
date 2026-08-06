@@ -16,14 +16,14 @@ Set HF_TOKEN after accepting the kyutai/pocket-tts terms on Hugging Face.
 
 from pathlib import Path
 
-from nobodywho import Tts
+from nobodywho import TextToSpeech
 
 
 OUTPUT_PATH = Path("pocket_tts.wav")
 
 
 def main() -> None:
-    tts = Tts(
+    tts = TextToSpeech(
         source="hf://KevinAHM/pocket-tts-onnx",
         voice="alba",
         language="english_2026-04",

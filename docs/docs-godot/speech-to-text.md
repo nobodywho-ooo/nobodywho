@@ -4,16 +4,16 @@ description: Transcribe spoken audio to text with NobodyWho in Godot.
 sidebar_position: 8
 ---
 
-To transcribe audio into text, NobodyWho provides an integration with the Whisper models in ONNX format, through the `NobodyWhoSTT` node.
+To transcribe audio into text, NobodyWho provides an integration with the Whisper models in ONNX format, through the `NobodyWhoSpeechToText` node.
 
 ## Quick start
 
-Add a `NobodyWhoSTT` node to your scene, then use it from a script:
+Add a `NobodyWhoSpeechToText` node to your scene, then use it from a script:
 
 ```gdscript
 extends Node
 
-@onready var stt: NobodyWhoSTT = $NobodyWhoSTT
+@onready var stt: NobodyWhoSpeechToText = $NobodyWhoSpeechToText
 
 func _ready():
     stt.model_path = "hf://onnx-community/whisper-base"
@@ -40,7 +40,7 @@ As with the Chat node, streaming is available: connect to `transcription_updated
 ```gdscript
 extends Node
 
-@onready var stt: NobodyWhoSTT = $NobodyWhoSTT
+@onready var stt: NobodyWhoSpeechToText = $NobodyWhoSpeechToText
 
 func _ready():
     stt.transcription_updated.connect(_on_transcription_updated)

@@ -9,9 +9,21 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-4x
     steps:
       - uses: actions/checkout@v5
+
+      - name: "Cache Gradle"
+        # Warp cache (non-Windows runner). Gradle deps + wrapper distribution
+        # are otherwise re-downloaded and modules recompiled cold every run.
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('nobodywho/kotlin/**/*.gradle*', 'nobodywho/kotlin/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: "Download uniffi Linux x86_64 artifact"
         uses: actions/download-artifact@v5

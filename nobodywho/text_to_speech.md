@@ -1,10 +1,10 @@
-# TTS: The good, the bad, and the ugly
+# TextToSpeech: The good, the bad, and the ugly
 
 Today, Text-to-Speech is landing in NobodyWho.
 This is another step on our way to become do it all local model inference library.
 We released support for Kokoro, with Piper, Chatterbox, and Røest coming over the summer, after we finish internal phase of testing.
 
-TTS is wild west with many different architectures, and we cannot use our beloved llama.cpp for inference.
+TextToSpeech is wild west with many different architectures, and we cannot use our beloved llama.cpp for inference.
 Thus, we had to develop our own solution.
 There are several ways to do it. One can wrap existing implementations behind a common interface, using tensor library such as candle to spell out the forward passes, or leverage onnx to handle inference and backend support for us.
 In the end, we decided to go with onnx for two main reasons.

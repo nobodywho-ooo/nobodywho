@@ -25,6 +25,17 @@ jobs:
           unzip -o xcframework-zip/NobodyWhoNative.xcframework.zip -d nobodywho/swift/Frameworks/
           ls -la nobodywho/swift/Frameworks/NobodyWhoNative.xcframework/
 
+      - name: "Cache SwiftPM build"
+        # swift-syntax (macros) is a multi-minute compile; cache the SwiftPM
+        # build dir so it's reused across runs (Warp — non-Windows runner).
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            nobodywho/swift/.build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('nobodywho/swift/Package.resolved', 'nobodywho/swift/Package.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
       - name: "Run macro tests"
         working-directory: ./nobodywho/swift
         run: swift test --filter MacroTests
@@ -39,7 +50,7 @@ jobs:
           curl -L -o test-models/mmproj.gguf \
             "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf"
           # Whisper ONNX — only the files we actually load (fp32 / "default"
-          # quantization, matching the STT tests' quantization="default").
+          # quantization, matching the SpeechToText tests' quantization="default").
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
           mkdir -p test-models/whisper-base/onnx
           curl -L --fail "$WHISPER_BASE/onnx/encoder_model.onnx"       -o test-models/whisper-base/onnx/encoder_model.onnx

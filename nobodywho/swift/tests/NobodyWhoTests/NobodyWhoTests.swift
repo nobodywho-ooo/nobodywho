@@ -168,9 +168,9 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertFalse(response.isEmpty)
     }
 
-    // MARK: - STT (Whisper)
+    // MARK: - SpeechToText (Whisper)
 
-    func testSTT() async throws {
+    func testSpeechToText() async throws {
         // Model: HuggingFace repo (hf://owner/repo) or local dir. Downloaded and cached on first run.
         let model = ProcessInfo.processInfo.environment["TEST_WHISPER_MODEL"]
             ?? "hf://onnx-community/whisper-base"
@@ -183,7 +183,7 @@ final class NobodyWhoTests: XCTestCase {
 
         // Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
         // "Billy" as "Bailey", while fp32 gets it right.
-        let stt = try STT(source: model, quantization: "default")
+        let stt = try await SpeechToText.load(source: model, quantization: "default")
         let text = try await stt.transcribeFile(path: audioFile).completed()
         XCTAssertTrue(text.lowercased().contains("ron"))
         XCTAssertTrue(text.lowercased().contains("billy"))

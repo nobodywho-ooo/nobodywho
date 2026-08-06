@@ -1,13 +1,13 @@
-# TTS
+# TextToSpeech
 
 Text-to-speech via [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) and [Supertonic](https://huggingface.co/Supertone/supertonic-3) ONNX architectures.
 
 ## Quick start
 
 ```rust
-use nobodywho::tts::{Tts, TtsConfig};
+use nobodywho::text_to_speech::{TextToSpeech, TextToSpeechConfig};
 
-let tts = Tts::new(TtsConfig::kokoro("hf://NobodyWho/Kokoro-82M"))?;
+let tts = TextToSpeech::new(TextToSpeechConfig::kokoro("hf://NobodyWho/Kokoro-82M"))?;
 let wav: Vec<u8> = tts.synthesize("Hello from NobodyWho!")?;
 std::fs::write("out.wav", wav)?;
 ```
@@ -21,13 +21,13 @@ The model is downloaded from HuggingFace on first use and cached locally. Pass a
 Kyutai keeps the built-in voice-state files in its gated `kyutai/pocket-tts` repository. Browse its [voice catalogue](https://github.com/kyutai-labs/pocket-tts?tab=readme-ov-file#voices), accept its terms, and set `HF_TOKEN`, or pass a token explicitly in the config (which takes precedence):
 
 ```rust
-use nobodywho::tts::{PocketTtsConfig, Tts, TtsConfig};
+use nobodywho::text_to_speech::{PocketTtsConfig, TextToSpeech, TextToSpeechConfig};
 
 let mut cfg = PocketTtsConfig::new("hf://KevinAHM/pocket-tts-onnx");
 cfg.language = "english_2026-04".into();
 cfg.voice = "alba".into();
 cfg.huggingface_token = Some("hf_...".into());
-let tts = Tts::new(TtsConfig::PocketTts(cfg))?;
+let tts = TextToSpeech::new(TextToSpeechConfig::PocketTts(cfg))?;
 ```
 
 Set `precision` to `PocketTtsPrecision::Fp32` to use full-precision ONNX weights. `temperature` controls generation variation and `lsd_steps` trades speed for flow-matching quality.
@@ -39,13 +39,13 @@ Supertonic models use a directory with `onnx/` model files and `voice_styles/` J
 The upstream [Supertone/supertonic-3](https://huggingface.co/Supertone/supertonic-3) repo ships voices `F1`–`F5` and `M1`–`M5`.
 
 ```rust
-use nobodywho::tts::{SupertonicConfig, Tts, TtsConfig};
+use nobodywho::text_to_speech::{SupertonicConfig, TextToSpeech, TextToSpeechConfig};
 
 let mut cfg = SupertonicConfig::new("hf://Supertone/supertonic-3");
 cfg.language = "en".into();
 cfg.voice = "M1".into();
 
-let tts = Tts::new(TtsConfig::Supertonic(cfg))?;
+let tts = TextToSpeech::new(TextToSpeechConfig::Supertonic(cfg))?;
 let wav = tts.synthesize("Hello from NobodyWho!")?;
 ```
 
@@ -65,14 +65,14 @@ For Kokoro, set `voice` and `language` together — they must agree.
 Japanese (`ja`) and Chinese (`zh`) voices are not supported.
 
 ```rust
-use nobodywho::tts::{KokoroConfig, Tts, TtsConfig};
+use nobodywho::text_to_speech::{KokoroConfig, TextToSpeech, TextToSpeechConfig};
 
 let mut cfg = KokoroConfig::new("hf://NobodyWho/Kokoro-82M");
 cfg.voice = "ff_siwis".into();
 cfg.language = "fr".into();
 cfg.speed = 1.0;
 
-let tts = Tts::new(TtsConfig::Kokoro(cfg))?;
+let tts = TextToSpeech::new(TextToSpeechConfig::Kokoro(cfg))?;
 let wav = tts.synthesize("Bonjour le monde.")?;
 ```
 
@@ -84,14 +84,14 @@ let wav = tts.synthesize("Bonjour le monde.")?;
 let wav = tts.synthesize_async("Hello!").await?;
 ```
 
-`Tts` is `Clone` — the underlying worker thread is shared across clones.
+`TextToSpeech` is `Clone` — the underlying worker thread is shared across clones.
 
 ## Hardware
 
-`Tts::new` uses `TtsDevice::Auto` (CUDA if available, CPU otherwise).
-Use `Tts::with_device` to be explicit:
+`TextToSpeech::new` uses `TextToSpeechDevice::Auto` (CUDA if available, CPU otherwise).
+Use `TextToSpeech::with_device` to be explicit:
 
 ```rust
-use nobodywho::tts::TtsDevice;
-let tts = Tts::with_device(config, TtsDevice::Cpu)?;
+use nobodywho::text_to_speech::TextToSpeechDevice;
+let tts = TextToSpeech::with_device(config, TextToSpeechDevice::Cpu)?;
 ```

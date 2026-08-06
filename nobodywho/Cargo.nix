@@ -8277,13 +8277,13 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.152";
+        version = "0.1.154";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "223f5f1b1525ebd3cd04d28454e4a00a6d52ae70";
-          sha256 = "1q0pfdiv070brx5yfl0skx1fawsqlz9dzi82sg71wx5hiflb4kkh";
+          rev = "bed81ad4ab1a6c904b11d425608e50f976d8ea62";
+          sha256 = "0f72fhx42cl6amkifn1cvw6arwc672334xr1lhm0k6yd88rk83vw";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -8360,14 +8360,14 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.152";
+        version = "0.1.154";
         edition = "2021";
         links = "llama";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "223f5f1b1525ebd3cd04d28454e4a00a6d52ae70";
-          sha256 = "1q0pfdiv070brx5yfl0skx1fawsqlz9dzi82sg71wx5hiflb4kkh";
+          rev = "bed81ad4ab1a6c904b11d425608e50f976d8ea62";
+          sha256 = "0f72fhx42cl6amkifn1cvw6arwc672334xr1lhm0k6yd88rk83vw";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -9615,10 +9615,6 @@ rec {
             packageId = "gbnf";
           }
           {
-            name = "gbnf-macro";
-            packageId = "gbnf-macro";
-          }
-          {
             name = "hound";
             packageId = "hound";
           }
@@ -9658,6 +9654,10 @@ rec {
             usesDefaultFeatures = false;
             target = { target, features }: ("android" == target."os" or null);
             features = [ "android-static-stdcxx" ];
+          }
+          {
+            name = "llguidance";
+            packageId = "llguidance";
           }
           {
             name = "mel_spec";

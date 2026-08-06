@@ -351,14 +351,13 @@ pub fn find_chunks_prefix_difference(old: &TokenizerChunks, new: &TokenizerChunk
     if let (Some(TokenizerChunk::Text(new_tokens, _)), Some(TokenizerChunk::Text(old_tokens, _))) =
         (new.get(chunk_prefix_index), old.get(chunk_prefix_index))
     {
-        let longest_common_prefix_index = new_tokens
+        // Length of the shared token prefix within this chunk.
+        let shared_tokens = new_tokens
             .iter()
             .zip(old_tokens.iter())
-            .position(|(a, b)| a != b);
-
-        if let Some(token_prefix_index) = longest_common_prefix_index {
-            return new_start + token_prefix_index;
-        }
+            .take_while(|(a, b)| a == b)
+            .count();
+        return new_start + shared_tokens;
     }
 
     // image/audio and image/audio, or image/audio and text are colliding
@@ -716,6 +715,35 @@ mod tests {
         let prefix_index = find_chunks_prefix_difference(&old, &new);
 
         assert_eq!(prefix_index, 0); // No common prefix
+        assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
+    }
+
+    #[test]
+    fn test_text_only_single_chunk_old_is_prefix_of_new() {
+        // Old: one chunk [1,2,3]; New: one chunk [1,2,3,4,5] (appended a turn).
+        // The whole prompt is a single Text chunk, so old's tokens are a prefix
+        // of new's. The chunk ids differ (different content), so this exercises
+        // the token-level compare where `position` finds no divergence.
+        // Regression: this used to return 0, discarding the whole KV cache.
+        let old = create_chunks(vec![create_text_chunk(vec![1, 2, 3])]);
+        let new = create_chunks(vec![create_text_chunk(vec![1, 2, 3, 4, 5])]);
+
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
+
+        assert_eq!(prefix_index, 3); // First 3 tokens are already cached
+        assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Only [4, 5] need loading
+    }
+
+    #[test]
+    fn test_text_only_single_chunk_new_is_prefix_of_old() {
+        // Old: one chunk [1,2,3,4,5]; New: one chunk [1,2,3] (context shrank).
+        // New's tokens are a prefix of old's; the entire new render is cached.
+        let old = create_chunks(vec![create_text_chunk(vec![1, 2, 3, 4, 5])]);
+        let new = create_chunks(vec![create_text_chunk(vec![1, 2, 3])]);
+
+        let prefix_index = find_chunks_prefix_difference(&old, &new);
+
+        assert_eq!(prefix_index, 3); // All of new is already cached
         assert_eq!(new.tail(prefix_index).n_tokens(), 0); // Nothing to reload
     }
 

@@ -1,27 +1,27 @@
-use crate::errors::SttError;
+use crate::errors::SpeechToTextError;
 use crate::onnx::Device;
+use crate::speech_to_text::{architectures, audio, AudioInput, SpeechToTextConfig};
 use crate::stream::StreamOutput;
-use crate::stt::{architectures, audio, AudioInput, SttConfig};
 use std::time::Instant;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::info;
 
-pub(super) trait SttArchitectureImpl: Send {
+pub(super) trait SpeechToTextArchitectureImpl: Send {
     /// Transcribe a single 30-second window of 16 kHz mono f32 samples.
     /// `on_token` is called with each decoded token piece as it is generated.
     fn transcribe_window(
         &mut self,
         window: &[f32],
         on_token: &mut dyn FnMut(String),
-    ) -> Result<String, SttError>;
+    ) -> Result<String, SpeechToTextError>;
 }
 
 pub(super) fn load_architecture(
-    config: SttConfig,
+    config: SpeechToTextConfig,
     device: Device,
-) -> Result<Box<dyn SttArchitectureImpl>, SttError> {
+) -> Result<Box<dyn SpeechToTextArchitectureImpl>, SpeechToTextError> {
     match config {
-        SttConfig::Whisper(config) => {
+        SpeechToTextConfig::Whisper(config) => {
             let init_start = Instant::now();
             let architecture = architectures::WhisperBackend::new(
                 &config.source,
@@ -29,13 +29,13 @@ pub(super) fn load_architecture(
                 &config.quantization,
                 device,
             )?;
-            info!(elapsed = ?init_start.elapsed(), "Initialized Whisper STT");
+            info!(elapsed = ?init_start.elapsed(), "Initialized Whisper SpeechToText");
             Ok(Box::new(architecture))
         }
     }
 }
 
-fn decode_input(input: AudioInput) -> Result<Vec<Vec<f32>>, SttError> {
+fn decode_input(input: AudioInput) -> Result<Vec<Vec<f32>>, SpeechToTextError> {
     Ok(audio::AudioResampler::default()
         .resample(match input {
             AudioInput::File(path) => audio::DecodedAudio::from_file(&path)?,
@@ -48,9 +48,9 @@ fn decode_input(input: AudioInput) -> Result<Vec<Vec<f32>>, SttError> {
 }
 
 pub(super) fn transcribe_sync(
-    architecture: &mut dyn SttArchitectureImpl,
+    architecture: &mut dyn SpeechToTextArchitectureImpl,
     input: AudioInput,
-) -> Result<String, SttError> {
+) -> Result<String, SpeechToTextError> {
     let start = Instant::now();
     let windows = decode_input(input)?;
     let n_windows = windows.len();
@@ -70,9 +70,9 @@ pub(super) fn transcribe_sync(
 }
 
 pub(super) fn transcribe_streaming(
-    architecture: &mut dyn SttArchitectureImpl,
+    architecture: &mut dyn SpeechToTextArchitectureImpl,
     input: AudioInput,
-    tx: UnboundedSender<StreamOutput<SttError>>,
+    tx: UnboundedSender<StreamOutput<SpeechToTextError>>,
 ) {
     if let Err(e) = do_transcribe_streaming(architecture, input, &tx) {
         let _ = tx.send(StreamOutput::Error(e));
@@ -80,10 +80,10 @@ pub(super) fn transcribe_streaming(
 }
 
 fn do_transcribe_streaming(
-    architecture: &mut dyn SttArchitectureImpl,
+    architecture: &mut dyn SpeechToTextArchitectureImpl,
     input: AudioInput,
-    tx: &UnboundedSender<StreamOutput<SttError>>,
-) -> Result<(), SttError> {
+    tx: &UnboundedSender<StreamOutput<SpeechToTextError>>,
+) -> Result<(), SpeechToTextError> {
     let windows = decode_input(input)?;
     let mut full_transcript = String::new();
 

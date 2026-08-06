@@ -400,14 +400,14 @@ void main() {
     });
 
     test('speech-to-text.md:41', () async {
-      final stt = nobodywho.Stt(
+      final stt = await nobodywho.SpeechToText.load(
         source: 'hf://onnx-community/whisper-base',
         quantization: 'q4',
       );
     });
 
     test('speech-to-text.md:52', () async {
-      final stt = nobodywho.Stt(
+      final stt = await nobodywho.SpeechToText.load(
         source: 'hf://onnx-community/whisper-base',
         language: 'en',
       );

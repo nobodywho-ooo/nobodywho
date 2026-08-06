@@ -1,4 +1,4 @@
-//! Shared ONNX Runtime helpers used by both the TTS and STT modules.
+//! Shared ONNX Runtime helpers used by both the TextToSpeech and SpeechToText modules.
 //!
 //! Exposes a [`Device`] enum for hardware-target selection and thin wrappers
 //! around [`ort`] session construction so each backend doesn't repeat the
@@ -43,7 +43,7 @@ pub fn execution_providers(device: Device) -> Vec<ExecutionProviderDispatch> {
 /// Open an ONNX model file and return a ready-to-run [`Session`].
 ///
 /// Returns `ort::Error` directly so callers can map it into their own domain
-/// error type (`TtsError::Ort`, `SttError::Ort`, …) using `?` plus a
+/// error type (`TextToSpeechError::Ort`, `SpeechToTextError::Ort`, …) using `?` plus a
 /// `From<ort::Error>` impl.
 pub fn load_session(path: &Path, device: Device) -> Result<Session, ort::Error> {
     SessionBuilder::new()?

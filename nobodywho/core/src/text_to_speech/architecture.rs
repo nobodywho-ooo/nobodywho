@@ -1,16 +1,16 @@
-use crate::errors::TtsError;
+use crate::errors::TextToSpeechError;
 use crate::huggingface;
-use crate::tts::{kokoro, pocket, supertonic, TtsConfig, TtsDevice};
+use crate::text_to_speech::{kokoro, pocket, supertonic, TextToSpeechConfig, TextToSpeechDevice};
 use std::time::Instant;
 use tracing::info;
 
-pub(super) trait TtsArchitectureImpl: Send {
-    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TtsError>;
+pub(super) trait TextToSpeechArchitectureImpl: Send {
+    fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError>;
     fn sample_rate(&self) -> u32;
 
     /// Synthesize `text` and encode the resulting PCM as a WAV byte buffer.
     /// Default implementation; architectures typically don't need to override.
-    fn synthesize(&mut self, text: &str) -> Result<Vec<u8>, TtsError> {
+    fn synthesize(&mut self, text: &str) -> Result<Vec<u8>, TextToSpeechError> {
         let synth_start = Instant::now();
         let samples = self.synthesize_raw(text)?;
         let sample_rate = self.sample_rate();
@@ -27,11 +27,11 @@ pub(super) trait TtsArchitectureImpl: Send {
 }
 
 pub(super) fn load_architecture(
-    config: TtsConfig,
-    device: TtsDevice,
-) -> Result<Box<dyn TtsArchitectureImpl>, TtsError> {
+    config: TextToSpeechConfig,
+    device: TextToSpeechDevice,
+) -> Result<Box<dyn TextToSpeechArchitectureImpl>, TextToSpeechError> {
     match config {
-        TtsConfig::Kokoro(config) => {
+        TextToSpeechConfig::Kokoro(config) => {
             let init_start = Instant::now();
             let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
             let backend = kokoro::KokoroBackend::new(
@@ -41,16 +41,16 @@ pub(super) fn load_architecture(
                 config.speed,
                 device,
             )?;
-            info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TTS");
+            info!(elapsed = ?init_start.elapsed(), "Initialized Kokoro TextToSpeech");
             Ok(Box::new(backend))
         }
-        TtsConfig::PocketTts(config) => {
+        TextToSpeechConfig::PocketTts(config) => {
             let init_start = Instant::now();
             let backend = pocket::PocketTtsBackend::new(&config, device)?;
             info!(elapsed = ?init_start.elapsed(), "Initialized Pocket TTS");
             Ok(Box::new(backend))
         }
-        TtsConfig::Supertonic(config) => {
+        TextToSpeechConfig::Supertonic(config) => {
             let init_start = Instant::now();
             let model_dir = huggingface::download_onnx(&config.source, &[], None)?;
             let backend = supertonic::SupertonicBackend::new(
@@ -62,13 +62,13 @@ pub(super) fn load_architecture(
                 config.silence_duration,
                 device,
             )?;
-            info!(elapsed = ?init_start.elapsed(), "Initialized Supertonic TTS");
+            info!(elapsed = ?init_start.elapsed(), "Initialized Supertonic TextToSpeech");
             Ok(Box::new(backend))
         }
     }
 }
 
-fn encode_wav(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, TtsError> {
+fn encode_wav(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, TextToSpeechError> {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate,

@@ -18,9 +18,11 @@ on:
 
 # Cancel in-flight PR runs when a new commit is pushed to that PR.
 # Don't cancel main / tag / dispatch runs — those are canonical signals we
-# want to see through to completion.
+# want to see through to completion. Key those on the SHA so each merge gets
+# its own group and runs immediately, instead of queueing behind the previous
+# main run (same ref -> same group -> serialized with cancel disabled).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -85,7 +87,7 @@ jobs:
 
   test:
     # Always invoked so the flutter doctest-drift check runs on every event.
-    # The heavy jobs inside (nix flake check, flutter multimodal/STT) gate
+    # The heavy jobs inside (nix flake check, flutter multimodal/SpeechToText) gate
     # themselves on run_rust_core / run_flutter.
     needs: plan
     uses: ./.github/workflows/test.yml

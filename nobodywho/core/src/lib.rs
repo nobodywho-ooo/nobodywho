@@ -11,12 +11,12 @@ pub mod memory;
 mod model_selection;
 pub mod onnx;
 pub mod sampler;
+pub mod speech_to_text;
 pub mod stream;
-pub mod stt;
 pub mod template;
+pub mod text_to_speech;
 pub mod tokenizer;
 pub mod tool_calling;
-pub mod tts;
 pub mod vad;
 
 /// Render a miette diagnostic to a plain-text string, including any `help` text,

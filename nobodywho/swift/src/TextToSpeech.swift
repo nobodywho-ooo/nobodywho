@@ -1,26 +1,26 @@
 import Foundation
 import NobodyWhoGenerated
 
-public enum TtsArchitecture: String {
+public enum TextToSpeechArchitecture: String {
     case kokoro
     case pocketTts = "pocket-tts"
     case supertonic
 }
 
-public enum TtsDevice: String {
+public enum TextToSpeechDevice: String {
     case auto
     case cpu
     case cuda
 }
 
 /// Text-to-speech synthesizer that returns WAV bytes.
-public class Tts {
-    private let inner: NobodyWhoGenerated.RustTts
+public class TextToSpeech {
+    private let inner: NobodyWhoGenerated.RustTextToSpeech
 
-    /// Create a TTS synthesizer synchronously.
+    /// Create a TextToSpeech synthesizer synchronously.
     public init(
         source: String,
-        architecture: TtsArchitecture? = nil,
+        architecture: TextToSpeechArchitecture? = nil,
         voice: String? = nil,
         language: String? = nil,
         speed: Float? = nil,
@@ -29,9 +29,9 @@ public class Tts {
         precision: String? = nil,
         temperature: Float? = nil,
         huggingfaceToken: String? = nil,
-        device: TtsDevice = .auto
+        device: TextToSpeechDevice = .auto
     ) throws {
-        self.inner = try NobodyWhoGenerated.RustTts(
+        self.inner = try NobodyWhoGenerated.RustTextToSpeech(
             source: source,
             architecture: architecture?.rawValue,
             voice: voice,
@@ -46,14 +46,14 @@ public class Tts {
         )
     }
 
-    private init(inner: NobodyWhoGenerated.RustTts) {
+    private init(inner: NobodyWhoGenerated.RustTextToSpeech) {
         self.inner = inner
     }
 
-    /// Create a TTS synthesizer asynchronously.
+    /// Create a TextToSpeech synthesizer asynchronously.
     public static func load(
         source: String,
-        architecture: TtsArchitecture? = nil,
+        architecture: TextToSpeechArchitecture? = nil,
         voice: String? = nil,
         language: String? = nil,
         speed: Float? = nil,
@@ -62,9 +62,9 @@ public class Tts {
         precision: String? = nil,
         temperature: Float? = nil,
         huggingfaceToken: String? = nil,
-        device: TtsDevice = .auto
-    ) async throws -> Tts {
-        let inner = try await NobodyWhoGenerated.loadTts(
+        device: TextToSpeechDevice = .auto
+    ) async throws -> TextToSpeech {
+        let inner = try await NobodyWhoGenerated.loadTextToSpeech(
             source: source,
             architecture: architecture?.rawValue,
             voice: voice,
@@ -77,7 +77,7 @@ public class Tts {
             huggingfaceToken: huggingfaceToken,
             device: device.rawValue
         )
-        return Tts(inner: inner)
+        return TextToSpeech(inner: inner)
     }
 
     /// Synthesize text and return WAV bytes.

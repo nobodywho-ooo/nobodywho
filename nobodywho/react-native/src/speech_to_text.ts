@@ -1,8 +1,8 @@
-import type { RustSttInterface } from "../generated/ts/nobodywho";
+import type { RustSpeechToTextInterface } from "../generated/ts/nobodywho";
 import * as nobodywho from "../generated/ts/nobodywho";
 import { TokenStream } from "./streaming";
 
-export type SttOptions = {
+export type SpeechToTextOptions = {
   source: string;
   language?: string;
   quantization?: string;
@@ -13,7 +13,7 @@ export type SttOptions = {
  *
  * @example
  * ```typescript
- * const stt = new STT({
+ * const stt = await SpeechToText.load({
  *   source: "hf://onnx-community/whisper-base",
  *   language: "en",
  * });
@@ -26,24 +26,32 @@ export type SttOptions = {
  * const text = await stream.completed();
  * ```
  */
-export class STT {
+export class SpeechToText {
   /** @internal */
-  private readonly _inner: RustSttInterface;
+  private readonly _inner: RustSpeechToTextInterface;
+
+  /** @internal */
+  private constructor(inner: RustSpeechToTextInterface) {
+    this._inner = inner;
+  }
 
   /**
-   * @param opts - See {@link SttOptions}.
+   * Load a Whisper SpeechToText model.
+   *
+   * @param opts - See {@link SpeechToTextOptions}.
    */
-  constructor(opts: SttOptions) {
-    this._inner = new nobodywho.RustStt(
+  static async load(opts: SpeechToTextOptions): Promise<SpeechToText> {
+    const inner = await nobodywho.loadSpeechToText(
       opts.source,
       opts.language,
       opts.quantization,
     );
+    return new SpeechToText(inner);
   }
 
   /**
    * Transcribe an audio file (WAV / MP3).
-   * Returns an `STTStream` to consume tokens as they arrive.
+   * Returns an `SpeechToTextStream` to consume tokens as they arrive.
    */
   transcribeFile(path: string): TokenStream {
     return new TokenStream(this._inner.transcribeFile(path));

@@ -7,12 +7,12 @@ sidebar_position: 6
 Generate natural-sounding speech from text, ready to save as a WAV file or play back in your app.
 
 ```kotlin
-import ai.nobodywho.Tts
+import ai.nobodywho.TextToSpeech
 import java.io.File
 import kotlinx.coroutines.runBlocking
 
 fun main() = runBlocking {
-    val tts = Tts.load(
+    val tts = TextToSpeech.load(
         source = "hf://NobodyWho/Kokoro-82M", // Hugging Face repo (hf://owner/repo) or local folder with the model files.
         voice = "bf_emma", // Voice to use from the model.
         language = "en-gb", // Language code for the input text.
@@ -40,7 +40,7 @@ NobodyWho supports three speech synthesis architectures, all in ONNX format:
 For Kokoro, set `voice` and `language` together. They must agree with the model's available voices.
 
 ```kotlin
-val tts = Tts.load(
+val tts = TextToSpeech.load(
     source = "hf://NobodyWho/Kokoro-82M",
     voice = "bf_emma",
     language = "en-gb",
@@ -58,7 +58,7 @@ Optional settings include:
 For Supertonic, you can start with the default `voice` and `language`, or set them explicitly.
 
 ```kotlin
-val tts = Tts.load(
+val tts = TextToSpeech.load(
     source = "hf://Supertone/supertonic-3",
     language = "en",
 )
@@ -77,7 +77,7 @@ Optional settings include:
 For Pocket TTS, start with the default voice and language, or set them explicitly.
 
 ```kotlin
-val tts = Tts.load(
+val tts = TextToSpeech.load(
     source = "hf://KevinAHM/pocket-tts-onnx",
     voice = "alba",
     language = "english_2026-04",
@@ -97,31 +97,31 @@ Pocket TTS voice states are gated in [`kyutai/pocket-tts`](https://huggingface.c
 
 ## Architecture
 
-`architecture` is the TTS model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
+`architecture` is the TextToSpeech model family behind a source. In most cases, you do not need to set it because NobodyWho can infer it by looking for "kokoro", "pocket-tts", or "supertonic" in the `source` string.
 
 Set `architecture` when you use a local directory or a custom source that NobodyWho cannot recognize:
 
 ```kotlin
-import ai.nobodywho.TtsArchitecture
+import ai.nobodywho.TextToSpeechArchitecture
 
-val tts = Tts.load(
+val tts = TextToSpeech.load(
     source = "/path/to/local/kokoro-folder",
-    architecture = TtsArchitecture.KOKORO,
+    architecture = TextToSpeechArchitecture.KOKORO,
 )
 ```
 
-Supported architecture values are `TtsArchitecture.KOKORO` and `TtsArchitecture.SUPERTONIC`.
+Supported architecture values are `TextToSpeechArchitecture.KOKORO` and `TextToSpeechArchitecture.SUPERTONIC`.
 
 ## GPU
 
-TTS uses GPU acceleration by default when available. Disable it with `device = TtsDevice.CPU`:
+TextToSpeech uses GPU acceleration by default when available. Disable it with `device = TextToSpeechDevice.CPU`:
 
 ```kotlin
-import ai.nobodywho.TtsDevice
+import ai.nobodywho.TextToSpeechDevice
 
-val tts = Tts.load(
+val tts = TextToSpeech.load(
     source = "hf://Supertone/supertonic-3",
-    device = TtsDevice.CPU,
+    device = TextToSpeechDevice.CPU,
 )
 ```
 

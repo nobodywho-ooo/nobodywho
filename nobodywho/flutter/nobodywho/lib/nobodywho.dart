@@ -9,8 +9,8 @@ export 'src/rust/lib.dart'
         RustChat, // Users should use Chat
         RustTokenStream, // Users should use TokenStream
         RustTool, // Users should use Tool
-        RustStt, // Users should use Stt
-        RustSttStream, // Users should use SttStream
+        RustSpeechToText, // Users should use SpeechToText
+        RustSpeechToTextStream, // Users should use SpeechToTextStream
         RustVad, // Users should use Vad
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
@@ -751,12 +751,12 @@ class Chat {
   void stopGeneration() => _chat.stopGeneration();
 }
 
-/// A stream of transcript tokens returned by [Stt.transcribeFile] and [Stt.transcribePcm].
+/// A stream of transcript tokens returned by [SpeechToText.transcribeFile] and [SpeechToText.transcribePcm].
 /// Implements [Stream<String>] so it can be used with `await for`.
-class SttStream extends Stream<String> {
-  final nobodywho.RustSttStream _sttStream;
+class SpeechToTextStream extends Stream<String> {
+  final nobodywho.RustSpeechToTextStream _sttStream;
 
-  SttStream._(this._sttStream);
+  SpeechToTextStream._(this._sttStream);
 
   @override
   StreamSubscription<String> listen(
@@ -785,39 +785,39 @@ class SttStream extends Stream<String> {
   Future<String> completed() => _sttStream.completed();
 }
 
-// Wrapper for the RustStt class, mirroring Chat/TokenStream for a consistent public API.
-class Stt {
-  final nobodywho.RustStt _stt;
+// Wrapper for the RustSpeechToText class, mirroring Chat/TokenStream for a consistent public API.
+class SpeechToText {
+  final nobodywho.RustSpeechToText _stt;
 
-  Stt._(this._stt);
+  SpeechToText._(this._stt);
 
-  /// Create an STT handle.
+  /// Load an SpeechToText handle.
   ///
   /// [source] — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
   /// [language] — ISO 639-1 code (e.g. `"en"`); omit for auto-detect.
   /// [quantization] — ONNX precision variant to download and load: one of
   /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; omit to use `"default"`.
-  factory Stt({
+  static Future<SpeechToText> load({
     required String source,
     String? language,
     String? quantization,
-  }) {
-    final stt = nobodywho.RustStt.new_(
+  }) async {
+    final stt = await nobodywho.RustSpeechToText.load(
       source: source,
       language: language,
       quantization: quantization,
     );
-    return Stt._(stt);
+    return SpeechToText._(stt);
   }
 
   /// Transcribe an audio file (WAV / MP3 / FLAC).
-  SttStream transcribeFile(String path) =>
-      SttStream._(_stt.transcribeFile(path: path));
+  SpeechToTextStream transcribeFile(String path) =>
+      SpeechToTextStream._(_stt.transcribeFile(path: path));
 
   /// Transcribe raw i16 PCM samples (e.g. from a microphone stream).
   /// [sampleRate] is the capture rate in Hz; resampled to 16 kHz internally.
-  SttStream transcribePcm(List<int> samples, int sampleRate) =>
-      SttStream._(_stt.transcribePcm(samples: samples, sampleRate: sampleRate));
+  SpeechToTextStream transcribePcm(List<int> samples, int sampleRate) =>
+      SpeechToTextStream._(_stt.transcribePcm(samples: samples, sampleRate: sampleRate));
 }
 
 /// Voice activity detection from live, streaming audio, backed by Silero VAD.

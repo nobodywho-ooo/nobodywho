@@ -1,5 +1,6 @@
 //! Generic inference pipeline, independent of chat history.
 
+use crate::chat::ChatSampler;
 use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError};
 use crate::llm::{GlobalInferenceLockToken, WriteOutput, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
@@ -10,7 +11,6 @@ use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
-use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::speculative::MtpSpeculative;
 use llama_cpp_2::token::LlamaToken;
 use std::ops::Range;
@@ -452,20 +452,24 @@ impl<'a> InferenceEngine<'a> {
 
     pub(crate) fn sample_and_decode_next_tokens(
         &mut self,
-        sampler: &mut LlamaSampler,
-    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        sampler: &mut ChatSampler,
+        output: &mut Vec<LlamaToken>,
+    ) -> Result<(), DecodingError> {
+        output.clear();
         match &self.ctx {
-            EngineContext::Solo(_) => self.sample_and_decode_solo(sampler),
-            EngineContext::Speculative(_) => self.sample_and_decode_speculative(sampler),
+            EngineContext::Solo(_) => self.sample_and_decode_solo(sampler, output),
+            EngineContext::Speculative(_) => self.sample_and_decode_speculative(sampler, output),
         }
     }
 
     fn sample_and_decode_solo(
         &mut self,
-        sampler: &mut LlamaSampler,
-    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        sampler: &mut ChatSampler,
+        output: &mut Vec<LlamaToken>,
+    ) -> Result<(), DecodingError> {
         trace!("Applying sampler (solo)");
-        let new_token: LlamaToken = sampler.sample(&self.ctx, -1);
+        let new_token = sampler.active().sample(&self.ctx, -1);
+        sampler.observe(new_token);
 
         self.small_batch.clear();
         self.small_batch.add(new_token, self.n_past, &[0], true)?;
@@ -476,24 +480,29 @@ impl<'a> InferenceEngine<'a> {
         drop(decode_guard);
         self.n_past += 1;
 
-        Ok(vec![new_token])
+        output.push(new_token);
+        Ok(())
     }
 
     fn sample_and_decode_speculative(
         &mut self,
-        sampler: &mut LlamaSampler,
-    ) -> Result<Vec<LlamaToken>, DecodingError> {
+        sampler: &mut ChatSampler,
+        output: &mut Vec<LlamaToken>,
+    ) -> Result<(), DecodingError> {
         trace!("Applying sampler (MTP speculative, deferred)");
         let pending = match self.pending {
             Some(p) => p,
-            None => sampler.sample(&self.ctx, -1),
+            None => sampler.active().sample(&self.ctx, -1),
         };
 
         if self.ctx.model.is_eog_token(pending) {
             trace!(?pending, "MTP: pending is EOG, short-circuiting");
             self.pending = None;
-            return Ok(vec![pending]);
+            output.push(pending);
+            return Ok(());
         }
+
+        sampler.observe(pending);
 
         let mut drafts = {
             let EngineContext::Speculative(spec) = &mut self.ctx else {
@@ -521,10 +530,11 @@ impl<'a> InferenceEngine<'a> {
                 };
                 spec.accept(0)?;
             }
-            let new_pending = sampler.sample(&self.ctx, -1);
+            let new_pending = sampler.active().sample(&self.ctx, -1);
             self.n_past += 1;
             self.pending = Some(new_pending);
-            return Ok(vec![pending]);
+            output.push(pending);
+            return Ok(());
         }
 
         self.big_batch.clear();
@@ -540,10 +550,10 @@ impl<'a> InferenceEngine<'a> {
         }
         self.ctx.mtp_process(&self.big_batch)?;
 
-        let mut accepted_drafts: Vec<LlamaToken> = Vec::with_capacity(k_max);
+        let mut accepted_count = 0;
         let mut new_pending = None;
         for (i, &draft) in drafts.iter().enumerate() {
-            let ti = sampler.sample(&self.ctx, i as i32);
+            let ti = sampler.active().sample(&self.ctx, i as i32);
             if self.ctx.model.is_eog_token(ti) {
                 trace!(?ti, "MTP: target sampled EOG during verify, stopping");
                 new_pending = Some(ti);
@@ -553,13 +563,14 @@ impl<'a> InferenceEngine<'a> {
                 new_pending = Some(ti);
                 break;
             }
-            accepted_drafts.push(draft);
+            accepted_count += 1;
+            sampler.observe(draft); // detects switch to grammar-constrained sampling
         }
-        let new_pending = new_pending.unwrap_or_else(|| sampler.sample(&self.ctx, k_max as i32));
-        let j = accepted_drafts.len();
+        let new_pending =
+            new_pending.unwrap_or_else(|| sampler.active().sample(&self.ctx, k_max as i32));
 
-        if j < k_max {
-            let keep_up_to = (self.n_past + 1 + j as i32) as u32;
+        if accepted_count < k_max {
+            let keep_up_to = (self.n_past + 1 + accepted_count as i32) as u32;
             let rolled_back = self
                 .ctx
                 .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
@@ -578,26 +589,25 @@ impl<'a> InferenceEngine<'a> {
             let EngineContext::Speculative(spec) = &mut self.ctx else {
                 unreachable!();
             };
-            spec.accept(j as u16)?;
+            spec.accept(accepted_count as u16)?;
         }
 
-        self.n_past += 1 + j as i32;
+        self.n_past += 1 + accepted_count as i32;
         self.pending = Some(new_pending);
         self.mtp_drafts_proposed += k_max as u64;
-        self.mtp_drafts_accepted += j as u64;
+        self.mtp_drafts_accepted += accepted_count as u64;
 
         trace!(
-            j,
+            accepted_count,
             k_max,
             ?pending,
             ?new_pending,
             "MTP: deferred iteration complete"
         );
 
-        let mut emitted = Vec::with_capacity(1 + j);
-        emitted.push(pending);
-        emitted.extend_from_slice(&accepted_drafts);
-        Ok(emitted)
+        output.push(pending);
+        output.extend_from_slice(&drafts[..accepted_count]);
+        Ok(())
     }
 }
 

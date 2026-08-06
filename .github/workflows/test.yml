@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
       run_flutter:
-        description: "Run Flutter doctest/multimodal/STT tests."
+        description: "Run Flutter doctest/multimodal/SpeechToText tests."
         type: boolean
         default: false
     secrets:
@@ -90,6 +90,16 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-flutter-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-cargo-
+
       - name: Install Vulkan dependencies
         run: |
           sudo apt-get update
@@ -122,7 +132,7 @@ jobs:
 
   flutter-stt-tests:
     if: inputs.run_flutter
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v4
 
@@ -130,6 +140,16 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-flutter-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-cargo-
 
       - name: Install Vulkan dependencies
         run: |
@@ -148,7 +168,7 @@ jobs:
 
       - name: Download Whisper model
         run: |
-          # fp32 ("default") files, matching the Flutter STT test's quantization='default'.
+          # fp32 ("default") files, matching the Flutter SpeechToText test's quantization='default'.
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
           mkdir -p models/whisper-base/onnx
           curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
@@ -158,10 +178,10 @@ jobs:
           curl -L --fail --progress-bar "$WHISPER_BASE/config.json"                    -o models/whisper-base/config.json
           curl -L --fail --progress-bar "$WHISPER_BASE/preprocessor_config.json"       -o models/whisper-base/preprocessor_config.json
 
-      - name: Run Flutter STT tests
+      - name: Run Flutter SpeechToText tests
         working-directory: ./nobodywho/flutter/nobodywho
         env:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
           TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
           LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
-        run: flutter test test/nobodywho_test.dart --name "STT" --reporter expanded
+        run: flutter test test/nobodywho_test.dart --name "SpeechToText" --reporter expanded

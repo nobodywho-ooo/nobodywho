@@ -1,7 +1,7 @@
 import Foundation
 import NobodyWhoGenerated
 
-/// A stream of transcript tokens from a Whisper STT run.
+/// A stream of transcript tokens from a Whisper SpeechToText run.
 ///
 /// ```swift
 /// let stream = try stt.transcribeFile(path: "recording.mp3")
@@ -11,12 +11,12 @@ import NobodyWhoGenerated
 /// // Or collect the full transcript:
 /// let text = try await stt.transcribeFile(path: "recording.mp3").completed()
 /// ```
-public struct SttStream: AsyncSequence {
+public struct SpeechToTextStream: AsyncSequence {
     public typealias Element = String
 
-    let inner: RustSttStream
+    let inner: RustSpeechToTextStream
 
-    init(_ inner: RustSttStream) {
+    init(_ inner: RustSpeechToTextStream) {
         self.inner = inner
     }
 
@@ -35,7 +35,7 @@ public struct SttStream: AsyncSequence {
     }
 
     public struct AsyncIterator: AsyncIteratorProtocol {
-        let inner: RustSttStream
+        let inner: RustSpeechToTextStream
 
         public mutating func next() async throws -> String? {
             return try await inner.nextToken()
@@ -50,7 +50,7 @@ public struct SttStream: AsyncSequence {
 /// downloaded and cached on first use.
 ///
 /// ```swift
-/// let stt = try STT(source: "hf://onnx-community/whisper-base")
+/// let stt = try await SpeechToText.load(source: "hf://onnx-community/whisper-base")
 /// let text = try await stt.transcribeFile(path: "recording.mp3").completed()
 ///
 /// // Stream tokens as they arrive:
@@ -58,26 +58,33 @@ public struct SttStream: AsyncSequence {
 ///     print(token, terminator: "")
 /// }
 /// ```
-public class STT {
-    private let inner: RustStt
+public class SpeechToText {
+    private let inner: RustSpeechToText
 
+    private init(inner: RustSpeechToText) {
+        self.inner = inner
+    }
+
+    /// Load a Whisper SpeechToText model.
+    ///
     /// - Parameters:
     ///   - source: HuggingFace repo ID or local directory path.
     ///   - language: ISO 639-1 language code (e.g. `"en"`). Pass `nil` to auto-detect.
     ///   - quantization: ONNX precision variant to download and load: one of
     ///     `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`.
     ///     Pass `nil` to use `"default"`.
-    public init(source: String, language: String? = nil, quantization: String? = nil) throws {
-        self.inner = try RustStt(source: source, language: language, quantization: quantization)
+    public static func load(source: String, language: String? = nil, quantization: String? = nil) async throws -> SpeechToText {
+        let inner = try await NobodyWhoGenerated.loadSpeechToText(source: source, language: language, quantization: quantization)
+        return SpeechToText(inner: inner)
     }
 
-    /// Transcribe an audio file (WAV / MP3). Returns an `SttStream`.
-    public func transcribeFile(path: String) throws -> SttStream {
-        return SttStream(try inner.transcribeFile(path: path))
+    /// Transcribe an audio file (WAV / MP3). Returns an `SpeechToTextStream`.
+    public func transcribeFile(path: String) throws -> SpeechToTextStream {
+        return SpeechToTextStream(try inner.transcribeFile(path: path))
     }
 
-    /// Transcribe raw i16 PCM samples. Returns an `SttStream`.
-    public func transcribePcm(samples: [Int16], sampleRate: UInt32) throws -> SttStream {
-        return SttStream(try inner.transcribePcm(samples: samples, sampleRate: sampleRate))
+    /// Transcribe raw i16 PCM samples. Returns an `SpeechToTextStream`.
+    public func transcribePcm(samples: [Int16], sampleRate: UInt32) throws -> SpeechToTextStream {
+        return SpeechToTextStream(try inner.transcribePcm(samples: samples, sampleRate: sampleRate))
     }
 }
