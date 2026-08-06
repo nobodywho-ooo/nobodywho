@@ -51,47 +51,6 @@ impl NobodyWhoTask {
     fn result(&self) -> Variant {
         self.result.borrow().clone().unwrap_or_default()
     }
-
-    // --- Throwaway Phase-0 smoke tests --------------------------------------
-    // Call as NobodyWhoTask._test_*(...). Removed when Phase 1 lands.
-
-    /// Resolves after `msecs` ms with `value`. Exercises the resolve-after-await
-    /// and never-await cases.
-    #[func]
-    fn _test_delay(msecs: i64, value: Variant) -> Gd<NobodyWhoTask> {
-        task(async move {
-            let msecs = msecs.max(0) as u64;
-            on_blocking_thread(move || {
-                std::thread::sleep(std::time::Duration::from_millis(msecs));
-            })
-            .await;
-            value
-        })
-    }
-
-    /// Resolves immediately with `value`. Covers resolve-before-await and
-    /// double-await.
-    #[func]
-    fn _test_instant(value: Variant) -> Gd<NobodyWhoTask> {
-        task(async move { value })
-    }
-
-    /// Panics inside `on_blocking_thread`; resolves to null. Exercises the
-    /// panic path — no hang.
-    #[func]
-    fn _test_blocking_panic() -> Gd<NobodyWhoTask> {
-        task(async move {
-            let result: Option<i64> =
-                on_blocking_thread(|| panic!("deliberate panic in on_blocking_thread")).await;
-            match result {
-                Some(v) => v.to_variant(),
-                None => {
-                    godot_error!("NobodyWhoTask._test_blocking_panic: closure panicked");
-                    Variant::nil()
-                }
-            }
-        })
-    }
 }
 
 /// Run `future` on the Godot executor; return a latched task.

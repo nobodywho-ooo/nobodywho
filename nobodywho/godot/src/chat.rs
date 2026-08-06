@@ -568,29 +568,6 @@ impl NobodyWhoTokenStream {
         .bind()
         .wait()
     }
-
-    // --- Throwaway Phase-1 smoke test ---------------------------------------
-    // Wraps a synthetic core stream fed from a thread with delays, so both
-    // pull paths get exercised: the inline fast path (token already queued)
-    // and the suspend path (channel empty). No model needed. Removed once the
-    // real ask() path is validated end-to-end in CI.
-    #[func]
-    fn _test_stream(tokens: Array<GString>) -> Gd<NobodyWhoTokenStream> {
-        use nobodywho::stream::StreamOutput;
-        let toks: Vec<String> = tokens.iter_shared().map(|g| g.to_string()).collect();
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<
-            StreamOutput<nobodywho::errors::CompletionError>,
-        >();
-        std::thread::spawn(move || {
-            let full = toks.concat();
-            for t in toks {
-                std::thread::sleep(std::time::Duration::from_millis(10));
-                let _ = tx.send(StreamOutput::Token(t));
-            }
-            let _ = tx.send(StreamOutput::Done(full));
-        });
-        Self::wrap(nobodywho::chat::TokenStreamAsync::new(rx))
-    }
 }
 
 impl NobodyWhoTokenStream {
