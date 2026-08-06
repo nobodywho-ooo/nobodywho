@@ -122,12 +122,6 @@ jobs:
         working-directory: ./nobodywho/testing-apps/kotlin
         run: ./gradlew assembleDebug assembleDebugAndroidTest
 
-      - name: "Download test model"
-        run: |
-          mkdir -p test-models
-          curl -L --fail -o test-models/model.gguf \
-            "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
-
       - name: "Authenticate to Google Cloud"
         uses: google-github-actions/auth@v2
         with:
@@ -146,11 +140,9 @@ jobs:
           echo "app APK:  $APP_APK"
           echo "test APK: $TEST_APK"
 
-          # Push the model to the app-specific external files dir — the only
-          # shared-storage path an app can read without special permission on
-          # API 30+. The device path is handed to the test as an instrumentation
-          # arg (modelPath), matching DeviceInferenceTest.modelPath().
-          MODEL_DEVICE_PATH="/sdcard/Android/data/ai.nobodywho.testapp/files/model.gguf"
+          # No model is pushed to the device: DeviceInferenceTest downloads it
+          # on-device via Model.load(hf://...) into the app's cache dir, so the
+          # runner uploads only the (small) APKs.
 
           case "${{ inputs.device || 'both' }}" in
             pixel8-mali)     DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait) ;;
@@ -165,7 +157,5 @@ jobs:
             --app "$APP_APK" \
             --test "$TEST_APK" \
             "${DEVICES[@]}" \
-            --other-files "${MODEL_DEVICE_PATH}=test-models/model.gguf" \
-            --environment-variables "modelPath=${MODEL_DEVICE_PATH}" \
             --results-bucket "nobodywho-android-ci-ftl-results" \
             --timeout "${{ inputs.test_timeout || '30m' }}"

@@ -11,10 +11,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 // Top-level function so Tool's KFunction reflection can bind to it. Tool only
 // supports top-level / class / companion functions, not local ones.
@@ -23,35 +21,28 @@ fun ping(): String = "pong"
 /**
  * On-device smoke test that runs on real hardware via Firebase Test Lab.
  *
- * This mirrors the chat / streaming / tool-calling assertions from the host-JVM
+ * Mirrors the chat / streaming / tool-calling assertions from the host-JVM
  * `IntegrationTest`, but exercises the arm64 Android `.so` on a physical phone.
- * Unlike the JVM test it does NOT skip when the model is absent — on a device
- * run a missing model means the harness is broken, so it must fail loudly.
+ *
+ * The model is fetched on-device by the binding itself: `Model.load(url)`
+ * downloads the GGUF into the app's cache dir (app-writable, no permission,
+ * no scoped-storage handling) and loads it. If the download or load fails the
+ * test throws and the run goes red — the intended loud failure.
  */
 @RunWith(AndroidJUnit4::class)
 class DeviceInferenceTest {
 
-    /**
-     * The `.gguf` is pushed onto the device by the CI workflow via
-     * `gcloud ... --other-files`, and its device path is handed to us as an
-     * instrumentation argument (`-e modelPath ...`). We fall back to the
-     * app-specific external files dir, which is the only shared-storage
-     * location an app can read without special permissions on API 30+.
-     */
-    private fun modelPath(): String {
-        InstrumentationRegistry.getArguments().getString("modelPath")?.let { return it }
-        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(ctx.getExternalFilesDir(null), "model.gguf").absolutePath
-    }
+    // Overridable via `-e modelUrl <url>` so the workflow can swap models
+    // without recompiling; defaults to the same small model the JVM tests use.
+    private fun modelUrl(): String =
+        InstrumentationRegistry.getArguments().getString("modelUrl")
+            ?: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
 
     @Test
     fun chatCompletesStreamsAndCallsTools() = runBlocking {
-        val path = modelPath()
-        // Hard failure (not an assumption/skip): a missing model means the
-        // device run itself is broken and we want a red result.
-        assertTrue("Model not found on device at $path", File(path).exists())
-
-        val model = Model.load(path)
+        // useGpu = false: the Android .so has no GPU backend yet, so pin CPU for
+        // a deterministic smoke test. Flip to true once a GPU backend lands.
+        val model = Model.load(modelUrl(), useGpu = false)
 
         // Completion
         val chat = Chat(
