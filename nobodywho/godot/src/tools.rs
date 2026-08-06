@@ -9,23 +9,19 @@ use nobodywho::tool_calling::Tool as CoreTool;
 
 use crate::convert::{json_to_variant, variant_to_json};
 
-/// Default wall-clock budget for a single tool call (sync or async). A tool
-/// that hasn't produced a result by then resolves to an error string for the
-/// model, and the worker unblocks. Override via the factories' `timeout_secs`.
+/// Time budget for one tool call. Override via the factories' `timeout_secs`.
 const DEFAULT_TOOL_TIMEOUT_SECS: i64 = 60;
 
-/// What a `NobodyWhoTool` knows how to build at registration time.
+/// What a `NobodyWhoTool` builds when it is registered to a chat.
 enum ToolSpec {
-    /// A fully-built pure-Rust core tool (python/bash). Cloned per chat.
+    /// Ready-made core tool (python/bash). Cloned per chat.
     Builtin(CoreTool),
-    /// A GDScript tool. The core `Tool` (and its main-thread loop) is built
-    /// fresh per registration, so each chat gets its own loop and its own
-    /// re-entrancy flag capture.
+    /// A GDScript tool; built fresh per registration.
     Script {
         name: String,
         description: String,
         schema: serde_json::Value,
-        /// Argument names in positional-call order.
+        /// Argument names in call order.
         order: Vec<String>,
         callable: Callable,
         timeout: Duration,
@@ -33,42 +29,25 @@ enum ToolSpec {
 }
 
 /// A tool the model can call during generation. Build one with the static
-/// factories and pass it to `NobodyWhoChat.create(..., {"tools": [...]})`,
-/// `NobodyWhoChat.set_tools(...)`, or `NobodyWhoChat.reset_chat(...)`.
+/// factories, then pass it to `NobodyWhoChat.create`, `set_tools`, or
+/// `reset_chat`. GDScript tools run on the main thread; async ones work too.
 ///
-/// Three kinds:
-/// - **GDScript tools** (`create` / `create_with_schema`) — a `Callable`. The
-///   callable runs on the main thread; the worker blocks on a channel until
-///   it returns. Sync and async (await-containing) GDScript methods both work.
-/// - **`python()`** — a sandboxed in-process Python interpreter (no host
-///   filesystem/network/env access; limited stdlib). Pure Rust.
-/// - **`bash()`** — a sandboxed in-memory bash interpreter (no host
-///   filesystem/network/env access). Pure Rust.
-///
-/// Re-entrancy: do **not** call back into the same `NobodyWhoChat` from
-/// inside one of its own tools — the worker is blocked waiting for the tool
-/// to return. Such calls fail fast with an error (and resolve to null)
-/// instead of hanging. Calling a *different* chat from a tool is fine.
+/// Do not call back into the same chat from inside one of its own tools —
+/// such calls fail with an error. Calling a different chat is fine.
 #[derive(GodotClass)]
 #[class(no_init, base=RefCounted)]
 pub struct NobodyWhoTool {
-    /// `None` = construction failed (already reported via `godot_error!`);
-    /// registration skips it.
+    /// `None` = construction failed (already reported); registration skips it.
     spec: Option<ToolSpec>,
     base: Base<RefCounted>,
 }
 
 #[godot_api]
 impl NobodyWhoTool {
-    /// Create a tool from a `Callable` bound to a method on an Object. The
-    /// JSON schema is auto-generated from the method's argument type hints
-    /// (all arguments must have primitive type hints: bool, int, float,
-    /// String, Array); the tool name is the method name. The method should
-    /// return a `String` (non-strings are JSON-encoded). Async methods
-    /// (containing `await`) are supported — the coroutine is awaited on the
-    /// main thread. For lambdas, enums, nested objects, per-argument
-    /// descriptions, or optional fields, use `create_with_schema`.
-    /// `timeout_secs` bounds one call (default 60).
+    /// Create a tool from a method `Callable`. The schema comes from the
+    /// method's type hints; the tool name is the method name. All arguments
+    /// need primitive type hints (bool, int, float, String, Array).
+    /// For lambdas or richer schemas, use `create_with_schema`.
     #[func]
     fn create(
         callable: Callable,
@@ -86,15 +65,10 @@ impl NobodyWhoTool {
         Self::from_spec(spec, "NobodyWhoTool.create")
     }
 
-    /// Create a tool with an explicit JSON schema (a Dictionary or a JSON
-    /// string). Use this when you need enums, nested objects, per-argument
-    /// descriptions, or optional fields — or when the callable is a lambda
-    /// / unbound method (the auto path can't reflect on those). `name` is
-    /// the tool name. The schema's `properties` keys must match the
-    /// callable's argument names. Argument order: the bound method's
-    /// declaration order when the callable is a bound method; otherwise the
-    /// schema's `properties` insertion order. `timeout_secs` bounds one
-    /// call (default 60).
+    /// Create a tool with an explicit JSON schema (Dictionary or JSON string).
+    /// For lambdas, enums, nested objects, arg descriptions, or optional
+    /// fields. The schema's `properties` keys must match the callable's
+    /// argument names.
     #[func]
     fn create_with_schema(
         name: GString,
@@ -118,11 +92,8 @@ impl NobodyWhoTool {
         Self::from_spec(spec, "NobodyWhoTool.create_with_schema")
     }
 
-    /// A sandboxed in-process Python interpreter the model can call to run
-    /// self-contained snippets. No host filesystem, network, or environment
-    /// variable access; limited standard library. Works identically on all
-    /// platforms. Optional limits: `max_duration_secs`, `max_memory_bytes`,
-    /// `max_recursion_depth` (pass 0 / null for "no limit").
+    /// A sandboxed Python interpreter tool. No host filesystem, network, or
+    /// env access. Pass 0 for "no limit" on any of the limits.
     #[func]
     fn python(
         #[opt(default = 0)] max_duration_secs: i64,
@@ -137,11 +108,8 @@ impl NobodyWhoTool {
         Self::from_spec(Ok(ToolSpec::Builtin(tool)), "NobodyWhoTool.python")
     }
 
-    /// A sandboxed in-memory bash interpreter the model can call to run
-    /// self-contained commands. In-memory filesystem only (no persistent
-    /// state between calls); no network access; no host environment
-    /// variables or host filesystem. Works identically on all platforms.
-    /// Optional `max_commands` (pass 0 / null for "no limit").
+    /// A sandboxed in-memory bash interpreter tool. No host filesystem,
+    /// network, or env access. Pass 0 for "no limit".
     #[func]
     fn bash(#[opt(default = 0)] max_commands: i64) -> Gd<Self> {
         let tool = CoreTool::bash(opt_i64(max_commands).map(|i| i as usize));
@@ -155,10 +123,8 @@ impl NobodyWhoTool {
         Gd::from_init_fn(|base| Self { spec, base })
     }
 
-    /// Build the core `Tool` at registration time (main thread). GDScript
-    /// tools spawn their per-registration main-thread loop here and capture
-    /// the owning chat's re-entrancy flag; built-ins just clone. `None` for
-    /// a tool whose construction failed.
+    /// Build the core `Tool` at registration time (main thread). Script
+    /// tools spawn their dispatcher here; built-ins just clone.
     pub(crate) fn build_core_tool(&self, reentrancy_flag: Arc<AtomicBool>) -> Option<CoreTool> {
         match self.spec.as_ref()? {
             ToolSpec::Builtin(tool) => Some(tool.clone()),
@@ -182,7 +148,7 @@ impl NobodyWhoTool {
     }
 }
 
-/// `i64` optional parameter -> `Option<i64>` (0 / null / unset => None).
+/// Optional int parameter: 0 means "not set".
 fn opt_i64(v: i64) -> Option<i64> {
     (v != 0).then_some(v)
 }
@@ -195,15 +161,9 @@ fn timeout_duration(secs: i64) -> Duration {
 // Schema generation from a Callable's method info
 // ====================================================================
 
-/// Look up the callable's method-argument dicts (`{name, type, ...}` each,
-/// in declaration order), excluding arguments pre-filled with
-/// `Callable.bind()` — Godot appends bound args after the provided ones, so
-/// they fill the declaration from the right and the model must not supply
-/// them. Errors for lambdas / unbound callables.
-///
-/// Note: the `args` field is a *typed* Array[Dictionary] on the engine side,
-/// so the element type must be spelled out — `Array<Variant>` conversion
-/// fails on typed arrays in gdext 0.5.
+/// The callable's method-argument dicts (`{name, type, ...}`), in
+/// declaration order. Skips args pre-filled with `Callable.bind()` (they
+/// fill from the right). Errors for lambdas / unbound callables.
 fn bound_method_args(callable: &Callable) -> Result<(String, Vec<VarDictionary>), String> {
     let method_name = callable
         .method_name()
@@ -216,6 +176,7 @@ fn bound_method_args(callable: &Callable) -> Result<(String, Vec<VarDictionary>)
         .iter_shared()
         .find(|d| d.get_or_nil("name").to::<GString>() == GString::from(&method_name))
         .ok_or("method not found on the callable's object")?;
+    // "args" is a typed Array[Dictionary]; `Array<Variant>` would panic here.
     let args: Array<VarDictionary> = method_info.get_or_nil("args").to();
     let unbound = args
         .len()
@@ -226,8 +187,7 @@ fn bound_method_args(callable: &Callable) -> Result<(String, Vec<VarDictionary>)
     ))
 }
 
-/// Reflect on `callable`'s bound method and build a JSON schema + the
-/// ordered argument-name list, from the method's type hints.
+/// Build a JSON schema + argument order from the method's type hints.
 fn schema_from_callable(
     callable: &Callable,
 ) -> Result<(String, serde_json::Value, Vec<String>), String> {
@@ -268,9 +228,8 @@ fn schema_from_callable(
     Ok((method_name, schema, order))
 }
 
-/// Tool names end up inside the tool-call GBNF grammar and the chat
-/// template; validate them here where the error is actionable, instead of
-/// failing at ask-time inside core's grammar generation.
+/// Tool names end up in the tool-call grammar; catch bad ones here instead
+/// of failing confusingly at ask-time.
 fn validate_tool_name(name: &str) -> Result<(), String> {
     let mut chars = name.chars();
     let valid = chars
@@ -294,11 +253,9 @@ fn parse_schema(v: &Variant) -> Result<serde_json::Value, String> {
     }
 }
 
-/// Positional-argument order for a manual-schema tool. Bound method → the
-/// method's declared order (authoritative; schema `properties` must cover
-/// the same names). Lambda/unbound → the schema's `properties` insertion
-/// order (preserved — serde_json's `preserve_order` feature is enabled and
-/// load-bearing here).
+/// Argument order for a manual-schema tool: the method's declared order for
+/// bound methods, otherwise the schema's `properties` order (serde_json's
+/// `preserve_order` feature keeps it — don't remove that feature).
 fn argument_order(callable: &Callable, schema: &serde_json::Value) -> Result<Vec<String>, String> {
     let props = schema
         .get("properties")
@@ -324,23 +281,16 @@ fn argument_order(callable: &Callable, schema: &serde_json::Value) -> Result<Vec
 // The per-tool main-thread loop + worker-side Fn bridge
 // ====================================================================
 
-/// A request from the worker to a tool's main-thread loop.
+/// One tool call, sent from the worker to the tool's main-thread dispatcher.
 struct ToolRequest {
-    /// The model's raw JSON arguments. `Send`; converted to Variants on the
-    /// main-thread side (Variant is !Send).
     args_json: serde_json::Value,
-    /// Worker blocks on the pair's `Receiver::recv_timeout`.
     result_tx: std::sync::mpsc::Sender<String>,
 }
 
-/// Build the core `Tool` for a GDScript tool: spawns the per-registration
-/// main-thread loop (owning the `Callable`), and returns a core `Tool` whose
-/// `function` closure captures only `Send` data (the loop's sender + the
-/// chat's re-entrancy flag). The loop's lifetime is tied to core's ownership
-/// of this closure via sender-drop: when `set_tools` replaces the tool vec
-/// (or the chat is freed), core drops the closure -> sender drops -> `recv()`
-/// yields `None` -> the loop ends and releases the `Callable`. Self-cleaning;
-/// see `TOOLS_DESIGN.md` §5.
+/// Build a core `Tool` for a GDScript tool: spawn a main-thread dispatcher
+/// that owns the `Callable`, and return a core `Tool` whose closure just
+/// sends requests to it. When core drops the closure, the sender drops and
+/// the dispatcher ends on its own. Details in TOOLS_DESIGN.md §5.
 fn build_gdscript_tool(
     name: String,
     description: String,
@@ -352,12 +302,9 @@ fn build_gdscript_tool(
 ) -> CoreTool {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<ToolRequest>();
 
-    // The main-thread dispatcher. Owns the Callable; never crosses threads.
-    // Each request runs in its own sub-task (spawn is legal here: the
-    // dispatcher itself runs on the main thread) so that a tool whose
-    // coroutine never completes wedges only that one call — not the tool.
-    // Without this, an abandoned await would park the loop forever and
-    // every later call to this tool would queue behind it and time out.
+    // Main-thread dispatcher; owns the Callable. Each request runs in its
+    // own sub-task, so a coroutine that never finishes only wedges that one
+    // call — later calls to the tool still work.
     let loop_name: Arc<str> = name.clone().into();
     let loop_order: Arc<[String]> = order.into();
     godot::task::spawn(async move {
@@ -365,18 +312,16 @@ fn build_gdscript_tool(
             let (callable, order, name) = (callable.clone(), loop_order.clone(), loop_name.clone());
             godot::task::spawn(async move {
                 let result = run_tool_call(&callable, &order, &name, &req.args_json).await;
-                // Err = worker gone or the call already timed out; the
-                // orphaned result is dropped. Harmless.
+                // Send fails if the worker already timed out; that's fine.
                 let _ = req.result_tx.send(result);
             });
         }
     });
 
-    // The worker-side closure. Captures only Send data. Blocks the worker
-    // (a std thread) on recv_timeout — never the main thread. The
-    // re-entrancy flag is set for the duration so chat methods called from
-    // inside the tool fail fast instead of hanging (TOOLS_DESIGN.md §3);
-    // it is set *before* the send so the main thread can't observe it unset.
+    // Worker-side closure: blocks the worker thread (never the main thread)
+    // until the dispatcher sends the result back. The re-entrancy flag is
+    // set for the duration, before the send, so a tool that calls back into
+    // its own chat fails fast instead of hanging.
     let closure_name = name.clone();
     let func: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync> = Arc::new(move |args_json| {
         let (result_tx, result_rx) = std::sync::mpsc::channel::<String>();
@@ -401,9 +346,9 @@ fn build_gdscript_tool(
     CoreTool::new(name, description, json_schema, func)
 }
 
-/// Run one tool call on the main thread: convert JSON args to positional
-/// Variants, call the callable, await the coroutine if async, stringify the
-/// result. Returns the result string for the model (or an error string).
+/// Run one tool call on the main thread: JSON args -> Variants, call the
+/// callable, await the coroutine if async, stringify. Errors become error
+/// strings for the model.
 async fn run_tool_call(
     callable: &Callable,
     order: &[String],
@@ -417,7 +362,7 @@ async fn run_tool_call(
         return "Error: bad arguments — expected a JSON object".into();
     };
 
-    // Positional args in declaration order; missing args -> nil.
+    // Positional args in declaration order; missing args become nil.
     let args: VarArray = order
         .iter()
         .map(|prop| obj.get(prop).map_or(Variant::nil(), json_to_variant))
@@ -425,10 +370,9 @@ async fn run_tool_call(
 
     let res: Variant = callable.callv(&args);
 
-    // Async tool: callv returned a GDScriptFunctionState. Await its
-    // `completed` signal (1 arg = the coroutine's return value) via the
-    // *fallible* future — the panicking `to_future` is banned because a
-    // panic in a godot::task future hangs silently (TOOLS_DESIGN.md §5/§6).
+    // Async tool: await the coroutine's `completed` signal (its one arg is
+    // the return value). Must be the fallible future — the plain one panics
+    // if the state is freed, and panics in godot tasks hang silently.
     match as_gdscript_function_state(&res) {
         Some(state) => {
             let signal = Signal::from_object_signal(&state, "completed");
@@ -441,19 +385,15 @@ async fn run_tool_call(
     }
 }
 
-/// If `v` is an Object whose class is `GDScriptFunctionState`, return it.
-/// The class is a registered ClassDB type, so `get_class()` string compare
-/// works even though gdext doesn't generate a Rust type for it.
+/// Returns the object if `v` is a GDScriptFunctionState (a suspended
+/// coroutine). gdext has no generated type for it, so compare by class name.
 fn as_gdscript_function_state(v: &Variant) -> Option<Gd<RefCounted>> {
     let obj = v.try_to::<Gd<RefCounted>>().ok()?;
     (obj.get_class() == "GDScriptFunctionState").then_some(obj)
 }
 
-/// Marshal a tool result to the string the model sees. Strings pass through
-/// as-is (the documented `-> String` contract); non-strings are JSON-encoded
-/// (models are trained on JSON tool results, not Godot's `str()` repr). Nil —
-/// a tool without a return value, or a script error during the call — is
-/// surfaced as an error string rather than a fake success.
+/// The string the model sees: Strings pass through, other values are
+/// JSON-encoded, nil becomes an error (no return value, or script error).
 fn stringify_result(v: &Variant, name: &str) -> String {
     match v.get_type() {
         VariantType::STRING => v.to::<GString>().to_string(),
