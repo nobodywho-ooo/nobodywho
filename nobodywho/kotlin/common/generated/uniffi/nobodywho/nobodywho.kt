@@ -789,7 +789,11 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_finish(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_predict(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_push(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvad_segment(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
     ): Short
@@ -993,7 +997,11 @@ external fun uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(`source`: RustBu
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustvad_finish(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_method_rustvad_predict(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_method_rustvad_push(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_method_rustvad_segment(`ptr`: Long,`samples`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1348,7 +1356,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() != 58578.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_predict() != 26282.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 13327.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_segment() != 1943.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
@@ -5185,11 +5199,32 @@ public interface RustVadInterface {
     fun `finish`(): List<kotlin.Short>
     
     /**
+     * Run whatever complete Silero frames `chunk` completes through the
+     * model and return their raw speech probabilities, in order — no
+     * debouncing, no audio buffering. For callers who want their own
+     * thresholding instead of `push`'s built-in debounce logic, or who want
+     * zero memory overhead beyond fixed model state. Safe to call with any
+     * chunk size, from a live mic buffer up to an entire recording at once.
+     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * in between to clear state so it doesn't leak across sessions.
+     */
+    fun `predict`(`chunk`: List<kotlin.Short>): List<kotlin.Float>
+    
+    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
      */
     fun `push`(`chunk`: List<kotlin.Short>): VadEvent?
+    
+    /**
+     * Detect every speech segment in a complete audio buffer at once,
+     * returning each segment's audio (with a small pre-roll lead-in) in
+     * order. Unlike `push`, this is guaranteed not to drop a transition
+     * regardless of buffer size — the right tool for offline/batch
+     * processing of a full recording rather than live streaming.
+     */
+    fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>>
     
     companion object
 }
@@ -5335,6 +5370,30 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
 
     
     /**
+     * Run whatever complete Silero frames `chunk` completes through the
+     * model and return their raw speech probabilities, in order — no
+     * debouncing, no audio buffering. For callers who want their own
+     * thresholding instead of `push`'s built-in debounce logic, or who want
+     * zero memory overhead beyond fixed model state. Safe to call with any
+     * chunk size, from a live mic buffer up to an entire recording at once.
+     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * in between to clear state so it doesn't leak across sessions.
+     */
+    @Throws(NobodyWhoException::class)override fun `predict`(`chunk`: List<kotlin.Short>): List<kotlin.Float> {
+            return FfiConverterSequenceFloat.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+        it,
+        FfiConverterSequenceShort.lower(`chunk`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -5346,6 +5405,27 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_push(
         it,
         FfiConverterSequenceShort.lower(`chunk`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Detect every speech segment in a complete audio buffer at once,
+     * returning each segment's audio (with a small pre-roll lead-in) in
+     * order. Unlike `push`, this is guaranteed not to drop a transition
+     * regardless of buffer size — the right tool for offline/batch
+     * processing of a full recording rather than live streaming.
+     */
+    @Throws(NobodyWhoException::class)override fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>> {
+            return FfiConverterSequenceSequenceShort.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
+        it,
+        FfiConverterSequenceShort.lower(`samples`),_status)
 }
     }
     )
@@ -7650,6 +7730,34 @@ public object FfiConverterSequenceOptionalInt: FfiConverterRustBuffer<List<kotli
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterOptionalInt.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceSequenceShort: FfiConverterRustBuffer<List<List<kotlin.Short>>> {
+    override fun read(buf: ByteBuffer): List<List<kotlin.Short>> {
+        val len = buf.getInt()
+        return List<List<kotlin.Short>>(len) {
+            FfiConverterSequenceShort.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<List<kotlin.Short>>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterSequenceShort.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<List<kotlin.Short>>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterSequenceShort.write(it, buf)
         }
     }
 }

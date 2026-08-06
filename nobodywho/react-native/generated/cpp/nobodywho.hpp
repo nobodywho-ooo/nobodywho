@@ -227,7 +227,13 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_push(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(
@@ -680,7 +686,13 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_finish(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_push(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(

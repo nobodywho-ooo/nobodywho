@@ -270,8 +270,13 @@ void uniffi_nobodywho_uniffi_fn_free_rustvad(
     RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
     /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+    /*handle*/ uint64_t ptr, RustBuffer chunk, RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_push(
     /*handle*/ uint64_t ptr, RustBuffer chunk, RustCallStatus *uniffi_out_err);
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
+    /*handle*/ uint64_t ptr, RustBuffer samples,
+    RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_samplerbuilder(
@@ -552,7 +557,9 @@ uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustvad_finish();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustvad_predict();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustvad_push();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustvad_segment();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar();
@@ -3483,6 +3490,17 @@ NativeNobodywho::NativeNobodywho(
             return this->cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
                 rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_predict"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_predict"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_push"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3492,6 +3510,17 @@ NativeNobodywho::NativeNobodywho(
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_push(
+                rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_segment"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_segment"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
                 rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder"] =
@@ -5125,6 +5154,19 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_finish(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_push"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -5135,6 +5177,19 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_push(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist"] =
@@ -6820,12 +6875,44 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
 
   return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
+}
 jsi::Value NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_push(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   RustCallStatus status =
       uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
   auto value = uniffi_nobodywho_uniffi_fn_method_rustvad_push(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
@@ -8435,10 +8522,26 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_finish(
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustvad_predict();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
 NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_push(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_method_rustvad_push();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustvad_segment();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

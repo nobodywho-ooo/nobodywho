@@ -2462,11 +2462,32 @@ public protocol RustVadProtocol: AnyObject, Sendable {
     func finish()  -> [Int16]
     
     /**
+     * Run whatever complete Silero frames `chunk` completes through the
+     * model and return their raw speech probabilities, in order — no
+     * debouncing, no audio buffering. For callers who want their own
+     * thresholding instead of `push`'s built-in debounce logic, or who want
+     * zero memory overhead beyond fixed model state. Safe to call with any
+     * chunk size, from a live mic buffer up to an entire recording at once.
+     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * in between to clear state so it doesn't leak across sessions.
+     */
+    func predict(chunk: [Int16]) throws  -> [Float]
+    
+    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
      */
     func push(chunk: [Int16]) throws  -> VadEvent?
+    
+    /**
+     * Detect every speech segment in a complete audio buffer at once,
+     * returning each segment's audio (with a small pre-roll lead-in) in
+     * order. Unlike `push`, this is guaranteed not to drop a transition
+     * regardless of buffer size — the right tool for offline/batch
+     * processing of a full recording rather than live streaming.
+     */
+    func segment(samples: [Int16]) throws  -> [[Int16]]
     
 }
 /**
@@ -2562,6 +2583,25 @@ open func finish() -> [Int16]  {
 }
     
     /**
+     * Run whatever complete Silero frames `chunk` completes through the
+     * model and return their raw speech probabilities, in order — no
+     * debouncing, no audio buffering. For callers who want their own
+     * thresholding instead of `push`'s built-in debounce logic, or who want
+     * zero memory overhead beyond fixed model state. Safe to call with any
+     * chunk size, from a live mic buffer up to an entire recording at once.
+     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * in between to clear state so it doesn't leak across sessions.
+     */
+open func predict(chunk: [Int16])throws  -> [Float]  {
+    return try  FfiConverterSequenceFloat.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_rustvad_predict(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceInt16.lower(chunk),$0
+    )
+})
+}
+    
+    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -2571,6 +2611,22 @@ open func push(chunk: [Int16])throws  -> VadEvent?  {
     uniffi_nobodywho_uniffi_fn_method_rustvad_push(
             self.uniffiCloneHandle(),
         FfiConverterSequenceInt16.lower(chunk),$0
+    )
+})
+}
+    
+    /**
+     * Detect every speech segment in a complete audio buffer at once,
+     * returning each segment's audio (with a small pre-roll lead-in) in
+     * order. Unlike `push`, this is guaranteed not to drop a transition
+     * regardless of buffer size — the right tool for offline/batch
+     * processing of a full recording rather than live streaming.
+     */
+open func segment(samples: [Int16])throws  -> [[Int16]]  {
+    return try  FfiConverterSequenceSequenceInt16.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_rustvad_segment(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceInt16.lower(samples),$0
     )
 })
 }
@@ -4685,6 +4741,31 @@ fileprivate struct FfiConverterSequenceOptionInt32: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceSequenceInt16: FfiConverterRustBuffer {
+    typealias SwiftType = [[Int16]]
+
+    public static func write(_ value: [[Int16]], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterSequenceInt16.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [[Int16]] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [[Int16]]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterSequenceInt16.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer {
     typealias SwiftType = [[Float]]
 
@@ -5170,7 +5251,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() != 58578) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_predict() != 26282) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 13327) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_segment() != 1943) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {

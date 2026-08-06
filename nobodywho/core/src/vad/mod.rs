@@ -109,4 +109,26 @@ impl Vad {
     pub fn finish(&mut self) -> Vec<i16> {
         self.backend.finish()
     }
+
+    /// Run whatever complete Silero frames `chunk` completes through the
+    /// model and return their raw speech probabilities, in order — no
+    /// debouncing, no audio buffering. For callers who want to do their own
+    /// thresholding/smoothing instead of using `push`'s built-in debounce
+    /// logic, or who want zero memory overhead beyond fixed model state.
+    /// Safe to call with any chunk size, from a live mic buffer up to an
+    /// entire recording at once. If you reuse one `Vad` across unrelated
+    /// audio sessions, call `finish` in between to clear state so it doesn't
+    /// leak across sessions.
+    pub fn predict(&mut self, chunk: &[i16]) -> Result<Vec<f32>, VadError> {
+        self.backend.predict(chunk)
+    }
+
+    /// Detect every speech segment in a complete audio buffer at once,
+    /// returning each segment's audio (with a small pre-roll lead-in) in
+    /// order. Unlike `push`, this is guaranteed not to drop a transition
+    /// regardless of buffer size — the right tool for offline/batch
+    /// processing of a full recording rather than live streaming.
+    pub fn segment(&mut self, samples: &[i16]) -> Result<Vec<Vec<i16>>, VadError> {
+        self.backend.segment(samples)
+    }
 }

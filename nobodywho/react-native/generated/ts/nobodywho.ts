@@ -3587,11 +3587,30 @@ export interface RustVadInterface {
      */
     finish() : Array</*i16*/number>;
     /**
+     * Run whatever complete Silero frames `chunk` completes through the
+     * model and return their raw speech probabilities, in order — no
+     * debouncing, no audio buffering. For callers who want their own
+     * thresholding instead of `push`'s built-in debounce logic, or who want
+     * zero memory overhead beyond fixed model state. Safe to call with any
+     * chunk size, from a live mic buffer up to an entire recording at once.
+     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * in between to clear state so it doesn't leak across sessions.
+     */
+    predict(chunk: Array</*i16*/number>)  /*throws*/: Array</*f32*/number>;
+    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
      */
     push(chunk: Array</*i16*/number>)  /*throws*/: VadEvent | undefined;
+    /**
+     * Detect every speech segment in a complete audio buffer at once,
+     * returning each segment's audio (with a small pre-roll lead-in) in
+     * order. Unlike `push`, this is guaranteed not to drop a transition
+     * regardless of buffer size — the right tool for offline/batch
+     * processing of a full recording rather than live streaming.
+     */
+    segment(samples: Array</*i16*/number>)  /*throws*/: Array<Array</*i16*/number>>;
 }
 
 
@@ -3659,6 +3678,29 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
     }
     
     /**
+     * Run whatever complete Silero frames `chunk` completes through the
+     * model and return their raw speech probabilities, in order — no
+     * debouncing, no audio buffering. For callers who want their own
+     * thresholding instead of `push`'s built-in debounce logic, or who want
+     * zero memory overhead beyond fixed model state. Safe to call with any
+     * chunk size, from a live mic buffer up to an entire recording at once.
+     * If you reuse one `Vad` across unrelated audio sessions, call `finish`
+     * in between to clear state so it doesn't leak across sessions.
+     */
+ predict(chunk: Array</*i16*/number>): Array</*f32*/number> /*throws*/ {
+    return FfiConverterArrayFloat32.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_predict(uniffiTypeRustVadObjectFactory.clonePointer(this), 
+        FfiConverterArrayInt16.lower(chunk),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -3670,6 +3712,26 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_push(uniffiTypeRustVadObjectFactory.clonePointer(this), 
         FfiConverterArrayInt16.lower(chunk),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Detect every speech segment in a complete audio buffer at once,
+     * returning each segment's audio (with a small pre-roll lead-in) in
+     * order. Unlike `push`, this is guaranteed not to drop a transition
+     * regardless of buffer size — the right tool for offline/batch
+     * processing of a full recording rather than live streaming.
+     */
+ segment(samples: Array</*i16*/number>): Array<Array</*i16*/number>> /*throws*/ {
+    return FfiConverterArrayArrayInt16.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_segment(uniffiTypeRustVadObjectFactory.clonePointer(this), 
+        FfiConverterArrayInt16.lower(samples),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4351,6 +4413,10 @@ const FfiConverterArrayOptionalInt32 = new FfiConverterArray(FfiConverterOptiona
 const FfiConverterArrayArrayFloat32 = new FfiConverterArray(FfiConverterArrayFloat32);
 
 
+// FfiConverter for Array<Array</*i16*/number>>
+const FfiConverterArrayArrayInt16 = new FfiConverterArray(FfiConverterArrayInt16);
+
+
 // FfiConverter for Array<RustToolInterface> | undefined
 const FfiConverterOptionalArrayTypeRustTool = new FfiConverterOptional(FfiConverterArrayTypeRustTool);
 
@@ -4528,8 +4594,14 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() !== 58578) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_finish");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_predict() !== 26282) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_predict");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_push() !== 13327) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_push");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_segment() !== 1943) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_segment");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");

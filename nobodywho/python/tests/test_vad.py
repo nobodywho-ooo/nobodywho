@@ -89,3 +89,25 @@ def test_finish_is_empty_when_no_speech_confirmed():
         event = vad.push(silence)
         assert event is None
     assert vad.finish() == []
+
+
+def test_predict_returns_one_probability_per_frame(audio):
+    samples, sample_rate = audio
+    vad = nobodywho.Vad(source=MODEL, sample_rate=sample_rate)
+    probs = vad.predict(list(samples))
+    assert len(probs) > 0
+    assert all(0.0 <= p <= 1.0 for p in probs)
+
+
+def test_segment_finds_speech_in_full_recording(audio):
+    samples, sample_rate = audio
+    vad = nobodywho.Vad(
+        source=MODEL,
+        sample_rate=sample_rate,
+        threshold=0.3,
+        min_speech_duration_ms=90,
+    )
+    segments = vad.segment(list(samples))
+    assert len(segments) > 0
+    for segment in segments:
+        assert 0 < len(segment) < len(samples)

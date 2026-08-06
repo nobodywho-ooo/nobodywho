@@ -17,6 +17,8 @@ const RESAMPLE_CHUNK_SIZE: usize = 1024;
 pub(super) struct VadBackend {
     session: Session,
     resampler: Option<StreamResampler>,
+    sample_rate: u32,
+    preroll_duration_ms: u32,
     /// LSTM hidden state carried between frames: shape (2, 1, 128) flattened.
     model_state: Vec<f32>,
     frames: FrameAccumulator,
@@ -46,6 +48,8 @@ impl VadBackend {
         Ok(Self {
             session,
             resampler,
+            sample_rate,
+            preroll_duration_ms,
             model_state: vec![0.0; 2 * 128],
             frames: FrameAccumulator::new(),
             debouncer: Debouncer::new(debounce_config),
@@ -54,16 +58,13 @@ impl VadBackend {
         })
     }
 
-    fn reset_detection_state(&mut self) {
+    pub(super) fn reset(&mut self) {
         self.model_state = vec![0.0; 2 * 128];
         self.frames.clear();
         self.debouncer.reset();
     }
 
-    pub(super) fn push(&mut self, chunk: &[i16]) -> Result<Option<VadEvent>, VadError> {
-        self.preroll.push(chunk);
-        self.capture.push(chunk);
-
+    pub(super) fn predict(&mut self, chunk: &[i16]) -> Result<Vec<f32>, VadError> {
         let raw_f32: Vec<f32> = chunk.iter().map(|&s| s as f32 / 32768.0).collect();
         let samples_16k = match &mut self.resampler {
             Some(resampler) => resampler.push(&raw_f32)?,
@@ -71,9 +72,19 @@ impl VadBackend {
         };
         self.frames.extend(samples_16k);
 
-        let mut event = None;
+        let mut probs = Vec::new();
         while let Some(frame) = self.frames.next_frame() {
-            let prob = self.run_frame(&frame)?;
+            probs.push(self.run_frame(&frame)?);
+        }
+        Ok(probs)
+    }
+
+    pub(super) fn push(&mut self, chunk: &[i16]) -> Result<Option<VadEvent>, VadError> {
+        self.preroll.push(chunk);
+        self.capture.push(chunk);
+
+        let mut event = None;
+        for prob in self.predict(chunk)? {
             if let Some(e) = self.debouncer.step(prob) {
                 event = Some(e);
             }
@@ -85,7 +96,7 @@ impl VadBackend {
             Some(VadEvent::SpeechStarted) => self.capture.start(self.preroll.snapshot()),
             Some(VadEvent::SpeechEnded) => {
                 self.capture.stop();
-                self.reset_detection_state();
+                self.reset();
             }
             None => {}
         }
@@ -93,12 +104,47 @@ impl VadBackend {
         Ok(event)
     }
 
-    /// Return the captured turn's audio and reset all internal state for the
-    /// next turn. Empty if speech was never confirmed.
     pub(super) fn finish(&mut self) -> Vec<i16> {
         self.preroll.clear();
-        self.reset_detection_state();
+        self.reset();
         self.capture.take()
+    }
+
+    pub(super) fn segment(&mut self, samples: &[i16]) -> Result<Vec<Vec<i16>>, VadError> {
+        self.reset();
+
+        let probs = self.predict(samples)?;
+        let preroll_native =
+            (self.sample_rate as u64 * self.preroll_duration_ms as u64 / 1000) as usize;
+
+        let mut segments = Vec::new();
+        let mut start: Option<usize> = None;
+        for (i, &prob) in probs.iter().enumerate() {
+            // Native-domain sample count consumed by the end of this frame.
+            let end_native = ((i + 1) as u64 * FRAME_SAMPLES as u64 * self.sample_rate as u64
+                / SILERO_SAMPLE_RATE as u64) as usize;
+            match self.debouncer.step(prob) {
+                Some(VadEvent::SpeechStarted) => {
+                    start = Some(end_native.saturating_sub(preroll_native));
+                }
+                Some(VadEvent::SpeechEnded) => {
+                    if let Some(s) = start.take() {
+                        segments.push(
+                            samples[s.min(samples.len())..end_native.min(samples.len())].to_vec(),
+                        );
+                    }
+                }
+                None => {}
+            }
+        }
+        // Flush trailing speech that never got a confirmed SpeechEnded —
+        // the recording just stopped mid-utterance.
+        if let Some(s) = start {
+            segments.push(samples[s.min(samples.len())..].to_vec());
+        }
+
+        self.reset();
+        Ok(segments)
     }
 
     /// Run one 512-sample 16kHz frame through the Silero ONNX model.
