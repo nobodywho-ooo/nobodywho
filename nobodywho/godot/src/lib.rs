@@ -7,7 +7,9 @@ mod chat;
 mod convert;
 mod model;
 mod sampler;
+mod speech_to_text;
 mod task;
+mod text_to_speech;
 mod tools;
 
 // --- Logging -----------------------------------------------------------------

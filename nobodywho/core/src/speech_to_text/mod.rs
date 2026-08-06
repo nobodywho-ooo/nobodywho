@@ -8,6 +8,7 @@ pub use crate::stream::{StreamOutput, TokenStream, TokenStreamAsync};
 pub use architectures::WhisperConfig;
 use std::path::PathBuf;
 use std::sync::mpsc;
+use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 // ---------------------------------------------------------------------------
@@ -47,7 +48,17 @@ impl SpeechToTextConfig {
 /// Cheap to clone — cloning only copies the channel sender.
 #[derive(Clone)]
 pub struct SpeechToText {
+    worker: Arc<Worker>,
+}
+
+// Dropped when the last handle drops. Joining matters: otherwise the worker
+// thread may still be dropping the model while the host process (e.g. Godot)
+// unloads this library at exit, which segfaults. Mirrors the TextToSpeech fix.
+struct Worker {
+    // Field order is load-bearing: msg_tx drops first, closing the channel
+    // so the worker loop exits; then the join below can complete.
     msg_tx: mpsc::Sender<SpeechToTextRequest>,
+    _join: crate::join_on_drop::JoinOnDrop,
 }
 
 impl SpeechToText {
@@ -61,7 +72,7 @@ impl SpeechToText {
     ) -> Result<Self, SpeechToTextError> {
         let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SpeechToTextRequest>();
-        std::thread::spawn(move || {
+        let join = std::thread::spawn(move || {
             while let Ok((input, response)) = msg_rx.recv() {
                 match response {
                     SpeechToTextResponseChannel::Full(tx) => {
@@ -78,7 +89,12 @@ impl SpeechToText {
                 }
             }
         });
-        Ok(Self { msg_tx })
+        Ok(Self {
+            worker: Arc::new(Worker {
+                msg_tx,
+                _join: crate::join_on_drop::JoinOnDrop::new(join),
+            }),
+        })
     }
 
     fn enqueue(
@@ -87,7 +103,8 @@ impl SpeechToText {
     ) -> Result<tokio::sync::mpsc::Receiver<Result<String, SpeechToTextError>>, SpeechToTextError>
     {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        self.msg_tx
+        self.worker
+            .msg_tx
             .send((input, SpeechToTextResponseChannel::Full(tx)))
             .map_err(|e| SpeechToTextError::Transcription(format!("stt worker stopped: {e}")))?;
         Ok(rx)
@@ -98,7 +115,8 @@ impl SpeechToText {
         input: AudioInput,
     ) -> Result<UnboundedReceiver<StreamOutput<SpeechToTextError>>, SpeechToTextError> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.msg_tx
+        self.worker
+            .msg_tx
             .send((input, SpeechToTextResponseChannel::Stream(tx)))
             .map_err(|e| SpeechToTextError::Transcription(format!("stt worker stopped: {e}")))?;
         Ok(rx)
