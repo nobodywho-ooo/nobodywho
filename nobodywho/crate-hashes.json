@@ -6,7 +6,7 @@
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_source_file@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_text_size@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
   "git+https://github.com/everruns/bashkit?tag=v0.1.10#0.1.10": "0i0m81sqcmkynrdi45q112p6brcna9ws7wy1ac3wkh6mjl5k9swg",
-  "git+https://github.com/jona605a/llama-cpp-rs?rev=7ffc9a92362d4e9ebb4bfa4437b076867acdc955#llama-cpp-2@0.1.152": "0ccwj9azblc6xyl0xnkh24si3qnvgcaybnbhrydfw1wkqy4jssw5",
-  "git+https://github.com/jona605a/llama-cpp-rs?rev=7ffc9a92362d4e9ebb4bfa4437b076867acdc955#llama-cpp-sys-2@0.1.152": "0ccwj9azblc6xyl0xnkh24si3qnvgcaybnbhrydfw1wkqy4jssw5",
-  "git+https://github.com/pydantic/monty?tag=v0.0.7#0.0.7": "0k7a1pqyph7062msz39p6v2s1ylpyjn37wbscwmi09m3xkj109pa"
+  "git+https://github.com/pydantic/monty?tag=v0.0.7#0.0.7": "0k7a1pqyph7062msz39p6v2s1ylpyjn37wbscwmi09m3xkj109pa",
+  "git+https://github.com/utilityai/llama-cpp-rs?branch=main#llama-cpp-2@0.1.154": "0f72fhx42cl6amkifn1cvw6arwc672334xr1lhm0k6yd88rk83vw",
+  "git+https://github.com/utilityai/llama-cpp-rs?branch=main#llama-cpp-sys-2@0.1.154": "0f72fhx42cl6amkifn1cvw6arwc672334xr1lhm0k6yd88rk83vw"
 }
