@@ -469,19 +469,19 @@ pub enum WorkerError {
     GILPoison, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum SetterError {
     #[error("Worker terminated before processing setter: {0}")]
     SetterError(String),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum GetterError {
     #[error("Worker terminated before processing getter: {0}")]
     GetterError(String),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum TokenizeError {
     #[error("Worker terminated before processing tokenize request")]
     WorkerTerminated,
