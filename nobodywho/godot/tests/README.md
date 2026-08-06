@@ -114,9 +114,9 @@ chat_test.gd              # NobodyWhoChat query/mutation tests (needs TEST_MODEL
 
    ```gdscript
    var suites: Array = [
-       preload("res://task_test.gd").new(),
-       preload("res://token_stream_test.gd").new(),
-       preload("res://chat_test.gd").new(),   # <-- add here
+       preload("res://chat_test.gd").new(),
+       preload("res://tools_test.gd").new(),
+       preload("res://your_test.gd").new(),   # <-- add here
    ]
    ```
 
@@ -140,15 +140,15 @@ A few things that bit the test author and are worth knowing:
   infer type" because the method call on a `Variant` has no static return
   type. Use an explicit type: `var x: String = ...`.
 - **Don't `free()` a `RefCounted`.** `NobodyWhoChat`/`NobodyWhoModel`/
-  `NobodyWhoTask`/`NobodyWhoTokenStream` are all `RefCounted` (refcount-
-  managed). Calling `.free()` on them errors. Just let them drop out of scope.
+  `NobodyWhoTool`/`NobodyWhoTask`/`NobodyWhoTokenStream` are all `RefCounted`
+  (refcount-managed). Calling `.free()` on them errors. Just let them drop
+  out of scope.
 - **Awaiting the async methods directly.** Every async `#[func]` —
   `create()` included — returns the internal task's `wait()` result (a
   value-or-Signal `Variant`), so `await chat.foo()` works directly; you
   never call `.wait()`. Await the return value **immediately**: storing it
   and awaiting after another await/frame may await an already-fired one-shot
-  Signal and hang. (`NobodyWhoTask` itself is internal machinery, only
-  exercised directly by `task_test.gd`.)
+  Signal and hang.
 
 ## Notes
 
@@ -156,7 +156,6 @@ A few things that bit the test author and are worth knowing:
   `TEST_MODEL` env var (see "Model-backed tests" above). Full end-to-end
   `ask()` streaming tests (which generate tokens and need a longer timeout)
   are a natural next addition — follow the same `TEST_MODEL` + skip pattern.
-- The `_test_*` `#[func]`s on `NobodyWhoTask` / `NobodyWhoTokenStream` are
-  throwaway scaffolding for the rewrite's early phases (see
-  `REWRITE_PLAN.md` §8 Phase 0). They'll be removed once the real paths are
-  covered by end-to-end tests.
+- The `_test_*` `#[func]` scaffolding from the rewrite's early phases has
+  been removed; the latch/stream primitives are now exercised end-to-end by
+  the model-backed `chat_test.gd` and `tools_test.gd` suites.
