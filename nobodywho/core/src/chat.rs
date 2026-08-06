@@ -1631,10 +1631,10 @@ impl<'a> Chat<'a> {
         &mut self,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let mut chunks = self.render_as_chunks(true)?;
+        let mut chunks = self.render_as_chunks(&self.messages, true)?;
         if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
             self.context_shift()?;
-            chunks = self.render_as_chunks(true)?;
+            chunks = self.render_as_chunks(&self.messages, true)?;
         }
 
         // We should never try to sync with an empty render
@@ -1683,7 +1683,7 @@ impl<'a> Chat<'a> {
                 break;
             }
 
-            let chunks = self.render_as_chunks(false)?;
+            let chunks = self.render_as_chunks(&messages, false)?;
             if chunks.n_tokens() <= target_token_size {
                 break;
             }
@@ -1949,7 +1949,7 @@ impl<'a> Chat<'a> {
             .is_none_or(|fmt| !response.contains(fmt.begin_token())));
         self.add_assistant_message(response);
 
-        self.context.chunks = self.render_as_chunks(true)?;
+        self.context.chunks = self.render_as_chunks(&self.messages, true)?;
 
         Ok(self)
     }
@@ -1957,8 +1957,11 @@ impl<'a> Chat<'a> {
     /// Go for the unhandled mode when you are context shifting.
     /// That is for avoiding the render will concat system message with the first user message.
     /// Otherwise please handle stuff.
-    fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
-        let messages = &self.messages;
+    fn render_as_chunks(
+        &self,
+        messages: &[Message],
+        handled: bool,
+    ) -> Result<TokenizerChunks, RenderError> {
         let template_context = ChatTemplateContext::new(
             self.template_variables.clone(),
             if self.tools.is_empty() {
@@ -1975,8 +1978,7 @@ impl<'a> Chat<'a> {
                 .render_unhandled(messages, &template_context)?
         };
 
-        let bitmaps: Vec<&MtmdBitmap> = self
-            .messages
+        let bitmaps: Vec<&MtmdBitmap> = messages
             .iter()
             .flat_map(|msg| msg.assets())
             .filter_map(|asset| self.context.bitmaps.get(&asset.id))
@@ -2729,7 +2731,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(true)?.len();
+        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2752,6 +2754,51 @@ mod tests {
         println!("Messages after shift: {}", messages_after.len());
         println!("Token count after shift: {}", token_count);
         println!("Target token size: {}", target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_measures_shortened_history() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 512,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+
+        for (user, assistant) in [
+            ("first".to_string(), "first".to_string()),
+            ("padding ".repeat(target_size), "large".to_string()),
+            ("keep".to_string(), "keep".to_string()),
+            ("recent".to_string(), "recent".to_string()),
+        ] {
+            worker.add_user_message(user, vec![]);
+            worker.add_assistant_message(assistant);
+        }
+        worker.add_user_message("final".to_string(), vec![]);
+
+        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
+
+        let mut shortened_messages = worker.messages.clone();
+        shortened_messages.drain(2..=3);
+        assert!(
+            worker
+                .render_as_chunks(&shortened_messages, false)?
+                .n_tokens()
+                <= target_size
+        );
+
+        worker.context_shift()?;
+
+        assert!(worker.messages.iter().any(|message| {
+            matches!(message, Message::User { content, .. } if content.to_string() == "keep")
+        }));
+        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() <= target_size);
 
         Ok(())
     }
@@ -2843,7 +2890,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(true)?.len();
+        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
