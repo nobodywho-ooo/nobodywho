@@ -13,23 +13,23 @@ use crate::task::task;
 /// semantic search / RAG. Build it with the async factory:
 ///
 /// ```gdscript
-/// var enc = await NobodyWhoEmbedding.create(model, {})
+/// var enc = await NobodyWhoEncoder.create(model, {})
 /// # or from a path (loaded with default model options):
-/// var enc = await NobodyWhoEmbedding.create("res://bge-small.gguf", {})
+/// var enc = await NobodyWhoEncoder.create("res://bge-small.gguf", {})
 /// var vec: PackedFloat32Array = await enc.encode("hello")
 /// ```
 ///
 /// `model` is a `NobodyWhoModel` or a path String. Resolves to the
-/// `NobodyWhoEmbedding`, or null on failure (with a `godot_error!`).
+/// `NobodyWhoEncoder`, or null on failure (with a `godot_error!`).
 #[derive(GodotClass)]
 #[class(no_init, base=RefCounted)]
-pub struct NobodyWhoEmbedding {
+pub struct NobodyWhoEncoder {
     handle: EncoderAsync,
     base: Base<RefCounted>,
 }
 
 #[godot_api]
-impl NobodyWhoEmbedding {
+impl NobodyWhoEncoder {
     /// Create an embedding model asynchronously (the model loads off the main
     /// thread if a path is given). `await create(...)` resolves to the
     /// encoder, or null. `config` is a Dictionary with optional keys:
@@ -59,7 +59,7 @@ impl NobodyWhoEmbedding {
                 }
             } else {
                 godot_error!(
-                    "NobodyWhoEmbedding.create() expects a NobodyWhoModel or a path String"
+                    "NobodyWhoEncoder.create() expects a NobodyWhoModel or a path String"
                 );
                 return Variant::nil();
             };
