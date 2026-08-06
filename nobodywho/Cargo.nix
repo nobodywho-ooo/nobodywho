@@ -8277,13 +8277,13 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.154";
+        version = "0.1.153";
         edition = "2021";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "bed81ad4ab1a6c904b11d425608e50f976d8ea62";
-          sha256 = "0f72fhx42cl6amkifn1cvw6arwc672334xr1lhm0k6yd88rk83vw";
+          rev = "b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc";
+          sha256 = "1z1s58pxf4nk6c3306xzp7w0gbvw1m6rl5c44cfqgzmplyjysr7q";
         };
         libName = "llama_cpp_2";
         dependencies = [
@@ -8360,14 +8360,14 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.154";
+        version = "0.1.153";
         edition = "2021";
         links = "llama";
         workspace_member = null;
         src = pkgs.fetchgit {
           url = "https://github.com/utilityai/llama-cpp-rs";
-          rev = "bed81ad4ab1a6c904b11d425608e50f976d8ea62";
-          sha256 = "0f72fhx42cl6amkifn1cvw6arwc672334xr1lhm0k6yd88rk83vw";
+          rev = "b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc";
+          sha256 = "1z1s58pxf4nk6c3306xzp7w0gbvw1m6rl5c44cfqgzmplyjysr7q";
         };
         libName = "llama_cpp_sys_2";
         buildDependencies = [
@@ -19225,7 +19225,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.48.0";
+            packageId = "windows-sys 0.52.0";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -19672,7 +19672,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.52.0" = rec {
         crateName = "windows-sys";
@@ -19920,7 +19920,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_System" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_SystemInformation" "Win32_System_Threading" "default" ];
       };
       "windows-sys 0.61.2" = rec {
         crateName = "windows-sys";
