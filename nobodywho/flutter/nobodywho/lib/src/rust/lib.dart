@@ -8,23 +8,19 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_architecture`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
+            // These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_architecture`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`
 
-/// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
+
+            /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
 /// `#[frb(default = "noopOnDownloadProgress")]` attribute (closure literals
 /// aren't const in Dart, but top-level function tear-offs are).
-void noopOnDownloadProgress(PlatformInt64 downloaded, PlatformInt64 total) =>
-    NobodyWho.instance.api.crateNoopOnDownloadProgress(
-      downloaded: downloaded,
-      total: total,
-    );
+void  noopOnDownloadProgress(PlatformInt64 downloaded, PlatformInt64 total) => NobodyWho.instance.api.crateNoopOnDownloadProgress(downloaded: downloaded, total: total);
 
 /// Helper function to convert ToolCall arguments to a JSON string.
 /// This is needed because serde_json::Value becomes an opaque type in Dart.
-String toolCallArgumentsJson({required ToolCall toolCall}) =>
-    NobodyWho.instance.api.crateToolCallArgumentsJson(toolCall: toolCall);
+String  toolCallArgumentsJson({required ToolCall toolCall }) => NobodyWho.instance.api.crateToolCallArgumentsJson(toolCall: toolCall);
 
 /// Download a model from a remote URL or HuggingFace path and return the local file path.
 ///
@@ -35,751 +31,749 @@ String toolCallArgumentsJson({required ToolCall toolCall}) =>
 ///     model_path: Path or URL to a GGUF model file.
 ///     headers: Optional HTTP headers (e.g. `{"Authorization": "Bearer hf_..."}`).
 ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while downloading.
-Future<String> downloadModel({
-  required String modelPath,
-  Map<String, String> headers = const {},
-  FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
-      noopOnDownloadProgress,
-}) => NobodyWho.instance.api.crateDownloadModel(
-  modelPath: modelPath,
-  headers: headers,
-  onDownloadProgress: onDownloadProgress,
-);
+Future<String>  downloadModel({required String modelPath , Map<String, String> headers = const {}, FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress = noopOnDownloadProgress}) => NobodyWho.instance.api.crateDownloadModel(modelPath: modelPath, headers: headers, onDownloadProgress: onDownloadProgress);
 
-double cosineSimilarity({required List<double> a, required List<double> b}) =>
-    NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
+double  cosineSimilarity({required List<double> a , required List<double> b }) => NobodyWho.instance.api.crateCosineSimilarity(a: a, b: b);
 
 /// Returns every cached .gguf model paired with its byte size.
 ///
 /// Each entry is (absolute path, size in bytes).
-List<(String, BigInt)> getCachedModels() =>
-    NobodyWho.instance.api.crateGetCachedModels();
-
-RustTool newToolImpl({
-  required FutureOr<String> Function(String) function,
-  required String name,
-  required String description,
-  required String runtimeType,
-  required Map<String, String> parameterDescriptions,
-}) => NobodyWho.instance.api.crateNewToolImpl(
-  function: function,
-  name: name,
-  description: description,
-  runtimeType: runtimeType,
-  parameterDescriptions: parameterDescriptions,
-);
-
-RustTool newBashTool({BigInt? maxCommands}) =>
-    NobodyWho.instance.api.crateNewBashTool(maxCommands: maxCommands);
-
-RustTool newPythonTool({
-  BigInt? maxDurationSecs,
-  BigInt? maxMemoryBytes,
-  BigInt? maxRecursionDepth,
-}) => NobodyWho.instance.api.crateNewPythonTool(
-  maxDurationSecs: maxDurationSecs,
-  maxMemoryBytes: maxMemoryBytes,
-  maxRecursionDepth: maxRecursionDepth,
-);
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>
-abstract class Asset implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
-abstract class CompletionError implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
-abstract class CrossEncoder implements RustOpaqueInterface {
-  /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
-  ///
-  /// Args:
-  ///     model_path: Path or URL to a GGUF cross-encoder model file.
-  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
-  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
-  ///         final emit on completion. Not invoked for cached/local files.
-  ///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static Future<CrossEncoder> fromPath({
-    required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
-        noopOnDownloadProgress,
-    int nCtx = 4096,
-    bool useGpu = true,
-  }) => NobodyWho.instance.api.crateCrossEncoderFromPath(
-    modelPath: modelPath,
-    onDownloadProgress: onDownloadProgress,
-    nCtx: nCtx,
-    useGpu: useGpu,
-  );
-
-  factory CrossEncoder({required Model model, int nCtx = 4096}) =>
-      NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
-
-  Future<Float32List> rank({
-    required String query,
-    required List<String> documents,
-  });
-
-  Future<List<(String, double)>> rankAndSort({
-    required String query,
-    required List<String> documents,
-  });
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>
-abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
-abstract class Encoder implements RustOpaqueInterface {
-  Future<Float32List> encode({required String text});
-
-  /// Encode multiple texts, preserving input order.
-  Future<List<Float32List>> encodeBatch({required List<String> texts});
-
-  /// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
-  ///
-  /// Args:
-  ///     model_path: Path or URL to a GGUF embedding model file.
-  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
-  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
-  ///         final emit on completion. Not invoked for cached/local files.
-  ///     n_ctx: Context size for the encoder. Defaults to 4096.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static Future<Encoder> fromPath({
-    required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
-        noopOnDownloadProgress,
-    int nCtx = 4096,
-    bool useGpu = true,
-  }) => NobodyWho.instance.api.crateEncoderFromPath(
-    modelPath: modelPath,
-    onDownloadProgress: onDownloadProgress,
-    nCtx: nCtx,
-    useGpu: useGpu,
-  );
-
-  factory Encoder({required Model model, int nCtx = 4096}) =>
-      NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
-abstract class EncoderWorkerError implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
-abstract class GetterError implements RustOpaqueInterface {}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
-abstract class Model implements RustOpaqueInterface {
-  static Future<Model> load({
-    required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
-        noopOnDownloadProgress,
-    bool useGpu = true,
-    String? projectionModelPath = null,
-    String? draftModelPath = null,
-  }) => NobodyWho.instance.api.crateModelLoad(
-    modelPath: modelPath,
-    onDownloadProgress: onDownloadProgress,
-    useGpu: useGpu,
-    projectionModelPath: projectionModelPath,
-    draftModelPath: draftModelPath,
-  );
-
-  /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
-  /// HTTPS URL, or `auto` for memory-based selection. Remote models are downloaded
-  /// and cached automatically.
-  ///
-  /// Args:
-  ///     model_path: Path, URL, or `auto`.
-  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
-  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
-  ///         final emit on completion. Not invoked for cached/local files.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
-  ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
-  ///         chats built from this model opt into MTP speculative decoding.
-  Future<int> maxCtx();
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
-abstract class RustChat implements RustOpaqueInterface {
-  RustTokenStream ask(String message);
-
-  /// Send a raw JSON prompt and get a stream of response tokens.
-  /// The JSON string is parsed and passed as a structured content field.
-  /// Called by the Dart SDK layer — the json argument is always valid JSON.
-  RustTokenStream askWithJsonPrompt({required String json});
-
-  /// Send a multimodal prompt (text + images) and get a stream of response tokens.
-  ///
-  /// Args:
-  ///     parts: List of PromptPart (text or image) making up the prompt
-  RustTokenStream askWithPrompt({required List<PromptPart> parts});
-
-  /// Create chat directly from a model path. This is async as it loads a model
-  ///
-  /// Args:
-  ///     model_path: Path to GGUF model file
-  ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
-  ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
-  ///         final emit on completion. Not invoked for cached/local files.
-  ///     projection_model_path: Path to a .mmproj file for vision/multimodal models
-  ///     system_prompt: System message to guide the model's behavior
-  ///     context_size: Context size (maximum conversation length in tokens)
-  ///     tools: List of Tool instances the model can call
-  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
-  ///         device's physical core count (performance cores only, on Apple silicon) —
-  ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
-  ///         headroom for the rest of the app. Clamped to the CPU count.
-  static Future<RustChat> fromPath({
-    required String modelPath,
-    FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
-        noopOnDownloadProgress,
-    String? projectionModelPath = null,
-    String? draftModelPath = null,
-    String? systemPrompt = null,
-    int contextSize = 4096,
-    bool? allowThinking = null,
-    Map<String, bool> templateVariables = const {},
-    List<RustTool> tools = const [],
-    SamplerConfig? sampler = null,
-    bool useGpu = true,
-    MtpConfig? mtp = null,
-    int? threadCount = null,
-  }) => NobodyWho.instance.api.crateRustChatFromPath(
-    modelPath: modelPath,
-    onDownloadProgress: onDownloadProgress,
-    projectionModelPath: projectionModelPath,
-    draftModelPath: draftModelPath,
-    systemPrompt: systemPrompt,
-    contextSize: contextSize,
-    allowThinking: allowThinking,
-    templateVariables: templateVariables,
-    tools: tools,
-    sampler: sampler,
-    useGpu: useGpu,
-    mtp: mtp,
-    threadCount: threadCount,
-  );
-
-  Future<List<Message>> getChatHistory();
-
-  Future<SamplerConfig> getSamplerConfig();
-
-  Future<ChatStats> getStats();
-
-  Future<String?> getSystemPrompt();
-
-  Future<Map<String, bool>> getTemplateVariables();
-
-  /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
-  /// Resets each generation (per-response, not cumulative). Null when MTP is
-  /// disabled or no drafts were proposed in the last generation.
-  Future<double?> mtpAcceptanceRate();
-
-  /// Create chat from existing model.
-  ///
-  /// For vision/multimodal models, load the model with image ingestion enabled first:
-  /// ```dart
-  /// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
-  /// final chat = Chat(model: model);
-  /// ```
-  ///
-  /// Args:
-  ///     model: A Model instance (may include a projection model for vision)
-  ///     system_prompt: System message to guide the model's behavior
-  ///     context_size: Context size (maximum conversation length in tokens)
-  ///     tools: List of Tool instances the model can call
-  ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
-  ///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
-  ///         Model to have been loaded with a compatible `draft_model_path`. Adds
-  ///         around 5% to VRAM usage. Defaults to null (disabled).
-  ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
-  ///         device's physical core count (performance cores only, on Apple silicon) —
-  ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
-  ///         headroom for the rest of the app. Clamped to the CPU count.
-  factory RustChat({
-    required Model model,
-    String? systemPrompt = null,
-    int contextSize = 4096,
-    bool? allowThinking = null,
-    Map<String, bool> templateVariables = const {},
-    List<RustTool> tools = const [],
-    SamplerConfig? sampler = null,
-    MtpConfig? mtp = null,
-    int? threadCount = null,
-  }) => NobodyWho.instance.api.crateRustChatNew(
-    model: model,
-    systemPrompt: systemPrompt,
-    contextSize: contextSize,
-    allowThinking: allowThinking,
-    templateVariables: templateVariables,
-    tools: tools,
-    sampler: sampler,
-    mtp: mtp,
-    threadCount: threadCount,
-  );
-
-  Future<void> resetContext({
-    String? systemPrompt,
-    required List<RustTool> tools,
-  });
-
-  Future<void> resetHistory();
-
-  Future<void> setAllowThinking({required bool allowThinking});
-
-  Future<void> setChatHistory({required List<Message> messages});
-
-  Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
-
-  Future<void> setSystemPrompt({String? systemPrompt});
-
-  Future<void> setTemplateVariable({required String name, required bool value});
-
-  Future<void> setTemplateVariables({required Map<String, bool> variables});
-
-  Future<void> setTools({required List<RustTool> tools});
-
-  void stopGeneration();
-
-  Future<List<int?>> tokenize({required String message});
-
-  Future<List<int?>> tokenizeWithPrompt({required List<PromptPart> parts});
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTT>>
-abstract class RustStt implements RustOpaqueInterface {
-  /// Create an STT handle.
-  /// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
-  /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
-  /// `quantization` — ONNX precision variant to download and load: one of
-  /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
-  /// to use `"default"`.
-  static RustStt new_({
-    required String source,
-    String? language = null,
-    String? quantization = null,
-  }) => NobodyWho.instance.api.crateRustSttNew(
-    source: source,
-    language: language,
-    quantization: quantization,
-  );
-
-  /// Transcribe an audio file (WAV / MP3).
-  RustSttStream transcribeFile({required String path});
-
-  /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
-  /// `sample_rate` is the capture rate in Hz; resampled to 16 kHz internally.
-  RustSttStream transcribePcm({
-    required List<int> samples,
-    required int sampleRate,
-  });
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTTStream>>
-abstract class RustSttStream implements RustOpaqueInterface {
-  Future<String> completed();
-
-  /// Stream all tokens into `sink`. Resolves when transcription is complete.
-  Stream<String> iter();
-
-  Future<String?> nextToken();
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>
-abstract class RustTokenStream implements RustOpaqueInterface {
-  Future<String> completed();
-
-  Stream<String> iter();
-
-  Future<String?> nextToken();
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>
-abstract class RustTool implements RustOpaqueInterface {
-  /// Get the JSON schema for this tool's parameters as a string
-  String getSchemaJson();
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>
-abstract class RustVad implements RustOpaqueInterface {
-  /// Return the current turn's captured audio (from the confirmed
-  /// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
-  /// and reset internal state for the next turn. Empty if speech was never confirmed.
-  Int16List finish();
-
-  /// Create a voice activity detector.
-  /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
-  /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
-  /// pass `None` to use the default (`hf://onnx-community/silero-vad`).
-  static RustVad new_({
-    required int sampleRate,
-    String? source = null,
-    double? threshold = null,
-    int? minSilenceDurationMs = null,
-    int? minSpeechDurationMs = null,
-    int? prerollDurationMs = null,
-  }) => NobodyWho.instance.api.crateRustVadNew(
-    sampleRate: sampleRate,
-    source: source,
-    threshold: threshold,
-    minSilenceDurationMs: minSilenceDurationMs,
-    minSpeechDurationMs: minSpeechDurationMs,
-    prerollDurationMs: prerollDurationMs,
-  );
-
-  /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
-  /// buffer — the detector tracks the current turn internally). Returns
-  /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
-  VadEvent? push({required List<int> chunk});
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
-abstract class SamplerBuilder implements RustOpaqueInterface {
-  /// Sample from the probability distribution (weighted random selection).
-  ///
-  /// Returns:
-  ///     A complete SamplerConfig ready to use
-  SamplerConfig dist();
-
-  /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
-  ///
-  /// Args:
-  ///     multiplier: Penalty strength multiplier
-  ///     base: Base penalty value
-  ///     allowed_length: Maximum allowed repetition length
-  ///     penalty_last_n: Number of recent tokens to consider
-  ///     seq_breakers: List of strings that break repetition sequences
-  SamplerBuilder dry({
-    required double multiplier,
-    required double base,
-    required int allowedLength,
-    required int penaltyLastN,
-    required List<String> seqBreakers,
-  });
-
-  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-  SamplerBuilder grammar({
-    required String grammar,
-    String? triggerOn,
-    required String root,
-  });
-
-  /// Always select the most probable token (deterministic).
-  ///
-  /// Returns:
-  ///     A complete SamplerConfig ready to use
-  SamplerConfig greedy();
-
-  /// Keep tokens with probability above min_p * (probability of most likely token).
-  ///
-  /// Args:
-  ///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
-  ///     min_keep: Minimum number of tokens to always keep
-  SamplerBuilder minP({required double minP, required int minKeep});
-
-  /// Use Mirostat v1 algorithm for perplexity-controlled sampling.
-  /// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
-  /// producing more coherent output than fixed temperature. Good for long-form generation.
-  ///
-  /// Args:
-  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
-  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
-  ///     m: Number of candidates to consider (typically 100)
-  ///
-  /// Returns:
-  ///     A complete SamplerConfig ready to use
-  SamplerConfig mirostatV1({
-    required double tau,
-    required double eta,
-    required int m,
-  });
-
-  /// Use Mirostat v2 algorithm for perplexity-controlled sampling.
-  /// Mirostat v2 is a simplified version of Mirostat that's often preferred.
-  /// It dynamically adjusts sampling to maintain a target "surprise" level.
-  ///
-  /// Args:
-  ///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
-  ///     eta: Learning rate for perplexity adjustment (typically 0.1)
-  ///
-  /// Returns:
-  ///     A complete SamplerConfig ready to use
-  SamplerConfig mirostatV2({required double tau, required double eta});
-
-  /// Create a new SamplerBuilder to construct a custom sampler chain.
-  factory SamplerBuilder() => NobodyWho.instance.api.crateSamplerBuilderNew();
-
-  /// Apply repetition penalties to discourage repeated tokens.
-  ///
-  /// Args:
-  ///     penalty_last_n: Number of recent tokens to penalize (0 = disable)
-  ///     penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
-  ///     penalty_freq: Frequency penalty based on token occurrence count
-  ///     penalty_present: Presence penalty for any token that appeared before
-  SamplerBuilder penalties({
-    required int penaltyLastN,
-    required double penaltyRepeat,
-    required double penaltyFreq,
-    required double penaltyPresent,
-  });
-
-  /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
-  /// `greedy` ignores it. If unset, a default seed is used.
-  SamplerBuilder seed({required int seed});
-
-  /// Apply temperature scaling to the probability distribution.
-  ///
-  /// Args:
-  ///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
-  SamplerBuilder temperature({required double temperature});
-
-  /// Keep only the top K most probable tokens. Typical values: 40-50.
-  ///
-  /// Args:
-  ///     top_k: Number of top tokens to keep
-  SamplerBuilder topK({required int topK});
-
-  /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
-  ///
-  /// Args:
-  ///     top_p: Cumulative probability threshold (0.0 to 1.0)
-  ///     min_keep: Minimum number of tokens to always keep
-  SamplerBuilder topP({required double topP, required int minKeep});
-
-  /// Typical sampling: keeps tokens close to expected information content.
-  ///
-  /// Args:
-  ///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
-  ///     min_keep: Minimum number of tokens to always keep
-  SamplerBuilder typicalP({required double typP, required int minKeep});
-
-  /// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
-  /// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
-  ///
-  /// Args:
-  ///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
-  ///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
-  ///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
-  SamplerBuilder xtc({
-    required double xtcProbability,
-    required double xtcThreshold,
-    required int minKeep,
-  });
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>
-abstract class SamplerConfig implements RustOpaqueInterface {
-  /// Deserialize a sampler configuration from a JSON string.
-  static SamplerConfig fromJson({required String jsonStr}) =>
-      NobodyWho.instance.api.crateSamplerConfigFromJson(jsonStr: jsonStr);
-
-  /// Serialize the sampler configuration to a JSON string.
-  String toJson();
+List<(String,BigInt)>  getCachedModels() => NobodyWho.instance.api.crateGetCachedModels();
 
+RustTool  newToolImpl({required FutureOr<String> Function(String) function , required String name , required String description , required String runtimeType , required Map<String, String> parameterDescriptions }) => NobodyWho.instance.api.crateNewToolImpl(function: function, name: name, description: description, runtimeType: runtimeType, parameterDescriptions: parameterDescriptions);
+
+RustTool  newBashTool({BigInt? maxCommands }) => NobodyWho.instance.api.crateNewBashTool(maxCommands: maxCommands);
+
+RustTool  newPythonTool({BigInt? maxDurationSecs , BigInt? maxMemoryBytes , BigInt? maxRecursionDepth }) => NobodyWho.instance.api.crateNewPythonTool(maxDurationSecs: maxDurationSecs, maxMemoryBytes: maxMemoryBytes, maxRecursionDepth: maxRecursionDepth);
+
+            
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>
+                abstract class Asset implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
+                abstract class CompletionError implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CrossEncoder>>
+                abstract class CrossEncoder implements RustOpaqueInterface {
+                    /// Load a cross-encoder model from a local path, HuggingFace path, or HTTPS URL.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF cross-encoder model file.
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+///         final emit on completion. Not invoked for cached/local files.
+///     n_ctx: Context size for the cross-encoder. Defaults to 4096.
+///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+static Future<CrossEncoder>  fromPath({required String modelPath , FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress = noopOnDownloadProgress, int nCtx = 4096, bool useGpu = true})=>NobodyWho.instance.api.crateCrossEncoderFromPath(modelPath: modelPath, onDownloadProgress: onDownloadProgress, nCtx: nCtx, useGpu: useGpu);
+
+
+factory CrossEncoder({required Model model , int nCtx = 4096})=>NobodyWho.instance.api.crateCrossEncoderNew(model: model, nCtx: nCtx);
+
+
+ Future<Float32List>  rank({required String query , required List<String> documents });
+
+
+ Future<List<(String,double)>>  rankAndSort({required String query , required List<String> documents });
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CrossEncoderWorkerError>>
+                abstract class CrossEncoderWorkerError implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Encoder>>
+                abstract class Encoder implements RustOpaqueInterface {
+                     Future<Float32List>  encode({required String text });
+
+
+/// Encode multiple texts, preserving input order.
+ Future<List<Float32List>>  encodeBatch({required List<String> texts });
+
+
+/// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
+///
+/// Args:
+///     model_path: Path or URL to a GGUF embedding model file.
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+///         final emit on completion. Not invoked for cached/local files.
+///     n_ctx: Context size for the encoder. Defaults to 4096.
+///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+static Future<Encoder>  fromPath({required String modelPath , FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress = noopOnDownloadProgress, int nCtx = 4096, bool useGpu = true})=>NobodyWho.instance.api.crateEncoderFromPath(modelPath: modelPath, onDownloadProgress: onDownloadProgress, nCtx: nCtx, useGpu: useGpu);
+
+
+factory Encoder({required Model model , int nCtx = 4096})=>NobodyWho.instance.api.crateEncoderNew(model: model, nCtx: nCtx);
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< EncoderWorkerError>>
+                abstract class EncoderWorkerError implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
+                abstract class GetterError implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
+                abstract class Model implements RustOpaqueInterface {
+                    static Future<Model>  load({required String modelPath , FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress = noopOnDownloadProgress, bool useGpu = true, String? projectionModelPath = null, String? draftModelPath = null})=>NobodyWho.instance.api.crateModelLoad(modelPath: modelPath, onDownloadProgress: onDownloadProgress, useGpu: useGpu, projectionModelPath: projectionModelPath, draftModelPath: draftModelPath);
+
+
+/// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
+/// HTTPS URL, or `auto` for memory-based selection. Remote models are downloaded
+/// and cached automatically.
+///
+/// Args:
+///     model_path: Path, URL, or `auto`.
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+///         final emit on completion. Not invoked for cached/local files.
+///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
+///         chats built from this model opt into MTP speculative decoding.
+ Future<int>  maxCtx();
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
+                abstract class RustChat implements RustOpaqueInterface {
+                     RustTokenStream  ask(String message);
+
+
+/// Send a raw JSON prompt and get a stream of response tokens.
+/// The JSON string is parsed and passed as a structured content field.
+/// Called by the Dart SDK layer — the json argument is always valid JSON.
+ RustTokenStream  askWithJsonPrompt({required String json });
+
+
+/// Send a multimodal prompt (text + images) and get a stream of response tokens.
+///
+/// Args:
+///     parts: List of PromptPart (text or image) making up the prompt
+ RustTokenStream  askWithPrompt({required List<PromptPart> parts });
+
+
+/// Create chat directly from a model path. This is async as it loads a model
+///
+/// Args:
+///     model_path: Path to GGUF model file
+///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
+///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
+///         final emit on completion. Not invoked for cached/local files.
+///     projection_model_path: Path to a .mmproj file for vision/multimodal models
+///     system_prompt: System message to guide the model's behavior
+///     context_size: Context size (maximum conversation length in tokens)
+///     tools: List of Tool instances the model can call
+///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+///         device's physical core count (performance cores only, on Apple silicon) —
+///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+///         headroom for the rest of the app. Clamped to the CPU count.
+static Future<RustChat>  fromPath({required String modelPath , FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress = noopOnDownloadProgress, String? projectionModelPath = null, String? draftModelPath = null, String? systemPrompt = null, int contextSize = 4096, bool? allowThinking = null, Map<String, bool> templateVariables = const {}, List<RustTool> tools = const [], SamplerConfig? sampler = null, bool useGpu = true, MtpConfig? mtp = null, int? threadCount = null})=>NobodyWho.instance.api.crateRustChatFromPath(modelPath: modelPath, onDownloadProgress: onDownloadProgress, projectionModelPath: projectionModelPath, draftModelPath: draftModelPath, systemPrompt: systemPrompt, contextSize: contextSize, allowThinking: allowThinking, templateVariables: templateVariables, tools: tools, sampler: sampler, useGpu: useGpu, mtp: mtp, threadCount: threadCount);
+
+
+ Future<List<Message>>  getChatHistory();
+
+
+ Future<SamplerConfig>  getSamplerConfig();
+
+
+ Future<ChatStats>  getStats();
+
+
+ Future<String?>  getSystemPrompt();
+
+
+ Future<Map<String, bool>>  getTemplateVariables();
+
+
+/// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+/// Resets each generation (per-response, not cumulative). Null when MTP is
+/// disabled or no drafts were proposed in the last generation.
+ Future<double?>  mtpAcceptanceRate();
+
+
+/// Create chat from existing model.
+///
+/// For vision/multimodal models, load the model with image ingestion enabled first:
+/// ```dart
+/// final model = Model.load("model.gguf", projectionModelPath: "mmproj.gguf");
+/// final chat = Chat(model: model);
+/// ```
+///
+/// Args:
+///     model: A Model instance (may include a projection model for vision)
+///     system_prompt: System message to guide the model's behavior
+///     context_size: Context size (maximum conversation length in tokens)
+///     tools: List of Tool instances the model can call
+///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
+///         Model to have been loaded with a compatible `draft_model_path`. Adds
+///         around 5% to VRAM usage. Defaults to null (disabled).
+///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+///         device's physical core count (performance cores only, on Apple silicon) —
+///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+///         headroom for the rest of the app. Clamped to the CPU count.
+factory RustChat({required Model model , String? systemPrompt = null, int contextSize = 4096, bool? allowThinking = null, Map<String, bool> templateVariables = const {}, List<RustTool> tools = const [], SamplerConfig? sampler = null, MtpConfig? mtp = null, int? threadCount = null})=>NobodyWho.instance.api.crateRustChatNew(model: model, systemPrompt: systemPrompt, contextSize: contextSize, allowThinking: allowThinking, templateVariables: templateVariables, tools: tools, sampler: sampler, mtp: mtp, threadCount: threadCount);
+
+
+ Future<void>  resetContext({String? systemPrompt , required List<RustTool> tools });
+
+
+ Future<void>  resetHistory();
+
+
+ Future<void>  setAllowThinking({required bool allowThinking });
+
+
+ Future<void>  setChatHistory({required List<Message> messages });
+
+
+ Future<void>  setSamplerConfig({required SamplerConfig samplerConfig });
+
+
+ Future<void>  setSystemPrompt({String? systemPrompt });
+
+
+ Future<void>  setTemplateVariable({required String name , required bool value });
+
+
+ Future<void>  setTemplateVariables({required Map<String, bool> variables });
+
+
+ Future<void>  setTools({required List<RustTool> tools });
+
+
+ void  stopGeneration();
+
+
+ Future<List<int?>>  tokenize({required String message });
+
+
+ Future<List<int?>>  tokenizeWithPrompt({required List<PromptPart> parts });
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTT>>
+                abstract class RustStt implements RustOpaqueInterface {
+                    /// Create an STT handle.
+/// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
+/// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
+/// `quantization` — ONNX precision variant to download and load: one of
+/// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
+/// to use `"default"`.
+static RustStt  new_({required String source , String? language = null, String? quantization = null})=>NobodyWho.instance.api.crateRustSttNew(source: source, language: language, quantization: quantization);
+
+
+/// Transcribe an audio file (WAV / MP3).
+ RustSttStream  transcribeFile({required String path });
+
+
+/// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
+/// `sample_rate` is the capture rate in Hz; resampled to 16 kHz internally.
+ RustSttStream  transcribePcm({required List<int> samples , required int sampleRate });
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTTStream>>
+                abstract class RustSttStream implements RustOpaqueInterface {
+                     Future<String>  completed();
+
+
+/// Stream all tokens into `sink`. Resolves when transcription is complete.
+ Stream<String>  iter();
+
+
+ Future<String?>  nextToken();
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTokenStream>>
+                abstract class RustTokenStream implements RustOpaqueInterface {
+                     Future<String>  completed();
+
+
+ Stream<String>  iter();
+
+
+ Future<String?>  nextToken();
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustTool>>
+                abstract class RustTool implements RustOpaqueInterface {
+                    /// Get the JSON schema for this tool's parameters as a string
+ String  getSchemaJson();
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVad>>
+                abstract class RustVad implements RustOpaqueInterface {
+                    /// Return the current turn's captured audio (from the confirmed
+/// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
+/// and reset internal state for the next turn. Empty if speech was never confirmed.
+ Int16List  finish();
+
+
+/// Create a voice activity detector.
+/// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
+/// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
+/// pass `None` to use the default (`hf://onnx-community/silero-vad`).
+static RustVad  new_({required int sampleRate , String? source = null, double? threshold = null, int? minSilenceDurationMs = null, int? minSpeechDurationMs = null, int? prerollDurationMs = null})=>NobodyWho.instance.api.crateRustVadNew(sampleRate: sampleRate, source: source, threshold: threshold, minSilenceDurationMs: minSilenceDurationMs, minSpeechDurationMs: minSpeechDurationMs, prerollDurationMs: prerollDurationMs);
+
+
+/// Feed the newest chunk of i16 PCM audio (not the whole accumulated
+/// buffer — the detector tracks the current turn internally). Returns
+/// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
+ VadEvent?  push({required List<int> chunk });
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
+                abstract class SamplerBuilder implements RustOpaqueInterface {
+                    /// Sample from the probability distribution (weighted random selection).
+///
+/// Returns:
+///     A complete SamplerConfig ready to use
+ SamplerConfig  dist();
+
+
+/// DRY (Don't Repeat Yourself) sampler to reduce repetition.
+///
+/// Args:
+///     multiplier: Penalty strength multiplier
+///     base: Base penalty value
+///     allowed_length: Maximum allowed repetition length
+///     penalty_last_n: Number of recent tokens to consider
+///     seq_breakers: List of strings that break repetition sequences
+ SamplerBuilder  dry({required double multiplier , required double base , required int allowedLength , required int penaltyLastN , required List<String> seqBreakers });
+
+
+/// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
+ SamplerBuilder  grammar({required String grammar , String? triggerOn , required String root });
+
+
+/// Always select the most probable token (deterministic).
+///
+/// Returns:
+///     A complete SamplerConfig ready to use
+ SamplerConfig  greedy();
+
+
+/// Keep tokens with probability above min_p * (probability of most likely token).
+///
+/// Args:
+///     min_p: Minimum relative probability threshold (0.0 to 1.0). Typical: 0.05-0.1.
+///     min_keep: Minimum number of tokens to always keep
+ SamplerBuilder  minP({required double minP , required int minKeep });
+
+
+/// Use Mirostat v1 algorithm for perplexity-controlled sampling.
+/// Mirostat dynamically adjusts sampling to maintain a target "surprise" level,
+/// producing more coherent output than fixed temperature. Good for long-form generation.
+///
+/// Args:
+///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+///     eta: Learning rate for perplexity adjustment (typically 0.1)
+///     m: Number of candidates to consider (typically 100)
+///
+/// Returns:
+///     A complete SamplerConfig ready to use
+ SamplerConfig  mirostatV1({required double tau , required double eta , required int m });
+
+
+/// Use Mirostat v2 algorithm for perplexity-controlled sampling.
+/// Mirostat v2 is a simplified version of Mirostat that's often preferred.
+/// It dynamically adjusts sampling to maintain a target "surprise" level.
+///
+/// Args:
+///     tau: Target perplexity/surprise value (typically 3.0-5.0; lower = more focused)
+///     eta: Learning rate for perplexity adjustment (typically 0.1)
+///
+/// Returns:
+///     A complete SamplerConfig ready to use
+ SamplerConfig  mirostatV2({required double tau , required double eta });
+
+
+/// Create a new SamplerBuilder to construct a custom sampler chain.
+factory SamplerBuilder()=>NobodyWho.instance.api.crateSamplerBuilderNew();
+
+
+/// Apply repetition penalties to discourage repeated tokens.
+///
+/// Args:
+///     penalty_last_n: Number of recent tokens to penalize (0 = disable)
+///     penalty_repeat: Base repetition penalty (1.0 = no penalty, >1.0 = penalize)
+///     penalty_freq: Frequency penalty based on token occurrence count
+///     penalty_present: Presence penalty for any token that appeared before
+ SamplerBuilder  penalties({required int penaltyLastN , required double penaltyRepeat , required double penaltyFreq , required double penaltyPresent });
+
+
+/// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`, `mirostat_v2`, `xtc`).
+/// `greedy` ignores it. If unset, a default seed is used.
+ SamplerBuilder  seed({required int seed });
+
+
+/// Apply temperature scaling to the probability distribution.
+///
+/// Args:
+///     temperature: Temperature value (0.0 = deterministic, 1.0 = unchanged, >1.0 = more random)
+ SamplerBuilder  temperature({required double temperature });
+
+
+/// Keep only the top K most probable tokens. Typical values: 40-50.
+///
+/// Args:
+///     top_k: Number of top tokens to keep
+ SamplerBuilder  topK({required int topK });
+
+
+/// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
+///
+/// Args:
+///     top_p: Cumulative probability threshold (0.0 to 1.0)
+///     min_keep: Minimum number of tokens to always keep
+ SamplerBuilder  topP({required double topP , required int minKeep });
+
+
+/// Typical sampling: keeps tokens close to expected information content.
+///
+/// Args:
+///     typ_p: Typical probability mass (0.0 to 1.0). Typical: 0.9.
+///     min_keep: Minimum number of tokens to always keep
+ SamplerBuilder  typicalP({required double typP , required int minKeep });
+
+
+/// XTC (eXclude Top Choices) sampler that probabilistically excludes high-probability tokens.
+/// This can increase output diversity by sometimes forcing the model to pick less obvious tokens.
+///
+/// Args:
+///     xtc_probability: Probability of applying XTC on each token (0.0 to 1.0)
+///     xtc_threshold: Tokens with probability above this threshold may be excluded (0.0 to 1.0)
+///     min_keep: Minimum number of tokens to always keep (prevents excluding all tokens)
+ SamplerBuilder  xtc({required double xtcProbability , required double xtcThreshold , required int minKeep });
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerConfig>>
+                abstract class SamplerConfig implements RustOpaqueInterface {
+                    /// Deserialize a sampler configuration from a JSON string.
+static SamplerConfig  fromJson({required String jsonStr })=>NobodyWho.instance.api.crateSamplerConfigFromJson(jsonStr: jsonStr);
+
+
+/// Serialize the sampler configuration to a JSON string.
+ String  toJson();
+
+
+
+                    
   @override
   String toString() => toJson();
-}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>
-abstract class SamplerPresets implements RustOpaqueInterface {
-  /// Create a sampler that constrains output using a Lark grammar via llguidance.
-  static SamplerConfig constrainWithGrammar({required String grammar}) =>
-      NobodyWho.instance.api.crateSamplerPresetsConstrainWithGrammar(
-        grammar: grammar,
-      );
+                }
+                
 
-  /// Create a sampler that constrains output to a JSON schema via llguidance.
-  static SamplerConfig constrainWithJsonSchema({required String schema}) =>
-      NobodyWho.instance.api.crateSamplerPresetsConstrainWithJsonSchema(
-        schema: schema,
-      );
 
-  /// Create a sampler that constrains output to a regular expression via llguidance.
-  static SamplerConfig constrainWithRegex({required String pattern}) =>
-      NobodyWho.instance.api.crateSamplerPresetsConstrainWithRegex(
-        pattern: pattern,
-      );
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerPresets>>
+                abstract class SamplerPresets implements RustOpaqueInterface {
+                    /// Create a sampler that constrains output using a Lark grammar via llguidance.
+static SamplerConfig  constrainWithGrammar({required String grammar })=>NobodyWho.instance.api.crateSamplerPresetsConstrainWithGrammar(grammar: grammar);
 
-  /// Get the default sampler configuration.
-  static SamplerConfig defaultSampler() =>
-      NobodyWho.instance.api.crateSamplerPresetsDefaultSampler();
 
-  /// Create a DRY sampler preset to reduce repetition.
-  static SamplerConfig dry() => NobodyWho.instance.api.crateSamplerPresetsDry();
+/// Create a sampler that constrains output to a JSON schema via llguidance.
+static SamplerConfig  constrainWithJsonSchema({required String schema })=>NobodyWho.instance.api.crateSamplerPresetsConstrainWithJsonSchema(schema: schema);
 
-  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
-  static SamplerConfig grammar({required String grammar}) =>
-      NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
 
-  /// Create a greedy sampler (always picks most probable token).
-  static SamplerConfig greedy() =>
-      NobodyWho.instance.api.crateSamplerPresetsGreedy();
+/// Create a sampler that constrains output to a regular expression via llguidance.
+static SamplerConfig  constrainWithRegex({required String pattern })=>NobodyWho.instance.api.crateSamplerPresetsConstrainWithRegex(pattern: pattern);
 
-  /// Deprecated: Use `SamplerPresets.constrain_with_json_schema()` instead.
-  static SamplerConfig json() =>
-      NobodyWho.instance.api.crateSamplerPresetsJson();
 
-  /// Create a sampler with temperature scaling.
-  ///
-  /// Args:
-  ///     temperature: Temperature value (lower = more focused, higher = more random)
-  static SamplerConfig temperature({required double temperature}) => NobodyWho
-      .instance
-      .api
-      .crateSamplerPresetsTemperature(temperature: temperature);
+/// Get the default sampler configuration.
+static SamplerConfig  defaultSampler()=>NobodyWho.instance.api.crateSamplerPresetsDefaultSampler();
 
-  /// Create a sampler with top-k filtering only.
-  ///
-  /// Args:
-  ///     top_k: Number of top tokens to keep
-  static SamplerConfig topK({required int topK}) =>
-      NobodyWho.instance.api.crateSamplerPresetsTopK(topK: topK);
 
-  /// Create a sampler with nucleus (top-p) sampling.
-  ///
-  /// Args:
-  ///     top_p: Cumulative probability threshold (0.0 to 1.0)
-  static SamplerConfig topP({required double topP}) =>
-      NobodyWho.instance.api.crateSamplerPresetsTopP(topP: topP);
-}
+/// Create a DRY sampler preset to reduce repetition.
+static SamplerConfig  dry()=>NobodyWho.instance.api.crateSamplerPresetsDry();
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
-abstract class SetterError implements RustOpaqueInterface {}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< TokenizeError>>
-abstract class TokenizeError implements RustOpaqueInterface {}
+/// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
+static SamplerConfig  grammar({required String grammar })=>NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
-abstract class ToolCall implements RustOpaqueInterface {
-  Value get arguments;
 
-  String get name;
+/// Create a greedy sampler (always picks most probable token).
+static SamplerConfig  greedy()=>NobodyWho.instance.api.crateSamplerPresetsGreedy();
+
+
+/// Deprecated: Use `SamplerPresets.constrain_with_json_schema()` instead.
+static SamplerConfig  json()=>NobodyWho.instance.api.crateSamplerPresetsJson();
+
+
+/// Create a sampler with temperature scaling.
+///
+/// Args:
+///     temperature: Temperature value (lower = more focused, higher = more random)
+static SamplerConfig  temperature({required double temperature })=>NobodyWho.instance.api.crateSamplerPresetsTemperature(temperature: temperature);
+
+
+/// Create a sampler with top-k filtering only.
+///
+/// Args:
+///     top_k: Number of top tokens to keep
+static SamplerConfig  topK({required int topK })=>NobodyWho.instance.api.crateSamplerPresetsTopK(topK: topK);
+
+
+/// Create a sampler with nucleus (top-p) sampling.
+///
+/// Args:
+///     top_p: Cumulative probability threshold (0.0 to 1.0)
+static SamplerConfig  topP({required double topP })=>NobodyWho.instance.api.crateSamplerPresetsTopP(topP: topP);
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
+                abstract class SetterError implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< TokenizeError>>
+                abstract class TokenizeError implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ToolCall>>
+                abstract class ToolCall implements RustOpaqueInterface {
+                     Value get arguments;
+
+
+ String get name;
+
 
   set arguments(Value arguments);
 
+
   set name(String name);
-}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tts>>
-abstract class Tts implements RustOpaqueInterface {
-  /// Create a TTS synthesizer.
-  ///
-  /// Args:
-  ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
-  ///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
-  ///     voice: Voice name. Architecture default is used when omitted.
-  ///     language: Language code. Architecture default is used when omitted.
-  ///     speed: Speaking speed. Architecture default is used when omitted.
-  ///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
-  ///     silence_duration: Supertonic silence between chunks in seconds.
-  ///     precision: Pocket TTS precision: "int8" or "fp32".
-  ///     temperature: Pocket TTS generation temperature.
-  ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static Future<Tts> load({
-    required String source,
-    String? architecture = null,
-    String? voice = null,
-    String? language = null,
-    double? speed = null,
-    int? steps = null,
-    double? silenceDuration = null,
-    String? precision = null,
-    double? temperature = null,
-    String? huggingfaceToken = null,
-    bool useGpu = true,
-  }) => NobodyWho.instance.api.crateTtsLoad(
-    source: source,
-    architecture: architecture,
-    voice: voice,
-    language: language,
-    speed: speed,
-    steps: steps,
-    silenceDuration: silenceDuration,
-    precision: precision,
-    temperature: temperature,
-    huggingfaceToken: huggingfaceToken,
-    useGpu: useGpu,
-  );
 
-  /// Synthesize text and return WAV bytes.
-  Future<Uint8List> synthesize({required String text});
-}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
-abstract class Value implements RustOpaqueInterface {}
+                    
+                }
+                
 
-class ChatStats {
-  final int contextSize;
-  final int contextUsed;
 
-  const ChatStats({required this.contextSize, required this.contextUsed});
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tts>>
+                abstract class Tts implements RustOpaqueInterface {
+                    /// Create a TTS synthesizer.
+///
+/// Args:
+///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+///     voice: Voice name. Architecture default is used when omitted.
+///     language: Language code. Architecture default is used when omitted.
+///     speed: Speaking speed. Architecture default is used when omitted.
+///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
+///     silence_duration: Supertonic silence between chunks in seconds.
+///     precision: Pocket TTS precision: "int8" or "fp32".
+///     temperature: Pocket TTS generation temperature.
+///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
+///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+static Future<Tts>  load({required String source , String? architecture = null, String? voice = null, String? language = null, double? speed = null, int? steps = null, double? silenceDuration = null, String? precision = null, double? temperature = null, String? huggingfaceToken = null, bool useGpu = true})=>NobodyWho.instance.api.crateTtsLoad(source: source, architecture: architecture, voice: voice, language: language, speed: speed, steps: steps, silenceDuration: silenceDuration, precision: precision, temperature: temperature, huggingfaceToken: huggingfaceToken, useGpu: useGpu);
 
-  @override
-  int get hashCode => contextSize.hashCode ^ contextUsed.hashCode;
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChatStats &&
-          runtimeType == other.runtimeType &&
-          contextSize == other.contextSize &&
-          contextUsed == other.contextUsed;
-}
+/// Synthesize text and return WAV bytes.
+ Future<Uint8List>  synthesize({required String text });
+
+
+
+                    
+                }
+                
+
+
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
+                abstract class Value implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+
+class ChatStats  {
+                final int contextSize;
+final int contextUsed;
+
+                const ChatStats({required this.contextSize ,required this.contextUsed ,});
+
+                
+                
+
+                
+        @override
+        int get hashCode => contextSize.hashCode^contextUsed.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ChatStats &&
+                runtimeType == other.runtimeType
+                && contextSize == other.contextSize&& contextUsed == other.contextUsed;
+        
+            }
 
 @freezed
-sealed class Message with _$Message {
-  const Message._();
+                sealed class Message with _$Message  {
+                    const Message._();
 
-  const factory Message.user({
-    required String content,
-    @Default(const []) List<Asset> assets,
-  }) = Message_User;
-  const factory Message.assistant({
-    required String content,
-    List<ToolCall>? toolCalls,
-  }) = Message_Assistant;
-  const factory Message.system({required String content}) = Message_System;
-  const factory Message.tool({required String name, required String content}) =
-      Message_Tool;
-}
+                     const factory Message.user({   required String content , @Default(const []) List<Asset> assets , }) = Message_User;
+ const factory Message.assistant({   required String content ,  List<ToolCall>? toolCalls , }) = Message_Assistant;
+ const factory Message.system({   required String content , }) = Message_System;
+ const factory Message.tool({   required String name ,  required String content , }) = Message_Tool;
+
+                    
+
+                    
+                }
 
 /// Tuning for MTP speculative decoding. Pass one as the `mtp` argument to a
 /// chat constructor to enable MTP; pass null to disable. Requires the model to
 /// have been loaded with a compatible `draft_model_path`.
-class MtpConfig {
-  /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
-  final int kMax;
+class MtpConfig  {
+                /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+final int kMax;
+/// Minimum draft-token probability the drafter will propose (llama.cpp `p_min`).
+final double pMin;
 
-  /// Minimum draft-token probability the drafter will propose (llama.cpp `p_min`).
-  final double pMin;
+                const MtpConfig({this.kMax = 3,this.pMin = 0.0,});
 
-  const MtpConfig({this.kMax = 3, this.pMin = 0.0});
+                
+                
 
-  @override
-  int get hashCode => kMax.hashCode ^ pMin.hashCode;
+                
+        @override
+        int get hashCode => kMax.hashCode^pMin.hashCode;
+        
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is MtpConfig &&
-          runtimeType == other.runtimeType &&
-          kMax == other.kMax &&
-          pMin == other.pMin;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is MtpConfig &&
+                runtimeType == other.runtimeType
+                && kMax == other.kMax&& pMin == other.pMin;
+        
+            }
 
 @freezed
-sealed class PromptPart with _$PromptPart {
-  const PromptPart._();
+                sealed class PromptPart with _$PromptPart  {
+                    const PromptPart._();
 
-  const factory PromptPart.text({required String content}) = PromptPart_Text;
-  const factory PromptPart.image({required String path}) = PromptPart_Image;
-  const factory PromptPart.audio({required String path}) = PromptPart_Audio;
-}
+                     const factory PromptPart.text({   required String content , }) = PromptPart_Text;
+ const factory PromptPart.image({   required String path , }) = PromptPart_Image;
+ const factory PromptPart.audio({   required String path , }) = PromptPart_Audio;
+
+                    
+
+                    
+                }
 
 /// Voice activity event: a confirmed speech start or end boundary.
-enum VadEvent { speechStarted, speechEnded }
+enum VadEvent {
+                    speechStarted,
+speechEnded,
+                    ;
+                    
+                }
+            
