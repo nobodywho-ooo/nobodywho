@@ -1306,41 +1306,45 @@ pub enum VoiceActivityDetectionEvent {
     SpeechEnded,
 }
 
-impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectionEvent {
-    fn from(e: nobodywho::vad::VoiceActivityDetectionEvent) -> Self {
+impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
+    for VoiceActivityDetectionEvent
+{
+    fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
         match e {
-            nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted => {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
                 VoiceActivityDetectionEvent::SpeechStarted
             }
-            nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded => {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
                 VoiceActivityDetectionEvent::SpeechEnded
             }
         }
     }
 }
 
-fn parse_vad_device(device: Option<String>) -> Result<nobodywho::vad::Device, NobodyWhoError> {
+fn parse_vad_device(
+    device: Option<String>,
+) -> Result<nobodywho::voice_activity_detection::Device, NobodyWhoError> {
     match device
         .as_deref()
         .unwrap_or("auto")
         .to_ascii_lowercase()
         .as_str()
     {
-        "auto" => Ok(nobodywho::vad::Device::Auto),
-        "cpu" => Ok(nobodywho::vad::Device::Cpu),
-        "cuda" => Ok(nobodywho::vad::Device::Cuda),
+        "auto" => Ok(nobodywho::voice_activity_detection::Device::Auto),
+        "cpu" => Ok(nobodywho::voice_activity_detection::Device::Cpu),
+        "cuda" => Ok(nobodywho::voice_activity_detection::Device::Cuda),
         _ => Err(NobodyWhoError::Error {
             message: "device must be one of 'auto', 'cpu', or 'cuda'".into(),
         }),
     }
 }
 
-/// Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
+/// Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
 /// Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
 /// `finish` to get that turn's captured audio (with pre-roll) and reset.
 #[derive(uniffi::Object)]
 pub struct RustVoiceActivityDetection {
-    inner: std::sync::Mutex<nobodywho::vad::VoiceActivityDetection>,
+    inner: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
 }
 
 #[uniffi::export]
@@ -1365,8 +1369,8 @@ impl RustVoiceActivityDetection {
         preroll_duration_ms: Option<u32>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
-        let config = nobodywho::vad::VoiceActivityDetectionConfig {
+        let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
             source: source.unwrap_or(defaults.source),
             sample_rate,
             threshold: threshold.unwrap_or(defaults.threshold),
@@ -1377,12 +1381,12 @@ impl RustVoiceActivityDetection {
             preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
         let device = parse_vad_device(device)?;
-        let vad =
-            nobodywho::vad::VoiceActivityDetection::with_device(config, device).map_err(|e| {
-                NobodyWhoError::Error {
-                    message: e.to_string(),
-                }
-            })?;
+        let vad = nobodywho::voice_activity_detection::VoiceActivityDetection::with_device(
+            config, device,
+        )
+        .map_err(|e| NobodyWhoError::Error {
+            message: e.to_string(),
+        })?;
         Ok(Arc::new(Self {
             inner: std::sync::Mutex::new(vad),
         }))

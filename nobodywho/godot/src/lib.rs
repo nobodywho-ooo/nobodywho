@@ -3286,14 +3286,14 @@ struct NobodyWhoVoiceActivityDetection {
     /// so the captured turn isn't clipped while the VAD is still "unsure".
     preroll_duration_ms: u32,
 
-    vad: Option<nobodywho::vad::VoiceActivityDetection>,
+    vad: Option<nobodywho::voice_activity_detection::VoiceActivityDetection>,
     base: Base<Node>,
 }
 
 #[godot_api]
 impl INode for NobodyWhoVoiceActivityDetection {
     fn init(base: Base<Node>) -> Self {
-        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
+        let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
         Self {
             model_path: GString::from(""),
             sample_rate: defaults.sample_rate,
@@ -3336,9 +3336,9 @@ impl NobodyWhoVoiceActivityDetection {
         }
 
         let source = self.model_path.to_string();
-        let config = nobodywho::vad::VoiceActivityDetectionConfig {
+        let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
             source: if source.is_empty() {
-                nobodywho::vad::VoiceActivityDetectionConfig::default().source
+                nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default().source
             } else {
                 source
             },
@@ -3357,7 +3357,8 @@ impl NobodyWhoVoiceActivityDetection {
             // and works with any async executor.
             let (tx, rx) = tokio::sync::oneshot::channel();
             std::thread::spawn(move || {
-                let _ = tx.send(nobodywho::vad::VoiceActivityDetection::new(config));
+                let _ = tx
+                    .send(nobodywho::voice_activity_detection::VoiceActivityDetection::new(config));
             });
 
             match rx.await {
@@ -3398,10 +3399,14 @@ impl NobodyWhoVoiceActivityDetection {
             .map(|b| i16::from_le_bytes([b[0], b[1]]))
             .collect();
         match vad.push(&samples_i16) {
-            Ok(Some(nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted)) => {
+            Ok(Some(
+                nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted,
+            )) => {
                 self.signals().speech_started().emit();
             }
-            Ok(Some(nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded)) => {
+            Ok(Some(
+                nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded,
+            )) => {
                 self.signals().speech_ended().emit();
             }
             Ok(None) => {}

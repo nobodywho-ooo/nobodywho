@@ -11,6 +11,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Added
 
 - Batch embedding through `Encoder.encode_batch()`. Available for all bindings.
+- Added `VoiceActivityDetection` for detecting when audio includes speech.
 
 ### Changed
 

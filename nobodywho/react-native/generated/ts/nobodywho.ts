@@ -3606,7 +3606,7 @@ const FfiConverterTypeRustTool =  new FfiConverterObject(uniffiTypeRustToolObjec
 
 
 /**
- * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */
@@ -3648,7 +3648,7 @@ export interface RustVoiceActivityDetectionInterface {
 
 
 /**
- * Voice activity detector. Wraps `nobodywho::vad::VoiceActivityDetection`.
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
  * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
  * `finish` to get that turn's captured audio (with pre-roll) and reset.
  */

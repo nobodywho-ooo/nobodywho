@@ -818,13 +818,15 @@ pub enum VoiceActivityDetectionEvent {
     SpeechEnded,
 }
 
-impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectionEvent {
-    fn from(e: nobodywho::vad::VoiceActivityDetectionEvent) -> Self {
+impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
+    for VoiceActivityDetectionEvent
+{
+    fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
         match e {
-            nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted => {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
                 VoiceActivityDetectionEvent::SpeechStarted
             }
-            nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded => {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
                 VoiceActivityDetectionEvent::SpeechEnded
             }
         }
@@ -836,9 +838,9 @@ impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectio
 /// to get that turn's captured audio (with pre-roll) and reset.
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustVoiceActivityDetection {
-    // `nobodywho::vad::VoiceActivityDetection::push`/`finish` require `&mut self`; FRB opaque
+    // `nobodywho::voice_activity_detection::VoiceActivityDetection::push`/`finish` require `&mut self`; FRB opaque
     // methods only get `&self`, so interior mutability via Mutex is needed.
-    vad: std::sync::Mutex<nobodywho::vad::VoiceActivityDetection>,
+    vad: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
 }
 
 impl RustVoiceActivityDetection {
@@ -855,8 +857,8 @@ impl RustVoiceActivityDetection {
         #[frb(default = "null")] min_speech_duration_ms: Option<u32>,
         #[frb(default = "null")] preroll_duration_ms: Option<u32>,
     ) -> Result<Self, String> {
-        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
-        let config = nobodywho::vad::VoiceActivityDetectionConfig {
+        let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
             source: source.unwrap_or(defaults.source),
             sample_rate,
             threshold: threshold.map(|t| t as f32).unwrap_or(defaults.threshold),
@@ -866,7 +868,8 @@ impl RustVoiceActivityDetection {
                 .unwrap_or(defaults.min_speech_duration_ms),
             preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
-        let vad = nobodywho::vad::VoiceActivityDetection::new(config).map_err(|e| e.to_string())?;
+        let vad = nobodywho::voice_activity_detection::VoiceActivityDetection::new(config)
+            .map_err(|e| e.to_string())?;
         Ok(Self {
             vad: std::sync::Mutex::new(vad),
         })

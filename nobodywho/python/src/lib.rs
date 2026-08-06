@@ -476,13 +476,15 @@ pub enum VoiceActivityDetectionEvent {
     SpeechEnded,
 }
 
-impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectionEvent {
-    fn from(e: nobodywho::vad::VoiceActivityDetectionEvent) -> Self {
+impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
+    for VoiceActivityDetectionEvent
+{
+    fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
         match e {
-            nobodywho::vad::VoiceActivityDetectionEvent::SpeechStarted => {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
                 VoiceActivityDetectionEvent::SpeechStarted
             }
-            nobodywho::vad::VoiceActivityDetectionEvent::SpeechEnded => {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
                 VoiceActivityDetectionEvent::SpeechEnded
             }
         }
@@ -509,10 +511,10 @@ impl From<nobodywho::vad::VoiceActivityDetectionEvent> for VoiceActivityDetectio
 ///             break
 #[pyclass]
 pub struct VoiceActivityDetection {
-    // `nobodywho::vad::VoiceActivityDetection` is Send but not Sync (rubato's resampler holds a
+    // `nobodywho::voice_activity_detection::VoiceActivityDetection` is Send but not Sync (rubato's resampler holds a
     // `Box<dyn SincInterpolator>`, whose trait bound is `Send` only) — pyclass
     // fields must be Sync, so this is wrapped in a Mutex purely to satisfy that.
-    vad: std::sync::Mutex<nobodywho::vad::VoiceActivityDetection>,
+    vad: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
 }
 
 #[pymethods]
@@ -528,8 +530,8 @@ impl VoiceActivityDetection {
         preroll_duration_ms: Option<u32>,
         py: Python,
     ) -> PyResult<Self> {
-        let defaults = nobodywho::vad::VoiceActivityDetectionConfig::default();
-        let config = nobodywho::vad::VoiceActivityDetectionConfig {
+        let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
             source: source.map(String::from).unwrap_or(defaults.source),
             sample_rate,
             threshold: threshold.unwrap_or(defaults.threshold),
@@ -540,7 +542,7 @@ impl VoiceActivityDetection {
             preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
         let vad = py
-            .detach(|| nobodywho::vad::VoiceActivityDetection::new(config))
+            .detach(|| nobodywho::voice_activity_detection::VoiceActivityDetection::new(config))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self {
             vad: std::sync::Mutex::new(vad),

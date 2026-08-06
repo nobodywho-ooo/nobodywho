@@ -1,7 +1,9 @@
 use crate::errors::VoiceActivityDetectionError;
 use crate::huggingface;
 use crate::onnx::{load_session, Device};
-use crate::vad::events::{DebounceConfig, Debouncer, VoiceActivityDetectionEvent};
+use crate::voice_activity_detection::events::{
+    DebounceConfig, Debouncer, VoiceActivityDetectionEvent,
+};
 use ort::session::Session;
 use ort::value::Tensor;
 use rubato::{
