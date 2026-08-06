@@ -412,13 +412,14 @@ pub struct Vad {
 #[pymethods]
 impl Vad {
     #[new]
-    #[pyo3(signature = (source = None, sample_rate = 16_000, threshold = None, min_silence_duration_ms = None, min_speech_duration_ms = None))]
+    #[pyo3(signature = (source = None, sample_rate = 16_000, threshold = None, min_silence_duration_ms = None, min_speech_duration_ms = None, preroll_duration_ms = None))]
     pub fn new(
         source: Option<&str>,
         sample_rate: u32,
         threshold: Option<f32>,
         min_silence_duration_ms: Option<u32>,
         min_speech_duration_ms: Option<u32>,
+        preroll_duration_ms: Option<u32>,
         py: Python,
     ) -> PyResult<Self> {
         let defaults = nobodywho::vad::VadConfig::default();
@@ -430,6 +431,7 @@ impl Vad {
                 .unwrap_or(defaults.min_silence_duration_ms),
             min_speech_duration_ms: min_speech_duration_ms
                 .unwrap_or(defaults.min_speech_duration_ms),
+            preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
         let vad = py
             .detach(|| nobodywho::vad::Vad::new(config))
@@ -442,9 +444,10 @@ impl Vad {
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
     /// `Vad` tracks the current turn internally). Returns a `VadEvent` if this
     /// call crossed a confirmed speech/silence boundary, else `None`.
-    pub fn push(&self, chunk: Vec<i16>, py: Python) -> Option<VadEvent> {
+    pub fn push(&self, chunk: Vec<i16>, py: Python) -> PyResult<Option<VadEvent>> {
         py.detach(|| self.vad.lock().unwrap().push(&chunk))
-            .map(Into::into)
+            .map(|event| event.map(Into::into))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Return the current turn's captured audio (from the confirmed

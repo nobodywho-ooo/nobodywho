@@ -25,6 +25,7 @@ class Vad(
     threshold: Float? = null,
     minSilenceDurationMs: UInt? = null,
     minSpeechDurationMs: UInt? = null,
+    prerollDurationMs: UInt? = null,
 ) : Closeable {
     private val inner: InternalVad = InternalVad(
         source = source,
@@ -32,6 +33,7 @@ class Vad(
         threshold = threshold,
         minSilenceDurationMs = minSilenceDurationMs,
         minSpeechDurationMs = minSpeechDurationMs,
+        prerollDurationMs = prerollDurationMs,
         device = null
     )
 

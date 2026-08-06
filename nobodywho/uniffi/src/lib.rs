@@ -1305,8 +1305,8 @@ impl RustVad {
     /// (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
     /// audio you'll pass to `push` — Silero runs at 16kHz internally,
     /// anything else is resampled. `threshold`, `min_silence_duration_ms`,
-    /// and `min_speech_duration_ms` default to the core `VadConfig` defaults
-    /// when omitted.
+    /// `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+    /// core `VadConfig` defaults when omitted.
     #[uniffi::constructor]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -1315,6 +1315,7 @@ impl RustVad {
         threshold: Option<f32>,
         min_silence_duration_ms: Option<u32>,
         min_speech_duration_ms: Option<u32>,
+        preroll_duration_ms: Option<u32>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
         let defaults = nobodywho::vad::VadConfig::default();
@@ -1326,6 +1327,7 @@ impl RustVad {
                 .unwrap_or(defaults.min_silence_duration_ms),
             min_speech_duration_ms: min_speech_duration_ms
                 .unwrap_or(defaults.min_speech_duration_ms),
+            preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
         let device = parse_vad_device(device)?;
         let vad = nobodywho::vad::Vad::with_device(config, device).map_err(|e| {
@@ -1341,8 +1343,15 @@ impl RustVad {
     /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
     /// buffer — the detector tracks the current turn internally). Returns
     /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
-    pub fn push(&self, chunk: Vec<i16>) -> Option<VadEvent> {
-        self.inner.lock().unwrap().push(&chunk).map(Into::into)
+    pub fn push(&self, chunk: Vec<i16>) -> Result<Option<VadEvent>, NobodyWhoError> {
+        self.inner
+            .lock()
+            .unwrap()
+            .push(&chunk)
+            .map(|event| event.map(Into::into))
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 
     /// Return the current turn's captured audio (from the confirmed

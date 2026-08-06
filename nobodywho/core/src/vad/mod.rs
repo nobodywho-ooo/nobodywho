@@ -43,6 +43,9 @@ pub struct VadConfig {
     /// How long speech must persist before a confirmed `SpeechStarted`
     /// fires (filters out short noise blips).
     pub min_speech_duration_ms: u32,
+    /// How long should we keep before the true speech start event comes.
+    /// Avoids filtering out start of the speech because the VAD is "unsure" yet.
+    pub preroll_duration_ms: u32,
 }
 
 impl Default for VadConfig {
@@ -54,6 +57,7 @@ impl Default for VadConfig {
             threshold: debounce.threshold,
             min_silence_duration_ms: debounce.min_silence_duration_ms,
             min_speech_duration_ms: debounce.min_speech_duration_ms,
+            preroll_duration_ms: 500,
         }
     }
 }
@@ -78,21 +82,23 @@ impl Vad {
             min_speech_duration_ms: config.min_speech_duration_ms,
         };
         Ok(Self {
-            backend: VadBackend::new(&config.source, config.sample_rate, debounce_config, device)?,
+            backend: VadBackend::new(
+                &config.source,
+                config.sample_rate,
+                config.preroll_duration_ms,
+                debounce_config,
+                device,
+            )?,
         })
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
     /// `Vad` tracks the current turn internally). Returns `Some(VadEvent)`
-    /// if this call crossed a confirmed speech/silence boundary.
-    pub fn push(&mut self, chunk: &[i16]) -> Option<VadEvent> {
-        // push() only fails on ONNX inference errors, which would indicate
-        // a corrupt/incompatible downloaded model, not a caller error —
-        // surfacing that as a silently-swallowed None would hide a real
-        // bug, so unwrap here and let it surface loudly.
-        self.backend
-            .push(chunk)
-            .expect("Silero VAD inference failed — check the downloaded model is not corrupt")
+    /// if this call crossed a confirmed speech/silence boundary. Errors on
+    /// ONNX inference or resampling failures — typically a corrupt or
+    /// incompatible downloaded model.
+    pub fn push(&mut self, chunk: &[i16]) -> Result<Option<VadEvent>, VadError> {
+        self.backend.push(chunk)
     }
 
     /// Return the current turn's captured audio (from the confirmed

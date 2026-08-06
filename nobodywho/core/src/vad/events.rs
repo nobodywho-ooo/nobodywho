@@ -4,9 +4,8 @@
 /// One 32ms Silero frame is this long at 16kHz.
 const FRAME_MS: u32 = 32;
 
-/// Silero's own end-of-speech trigger uses a lower threshold than the start
-/// trigger to avoid flicker right at the boundary (see Silero's `VADIterator`).
-const END_HYSTERESIS: f32 = 0.15;
+/// Size of the debouncing gap.
+const DEBOUNCING_GAP: f32 = 0.15;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VadEvent {
@@ -64,13 +63,17 @@ impl Debouncer {
         self.state = State::Silence;
     }
 
-    /// Feed one frame's speech probability, get back an edge event if this
-    /// frame crossed a confirmed speech/silence boundary.
     pub fn step(&mut self, speech_prob: f32) -> Option<VadEvent> {
         let min_speech_frames = (self.config.min_speech_duration_ms / FRAME_MS).max(1);
         let min_silence_frames = (self.config.min_silence_duration_ms / FRAME_MS).max(1);
+
+        // Its useful to have segments, which are neither speech nor silence.
+        // Why? Often silero flickers somewhere just around the threshold.
+        // Without this gap, flickering around the threshold would result
+        // in lots of speech start - speech end segments. A small gap where
+        // the debouncer holds its state is useful and prevents this.
         let is_speech = speech_prob >= self.config.threshold;
-        let is_silence = speech_prob < self.config.threshold - END_HYSTERESIS;
+        let is_silence = speech_prob < self.config.threshold - DEBOUNCING_GAP;
 
         match self.state {
             State::Silence => {

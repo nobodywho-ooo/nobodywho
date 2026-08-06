@@ -3591,7 +3591,7 @@ export interface RustVadInterface {
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-    push(chunk: Array</*i16*/number>) : VadEvent | undefined;
+    push(chunk: Array</*i16*/number>)  /*throws*/: VadEvent | undefined;
 }
 
 
@@ -3613,10 +3613,10 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
      * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
      * audio you'll pass to `push` — Silero runs at 16kHz internally,
      * anything else is resampled. `threshold`, `min_silence_duration_ms`,
-     * and `min_speech_duration_ms` default to the core `VadConfig` defaults
-     * when omitted.
+     * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+     * core `VadConfig` defaults when omitted.
      */
-    constructor(source: string | undefined, sampleRate: /*u32*/number, threshold: /*f32*/number | undefined, minSilenceDurationMs: /*u32*/number | undefined, minSpeechDurationMs: /*u32*/number | undefined, device: string | undefined) /*throws*/ {
+    constructor(source: string | undefined, sampleRate: /*u32*/number, threshold: /*f32*/number | undefined, minSilenceDurationMs: /*u32*/number | undefined, minSpeechDurationMs: /*u32*/number | undefined, prerollDurationMs: /*u32*/number | undefined, device: string | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -3629,6 +3629,7 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
         FfiConverterOptionalFloat32.lower(threshold),
         FfiConverterOptionalUInt32.lower(minSilenceDurationMs),
         FfiConverterOptionalUInt32.lower(minSpeechDurationMs),
+        FfiConverterOptionalUInt32.lower(prerollDurationMs),
         FfiConverterOptionalString.lower(device),
                 callStatus);
             },
@@ -3662,8 +3663,10 @@ export class RustVad extends UniffiAbstractObject implements RustVadInterface {
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
      */
- push(chunk: Array</*i16*/number>): VadEvent | undefined {
-    return FfiConverterOptionalTypeVadEvent.lift(uniffiCaller.rustCall(
+ push(chunk: Array</*i16*/number>): VadEvent | undefined /*throws*/ {
+    return FfiConverterOptionalTypeVadEvent.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_push(uniffiTypeRustVadObjectFactory.clonePointer(this), 
         FfiConverterArrayInt16.lower(chunk),
@@ -4525,7 +4528,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() !== 58578) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_finish");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_push() !== 39401) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvad_push() !== 13327) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvad_push");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
@@ -4594,7 +4597,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 34899) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() !== 21738) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() !== 35490) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {

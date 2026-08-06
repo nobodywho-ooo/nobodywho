@@ -29,7 +29,8 @@ public class Vad {
         source: String? = nil,
         threshold: Float? = nil,
         minSilenceDurationMs: UInt32? = nil,
-        minSpeechDurationMs: UInt32? = nil
+        minSpeechDurationMs: UInt32? = nil,
+        prerollDurationMs: UInt32? = nil
     ) throws {
         self.inner = try RustVad(
             source: source,
@@ -37,15 +38,17 @@ public class Vad {
             threshold: threshold,
             minSilenceDurationMs: minSilenceDurationMs,
             minSpeechDurationMs: minSpeechDurationMs,
+            prerollDurationMs: prerollDurationMs,
             device: nil
         )
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
     /// `Vad` tracks the current turn internally). Returns a `VadEvent` if
-    /// this call crossed a confirmed speech/silence boundary.
-    public func push(chunk: [Int16]) -> VadEvent? {
-        return inner.push(chunk: chunk)
+    /// this call crossed a confirmed speech/silence boundary. Throws on
+    /// ONNX inference or resampling failure.
+    public func push(chunk: [Int16]) throws -> VadEvent? {
+        return try inner.push(chunk: chunk)
     }
 
     /// Return the current turn's captured audio (from the confirmed

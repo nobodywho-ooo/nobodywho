@@ -287,6 +287,7 @@ abstract class NobodyWhoApi extends BaseApi {
     double? threshold = null,
     int? minSilenceDurationMs = null,
     int? minSpeechDurationMs = null,
+    int? prerollDurationMs = null,
   });
 
   VadEvent? crateRustVadPush({required RustVad that, required List<int> chunk});
@@ -2371,6 +2372,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     double? threshold = null,
     int? minSilenceDurationMs = null,
     int? minSpeechDurationMs = null,
+    int? prerollDurationMs = null,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -2381,6 +2383,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_f_64(threshold, serializer);
           sse_encode_opt_box_autoadd_u_32(minSilenceDurationMs, serializer);
           sse_encode_opt_box_autoadd_u_32(minSpeechDurationMs, serializer);
+          sse_encode_opt_box_autoadd_u_32(prerollDurationMs, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
         },
         codec: SseCodec(
@@ -2395,6 +2398,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           threshold,
           minSilenceDurationMs,
           minSpeechDurationMs,
+          prerollDurationMs,
         ],
         apiImpl: this,
       ),
@@ -2409,6 +2413,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       "threshold",
       "minSilenceDurationMs",
       "minSpeechDurationMs",
+      "prerollDurationMs",
     ],
   );
 
@@ -2430,7 +2435,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_vad_event,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustVadPushConstMeta,
         argValues: [that, chunk],

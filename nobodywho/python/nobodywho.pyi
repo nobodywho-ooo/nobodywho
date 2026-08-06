@@ -1310,6 +1310,7 @@ class Vad:
         threshold: float | None = None,
         min_silence_duration_ms: int | None = None,
         min_speech_duration_ms: int | None = None,
+        preroll_duration_ms: int | None = None,
     ) -> Vad: ...
     def finish(self, /) -> list[int]:
         """

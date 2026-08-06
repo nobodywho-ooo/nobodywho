@@ -80,7 +80,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(ptr: bigint, text: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustvad(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustvad(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(source: Uint8Array, sampleRate: number, threshold: Uint8Array, minSilenceDurationMs: Uint8Array, minSpeechDurationMs: Uint8Array, device: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(source: Uint8Array, sampleRate: number, threshold: Uint8Array, minSilenceDurationMs: Uint8Array, minSpeechDurationMs: Uint8Array, prerollDurationMs: Uint8Array, device: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_finish(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustvad_push(ptr: bigint, chunk: Uint8Array, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;

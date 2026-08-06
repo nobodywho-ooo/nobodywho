@@ -266,7 +266,8 @@ void uniffi_nobodywho_uniffi_fn_free_rustvad(
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
     RustBuffer source, uint32_t sample_rate, RustBuffer threshold,
     RustBuffer min_silence_duration_ms, RustBuffer min_speech_duration_ms,
-    RustBuffer device, RustCallStatus *uniffi_out_err);
+    RustBuffer preroll_duration_ms, RustBuffer device,
+    RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_finish(
     /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvad_push(
@@ -3465,7 +3466,7 @@ NativeNobodywho::NativeNobodywho(
           rt,
           jsi::PropNameID::forAscii(
               rt, "ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustvad_new"),
-          6,
+          7,
           [this](jsi::Runtime &rt, const jsi::Value &thisVal,
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
@@ -6796,6 +6797,7 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[6]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);

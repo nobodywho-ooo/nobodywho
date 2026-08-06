@@ -3271,6 +3271,11 @@ struct NobodyWhoVad {
     /// How long speech must persist before a confirmed `speech_started` fires.
     min_speech_duration_ms: u32,
 
+    #[export]
+    /// How long of audio to keep buffered before the confirmed speech start,
+    /// so the captured turn isn't clipped while the VAD is still "unsure".
+    preroll_duration_ms: u32,
+
     vad: Option<nobodywho::vad::Vad>,
     base: Base<Node>,
 }
@@ -3285,6 +3290,7 @@ impl INode for NobodyWhoVad {
             threshold: defaults.threshold,
             min_silence_duration_ms: defaults.min_silence_duration_ms,
             min_speech_duration_ms: defaults.min_speech_duration_ms,
+            preroll_duration_ms: defaults.preroll_duration_ms,
             vad: None,
             base,
         }
@@ -3330,6 +3336,7 @@ impl NobodyWhoVad {
             threshold: self.threshold,
             min_silence_duration_ms: self.min_silence_duration_ms,
             min_speech_duration_ms: self.min_speech_duration_ms,
+            preroll_duration_ms: self.preroll_duration_ms,
         };
 
         let mut me = self.to_gd();
@@ -3380,15 +3387,19 @@ impl NobodyWhoVad {
             .chunks_exact(2)
             .map(|b| i16::from_le_bytes([b[0], b[1]]))
             .collect();
-        let event = vad.push(&samples_i16);
-        match event {
-            Some(nobodywho::vad::VadEvent::SpeechStarted) => {
+        match vad.push(&samples_i16) {
+            Ok(Some(nobodywho::vad::VadEvent::SpeechStarted)) => {
                 self.signals().speech_started().emit();
             }
-            Some(nobodywho::vad::VadEvent::SpeechEnded) => {
+            Ok(Some(nobodywho::vad::VadEvent::SpeechEnded)) => {
                 self.signals().speech_ended().emit();
             }
-            None => {}
+            Ok(None) => {}
+            Err(e) => {
+                let msg = GString::from(e.to_string().as_str());
+                godot_error!("VAD push failed: {}", msg);
+                self.signals().worker_failed().emit(&msg);
+            }
         }
     }
 

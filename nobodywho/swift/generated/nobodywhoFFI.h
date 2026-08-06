@@ -587,7 +587,7 @@ void uniffi_nobodywho_uniffi_fn_free_rustvad(uint64_t handle, RustCallStatus *_N
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTVAD_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTVAD_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(RustBuffer source, uint32_t sample_rate, RustBuffer threshold, RustBuffer min_silence_duration_ms, RustBuffer min_speech_duration_ms, RustBuffer device, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(RustBuffer source, uint32_t sample_rate, RustBuffer threshold, RustBuffer min_silence_duration_ms, RustBuffer min_speech_duration_ms, RustBuffer preroll_duration_ms, RustBuffer device, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTVAD_FINISH

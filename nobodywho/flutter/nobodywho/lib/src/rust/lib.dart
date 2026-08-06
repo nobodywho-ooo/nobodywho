@@ -421,12 +421,14 @@ abstract class RustVad implements RustOpaqueInterface {
     double? threshold = null,
     int? minSilenceDurationMs = null,
     int? minSpeechDurationMs = null,
+    int? prerollDurationMs = null,
   }) => NobodyWho.instance.api.crateRustVadNew(
     sampleRate: sampleRate,
     source: source,
     threshold: threshold,
     minSilenceDurationMs: minSilenceDurationMs,
     minSpeechDurationMs: minSpeechDurationMs,
+    prerollDurationMs: prerollDurationMs,
   );
 
   /// Feed the newest chunk of i16 PCM audio (not the whole accumulated

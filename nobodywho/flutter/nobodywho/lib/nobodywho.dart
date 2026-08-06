@@ -843,6 +843,7 @@ class Vad {
     double? threshold,
     int? minSilenceDurationMs,
     int? minSpeechDurationMs,
+    int? prerollDurationMs,
   }) {
     final vad = nobodywho.RustVad.new_(
       sampleRate: sampleRate,
@@ -850,6 +851,7 @@ class Vad {
       threshold: threshold,
       minSilenceDurationMs: minSilenceDurationMs,
       minSpeechDurationMs: minSpeechDurationMs,
+      prerollDurationMs: prerollDurationMs,
     );
     return Vad._(vad);
   }

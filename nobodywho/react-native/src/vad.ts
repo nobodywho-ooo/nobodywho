@@ -9,6 +9,7 @@ export type VadOptions = {
   threshold?: number;
   minSilenceDurationMs?: number;
   minSpeechDurationMs?: number;
+  prerollDurationMs?: number;
   device?: "auto" | "cpu" | "cuda";
 };
 
@@ -43,6 +44,7 @@ export class Vad {
       opts.threshold,
       opts.minSilenceDurationMs,
       opts.minSpeechDurationMs,
+      opts.prerollDurationMs,
       opts.device,
     );
   }

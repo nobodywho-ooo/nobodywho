@@ -14,14 +14,6 @@ const FRAME_SAMPLES: usize = 512;
 const SILERO_SAMPLE_RATE: i64 = 16_000;
 const RESAMPLE_CHUNK_SIZE: usize = 1024;
 
-/// How much lead-in audio the preroll ring buffer keeps. Kept independent of
-/// `min_speech_duration_ms` — that value tunes how long speech must persist
-/// before the debouncer *confirms* it, not how far back the caller wants to
-/// look once it does. A window equal to just the confirmation delay tends to
-/// clip soft/gradual onsets (breath, quiet consonants) that ramped up over a
-/// longer stretch than the debounce window covers.
-const PREROLL_DURATION_MS: u32 = 500;
-
 pub(super) struct VadBackend {
     session: Session,
     resampler: Option<StreamResampler>,
@@ -37,6 +29,7 @@ impl VadBackend {
     pub(super) fn new(
         source: &str,
         sample_rate: u32,
+        preroll_duration_ms: u32,
         debounce_config: DebounceConfig,
         device: Device,
     ) -> Result<Self, VadError> {
@@ -50,14 +43,13 @@ impl VadBackend {
                 SILERO_SAMPLE_RATE as u32,
             )?)
         };
-        let preroll = Preroll::new(sample_rate, PREROLL_DURATION_MS);
         Ok(Self {
             session,
             resampler,
             model_state: vec![0.0; 2 * 128],
             frames: FrameAccumulator::new(),
             debouncer: Debouncer::new(debounce_config),
-            preroll,
+            preroll: Preroll::new(sample_rate, preroll_duration_ms),
             capture: TurnCapture::new(),
         })
     }

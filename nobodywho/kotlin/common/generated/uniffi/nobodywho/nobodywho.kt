@@ -989,7 +989,7 @@ external fun uniffi_nobodywho_uniffi_fn_clone_rustvad(`handle`: Long,uniffi_out_
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustvad(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustvad_finish(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1348,7 +1348,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() != 58578.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 39401.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 13327.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
@@ -1417,7 +1417,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 34899.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() != 21738.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() != 35490.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
@@ -5231,15 +5231,15 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
      * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
      * audio you'll pass to `push` — Silero runs at 16kHz internally,
      * anything else is resampled. `threshold`, `min_silence_duration_ms`,
-     * and `min_speech_duration_ms` default to the core `VadConfig` defaults
-     * when omitted.
+     * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+     * core `VadConfig` defaults when omitted.
      */
-    constructor(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `device`: kotlin.String?) :
+    constructor(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `prerollDurationMs`: kotlin.UInt?, `device`: kotlin.String?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
     
-        FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalString.lower(`device`),_status)
+        FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalUInt.lower(`prerollDurationMs`),FfiConverterOptionalString.lower(`device`),_status)
 }
     )
 
@@ -5338,10 +5338,11 @@ open class RustVad: Disposable, AutoCloseable, RustVadInterface
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
-     */override fun `push`(`chunk`: List<kotlin.Short>): VadEvent? {
+     */
+    @Throws(NobodyWhoException::class)override fun `push`(`chunk`: List<kotlin.Short>): VadEvent? {
             return FfiConverterOptionalTypeVadEvent.lift(
     callWithHandle {
-    uniffiRustCall() { _status ->
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvad_push(
         it,
         FfiConverterSequenceShort.lower(`chunk`),_status)

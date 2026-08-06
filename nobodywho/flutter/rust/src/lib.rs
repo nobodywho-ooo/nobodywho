@@ -845,6 +845,7 @@ impl RustVad {
         #[frb(default = "null")] threshold: Option<f64>,
         #[frb(default = "null")] min_silence_duration_ms: Option<u32>,
         #[frb(default = "null")] min_speech_duration_ms: Option<u32>,
+        #[frb(default = "null")] preroll_duration_ms: Option<u32>,
     ) -> Result<Self, String> {
         let defaults = nobodywho::vad::VadConfig::default();
         let config = nobodywho::vad::VadConfig {
@@ -855,6 +856,7 @@ impl RustVad {
                 .unwrap_or(defaults.min_silence_duration_ms),
             min_speech_duration_ms: min_speech_duration_ms
                 .unwrap_or(defaults.min_speech_duration_ms),
+            preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
         };
         let vad = nobodywho::vad::Vad::new(config).map_err(|e| e.to_string())?;
         Ok(Self {
@@ -866,8 +868,13 @@ impl RustVad {
     /// buffer — the detector tracks the current turn internally). Returns
     /// `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
     #[flutter_rust_bridge::frb(sync)]
-    pub fn push(&self, chunk: Vec<i16>) -> Option<VadEvent> {
-        self.vad.lock().unwrap().push(&chunk).map(Into::into)
+    pub fn push(&self, chunk: Vec<i16>) -> Result<Option<VadEvent>, String> {
+        self.vad
+            .lock()
+            .unwrap()
+            .push(&chunk)
+            .map(|event| event.map(Into::into))
+            .map_err(|e| e.to_string())
     }
 
     /// Return the current turn's captured audio (from the confirmed

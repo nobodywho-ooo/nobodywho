@@ -2461,6 +2461,7 @@ fn wire__crate__RustVad_new__impl(
             let api_threshold = <Option<f64>>::sse_decode(&mut deserializer);
             let api_min_silence_duration_ms = <Option<u32>>::sse_decode(&mut deserializer);
             let api_min_speech_duration_ms = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_preroll_duration_ms = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
                 let output_ok = crate::RustVad::new_(
@@ -2469,6 +2470,7 @@ fn wire__crate__RustVad_new__impl(
                     api_threshold,
                     api_min_silence_duration_ms,
                     api_min_speech_duration_ms,
+                    api_preroll_duration_ms,
                 )?;
                 Ok(output_ok)
             })())
@@ -2501,7 +2503,7 @@ fn wire__crate__RustVad_push_impl(
             >>::sse_decode(&mut deserializer);
             let api_chunk = <Vec<i16>>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, String>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -2516,8 +2518,7 @@ fn wire__crate__RustVad_push_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok =
-                    Result::<_, ()>::Ok(crate::RustVad::push(&*api_that_guard, api_chunk))?;
+                let output_ok = crate::RustVad::push(&*api_that_guard, api_chunk)?;
                 Ok(output_ok)
             })())
         },

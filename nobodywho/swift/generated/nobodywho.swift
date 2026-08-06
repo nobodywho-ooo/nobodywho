@@ -2466,7 +2466,7 @@ public protocol RustVadProtocol: AnyObject, Sendable {
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-    func push(chunk: [Int16])  -> VadEvent?
+    func push(chunk: [Int16]) throws  -> VadEvent?
     
 }
 /**
@@ -2521,10 +2521,10 @@ open class RustVad: RustVadProtocol, @unchecked Sendable {
      * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
      * audio you'll pass to `push` — Silero runs at 16kHz internally,
      * anything else is resampled. `threshold`, `min_silence_duration_ms`,
-     * and `min_speech_duration_ms` default to the core `VadConfig` defaults
-     * when omitted.
+     * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+     * core `VadConfig` defaults when omitted.
      */
-public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, minSilenceDurationMs: UInt32?, minSpeechDurationMs: UInt32?, device: String?)throws  {
+public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, minSilenceDurationMs: UInt32?, minSpeechDurationMs: UInt32?, prerollDurationMs: UInt32?, device: String?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustvad_new(
@@ -2533,6 +2533,7 @@ public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, 
         FfiConverterOptionFloat.lower(threshold),
         FfiConverterOptionUInt32.lower(minSilenceDurationMs),
         FfiConverterOptionUInt32.lower(minSpeechDurationMs),
+        FfiConverterOptionUInt32.lower(prerollDurationMs),
         FfiConverterOptionString.lower(device),$0
     )
 }
@@ -2565,8 +2566,8 @@ open func finish() -> [Int16]  {
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VadEvent)` if this call crossed a confirmed speech/silence boundary.
      */
-open func push(chunk: [Int16]) -> VadEvent?  {
-    return try!  FfiConverterOptionTypeVadEvent.lift(try! rustCall() {
+open func push(chunk: [Int16])throws  -> VadEvent?  {
+    return try  FfiConverterOptionTypeVadEvent.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_method_rustvad_push(
             self.uniffiCloneHandle(),
         FfiConverterSequenceInt16.lower(chunk),$0
@@ -5169,7 +5170,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustvad_finish() != 58578) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 39401) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvad_push() != 13327) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
@@ -5238,7 +5239,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 34899) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() != 21738) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustvad_new() != 35490) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214) {
