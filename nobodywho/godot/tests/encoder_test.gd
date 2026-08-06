@@ -1,5 +1,5 @@
 extends Node
-# Tests for NobodyWhoEmbedding. Model-backed (needs TEST_ENCODER_MODEL).
+# Tests for NobodyWhoEncoder. Model-backed (needs TEST_ENCODER_MODEL).
 #
 # Run: TEST_ENCODER_MODEL=/path/to/bge-small-en-v1.5-q8_0.gguf \
 #      nix shell nixpkgs#godot_4 --command godot --headless --path .
@@ -9,14 +9,14 @@ var _model: String
 func run(runner: Node) -> void:
 	_model = OS.get_environment("TEST_ENCODER_MODEL")
 	if _model.is_empty():
-		print("SKIP: embedding_test needs TEST_ENCODER_MODEL env var (e.g. bge-small-en-v1.5-q8_0.gguf)")
+		print("SKIP: encoder_test needs TEST_ENCODER_MODEL env var (e.g. bge-small-en-v1.5-q8_0.gguf)")
 		return
 	await _test_encode(runner)
 	await _test_encode_batch(runner)
 	await _test_cosine_similarity(runner)
 
 func _test_encode(runner: Node) -> void:
-	var enc = await NobodyWhoEmbedding.create(_model, {})
+	var enc = await NobodyWhoEncoder.create(_model, {})
 	if enc == null:
 		runner.fail("embedding: could not create encoder (check TEST_ENCODER_MODEL)")
 		return
@@ -28,7 +28,7 @@ func _test_encode(runner: Node) -> void:
 	enc = null
 
 func _test_encode_batch(runner: Node) -> void:
-	var enc = await NobodyWhoEmbedding.create(_model, {})
+	var enc = await NobodyWhoEncoder.create(_model, {})
 	if enc == null:
 		runner.fail("embedding: batch: could not create encoder")
 		return
@@ -47,7 +47,7 @@ func _test_encode_batch(runner: Node) -> void:
 func _test_cosine_similarity(runner: Node) -> void:
 	# Pure math — no model needed for this assertion, but we reuse the encoder
 	# to get real vectors.
-	var enc = await NobodyWhoEmbedding.create(_model, {})
+	var enc = await NobodyWhoEncoder.create(_model, {})
 	if enc == null:
 		runner.fail("embedding: cosine: could not create encoder")
 		return
@@ -56,7 +56,7 @@ func _test_cosine_similarity(runner: Node) -> void:
 	if a == null or a.size() == 0:
 		runner.fail("embedding: cosine: could not encode")
 		return
-	var sim: float = NobodyWhoEmbedding.cosine_similarity(a, b)
+	var sim: float = NobodyWhoEncoder.cosine_similarity(a, b)
 	# Identical strings → cosine similarity ≈ 1.0 (within float precision).
 	if abs(sim - 1.0) < 0.001:
 		runner.ok("embedding: cosine_similarity(a, a) = %.4f (≈1.0)" % sim)
