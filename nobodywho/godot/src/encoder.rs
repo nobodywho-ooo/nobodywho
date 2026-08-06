@@ -58,9 +58,7 @@ impl NobodyWhoEncoder {
                     }
                 }
             } else {
-                godot_error!(
-                    "NobodyWhoEncoder.create() expects a NobodyWhoModel or a path String"
-                );
+                godot_error!("NobodyWhoEncoder.create() expects a NobodyWhoModel or a path String");
                 return Variant::nil();
             };
             // EncoderAsync::new is non-blocking (spawns a worker thread).
