@@ -1,0 +1,164 @@
+name: "Mobile Device Tests"
+
+# Runs the on-device instrumentation suite on real phones via Firebase Test Lab.
+# Manual-only for now (no schedule) — trigger from the Actions tab or
+# `gh workflow run mobile-device-tests.yml`. A failed test = a red run; there is
+# intentionally no extra notification layer.
+#
+# Auth is keyless via Workload Identity Federation. Requires three repo secrets:
+#   GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT, GCP_WORKLOAD_IDENTITY_PROVIDER
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: "Which device(s) to run on"
+        type: choice
+        default: both
+        options:
+          - both
+          - pixel8-mali
+          - s24ultra-adreno
+      test_timeout:
+        description: "Per-device test timeout (e.g. 15m)"
+        type: string
+        default: "15m"
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation
+
+concurrency:
+  group: mobile-device-tests-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Cache Cargo Home"
+        # Same key shape as build.yml's cargo-build-android (uniffi / aarch64),
+        # so this shares the warm cache produced by regular CI runs.
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          rustup target add aarch64-linux-android
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
+
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
+      # a device run needs just the arm64-v8a .so. Keep the NDK env in sync
+      # with that job if it changes.
+      - name: "Build uniffi .so (aarch64-linux-android)"
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
+        env:
+          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
+          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
+      - name: "Place .so into :android jniLibs"
+        run: |
+          mkdir -p nobodywho/kotlin/android/build/jniLibs/arm64-v8a
+          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - name: "Cache Gradle"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-devicetest-${{ hashFiles('nobodywho/testing-apps/kotlin/**/*.gradle*', 'nobodywho/kotlin/**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-devicetest-
+
+      # Standalone build; consumes :android from ../../kotlin via includeBuild.
+      - name: "Assemble app + androidTest APKs"
+        working-directory: ./nobodywho/testing-apps/kotlin
+        run: ./gradlew assembleDebug assembleDebugAndroidTest
+
+      - name: "Download test model"
+        run: |
+          mkdir -p test-models
+          curl -L --fail -o test-models/model.gguf \
+            "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+
+      - name: "Authenticate to Google Cloud"
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: "Setup gcloud"
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: "Run instrumentation tests on Firebase Test Lab"
+        run: |
+          set -euo pipefail
+          APP_APK=$(find nobodywho/testing-apps/kotlin/build/outputs/apk/debug -name '*.apk' | head -1)
+          TEST_APK=$(find nobodywho/testing-apps/kotlin/build/outputs/apk/androidTest/debug -name '*.apk' | head -1)
+          echo "app APK:  $APP_APK"
+          echo "test APK: $TEST_APK"
+
+          # Push the model to the app-specific external files dir — the only
+          # shared-storage path an app can read without special permission on
+          # API 30+. The device path is handed to the test as an instrumentation
+          # arg (modelPath), matching DeviceInferenceTest.modelPath().
+          MODEL_DEVICE_PATH="/sdcard/Android/data/ai.nobodywho.testapp/files/model.gguf"
+
+          case "${{ inputs.device }}" in
+            pixel8-mali)     DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait) ;;
+            s24ultra-adreno) DEVICES=(--device model=e3q,version=34,locale=en,orientation=portrait) ;;
+            *)               DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait \
+                                      --device model=e3q,version=34,locale=en,orientation=portrait) ;;
+          esac
+
+          gcloud firebase test android run \
+            --project "${{ secrets.GCP_PROJECT_ID }}" \
+            --type instrumentation \
+            --app "$APP_APK" \
+            --test "$TEST_APK" \
+            "${DEVICES[@]}" \
+            --other-files "${MODEL_DEVICE_PATH}=test-models/model.gguf" \
+            --environment-variables "modelPath=${MODEL_DEVICE_PATH}" \
+            --timeout "${{ inputs.test_timeout }}"
