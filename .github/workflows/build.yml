@@ -325,6 +325,10 @@ jobs:
           export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
           cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} --release
         working-directory: ./nobodywho
+        env:
+          # visionOS/watchOS lack posix_spawn_file_actions_addchdir_np, which llama.cpp's
+          # common/subproc.cpp calls unconditionally. Force subprocess.h's ENOSYS fallback.
+          CXXFLAGS: "-DSUBPROCESS_HAVE_CWD=0"
 
       - name: "Rename built file"
         run: |
