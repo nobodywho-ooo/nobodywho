@@ -21,6 +21,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Fixed
 
+- Context shifting now measures the shortened history, avoiding unnecessary history deletion and repeated tokenization. Affects all bindings.
 - Reworked allocation handling during chat inference, reducing allocation calls by 62% and allocated bytes by 91%.
 - Contructor for STT was synchronous, replaced with `load` function to make async and keep conventions
 
