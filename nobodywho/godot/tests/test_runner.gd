@@ -21,6 +21,7 @@ func _run_all() -> void:
 		preload("res://stt_test.gd").new(),
 		preload("res://encoder_test.gd").new(),
 		preload("res://crossencoder_test.gd").new(),
+		preload("res://prompt_test.gd").new(),
 	]
 	for suite in suites:
 		await suite.run(self)

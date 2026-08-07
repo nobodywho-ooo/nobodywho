@@ -1,0 +1,4 @@
+# Planning / design notes are local-only — not shipped with the addon.
+# These are kept on disk for contributors but deliberately excluded from git.
+/*.md
+!/README.md
