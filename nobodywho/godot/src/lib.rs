@@ -8,6 +8,7 @@ mod convert;
 mod crossencoder;
 mod encoder;
 mod model;
+mod prompt;
 mod sampler;
 mod speech_to_text;
 mod task;
