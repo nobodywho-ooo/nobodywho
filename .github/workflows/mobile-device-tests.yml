@@ -1,9 +1,18 @@
 name: "Mobile Device Tests"
 
-# Runs the on-device instrumentation suite on real phones via Firebase Test Lab.
+# Runs each binding's on-device test suite on real phones via Firebase Test Lab.
 # Manual-only for now (no schedule) — trigger from the Actions tab or
 # `gh workflow run mobile-device-tests.yml`. A failed test = a red run; there is
 # intentionally no extra notification layer.
+#
+# Every binding gets two jobs:
+#   <binding>            builds against the bindings in this repo, so unreleased
+#                        changes get device coverage before they ship.
+#   <binding>-released   builds against the published package, exactly as a
+#                        consumer does. A failure here means what we already
+#                        shipped is broken, and the fix belongs in the library —
+#                        never in the test app, which is deliberately kept as
+#                        simple as any consumer's app.
 #
 # Auth is keyless via Workload Identity Federation. Requires three repo secrets:
 #   GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT, GCP_WORKLOAD_IDENTITY_PROVIDER
@@ -16,6 +25,14 @@ on:
       - feat/android-testing
   workflow_dispatch:
     inputs:
+      binding:
+        description: "Which binding(s) to test"
+        type: choice
+        default: all
+        options:
+          - all
+          - kotlin
+          - flutter
       device:
         description: "Which device(s) to run on"
         type: choice
@@ -38,8 +55,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ---------------------------------------------------------------- Kotlin ---
   android:
+    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'kotlin' }}
     runs-on: warp-ubuntu-latest-x64-4x
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
@@ -77,30 +97,28 @@ jobs:
           add-to-path: false
 
       # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
-      # a device run needs just the arm64-v8a .so. Keep the NDK env in sync
-      # with that job if it changes.
+      # a device run needs just the arm64-v8a .so.
       - name: "Build uniffi .so (aarch64-linux-android)"
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          # Keep in sync with build.yml: links the C++ runtime statically so the
+          # .so carries no libc++_shared.so dependency.
+          ORT_CXX_STDLIB: "c++_static"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
           CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
           AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
-      # Package native libs into the app module's own jniLibs (always bundled
-      # into the app APK). Two libs are needed:
-      #  - libnobodywho_uniffi.so : the binding itself
-      #  - libc++_shared.so       : the NDK C++ runtime it dynamically links
-      #    against; without it dlopen fails with "libc++_shared.so not found".
-      - name: "Place native libs into the test-app jniLibs"
+      # Exactly where release.yml puts it, so the test app consumes the library
+      # the same way a real consumer consumes the published AAR.
+      - name: "Place .so into :android jniLibs"
         run: |
-          DEST=nobodywho/testing-apps/kotlin/src/main/jniLibs/arm64-v8a
-          mkdir -p "$DEST"
-          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
-          cp "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "$DEST/"
+          mkdir -p nobodywho/kotlin/android/build/jniLibs/arm64-v8a
+          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -128,61 +146,243 @@ jobs:
         working-directory: ./nobodywho/testing-apps/kotlin
         run: ./gradlew assembleDebug assembleDebugAndroidTest
 
-      # Fail fast (with a clear message) if a native lib is missing, rather than
-      # a cryptic UnsatisfiedLinkError on-device minutes into the FTL run.
-      - name: "Verify native libs are packaged in the app APK"
+      - name: "Locate APKs"
+        id: apks
         run: |
           set -euo pipefail
-          APK=$(find nobodywho/testing-apps/kotlin/build/outputs/apk/debug -name '*.apk' | head -1)
-          echo "Inspecting $APK"
-          missing=0
-          for lib in libnobodywho_uniffi.so libc++_shared.so libjnidispatch.so; do
-            if unzip -l "$APK" | grep -q "lib/arm64-v8a/$lib"; then
-              echo "  ✓ $lib"
-            else
-              echo "::error::$lib missing from app APK"; missing=1
-            fi
-          done
-          if [ "$missing" = "1" ]; then
-            echo "--- lib/arm64-v8a/ contents: ---"
-            unzip -l "$APK" | grep 'lib/arm64-v8a/' || true
+          B=nobodywho/testing-apps/kotlin/build/outputs/apk
+          echo "app=$(find $B/debug -name '*.apk' | head -1)" >> "$GITHUB_OUTPUT"
+          echo "test=$(find $B/androidTest/debug -name '*.apk' | head -1)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/run-ftl
+        with:
+          app-apk: ${{ steps.apks.outputs.app }}
+          test-apk: ${{ steps.apks.outputs.test }}
+          native-lib: libnobodywho_uniffi.so
+          devices: ${{ inputs.device || 'both' }}
+          test-timeout: ${{ inputs.test_timeout || '30m' }}
+          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+  android-released:
+    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'kotlin' }}
+    runs-on: warp-ubuntu-latest-x64-4x
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - name: "Cache Gradle"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-released-${{ hashFiles('nobodywho/testing-apps/kotlin/**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-released-
+
+      - name: "Resolve latest released version"
+        id: released
+        run: |
+          set -euo pipefail
+          VERSION=$(curl -s --fail \
+            "https://repo1.maven.org/maven2/ai/nobodywho/nobodywho-android/maven-metadata.xml" \
+            | sed -n 's:.*<release>\(.*\)</release>.*:\1:p')
+          if [ -z "$VERSION" ]; then
+            echo "::error::could not determine the latest released nobodywho-android version"
             exit 1
           fi
+          echo "Testing against ai.nobodywho:nobodywho-android:$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: "Authenticate to Google Cloud"
-        uses: google-github-actions/auth@v2
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      # -PnobodywhoVersion skips the composite build entirely, so the app
+      # resolves the published AAR from Maven Central like any consumer.
+      - name: "Assemble app + androidTest APKs against the released artifact"
+        working-directory: ./nobodywho/testing-apps/kotlin
+        run: |
+          ./gradlew assembleDebug assembleDebugAndroidTest \
+            -PnobodywhoVersion=${{ steps.released.outputs.version }}
 
-      - name: "Setup gcloud"
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: "Run instrumentation tests on Firebase Test Lab"
+      - name: "Locate APKs"
+        id: apks
         run: |
           set -euo pipefail
-          APP_APK=$(find nobodywho/testing-apps/kotlin/build/outputs/apk/debug -name '*.apk' | head -1)
-          TEST_APK=$(find nobodywho/testing-apps/kotlin/build/outputs/apk/androidTest/debug -name '*.apk' | head -1)
-          echo "app APK:  $APP_APK"
-          echo "test APK: $TEST_APK"
+          B=nobodywho/testing-apps/kotlin/build/outputs/apk
+          echo "app=$(find $B/debug -name '*.apk' | head -1)" >> "$GITHUB_OUTPUT"
+          echo "test=$(find $B/androidTest/debug -name '*.apk' | head -1)" >> "$GITHUB_OUTPUT"
 
-          # No model is pushed to the device: DeviceInferenceTest downloads it
-          # on-device via Model.load(hf://...) into the app's cache dir, so the
-          # runner uploads only the (small) APKs.
+      - uses: ./.github/actions/run-ftl
+        with:
+          app-apk: ${{ steps.apks.outputs.app }}
+          test-apk: ${{ steps.apks.outputs.test }}
+          native-lib: libnobodywho_uniffi.so
+          devices: ${{ inputs.device || 'both' }}
+          test-timeout: ${{ inputs.test_timeout || '30m' }}
+          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-          case "${{ inputs.device || 'both' }}" in
-            pixel8-mali)     DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait) ;;
-            s24ultra-adreno) DEVICES=(--device model=e3q,version=34,locale=en,orientation=portrait) ;;
-            *)               DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait \
-                                      --device model=e3q,version=34,locale=en,orientation=portrait) ;;
-          esac
+  # --------------------------------------------------------------- Flutter ---
+  flutter:
+    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'flutter' }}
+    runs-on: warp-ubuntu-latest-x64-4x
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
 
-          gcloud firebase test android run \
-            --project "${{ secrets.GCP_PROJECT_ID }}" \
-            --type instrumentation \
-            --app "$APP_APK" \
-            --test "$TEST_APK" \
-            "${DEVICES[@]}" \
-            --results-bucket "nobodywho-android-ci-ftl-results" \
-            --timeout "${{ inputs.test_timeout || '30m' }}"
+      - name: "Cache Cargo Home"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          rustup target add aarch64-linux-android
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
+
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      # Without this the plugin's resolve_binary.dart silently downloads the
+      # last *released* .so, so the job would test a stale binary instead of the
+      # branch — checkLocalBuild() prefers target/<triple>/release.
+      - name: "Build flutter .so (aarch64-linux-android)"
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-flutter --target aarch64-linux-android --release --locked
+        env:
+          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ORT_CXX_STDLIB: "c++_static"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
+          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - name: "Setup Flutter SDK"
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
+      # pub's standard local-override mechanism — the committed pubspec keeps
+      # depending on the published package, as a consumer's would.
+      - name: "Point the app at the bindings in this repo"
+        working-directory: ./nobodywho/testing-apps/flutter
+        run: |
+          cat > pubspec_overrides.yaml <<'EOF'
+          dependency_overrides:
+            nobodywho:
+              path: ../../flutter/nobodywho
+          EOF
+          flutter pub get
+
+      - name: "Build app + androidTest APKs"
+        working-directory: ./nobodywho/testing-apps/flutter
+        run: |
+          flutter build apk --debug
+          cd android
+          ./gradlew app:assembleAndroidTest \
+                    app:assembleDebug -Ptarget=integration_test/device_inference_test.dart
+
+      - uses: ./.github/actions/run-ftl
+        with:
+          app-apk: nobodywho/testing-apps/flutter/build/app/outputs/apk/debug/app-debug.apk
+          test-apk: nobodywho/testing-apps/flutter/build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          native-lib: libnobodywho_flutter.so
+          devices: ${{ inputs.device || 'both' }}
+          test-timeout: ${{ inputs.test_timeout || '30m' }}
+          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+  flutter-released:
+    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'flutter' }}
+    runs-on: warp-ubuntu-latest-x64-4x
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      - name: "Setup Flutter SDK"
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
+      - name: "Resolve the published package"
+        working-directory: ./nobodywho/testing-apps/flutter
+        run: |
+          # Guard against a committed override; this job must use pub.dev.
+          rm -f pubspec_overrides.yaml
+          flutter pub get
+          flutter pub deps --style=compact | grep -E "nobodywho " || true
+
+      - name: "Build app + androidTest APKs"
+        working-directory: ./nobodywho/testing-apps/flutter
+        run: |
+          flutter build apk --debug
+          cd android
+          ./gradlew app:assembleAndroidTest \
+                    app:assembleDebug -Ptarget=integration_test/device_inference_test.dart
+
+      - uses: ./.github/actions/run-ftl
+        with:
+          app-apk: nobodywho/testing-apps/flutter/build/app/outputs/apk/debug/app-debug.apk
+          test-apk: nobodywho/testing-apps/flutter/build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          native-lib: libnobodywho_flutter.so
+          devices: ${{ inputs.device || 'both' }}
+          test-timeout: ${{ inputs.test_timeout || '30m' }}
+          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}

@@ -11,19 +11,19 @@ There is nothing to wire into `kotlin/settings.gradle.kts`.
 
 ## Build & run manually
 
-1. Build the native library for Android arm64 and place it — plus the NDK C++
-   runtime it dynamically links against (`libc++_shared.so`) — in the app's
-   jniLibs:
+1. Build the native library for Android arm64 and drop it where the `:android`
+   module expects it:
    ```bash
    nix develop .#android --command bash -c \
      'cd nobodywho && cargo build -p nobodywho-uniffi --target aarch64-linux-android --release'
-   DEST=nobodywho/testing-apps/kotlin/src/main/jniLibs/arm64-v8a
-   mkdir -p "$DEST"
-   cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
-   # Without libc++_shared.so, loading the .so fails at runtime with
-   # "dlopen failed: library libc++_shared.so not found".
-   cp "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "$DEST/"
+   mkdir -p nobodywho/kotlin/android/build/jniLibs/arm64-v8a
+   cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+     nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
    ```
+   The `:android` module adds `libc++_shared.so` from the NDK itself (the
+   binding dynamically links it), so nothing else needs copying here — this app
+   consumes the library exactly as a consumer of the published AAR would.
+   An NDK must be discoverable via `ANDROID_NDK_HOME` or the Android SDK.
 
 2. Build and install the app (run from this directory):
    ```bash
@@ -44,6 +44,21 @@ Enter the model path (e.g. `/sdcard/models/model.gguf`) and optionally a vision
 projector path, then tap "Load Model". Once loaded you can chat, take photos for
 vision analysis (camera button appears if a projector is loaded), and test tool
 calling (ask "What time is it?").
+
+## Building against a released version
+
+By default this app is built against the bindings in this repo. Passing a
+version instead resolves the published artifact from Maven Central, which needs
+no Rust toolchain and no NDK:
+
+```bash
+./gradlew assembleDebug assembleDebugAndroidTest -PnobodywhoVersion=2.2.0
+```
+
+That mode is what a real consumer does, so it is the one that tells you whether
+what we *shipped* works. Keep this app as simple as any consumer's app would
+be — if it needs an extra step to work, that is a library defect to fix in the
+library, not a workaround to add here.
 
 ## On-device tests (Firebase Test Lab)
 

@@ -1,5 +1,3 @@
 .gradle/
 build/
 local.properties
-# native libs are built/copied in, not committed
-src/main/jniLibs/

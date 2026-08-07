@@ -40,9 +40,10 @@ class DeviceInferenceTest {
 
     @Test
     fun chatCompletesStreamsAndCallsTools() = runBlocking {
-        // useGpu = false: the Android .so has no GPU backend yet, so pin CPU for
-        // a deterministic smoke test. Flip to true once a GPU backend lands.
-        val model = Model.load(modelUrl(), useGpu = false)
+        // Ask for the GPU like a real app would. Android has no GPU backend
+        // yet, so this falls back to CPU today and starts exercising the GPU
+        // path automatically once one lands.
+        val model = Model.load(modelUrl(), useGpu = true)
 
         // Completion
         val chat = Chat(

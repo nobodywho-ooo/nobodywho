@@ -20,12 +20,23 @@ dependencyResolutionManagement {
 
 rootProject.name = "nobodywho-android-testapp"
 
-// Consume the Kotlin bindings from the sibling build without merging into it —
-// the bindings' own settings/pluginManagement stay free of app + compose
-// concerns. `:android` (which carries the arm64 .so) is substituted in for the
-// `ai.nobodywho:nobodywho-android` coordinate the app depends on.
-includeBuild("../../kotlin") {
-    dependencySubstitution {
-        substitute(module("ai.nobodywho:nobodywho-android")).using(project(":android"))
+// Two ways to build this app:
+//
+//  * default — consume the bindings in this repo via a composite build, so
+//    changes on a branch are exercised without publishing anything. The
+//    bindings' own settings/pluginManagement stay free of app + compose
+//    concerns.
+//
+//  * -PnobodywhoVersion=<version> — skip the composite build and resolve the
+//    released artifact from Maven Central instead, exercising exactly what a
+//    consumer downloads (needs no Rust toolchain and no NDK).
+//
+// dependencySubstitution below always overrides the coordinate, so the composite
+// build has to be skipped entirely for the released artifact to be used.
+if (providers.gradleProperty("nobodywhoVersion").orNull == null) {
+    includeBuild("../../kotlin") {
+        dependencySubstitution {
+            substitute(module("ai.nobodywho:nobodywho-android")).using(project(":android"))
+        }
     }
 }

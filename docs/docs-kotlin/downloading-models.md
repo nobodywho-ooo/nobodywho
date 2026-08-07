@@ -4,6 +4,16 @@ description: How to download and manage GGUF models
 sidebar_position: 6
 ---
 
+## Android permissions
+
+Loading a model from `hf://` or `https://` needs network access, so add the internet permission to your app's `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+NobodyWho does not declare this permission for you, so apps that only load models from local paths keep working without requesting any network access.
+
 ## Downloading gated models
 
 Some HuggingFace models are either private or gated by a license that you need to accept. For both scenarios, you need to be authorized to download the model weights.

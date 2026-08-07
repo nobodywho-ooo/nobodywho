@@ -18,6 +18,16 @@ The `modelPath` option to `Chat.fromPath` and `downloadModel` accepts:
 
 The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
 
+## Android permissions
+
+Loading a model from `hf://` or `https://` needs network access. The React Native app template already declares the internet permission in `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+If your project has removed it, add it back. Apps that only load models from local paths need no network permission.
+
 ## Tracking download progress
 
 When loading a remote model, pass an `onDownloadProgress` option to observe the download. It receives `(downloaded, total)` byte counts, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.

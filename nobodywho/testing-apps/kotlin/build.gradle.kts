@@ -35,10 +35,13 @@ android {
 }
 
 dependencies {
-    // Resolved from the sibling bindings build via includeBuild + dependency
-    // substitution (see settings.gradle.kts). The version is a placeholder —
-    // the composite build always substitutes the local `:android` project.
-    implementation("ai.nobodywho:nobodywho-android:2.2.0")
+    // The default composite build substitutes the local `:android` project and
+    // ignores this version; -PnobodywhoVersion=<v> resolves the released
+    // artifact from Maven Central instead (see settings.gradle.kts).
+    implementation(
+        "ai.nobodywho:nobodywho-android:" +
+            providers.gradleProperty("nobodywhoVersion").getOrElse("2.2.0")
+    )
 
     // Compose
     val composeBom = platform("androidx.compose:compose-bom:2024.10.01")
@@ -48,7 +51,6 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 
