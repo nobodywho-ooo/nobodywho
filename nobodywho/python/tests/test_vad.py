@@ -87,7 +87,7 @@ def test_finish_is_empty_when_no_speech_confirmed():
     silence = [0] * 512
     for _ in range(5):
         event = vad.push(silence)
-        assert event is None
+        assert event == nobodywho.VoiceActivityDetectionEvent.Silence
     assert vad.finish() == []
 
 

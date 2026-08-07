@@ -831,21 +831,21 @@ class VoiceActivityDetection {
 
   VoiceActivityDetection._(this._vad);
 
-  /// Create a voice activity detector.
+  /// Load a voice activity detector.
   ///
   /// [sampleRate] — rate of the audio you'll pass to [push]; anything other
   /// than 16kHz is resampled internally.
   /// [source] — HuggingFace repo (`hf://owner/repo`) or local dir for the
   /// Silero VAD ONNX model; omit to use the default (`hf://onnx-community/silero-vad`).
-  factory VoiceActivityDetection({
+  static Future<VoiceActivityDetection> load({
     required int sampleRate,
     String? source,
     double? threshold,
     int? minSilenceDurationMs,
     int? minSpeechDurationMs,
     int? prerollDurationMs,
-  }) {
-    final vad = nobodywho.RustVoiceActivityDetection.new_(
+  }) async {
+    final vad = await nobodywho.RustVoiceActivityDetection.load(
       sampleRate: sampleRate,
       source: source,
       threshold: threshold,
@@ -857,9 +857,11 @@ class VoiceActivityDetection {
   }
 
   /// Feed the newest chunk of audio (not the whole accumulated buffer —
-  /// [VoiceActivityDetection] tracks the current turn internally). Returns a [VoiceActivityDetectionEvent] if this
-  /// call crossed a confirmed speech/silence boundary.
-  nobodywho.VoiceActivityDetectionEvent? push(List<int> chunk) => _vad.push(chunk: chunk);
+  /// [VoiceActivityDetection] tracks the current turn internally). Always
+  /// returns the current confirmed state: [VoiceActivityDetectionEvent.speech]/[VoiceActivityDetectionEvent.silence]
+  /// if unchanged since the last call, or [VoiceActivityDetectionEvent.speechStarted]/[VoiceActivityDetectionEvent.speechEnded]
+  /// on the call that confirmed the transition.
+  nobodywho.VoiceActivityDetectionEvent push(List<int> chunk) => _vad.push(chunk: chunk);
 
   /// Return the current turn's captured audio (from the confirmed
   /// [VoiceActivityDetectionEvent.speechStarted], including a small pre-roll, through to

@@ -9,8 +9,14 @@ const DEBOUNCING_FRACTION: f32 = 0.3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VoiceActivityDetectionEvent {
+    /// Confirmed speech, unchanged since the last step.
+    Speech,
+    /// This step confirmed the transition into speech.
     SpeechStarted,
+    /// This step confirmed the transition into silence.
     SpeechEnded,
+    /// Confirmed silence (or not-yet-confirmed speech), unchanged since the last step.
+    Silence,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -63,7 +69,17 @@ impl Debouncer {
         self.state = State::Silence;
     }
 
-    pub fn step(&mut self, speech_prob: f32) -> Option<VoiceActivityDetectionEvent> {
+    /// Current confirmed state, without stepping — `Silence` for `State::Silence`
+    /// and `State::PendingSpeech` (not yet confirmed as speech), `Speech` for
+    /// `State::Speech` and `State::PendingSilence` (not yet confirmed as silence).
+    pub fn current(&self) -> VoiceActivityDetectionEvent {
+        match self.state {
+            State::Silence | State::PendingSpeech { .. } => VoiceActivityDetectionEvent::Silence,
+            State::Speech | State::PendingSilence { .. } => VoiceActivityDetectionEvent::Speech,
+        }
+    }
+
+    pub fn step(&mut self, speech_prob: f32) -> VoiceActivityDetectionEvent {
         let min_speech_frames = (self.config.min_speech_duration_ms / FRAME_MS).max(1);
         let min_silence_frames = (self.config.min_silence_duration_ms / FRAME_MS).max(1);
 
@@ -80,51 +96,51 @@ impl Debouncer {
                 if is_speech {
                     if min_speech_frames <= 1 {
                         self.state = State::Speech;
-                        return Some(VoiceActivityDetectionEvent::SpeechStarted);
+                        return VoiceActivityDetectionEvent::SpeechStarted;
                     }
                     self.state = State::PendingSpeech { frames: 1 };
                 }
-                None
+                VoiceActivityDetectionEvent::Silence
             }
             State::PendingSpeech { frames } => {
                 if is_speech {
                     let frames = frames + 1;
                     if frames >= min_speech_frames {
                         self.state = State::Speech;
-                        Some(VoiceActivityDetectionEvent::SpeechStarted)
+                        VoiceActivityDetectionEvent::SpeechStarted
                     } else {
                         self.state = State::PendingSpeech { frames };
-                        None
+                        VoiceActivityDetectionEvent::Silence
                     }
                 } else {
                     self.state = State::Silence;
-                    None
+                    VoiceActivityDetectionEvent::Silence
                 }
             }
             State::Speech => {
                 if is_silence {
                     if min_silence_frames <= 1 {
                         self.state = State::Silence;
-                        return Some(VoiceActivityDetectionEvent::SpeechEnded);
+                        return VoiceActivityDetectionEvent::SpeechEnded;
                     }
                     self.state = State::PendingSilence { frames: 1 };
                 }
-                None
+                VoiceActivityDetectionEvent::Speech
             }
             State::PendingSilence { frames } => {
                 if is_silence {
                     let frames = frames + 1;
                     if frames >= min_silence_frames {
                         self.state = State::Silence;
-                        Some(VoiceActivityDetectionEvent::SpeechEnded)
+                        VoiceActivityDetectionEvent::SpeechEnded
                     } else {
                         self.state = State::PendingSilence { frames };
-                        None
+                        VoiceActivityDetectionEvent::Speech
                     }
                 } else {
                     // Back above threshold before hangover elapsed — same utterance.
                     self.state = State::Speech;
-                    None
+                    VoiceActivityDetectionEvent::Speech
                 }
             }
         }

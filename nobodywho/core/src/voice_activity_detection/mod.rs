@@ -100,14 +100,15 @@ impl VoiceActivityDetection {
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
-    /// `VoiceActivityDetection` tracks the current turn internally). Returns `Some(VoiceActivityDetectionEvent)`
-    /// if this call crossed a confirmed speech/silence boundary. Errors on
-    /// ONNX inference or resampling failures — typically a corrupt or
-    /// incompatible downloaded model.
+    /// `VoiceActivityDetection` tracks the current turn internally). Always
+    /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+    /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+    /// confirmed the transition. Errors on ONNX inference or resampling
+    /// failures — typically a corrupt or incompatible downloaded model.
     pub fn push(
         &mut self,
         chunk: &[i16],
-    ) -> Result<Option<VoiceActivityDetectionEvent>, VoiceActivityDetectionError> {
+    ) -> Result<VoiceActivityDetectionEvent, VoiceActivityDetectionError> {
         self.backend.push(chunk)
     }
 

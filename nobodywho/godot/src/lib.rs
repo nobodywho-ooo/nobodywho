@@ -3399,17 +3399,16 @@ impl NobodyWhoVoiceActivityDetection {
             .map(|b| i16::from_le_bytes([b[0], b[1]]))
             .collect();
         match vad.push(&samples_i16) {
-            Ok(Some(
-                nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted,
-            )) => {
+            Ok(nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted) => {
                 self.signals().speech_started().emit();
             }
-            Ok(Some(
-                nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded,
-            )) => {
+            Ok(nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded) => {
                 self.signals().speech_ended().emit();
             }
-            Ok(None) => {}
+            Ok(
+                nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Speech
+                | nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Silence,
+            ) => {}
             Err(e) => {
                 let msg = GString::from(e.to_string().as_str());
                 godot_error!("VAD push failed: {}", msg);

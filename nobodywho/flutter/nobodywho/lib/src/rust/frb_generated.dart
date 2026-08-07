@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 686009100;
+  int get rustContentHash => 233561309;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -289,7 +289,7 @@ abstract class NobodyWhoApi extends BaseApi {
     required RustVoiceActivityDetection that,
   });
 
-  RustVoiceActivityDetection crateRustVoiceActivityDetectionNew({
+  Future<RustVoiceActivityDetection> crateRustVoiceActivityDetectionLoad({
     required int sampleRate,
     String? source = null,
     double? threshold = null,
@@ -298,7 +298,7 @@ abstract class NobodyWhoApi extends BaseApi {
     int? prerollDurationMs = null,
   });
 
-  VoiceActivityDetectionEvent? crateRustVoiceActivityDetectionPush({
+  VoiceActivityDetectionEvent crateRustVoiceActivityDetectionPush({
     required RustVoiceActivityDetection that,
     required List<int> chunk,
   });
@@ -2409,7 +2409,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  RustVoiceActivityDetection crateRustVoiceActivityDetectionNew({
+  Future<RustVoiceActivityDetection> crateRustVoiceActivityDetectionLoad({
     required int sampleRate,
     String? source = null,
     double? threshold = null,
@@ -2417,9 +2417,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     int? minSpeechDurationMs = null,
     int? prerollDurationMs = null,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_u_32(sampleRate, serializer);
           sse_encode_opt_String(source, serializer);
@@ -2427,14 +2427,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_u_32(minSilenceDurationMs, serializer);
           sse_encode_opt_box_autoadd_u_32(minSpeechDurationMs, serializer);
           sse_encode_opt_box_autoadd_u_32(prerollDurationMs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 45,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection,
           decodeErrorData: sse_decode_String,
         ),
-        constMeta: kCrateRustVoiceActivityDetectionNewConstMeta,
+        constMeta: kCrateRustVoiceActivityDetectionLoadConstMeta,
         argValues: [
           sampleRate,
           source,
@@ -2448,9 +2453,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     );
   }
 
-  TaskConstMeta get kCrateRustVoiceActivityDetectionNewConstMeta =>
+  TaskConstMeta get kCrateRustVoiceActivityDetectionLoadConstMeta =>
       const TaskConstMeta(
-        debugName: "RustVoiceActivityDetection_new_",
+        debugName: "RustVoiceActivityDetection_load",
         argNames: [
           "sampleRate",
           "source",
@@ -2462,7 +2467,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  VoiceActivityDetectionEvent? crateRustVoiceActivityDetectionPush({
+  VoiceActivityDetectionEvent crateRustVoiceActivityDetectionPush({
     required RustVoiceActivityDetection that,
     required List<int> chunk,
   }) {
@@ -2478,8 +2483,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
         },
         codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_opt_box_autoadd_voice_activity_detection_event,
+          decodeSuccessData: sse_decode_voice_activity_detection_event,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustVoiceActivityDetectionPushConstMeta,
@@ -4842,13 +4846,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VoiceActivityDetectionEvent
-  dco_decode_box_autoadd_voice_activity_detection_event(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_voice_activity_detection_event(raw);
-  }
-
-  @protected
   ChatStats dco_decode_chat_stats(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -5138,15 +5135,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_usize(raw);
-  }
-
-  @protected
-  VoiceActivityDetectionEvent?
-  dco_decode_opt_box_autoadd_voice_activity_detection_event(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null
-        ? null
-        : dco_decode_box_autoadd_voice_activity_detection_event(raw);
   }
 
   @protected
@@ -6064,15 +6052,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  VoiceActivityDetectionEvent
-  sse_decode_box_autoadd_voice_activity_detection_event(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_voice_activity_detection_event(deserializer));
-  }
-
-  @protected
   ChatStats sse_decode_chat_stats(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_contextSize = sse_decode_u_32(deserializer);
@@ -6500,22 +6479,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_usize(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
-  VoiceActivityDetectionEvent?
-  sse_decode_opt_box_autoadd_voice_activity_detection_event(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_voice_activity_detection_event(
-        deserializer,
-      ));
     } else {
       return null;
     }
@@ -7553,15 +7516,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  void sse_encode_box_autoadd_voice_activity_detection_event(
-    VoiceActivityDetectionEvent self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_voice_activity_detection_event(self, serializer);
-  }
-
-  @protected
   void sse_encode_chat_stats(ChatStats self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.contextSize, serializer);
@@ -7968,19 +7922,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_usize(self, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_opt_box_autoadd_voice_activity_detection_event(
-    VoiceActivityDetectionEvent? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_voice_activity_detection_event(self, serializer);
     }
   }
 
@@ -8609,9 +8550,11 @@ class RustVoiceActivityDetectionImpl extends RustOpaque
       NobodyWho.instance.api.crateRustVoiceActivityDetectionFinish(that: this);
 
   /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
-  /// buffer — the detector tracks the current turn internally). Returns
-  /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
-  VoiceActivityDetectionEvent? push({required List<int> chunk}) => NobodyWho
+  /// buffer — the detector tracks the current turn internally). Always
+  /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+  /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+  /// confirmed the transition.
+  VoiceActivityDetectionEvent push({required List<int> chunk}) => NobodyWho
       .instance
       .api
       .crateRustVoiceActivityDetectionPush(that: this, chunk: chunk);

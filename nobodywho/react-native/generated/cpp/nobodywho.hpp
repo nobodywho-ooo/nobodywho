@@ -331,6 +331,9 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -527,6 +530,10 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value

@@ -113,6 +113,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(modelPath: Uint8Array, useGpu: number, projectionModelPath: Uint8Array, draftModelPath: Uint8Array, onDownloadProgress: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(source: Uint8Array, language: Uint8Array, quantization: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(source: Uint8Array, architecture: Uint8Array, voice: Uint8Array, language: Uint8Array, speed: Uint8Array, steps: Uint8Array, silenceDuration: Uint8Array, precision: Uint8Array, temperature: Uint8Array, huggingfaceToken: Uint8Array, device: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(source: Uint8Array, sampleRate: number, threshold: Uint8Array, minSilenceDurationMs: Uint8Array, minSpeechDurationMs: Uint8Array, prerollDurationMs: Uint8Array, device: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(grammar: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(schema: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(pattern: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -178,6 +179,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(): number;

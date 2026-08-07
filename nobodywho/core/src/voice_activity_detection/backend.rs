@@ -87,27 +87,39 @@ impl VoiceActivityDetectionBackend {
     pub(super) fn push(
         &mut self,
         chunk: &[i16],
-    ) -> Result<Option<VoiceActivityDetectionEvent>, VoiceActivityDetectionError> {
+    ) -> Result<VoiceActivityDetectionEvent, VoiceActivityDetectionError> {
         self.preroll.push(chunk);
         self.capture.push(chunk);
 
-        let mut event = None;
+        // A confirmed transition within this call takes priority over a
+        // later steady reading from the same call — otherwise a
+        // SpeechStarted on an early frame could be silently overwritten by
+        // a steady Speech from a later frame processed in the same call.
+        let mut event = self.debouncer.current();
+        let mut saw_transition = false;
         for prob in self.predict(chunk)? {
-            if let Some(e) = self.debouncer.step(prob) {
-                event = Some(e);
+            let e = self.debouncer.step(prob);
+            let is_transition = matches!(
+                e,
+                VoiceActivityDetectionEvent::SpeechStarted
+                    | VoiceActivityDetectionEvent::SpeechEnded
+            );
+            if is_transition || !saw_transition {
+                event = e;
             }
+            saw_transition |= is_transition;
         }
 
         match event {
             // preroll already includes this call's chunk.
-            Some(VoiceActivityDetectionEvent::SpeechStarted) => {
+            VoiceActivityDetectionEvent::SpeechStarted => {
                 self.capture.start(self.preroll.snapshot())
             }
-            Some(VoiceActivityDetectionEvent::SpeechEnded) => {
+            VoiceActivityDetectionEvent::SpeechEnded => {
                 self.capture.stop();
                 self.reset();
             }
-            None => {}
+            VoiceActivityDetectionEvent::Speech | VoiceActivityDetectionEvent::Silence => {}
         }
 
         Ok(event)
@@ -136,17 +148,17 @@ impl VoiceActivityDetectionBackend {
             let end_native = ((i + 1) as u64 * FRAME_SAMPLES as u64 * self.sample_rate as u64
                 / SILERO_SAMPLE_RATE as u64) as usize;
             match self.debouncer.step(prob) {
-                Some(VoiceActivityDetectionEvent::SpeechStarted) => {
+                VoiceActivityDetectionEvent::SpeechStarted => {
                     start = Some(end_native.saturating_sub(preroll_native));
                 }
-                Some(VoiceActivityDetectionEvent::SpeechEnded) => {
+                VoiceActivityDetectionEvent::SpeechEnded => {
                     if let Some(s) = start.take() {
                         segments.push(
                             samples[s.min(samples.len())..end_native.min(samples.len())].to_vec(),
                         );
                     }
                 }
-                None => {}
+                VoiceActivityDetectionEvent::Speech | VoiceActivityDetectionEvent::Silence => {}
             }
         }
         // Flush trailing speech with no confirmed SpeechEnded.

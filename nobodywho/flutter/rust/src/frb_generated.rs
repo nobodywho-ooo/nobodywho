@@ -43,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 686009100;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 233561309;
 
 // Section: executor
 
@@ -2446,16 +2446,17 @@ fn wire__crate__RustVoiceActivityDetection_finish_impl(
         },
     )
 }
-fn wire__crate__RustVoiceActivityDetection_new__impl(
+fn wire__crate__RustVoiceActivityDetection_load_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "RustVoiceActivityDetection_new_",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            debug_name: "RustVoiceActivityDetection_load",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let message = unsafe {
@@ -2474,17 +2475,19 @@ fn wire__crate__RustVoiceActivityDetection_new__impl(
             let api_min_speech_duration_ms = <Option<u32>>::sse_decode(&mut deserializer);
             let api_preroll_duration_ms = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, String>((move || {
-                let output_ok = crate::RustVoiceActivityDetection::new_(
-                    api_sample_rate,
-                    api_source,
-                    api_threshold,
-                    api_min_silence_duration_ms,
-                    api_min_speech_duration_ms,
-                    api_preroll_duration_ms,
-                )?;
-                Ok(output_ok)
-            })())
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::RustVoiceActivityDetection::load(
+                        api_sample_rate,
+                        api_source,
+                        api_threshold,
+                        api_min_silence_duration_ms,
+                        api_min_speech_duration_ms,
+                        api_preroll_duration_ms,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -5420,19 +5423,6 @@ impl SseDecode for Option<usize> {
     }
 }
 
-impl SseDecode for Option<crate::VoiceActivityDetectionEvent> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::VoiceActivityDetectionEvent>::sse_decode(
-                deserializer,
-            ));
-        } else {
-            return None;
-        }
-    }
-}
-
 impl SseDecode for Option<Vec<ToolCall>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5544,8 +5534,10 @@ impl SseDecode for crate::VoiceActivityDetectionEvent {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => crate::VoiceActivityDetectionEvent::SpeechStarted,
-            1 => crate::VoiceActivityDetectionEvent::SpeechEnded,
+            0 => crate::VoiceActivityDetectionEvent::Speech,
+            1 => crate::VoiceActivityDetectionEvent::SpeechStarted,
+            2 => crate::VoiceActivityDetectionEvent::SpeechEnded,
+            3 => crate::VoiceActivityDetectionEvent::Silence,
             _ => unreachable!("Invalid variant for VoiceActivityDetectionEvent: {}", inner),
         };
     }
@@ -5595,6 +5587,7 @@ fn pde_ffi_dispatcher_primary_impl(
         40 => wire__crate__RustTokenStream_completed_impl(port, ptr, rust_vec_len, data_len),
         41 => wire__crate__RustTokenStream_iter_impl(port, ptr, rust_vec_len, data_len),
         42 => wire__crate__RustTokenStream_next_token_impl(port, ptr, rust_vec_len, data_len),
+        45 => wire__crate__RustVoiceActivityDetection_load_impl(port, ptr, rust_vec_len, data_len),
         76 => wire__crate__TextToSpeech_load_impl(port, ptr, rust_vec_len, data_len),
         77 => wire__crate__TextToSpeech_synthesize_impl(port, ptr, rust_vec_len, data_len),
         83 => wire__crate__download_model_impl(port, ptr, rust_vec_len, data_len),
@@ -5622,7 +5615,6 @@ fn pde_ffi_dispatcher_sync_impl(
         39 => wire__crate__RustSpeechToText_transcribe_pcm_impl(ptr, rust_vec_len, data_len),
         43 => wire__crate__RustTool_get_schema_json_impl(ptr, rust_vec_len, data_len),
         44 => wire__crate__RustVoiceActivityDetection_finish_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__RustVoiceActivityDetection_new__impl(ptr, rust_vec_len, data_len),
         46 => wire__crate__RustVoiceActivityDetection_push_impl(ptr, rust_vec_len, data_len),
         47 => wire__crate__RustVoiceActivityDetection_segment_impl(ptr, rust_vec_len, data_len),
         48 => wire__crate__SamplerBuilder_dist_impl(ptr, rust_vec_len, data_len),
@@ -6121,8 +6113,10 @@ impl flutter_rust_bridge::IntoIntoDart<crate::PromptPart> for crate::PromptPart 
 impl flutter_rust_bridge::IntoDart for crate::VoiceActivityDetectionEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            Self::SpeechStarted => 0.into_dart(),
-            Self::SpeechEnded => 1.into_dart(),
+            Self::Speech => 0.into_dart(),
+            Self::SpeechStarted => 1.into_dart(),
+            Self::SpeechEnded => 2.into_dart(),
+            Self::Silence => 3.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -6960,16 +6954,6 @@ impl SseEncode for Option<usize> {
     }
 }
 
-impl SseEncode for Option<crate::VoiceActivityDetectionEvent> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::VoiceActivityDetectionEvent>::sse_encode(value, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<Vec<ToolCall>> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7076,8 +7060,10 @@ impl SseEncode for crate::VoiceActivityDetectionEvent {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(
             match self {
-                crate::VoiceActivityDetectionEvent::SpeechStarted => 0,
-                crate::VoiceActivityDetectionEvent::SpeechEnded => 1,
+                crate::VoiceActivityDetectionEvent::Speech => 0,
+                crate::VoiceActivityDetectionEvent::SpeechStarted => 1,
+                crate::VoiceActivityDetectionEvent::SpeechEnded => 2,
+                crate::VoiceActivityDetectionEvent::Silence => 3,
                 _ => {
                     unimplemented!("");
                 }

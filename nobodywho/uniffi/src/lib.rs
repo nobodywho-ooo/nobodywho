@@ -1299,11 +1299,15 @@ impl RustCrossEncoder {
 // ---------- RustVoiceActivityDetection ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `VoiceActivityDetection`).
 
-/// Voice activity event: a confirmed speech start or end boundary.
+/// `push` always returns one of these: `Speech`/`Silence` for the confirmed
+/// state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+/// on the call that confirmed the transition.
 #[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VoiceActivityDetectionEvent {
+    Speech,
     SpeechStarted,
     SpeechEnded,
+    Silence,
 }
 
 impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
@@ -1311,11 +1315,17 @@ impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
 {
     fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
         match e {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Speech => {
+                VoiceActivityDetectionEvent::Speech
+            }
             nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
                 VoiceActivityDetectionEvent::SpeechStarted
             }
             nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
                 VoiceActivityDetectionEvent::SpeechEnded
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Silence => {
+                VoiceActivityDetectionEvent::Silence
             }
         }
     }
@@ -1347,6 +1357,76 @@ pub struct RustVoiceActivityDetection {
     inner: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
 }
 
+#[allow(clippy::too_many_arguments)]
+fn create_voice_activity_detection(
+    source: Option<String>,
+    sample_rate: u32,
+    threshold: Option<f32>,
+    min_silence_duration_ms: Option<u32>,
+    min_speech_duration_ms: Option<u32>,
+    preroll_duration_ms: Option<u32>,
+    device: Option<String>,
+) -> Result<Arc<RustVoiceActivityDetection>, NobodyWhoError> {
+    let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
+    let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
+        source: source.unwrap_or(defaults.source),
+        sample_rate,
+        threshold: threshold.unwrap_or(defaults.threshold),
+        min_silence_duration_ms: min_silence_duration_ms
+            .unwrap_or(defaults.min_silence_duration_ms),
+        min_speech_duration_ms: min_speech_duration_ms.unwrap_or(defaults.min_speech_duration_ms),
+        preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
+    };
+    let device = parse_vad_device(device)?;
+    let vad =
+        nobodywho::voice_activity_detection::VoiceActivityDetection::with_device(config, device)
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+    Ok(Arc::new(RustVoiceActivityDetection {
+        inner: std::sync::Mutex::new(vad),
+    }))
+}
+
+/// Create a voice activity detector. `source` is a HuggingFace repo
+/// (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+/// `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+/// is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+/// internally, anything else is resampled. `threshold`,
+/// `min_silence_duration_ms`, `min_speech_duration_ms`, and
+/// `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+/// defaults when omitted.
+#[uniffi::export]
+#[allow(clippy::too_many_arguments)]
+pub async fn load_voice_activity_detection(
+    source: Option<String>,
+    sample_rate: u32,
+    threshold: Option<f32>,
+    min_silence_duration_ms: Option<u32>,
+    min_speech_duration_ms: Option<u32>,
+    preroll_duration_ms: Option<u32>,
+    device: Option<String>,
+) -> Result<Arc<RustVoiceActivityDetection>, NobodyWhoError> {
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = create_voice_activity_detection(
+            source,
+            sample_rate,
+            threshold,
+            min_silence_duration_ms,
+            min_speech_duration_ms,
+            preroll_duration_ms,
+            device,
+        );
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "VoiceActivityDetection load thread terminated unexpectedly".into(),
+    })?
+}
+
 #[uniffi::export]
 impl RustVoiceActivityDetection {
     /// Create a voice activity detector.
@@ -1369,41 +1449,28 @@ impl RustVoiceActivityDetection {
         preroll_duration_ms: Option<u32>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
-        let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
-            source: source.unwrap_or(defaults.source),
+        create_voice_activity_detection(
+            source,
             sample_rate,
-            threshold: threshold.unwrap_or(defaults.threshold),
-            min_silence_duration_ms: min_silence_duration_ms
-                .unwrap_or(defaults.min_silence_duration_ms),
-            min_speech_duration_ms: min_speech_duration_ms
-                .unwrap_or(defaults.min_speech_duration_ms),
-            preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
-        };
-        let device = parse_vad_device(device)?;
-        let vad = nobodywho::voice_activity_detection::VoiceActivityDetection::with_device(
-            config, device,
+            threshold,
+            min_silence_duration_ms,
+            min_speech_duration_ms,
+            preroll_duration_ms,
+            device,
         )
-        .map_err(|e| NobodyWhoError::Error {
-            message: e.to_string(),
-        })?;
-        Ok(Arc::new(Self {
-            inner: std::sync::Mutex::new(vad),
-        }))
     }
 
     /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
-    /// buffer — the detector tracks the current turn internally). Returns
-    /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
-    pub fn push(
-        &self,
-        chunk: Vec<i16>,
-    ) -> Result<Option<VoiceActivityDetectionEvent>, NobodyWhoError> {
+    /// buffer — the detector tracks the current turn internally). Always
+    /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+    /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+    /// confirmed the transition.
+    pub fn push(&self, chunk: Vec<i16>) -> Result<VoiceActivityDetectionEvent, NobodyWhoError> {
         self.inner
             .lock()
             .unwrap()
             .push(&chunk)
-            .map(|event| event.map(Into::into))
+            .map(Into::into)
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })

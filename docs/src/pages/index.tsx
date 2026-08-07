@@ -34,6 +34,12 @@ const sdks = [
     install: 'Asset Library or GitHub release',
     link: '/godot/',
   },
+  {
+    name: 'Kotlin',
+    description: 'Native Kotlin library for Android and desktop JVM apps.',
+    install: 'implementation("ai.nobodywho:nobodywho-android:2.2.0")',
+    link: '/kotlin/'
+  }
 ];
 
 function SDKCard({name, description, install, link}: {

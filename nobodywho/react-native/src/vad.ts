@@ -10,7 +10,6 @@ export type VoiceActivityDetectionOptions = {
   minSilenceDurationMs?: number;
   minSpeechDurationMs?: number;
   prerollDurationMs?: number;
-  device?: "auto" | "cpu" | "cuda";
 };
 
 /**
@@ -18,12 +17,11 @@ export type VoiceActivityDetectionOptions = {
  *
  * @example
  * ```typescript
- * const vad = new VoiceActivityDetection({ sampleRate: 16000 });
+ * const vad = await VoiceActivityDetection.load({ sampleRate: 16000 });
  *
  * // Feed each newest chunk as it arrives (not the whole buffer — VoiceActivityDetection
  * // tracks the current turn internally).
- * const event = vad.push(chunk);
- * if (event === VoiceActivityDetectionEvent.SpeechEnded) {
+ * if (vad.push(chunk) === VoiceActivityDetectionEvent.SpeechEnded) {
  *   const audio = vad.finish();
  *   // audio: Int16Array-like number[] spanning SpeechStarted (with a
  *   // small pre-roll) through SpeechEnded.
@@ -34,29 +32,39 @@ export class VoiceActivityDetection {
   /** @internal */
   private readonly _inner: RustVoiceActivityDetectionInterface;
 
+  /** @internal */
+  private constructor(inner: RustVoiceActivityDetectionInterface) {
+    this._inner = inner;
+  }
+
   /**
+   * Load a voice activity detector.
+   *
    * @param opts - See {@link VoiceActivityDetectionOptions}.
    */
-  constructor(opts: VoiceActivityDetectionOptions) {
-    this._inner = new nobodywho.RustVoiceActivityDetection(
+  static async load(opts: VoiceActivityDetectionOptions): Promise<VoiceActivityDetection> {
+    const inner = await nobodywho.loadVoiceActivityDetection(
       opts.source,
       opts.sampleRate,
       opts.threshold,
       opts.minSilenceDurationMs,
       opts.minSpeechDurationMs,
       opts.prerollDurationMs,
-      opts.device,
+      undefined,
     );
+    return new VoiceActivityDetection(inner);
   }
 
   /**
    * Feed the newest chunk of audio (not the whole accumulated buffer —
-   * `VoiceActivityDetection` tracks the current turn internally). Returns a `VoiceActivityDetectionEvent` if this
-   * call crossed a confirmed speech/silence boundary.
+   * `VoiceActivityDetection` tracks the current turn internally). Always
+   * returns the current confirmed state: `Speech`/`Silence` if unchanged
+   * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+   * confirmed the transition.
    *
    * @param chunk - Flat array of signed 16-bit samples (mono).
    */
-  push(chunk: Int16Array | number[]): VoiceActivityDetectionEvent | undefined {
+  push(chunk: Int16Array | number[]): VoiceActivityDetectionEvent {
     const arr = chunk instanceof Int16Array ? Array.from(chunk) : chunk;
     return this._inner.push(arr);
   }

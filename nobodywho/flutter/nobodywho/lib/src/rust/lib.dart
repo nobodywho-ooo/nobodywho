@@ -415,14 +415,14 @@ abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
   /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
   /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
   /// pass `None` to use the default (`hf://onnx-community/silero-vad`).
-  static RustVoiceActivityDetection new_({
+  static Future<RustVoiceActivityDetection> load({
     required int sampleRate,
     String? source = null,
     double? threshold = null,
     int? minSilenceDurationMs = null,
     int? minSpeechDurationMs = null,
     int? prerollDurationMs = null,
-  }) => NobodyWho.instance.api.crateRustVoiceActivityDetectionNew(
+  }) => NobodyWho.instance.api.crateRustVoiceActivityDetectionLoad(
     sampleRate: sampleRate,
     source: source,
     threshold: threshold,
@@ -432,9 +432,11 @@ abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
   );
 
   /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
-  /// buffer — the detector tracks the current turn internally). Returns
-  /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
-  VoiceActivityDetectionEvent? push({required List<int> chunk});
+  /// buffer — the detector tracks the current turn internally). Always
+  /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+  /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+  /// confirmed the transition.
+  VoiceActivityDetectionEvent push({required List<int> chunk});
 
   /// Detect every speech segment in a complete audio buffer, returning
   /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
@@ -787,5 +789,7 @@ sealed class PromptPart with _$PromptPart {
   const factory PromptPart.audio({required String path}) = PromptPart_Audio;
 }
 
-/// Voice activity event: a confirmed speech start or end boundary.
-enum VoiceActivityDetectionEvent { speechStarted, speechEnded }
+/// `push` always returns one of these: `Speech`/`Silence` for the confirmed
+/// state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+/// on the call that confirmed the transition.
+enum VoiceActivityDetectionEvent { speech, speechStarted, speechEnded, silence }

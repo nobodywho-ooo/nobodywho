@@ -358,6 +358,11 @@ RustBuffer uniffi_nobodywho_uniffi_fn_func_get_cached_models(
     RustBuffer silence_duration, RustBuffer precision, RustBuffer temperature,
     RustBuffer huggingface_token, RustBuffer device);
 /*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
+    RustBuffer source, uint32_t sample_rate, RustBuffer threshold,
+    RustBuffer min_silence_duration_ms, RustBuffer min_speech_duration_ms,
+    RustBuffer preroll_duration_ms, RustBuffer device);
+/*handle*/ uint64_t
 uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
     RustBuffer grammar, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t
@@ -507,6 +512,7 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_get_cached_models();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_model();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text();
 uint16_t uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech();
+uint16_t uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar();
 uint16_t
@@ -3885,6 +3891,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_func_"
+                                        "load_voice_activity_detection"),
+          7,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_"
         "grammar"] = jsi::Function::createFromHostFunction(
       rt,
@@ -4624,6 +4642,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_"
+        "detection"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "func_load_voice_activity_detection"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_"
         "with_grammar"] = jsi::Function::createFromHostFunction(
       rt,
@@ -7432,6 +7462,23 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(
                                                          value);
 }
 jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value = uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[0]),
+      uniffi_jsi::Bridging<uint32_t>::fromJs(rt, callInvoker, args[1]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[4]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
+                                                      args[6]));
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
     cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
@@ -8180,6 +8227,15 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

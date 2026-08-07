@@ -467,13 +467,16 @@ impl SpeechToTextAsync {
 // VoiceActivityDetection
 // ---------------------------------------------------------------------------
 
-/// `VoiceActivityDetectionEvent` is returned by `VoiceActivityDetection.push` when a call crosses a confirmed
-/// speech/silence boundary.
+/// `VoiceActivityDetection.push` always returns one of these: `Speech`/`Silence`
+/// for the confirmed state when unchanged since the last call, or
+/// `SpeechStarted`/`SpeechEnded` on the call that confirmed the transition.
 #[pyclass(eq, eq_int, skip_from_py_object)]
 #[derive(Clone, Copy, PartialEq)]
 pub enum VoiceActivityDetectionEvent {
+    Speech,
     SpeechStarted,
     SpeechEnded,
+    Silence,
 }
 
 impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
@@ -481,11 +484,17 @@ impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
 {
     fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
         match e {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Speech => {
+                VoiceActivityDetectionEvent::Speech
+            }
             nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
                 VoiceActivityDetectionEvent::SpeechStarted
             }
             nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
                 VoiceActivityDetectionEvent::SpeechEnded
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Silence => {
+                VoiceActivityDetectionEvent::Silence
             }
         }
     }
@@ -505,8 +514,7 @@ impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
 ///
 ///     vad = VoiceActivityDetection(sample_rate=16000)
 ///     for chunk in mic_chunks():
-///         event = vad.push(chunk)
-///         if event == VoiceActivityDetectionEvent.SpeechEnded:
+///         if vad.push(chunk) == VoiceActivityDetectionEvent.SpeechEnded:
 ///             audio = vad.finish()
 ///             break
 #[pyclass]
@@ -549,15 +557,13 @@ impl VoiceActivityDetection {
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
-    /// `VoiceActivityDetection` tracks the current turn internally). Returns a `VoiceActivityDetectionEvent` if this
-    /// call crossed a confirmed speech/silence boundary, else `None`.
-    pub fn push(
-        &self,
-        chunk: Vec<i16>,
-        py: Python,
-    ) -> PyResult<Option<VoiceActivityDetectionEvent>> {
+    /// `VoiceActivityDetection` tracks the current turn internally). Always
+    /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+    /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+    /// confirmed the transition.
+    pub fn push(&self, chunk: Vec<i16>, py: Python) -> PyResult<VoiceActivityDetectionEvent> {
         py.detach(|| self.vad.lock().unwrap().push(&chunk))
-            .map(|event| event.map(Into::into))
+            .map(Into::into)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 

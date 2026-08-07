@@ -511,10 +511,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt dco_decode_box_autoadd_usize(dynamic raw);
 
   @protected
-  VoiceActivityDetectionEvent
-  dco_decode_box_autoadd_voice_activity_detection_event(dynamic raw);
-
-  @protected
   ChatStats dco_decode_chat_stats(dynamic raw);
 
   @protected
@@ -636,10 +632,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw);
-
-  @protected
-  VoiceActivityDetectionEvent?
-  dco_decode_opt_box_autoadd_voice_activity_detection_event(dynamic raw);
 
   @protected
   List<ToolCall>?
@@ -1088,12 +1080,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   BigInt sse_decode_box_autoadd_usize(SseDeserializer deserializer);
 
   @protected
-  VoiceActivityDetectionEvent
-  sse_decode_box_autoadd_voice_activity_detection_event(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   ChatStats sse_decode_chat_stats(SseDeserializer deserializer);
 
   @protected
@@ -1229,12 +1215,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_usize(SseDeserializer deserializer);
-
-  @protected
-  VoiceActivityDetectionEvent?
-  sse_decode_opt_box_autoadd_voice_activity_detection_event(
-    SseDeserializer deserializer,
-  );
 
   @protected
   List<ToolCall>?
@@ -1765,12 +1745,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_box_autoadd_usize(BigInt self, SseSerializer serializer);
 
   @protected
-  void sse_encode_box_autoadd_voice_activity_detection_event(
-    VoiceActivityDetectionEvent self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_chat_stats(ChatStats self, SseSerializer serializer);
 
   @protected
@@ -1938,12 +1912,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_usize(BigInt? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_box_autoadd_voice_activity_detection_event(
-    VoiceActivityDetectionEvent? self,
-    SseSerializer serializer,
-  );
 
   @protected
   void

@@ -697,6 +697,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(
@@ -1059,6 +1061,8 @@ external fun uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(`source`: RustB
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_json_schema(`schema`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1218,6 +1222,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1359,7 +1366,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 19729.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 58012.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967.toShort()) {
@@ -5200,10 +5207,12 @@ public interface RustVoiceActivityDetectionInterface {
     
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
-     * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
-    fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent?
+    fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent
     
     /**
      * Detect every speech segment in a complete audio buffer, returning
@@ -5358,11 +5367,13 @@ open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActiv
     
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
-     * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
-    @Throws(NobodyWhoException::class)override fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent? {
-            return FfiConverterOptionalTypeVoiceActivityDetectionEvent.lift(
+    @Throws(NobodyWhoException::class)override fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent {
+            return FfiConverterTypeVoiceActivityDetectionEvent.lift(
     callWithHandle {
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
@@ -6809,13 +6820,17 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
 
 
 /**
- * Voice activity event: a confirmed speech start or end boundary.
+ * `push` always returns one of these: `Speech`/`Silence` for the confirmed
+ * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+ * on the call that confirmed the transition.
  */
 
 enum class VoiceActivityDetectionEvent {
     
+    SPEECH,
     SPEECH_STARTED,
-    SPEECH_ENDED;
+    SPEECH_ENDED,
+    SILENCE;
     companion object
 }
 
@@ -7192,38 +7207,6 @@ public object FfiConverterOptionalTypePendingToolCall: FfiConverterRustBuffer<Pe
         } else {
             buf.put(1)
             FfiConverterTypePendingToolCall.write(value, buf)
-        }
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterOptionalTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer<VoiceActivityDetectionEvent?> {
-    override fun read(buf: ByteBuffer): VoiceActivityDetectionEvent? {
-        if (buf.get().toInt() == 0) {
-            return null
-        }
-        return FfiConverterTypeVoiceActivityDetectionEvent.read(buf)
-    }
-
-    override fun allocationSize(value: VoiceActivityDetectionEvent?): ULong {
-        if (value == null) {
-            return 1UL
-        } else {
-            return 1UL + FfiConverterTypeVoiceActivityDetectionEvent.allocationSize(value)
-        }
-    }
-
-    override fun write(value: VoiceActivityDetectionEvent?, buf: ByteBuffer) {
-        if (value == null) {
-            buf.put(0)
-        } else {
-            buf.put(1)
-            FfiConverterTypeVoiceActivityDetectionEvent.write(value, buf)
         }
     }
 }
@@ -7954,6 +7937,31 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
         // lift function
         { FfiConverterTypeRustTextToSpeech.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Create a voice activity detector. `source` is a HuggingFace repo
+         * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+         * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+         * is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+         * internally, anything else is resampled. `threshold`,
+         * `min_silence_duration_ms`, `min_speech_duration_ms`, and
+         * `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+         * defaults when omitted.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `loadVoiceActivityDetection`(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `prerollDurationMs`: kotlin.UInt?, `device`: kotlin.String?) : RustVoiceActivityDetection {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalUInt.lower(`prerollDurationMs`),FfiConverterOptionalString.lower(`device`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustVoiceActivityDetection.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )

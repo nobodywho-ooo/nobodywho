@@ -9,30 +9,35 @@ import NobodyWhoGenerated
 /// `finish` to get that turn's audio and reset for the next one.
 ///
 /// ```swift
-/// let vad = try VoiceActivityDetection(sampleRate: 16000)
-/// let event = vad.push(chunk: chunk)
-/// if event == .speechEnded {
+/// let vad = try await VoiceActivityDetection.load(sampleRate: 16000)
+/// if try vad.push(chunk: chunk) == .speechEnded {
 ///     let audio = vad.finish()
 /// }
 /// ```
 public class VoiceActivityDetection {
     private let inner: RustVoiceActivityDetection
 
+    private init(inner: RustVoiceActivityDetection) {
+        self.inner = inner
+    }
+
+    /// Load a voice activity detector.
+    ///
     /// - Parameters:
     ///   - sampleRate: Rate of the audio you'll pass to `push`. Anything
     ///     other than 16kHz is resampled internally.
     ///   - source: HuggingFace repo (`hf://owner/repo`) or local directory
     ///     for the Silero VAD ONNX model. Pass `nil` to use the default
     ///     (`hf://onnx-community/silero-vad`).
-    public init(
+    public static func load(
         sampleRate: UInt32,
         source: String? = nil,
         threshold: Float? = nil,
         minSilenceDurationMs: UInt32? = nil,
         minSpeechDurationMs: UInt32? = nil,
         prerollDurationMs: UInt32? = nil
-    ) throws {
-        self.inner = try RustVoiceActivityDetection(
+    ) async throws -> VoiceActivityDetection {
+        let inner = try await NobodyWhoGenerated.loadVoiceActivityDetection(
             source: source,
             sampleRate: sampleRate,
             threshold: threshold,
@@ -41,13 +46,16 @@ public class VoiceActivityDetection {
             prerollDurationMs: prerollDurationMs,
             device: nil
         )
+        return VoiceActivityDetection(inner: inner)
     }
 
     /// Feed the newest chunk of audio (not the whole accumulated buffer —
-    /// `VoiceActivityDetection` tracks the current turn internally). Returns a `VoiceActivityDetectionEvent` if
-    /// this call crossed a confirmed speech/silence boundary. Throws on
-    /// ONNX inference or resampling failure.
-    public func push(chunk: [Int16]) throws -> VoiceActivityDetectionEvent? {
+    /// `VoiceActivityDetection` tracks the current turn internally). Always
+    /// returns the current confirmed state: `.speech`/`.silence` if unchanged
+    /// since the last call, or `.speechStarted`/`.speechEnded` on the call
+    /// that confirmed the transition. Throws on ONNX inference or resampling
+    /// failure.
+    public func push(chunk: [Int16]) throws -> VoiceActivityDetectionEvent {
         return try inner.push(chunk: chunk)
     }
 

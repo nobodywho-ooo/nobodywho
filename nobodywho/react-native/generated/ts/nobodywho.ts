@@ -247,6 +247,41 @@ export async function loadTextToSpeech(source: string, architecture: string | un
     }
     }
 /**
+ * Create a voice activity detector. `source` is a HuggingFace repo
+ * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+ * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+ * is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+ * internally, anything else is resampled. `threshold`,
+ * `min_silence_duration_ms`, `min_speech_duration_ms`, and
+ * `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+ * defaults when omitted.
+ */
+export async function loadVoiceActivityDetection(source: string | undefined, sampleRate: /*u32*/number, threshold: /*f32*/number | undefined, minSilenceDurationMs: /*u32*/number | undefined, minSpeechDurationMs: /*u32*/number | undefined, prerollDurationMs: /*u32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustVoiceActivityDetectionInterface> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(FfiConverterOptionalString.lower(source),FfiConverterUInt32.lower(sampleRate),FfiConverterOptionalFloat32.lower(threshold),FfiConverterOptionalUInt32.lower(minSilenceDurationMs),FfiConverterOptionalUInt32.lower(minSpeechDurationMs),FfiConverterOptionalUInt32.lower(prerollDurationMs),FfiConverterOptionalString.lower(device)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+            /*liftFunc:*/ FfiConverterTypeRustVoiceActivityDetection.lift.bind(FfiConverterTypeRustVoiceActivityDetection),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+/**
  * Create a sampler that constrains output using a Lark grammar via llguidance.
  */
 export function samplerPresetConstrainWithGrammar(grammar: string): SamplerConfigInterface {
@@ -1484,11 +1519,15 @@ const FfiConverterTypePromptPart = (() => {
 
 
 /**
- * Voice activity event: a confirmed speech start or end boundary.
+ * `push` always returns one of these: `Speech`/`Silence` for the confirmed
+ * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+ * on the call that confirmed the transition.
  */
 export enum VoiceActivityDetectionEvent {
+    Speech,
     SpeechStarted,
-    SpeechEnded
+    SpeechEnded,
+    Silence
 }
 
 const FfiConverterTypeVoiceActivityDetectionEvent = (() => {
@@ -1497,15 +1536,19 @@ const FfiConverterTypeVoiceActivityDetectionEvent = (() => {
     class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
         read(from: RustBuffer): TypeName {
             switch (ordinalConverter.read(from)) {
-                case 1: return VoiceActivityDetectionEvent.SpeechStarted;
-                case 2: return VoiceActivityDetectionEvent.SpeechEnded;
+                case 1: return VoiceActivityDetectionEvent.Speech;
+                case 2: return VoiceActivityDetectionEvent.SpeechStarted;
+                case 3: return VoiceActivityDetectionEvent.SpeechEnded;
+                case 4: return VoiceActivityDetectionEvent.Silence;
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
         write(value: TypeName, into: RustBuffer): void {
             switch (value) {
-                case VoiceActivityDetectionEvent.SpeechStarted: return ordinalConverter.write(1, into);
-                case VoiceActivityDetectionEvent.SpeechEnded: return ordinalConverter.write(2, into);
+                case VoiceActivityDetectionEvent.Speech: return ordinalConverter.write(1, into);
+                case VoiceActivityDetectionEvent.SpeechStarted: return ordinalConverter.write(2, into);
+                case VoiceActivityDetectionEvent.SpeechEnded: return ordinalConverter.write(3, into);
+                case VoiceActivityDetectionEvent.Silence: return ordinalConverter.write(4, into);
             }
         }
         allocationSize(value: TypeName): number {
@@ -3621,10 +3664,12 @@ export interface RustVoiceActivityDetectionInterface {
     finish() : Array</*i16*/number>;
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
-     * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
-    push(chunk: Array</*i16*/number>)  /*throws*/: VoiceActivityDetectionEvent | undefined;
+    push(chunk: Array</*i16*/number>)  /*throws*/: VoiceActivityDetectionEvent;
     /**
      * Detect every speech segment in a complete audio buffer, returning
      * each segment's audio (with a short pre-roll) in order. Unlike `push`,
@@ -3700,11 +3745,13 @@ export class RustVoiceActivityDetection extends UniffiAbstractObject implements 
     
     /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
-     * buffer — the detector tracks the current turn internally). Returns
-     * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
- push(chunk: Array</*i16*/number>): VoiceActivityDetectionEvent | undefined /*throws*/ {
-    return FfiConverterOptionalTypeVoiceActivityDetectionEvent.lift(
+ push(chunk: Array</*i16*/number>): VoiceActivityDetectionEvent /*throws*/ {
+    return FfiConverterTypeVoiceActivityDetectionEvent.lift(
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
@@ -4370,10 +4417,6 @@ const FfiConverterArrayTypeToolParameter = new FfiConverterArray(FfiConverterTyp
 const FfiConverterArrayString = new FfiConverterArray(FfiConverterString);
 
 
-// FfiConverter for VoiceActivityDetectionEvent | undefined
-const FfiConverterOptionalTypeVoiceActivityDetectionEvent = new FfiConverterOptional(FfiConverterTypeVoiceActivityDetectionEvent);
-
-
 // FfiConverter for Map<string, boolean> | undefined
 const FfiConverterOptionalMapStringBool = new FfiConverterOptional(FfiConverterMapStringBool);
 
@@ -4452,6 +4495,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() !== 45176) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() !== 42331) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() !== 13698) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar");
@@ -4594,7 +4640,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() !== 1447) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() !== 19729) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() !== 58012) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() !== 39967) {
