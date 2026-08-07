@@ -58,27 +58,21 @@
 
         # godot stuff
         nobodywho-godot = workspace.workspaceMembers.nobodywho-godot.build;
-        godot-integration-test = pkgs.callPackage ./nobodywho/godot/integration-test {
+        godot-integration-test = pkgs.callPackage ./nobodywho/godot/tests {
           inherit nobodywho-godot;
         };
         run-godot-integration-test =
           pkgs.runCommand "checkgame"
             {
               nativeBuildInputs = [ pkgs.mesa ];
+              # Depend on the test derivation so it builds (and runs the
+              # tests in its buildPhase) before this wrapper succeeds.
+              inherit godot-integration-test;
             }
             ''
-              cd ${godot-integration-test}
-              export HOME=$TMPDIR
-              # Point the model-download cache at the symlink tree created in
-              # the godot-integration-test derivation. Mirrors docs/conftest.py
-              # so the hf_path_test runs offline.
-              export XDG_CACHE_HOME=${godot-integration-test}/hf-cache
-              # The speech_to_text_test's audio lives in assets/, which is
-              # outside the integration-test derivation's src, so hand it the
-              # store copy. The whisper model itself resolves through the
-              # hf-cache above.
-              export TEST_AUDIO_FILE=${./assets/sound.mp3}
-              ./game --headless
+              # The actual tests ran in godot-integration-test's buildPhase.
+              # If that derivation failed, this one wouldn't be building.
+              echo "godot tests passed"
               touch $out
             '';
       in

@@ -49,6 +49,11 @@ stdenv.mkDerivation {
     ln -s ${models.TEST_MODEL} \
       $out/hf-cache/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-Q4_K_M.gguf
 
+    # Whisper STT — same cache-layout trick, so hf://onnx-community/whisper-base
+    # resolves offline.
+    ln -s ${models.TEST_WHISPER_HF_CACHE}/onnx-community \
+      $out/hf-cache/nobodywho/models/onnx-community
+
     # Kokoro TTS — fetch from HF cache layout.
     # (If a TEST_TTS_SOURCE is not in the cache, the test self-skips, so this
     # is optional. We include the chat model + cross-encoder + encoder which
@@ -59,11 +64,13 @@ stdenv.mkDerivation {
 
     # Run the test suite headless. The env vars point at the nix-fetched
     # models so the model-backed tests (chat, tools, encoder, crossencoder)
-    # find their models without network access. TTS/STT self-skip if their
-    # sources aren't set.
+    # find their models without network access. TTS self-skips if its source
+    # isn't set.
     TEST_MODEL=${models.TEST_MODEL} \
     TEST_ENCODER_MODEL=${models.TEST_EMBEDDINGS_MODEL} \
     TEST_CROSSENCODER_MODEL=${models.TEST_CROSSENCODER_MODEL} \
+    TEST_STT_SOURCE="hf://onnx-community/whisper-base" \
+    TEST_AUDIO_FILE=${./../../../assets/sound.mp3} \
     XDG_CACHE_HOME=$out/hf-cache \
     ${godot_4}/bin/godot --headless --path .
 
