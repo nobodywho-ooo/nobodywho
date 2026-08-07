@@ -90,11 +90,17 @@ jobs:
           CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
           AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
-      - name: "Place .so into :android jniLibs"
+      # Package native libs into the app module's own jniLibs (always bundled
+      # into the app APK). Two libs are needed:
+      #  - libnobodywho_uniffi.so : the binding itself
+      #  - libc++_shared.so       : the NDK C++ runtime it dynamically links
+      #    against; without it dlopen fails with "libc++_shared.so not found".
+      - name: "Place native libs into the test-app jniLibs"
         run: |
-          mkdir -p nobodywho/kotlin/android/build/jniLibs/arm64-v8a
-          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
+          DEST=nobodywho/testing-apps/kotlin/src/main/jniLibs/arm64-v8a
+          mkdir -p "$DEST"
+          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
+          cp "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "$DEST/"
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -121,6 +127,27 @@ jobs:
       - name: "Assemble app + androidTest APKs"
         working-directory: ./nobodywho/testing-apps/kotlin
         run: ./gradlew assembleDebug assembleDebugAndroidTest
+
+      # Fail fast (with a clear message) if a native lib is missing, rather than
+      # a cryptic UnsatisfiedLinkError on-device minutes into the FTL run.
+      - name: "Verify native libs are packaged in the app APK"
+        run: |
+          set -euo pipefail
+          APK=$(find nobodywho/testing-apps/kotlin/build/outputs/apk/debug -name '*.apk' | head -1)
+          echo "Inspecting $APK"
+          missing=0
+          for lib in libnobodywho_uniffi.so libc++_shared.so libjnidispatch.so; do
+            if unzip -l "$APK" | grep -q "lib/arm64-v8a/$lib"; then
+              echo "  ✓ $lib"
+            else
+              echo "::error::$lib missing from app APK"; missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "--- lib/arm64-v8a/ contents: ---"
+            unzip -l "$APK" | grep 'lib/arm64-v8a/' || true
+            exit 1
+          fi
 
       - name: "Authenticate to Google Cloud"
         uses: google-github-actions/auth@v2

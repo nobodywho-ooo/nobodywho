@@ -11,14 +11,18 @@ There is nothing to wire into `kotlin/settings.gradle.kts`.
 
 ## Build & run manually
 
-1. Build the native library for Android arm64 and drop it where the `:android`
-   module expects it:
+1. Build the native library for Android arm64 and place it — plus the NDK C++
+   runtime it dynamically links against (`libc++_shared.so`) — in the app's
+   jniLibs:
    ```bash
    nix develop .#android --command bash -c \
      'cd nobodywho && cargo build -p nobodywho-uniffi --target aarch64-linux-android --release'
-   mkdir -p nobodywho/kotlin/android/build/jniLibs/arm64-v8a
-   cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-     nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
+   DEST=nobodywho/testing-apps/kotlin/src/main/jniLibs/arm64-v8a
+   mkdir -p "$DEST"
+   cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
+   # Without libc++_shared.so, loading the .so fails at runtime with
+   # "dlopen failed: library libc++_shared.so not found".
+   cp "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "$DEST/"
    ```
 
 2. Build and install the app (run from this directory):
