@@ -6,6 +6,7 @@ use godot::prelude::*;
 
 use crate::convert::{dict_get, json_to_variant, resolve_godot_path, variant_to_json};
 use crate::model::NobodyWhoModel;
+use crate::prompt::NobodyWhoPrompt;
 use crate::sampler::NobodyWhoSamplerConfig;
 use crate::task::{on_blocking_thread, task};
 use crate::tools::NobodyWhoTool;
@@ -110,16 +111,26 @@ impl NobodyWhoChat {
         .wait()
     }
 
-    /// Start generating a response. Returns immediately with a per-call token
-    /// stream; pull tokens via `next_token()`, or await the full text via
+    /// Start generating a response. `prompt` is a String or a
+    /// `NobodyWhoPrompt` (for multimodal input). Returns a per-call token
+    /// stream, or null on a bad prompt type (with a `godot_error!`).
+    ///
+    /// Pull tokens via `next_token()`, or await the full text via
     /// `completed()`.
     ///
     /// Calling this from inside one of this chat's own tools queues the ask
     /// behind the current generation — but do **not** await its stream from
     /// inside the tool (the worker won't reach it until the tool returns).
     #[func]
-    fn ask(&self, prompt: GString) -> Gd<NobodyWhoTokenStream> {
-        NobodyWhoTokenStream::wrap_chat(self.handle.ask(prompt.to_string()))
+    fn ask(&self, prompt: Variant) -> Variant {
+        let core_prompt = match parse_prompt(&prompt) {
+            Ok(p) => p,
+            Err(e) => {
+                godot_error!("ask: {e}");
+                return Variant::nil();
+            }
+        };
+        NobodyWhoTokenStream::wrap_chat(self.handle.ask(core_prompt)).to_variant()
     }
 
     /// Stop the current generation early. Chat-scoped: with queued concurrent
@@ -365,15 +376,22 @@ impl NobodyWhoChat {
         })
     }
 
-    /// Tokenize a prompt. Resolves to an Array of ints (with null slots for
-    /// media embedding positions), or null on failure.
+    /// Tokenize a prompt. `prompt` is a String or a `NobodyWhoPrompt`.
+    /// Resolves to an Array of ints (with null slots for media embedding
+    /// positions), or null on failure.
     #[func]
-    fn tokenize(&self, prompt: GString) -> Variant {
-        let prompt = prompt.to_string();
+    fn tokenize(&self, prompt: Variant) -> Variant {
+        let core_prompt = match parse_prompt(&prompt) {
+            Ok(p) => p,
+            Err(e) => {
+                godot_error!("tokenize: {e}");
+                return Variant::nil();
+            }
+        };
         let handle = self.handle.clone();
         self.guarded("tokenize", async move {
             let ids = handle
-                .tokenize(prompt)
+                .tokenize(core_prompt)
                 .await
                 .map_err(|e| nobodywho::render_miette(&e))?;
             let arr: VarArray = ids
@@ -451,6 +469,20 @@ fn opt_string(v: &Variant) -> Result<Option<String>, ()> {
         v.try_to::<GString>()
             .map(|s| Some(s.to_string()))
             .map_err(|_| ())
+    }
+}
+
+/// Dispatch a `String | NobodyWhoPrompt` Variant into a core `Prompt`.
+/// `Err` for any other type (caller logs + resolves to null).
+fn parse_prompt(v: &Variant) -> Result<nobodywho::tokenizer::Prompt, String> {
+    if let Ok(gd) = v.try_to::<Gd<NobodyWhoPrompt>>() {
+        // Brief shared bind, no suspension across it — same pattern as
+        // `NobodyWhoChat::create` for `NobodyWhoModel`.
+        Ok(gd.bind().inner.clone())
+    } else if let Ok(s) = v.try_to::<GString>() {
+        Ok(nobodywho::tokenizer::Prompt::from(s.to_string()))
+    } else {
+        Err("prompt must be a String or NobodyWhoPrompt".into())
     }
 }
 

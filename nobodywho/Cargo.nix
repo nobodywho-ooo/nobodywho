@@ -4877,9 +4877,9 @@ rec {
       };
       "gdextension-api" = rec {
         crateName = "gdextension-api";
-        version = "0.3.3";
+        version = "0.5.1";
         edition = "2024";
-        sha256 = "0shswy0irc9xgzrpdf8q0pyys7nxc844ic75hfy6nx3j4wxg70sk";
+        sha256 = "0bqxnfsmvgsr97g8p4jg1qhbdj9ivq9fpqygndylclrk8vksk29l";
         libName = "gdextension_api";
 
       };
@@ -5277,9 +5277,9 @@ rec {
       };
       "glam" = rec {
         crateName = "glam";
-        version = "0.30.10";
+        version = "0.32.1";
         edition = "2021";
-        sha256 = "1a9as4c2sm3z9sczl2m6gn8fsfmg4iw8rrpinv8i58iphhz47z0r";
+        sha256 = "186cjxn5qknagm31vmxvxk1kwwrfvv6cqj99nvvcngh6bdllj1zp";
         authors = [
           "Cameron Hart <cameron.hart@gmail.com>"
         ];
@@ -5448,9 +5448,9 @@ rec {
       };
       "godot" = rec {
         crateName = "godot";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "0gj1ac7k02zmfh5g037i428ml2fli1nf1y8b3phi398pzlxd16am";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "17zkx34vmm8jl1ljgclkk7g7qri501mrn542gwc3n29smvxyylj4";
         authors = [
           "Bromeon"
           "godot-rust contributors"
@@ -5470,11 +5470,11 @@ rec {
           "__debug-log" = [ "godot-core/debug-log" ];
           "__trace" = [ "godot-core/trace" ];
           "api-4-2" = [ "godot-core/api-4-2" ];
-          "api-4-2-1" = [ "godot-core/api-4-2-1" ];
-          "api-4-2-2" = [ "godot-core/api-4-2-2" ];
           "api-4-3" = [ "godot-core/api-4-3" ];
           "api-4-4" = [ "godot-core/api-4-4" ];
           "api-4-5" = [ "godot-core/api-4-5" ];
+          "api-4-6" = [ "godot-core/api-4-6" ];
+          "api-4-7" = [ "godot-core/api-4-7" ];
           "api-custom" = [ "godot-core/api-custom" ];
           "api-custom-json" = [ "godot-core/api-custom-json" ];
           "codegen-rustfmt" = [ "godot-core/codegen-rustfmt" ];
@@ -5490,14 +5490,15 @@ rec {
           "safeguards-dev-balanced" = [ "godot-core/safeguards-dev-balanced" ];
           "safeguards-release-disengaged" = [ "godot-core/safeguards-release-disengaged" ];
           "serde" = [ "godot-core/serde" ];
+          "upcoming-editor-placeholders" = [ "godot-core/upcoming-editor-placeholders" ];
         };
         resolvedDefaultFeatures = [ "__codegen-full" "default" "experimental-threads" "register-docs" ];
       };
       "godot-bindings" = rec {
         crateName = "godot-bindings";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "03r8ya3hdhky00cj1mv86bjr2iiryzdyh7hky31y61bc61jnx2zk";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1vc5rn96hx4v1kfdddssc21ll5k9w478xzj0vj5nzgjk4yj60f3p";
         libName = "godot_bindings";
         dependencies = [
           {
@@ -5506,16 +5507,16 @@ rec {
           }
         ];
         features = {
-          "api-custom" = [ "dep:bindgen" "dep:regex" "dep:which" ];
-          "api-custom-json" = [ "dep:nanoserde" "dep:bindgen" "dep:regex" "dep:which" ];
+          "api-custom" = [ "dep:regex" "dep:which" ];
+          "api-custom-json" = [ "dep:nanoserde" "dep:which" ];
         };
         resolvedDefaultFeatures = [ "default" ];
       };
       "godot-cell" = rec {
         crateName = "godot-cell";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "05lw4ghp31z04269424x09j8xrfw7iprr8nm1qpxkwfw5zwzx3kk";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "0b950ny14d564jy2g58w90r5ilxrfwfnyk5d082dllidks0313gi";
         libName = "godot_cell";
         features = {
           "proptest" = [ "dep:proptest" ];
@@ -5523,9 +5524,9 @@ rec {
       };
       "godot-codegen" = rec {
         crateName = "godot-codegen";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "1026z7mr073krjd43clnwgmx00wj41ql1drzv1a4qd9zc2gsbf80";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1d8mvz4y9kf2x8msz310ch3hdniky9s44j9f8mdava06ziv511w5";
         libName = "godot_codegen";
         dependencies = [
           {
@@ -5548,12 +5549,6 @@ rec {
             name = "quote";
             packageId = "quote";
           }
-          {
-            name = "regex";
-            packageId = "regex";
-            usesDefaultFeatures = false;
-            features = [ "std" "unicode-bool" "unicode-gencat" ];
-          }
         ];
         buildDependencies = [
           {
@@ -5569,9 +5564,9 @@ rec {
       };
       "godot-core" = rec {
         crateName = "godot-core";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "0cqcjm7dhw6i5aclp40ga6b1zp19471vwq6a1np4h84dnpgq17lq";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "127yhriw24p4grn6wjwly0gxsilx9yjmvh1npzs5q3plvdr2bljp";
         libName = "godot_core";
         dependencies = [
           {
@@ -5600,11 +5595,11 @@ rec {
         ];
         features = {
           "api-4-2" = [ "godot-ffi/api-4-2" ];
-          "api-4-2-1" = [ "godot-ffi/api-4-2-1" ];
-          "api-4-2-2" = [ "godot-ffi/api-4-2-2" ];
           "api-4-3" = [ "godot-ffi/api-4-3" ];
           "api-4-4" = [ "godot-ffi/api-4-4" ];
           "api-4-5" = [ "godot-ffi/api-4-5" ];
+          "api-4-6" = [ "godot-ffi/api-4-6" ];
+          "api-4-7" = [ "godot-ffi/api-4-7" ];
           "api-custom" = [ "godot-ffi/api-custom" "godot-codegen/api-custom" ];
           "api-custom-json" = [ "godot-codegen/api-custom-json" ];
           "codegen-full" = [ "godot-codegen/codegen-full" ];
@@ -5623,17 +5618,11 @@ rec {
       };
       "godot-ffi" = rec {
         crateName = "godot-ffi";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "0ri64j60ckjsvlwhjm36ls1yz92fh3c3r9q5cxbadfn5a9nb4dv2";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1llvvclxn2ha8dyiyabl0y4kiiqnm1qsqxhd4i6whm2g3sc36il5";
         libName = "godot_ffi";
         dependencies = [
-          {
-            name = "godot-macros";
-            packageId = "godot-macros";
-            target = { target, features }: (builtins.elem "wasm" target."family");
-            features = [ "experimental-wasm" ];
-          }
           {
             name = "libc";
             packageId = "libc";
@@ -5652,11 +5641,11 @@ rec {
         ];
         features = {
           "api-4-2" = [ "godot-bindings/api-4-2" ];
-          "api-4-2-1" = [ "godot-bindings/api-4-2-1" ];
-          "api-4-2-2" = [ "godot-bindings/api-4-2-2" ];
           "api-4-3" = [ "godot-bindings/api-4-3" ];
           "api-4-4" = [ "godot-bindings/api-4-4" ];
           "api-4-5" = [ "godot-bindings/api-4-5" ];
+          "api-4-6" = [ "godot-bindings/api-4-6" ];
+          "api-4-7" = [ "godot-bindings/api-4-7" ];
           "api-custom" = [ "godot-bindings/api-custom" ];
           "api-custom-json" = [ "godot-bindings/api-custom-json" ];
           "codegen-lazy-fptrs" = [ "godot-codegen/codegen-lazy-fptrs" ];
@@ -5671,9 +5660,9 @@ rec {
       };
       "godot-macros" = rec {
         crateName = "godot-macros";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "1xjspgw68fzablicjlaqkqn1sr8ilz1h8ssl0xgdgxwzm5xvd5nn";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1w3554krjyahdqaspyxmjd7q11aripkczk3xhbgrirvhp7hrrp1p";
         procMacro = true;
         libName = "godot_macros";
         dependencies = [
@@ -5712,7 +5701,7 @@ rec {
           "api-custom-json" = [ "godot-bindings/api-custom-json" ];
           "register-docs" = [ "dep:markdown" "dep:litrs" ];
         };
-        resolvedDefaultFeatures = [ "codegen-full" "experimental-wasm" "register-docs" ];
+        resolvedDefaultFeatures = [ "codegen-full" "register-docs" ];
       };
       "h2" = rec {
         crateName = "h2";
@@ -8647,9 +8636,9 @@ rec {
       };
       "markdown" = rec {
         crateName = "markdown";
-        version = "1.0.0-alpha.23";
+        version = "1.0.0";
         edition = "2018";
-        sha256 = "1lp66hscz3dzp4f742mrij82ihvipvdgn7qs84alwvargaiy0iwh";
+        sha256 = "1sqxbclkxw615kcwglcisda1dcw8cfaa30z7sa16lhfwrbrbijm5";
         authors = [
           "Titus Wormer <tituswormer@gmail.com>"
         ];
@@ -9868,14 +9857,10 @@ rec {
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
         version = "9.6.0";
-        edition = "2021";
+        edition = "2024";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
         dependencies = [
-          {
-            name = "futures";
-            packageId = "futures";
-          }
           {
             name = "godot";
             packageId = "godot";
@@ -19225,7 +19210,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -19920,7 +19905,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_SystemInformation" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_System" "Win32_System_Threading" "default" ];
       };
       "windows-sys 0.61.2" = rec {
         crateName = "windows-sys";
@@ -21633,7 +21618,15 @@ rec {
                 )
                 crateConfigs;
               target = makeTarget pkgs.stdenv.hostPlatform;
-              build = mkBuiltByPackageIdByPkgs pkgs.buildPackages;
+              # Build-time dependency graph (for proc-macros and build
+              # dependencies). When not cross-compiling it equals the host
+              # graph, so reuse `self`; otherwise build it for
+              # `pkgs.buildPackages`.
+              build =
+                if pkgs.stdenv.buildPlatform.config == pkgs.stdenv.hostPlatform.config then
+                  self
+                else
+                  mkBuiltByPackageIdByPkgs pkgs.buildPackages;
             };
           in
           self;
@@ -21649,38 +21642,35 @@ rec {
             devDependencies = lib.optionals (runTests && packageId == rootPackageId) (
               crateConfig'.devDependencies or [ ]
             );
-            dependencies = dependencyDerivations {
+            # Enabled (platform- and feature-filtered) dependency lists, reused
+            # for both derivation wiring and the crate renames below.
+            enabledDependencies = filterEnabledDependencies {
               inherit features;
               inherit (self) target;
-              buildByPackageId =
-                depPackageId:
-                # proc_macro crates must be compiled for the build architecture
-                if crateConfigs.${depPackageId}.procMacro or false then
-                  self.build.crates.${depPackageId}
-                else
-                  self.crates.${depPackageId};
               dependencies = (crateConfig.dependencies or [ ]) ++ devDependencies;
             };
-            buildDependencies = dependencyDerivations {
+            enabledBuildDependencies = filterEnabledDependencies {
               inherit features;
               inherit (self.build) target;
-              buildByPackageId = depPackageId: self.build.crates.${depPackageId};
               dependencies = crateConfig.buildDependencies or [ ];
             };
+            dependencies = map
+              (
+                dependency:
+                # proc_macro crates must be compiled for the build architecture
+                if crateConfigs.${dependency.packageId}.procMacro or false then
+                  self.build.crates.${dependency.packageId}
+                else
+                  self.crates.${dependency.packageId}
+              )
+              enabledDependencies;
+            buildDependencies = map
+              (dependency: self.build.crates.${dependency.packageId})
+              enabledBuildDependencies;
+            # Order (build dependencies, then normal dependencies) feeds the
+            # crateRenames grouping below.
             dependenciesWithRenames =
-              let
-                buildDeps = filterEnabledDependencies {
-                  inherit features;
-                  inherit (self) target;
-                  dependencies = crateConfig.dependencies or [ ] ++ devDependencies;
-                };
-                hostDeps = filterEnabledDependencies {
-                  inherit features;
-                  inherit (self.build) target;
-                  dependencies = crateConfig.buildDependencies or [ ];
-                };
-              in
-              lib.filter (d: d ? "rename") (hostDeps ++ buildDeps);
+              lib.filter (d: d ? "rename") (enabledBuildDependencies ++ enabledDependencies);
             # Crate renames have the form:
             #
             # {
@@ -21852,6 +21842,17 @@ rec {
     corresponding feature sets are merged. Features in rust are additive.
   */
   mergePackageFeatures =
+    args: builtins.mapAttrs (_packageId: builtins.attrNames) (mergePackageFeaturesImpl args);
+
+  /*
+    Core of the feature-resolution fixpoint. The cache (`featuresByPackageId`)
+    maps each packageId to a feature *set* (an attrset `feature -> 1`) rather
+    than a sorted list, so the fold merges with `//` and detects convergence
+    with attrset equality instead of re-concatenating and re-sorting the
+    accumulated feature list on every step. `mergePackageFeatures` projects the
+    result back to canonical sorted lists.
+  */
+  mergePackageFeaturesImpl =
     { crateConfigs ? crates
     , packageId
     , rootPackageId ? packageId
@@ -21900,14 +21901,15 @@ rec {
               cache:
               { packageId, features }:
               let
-                cacheFeatures = cache.${packageId} or [ ];
-                combinedFeatures = sortedUnique (cacheFeatures ++ features);
+                cacheFeatures = cache.${packageId} or { };
+                # `features` is the (small) incoming list; merge it into the set.
+                combinedFeatures = cacheFeatures // listToSet features;
               in
-              if cache ? ${packageId} && cache.${packageId} == combinedFeatures then
+              if cache ? ${packageId} && cacheFeatures == combinedFeatures then
                 cache
               else
-                mergePackageFeatures {
-                  features = combinedFeatures;
+                mergePackageFeaturesImpl {
+                  features = builtins.attrNames combinedFeatures;
                   featuresByPackageId = cache;
                   inherit
                     crateConfigs
@@ -21920,8 +21922,8 @@ rec {
             );
         cacheWithSelf =
           let
-            cacheFeatures = featuresByPackageId.${packageId} or [ ];
-            combinedFeatures = sortedUnique (cacheFeatures ++ enabledFeatures);
+            cacheFeatures = featuresByPackageId.${packageId} or { };
+            combinedFeatures = cacheFeatures // listToSet enabledFeatures;
           in
           featuresByPackageId
           // {
@@ -21948,27 +21950,31 @@ rec {
       assert (builtins.isList features);
       assert (builtins.isAttrs target);
 
+      let
+        # Identical for every dep in this call; build the predicate arg once.
+        targetArgs = { inherit features target; };
+      in
       lib.filter
         (
           dep:
-          let
-            targetFunc = dep.target or (features: true);
-          in
-          targetFunc { inherit features target; }
+          (dep.target or (features: true)) targetArgs
           && (!(dep.optional or false) || builtins.any (doesFeatureEnableDependency dep) features)
         )
         dependencies;
 
   # Returns whether the given feature should enable the given dependency.
   doesFeatureEnableDependency =
-    dependency: feature:
+    dependency:
+    # Callers partially apply this once per dependency, then test every feature,
+    # so hoist the dep-invariant strings out of the per-feature comparison.
     let
       name = dependency.rename or dependency.name;
+      depName = "dep:" + name;
       prefix = "${name}/";
       len = builtins.stringLength prefix;
-      startsWithPrefix = builtins.substring 0 len feature == prefix;
     in
-    feature == name || feature == "dep:" + name || startsWithPrefix;
+    feature:
+    feature == name || feature == depName || builtins.substring 0 len feature == prefix;
 
   /*
     Returns the expanded features for the given inputFeatures by applying the
@@ -21982,29 +21988,24 @@ rec {
       assert (builtins.isAttrs featureMap);
       assert (builtins.isList inputFeatures);
       let
+        # Transitive closure of `inputFeatures` under `featureMap`. `seen`
+        # tracks already-expanded features so each is visited at most once;
+        # this also breaks feature cycles (issue #209).
         expandFeaturesNoCycle =
-          oldSeen: inputFeatures:
-          if inputFeatures != [ ] then
-            let
-              # The feature we're currently expanding.
-              feature = builtins.head inputFeatures;
-              # All the features we've seen/expanded so far, including the one
-              # we're currently processing.
-              seen = oldSeen // {
-                ${feature} = 1;
-              };
-              # Expand the feature but be careful to not re-introduce a feature
-              # that we've already seen: this can easily cause a cycle, see issue
-              # #209.
-              enables = builtins.filter (f: !(seen ? "${f}")) (featureMap."${feature}" or [ ]);
-            in
-            [ feature ] ++ (expandFeaturesNoCycle seen (builtins.tail inputFeatures ++ enables))
-          # No more features left, nothing to expand to.
-          else
-            [ ];
-        outFeatures = expandFeaturesNoCycle { } inputFeatures;
+          seen: features:
+          builtins.foldl'
+            (
+              acc: feature:
+              if acc ? ${feature} then
+                acc
+              else
+                expandFeaturesNoCycle (acc // { ${feature} = 1; }) (featureMap.${feature} or [ ])
+            )
+            seen
+            features;
+        seen = expandFeaturesNoCycle { } inputFeatures;
       in
-      sortedUnique outFeatures;
+      sortedUnique (builtins.attrNames seen);
 
   /*
     This function adds optional dependencies as features if they are enabled
@@ -22063,16 +22064,19 @@ rec {
       in
       defaultOrNil ++ explicitFeatures ++ additionalDependencyFeatures;
 
+  # Builds a feature set (attrset `feature -> 1`) from a list of feature names.
+  listToSet =
+    features:
+    builtins.listToAttrs (map (feature: { name = feature; value = 1; }) features);
+
   # Sorts and removes duplicates from a list of strings.
   sortedUnique =
     features:
       assert (builtins.isList features);
-      assert (builtins.all builtins.isString features);
-      let
-        outFeaturesSet = lib.foldl (set: feature: set // { "${feature}" = 1; }) { } features;
-        outFeaturesUnique = builtins.attrNames outFeaturesSet;
-      in
-      builtins.sort (a: b: a < b) outFeaturesUnique;
+      # attrNames returns keys in ascending string order, so the result is
+      # sorted and deduplicated. The feature-merge fixpoint relies on this
+      # canonical order to detect convergence.
+      builtins.attrNames (listToSet features);
 
   deprecationWarning =
     message: value:

@@ -62,6 +62,11 @@ nix shell nixpkgs#godot_4 --command godot --headless --path .
 - A few `ObjectDB instances were leaked at exit` / `resources still in use`
   warnings may appear at shutdown. They're cosmetic (spawned task objects
   outliving the immediate quit) and don't affect the exit code.
+- The `prompt_test: create aborts on a bad element` case deliberately
+  feeds `NobodyWhoPrompt.create` four malformed parts, each logging a
+  `godot_error!` (`part is not a Dictionary`, `unknown part type`, missing
+  field) and returning `null`. Those error lines are the *expected*
+  behavior, not a failure — the test asserts each call returns null.
 
 ## Model-backed tests
 
@@ -81,6 +86,14 @@ TEST_TTS_SOURCE=hf://NobodyWho/Kokoro-82M \
 # Speech-to-text (Whisper ONNX + an audio file with known speech):
 TEST_STT_SOURCE=hf://onnx-community/whisper-base \
 TEST_AUDIO_FILE=/path/to/hello.wav \
+  nix shell nixpkgs#godot_4 --command godot --headless --path .
+
+# Multimodal / vision (a GGUF with an MTMD projector + a known image).
+# Set TEST_VISION_MMPROJ too if the projector is a separate file (it usually
+# is for Gemma 3 / Qwen2-VL / Llama 3.2 Vision GGUFs):
+TEST_VISION_MODEL=/path/to/multimodal.gguf \
+TEST_VISION_MMPROJ=/path/to/mmproj.gguf \
+TEST_IMAGE_FILE=/path/to/known_image.png \
   nix shell nixpkgs#godot_4 --command godot --headless --path .
 
 # All at once:
@@ -108,6 +121,7 @@ chat_test.gd              # NobodyWhoChat query/mutation tests (needs TEST_MODEL
 tools_test.gd             # NobodyWhoTool tests (needs TEST_MODEL)
 tts_test.gd               # NobodyWhoTextToSpeech tests (needs TEST_TTS_SOURCE)
 stt_test.gd               # NobodyWhoSpeechToText tests (needs TEST_STT_SOURCE + TEST_AUDIO_FILE)
+prompt_test.gd             # NobodyWhoPrompt tests (tier 1 model-less; tier 2 needs TEST_VISION_MODEL + TEST_IMAGE_FILE, optional TEST_VISION_MMPROJ)
 ```
 
 ## Adding a test suite
