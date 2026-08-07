@@ -99,8 +99,7 @@ impl VoiceActivityDetectionBackend {
         }
 
         match event {
-            // preroll already includes this call's chunk, so it alone covers
-            // the not-yet-confirmed lead-in plus the confirming chunk.
+            // preroll already includes this call's chunk.
             Some(VoiceActivityDetectionEvent::SpeechStarted) => {
                 self.capture.start(self.preroll.snapshot())
             }
@@ -150,8 +149,7 @@ impl VoiceActivityDetectionBackend {
                 None => {}
             }
         }
-        // Flush trailing speech that never got a confirmed SpeechEnded —
-        // the recording just stopped mid-utterance.
+        // Flush trailing speech with no confirmed SpeechEnded.
         if let Some(s) = start {
             segments.push(samples[s.min(samples.len())..].to_vec());
         }
@@ -177,8 +175,7 @@ impl VoiceActivityDetectionBackend {
     }
 }
 
-/// Accumulates resampled 16kHz samples and hands out fixed-size frames as
-/// they become available.
+/// Accumulates resampled 16kHz samples and hands out fixed-size frames.
 struct FrameAccumulator {
     samples: Vec<f32>,
 }
@@ -203,8 +200,7 @@ impl FrameAccumulator {
     }
 }
 
-/// Ring buffer of the most recent raw samples, capped to `PREROLL_DURATION_MS`
-/// worth of audio — the not-yet-confirmed lead-in a `SpeechStarted` seeds from.
+/// Ring buffer of the most recent raw samples — the lead-in a `SpeechStarted` seeds from.
 struct Preroll {
     samples: VecDeque<i16>,
     capacity: usize,

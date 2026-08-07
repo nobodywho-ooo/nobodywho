@@ -791,8 +791,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict(
-    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
@@ -998,8 +996,6 @@ external fun uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(`handle`
 external fun uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
-): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1363,13 +1359,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict() != 27565.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 19729.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 22520.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
@@ -5206,18 +5199,6 @@ public interface RustVoiceActivityDetectionInterface {
     fun `finish`(): List<kotlin.Short>
     
     /**
-     * Run whatever complete Silero frames `chunk` completes through the
-     * model and return their raw speech probabilities, in order — no
-     * debouncing, no audio buffering. For callers who want their own
-     * thresholding instead of `push`'s built-in debounce logic, or who want
-     * zero memory overhead beyond fixed model state. Safe to call with any
-     * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
-     * in between to clear state so it doesn't leak across sessions.
-     */
-    fun `predict`(`chunk`: List<kotlin.Short>): List<kotlin.Float>
-    
-    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -5225,11 +5206,10 @@ public interface RustVoiceActivityDetectionInterface {
     fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent?
     
     /**
-     * Detect every speech segment in a complete audio buffer at once,
-     * returning each segment's audio (with a small pre-roll lead-in) in
-     * order. Unlike `push`, this is guaranteed not to drop a transition
-     * regardless of buffer size — the right tool for offline/batch
-     * processing of a full recording rather than live streaming.
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
      */
     fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>>
     
@@ -5377,30 +5357,6 @@ open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActiv
 
     
     /**
-     * Run whatever complete Silero frames `chunk` completes through the
-     * model and return their raw speech probabilities, in order — no
-     * debouncing, no audio buffering. For callers who want their own
-     * thresholding instead of `push`'s built-in debounce logic, or who want
-     * zero memory overhead beyond fixed model state. Safe to call with any
-     * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
-     * in between to clear state so it doesn't leak across sessions.
-     */
-    @Throws(NobodyWhoException::class)override fun `predict`(`chunk`: List<kotlin.Short>): List<kotlin.Float> {
-            return FfiConverterSequenceFloat.lift(
-    callWithHandle {
-    uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
-        it,
-        FfiConverterSequenceShort.lower(`chunk`),_status)
-}
-    }
-    )
-    }
-    
-
-    
-    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -5420,11 +5376,10 @@ open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActiv
 
     
     /**
-     * Detect every speech segment in a complete audio buffer at once,
-     * returning each segment's audio (with a small pre-roll lead-in) in
-     * order. Unlike `push`, this is guaranteed not to drop a transition
-     * regardless of buffer size — the right tool for offline/batch
-     * processing of a full recording rather than live streaming.
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
      */
     @Throws(NobodyWhoException::class)override fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>> {
             return FfiConverterSequenceSequenceShort.lift(

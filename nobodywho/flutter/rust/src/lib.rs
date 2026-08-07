@@ -838,8 +838,7 @@ impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
 /// to get that turn's captured audio (with pre-roll) and reset.
 #[flutter_rust_bridge::frb(opaque)]
 pub struct RustVoiceActivityDetection {
-    // `nobodywho::voice_activity_detection::VoiceActivityDetection::push`/`finish` require `&mut self`; FRB opaque
-    // methods only get `&self`, so interior mutability via Mutex is needed.
+    // Core methods need `&mut self`; FRB opaque methods only get `&self`.
     vad: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
 }
 
@@ -896,28 +895,10 @@ impl RustVoiceActivityDetection {
         self.vad.lock().unwrap().finish()
     }
 
-    /// Run whatever complete Silero frames `chunk` completes through the
-    /// model and return their raw speech probabilities, in order — no
-    /// debouncing, no audio buffering. For callers who want their own
-    /// thresholding instead of `push`'s built-in debounce logic, or who want
-    /// zero memory overhead beyond fixed model state. Safe to call with any
-    /// chunk size, from a live mic buffer up to an entire recording at once.
-    /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions,
-    /// call `finish` in between to clear state so it doesn't leak across sessions.
-    #[flutter_rust_bridge::frb(sync)]
-    pub fn predict(&self, chunk: Vec<i16>) -> Result<Vec<f32>, String> {
-        self.vad
-            .lock()
-            .unwrap()
-            .predict(&chunk)
-            .map_err(|e| e.to_string())
-    }
-
-    /// Detect every speech segment in a complete audio buffer at once,
-    /// returning each segment's audio (with a small pre-roll lead-in) in
-    /// order. Unlike `push`, this is guaranteed not to drop a transition
-    /// regardless of buffer size — the right tool for offline/batch
-    /// processing of a full recording rather than live streaming.
+    /// Detect every speech segment in a complete audio buffer, returning
+    /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+    /// correctly finds every segment regardless of buffer size — use this
+    /// for offline/batch processing instead of live streaming.
     #[flutter_rust_bridge::frb(sync)]
     pub fn segment(&self, samples: Vec<i16>) -> Result<Vec<Vec<i16>>, String> {
         self.vad

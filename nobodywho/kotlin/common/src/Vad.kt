@@ -53,23 +53,16 @@ class VoiceActivityDetection(
     fun finish(): List<Short> = inner.finish()
 
     /**
-     * Run whatever complete Silero frames [chunk] completes through the
-     * model and return their raw speech probabilities, in order — no
-     * debouncing, no audio buffering. For callers who want their own
-     * thresholding instead of [push]'s built-in debounce logic, or who want
-     * zero memory overhead beyond fixed model state. Safe to call with any
-     * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse this [VoiceActivityDetection] across unrelated audio sessions, call [finish]
-     * in between to clear state so it doesn't leak across sessions.
-     */
-    fun predict(chunk: List<Short>): List<Float> = inner.predict(chunk)
-
-    /**
-     * Detect every speech segment in a complete audio buffer at once,
-     * returning each segment's audio (with a small pre-roll lead-in) in
-     * order. Unlike [push], this is guaranteed not to drop a transition
-     * regardless of buffer size — the right tool for offline/batch
-     * processing of a full recording rather than live streaming.
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike [push],
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     *
+     * ```kotlin
+     * for (audio in vad.segment(fullRecording)) {
+     *     transcribe(audio)
+     * }
+     * ```
      */
     fun segment(samples: List<Short>): List<List<Short>> = inner.segment(samples)
 

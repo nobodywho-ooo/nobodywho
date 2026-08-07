@@ -276,8 +276,6 @@ uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
     RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(
     /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
-RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
-    /*handle*/ uint64_t ptr, RustBuffer chunk, RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
     /*handle*/ uint64_t ptr, RustBuffer chunk, RustCallStatus *uniffi_out_err);
 RustBuffer uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(
@@ -572,8 +570,6 @@ uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish();
-uint16_t
-uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push();
 uint16_t
@@ -3518,18 +3514,6 @@ NativeNobodywho::NativeNobodywho(
                 rt, thisVal, args, count);
       });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_"
-        "predict"] = jsi::Function::createFromHostFunction(
-      rt,
-      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_"
-                                    "rustvoiceactivitydetection_predict"),
-      2,
-      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-             const jsi::Value *args, size_t count) -> jsi::Value {
-        return this
-            ->cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
-                rt, thisVal, args, count);
-      });
-  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_"
         "push"] = jsi::Function::createFromHostFunction(
       rt,
       jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_"
@@ -5211,20 +5195,6 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
-                    rt, thisVal, args, count);
-          });
-  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_"
-        "rustvoiceactivitydetection_predict"] =
-      jsi::Function::createFromHostFunction(
-          rt,
-          jsi::PropNameID::forAscii(
-              rt, "ubrn_uniffi_nobodywho_uniffi_checksum_method_"
-                  "rustvoiceactivitydetection_predict"),
-          0,
-          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
-                 const jsi::Value *args, size_t count) -> jsi::Value {
-            return this
-                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_"
@@ -6960,24 +6930,6 @@ jsi::Value NativeNobodywho::
   return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  RustCallStatus status =
-      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
-  auto value =
-      uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
-          uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
-                                                            args[0]),
-          uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker,
-                                                          args[1]),
-          &status);
-  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
-      rt, callInvoker, status, args[count - 1]);
-
-  return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
     cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
@@ -8635,15 +8587,6 @@ jsi::Value NativeNobodywho::
         size_t count) {
   auto value =
       uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish();
-
-  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeNobodywho::
-    cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict(
-        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-        size_t count) {
-  auto value =
-      uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

@@ -2462,18 +2462,6 @@ public protocol RustVoiceActivityDetectionProtocol: AnyObject, Sendable {
     func finish()  -> [Int16]
     
     /**
-     * Run whatever complete Silero frames `chunk` completes through the
-     * model and return their raw speech probabilities, in order — no
-     * debouncing, no audio buffering. For callers who want their own
-     * thresholding instead of `push`'s built-in debounce logic, or who want
-     * zero memory overhead beyond fixed model state. Safe to call with any
-     * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
-     * in between to clear state so it doesn't leak across sessions.
-     */
-    func predict(chunk: [Int16]) throws  -> [Float]
-    
-    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -2481,11 +2469,10 @@ public protocol RustVoiceActivityDetectionProtocol: AnyObject, Sendable {
     func push(chunk: [Int16]) throws  -> VoiceActivityDetectionEvent?
     
     /**
-     * Detect every speech segment in a complete audio buffer at once,
-     * returning each segment's audio (with a small pre-roll lead-in) in
-     * order. Unlike `push`, this is guaranteed not to drop a transition
-     * regardless of buffer size — the right tool for offline/batch
-     * processing of a full recording rather than live streaming.
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
      */
     func segment(samples: [Int16]) throws  -> [[Int16]]
     
@@ -2583,25 +2570,6 @@ open func finish() -> [Int16]  {
 }
     
     /**
-     * Run whatever complete Silero frames `chunk` completes through the
-     * model and return their raw speech probabilities, in order — no
-     * debouncing, no audio buffering. For callers who want their own
-     * thresholding instead of `push`'s built-in debounce logic, or who want
-     * zero memory overhead beyond fixed model state. Safe to call with any
-     * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
-     * in between to clear state so it doesn't leak across sessions.
-     */
-open func predict(chunk: [Int16])throws  -> [Float]  {
-    return try  FfiConverterSequenceFloat.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
-    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
-            self.uniffiCloneHandle(),
-        FfiConverterSequenceInt16.lower(chunk),$0
-    )
-})
-}
-    
-    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -2616,11 +2584,10 @@ open func push(chunk: [Int16])throws  -> VoiceActivityDetectionEvent?  {
 }
     
     /**
-     * Detect every speech segment in a complete audio buffer at once,
-     * returning each segment's audio (with a small pre-roll lead-in) in
-     * order. Unlike `push`, this is guaranteed not to drop a transition
-     * regardless of buffer size — the right tool for offline/batch
-     * processing of a full recording rather than live streaming.
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
      */
 open func segment(samples: [Int16])throws  -> [[Int16]]  {
     return try  FfiConverterSequenceSequenceInt16.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
@@ -5276,13 +5243,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict() != 27565) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 19729) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 22520) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {

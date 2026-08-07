@@ -511,9 +511,8 @@ impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
 ///             break
 #[pyclass]
 pub struct VoiceActivityDetection {
-    // `nobodywho::voice_activity_detection::VoiceActivityDetection` is Send but not Sync (rubato's resampler holds a
-    // `Box<dyn SincInterpolator>`, whose trait bound is `Send` only) — pyclass
-    // fields must be Sync, so this is wrapped in a Mutex purely to satisfy that.
+    // Core type is Send but not Sync (rubato's resampler isn't); pyclass
+    // fields must be Sync, so wrap in a Mutex to satisfy that.
     vad: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
 }
 
@@ -570,24 +569,15 @@ impl VoiceActivityDetection {
         py.detach(|| self.vad.lock().unwrap().finish())
     }
 
-    /// Run whatever complete Silero frames `chunk` completes through the
-    /// model and return their raw speech probabilities, in order — no
-    /// debouncing, no audio buffering. For callers who want their own
-    /// thresholding instead of `push`'s built-in debounce logic, or who want
-    /// zero memory overhead beyond fixed model state. Safe to call with any
-    /// chunk size, from a live mic buffer up to an entire recording at once.
-    /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
-    /// in between to clear state so it doesn't leak across sessions.
-    pub fn predict(&self, chunk: Vec<i16>, py: Python) -> PyResult<Vec<f32>> {
-        py.detach(|| self.vad.lock().unwrap().predict(&chunk))
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
-    }
-
-    /// Detect every speech segment in a complete audio buffer at once,
-    /// returning each segment's audio (with a small pre-roll lead-in) in
-    /// order. Unlike `push`, this is guaranteed not to drop a transition
-    /// regardless of buffer size — the right tool for offline/batch
-    /// processing of a full recording rather than live streaming.
+    /// Detect every speech segment in a complete audio buffer, returning
+    /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+    /// correctly finds every segment regardless of buffer size — use this
+    /// for offline/batch processing instead of live streaming.
+    ///
+    /// Example::
+    ///
+    ///     for audio in vad.segment(full_recording):
+    ///         transcribe(audio)
     pub fn segment(&self, samples: Vec<i16>, py: Python) -> PyResult<Vec<Vec<i16>>> {
         py.detach(|| self.vad.lock().unwrap().segment(&samples))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))

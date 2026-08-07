@@ -431,26 +431,15 @@ abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
     prerollDurationMs: prerollDurationMs,
   );
 
-  /// Run whatever complete Silero frames `chunk` completes through the
-  /// model and return their raw speech probabilities, in order — no
-  /// debouncing, no audio buffering. For callers who want their own
-  /// thresholding instead of `push`'s built-in debounce logic, or who want
-  /// zero memory overhead beyond fixed model state. Safe to call with any
-  /// chunk size, from a live mic buffer up to an entire recording at once.
-  /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions,
-  /// call `finish` in between to clear state so it doesn't leak across sessions.
-  Float32List predict({required List<int> chunk});
-
   /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
   /// buffer — the detector tracks the current turn internally). Returns
   /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
   VoiceActivityDetectionEvent? push({required List<int> chunk});
 
-  /// Detect every speech segment in a complete audio buffer at once,
-  /// returning each segment's audio (with a small pre-roll lead-in) in
-  /// order. Unlike `push`, this is guaranteed not to drop a transition
-  /// regardless of buffer size — the right tool for offline/batch
-  /// processing of a full recording rather than live streaming.
+  /// Detect every speech segment in a complete audio buffer, returning
+  /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+  /// correctly finds every segment regardless of buffer size — use this
+  /// for offline/batch processing instead of live streaming.
   List<Int16List> segment({required List<int> samples});
 }
 

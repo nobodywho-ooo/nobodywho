@@ -3620,28 +3620,16 @@ export interface RustVoiceActivityDetectionInterface {
      */
     finish() : Array</*i16*/number>;
     /**
-     * Run whatever complete Silero frames `chunk` completes through the
-     * model and return their raw speech probabilities, in order — no
-     * debouncing, no audio buffering. For callers who want their own
-     * thresholding instead of `push`'s built-in debounce logic, or who want
-     * zero memory overhead beyond fixed model state. Safe to call with any
-     * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
-     * in between to clear state so it doesn't leak across sessions.
-     */
-    predict(chunk: Array</*i16*/number>)  /*throws*/: Array</*f32*/number>;
-    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
      */
     push(chunk: Array</*i16*/number>)  /*throws*/: VoiceActivityDetectionEvent | undefined;
     /**
-     * Detect every speech segment in a complete audio buffer at once,
-     * returning each segment's audio (with a small pre-roll lead-in) in
-     * order. Unlike `push`, this is guaranteed not to drop a transition
-     * regardless of buffer size — the right tool for offline/batch
-     * processing of a full recording rather than live streaming.
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
      */
     segment(samples: Array</*i16*/number>)  /*throws*/: Array<Array</*i16*/number>>;
 }
@@ -3711,29 +3699,6 @@ export class RustVoiceActivityDetection extends UniffiAbstractObject implements 
     }
     
     /**
-     * Run whatever complete Silero frames `chunk` completes through the
-     * model and return their raw speech probabilities, in order — no
-     * debouncing, no audio buffering. For callers who want their own
-     * thresholding instead of `push`'s built-in debounce logic, or who want
-     * zero memory overhead beyond fixed model state. Safe to call with any
-     * chunk size, from a live mic buffer up to an entire recording at once.
-     * If you reuse one `VoiceActivityDetection` across unrelated audio sessions, call `finish`
-     * in between to clear state so it doesn't leak across sessions.
-     */
- predict(chunk: Array</*i16*/number>): Array</*f32*/number> /*throws*/ {
-    return FfiConverterArrayFloat32.lift(
-        uniffiCaller.rustCallWithError(
-            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
-        FfiConverterArrayInt16.lower(chunk),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    ));
-    }
-    
-    /**
      * Feed the newest chunk of i16 PCM audio (not the whole accumulated
      * buffer — the detector tracks the current turn internally). Returns
      * `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -3752,11 +3717,10 @@ export class RustVoiceActivityDetection extends UniffiAbstractObject implements 
     }
     
     /**
-     * Detect every speech segment in a complete audio buffer at once,
-     * returning each segment's audio (with a small pre-roll lead-in) in
-     * order. Unlike `push`, this is guaranteed not to drop a transition
-     * regardless of buffer size — the right tool for offline/batch
-     * processing of a full recording rather than live streaming.
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
      */
  segment(samples: Array</*i16*/number>): Array<Array</*i16*/number>> /*throws*/ {
     return FfiConverterArrayArrayInt16.lift(
@@ -4630,13 +4594,10 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() !== 1447) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict() !== 27565) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict");
-    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() !== 19729) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() !== 22520) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() !== 39967) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {

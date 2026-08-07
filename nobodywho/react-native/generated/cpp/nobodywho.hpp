@@ -235,10 +235,6 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value
-  cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_predict(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value
   cpp_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -703,10 +699,6 @@ protected:
       size_t count);
   jsi::Value
   cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value
-  cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_predict(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value

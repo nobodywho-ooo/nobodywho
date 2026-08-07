@@ -1,16 +1,18 @@
 //! Voice Activity Detection (speech start/end) from live, streaming audio.
 //!
 //! Backed by [Silero VAD](https://github.com/snakers4/silero-vad) (MIT
-//! licensed) by default (`hf://onnx-community/silero-vad`),
-//! downloaded and cached the same way `Stt`'s Whisper architecture resolves
-//! its models — first use requires network access, subsequent uses are
-//! offline. The model source is configurable via [`VoiceActivityDetectionConfig::source`] for
-//! forks/mirrors that keep the same `onnx/model.onnx` layout.
+//! licensed) by default (`hf://onnx-community/silero-vad`), downloaded and
+//! cached the same way `SpeechToText`'s Whisper models are — first use
+//! requires network access, subsequent uses are offline. Point
+//! [`VoiceActivityDetectionConfig::source`] at a fork/mirror that keeps the
+//! same `onnx/model.onnx` layout to use a different one.
 //!
-//! Feed each newest chunk to [`VoiceActivityDetection::push`] as it arrives — `VoiceActivityDetection`
-//! buffers the current turn internally, seeded with a small pre-roll so the confirmed
-//! speech isn't clipped at the start. Once a `SpeechEnded` comes back, call
-//! [`VoiceActivityDetection::finish`] to get that turn's audio and reset for the next one.
+//! Two ways to use it, depending on what you have:
+//! - **Streaming audio**: feed each newest chunk to [`VoiceActivityDetection::push`]
+//!   as it arrives. Once it returns `SpeechEnded`, call [`VoiceActivityDetection::finish`]
+//!   to get that turn's audio (with a pre-roll so the start isn't clipped) and reset for the next one.
+//! - **A complete recording**: call [`VoiceActivityDetection::segment`] once to get every
+//!   speech segment's audio back at once.
 
 mod backend;
 mod events;
@@ -43,8 +45,8 @@ pub struct VoiceActivityDetectionConfig {
     /// How long speech must persist before a confirmed `SpeechStarted`
     /// fires (filters out short noise blips).
     pub min_speech_duration_ms: u32,
-    /// How long should we keep before the true speech start event comes.
-    /// Avoids filtering out start of the speech because the VAD is "unsure" yet.
+    /// How much audio to buffer before a confirmed speech start, so the
+    /// beginning of speech isn't clipped while the debouncer is still deciding.
     pub preroll_duration_ms: u32,
 }
 
@@ -118,24 +120,10 @@ impl VoiceActivityDetection {
         self.backend.finish()
     }
 
-    /// Run whatever complete Silero frames `chunk` completes through the
-    /// model and return their raw speech probabilities, in order — no
-    /// debouncing, no audio buffering. For callers who want to do their own
-    /// thresholding/smoothing instead of using `push`'s built-in debounce
-    /// logic, or who want zero memory overhead beyond fixed model state.
-    /// Safe to call with any chunk size, from a live mic buffer up to an
-    /// entire recording at once. If you reuse one `VoiceActivityDetection` across unrelated
-    /// audio sessions, call `finish` in between to clear state so it doesn't
-    /// leak across sessions.
-    pub fn predict(&mut self, chunk: &[i16]) -> Result<Vec<f32>, VoiceActivityDetectionError> {
-        self.backend.predict(chunk)
-    }
-
-    /// Detect every speech segment in a complete audio buffer at once,
-    /// returning each segment's audio (with a small pre-roll lead-in) in
-    /// order. Unlike `push`, this is guaranteed not to drop a transition
-    /// regardless of buffer size — the right tool for offline/batch
-    /// processing of a full recording rather than live streaming.
+    /// Detect every speech segment in a complete audio buffer, returning
+    /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+    /// correctly finds every segment regardless of buffer size — use this
+    /// for offline/batch processing instead of live streaming.
     pub fn segment(
         &mut self,
         samples: &[i16],

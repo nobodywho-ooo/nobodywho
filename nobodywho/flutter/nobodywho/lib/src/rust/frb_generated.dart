@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1919965224;
+  int get rustContentHash => 686009100;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -296,11 +296,6 @@ abstract class NobodyWhoApi extends BaseApi {
     int? minSilenceDurationMs = null,
     int? minSpeechDurationMs = null,
     int? prerollDurationMs = null,
-  });
-
-  Float32List crateRustVoiceActivityDetectionPredict({
-    required RustVoiceActivityDetection that,
-    required List<int> chunk,
   });
 
   VoiceActivityDetectionEvent? crateRustVoiceActivityDetectionPush({
@@ -2467,39 +2462,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
 
   @override
-  Float32List crateRustVoiceActivityDetectionPredict({
-    required RustVoiceActivityDetection that,
-    required List<int> chunk,
-  }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustVoiceActivityDetection(
-            that,
-            serializer,
-          );
-          sse_encode_list_prim_i_16_loose(chunk, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_prim_f_32_strict,
-          decodeErrorData: sse_decode_String,
-        ),
-        constMeta: kCrateRustVoiceActivityDetectionPredictConstMeta,
-        argValues: [that, chunk],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateRustVoiceActivityDetectionPredictConstMeta =>
-      const TaskConstMeta(
-        debugName: "RustVoiceActivityDetection_predict",
-        argNames: ["that", "chunk"],
-      );
-
-  @override
   VoiceActivityDetectionEvent? crateRustVoiceActivityDetectionPush({
     required RustVoiceActivityDetection that,
     required List<int> chunk,
@@ -2513,7 +2475,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_list_prim_i_16_loose(chunk, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2547,7 +2509,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_list_prim_i_16_loose(samples, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_list_prim_i_16_strict,
@@ -2576,7 +2538,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2615,7 +2577,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_i_32(allowedLength, serializer);
           sse_encode_i_32(penaltyLastN, serializer);
           sse_encode_list_String(seqBreakers, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2666,7 +2628,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(grammar, serializer);
           sse_encode_opt_String(triggerOn, serializer);
           sse_encode_String(root, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2695,7 +2657,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2730,7 +2692,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(minP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2767,7 +2729,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
           sse_encode_i_32(m, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2803,7 +2765,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2829,7 +2791,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2866,7 +2828,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(penaltyRepeat, serializer);
           sse_encode_f_32(penaltyFreq, serializer);
           sse_encode_f_32(penaltyPresent, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2912,7 +2874,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_u_32(seed, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2945,7 +2907,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2979,7 +2941,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3014,7 +2976,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(topP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3049,7 +3011,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(typP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3087,7 +3049,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(xtcProbability, serializer);
           sse_encode_f_32(xtcThreshold, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3113,7 +3075,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(jsonStr, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3142,7 +3104,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3169,7 +3131,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(grammar, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3198,7 +3160,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(schema, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3227,7 +3189,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(pattern, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3253,7 +3215,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3279,7 +3241,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3303,7 +3265,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(grammar, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3328,7 +3290,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3351,7 +3313,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3375,7 +3337,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3402,7 +3364,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3428,7 +3390,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(topP, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3479,7 +3441,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 77,
+            funcId: 76,
             port: port_,
           );
         },
@@ -3541,7 +3503,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 78,
+            funcId: 77,
             port: port_,
           );
         },
@@ -3572,7 +3534,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 78)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3602,7 +3564,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3638,7 +3600,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             arguments,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3671,7 +3633,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3701,7 +3663,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_f_32_loose(a, serializer);
           sse_encode_list_prim_f_32_loose(b, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_32,
@@ -3737,7 +3699,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 84,
+            funcId: 83,
             port: port_,
           );
         },
@@ -3763,7 +3725,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 84)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_record_string_usize,
@@ -3788,7 +3750,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 85,
             port: port_,
           );
         },
@@ -3813,7 +3775,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_box_autoadd_usize(maxCommands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 87)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 86)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3845,7 +3807,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_u_64(maxDurationSecs, serializer);
           sse_encode_opt_box_autoadd_usize(maxMemoryBytes, serializer);
           sse_encode_opt_box_autoadd_usize(maxRecursionDepth, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 88)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 87)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3884,7 +3846,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
           sse_encode_Map_String_String_None(parameterDescriptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 88)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3926,7 +3888,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(downloaded, serializer);
           sse_encode_i_64(total, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3955,7 +3917,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -8646,17 +8608,6 @@ class RustVoiceActivityDetectionImpl extends RustOpaque
   Int16List finish() =>
       NobodyWho.instance.api.crateRustVoiceActivityDetectionFinish(that: this);
 
-  /// Run whatever complete Silero frames `chunk` completes through the
-  /// model and return their raw speech probabilities, in order — no
-  /// debouncing, no audio buffering. For callers who want their own
-  /// thresholding instead of `push`'s built-in debounce logic, or who want
-  /// zero memory overhead beyond fixed model state. Safe to call with any
-  /// chunk size, from a live mic buffer up to an entire recording at once.
-  /// If you reuse one `VoiceActivityDetection` across unrelated audio sessions,
-  /// call `finish` in between to clear state so it doesn't leak across sessions.
-  Float32List predict({required List<int> chunk}) => NobodyWho.instance.api
-      .crateRustVoiceActivityDetectionPredict(that: this, chunk: chunk);
-
   /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
   /// buffer — the detector tracks the current turn internally). Returns
   /// `Some(VoiceActivityDetectionEvent)` if this call crossed a confirmed speech/silence boundary.
@@ -8665,11 +8616,10 @@ class RustVoiceActivityDetectionImpl extends RustOpaque
       .api
       .crateRustVoiceActivityDetectionPush(that: this, chunk: chunk);
 
-  /// Detect every speech segment in a complete audio buffer at once,
-  /// returning each segment's audio (with a small pre-roll lead-in) in
-  /// order. Unlike `push`, this is guaranteed not to drop a transition
-  /// regardless of buffer size — the right tool for offline/batch
-  /// processing of a full recording rather than live streaming.
+  /// Detect every speech segment in a complete audio buffer, returning
+  /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+  /// correctly finds every segment regardless of buffer size — use this
+  /// for offline/batch processing instead of live streaming.
   List<Int16List> segment({required List<int> samples}) => NobodyWho
       .instance
       .api

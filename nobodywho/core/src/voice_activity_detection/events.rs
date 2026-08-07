@@ -67,14 +67,9 @@ impl Debouncer {
         let min_speech_frames = (self.config.min_speech_duration_ms / FRAME_MS).max(1);
         let min_silence_frames = (self.config.min_silence_duration_ms / FRAME_MS).max(1);
 
-        // Its useful to have segments, which are neither speech nor silence.
-        // Why? Often silero flickers somewhere just around the threshold.
-        // Without this gap, flickering around the threshold would result
-        // in lots of speech start - speech end segments. A small gap where
-        // the debouncer holds its state is useful and prevents this.
-        //
-        // We are doing a fraction, instead of absolute value, because you want
-        // to have this gap dependent on the threhold. Large threshold? Bigger gap.
+        // Gap between speech and silence bounds absorbs flicker around the
+        // threshold. Scaled by threshold (not absolute) so it stays valid
+        // for any threshold value.
         let silence_bound = self.config.threshold * (1.0 - DEBOUNCING_FRACTION);
 
         let is_speech = speech_prob >= self.config.threshold;
@@ -127,8 +122,7 @@ impl Debouncer {
                         None
                     }
                 } else {
-                    // Back above the (higher) speech threshold before the
-                    // hangover elapsed — still one continuous utterance.
+                    // Back above threshold before hangover elapsed — same utterance.
                     self.state = State::Speech;
                     None
                 }

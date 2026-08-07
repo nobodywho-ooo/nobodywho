@@ -91,14 +91,6 @@ def test_finish_is_empty_when_no_speech_confirmed():
     assert vad.finish() == []
 
 
-def test_predict_returns_one_probability_per_frame(audio):
-    samples, sample_rate = audio
-    vad = nobodywho.VoiceActivityDetection(source=MODEL, sample_rate=sample_rate)
-    probs = vad.predict(list(samples))
-    assert len(probs) > 0
-    assert all(0.0 <= p <= 1.0 for p in probs)
-
-
 def test_segment_finds_speech_in_full_recording(audio):
     samples, sample_rate = audio
     vad = nobodywho.VoiceActivityDetection(

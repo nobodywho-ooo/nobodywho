@@ -3282,8 +3282,8 @@ struct NobodyWhoVoiceActivityDetection {
     min_speech_duration_ms: u32,
 
     #[export]
-    /// How long of audio to keep buffered before the confirmed speech start,
-    /// so the captured turn isn't clipped while the VAD is still "unsure".
+    /// How much audio to buffer before a confirmed speech start, so the
+    /// captured turn isn't clipped while still deciding.
     preroll_duration_ms: u32,
 
     vad: Option<nobodywho::voice_activity_detection::VoiceActivityDetection>,
@@ -3437,45 +3437,11 @@ impl NobodyWhoVoiceActivityDetection {
     }
 
     #[func]
-    /// Run whatever complete Silero frames `samples` completes through the
-    /// model and return their raw speech probabilities, in order — no
-    /// debouncing, no audio buffering. For callers who want their own
-    /// thresholding instead of `push`'s built-in debounce logic, or who want
-    /// zero memory overhead beyond fixed model state. Safe to call with any
-    /// chunk size, from a live mic buffer up to an entire recording at once.
-    /// `samples` is a `PackedByteArray` of interleaved little-endian i16
-    /// samples. If you reuse this node across unrelated audio sessions, call
-    /// `finish` in between to clear state so it doesn't leak across sessions.
-    fn predict(&mut self, samples: PackedByteArray) -> PackedFloat32Array {
-        let Some(vad) = self.vad.as_mut() else {
-            let err = GString::from("VAD worker not started. Call start_worker() first.");
-            godot_error!("{}", err);
-            self.signals().worker_failed().emit(&err);
-            return PackedFloat32Array::new();
-        };
-        let bytes = samples.to_vec();
-        let samples_i16: Vec<i16> = bytes
-            .chunks_exact(2)
-            .map(|b| i16::from_le_bytes([b[0], b[1]]))
-            .collect();
-        match vad.predict(&samples_i16) {
-            Ok(probs) => PackedFloat32Array::from(probs),
-            Err(e) => {
-                let msg = GString::from(e.to_string().as_str());
-                godot_error!("VAD predict failed: {}", msg);
-                self.signals().worker_failed().emit(&msg);
-                PackedFloat32Array::new()
-            }
-        }
-    }
-
-    #[func]
-    /// Detect every speech segment in a complete audio buffer at once,
-    /// returning each segment's audio (with a small pre-roll lead-in) in
-    /// order. Unlike `push`, this is guaranteed not to drop a transition
-    /// regardless of buffer size — the right tool for offline/batch
-    /// processing of a full recording rather than live streaming. `samples`
-    /// and each returned segment are `PackedByteArray`s of interleaved
+    /// Detect every speech segment in a complete audio buffer, returning
+    /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+    /// correctly finds every segment regardless of buffer size — use this
+    /// for offline/batch processing instead of live streaming. `samples` and
+    /// each returned segment are `PackedByteArray`s of interleaved
     /// little-endian i16 samples.
     fn segment(&mut self, samples: PackedByteArray) -> Array<PackedByteArray> {
         let Some(vad) = self.vad.as_mut() else {
