@@ -323,6 +323,13 @@ jobs:
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
         run: |
           export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
+          # llama.cpp defaults LLAMA_SUBPROCESS ON here: its mobile opt-out lists only
+          # iOS/Android/Emscripten, so visionOS/watchOS compile
+          # posix_spawn_file_actions_addchdir_np, which those SDKs mark unavailable.
+          # subproc.{h,cpp} have a complete no-op path when it is OFF. build.rs forwards
+          # CMAKE_*-prefixed env vars to CMake as -D defines.
+          echo 'set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)' > "$RUNNER_TEMP/no-subprocess.cmake"
+          export CMAKE_PROJECT_INCLUDE="$RUNNER_TEMP/no-subprocess.cmake"
           cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} --release
         working-directory: ./nobodywho
 
