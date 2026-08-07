@@ -63,6 +63,8 @@ We try to provide reasonable defaults to capture most situations. However, espec
 of voice activity detection, manual tuning is often needed to reach better performance.
 For that, we provide numerous params that you can tweak:
 ```python
+from nobodywho import VoiceActivityDetection
+
 vad = VoiceActivityDetection(
     # VAD is currently fixed to Silero ONNX, but you can change the source.
     source="hf://onnx-community/silero-vad",
