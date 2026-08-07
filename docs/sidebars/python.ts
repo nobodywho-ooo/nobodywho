@@ -9,6 +9,7 @@ const sidebars: SidebarsConfig = {
     'vision',
     'speech-to-text',
     'text-to-speech',
+    'voice-activity-detection',
     'sampling',
     'streaming-and-async-api',
     'embeddings-and-rag',

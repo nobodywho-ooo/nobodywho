@@ -9,7 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `dart_function_type_to_json_schema`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -404,6 +404,47 @@ abstract class RustTool implements RustOpaqueInterface {
   String getSchemaJson();
 }
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>>
+abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
+  /// Return the current turn's captured audio (from the confirmed
+  /// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
+  /// and reset internal state for the next turn. Empty if speech was never confirmed.
+  Int16List finish();
+
+  /// Create a voice activity detector.
+  /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
+  /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
+  /// pass `None` to use the default (`hf://onnx-community/silero-vad`).
+  static Future<RustVoiceActivityDetection> load({
+    required int sampleRate,
+    String? source = null,
+    double? threshold = null,
+    int? minSilenceDurationMs = null,
+    int? minSpeechDurationMs = null,
+    int? prerollDurationMs = null,
+  }) => NobodyWho.instance.api.crateRustVoiceActivityDetectionLoad(
+    sampleRate: sampleRate,
+    source: source,
+    threshold: threshold,
+    minSilenceDurationMs: minSilenceDurationMs,
+    minSpeechDurationMs: minSpeechDurationMs,
+    prerollDurationMs: prerollDurationMs,
+  );
+
+  /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
+  /// buffer — the detector tracks the current turn internally). Always
+  /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+  /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+  /// confirmed the transition.
+  VoiceActivityDetectionEvent push({required List<int> chunk});
+
+  /// Detect every speech segment in a complete audio buffer, returning
+  /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+  /// correctly finds every segment regardless of buffer size — use this
+  /// for offline/batch processing instead of live streaming.
+  List<Int16List> segment({required List<int> samples});
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Sample from the probability distribution (weighted random selection).
@@ -747,3 +788,8 @@ sealed class PromptPart with _$PromptPart {
   const factory PromptPart.image({required String path}) = PromptPart_Image;
   const factory PromptPart.audio({required String path}) = PromptPart_Audio;
 }
+
+/// `push` always returns one of these: `Speech`/`Silence` for the confirmed
+/// state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+/// on the call that confirmed the transition.
+enum VoiceActivityDetectionEvent { speech, speechStarted, speechEnded, silence }

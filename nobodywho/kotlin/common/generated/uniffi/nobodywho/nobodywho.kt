@@ -697,6 +697,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_json_schema(
@@ -789,6 +791,12 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
@@ -832,6 +840,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(
     ): Short
@@ -981,6 +991,18 @@ external fun uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(`ptr`:
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(`ptr`: Long,`callId`: RustBuffer.ByValue,`result`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+external fun uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(`ptr`: Long,`samples`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1038,6 +1060,8 @@ external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.
 external fun uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1198,6 +1222,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1336,6 +1363,15 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 58012.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1400,6 +1436,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() != 47351.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
@@ -5151,6 +5190,356 @@ public object FfiConverterTypeRustTool: FfiConverter<RustTool, Long> {
 
 
 //
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+public interface RustVoiceActivityDetectionInterface {
+    
+    /**
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
+     */
+    fun `finish`(): List<kotlin.Short>
+    
+    /**
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
+     */
+    fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent
+    
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+    fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>>
+    
+    companion object
+}
+
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActivityDetectionInterface
+{
+
+    @Suppress("UNUSED_PARAMETER")
+    /**
+     * @suppress
+     */
+    constructor(withHandle: UniffiWithHandle, handle: Long) {
+        this.handle = handle
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+    }
+
+    /**
+     * @suppress
+     *
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    constructor(noHandle: NoHandle) {
+        this.handle = 0
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+    }
+    /**
+     * Create a voice activity detector.
+     *
+     * `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
+     * for the Silero VAD ONNX model; `None` uses the default
+     * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+     * audio you'll pass to `push` — Silero runs at 16kHz internally,
+     * anything else is resampled. `threshold`, `min_silence_duration_ms`,
+     * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+     * core `VoiceActivityDetectionConfig` defaults when omitted.
+     */
+    constructor(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `prerollDurationMs`: kotlin.UInt?, `device`: kotlin.String?) :
+        this(UniffiWithHandle, 
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
+    
+        FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalUInt.lower(`prerollDurationMs`),FfiConverterOptionalString.lower(`device`),_status)
+}
+    )
+
+    protected val handle: Long
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed = AtomicBoolean(false)
+    private val callCounter = AtomicLong(1)
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        // TODO: maybe we should log a warning if called more than once?
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    @Synchronized
+    override fun close() {
+        this.destroy()
+    }
+
+    internal inline fun <R> callWithHandle(block: (handle: Long) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.get()
+            if (c == 0L) {
+                throw IllegalStateException("${this.javaClass.simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the handle being freed concurrently.
+        try {
+            return block(this.uniffiCloneHandle())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiCleanAction(private val handle: Long) : Runnable {
+        override fun run() {
+            if (handle == 0.toLong()) {
+                // Fake object created with `NoHandle`, don't try to free.
+                return;
+            }
+            uniffiRustCall { status ->
+                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(handle, status)
+            }
+        }
+    }
+
+    /**
+     * @suppress
+     */
+    fun uniffiCloneHandle(): Long {
+        if (handle == 0.toLong()) {
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
+        }
+        return uniffiRustCall() { status ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(handle, status)
+        }
+    }
+
+    
+    /**
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
+     */override fun `finish`(): List<kotlin.Short> {
+            return FfiConverterSequenceShort.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
+     */
+    @Throws(NobodyWhoException::class)override fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent {
+            return FfiConverterTypeVoiceActivityDetectionEvent.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
+        it,
+        FfiConverterSequenceShort.lower(`chunk`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+    @Throws(NobodyWhoException::class)override fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>> {
+            return FfiConverterSequenceSequenceShort.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(
+        it,
+        FfiConverterSequenceShort.lower(`samples`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+
+    
+
+
+    
+    
+    /**
+     * @suppress
+     */
+    companion object
+    
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRustVoiceActivityDetection: FfiConverter<RustVoiceActivityDetection, Long> {
+    override fun lower(value: RustVoiceActivityDetection): Long {
+        return value.uniffiCloneHandle()
+    }
+
+    override fun lift(value: Long): RustVoiceActivityDetection {
+        return RustVoiceActivityDetection(UniffiWithHandle, value)
+    }
+
+    override fun read(buf: ByteBuffer): RustVoiceActivityDetection {
+        return lift(buf.getLong())
+    }
+
+    override fun allocationSize(value: RustVoiceActivityDetection) = 8UL
+
+    override fun write(value: RustVoiceActivityDetection, buf: ByteBuffer) {
+        buf.putLong(lower(value))
+    }
+}
+
+
+// This template implements a class for working with a Rust struct via a handle
+// to the live Rust struct on the other side of the FFI.
+//
+// There's some subtlety here, because we have to be careful not to operate on a Rust
+// struct after it has been dropped, and because we must expose a public API for freeing
+// theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
+//
+//   * Each instance holds an opaque handle to the underlying Rust struct.
+//     Method calls need to read this handle from the object's state and pass it in to
+//     the Rust FFI.
+//
+//   * When an instance is no longer needed, its handle should be passed to a
+//     special destructor function provided by the Rust FFI, which will drop the
+//     underlying Rust struct.
+//
+//   * Given an instance, calling code is expected to call the special
+//     `destroy` method in order to free it after use, either by calling it explicitly
+//     or by using a higher-level helper like the `use` method. Failing to do so risks
+//     leaking the underlying Rust struct.
+//
+//   * We can't assume that calling code will do the right thing, and must be prepared
+//     to handle Kotlin method calls executing concurrently with or even after a call to
+//     `destroy`, and to handle multiple (possibly concurrent!) calls to `destroy`.
+//
+//   * We must never allow Rust code to operate on the underlying Rust struct after
+//     the destructor has been called, and must never call the destructor more than once.
+//     Doing so may trigger memory unsafety.
+//
+//   * To mitigate many of the risks of leaking memory and use-after-free unsafety, a `Cleaner`
+//     is implemented to call the destructor when the Kotlin object becomes unreachable.
+//     This is done in a background thread. This is not a panacea, and client code should be aware that
+//      1. the thread may starve if some there are objects that have poorly performing
+//     `drop` methods or do significant work in their `drop` methods.
+//      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
+//         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
+//
+// If we try to implement this with mutual exclusion on access to the handle, there is the
+// possibility of a race between a method call and a concurrent call to `destroy`:
+//
+//    * Thread A starts a method call, reads the value of the handle, but is interrupted
+//      before it can pass the handle over the FFI to Rust.
+//    * Thread B calls `destroy` and frees the underlying Rust struct.
+//    * Thread A resumes, passing the already-read handle value to Rust and triggering
+//      a use-after-free.
+//
+// One possible solution would be to use a `ReadWriteLock`, with each method call taking
+// a read lock (and thus allowed to run concurrently) and the special `destroy` method
+// taking a write lock (and thus blocking on live method calls). However, we aim not to
+// generate methods with any hidden blocking semantics, and a `destroy` method that might
+// block if called incorrectly seems to meet that bar.
+//
+// So, we achieve our goals by giving each instance an associated `AtomicLong` counter to track
+// the number of in-flight method calls, and an `AtomicBoolean` flag to indicate whether `destroy`
+// has been called. These are updated according to the following rules:
+//
+//    * The initial value of the counter is 1, indicating a live object with no in-flight calls.
+//      The initial value for the flag is false.
+//
+//    * At the start of each method call, we atomically check the counter.
+//      If it is 0 then the underlying Rust struct has already been destroyed and the call is aborted.
+//      If it is nonzero them we atomically increment it by 1 and proceed with the method call.
+//
+//    * At the end of each method call, we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+//    * When `destroy` is called, we atomically flip the flag from false to true.
+//      If the flag was already true we silently fail.
+//      Otherwise we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+// Astute readers may observe that this all sounds very similar to the way that Rust's `Arc<T>` works,
+// and indeed it is, with the addition of a flag to guard against multiple calls to `destroy`.
+//
+// The overall effect is that the underlying Rust struct is destroyed only when `destroy` has been
+// called *and* all in-flight method calls have completed, avoiding violating any of the expectations
+// of the underlying Rust code.
+//
+// This makes a cleaner a better alternative to _not_ calling `destroy()` as
+// and when the object is finished with, but the abstraction is not perfect: if the Rust object's `drop`
+// method is slow, and/or there are many objects to cleanup, and it's on a low end Android device, then the cleaner
+// thread may be starved, and the app will leak memory.
+//
+// In this case, `destroy`ing manually may be a better solution.
+//
+// The cleaner can live side by side with the manual calling of `destroy`. In the order of responsiveness, uniffi objects
+// with Rust peers are reclaimed:
+//
+// 1. By calling the `destroy` method of the object, which calls `rustObject.free()`. If that doesn't happen:
+// 2. When the object becomes unreachable, AND the Cleaner thread gets to call `rustObject.free()`. If the thread is starved then:
+// 3. The memory is reclaimed when the process terminates.
+//
+// [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
+//
+
+
+//
 public interface SamplerBuilderInterface {
     
     /**
@@ -6430,6 +6819,43 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
 
 
 
+/**
+ * `push` always returns one of these: `Speech`/`Silence` for the confirmed
+ * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+ * on the call that confirmed the transition.
+ */
+
+enum class VoiceActivityDetectionEvent {
+    
+    SPEECH,
+    SPEECH_STARTED,
+    SPEECH_ENDED,
+    SILENCE;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer<VoiceActivityDetectionEvent> {
+    override fun read(buf: ByteBuffer) = try {
+        VoiceActivityDetectionEvent.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: VoiceActivityDetectionEvent) = 4UL
+
+    override fun write(value: VoiceActivityDetectionEvent, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
 
 
 /**
@@ -7259,6 +7685,34 @@ public object FfiConverterSequenceOptionalInt: FfiConverterRustBuffer<List<kotli
 /**
  * @suppress
  */
+public object FfiConverterSequenceSequenceShort: FfiConverterRustBuffer<List<List<kotlin.Short>>> {
+    override fun read(buf: ByteBuffer): List<List<kotlin.Short>> {
+        val len = buf.getInt()
+        return List<List<kotlin.Short>>(len) {
+            FfiConverterSequenceShort.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<List<kotlin.Short>>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterSequenceShort.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<List<kotlin.Short>>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterSequenceShort.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer<List<List<kotlin.Float>>> {
     override fun read(buf: ByteBuffer): List<List<kotlin.Float>> {
         val len = buf.getInt()
@@ -7483,6 +7937,31 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
         // lift function
         { FfiConverterTypeRustTextToSpeech.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Create a voice activity detector. `source` is a HuggingFace repo
+         * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+         * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+         * is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+         * internally, anything else is resampled. `threshold`,
+         * `min_silence_duration_ms`, `min_speech_duration_ms`, and
+         * `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+         * defaults when omitted.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `loadVoiceActivityDetection`(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `prerollDurationMs`: kotlin.UInt?, `device`: kotlin.String?) : RustVoiceActivityDetection {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalUInt.lower(`prerollDurationMs`),FfiConverterOptionalString.lower(`device`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustVoiceActivityDetection.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )

@@ -2446,6 +2446,212 @@ public func FfiConverterTypeRustTool_lower(_ value: RustTool) -> UInt64 {
 
 
 
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+public protocol RustVoiceActivityDetectionProtocol: AnyObject, Sendable {
+    
+    /**
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
+     */
+    func finish()  -> [Int16]
+    
+    /**
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
+     */
+    func push(chunk: [Int16]) throws  -> VoiceActivityDetectionEvent
+    
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+    func segment(samples: [Int16]) throws  -> [[Int16]]
+    
+}
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+open class RustVoiceActivityDetection: RustVoiceActivityDetectionProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(self.handle, $0) }
+    }
+    /**
+     * Create a voice activity detector.
+     *
+     * `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
+     * for the Silero VAD ONNX model; `None` uses the default
+     * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+     * audio you'll pass to `push` — Silero runs at 16kHz internally,
+     * anything else is resampled. `threshold`, `min_silence_duration_ms`,
+     * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+     * core `VoiceActivityDetectionConfig` defaults when omitted.
+     */
+public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, minSilenceDurationMs: UInt32?, minSpeechDurationMs: UInt32?, prerollDurationMs: UInt32?, device: String?)throws  {
+    let handle =
+        try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
+        FfiConverterOptionString.lower(source),
+        FfiConverterUInt32.lower(sampleRate),
+        FfiConverterOptionFloat.lower(threshold),
+        FfiConverterOptionUInt32.lower(minSilenceDurationMs),
+        FfiConverterOptionUInt32.lower(minSpeechDurationMs),
+        FfiConverterOptionUInt32.lower(prerollDurationMs),
+        FfiConverterOptionString.lower(device),$0
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
+     */
+open func finish() -> [Int16]  {
+    return try!  FfiConverterSequenceInt16.lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
+     */
+open func push(chunk: [Int16])throws  -> VoiceActivityDetectionEvent  {
+    return try  FfiConverterTypeVoiceActivityDetectionEvent_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceInt16.lower(chunk),$0
+    )
+})
+}
+    
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+open func segment(samples: [Int16])throws  -> [[Int16]]  {
+    return try  FfiConverterSequenceSequenceInt16.lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceInt16.lower(samples),$0
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustVoiceActivityDetection: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = RustVoiceActivityDetection
+
+    public static func lift(_ handle: UInt64) throws -> RustVoiceActivityDetection {
+        return RustVoiceActivityDetection(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: RustVoiceActivityDetection) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustVoiceActivityDetection {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: RustVoiceActivityDetection, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustVoiceActivityDetection_lift(_ handle: UInt64) throws -> RustVoiceActivityDetection {
+    return try FfiConverterTypeRustVoiceActivityDetection.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustVoiceActivityDetection_lower(_ value: RustVoiceActivityDetection) -> UInt64 {
+    return FfiConverterTypeRustVoiceActivityDetection.lower(value)
+}
+
+
+
+
+
+
 public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     
     /**
@@ -3586,6 +3792,90 @@ public func FfiConverterTypePromptPart_lower(_ value: PromptPart) -> RustBuffer 
 }
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * `push` always returns one of these: `Speech`/`Silence` for the confirmed
+ * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+ * on the call that confirmed the transition.
+ */
+
+public enum VoiceActivityDetectionEvent: Equatable, Hashable {
+    
+    case speech
+    case speechStarted
+    case speechEnded
+    case silence
+
+
+
+}
+
+#if compiler(>=6)
+extension VoiceActivityDetectionEvent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer {
+    typealias SwiftType = VoiceActivityDetectionEvent
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VoiceActivityDetectionEvent {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .speech
+        
+        case 2: return .speechStarted
+        
+        case 3: return .speechEnded
+        
+        case 4: return .silence
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: VoiceActivityDetectionEvent, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .speech:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .speechStarted:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .speechEnded:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .silence:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVoiceActivityDetectionEvent_lift(_ buf: RustBuffer) throws -> VoiceActivityDetectionEvent {
+    return try FfiConverterTypeVoiceActivityDetectionEvent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVoiceActivityDetectionEvent_lower(_ value: VoiceActivityDetectionEvent) -> RustBuffer {
+    return FfiConverterTypeVoiceActivityDetectionEvent.lower(value)
+}
+
+
 
 
 
@@ -4414,6 +4704,31 @@ fileprivate struct FfiConverterSequenceOptionInt32: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceSequenceInt16: FfiConverterRustBuffer {
+    typealias SwiftType = [[Int16]]
+
+    public static func write(_ value: [[Int16]], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterSequenceInt16.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [[Int16]] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [[Int16]]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterSequenceInt16.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer {
     typealias SwiftType = [[Float]]
 
@@ -4647,6 +4962,30 @@ public func loadTextToSpeech(source: String, architecture: String?, voice: Strin
         )
 }
 /**
+ * Create a voice activity detector. `source` is a HuggingFace repo
+ * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+ * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+ * is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+ * internally, anything else is resampled. `threshold`,
+ * `min_silence_duration_ms`, `min_speech_duration_ms`, and
+ * `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+ * defaults when omitted.
+ */
+public func loadVoiceActivityDetection(source: String?, sampleRate: UInt32, threshold: Float?, minSilenceDurationMs: UInt32?, minSpeechDurationMs: UInt32?, prerollDurationMs: UInt32?, device: String?)async throws  -> RustVoiceActivityDetection  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(FfiConverterOptionString.lower(source),FfiConverterUInt32.lower(sampleRate),FfiConverterOptionFloat.lower(threshold),FfiConverterOptionUInt32.lower(minSilenceDurationMs),FfiConverterOptionUInt32.lower(minSpeechDurationMs),FfiConverterOptionUInt32.lower(prerollDurationMs),FfiConverterOptionString.lower(device)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_u64,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_u64,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRustVoiceActivityDetection_lift,
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+/**
  * Create a sampler that constrains output using a Lark grammar via llguidance.
  */
 public func samplerPresetConstrainWithGrammar(grammar: String) -> SamplerConfig  {
@@ -4781,6 +5120,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698) {
@@ -4921,6 +5263,15 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 58012) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4985,6 +5336,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() != 47351) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214) {

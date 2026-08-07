@@ -464,6 +464,133 @@ impl SpeechToTextAsync {
 }
 
 // ---------------------------------------------------------------------------
+// VoiceActivityDetection
+// ---------------------------------------------------------------------------
+
+/// `VoiceActivityDetection.push` always returns one of these: `Speech`/`Silence`
+/// for the confirmed state when unchanged since the last call, or
+/// `SpeechStarted`/`SpeechEnded` on the call that confirmed the transition.
+#[pyclass(eq, eq_int, skip_from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+pub enum VoiceActivityDetectionEvent {
+    Speech,
+    SpeechStarted,
+    SpeechEnded,
+    Silence,
+}
+
+impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
+    for VoiceActivityDetectionEvent
+{
+    fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
+        match e {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Speech => {
+                VoiceActivityDetectionEvent::Speech
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
+                VoiceActivityDetectionEvent::SpeechStarted
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
+                VoiceActivityDetectionEvent::SpeechEnded
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Silence => {
+                VoiceActivityDetectionEvent::Silence
+            }
+        }
+    }
+}
+
+/// `VoiceActivityDetection` detects speech start/end from streaming, live audio using Silero VAD.
+///
+/// `source` is a HuggingFace repo (`hf://owner/repo`) or local directory path
+/// for the Silero VAD ONNX model; omit or pass `None` to use the default
+/// (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+/// buffers you'll pass to `push` — anything other than 16kHz is resampled
+/// internally.
+///
+/// Example::
+///
+///     from nobodywho import VoiceActivityDetection, VoiceActivityDetectionEvent
+///
+///     vad = VoiceActivityDetection(sample_rate=16000)
+///     for chunk in mic_chunks():
+///         if vad.push(chunk) == VoiceActivityDetectionEvent.SpeechEnded:
+///             audio = vad.finish()
+///             break
+#[pyclass]
+pub struct VoiceActivityDetection {
+    // Core type is Send but not Sync (rubato's resampler isn't); pyclass
+    // fields must be Sync, so wrap in a Mutex to satisfy that.
+    vad: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
+}
+
+#[pymethods]
+impl VoiceActivityDetection {
+    #[new]
+    #[pyo3(signature = (source = None, sample_rate = 16_000, threshold = None, min_silence_duration_ms = None, min_speech_duration_ms = None, preroll_duration_ms = None))]
+    pub fn new(
+        source: Option<&str>,
+        sample_rate: u32,
+        threshold: Option<f32>,
+        min_silence_duration_ms: Option<u32>,
+        min_speech_duration_ms: Option<u32>,
+        preroll_duration_ms: Option<u32>,
+        py: Python,
+    ) -> PyResult<Self> {
+        let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
+            source: source.map(String::from).unwrap_or(defaults.source),
+            sample_rate,
+            threshold: threshold.unwrap_or(defaults.threshold),
+            min_silence_duration_ms: min_silence_duration_ms
+                .unwrap_or(defaults.min_silence_duration_ms),
+            min_speech_duration_ms: min_speech_duration_ms
+                .unwrap_or(defaults.min_speech_duration_ms),
+            preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
+        };
+        let vad = py
+            .detach(|| nobodywho::voice_activity_detection::VoiceActivityDetection::new(config))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(Self {
+            vad: std::sync::Mutex::new(vad),
+        })
+    }
+
+    /// Feed the newest chunk of audio (not the whole accumulated buffer —
+    /// `VoiceActivityDetection` tracks the current turn internally). Always
+    /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+    /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+    /// confirmed the transition.
+    pub fn push(&self, chunk: Vec<i16>, py: Python) -> PyResult<VoiceActivityDetectionEvent> {
+        py.detach(|| self.vad.lock().unwrap().push(&chunk))
+            .map(Into::into)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Return the current turn's captured audio (from the confirmed
+    /// `VoiceActivityDetectionEvent.SpeechStarted`, including a small pre-roll, through to
+    /// `VoiceActivityDetectionEvent.SpeechEnded`) and reset internal state for the next turn.
+    /// Empty if speech was never confirmed.
+    pub fn finish(&self, py: Python) -> Vec<i16> {
+        py.detach(|| self.vad.lock().unwrap().finish())
+    }
+
+    /// Detect every speech segment in a complete audio buffer, returning
+    /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+    /// correctly finds every segment regardless of buffer size — use this
+    /// for offline/batch processing instead of live streaming.
+    ///
+    /// Example::
+    ///
+    ///     for audio in vad.segment(full_recording):
+    ///         transcribe(audio)
+    pub fn segment(&self, samples: Vec<i16>, py: Python) -> PyResult<Vec<Vec<i16>>> {
+        py.detach(|| self.vad.lock().unwrap().segment(&samples))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Token streams (shared by Chat and SpeechToText)
 // ---------------------------------------------------------------------------
 
@@ -3428,4 +3555,8 @@ pub mod nobodywhopython {
     use super::TokenStreamAsync;
     #[pymodule_export]
     use super::Tool;
+    #[pymodule_export]
+    use super::VoiceActivityDetection;
+    #[pymodule_export]
+    use super::VoiceActivityDetectionEvent;
 }

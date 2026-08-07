@@ -3,7 +3,7 @@ import typing
 from collections.abc import Sequence
 from os import PathLike
 from pathlib import Path
-from typing import final
+from typing import Final, final
 
 T = typing.TypeVar(
     "T", str, typing.Awaitable[str]
@@ -1327,6 +1327,82 @@ class Tool(typing.Generic[T]):
     `Tool`s are constructed using the `@tool` decorator.
     """
     def __call__(self, /, *args, **kwargs) -> "T": ...
+
+@final
+class VoiceActivityDetection:
+    """
+    `VoiceActivityDetection` detects speech start/end from streaming, live audio using Silero VAD.
+
+    `source` is a HuggingFace repo (`hf://owner/repo`) or local directory path
+    for the Silero VAD ONNX model; omit or pass `None` to use the default
+    (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+    buffers you'll pass to `push` — anything other than 16kHz is resampled
+    internally.
+
+    Example::
+
+        from nobodywho import VoiceActivityDetection, VoiceActivityDetectionEvent
+
+        vad = VoiceActivityDetection(sample_rate=16000)
+        for chunk in mic_chunks():
+            if vad.push(chunk) == VoiceActivityDetectionEvent.SpeechEnded:
+                audio = vad.finish()
+                break
+    """
+    def __new__(
+        cls,
+        /,
+        source: str | None = None,
+        sample_rate: int = 16000,
+        threshold: float | None = None,
+        min_silence_duration_ms: int | None = None,
+        min_speech_duration_ms: int | None = None,
+        preroll_duration_ms: int | None = None,
+    ) -> VoiceActivityDetection: ...
+    def finish(self, /) -> list[int]:
+        """
+        Return the current turn's captured audio (from the confirmed
+        `VoiceActivityDetectionEvent.SpeechStarted`, including a small pre-roll, through to
+        `VoiceActivityDetectionEvent.SpeechEnded`) and reset internal state for the next turn.
+        Empty if speech was never confirmed.
+        """
+    def push(self, /, chunk: Sequence[int]) -> VoiceActivityDetectionEvent:
+        """
+        Feed the newest chunk of audio (not the whole accumulated buffer —
+        `VoiceActivityDetection` tracks the current turn internally). Always
+        returns the current confirmed state: `Speech`/`Silence` if unchanged
+        since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+        confirmed the transition.
+        """
+    def segment(self, /, samples: Sequence[int]) -> list[list[int]]:
+        """
+        Detect every speech segment in a complete audio buffer, returning
+        each segment's audio (with a short pre-roll) in order. Unlike `push`,
+        correctly finds every segment regardless of buffer size — use this
+        for offline/batch processing instead of live streaming.
+
+        Example::
+
+            for audio in vad.segment(full_recording):
+                transcribe(audio)
+        """
+
+@final
+class VoiceActivityDetectionEvent:
+    """
+    `VoiceActivityDetection.push` always returns one of these: `Speech`/`Silence`
+    for the confirmed state when unchanged since the last call, or
+    `SpeechStarted`/`SpeechEnded` on the call that confirmed the transition.
+    """
+
+    Silence: Final[VoiceActivityDetectionEvent]
+    Speech: Final[VoiceActivityDetectionEvent]
+    SpeechEnded: Final[VoiceActivityDetectionEvent]
+    SpeechStarted: Final[VoiceActivityDetectionEvent]
+    def __eq__(self, /, other: object) -> bool: ...
+    def __int__(self, /) -> int: ...
+    def __ne__(self, /, other: object) -> bool: ...
+    def __repr__(self, /) -> str: ...
 
 def bash_tool(max_commands: int | None = None) -> Tool:
     """

@@ -17,6 +17,7 @@ pub mod template;
 pub mod text_to_speech;
 pub mod tokenizer;
 pub mod tool_calling;
+pub mod voice_activity_detection;
 
 /// Render a miette diagnostic to a plain-text string, including any `help` text,
 /// error codes, and related errors. Falls back to `to_string()` if rendering fails.
