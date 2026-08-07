@@ -5282,9 +5282,9 @@ rec {
       };
       "gdextension-api" = rec {
         crateName = "gdextension-api";
-        version = "0.3.3";
+        version = "0.5.1";
         edition = "2024";
-        sha256 = "0shswy0irc9xgzrpdf8q0pyys7nxc844ic75hfy6nx3j4wxg70sk";
+        sha256 = "0bqxnfsmvgsr97g8p4jg1qhbdj9ivq9fpqygndylclrk8vksk29l";
         libName = "gdextension_api";
 
       };
@@ -5672,9 +5672,9 @@ rec {
       };
       "glam" = rec {
         crateName = "glam";
-        version = "0.30.10";
+        version = "0.32.1";
         edition = "2021";
-        sha256 = "1a9as4c2sm3z9sczl2m6gn8fsfmg4iw8rrpinv8i58iphhz47z0r";
+        sha256 = "186cjxn5qknagm31vmxvxk1kwwrfvv6cqj99nvvcngh6bdllj1zp";
         authors = [
           "Cameron Hart <cameron.hart@gmail.com>"
         ];
@@ -5843,9 +5843,9 @@ rec {
       };
       "godot" = rec {
         crateName = "godot";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "0gj1ac7k02zmfh5g037i428ml2fli1nf1y8b3phi398pzlxd16am";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "17zkx34vmm8jl1ljgclkk7g7qri501mrn542gwc3n29smvxyylj4";
         authors = [
           "Bromeon"
           "godot-rust contributors"
@@ -5865,11 +5865,11 @@ rec {
           "__debug-log" = [ "godot-core/debug-log" ];
           "__trace" = [ "godot-core/trace" ];
           "api-4-2" = [ "godot-core/api-4-2" ];
-          "api-4-2-1" = [ "godot-core/api-4-2-1" ];
-          "api-4-2-2" = [ "godot-core/api-4-2-2" ];
           "api-4-3" = [ "godot-core/api-4-3" ];
           "api-4-4" = [ "godot-core/api-4-4" ];
           "api-4-5" = [ "godot-core/api-4-5" ];
+          "api-4-6" = [ "godot-core/api-4-6" ];
+          "api-4-7" = [ "godot-core/api-4-7" ];
           "api-custom" = [ "godot-core/api-custom" ];
           "api-custom-json" = [ "godot-core/api-custom-json" ];
           "codegen-rustfmt" = [ "godot-core/codegen-rustfmt" ];
@@ -5885,14 +5885,15 @@ rec {
           "safeguards-dev-balanced" = [ "godot-core/safeguards-dev-balanced" ];
           "safeguards-release-disengaged" = [ "godot-core/safeguards-release-disengaged" ];
           "serde" = [ "godot-core/serde" ];
+          "upcoming-editor-placeholders" = [ "godot-core/upcoming-editor-placeholders" ];
         };
         resolvedDefaultFeatures = [ "__codegen-full" "default" "experimental-threads" "register-docs" ];
       };
       "godot-bindings" = rec {
         crateName = "godot-bindings";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "03r8ya3hdhky00cj1mv86bjr2iiryzdyh7hky31y61bc61jnx2zk";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1vc5rn96hx4v1kfdddssc21ll5k9w478xzj0vj5nzgjk4yj60f3p";
         libName = "godot_bindings";
         dependencies = [
           {
@@ -5901,16 +5902,16 @@ rec {
           }
         ];
         features = {
-          "api-custom" = [ "dep:bindgen" "dep:regex" "dep:which" ];
-          "api-custom-json" = [ "dep:nanoserde" "dep:bindgen" "dep:regex" "dep:which" ];
+          "api-custom" = [ "dep:regex" "dep:which" ];
+          "api-custom-json" = [ "dep:nanoserde" "dep:which" ];
         };
         resolvedDefaultFeatures = [ "default" ];
       };
       "godot-cell" = rec {
         crateName = "godot-cell";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "05lw4ghp31z04269424x09j8xrfw7iprr8nm1qpxkwfw5zwzx3kk";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "0b950ny14d564jy2g58w90r5ilxrfwfnyk5d082dllidks0313gi";
         libName = "godot_cell";
         features = {
           "proptest" = [ "dep:proptest" ];
@@ -5918,9 +5919,9 @@ rec {
       };
       "godot-codegen" = rec {
         crateName = "godot-codegen";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "1026z7mr073krjd43clnwgmx00wj41ql1drzv1a4qd9zc2gsbf80";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1d8mvz4y9kf2x8msz310ch3hdniky9s44j9f8mdava06ziv511w5";
         libName = "godot_codegen";
         dependencies = [
           {
@@ -5943,12 +5944,6 @@ rec {
             name = "quote";
             packageId = "quote";
           }
-          {
-            name = "regex";
-            packageId = "regex";
-            usesDefaultFeatures = false;
-            features = [ "std" "unicode-bool" "unicode-gencat" ];
-          }
         ];
         buildDependencies = [
           {
@@ -5964,9 +5959,9 @@ rec {
       };
       "godot-core" = rec {
         crateName = "godot-core";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "0cqcjm7dhw6i5aclp40ga6b1zp19471vwq6a1np4h84dnpgq17lq";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "127yhriw24p4grn6wjwly0gxsilx9yjmvh1npzs5q3plvdr2bljp";
         libName = "godot_core";
         dependencies = [
           {
@@ -5995,11 +5990,11 @@ rec {
         ];
         features = {
           "api-4-2" = [ "godot-ffi/api-4-2" ];
-          "api-4-2-1" = [ "godot-ffi/api-4-2-1" ];
-          "api-4-2-2" = [ "godot-ffi/api-4-2-2" ];
           "api-4-3" = [ "godot-ffi/api-4-3" ];
           "api-4-4" = [ "godot-ffi/api-4-4" ];
           "api-4-5" = [ "godot-ffi/api-4-5" ];
+          "api-4-6" = [ "godot-ffi/api-4-6" ];
+          "api-4-7" = [ "godot-ffi/api-4-7" ];
           "api-custom" = [ "godot-ffi/api-custom" "godot-codegen/api-custom" ];
           "api-custom-json" = [ "godot-codegen/api-custom-json" ];
           "codegen-full" = [ "godot-codegen/codegen-full" ];
@@ -6018,17 +6013,11 @@ rec {
       };
       "godot-ffi" = rec {
         crateName = "godot-ffi";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "0ri64j60ckjsvlwhjm36ls1yz92fh3c3r9q5cxbadfn5a9nb4dv2";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1llvvclxn2ha8dyiyabl0y4kiiqnm1qsqxhd4i6whm2g3sc36il5";
         libName = "godot_ffi";
         dependencies = [
-          {
-            name = "godot-macros";
-            packageId = "godot-macros";
-            target = { target, features }: (builtins.elem "wasm" target."family");
-            features = [ "experimental-wasm" ];
-          }
           {
             name = "libc";
             packageId = "libc";
@@ -6047,11 +6036,11 @@ rec {
         ];
         features = {
           "api-4-2" = [ "godot-bindings/api-4-2" ];
-          "api-4-2-1" = [ "godot-bindings/api-4-2-1" ];
-          "api-4-2-2" = [ "godot-bindings/api-4-2-2" ];
           "api-4-3" = [ "godot-bindings/api-4-3" ];
           "api-4-4" = [ "godot-bindings/api-4-4" ];
           "api-4-5" = [ "godot-bindings/api-4-5" ];
+          "api-4-6" = [ "godot-bindings/api-4-6" ];
+          "api-4-7" = [ "godot-bindings/api-4-7" ];
           "api-custom" = [ "godot-bindings/api-custom" ];
           "api-custom-json" = [ "godot-bindings/api-custom-json" ];
           "codegen-lazy-fptrs" = [ "godot-codegen/codegen-lazy-fptrs" ];
@@ -6066,9 +6055,9 @@ rec {
       };
       "godot-macros" = rec {
         crateName = "godot-macros";
-        version = "0.4.5";
-        edition = "2021";
-        sha256 = "1xjspgw68fzablicjlaqkqn1sr8ilz1h8ssl0xgdgxwzm5xvd5nn";
+        version = "0.5.4";
+        edition = "2024";
+        sha256 = "1w3554krjyahdqaspyxmjd7q11aripkczk3xhbgrirvhp7hrrp1p";
         procMacro = true;
         libName = "godot_macros";
         dependencies = [
@@ -6107,7 +6096,7 @@ rec {
           "api-custom-json" = [ "godot-bindings/api-custom-json" ];
           "register-docs" = [ "dep:markdown" "dep:litrs" ];
         };
-        resolvedDefaultFeatures = [ "codegen-full" "experimental-wasm" "register-docs" ];
+        resolvedDefaultFeatures = [ "codegen-full" "register-docs" ];
       };
       "h2" = rec {
         crateName = "h2";
@@ -9153,9 +9142,9 @@ rec {
       };
       "markdown" = rec {
         crateName = "markdown";
-        version = "1.0.0-alpha.23";
+        version = "1.0.0";
         edition = "2018";
-        sha256 = "1lp66hscz3dzp4f742mrij82ihvipvdgn7qs84alwvargaiy0iwh";
+        sha256 = "1sqxbclkxw615kcwglcisda1dcw8cfaa30z7sa16lhfwrbrbijm5";
         authors = [
           "Titus Wormer <tituswormer@gmail.com>"
         ];
@@ -10347,7 +10336,7 @@ rec {
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
-        version = "4.0.0";
+        version = "3.0.0";
         edition = "2021";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./flutter/rust; };
         libName = "nobodywho_flutter";type = [ "cdylib" ];
@@ -10360,10 +10349,6 @@ rec {
           {
             name = "futures";
             packageId = "futures";
-          }
-          {
-            name = "log";
-            packageId = "log";
           }
           {
             name = "nobodywho";
@@ -10384,7 +10369,10 @@ rec {
           {
             name = "tracing";
             packageId = "tracing";
-            features = [ "log" ];
+          }
+          {
+            name = "tracing-subscriber";
+            packageId = "tracing-subscriber";
           }
         ];
         buildDependencies = [
@@ -10397,15 +10385,11 @@ rec {
       };
       "nobodywho-godot" = rec {
         crateName = "nobodywho-godot";
-        version = "11.0.0";
-        edition = "2021";
+        version = "10.0.0";
+        edition = "2024";
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./godot; };
         libName = "nobodywho_godot";type = [ "cdylib" ];
         dependencies = [
-          {
-            name = "futures";
-            packageId = "futures";
-          }
           {
             name = "godot";
             packageId = "godot";
@@ -10437,7 +10421,7 @@ rec {
       };
       "nobodywho-python" = rec {
         crateName = "nobodywho-python";
-        version = "3.0.0";
+        version = "2.0.0";
         edition = "2021";
         crateBin = [
           {
@@ -10468,7 +10452,7 @@ rec {
           {
             name = "pyo3";
             packageId = "pyo3";
-            features = [ "abi3-py39" "experimental-async" "experimental-inspect" ];
+            features = [ "abi3-py39" "experimental-async" "experimental-inspect" "extension-module" ];
           }
           {
             name = "pyo3-async-runtimes";
@@ -10490,11 +10474,6 @@ rec {
           {
             name = "rand";
             packageId = "rand 0.9.5";
-          }
-          {
-            name = "serde";
-            packageId = "serde";
-            features = [ "derive" ];
           }
           {
             name = "serde_json";
@@ -10576,7 +10555,7 @@ rec {
       };
       "nobodywho-uniffi" = rec {
         crateName = "nobodywho-uniffi";
-        version = "0.5.0";
+        version = "0.4.0";
         edition = "2021";
         crateBin = [
           {
@@ -12492,7 +12471,7 @@ rec {
           "time" = [ "dep:time" ];
           "uuid" = [ "dep:uuid" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" "experimental-async" "experimental-inspect" "macros" "pyo3-macros" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" "experimental-async" "experimental-inspect" "extension-module" "macros" "pyo3-macros" ];
       };
       "pyo3-async-runtimes" = rec {
         crateName = "pyo3-async-runtimes";
@@ -12610,7 +12589,7 @@ rec {
         ];
         features = {
         };
-        resolvedDefaultFeatures = [ "default" ];
+        resolvedDefaultFeatures = [ "default" "extension-module" ];
       };
       "pyo3-ffi" = rec {
         crateName = "pyo3-ffi";
@@ -12647,7 +12626,7 @@ rec {
           "extension-module" = [ "pyo3-build-config/extension-module" ];
           "generate-import-lib" = [ "pyo3-build-config/generate-import-lib" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" "extension-module" ];
       };
       "pyo3-introspection" = rec {
         crateName = "pyo3-introspection";
