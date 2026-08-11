@@ -1030,6 +1030,9 @@ pub enum CompleteError {
     #[diagnostic(transparent)]
     InvalidHistory(#[from] InvalidHistoryError),
 
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
+
     #[error("Error creating completion: {0}")]
     #[diagnostic(transparent)]
     Say(#[from] SayError),

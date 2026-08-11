@@ -76,18 +76,24 @@ print(response.completed())
 
 You get back the same `TokenStream` as from `ask()`, so you can iterate it for tokens or call `completed()` for the whole answer.
 
-The list you pass is the entire conversation for that one response, and nothing about it is remembered. The chat history and system prompt are exactly what they were before, so `ask()` picks up where it left off:
+The list you pass **becomes** the chat history, replacing whatever was there. The response is added to it, so `ask()` continues that same conversation:
 
 ```python continuation
-chat.ask("My favorite color is teal.").completed()
+chat.complete([{"role": "user", "content": "My favorite color is teal."}]).completed()
 
-chat.complete([{"role": "user", "content": "Say the word 'banana'."}]).completed()
-
-print(chat.get_chat_history())  # only the exchange about the color
-print(chat.ask("What is my favorite color?").completed())  # still knows it
+print(chat.get_chat_history())  # the message about the color, plus the reply
+print(chat.ask("What is my favorite color?").completed())  # continues from there
 ```
 
-This also means a system message in the list applies to that call only — it does not replace the system prompt you gave `Chat()`.
+The list is used exactly as given, which includes the system message. If you pass one, it becomes the chat's system prompt; if you don't, the chat is left without one:
+
+```python continuation
+chat = Chat("./model.gguf", system_prompt="You are a helpful assistant.")
+chat.complete([{"role": "user", "content": "Hello!"}]).completed()
+print(chat.get_system_prompt())  # None — the list had no system message
+```
+
+So if you want to keep a system prompt across `complete()` calls, include it in every list you pass.
 
 The list has to describe a conversation the model can answer, so it must not be empty, it must end in a user or tool message, and only the first message may be a system message. Anything else raises a `ValueError`:
 
@@ -101,7 +107,7 @@ except ValueError as e:
    print(e)
 ```
 
-Use `ask()` when you want the conversation to build up in the `Chat` object, and `complete()` when you want to hand over the conversation yourself.
+Use `ask()` to add a single turn to the conversation the `Chat` is already holding, and `complete()` to hand it a conversation of your own. Both leave the chat ready for the other.
 
 ## System prompt
 

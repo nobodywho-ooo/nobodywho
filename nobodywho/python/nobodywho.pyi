@@ -87,12 +87,12 @@ class Chat:
         """
     def complete(self, /, messages: "list[dict]") -> "TokenStream":
         """
-        Answer a full list of messages, leaving the chat history untouched.
+        Answer a full list of messages, replacing the chat history.
 
-        The list is the entire conversation for this one response: it is used as given,
-        including whether or not it starts with a system message. Nothing is remembered
-        afterwards — `get_chat_history()`, the system prompt and `ask()` see exactly what
-        they saw before.
+        The list is the entire conversation, used exactly as given — including whether or
+        not it starts with a system message, so passing a list without one leaves the chat
+        with no system prompt. The response is added to the history, and the next `ask()`
+        continues from there.
 
         Args:
             messages: List of message dicts, each with a 'role' ('system', 'user',
@@ -340,12 +340,12 @@ class ChatAsync:
         """
     def complete(self, /, messages: "list[dict]") -> "TokenStreamAsync":
         """
-        Answer a full list of messages, leaving the chat history untouched.
+        Answer a full list of messages, replacing the chat history.
 
-        The list is the entire conversation for this one response: it is used as given,
-        including whether or not it starts with a system message. Nothing is remembered
-        afterwards — `get_chat_history()`, the system prompt and `ask()` see exactly what
-        they saw before.
+        The list is the entire conversation, used exactly as given — including whether or
+        not it starts with a system message, so passing a list without one leaves the chat
+        with no system prompt. The response is added to the history, and the next `ask()`
+        continues from there.
 
         Args:
             messages: List of message dicts, each with a 'role' ('system', 'user',

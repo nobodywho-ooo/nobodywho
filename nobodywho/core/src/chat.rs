@@ -501,12 +501,13 @@ impl ChatHandle {
         Ok(output_rx)
     }
 
-    /// Answer a full message list, leaving the session history untouched.
+    /// Answer a full message list, which replaces the chat history.
     ///
-    /// The list is the whole conversation for this turn: it must be non-empty, end
-    /// in a user or tool message, and carry a system message only in front. The
-    /// session's history and system prompt are unaffected, so `ask` and
-    /// `get_chat_history` see exactly what they saw before.
+    /// The list is the whole conversation: it must be non-empty, end in a user or
+    /// tool message, and carry a system message only in front. It becomes the
+    /// history verbatim, so a list without a system message leaves the chat with
+    /// no system prompt. The response is appended, and a following `ask`
+    /// continues from there.
     ///
     /// # Example
     /// ```
@@ -852,12 +853,13 @@ impl ChatHandleAsync {
         Ok(output_rx)
     }
 
-    /// Answer a full message list, leaving the session history untouched.
+    /// Answer a full message list, which replaces the chat history.
     ///
-    /// The list is the whole conversation for this turn: it must be non-empty, end
-    /// in a user or tool message, and carry a system message only in front. The
-    /// session's history and system prompt are unaffected, so `ask` and
-    /// `get_chat_history` see exactly what they saw before.
+    /// The list is the whole conversation: it must be non-empty, end in a user or
+    /// tool message, and carry a system message only in front. It becomes the
+    /// history verbatim, so a list without a system message leaves the chat with
+    /// no system prompt. The response is appended, and a following `ask`
+    /// continues from there.
     ///
     /// # Example
     /// ```
@@ -1995,8 +1997,23 @@ impl<'a> Chat<'a> {
 
         let prompt_text = prompt.to_string();
 
-        let media_assets = prompt.extract_media_assets();
-        let bitmaps = media_assets
+        let assets = self.register_media(&prompt.extract_media_assets())?;
+
+        let content = match prompt {
+            Prompt::Json(v) => MessageContent::Json(v),
+            Prompt::Parts(_) => MessageContent::Text(prompt_text),
+        };
+        self.add_user_message(content, assets);
+
+        self.run_turn(respond)?;
+
+        Ok(self)
+    }
+
+    /// Load each media part and register its bitmap, returning the assets that link
+    /// them to the `<__media__>` markers in the message content, in the same order.
+    fn register_media(&mut self, parts: &[&PromptPart]) -> Result<Vec<Asset>, MultimodalError> {
+        let bitmaps = parts
             .iter()
             .map(|part| match part {
                 PromptPart::Image(path) => self.engine.load_image(path),
@@ -2008,27 +2025,17 @@ impl<'a> Chat<'a> {
         debug!("Detected bitmaps: {:?}", bitmaps);
 
         let bitmap_ids = self.context.add_bitmaps(bitmaps)?;
-        let assets = bitmap_ids
-            .iter()
-            .zip(media_assets.iter())
+        Ok(bitmap_ids
+            .into_iter()
+            .zip(parts)
             .map(|(id, part)| Asset {
-                id: id.clone(),
+                id,
                 path: match part {
                     PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
                     PromptPart::Text(_) => unreachable!(),
                 },
             })
-            .collect::<Vec<_>>();
-
-        let content = match prompt {
-            Prompt::Json(v) => MessageContent::Json(v),
-            Prompt::Parts(_) => MessageContent::Text(prompt_text),
-        };
-        self.add_user_message(content, assets);
-
-        self.run_turn(respond)?;
-
-        Ok(self)
+            .collect())
     }
 
     /// Generate one assistant turn from the current `messages`, running the tool
@@ -2101,18 +2108,15 @@ impl<'a> Chat<'a> {
         Ok(response)
     }
 
-    /// Answer a full message list without touching the session history.
+    /// Answer a full message list, which replaces the chat history.
     ///
-    /// `messages` is the whole conversation for this one turn, taken verbatim —
-    /// including whether or not it carries a system message. The session's
-    /// history is restored afterwards, on the error path too.
-    ///
-    /// `context.chunks` is not rolled back: the KV cache holds this turn's tokens,
-    /// and `chunks` must keep describing it. `sync_context_with_render` diffs
-    /// against it, so the next turn keeps the common prefix and evicts the rest.
+    /// `messages` becomes the history verbatim, including whether or not it
+    /// carries a system message — passing a list without one leaves the chat
+    /// with no system prompt. The turn's output is appended as usual, so a
+    /// following [`ask`](Self::ask) continues that conversation.
     pub fn complete<F>(
         &mut self,
-        messages: Vec<Message>,
+        mut messages: Vec<Message>,
         respond: F,
     ) -> Result<&mut Self, CompleteError>
     where
@@ -2124,15 +2128,40 @@ impl<'a> Chat<'a> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        let saved = std::mem::replace(&mut self.messages, messages);
-        let result = self.run_turn(respond);
+        self.reload_media(&mut messages)?;
 
-        // Restore whatever the session had, whether or not generation worked.
-        self.messages = saved;
-        self.context.garbage_collect_bitmaps(&self.messages);
+        self.messages = messages;
+        self.run_turn(respond)?;
 
-        result?;
         Ok(self)
+    }
+
+    /// Re-read the media files referenced by `messages` and relink the assets to
+    /// the freshly registered bitmaps.
+    ///
+    /// Asset ids identify a bitmap within one worker, so a message that came from
+    /// another session — a saved conversation, say — carries ids this worker knows
+    /// nothing about. The path is the part that keeps its meaning, so the bitmap is
+    /// loaded from it again and the asset is pointed at the new id. Runs before the
+    /// history is replaced, so an unreadable file leaves the chat untouched.
+    fn reload_media(&mut self, messages: &mut [Message]) -> Result<(), MultimodalError> {
+        for message in messages {
+            let Message::User { assets, .. } = message else {
+                continue;
+            };
+            if assets.is_empty() {
+                continue;
+            }
+
+            // A stored asset does not record whether it is image or audio, but
+            // both load the same way — the variant only picks the error label.
+            let parts: Vec<PromptPart> = assets
+                .iter()
+                .map(|asset| PromptPart::Image(asset.path.clone()))
+                .collect();
+            *assets = self.register_media(&parts.iter().collect::<Vec<_>>())?;
+        }
+        Ok(())
     }
 
     /// Go for the unhandled mode when you are context shifting.
@@ -3350,65 +3379,49 @@ mod tests {
         Message::new_assistant(content.to_string())
     }
 
+    /// The supplied messages become the history, and the reply is appended to them.
     #[test]
-    fn test_complete_answers_supplied_history() {
+    fn test_complete_replaces_history() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
-            .with_template_variable("enable_thinking".to_string(), false)
-            .build()
-            .expect("chat build failed in test");
-
-        let resp = chat
-            .complete(vec![
-                user("Who was the first person to walk on the moon?"),
-                assistant("Neil Armstrong."),
-                user("Which year did he do it? Answer with only the year."),
-            ])
-            .unwrap()
-            .completed()
-            .unwrap();
-
-        assert!(
-            resp.contains("1969"),
-            "Model did not read the supplied history: {resp}"
-        );
-    }
-
-    #[test]
-    fn test_complete_leaves_history_untouched() {
-        test_utils::init_test_tracing();
-        let model = test_utils::load_test_model();
-        let chat = ChatBuilder::new(model)
-            .with_context_size(2048)
-            .with_system_prompt(Some("You are a helpful assistant."))
             .with_template_variable("enable_thinking".to_string(), false)
             .build()
             .expect("chat build failed in test");
 
         chat.ask("My favorite color is teal.").completed().unwrap();
-        let before = chat.get_chat_history().unwrap();
 
-        chat.complete(vec![user("What is the capital of Denmark?")])
+        let messages = vec![
+            user("Who was the first person to walk on the moon?"),
+            assistant("Neil Armstrong."),
+            user("Which year did he do it? Answer with only the year."),
+        ];
+        let resp = chat
+            .complete(messages.clone())
             .unwrap()
             .completed()
             .unwrap();
+        assert!(
+            resp.contains("1969"),
+            "Model did not read the supplied history: {resp}"
+        );
 
-        let after = chat.get_chat_history().unwrap();
+        let history = chat.get_chat_history().unwrap();
         assert_eq!(
-            serde_json::to_value(&before).unwrap(),
-            serde_json::to_value(&after).unwrap(),
-            "complete() must not change the session history"
+            serde_json::to_value(&history[..messages.len()]).unwrap(),
+            serde_json::to_value(&messages).unwrap(),
+            "the supplied messages should be the history, and the teal turn gone"
         );
-        assert_eq!(
-            chat.get_system_prompt().unwrap().as_deref(),
-            Some("You are a helpful assistant.")
-        );
+        assert_eq!(history.len(), messages.len() + 1);
+        assert!(history[messages.len()].is_assistant());
+        assert_eq!(history[messages.len()].content(), resp);
     }
 
+    /// A system message in the list becomes the chat's system prompt; a list
+    /// without one leaves the chat without a system prompt.
     #[test]
-    fn test_complete_ignores_session_system_prompt() {
+    fn test_complete_replaces_system_prompt() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
@@ -3430,18 +3443,29 @@ mod tests {
             .completed()
             .unwrap();
         assert!(cat.to_lowercase().contains("meow"), "{cat}");
-        assert!(
-            !cat.to_lowercase().contains("woof"),
-            "Session system prompt leaked into complete(): {cat}"
+        assert_eq!(
+            chat.get_system_prompt().unwrap().as_deref(),
+            Some("You are a cat. End all responses with meow.")
         );
 
-        // The session keeps its own system prompt.
-        let dog_again = chat.ask("Hello again!").completed().unwrap();
-        assert!(dog_again.to_lowercase().contains("woof"), "{dog_again}");
+        let cat_again = chat.ask("Hello again!").completed().unwrap();
+        assert!(cat_again.to_lowercase().contains("meow"), "{cat_again}");
+
+        chat.complete(vec![user("Hello!")])
+            .unwrap()
+            .completed()
+            .unwrap();
+        assert_eq!(chat.get_system_prompt().unwrap(), None);
+
+        let no_persona = chat.ask("Hello again!").completed().unwrap();
+        assert!(
+            !no_persona.to_lowercase().contains("meow"),
+            "System prompt survived a complete() that had none: {no_persona}"
+        );
     }
 
     #[test]
-    fn test_ask_after_complete_keeps_session_context() {
+    fn test_ask_after_complete_continues_completion() {
         test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
@@ -3454,15 +3478,26 @@ mod tests {
             .completed()
             .unwrap();
 
-        chat.complete(vec![user("Write the word 'banana' and nothing else.")])
-            .unwrap()
+        chat.complete(vec![
+            user("Who was the first person to walk on the moon?"),
+            assistant("Neil Armstrong."),
+            user("Which year did he do it? Answer with only the year."),
+        ])
+        .unwrap()
+        .completed()
+        .unwrap();
+
+        let resp = chat
+            .ask("Who are we talking about? Answer with only the name.")
             .completed()
             .unwrap();
-
-        let resp = chat.ask("What is my favorite color?").completed().unwrap();
         assert!(
-            resp.to_lowercase().contains("teal"),
-            "Session context was corrupted by complete(): {resp}"
+            resp.contains("Armstrong"),
+            "ask() did not continue from the completion: {resp}"
+        );
+        assert!(
+            !resp.to_lowercase().contains("teal"),
+            "The replaced history is still in context: {resp}"
         );
     }
 
@@ -3484,9 +3519,11 @@ mod tests {
             .unwrap();
 
         assert!(resp.contains("13.37"), "Tool was not called: {resp}");
+
+        let history = chat.get_chat_history().unwrap();
         assert!(
-            chat.get_chat_history().unwrap().is_empty(),
-            "complete() left the tool exchange in the session history"
+            history.iter().any(Message::has_tool_calls) && history.iter().any(Message::is_tool),
+            "the tool exchange should be part of the history: {history:?}"
         );
     }
 
@@ -3518,6 +3555,103 @@ mod tests {
         ));
     }
 
+    /// Replacing the history releases the media it referenced, and a history that
+    /// arrives with media is loaded from the asset paths — the asset ids in it mean
+    /// nothing to this worker.
+    #[test]
+    fn test_complete_reloads_media_from_asset_paths() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let (Ok(vision_path), Ok(mmproj_path)) = (
+            std::env::var("TEST_VISION_MODEL"),
+            std::env::var("TEST_MMPROJ_MODEL"),
+        ) else {
+            eprintln!(
+                "skipping test_complete_reloads_media_from_asset_paths: \
+                 set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
+            );
+            return Ok(());
+        };
+
+        let model = Arc::new(llm::get_model(
+            &vision_path,
+            true,
+            Some(&mmproj_path),
+            None,
+            None,
+        )?);
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 4096,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let image = std::path::PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../python/tests/img/dog.png"
+        ));
+        worker.ask(
+            Prompt::new([
+                PromptPart::Text("What is in this image?".to_string()),
+                PromptPart::Image(image),
+            ]),
+            |_| {},
+        )?;
+        assert_eq!(
+            worker.context.bitmaps.len(),
+            1,
+            "expected the image to be registered"
+        );
+
+        // Keep the message the image arrived in: its content holds the media marker
+        // and its asset holds the path, which is what a saved conversation stores.
+        let stored = worker.get_chat_history()[0].clone();
+
+        worker.complete(vec![user("Say the word 'banana'.")], |_| {})?;
+        assert_eq!(
+            worker.context.bitmaps.len(),
+            0,
+            "the replaced history's image bitmap should have been released"
+        );
+
+        // Replay it with an asset id from nowhere — ids are per-worker, so this is
+        // what the same history looks like coming from another session.
+        let Message::User { content, assets } = &stored else {
+            panic!("expected the image to be on a user message: {stored:?}");
+        };
+        let replayed = Message::User {
+            content: content.clone(),
+            assets: vec![Asset {
+                id: "id-from-another-session".to_string(),
+                path: assets[0].path.clone(),
+            }],
+        };
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        worker.complete(vec![replayed], move |out| {
+            if let llm::WriteOutput::Done(resp) = out {
+                sender.send(resp).unwrap();
+            }
+        })?;
+        let resp = receiver.recv()?.to_lowercase();
+
+        assert!(
+            ["dog", "retriever", "puppy"]
+                .iter()
+                .any(|w| resp.contains(w)),
+            "the image was not reloaded from its path: {resp}"
+        );
+        assert_eq!(
+            worker.context.bitmaps.len(),
+            1,
+            "the reloaded bitmap should be registered"
+        );
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_complete_async() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
@@ -3534,7 +3668,7 @@ mod tests {
             .await?;
 
         assert!(resp.contains("Copenhagen"), "{resp}");
-        assert!(chat.get_chat_history().await?.is_empty());
+        assert_eq!(chat.get_chat_history().await?.len(), 2);
 
         Ok(())
     }
