@@ -24,8 +24,9 @@
 //!
 
 use crate::errors::{
-    ChatWorkerError, ContextSyncError, GenerateResponseError, InitWorkerError, MultimodalError,
-    RenderError, SayError, ShiftError, TokenizeError, ToolCallingSetupError, WrappedResponseError,
+    ChatWorkerError, CompleteError, ContextSyncError, GenerateResponseError, InitWorkerError,
+    InvalidHistoryError, MultimodalError, RenderError, SayError, ShiftError, TokenizeError,
+    ToolCallingSetupError, WrappedResponseError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
@@ -188,6 +189,35 @@ impl Message {
     pub fn new_system(content: String) -> Self {
         Self::System { content }
     }
+
+    fn role(&self) -> &'static str {
+        match self {
+            Message::User { .. } => "user",
+            Message::Assistant { .. } => "assistant",
+            Message::System { .. } => "system",
+            Message::Tool { .. } => "tool",
+        }
+    }
+}
+
+/// Check that a message list describes a conversation the model can answer:
+/// non-empty, ending in a user or tool message, with a system message only in
+/// front. A trailing assistant message would render without a generation prompt,
+/// making the model continue that message instead of replying to the user.
+pub fn validate_completion_messages(messages: &[Message]) -> Result<(), InvalidHistoryError> {
+    let Some(last) = messages.last() else {
+        return Err(InvalidHistoryError::Empty);
+    };
+
+    if !(last.is_user() || last.is_tool()) {
+        return Err(InvalidHistoryError::DoesNotEndInUserOrTool { role: last.role() });
+    }
+
+    if let Some(index) = messages[1..].iter().position(Message::is_system) {
+        return Err(InvalidHistoryError::MisplacedSystemMessage { index: index + 1 });
+    }
+
+    Ok(())
 }
 
 /// Tuning for MTP speculative decoding.
@@ -455,6 +485,45 @@ impl ChatHandle {
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
         TokenStream::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
+    }
+
+    /// Answer a full message list and get a tokio channel.
+    pub fn complete_channel(
+        &self,
+        messages: Vec<Message>,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
+        validate_completion_messages(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Complete {
+            messages,
+            output_tx,
+        });
+        Ok(output_rx)
+    }
+
+    /// Answer a full message list, leaving the session history untouched.
+    ///
+    /// The list is the whole conversation for this turn: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only in front. The
+    /// session's history and system prompt are unaffected, so `ask` and
+    /// `get_chat_history` see exactly what they saw before.
+    ///
+    /// # Example
+    /// ```
+    /// # use nobodywho::chat::{ChatHandle, Message};
+    /// # fn example(chat: &ChatHandle) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut stream = chat.complete(vec![
+    ///     Message::new_system("You are terse.".to_string()),
+    ///     Message::new_user("Who first walked on the moon?".to_string()),
+    /// ])?;
+    /// println!("{}", stream.completed()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn complete(&self, messages: Vec<Message>) -> Result<TokenStream, InvalidHistoryError> {
+        Ok(TokenStream::new(forward_write_output(
+            self.complete_channel(messages)?,
+        )))
     }
 
     fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
@@ -769,6 +838,47 @@ impl ChatHandleAsync {
         TokenStreamAsync::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
     }
 
+    /// Answer a full message list and get a tokio channel.
+    pub fn complete_channel(
+        &self,
+        messages: Vec<Message>,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
+        validate_completion_messages(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Complete {
+            messages,
+            output_tx,
+        });
+        Ok(output_rx)
+    }
+
+    /// Answer a full message list, leaving the session history untouched.
+    ///
+    /// The list is the whole conversation for this turn: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only in front. The
+    /// session's history and system prompt are unaffected, so `ask` and
+    /// `get_chat_history` see exactly what they saw before.
+    ///
+    /// # Example
+    /// ```
+    /// # use nobodywho::chat::{ChatHandleAsync, Message};
+    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut stream = chat.complete(vec![
+    ///     Message::new_user("Who first walked on the moon?".to_string()),
+    /// ])?;
+    /// println!("{}", stream.completed().await?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn complete(
+        &self,
+        messages: Vec<Message>,
+    ) -> Result<TokenStreamAsync, InvalidHistoryError> {
+        Ok(TokenStreamAsync::new(forward_write_output(
+            self.complete_channel(messages)?,
+        )))
+    }
+
     // internal helper function for async setters
     async fn set_and_wait_async<F>(&self, make_msg: F) -> Option<()>
     where
@@ -1077,6 +1187,10 @@ enum ChatMsg {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
     },
+    Complete {
+        messages: Vec<Message>,
+        output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
+    },
     ResetChat {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
@@ -1139,6 +1253,10 @@ impl std::fmt::Debug for ChatMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ChatMsg::Ask { prompt, .. } => f.debug_struct("Ask").field("text", prompt).finish(),
+            ChatMsg::Complete { messages, .. } => f
+                .debug_struct("Complete")
+                .field("messages", &format!("[{} messages]", messages.len()))
+                .finish(),
             ChatMsg::ResetChat {
                 system_prompt,
                 tools,
@@ -1210,6 +1328,21 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             if let Err(e) = worker_state.ask(prompt, callback) {
                 let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
                 // Return Ok — error is communicated through the channel, worker stays alive.
+            }
+        }
+        ChatMsg::Complete {
+            messages,
+            output_tx,
+        } => {
+            let should_stop = Arc::clone(&worker_state.should_stop);
+            let error_tx = output_tx.clone();
+            let callback = move |out| {
+                if output_tx.send(out).is_err() {
+                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            };
+            if let Err(e) = worker_state.complete(messages, callback) {
+                let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
             }
         }
         ChatMsg::ResetChat {
@@ -1893,6 +2026,20 @@ impl<'a> Chat<'a> {
         };
         self.add_user_message(content, assets);
 
+        self.run_turn(respond)?;
+
+        Ok(self)
+    }
+
+    /// Generate one assistant turn from the current `messages`, running the tool
+    /// loop until the model stops calling tools.
+    ///
+    /// Appends the tool-call, tool-response and assistant messages it produces,
+    /// and leaves `context.chunks` describing what ended up in the KV cache.
+    fn run_turn<F>(&mut self, respond: F) -> Result<String, SayError>
+    where
+        F: Fn(llm::WriteOutput) + Clone,
+    {
         // The tool-call grammar is NOT pre-injected into the chain. Lark/
         // llguidance has no "trigger word" mechanism, so an always-on grammar
         // would block EOS when the model just wants to chat. Instead the
@@ -1947,10 +2094,44 @@ impl<'a> Chat<'a> {
             .tool_format
             .as_ref()
             .is_none_or(|fmt| !response.contains(fmt.begin_token())));
-        self.add_assistant_message(response);
+        self.add_assistant_message(response.clone());
 
         self.context.chunks = self.render_as_chunks(true)?;
 
+        Ok(response)
+    }
+
+    /// Answer a full message list without touching the session history.
+    ///
+    /// `messages` is the whole conversation for this one turn, taken verbatim —
+    /// including whether or not it carries a system message. The session's
+    /// history is restored afterwards, on the error path too.
+    ///
+    /// `context.chunks` is not rolled back: the KV cache holds this turn's tokens,
+    /// and `chunks` must keep describing it. `sync_context_with_render` diffs
+    /// against it, so the next turn keeps the common prefix and evicts the rest.
+    pub fn complete<F>(
+        &mut self,
+        messages: Vec<Message>,
+        respond: F,
+    ) -> Result<&mut Self, CompleteError>
+    where
+        F: Fn(llm::WriteOutput) + Clone,
+    {
+        validate_completion_messages(&messages)?;
+
+        // reset the stop flag
+        self.should_stop
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+
+        let saved = std::mem::replace(&mut self.messages, messages);
+        let result = self.run_turn(respond);
+
+        // Restore whatever the session had, whether or not generation worked.
+        self.messages = saved;
+        self.context.garbage_collect_bitmaps(&self.messages);
+
+        result?;
         Ok(self)
     }
 
@@ -3159,6 +3340,203 @@ mod tests {
             resp.contains("Copenhagen"),
             "Model failed to answer after reset"
         );
+    }
+
+    fn user(content: &str) -> Message {
+        Message::new_user(content.to_string())
+    }
+
+    fn assistant(content: &str) -> Message {
+        Message::new_assistant(content.to_string())
+    }
+
+    #[test]
+    fn test_complete_answers_supplied_history() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .build()
+            .expect("chat build failed in test");
+
+        let resp = chat
+            .complete(vec![
+                user("Who was the first person to walk on the moon?"),
+                assistant("Neil Armstrong."),
+                user("Which year did he do it? Answer with only the year."),
+            ])
+            .unwrap()
+            .completed()
+            .unwrap();
+
+        assert!(
+            resp.contains("1969"),
+            "Model did not read the supplied history: {resp}"
+        );
+    }
+
+    #[test]
+    fn test_complete_leaves_history_untouched() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_system_prompt(Some("You are a helpful assistant."))
+            .with_template_variable("enable_thinking".to_string(), false)
+            .build()
+            .expect("chat build failed in test");
+
+        chat.ask("My favorite color is teal.").completed().unwrap();
+        let before = chat.get_chat_history().unwrap();
+
+        chat.complete(vec![user("What is the capital of Denmark?")])
+            .unwrap()
+            .completed()
+            .unwrap();
+
+        let after = chat.get_chat_history().unwrap();
+        assert_eq!(
+            serde_json::to_value(&before).unwrap(),
+            serde_json::to_value(&after).unwrap(),
+            "complete() must not change the session history"
+        );
+        assert_eq!(
+            chat.get_system_prompt().unwrap().as_deref(),
+            Some("You are a helpful assistant.")
+        );
+    }
+
+    #[test]
+    fn test_complete_ignores_session_system_prompt() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_system_prompt(Some("You are a dog. End all responses with woof."))
+            .with_template_variable("enable_thinking".to_string(), false)
+            .build()
+            .expect("chat build failed in test");
+
+        let dog = chat.ask("Hello!").completed().unwrap();
+        assert!(dog.to_lowercase().contains("woof"), "{dog}");
+
+        let cat = chat
+            .complete(vec![
+                Message::new_system("You are a cat. End all responses with meow.".to_string()),
+                user("Hello!"),
+            ])
+            .unwrap()
+            .completed()
+            .unwrap();
+        assert!(cat.to_lowercase().contains("meow"), "{cat}");
+        assert!(
+            !cat.to_lowercase().contains("woof"),
+            "Session system prompt leaked into complete(): {cat}"
+        );
+
+        // The session keeps its own system prompt.
+        let dog_again = chat.ask("Hello again!").completed().unwrap();
+        assert!(dog_again.to_lowercase().contains("woof"), "{dog_again}");
+    }
+
+    #[test]
+    fn test_ask_after_complete_keeps_session_context() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .build()
+            .expect("chat build failed in test");
+
+        chat.ask("My favorite color is teal. Remember it.")
+            .completed()
+            .unwrap();
+
+        chat.complete(vec![user("Write the word 'banana' and nothing else.")])
+            .unwrap()
+            .completed()
+            .unwrap();
+
+        let resp = chat.ask("What is my favorite color?").completed().unwrap();
+        assert!(
+            resp.to_lowercase().contains("teal"),
+            "Session context was corrupted by complete(): {resp}"
+        );
+    }
+
+    #[test]
+    fn test_complete_with_tools() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(4096)
+            .with_tool(test_tool())
+            .with_template_variable("enable_thinking".to_string(), false)
+            .build()
+            .expect("chat build failed in test");
+
+        let resp = chat
+            .complete(vec![user("What is the temperature in Copenhagen?")])
+            .unwrap()
+            .completed()
+            .unwrap();
+
+        assert!(resp.contains("13.37"), "Tool was not called: {resp}");
+        assert!(
+            chat.get_chat_history().unwrap().is_empty(),
+            "complete() left the tool exchange in the session history"
+        );
+    }
+
+    #[test]
+    fn test_complete_rejects_invalid_history() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(512)
+            .build()
+            .expect("chat build failed in test");
+
+        assert!(matches!(
+            chat.complete(vec![]),
+            Err(InvalidHistoryError::Empty)
+        ));
+
+        assert!(matches!(
+            chat.complete(vec![user("Hi"), assistant("Aye, ")]),
+            Err(InvalidHistoryError::DoesNotEndInUserOrTool { role: "assistant" })
+        ));
+
+        assert!(matches!(
+            chat.complete(vec![
+                user("Hi"),
+                Message::new_system("Be terse.".to_string()),
+                user("Again"),
+            ]),
+            Err(InvalidHistoryError::MisplacedSystemMessage { index: 1 })
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_complete_async() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), false)
+            .build_async()
+            .expect("chat build_async failed in test");
+
+        let resp = chat
+            .complete(vec![user("What is the capital of Denmark?")])?
+            .completed()
+            .await?;
+
+        assert!(resp.contains("Copenhagen"), "{resp}");
+        assert!(chat.get_chat_history().await?.is_empty());
+
+        Ok(())
     }
 
     // Template rendering tests have been moved to template.rs module

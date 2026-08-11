@@ -58,6 +58,51 @@ chat.set_chat_history([{
 }])
 ```
 
+## Chat completion
+
+If you are used to other LLM libraries, you may prefer passing the whole conversation on every call instead of letting the `Chat` object remember it. That is what `Chat.complete()` is for:
+
+```python
+from nobodywho import Chat, TokenStream
+chat = Chat("./model.gguf")
+response: TokenStream = chat.complete([
+   {"role": "system", "content": "You are a helpful assistant."},
+   {"role": "user", "content": "Who was the first person to walk on the moon?"},
+   {"role": "assistant", "content": "Neil Armstrong."},
+   {"role": "user", "content": "Which year did he do it?"},
+])
+print(response.completed())
+```
+
+You get back the same `TokenStream` as from `ask()`, so you can iterate it for tokens or call `completed()` for the whole answer.
+
+The list you pass is the entire conversation for that one response, and nothing about it is remembered. The chat history and system prompt are exactly what they were before, so `ask()` picks up where it left off:
+
+```python continuation
+chat.ask("My favorite color is teal.").completed()
+
+chat.complete([{"role": "user", "content": "Say the word 'banana'."}]).completed()
+
+print(chat.get_chat_history())  # only the exchange about the color
+print(chat.ask("What is my favorite color?").completed())  # still knows it
+```
+
+This also means a system message in the list applies to that call only — it does not replace the system prompt you gave `Chat()`.
+
+The list has to describe a conversation the model can answer, so it must not be empty, it must end in a user or tool message, and only the first message may be a system message. Anything else raises a `ValueError`:
+
+```python continuation
+try:
+   chat.complete([
+      {"role": "user", "content": "Was the cat a tabby?"},
+      {"role": "assistant", "content": "Aye, "},  # nothing left to answer
+   ])
+except ValueError as e:
+   print(e)
+```
+
+Use `ask()` when you want the conversation to build up in the `Chat` object, and `complete()` when you want to hand over the conversation yourself.
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.

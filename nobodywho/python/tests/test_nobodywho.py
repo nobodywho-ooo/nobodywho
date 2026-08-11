@@ -366,6 +366,107 @@ async def test_async_set_and_get_chat_history(chat_async):
     assert (await chat_async.get_chat_history()) == chat_history
 
 
+def test_complete_completed(chat):
+    response = chat.complete(
+        [{"role": "user", "content": "What is the capital of Denmark?"}]
+    ).completed()
+    assert "copenhagen" in response.lower()
+
+
+def test_complete_iterator(chat):
+    response_str = ""
+    for token in chat.complete(
+        [{"role": "user", "content": "What is the capital of Denmark?"}]
+    ):
+        assert isinstance(token, str)
+        response_str += token
+    assert "copenhagen" in response_str.lower()
+
+
+def test_complete_reads_supplied_history(chat):
+    response = chat.complete(
+        [
+            {
+                "role": "user",
+                "content": "Who was the first person to walk on the moon?",
+            },
+            {"role": "assistant", "content": "Neil Armstrong."},
+            {
+                "role": "user",
+                "content": "Which year did he do it? Answer with only the year.",
+            },
+        ]
+    ).completed()
+    assert "1969" in response
+
+
+def test_complete_leaves_history_untouched(chat):
+    chat.ask("My favorite color is teal.").completed()
+    before = chat.get_chat_history()
+
+    chat.complete(
+        [{"role": "user", "content": "What is the capital of Denmark?"}]
+    ).completed()
+
+    assert chat.get_chat_history() == before
+    assert chat.get_system_prompt() == "You are a helpful assistant"
+
+
+def test_complete_system_message_is_per_call(chat):
+    response = chat.complete(
+        [
+            {
+                "role": "system",
+                "content": "You are a cat. End all responses with meow.",
+            },
+            {"role": "user", "content": "Hello!"},
+        ]
+    ).completed()
+    assert "meow" in response.lower()
+    assert chat.get_system_prompt() == "You are a helpful assistant"
+
+
+def test_complete_rejects_empty(chat):
+    with pytest.raises(ValueError):
+        chat.complete([])
+
+
+def test_complete_rejects_trailing_assistant(chat):
+    with pytest.raises(ValueError):
+        chat.complete(
+            [
+                {"role": "user", "content": "Was the cat a tabby?"},
+                {"role": "assistant", "content": "Aye, "},
+            ]
+        )
+
+
+def test_complete_rejects_misplaced_system_message(chat):
+    with pytest.raises(ValueError):
+        chat.complete(
+            [
+                {"role": "user", "content": "Hello"},
+                {"role": "system", "content": "Be terse."},
+                {"role": "user", "content": "Hello again"},
+            ]
+        )
+
+
+@pytest.mark.asyncio
+async def test_async_complete(chat_async):
+    messages = [{"role": "user", "content": "What is the capital of Denmark?"}]
+
+    response = await chat_async.complete(messages).completed()
+    assert "copenhagen" in response.lower()
+
+    response_str = ""
+    async for token in chat_async.complete(messages):
+        response_str += token
+    assert "copenhagen" in response_str.lower()
+
+    assert (await chat_async.get_chat_history()) == []
+
+
 def test_chat_from_pathlib():
     from pathlib import Path
 
