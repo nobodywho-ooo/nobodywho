@@ -107,8 +107,8 @@ export default function Home(): React.JSX.Element {
             fontSize: '1rem',
           }}>
             Run open-weight language models directly inside your software.
-            Streaming chat, tool calling, structured output, embeddings, and RAG
-            — all offline with GPU acceleration. No servers, no API keys, no
+            Streaming chat, tool calling, structured output, embeddings, text to speech, speech to text and RAG. 
+            All offline with GPU acceleration. No servers, no API keys, no
             Docker. Built on{' '}
             <a href="https://github.com/ggml-org/llama.cpp" target="_blank" rel="noreferrer">
               llama.cpp

@@ -27,7 +27,8 @@
 * **Run any chat LLM** — Gemma, Qwen, Mistral and more
 * **Fast, type-safe tool calling** — automatically generates structured grammars from your function signatures, no schema writing needed
 * **Multimodal input** — provide image and audio information to your LLM
-* **Text-to-speech** — synthesize local WAV audio with Kokoro and Supertonic backends
+* **Text-to-speech** — synthesize local WAV audio with Kokoro, Pocket TTS and Supertonic backends
+* **Speech-to-text** — Transcribe audio into text with Whisper
 * **Model downloading** — load models directly from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending) or any URL
 
 ## ⚡️ Under the Hood
