@@ -447,9 +447,12 @@ jobs:
           CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
           AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
+      # The React Native template declares engines.node >= 22.11.0.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nobodywho/testing-apps/react-native/package-lock.json
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -464,6 +467,16 @@ jobs:
         with:
           packages: "platform-tools platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358"
 
+      - name: "Cache Gradle"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-rn-${{ hashFiles('nobodywho/testing-apps/react-native/android/**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-rn-
+
       # Point the app at the in-repo binding, and stage the .so we just built
       # where the binding's resolver looks — otherwise it downloads the last
       # released one and the job would test a stale binary.
@@ -471,7 +484,7 @@ jobs:
         working-directory: ./nobodywho/testing-apps/react-native
         run: |
           set -euo pipefail
-          npm ci
+          # Installs the dependency tree and links the in-repo binding in one go.
           npm install ../../react-native
           VERSION=$(node -p "require('../../react-native/package.json').version")
           DEST=../../react-native/android/build/nobodywho-native/$VERSION/arm64-v8a
@@ -500,9 +513,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The React Native template declares engines.node >= 22.11.0.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nobodywho/testing-apps/react-native/package-lock.json
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -515,20 +531,27 @@ jobs:
         with:
           packages: "platform-tools platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358"
 
+      - name: "Cache Gradle"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-rn-${{ hashFiles('nobodywho/testing-apps/react-native/android/**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-rn-
+
       # No local linking and no staged .so: the binding resolves the published
       # npm package and downloads its released native library, exactly as a
       # consumer does.
-      # `npm ci` alone would install the exact version in the committed
-      # lockfile, pinning this job to a single release forever; resolve the
-      # newest published version instead.
+      # @latest rather than the committed lockfile, which would pin this job to
+      # a single release forever and stop it testing what we actually ship.
       - name: "Install the published package"
         working-directory: ./nobodywho/testing-apps/react-native
         run: |
           set -euo pipefail
-          npm ci
-          VERSION=$(npm view react-native-nobodywho version)
-          echo "Testing against react-native-nobodywho@$VERSION"
-          npm install "react-native-nobodywho@$VERSION"
+          npm install react-native-nobodywho@latest
+          node -p "'Testing against react-native-nobodywho@' + require('react-native-nobodywho/package.json').version"
 
       - name: "Build app + androidTest APKs"
         working-directory: ./nobodywho/testing-apps/react-native/android
