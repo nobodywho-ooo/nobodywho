@@ -33,6 +33,7 @@ on:
           - all
           - kotlin
           - flutter
+          - react-native
       device:
         description: "Which device(s) to run on"
         type: choice
@@ -56,7 +57,7 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------- Kotlin ---
-  android:
+  kotlin:
     if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'kotlin' }}
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
@@ -165,7 +166,7 @@ jobs:
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-  android-released:
+  kotlin-released:
     if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'kotlin' }}
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 60
@@ -266,6 +267,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
 
+      # nobodywho-flutter's build.rs runs flutter_rust_bridge codegen, so the
+      # Dart toolchain has to exist before the cargo build below.
+      - name: "Setup Flutter SDK"
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
       - name: "Install Android NDK"
         uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -298,12 +307,6 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
-
-      - name: "Setup Flutter SDK"
-        uses: flutter-actions/setup-flutter@v4
-        with:
-          channel: stable
-          version: 3.35.5
 
       # pub's standard local-override mechanism — the committed pubspec keeps
       # depending on the published package, as a consumer's would.
@@ -360,13 +363,19 @@ jobs:
           channel: stable
           version: 3.35.5
 
+      # Resolve the newest published version explicitly. Relying on the
+      # committed pubspec/lockfile would pin this job to whatever was current
+      # when it was written, so it would stop testing what we actually ship.
       - name: "Resolve the published package"
         working-directory: ./nobodywho/testing-apps/flutter
         run: |
+          set -euo pipefail
           # Guard against a committed override; this job must use pub.dev.
           rm -f pubspec_overrides.yaml
-          flutter pub get
-          flutter pub deps --style=compact | grep -E "nobodywho " || true
+          VERSION=$(curl -s --fail "https://pub.dev/api/packages/nobodywho" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['latest']['version'])")
+          echo "Testing against nobodywho $VERSION"
+          flutter pub add "nobodywho:$VERSION"
 
       - name: "Build app + androidTest APKs"
         working-directory: ./nobodywho/testing-apps/flutter
@@ -381,6 +390,155 @@ jobs:
           app-apk: nobodywho/testing-apps/flutter/build/app/outputs/apk/debug/app-debug.apk
           test-apk: nobodywho/testing-apps/flutter/build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           native-lib: libnobodywho_flutter.so
+          devices: ${{ inputs.device || 'both' }}
+          test-timeout: ${{ inputs.test_timeout || '30m' }}
+          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+  # ---------------------------------------------------------- React Native ---
+  react-native:
+    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'react-native' }}
+    runs-on: warp-ubuntu-latest-x64-4x
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Cache Cargo Home"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          rustup target add aarch64-linux-android
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Install distro dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
+
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      - name: "Build uniffi .so (aarch64-linux-android)"
+        working-directory: ./nobodywho
+        run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
+        env:
+          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ORT_CXX_STDLIB: "c++_static"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
+          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
+          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The RN template pins its own SDK/NDK versions; install exactly those so
+      # AGP never tries to auto-install into the SDK.
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358"
+
+      # Point the app at the in-repo binding, and stage the .so we just built
+      # where the binding's resolver looks — otherwise it downloads the last
+      # released one and the job would test a stale binary.
+      - name: "Point the app at the bindings in this repo"
+        working-directory: ./nobodywho/testing-apps/react-native
+        run: |
+          set -euo pipefail
+          npm ci
+          npm install ../../react-native
+          VERSION=$(node -p "require('../../react-native/package.json').version")
+          DEST=../../react-native/android/build/nobodywho-native/$VERSION/arm64-v8a
+          mkdir -p "$DEST"
+          cp ../../target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
+
+      - name: "Build app + androidTest APKs"
+        working-directory: ./nobodywho/testing-apps/react-native/android
+        run: ./gradlew app:assembleRelease app:assembleReleaseAndroidTest
+
+      - uses: ./.github/actions/run-ftl
+        with:
+          app-apk: nobodywho/testing-apps/react-native/android/app/build/outputs/apk/release/app-release.apk
+          test-apk: nobodywho/testing-apps/react-native/android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
+          native-lib: libnobodywho_uniffi.so
+          devices: ${{ inputs.device || 'both' }}
+          test-timeout: ${{ inputs.test_timeout || '30m' }}
+          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+  react-native-released:
+    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'react-native' }}
+    runs-on: warp-ubuntu-latest-x64-4x
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Setup Android SDK"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358"
+
+      # No local linking and no staged .so: the binding resolves the published
+      # npm package and downloads its released native library, exactly as a
+      # consumer does.
+      # `npm ci` alone would install the exact version in the committed
+      # lockfile, pinning this job to a single release forever; resolve the
+      # newest published version instead.
+      - name: "Install the published package"
+        working-directory: ./nobodywho/testing-apps/react-native
+        run: |
+          set -euo pipefail
+          npm ci
+          VERSION=$(npm view react-native-nobodywho version)
+          echo "Testing against react-native-nobodywho@$VERSION"
+          npm install "react-native-nobodywho@$VERSION"
+
+      - name: "Build app + androidTest APKs"
+        working-directory: ./nobodywho/testing-apps/react-native/android
+        run: ./gradlew app:assembleRelease app:assembleReleaseAndroidTest
+
+      - uses: ./.github/actions/run-ftl
+        with:
+          app-apk: nobodywho/testing-apps/react-native/android/app/build/outputs/apk/release/app-release.apk
+          test-apk: nobodywho/testing-apps/react-native/android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
+          native-lib: libnobodywho_uniffi.so
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
           project-id: ${{ secrets.GCP_PROJECT_ID }}

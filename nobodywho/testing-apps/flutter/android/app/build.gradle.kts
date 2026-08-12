@@ -38,10 +38,11 @@ android {
     }
 }
 
-dependencies {
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test:rules:1.6.1")
-}
+// No androidTest dependencies are declared on purpose. The integration_test
+// plugin exposes androidx.test runner/rules/espresso as `api` deps pinned to
+// `1.2+`, which Gradle treats as a 1.2.x prefix match — declaring a newer
+// version here fails to resolve against AGP's consistent-resolution constraint,
+// and pinning an exact 1.2.x would break whenever that range resolves elsewhere.
 
 flutter {
     source = "../.."

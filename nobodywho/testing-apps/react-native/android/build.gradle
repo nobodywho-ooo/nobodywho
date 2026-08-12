@@ -1,0 +1,26 @@
+buildscript {
+    ext {
+        // 35.0.0 rather than the template's 36.0.0: it is what the nix android
+        // shell ships, and CI installs the same, so nothing has to be
+        // auto-installed into a possibly read-only SDK.
+        buildToolsVersion = "35.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        // Matches the NDK this repo standardises on (r28) and the one the nix android
+        // shell provides, so AGP never tries to install one into a read-only SDK.
+        ndkVersion = "28.2.13676358"
+        kotlinVersion = "2.1.20"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"

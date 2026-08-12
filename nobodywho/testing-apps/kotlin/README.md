@@ -68,7 +68,14 @@ workflow builds the arm64 `.so`, assembles the app + test APKs, pushes the model
 to the device with `gcloud ... --other-files`, and runs the suite on the pinned
 devices. See `.github/workflows/mobile-device-tests.yml`.
 
-To build the test APK locally:
+To build the test APKs locally:
 ```bash
 ./gradlew assembleDebug assembleDebugAndroidTest
 ```
+
+With a phone plugged in, running the suite directly is much faster than waiting
+on a CI round-trip:
+```bash
+./gradlew connectedDebugAndroidTest
+```
+Results land in `build/reports/androidTests/connected/`.
