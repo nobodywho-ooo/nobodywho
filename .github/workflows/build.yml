@@ -50,10 +50,12 @@ jobs:
           declare -A uni=()
           if [[ "${{ inputs.run_swift }}" == "true" ]]; then
             for t in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim; do uni["$t"]=1; done
-            if [[ "${{ inputs.apple_extended }}" == "true" ]]; then
-              for t in aarch64-apple-visionos aarch64-apple-visionos-sim \
-                       aarch64-apple-watchos aarch64-apple-watchos-sim; do uni["$t"]=1; done
-            fi
+          fi
+          # Independent of run_swift so /apple-extended-ci can compile-check the
+          # tier-3 targets alone, without the rest of the swift matrix.
+          if [[ "${{ inputs.apple_extended }}" == "true" ]]; then
+            for t in aarch64-apple-visionos aarch64-apple-visionos-sim \
+                     aarch64-apple-watchos aarch64-apple-watchos-sim; do uni["$t"]=1; done
           fi
           if [[ "${{ inputs.run_react_native }}" == "true" ]]; then
             uni["aarch64-apple-ios"]=1; uni["aarch64-apple-ios-sim"]=1
@@ -242,7 +244,7 @@ jobs:
     needs: matrix-gen
     # No run_kotlin: kotlin's CI tests use the Linux uniffi lib and it downloads
     # no macOS artifact; its release dylib comes from swift's build on full runs.
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native || inputs.apple_extended
     runs-on: warp-macos-15-arm64-6x
     strategy:
       fail-fast: false

@@ -22,6 +22,7 @@
 | `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | main, tag |
 | `kotlin` | uniffi build + JVM/Android tests | `kotlin/`, `uniffi/` | main, tag |
 | `react_native` | uniffi build + RN xcframework | `react-native/`, `uniffi/` | main, tag |
+| `apple_extended` | uniffi visionOS/watchOS device+sim (nightly rust, ORT from source) | — (never path-triggered) | main, tag |
 | `docs` | docusaurus build + Cloudflare Pages deploy | — | main only |
 | `release` | publish PyPI / pub.dev / npm / Maven / Swift | — | release tag |
 
@@ -51,6 +52,7 @@ Comment on a PR to run CI by hand (write/admin only). The comment must be **only
 | `/python-ci` | `python` |
 | `/python-models-ci` | `python_models` |
 | `/godot-ci` `/flutter-ci` `/swift-ci` `/kotlin-ci` `/react-native-ci` | that binding |
+| `/apple-extended-ci` | `apple_extended` — the 4 visionOS/watchOS targets only (compile check; no xcframework) |
 | `/regen-ci` | `regen` |
 
 Example: `/swift-ci /kotlin-ci /python-ci` runs those three. `/full-ci` overrides any others in the same comment.
@@ -62,11 +64,14 @@ Example: `/swift-ci /kotlin-ci /python-ci` runs those three. `/full-ci` override
 | consumer | macOS targets |
 |---|---|
 | godot / flutter | macOS (x86_64+arm64) + iOS device/sim |
-| swift | uniffi: macOS + iOS device/sim, **+ visionOS/watchOS (full runs only)** |
+| swift | uniffi: macOS + iOS device/sim |
 | react-native | uniffi: iOS device/sim |
 | kotlin | none (CI tests use the Linux lib) |
+| apple_extended | uniffi: visionOS device/sim + watchOS device/sim |
 
-visionOS/watchOS compile ONNX Runtime from source and are swift-only, so they build only on full runs (`plan`'s `is_full` → `build.yml`'s `apple_extended`). Partial swift PRs package the xcframework from whatever slices exist; `swift-ci` tests the macOS slice, so it passes. A full run (push to `main`, a tag, or `/full-ci`) verifies all 7 platforms.
+visionOS/watchOS are tier-3 Rust targets: they need `cargo +nightly -Z build-std` and compile ONNX Runtime from source, so they never run on a path trigger. They build on full runs, or on demand via `/apple-extended-ci`.
+
+`apple_extended` is a bucket of its own, independent of `swift` — `/apple-extended-ci` alone builds exactly those 4 targets and nothing else, which is the cheap way to check a change still compiles on nightly. It skips `build-swift-xcframework` (gated on `run_swift`), so combine it as `/swift-ci /apple-extended-ci` when you want the packaged 7-slice xcframework. Partial swift PRs package the xcframework from whatever slices exist; `swift-ci` tests the macOS slice, so it passes.
 
 ## `required` aggregator
 
