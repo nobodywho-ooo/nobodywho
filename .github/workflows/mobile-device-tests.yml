@@ -560,7 +560,9 @@ jobs:
         run: |
           set -euo pipefail
           npm install react-native-nobodywho@latest
-          node -p "'Testing against react-native-nobodywho@' + require('react-native-nobodywho/package.json').version"
+          # `npm ls`, not require('<pkg>/package.json') — the package declares an
+          # exports map, so Node refuses any subpath it does not list.
+          npm ls react-native-nobodywho --depth=0 || true
 
       - name: "Build app + androidTest APKs"
         working-directory: ./nobodywho/testing-apps/react-native/android
