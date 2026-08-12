@@ -536,6 +536,26 @@ impl RustChat {
         }
     }
 
+    /// Answer a full list of messages, replacing the chat history.
+    ///
+    /// The list is the whole conversation, used as given: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only first. A list
+    /// without a system message leaves the chat with no system prompt. The response
+    /// is appended, and the next `ask` continues from there.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn complete(
+        &self,
+        messages: Vec<Message>,
+    ) -> Result<RustTokenStream, nobodywho::errors::InvalidHistoryError> {
+        let stream = self.chat.complete(
+            messages
+                .into_iter()
+                .map(nobodywho::chat::Message::from)
+                .collect(),
+        )?;
+        Ok(RustTokenStream { stream })
+    }
+
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, nobodywho::errors::GetterError> {
         self.chat
             .get_chat_history()

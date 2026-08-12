@@ -1008,10 +1008,11 @@ pub enum InvalidHistoryError {
 
     #[error("Message list must end in a user or tool message, but ends in {role}")]
     #[diagnostic(
-        code(nobodywho::history_ends_in_assistant),
+        code(nobodywho::history_does_not_end_in_user_or_tool),
         help(
-            "The model answers the last message, so it has to be a question. \
-             Drop the trailing assistant message, or append the user message you want answered."
+            "The model replies to the last message, so it has to be one that asks for a \
+             reply. Append the user message you want answered, or drop the trailing {role} \
+             message."
         )
     )]
     DoesNotEndInUserOrTool { role: &'static str },

@@ -107,6 +107,18 @@ export class Chat {
     return new TokenStream(this._inner.askWithPrompt(message._parts!));
   }
 
+  /**
+   * Answer a full list of messages, replacing the chat history.
+   *
+   * The list is the whole conversation, used as given: it must be non-empty, end
+   * in a user or tool message, and carry a system message only first. A list
+   * without a system message leaves the chat with no system prompt. The response
+   * is appended, and the next `ask` continues from there.
+   */
+  complete(messages: Message[]): TokenStream {
+    return new TokenStream(this._inner.complete(messages.map(toInternal)));
+  }
+
   /** Stop the current generation. */
   stopGeneration(): void {
     this._inner.stopGeneration();

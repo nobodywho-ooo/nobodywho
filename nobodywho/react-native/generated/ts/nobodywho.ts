@@ -1512,6 +1512,16 @@ export interface RustChatInterface {
      */
     askWithPrompt(parts: Array<PromptPart>) : RustTokenStreamInterface;
     /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. A list
+     * without a system message leaves the chat with no system prompt. The response
+     * is appended, and the next `ask` continues from there.
+     */
+    complete(messages: Array<Message>)  /*throws*/: RustTokenStreamInterface;
+    /**
      * Get the current chat history as a list of messages.
      */
     getChatHistory(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array<Message>>;
@@ -1670,6 +1680,28 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(uniffiTypeRustChatObjectFactory.clonePointer(this), 
         FfiConverterArrayTypePromptPart.lower(parts),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. A list
+     * without a system message leaves the chat with no system prompt. The response
+     * is appended, and the next `ask` continues from there.
+     */
+ complete(messages: Array<Message>): RustTokenStreamInterface /*throws*/ {
+    return FfiConverterTypeRustTokenStream.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_complete(uniffiTypeRustChatObjectFactory.clonePointer(this), 
+        FfiConverterArrayTypeMessage.lower(messages),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4245,6 +4277,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !== 65089) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() !== 42877) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_complete");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() !== 12722) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history");

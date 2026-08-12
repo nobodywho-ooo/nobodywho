@@ -687,6 +687,9 @@ struct NobodyWhoChat {
     base: Base<Node>,
 }
 
+/// Where a generation's tokens arrive, before they are emitted as signals.
+type GenerationChannel = tokio::sync::mpsc::UnboundedReceiver<nobodywho::llm::WriteOutput>;
+
 #[godot_api]
 impl INode for NobodyWhoChat {
     fn init(base: Base<Node>) -> Self {
@@ -862,13 +865,55 @@ impl NobodyWhoChat {
             return;
         };
 
+        self.spawn_generation(move |chat_handle| Ok(chat_handle.ask_channel(prompt)));
+    }
+
+    #[func]
+    /// Answers a full array of messages, which replaces the chat history.
+    ///
+    /// The array is the whole conversation, used as given: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only first. An array
+    /// without a system message leaves the chat with no system prompt. The response
+    /// is appended, so the next `ask` continues that conversation.
+    ///
+    /// Each element is a Dictionary with a "role" and a "content", the same shape
+    /// `get_chat_history` returns. The response arrives on the `response_updated` /
+    /// `response_finished` signals, exactly like `ask`.
+    fn complete(&mut self, messages: Array<Variant>) {
+        let messages = match dictionaries_to_messages(messages) {
+            Ok(messages) => messages,
+            Err(e) => {
+                let errmsg = GString::from(&e);
+                godot_error!("Generation dropped: {}", errmsg);
+                self.signals().worker_failed().emit(&errmsg);
+                return;
+            }
+        };
+
+        self.spawn_generation(move |chat_handle| {
+            chat_handle
+                .complete_channel(messages)
+                .map_err(|e| GString::from(&nobodywho::render_miette(&e)))
+        });
+    }
+
+    /// Run a generation on a background task and emit its tokens as signals,
+    /// starting the worker first if it is not running yet.
+    ///
+    /// `start` opens the generation channel once the handle is ready — the only part
+    /// the generating functions differ in.
+    fn spawn_generation<F>(&mut self, start: F)
+    where
+        F: FnOnce(&nobodywho::chat::ChatHandleAsync) -> Result<GenerationChannel, GString>
+            + 'static,
+    {
         let existing_handle = self.chat_handle.clone();
         let load_config = if existing_handle.is_none() {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             match self.snapshot_worker_config() {
                 Ok(c) => Some(c),
                 Err(e) => {
-                    godot_error!("ask() dropped: {}", e);
+                    godot_error!("Generation dropped: {}", e);
                     self.signals().worker_failed().emit(&e);
                     return;
                 }
@@ -887,14 +932,21 @@ impl NobodyWhoChat {
                     match Self::load_and_store_worker(me, config).await {
                         Ok(h) => h,
                         Err(e) => {
-                            godot_error!("ask() dropped: {}", e);
+                            godot_error!("Generation dropped: {}", e);
                             emit_node.signals().worker_failed().emit(&e);
                             return;
                         }
                     }
                 }
             };
-            let mut generation_channel = chat_handle.ask_channel(prompt);
+            let mut generation_channel = match start(&chat_handle) {
+                Ok(channel) => channel,
+                Err(e) => {
+                    godot_error!("Generation dropped: {}", e);
+                    emit_node.signals().worker_failed().emit(&e);
+                    return;
+                }
+            };
             while let Some(out) = generation_channel.recv().await {
                 match out {
                     nobodywho::llm::WriteOutput::Token(tok) => emit_node

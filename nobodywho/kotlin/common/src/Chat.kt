@@ -76,6 +76,16 @@ class Chat(
         return TokenStream(inner.askWithPrompt(prompt.parts!!))
     }
 
+    /**
+     * Answer a full list of messages, replacing the chat history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end in a user or
+     * tool message, and carry a system message only first. A list without a system message leaves
+     * the chat with no system prompt. The response is appended, and the next `ask` continues from
+     * there.
+     */
+    fun complete(messages: List<Message>) = TokenStream(inner.complete(messages.map { Message.toUniFFI(it) }))
+
     fun stopGeneration() = inner.stopGeneration()
     suspend fun resetContext(systemPrompt: String? = null, tools: List<Tool>? = null) =
         inner.resetContext(systemPrompt, tools?.map { it.inner })

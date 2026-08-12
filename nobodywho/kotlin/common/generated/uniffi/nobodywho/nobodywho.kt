@@ -725,6 +725,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_complete(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(
@@ -872,6 +874,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`ptr`: Long,`json`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_complete(`ptr`: Long,`messages`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(`ptr`: Long,
 ): Long
@@ -1238,6 +1242,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 65089.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 42877.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722.toShort()) {
@@ -1977,6 +1984,17 @@ public interface RustChatInterface {
     fun `askWithPrompt`(`parts`: List<PromptPart>): RustTokenStream
     
     /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. A list
+     * without a system message leaves the chat with no system prompt. The response
+     * is appended, and the next `ask` continues from there.
+     */
+    fun `complete`(`messages`: List<Message>): RustTokenStream
+    
+    /**
      * Get the current chat history as a list of messages.
      */
     suspend fun `getChatHistory`(): List<Message>
@@ -2228,6 +2246,29 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
         it,
         FfiConverterSequenceTypePromptPart.lower(`parts`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. A list
+     * without a system message leaves the chat with no system prompt. The response
+     * is appended, and the next `ask` continues from there.
+     */
+    @Throws(NobodyWhoException::class)override fun `complete`(`messages`: List<Message>): RustTokenStream {
+            return FfiConverterTypeRustTokenStream.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+        it,
+        FfiConverterSequenceTypeMessage.lower(`messages`),_status)
 }
     }
     )

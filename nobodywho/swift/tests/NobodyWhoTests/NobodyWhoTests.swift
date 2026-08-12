@@ -99,6 +99,35 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertTrue(called)
     }
 
+    // MARK: - Complete
+
+    func testComplete() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let noThinking = ["enable_thinking": false]
+        let chat = try Chat(model: model, systemPrompt: "Reply with one word only.", templateVariables: noThinking)
+
+        let messages: [Message] = [
+            .user(content: "Who was the first person to walk on the moon?", assets: []),
+            .assistant(content: "Neil Armstrong.", toolCalls: nil),
+            .user(content: "Which year did he do it? Answer with only the year.", assets: []),
+        ]
+        let response = try await chat.complete(messages).completed()
+        XCTAssertTrue(response.contains("1969"), "Model did not read the supplied history: \(response)")
+
+        // The supplied messages replace the history, with the reply appended
+        let history = try await chat.getChatHistory()
+        XCTAssertEqual(history.count, messages.count + 1)
+
+        // An invalid conversation is rejected at the call site
+        XCTAssertThrowsError(
+            try chat.complete([
+                .user(content: "Hi", assets: []),
+                .assistant(content: "Aye, ", toolCalls: nil),
+            ])
+        )
+    }
+
     // MARK: - Tokenize
 
     func testTokenize() async throws {

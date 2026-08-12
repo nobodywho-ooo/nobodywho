@@ -210,6 +210,44 @@ void main() {
       expect(response, contains("WOW Wrawr WOW"));
     });
 
+    test('Complete replaces the history and ask continues it', () async {
+      final messages = [
+        nobodywho.Message.user(
+          content: "Who was the first person to walk on the moon?",
+          assets: [],
+        ),
+        nobodywho.Message.assistant(content: "Neil Armstrong."),
+        nobodywho.Message.user(
+          content: "Which year did he do it? Answer with only the year.",
+          assets: [],
+        ),
+      ];
+
+      final response = await chat!.complete(messages).completed();
+      expect(response, contains("1969"));
+
+      // The supplied messages replace the history, with the reply appended
+      final history = await chat!.getChatHistory();
+      expect(history.length, equals(messages.length + 1));
+      expect(history.last, isA<nobodywho.Message_Assistant>());
+
+      // ...so ask() continues that conversation
+      final followUp = await chat!
+          .ask("Who are we talking about? Answer with only the name.")
+          .completed();
+      expect(followUp, contains("Armstrong"));
+    });
+
+    test('Complete rejects a history ending in an assistant message', () async {
+      expect(
+        () => chat!.complete([
+          nobodywho.Message.user(content: "Was the cat a tabby?", assets: []),
+          nobodywho.Message.assistant(content: "Aye, "),
+        ]),
+        throwsA(anything),
+      );
+    });
+
     test('Tool calling with no arguments test', () async {
       await chat!
           .ask(

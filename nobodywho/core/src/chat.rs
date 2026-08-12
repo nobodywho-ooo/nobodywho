@@ -2043,7 +2043,7 @@ impl<'a> Chat<'a> {
     ///
     /// Appends the tool-call, tool-response and assistant messages it produces,
     /// and leaves `context.chunks` describing what ended up in the KV cache.
-    fn run_turn<F>(&mut self, respond: F) -> Result<String, SayError>
+    fn run_turn<F>(&mut self, respond: F) -> Result<(), SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -2101,11 +2101,11 @@ impl<'a> Chat<'a> {
             .tool_format
             .as_ref()
             .is_none_or(|fmt| !response.contains(fmt.begin_token())));
-        self.add_assistant_message(response.clone());
+        self.add_assistant_message(response);
 
         self.context.chunks = self.render_as_chunks(true)?;
 
-        Ok(response)
+        Ok(())
     }
 
     /// Answer a full message list, which replaces the chat history.

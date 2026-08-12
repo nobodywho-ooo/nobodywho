@@ -612,6 +612,17 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     func askWithPrompt(parts: [PromptPart])  -> RustTokenStream
     
     /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. A list
+     * without a system message leaves the chat with no system prompt. The response
+     * is appended, and the next `ask` continues from there.
+     */
+    func complete(messages: [Message]) throws  -> RustTokenStream
+    
+    /**
      * Get the current chat history as a list of messages.
      */
     func getChatHistory() async throws  -> [Message]
@@ -809,6 +820,24 @@ open func askWithPrompt(parts: [PromptPart]) -> RustTokenStream  {
     uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
             self.uniffiCloneHandle(),
         FfiConverterSequenceTypePromptPart.lower(parts),$0
+    )
+})
+}
+    
+    /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. A list
+     * without a system message leaves the chat with no system prompt. The response
+     * is appended, and the next `ask` continues from there.
+     */
+open func complete(messages: [Message])throws  -> RustTokenStream  {
+    return try  FfiConverterTypeRustTokenStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
+    uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+            self.uniffiCloneHandle(),
+        FfiConverterSequenceTypeMessage.lower(messages),$0
     )
 })
 }
@@ -4823,6 +4852,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 65089) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 42877) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {

@@ -412,6 +412,27 @@ impl RustChat {
         }))
     }
 
+    /// Answer a full list of messages and get a token stream, replacing the chat
+    /// history.
+    ///
+    /// The list is the whole conversation, used as given: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only first. A list
+    /// without a system message leaves the chat with no system prompt. The response
+    /// is appended, and the next `ask` continues from there.
+    pub fn complete(&self, messages: Vec<Message>) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
+        let core_messages: Result<Vec<_>, NobodyWhoError> =
+            messages.iter().map(uniffi_message_to_core).collect();
+        let stream = self
+            .inner
+            .complete(core_messages?)
+            .map_err(|e| NobodyWhoError::Error {
+                message: nobodywho::render_miette(&e),
+            })?;
+        Ok(Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(stream),
+        }))
+    }
+
     /// Stop the current generation.
     pub fn stop_generation(&self) {
         self.inner.stop_generation();
