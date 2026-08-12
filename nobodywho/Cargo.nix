@@ -10739,9 +10739,9 @@ rec {
       };
       "ort" = rec {
         crateName = "ort";
-        version = "2.0.0-rc.13";
+        version = "2.0.0-rc.12";
         edition = "2024";
-        sha256 = "02wa2fsqv3hawqsz6x3wkdc4w046d048ja6785934j48ngia2dj3";
+        sha256 = "0cziicgnxvrmfzqycs18slf8shvq6jqh9fgsp3zlb9r47prkmpnp";
         authors = [
           "pyke.io <contact@pyke.io>"
           "Nicolas Bigaouette <nbigaouette@gmail.com>"
@@ -10797,22 +10797,17 @@ rec {
           "api-22" = [ "ort-sys/api-22" "api-21" ];
           "api-23" = [ "ort-sys/api-23" "api-22" ];
           "api-24" = [ "ort-sys/api-24" "api-23" ];
-          "api-25" = [ "ort-sys/api-25" "api-24" ];
-          "api-26" = [ "ort-sys/api-26" "api-25" ];
-          "api-27" = [ "ort-sys/api-27" "api-26" ];
-          "api-28" = [ "ort-sys/api-28" "api-27" ];
           "armnn" = [ "ort-sys/armnn" ];
           "azure" = [ "ort-sys/azure" ];
           "cann" = [ "ort-sys/cann" ];
           "copy-dylibs" = [ "ort-sys/copy-dylibs" ];
           "coreml" = [ "ort-sys/coreml" ];
           "cuda" = [ "ort-sys/cuda" ];
-          "default" = [ "std" "ndarray" "tracing" "download-binaries" "tls-native" "copy-dylibs" "api-27" ];
+          "default" = [ "std" "ndarray" "tracing" "download-binaries" "tls-native" "copy-dylibs" "api-24" ];
           "directml" = [ "ort-sys/directml" ];
           "download-binaries" = [ "ort-sys/download-binaries" ];
           "fetch-models" = [ "std" "dep:ureq" "dep:sha2" ];
           "half" = [ "dep:half" ];
-          "lax-feature-matching" = [ "ort-sys/lax-feature-matching" ];
           "load-dynamic" = [ "std" "preload-dylibs" "ort-sys/disable-linking" ];
           "migraphx" = [ "ort-sys/migraphx" ];
           "ndarray" = [ "dep:ndarray" ];
@@ -10826,28 +10821,27 @@ rec {
           "qnn" = [ "ort-sys/qnn" ];
           "rknpu" = [ "ort-sys/rknpu" ];
           "rocm" = [ "ort-sys/rocm" ];
-          "std" = [ "ort-sys/std" "ndarray?/std" "tracing?/std" ];
+          "std" = [ "ort-sys/std" "ndarray/std" "tracing?/std" ];
           "tensorrt" = [ "ort-sys/tensorrt" ];
           "tls-native" = [ "ort-sys/tls-native" "ureq?/native-tls" ];
           "tls-native-vendored" = [ "ort-sys/tls-native-vendored" "ureq?/native-tls" "ureq?/vendored" ];
-          "tls-rustls" = [ "ort-sys/tls-rustls" "ureq?/rustls" "tls-rustls-no-provider" ];
+          "tls-rustls" = [ "ort-sys/tls-rustls" "ureq?/rustls" ];
           "tls-rustls-no-provider" = [ "ort-sys/tls-rustls-no-provider" "ureq?/rustls-no-provider" ];
           "tracing" = [ "dep:tracing" ];
           "training" = [ "ort-sys/training" ];
           "tvm" = [ "ort-sys/tvm" ];
           "vitis" = [ "ort-sys/vitis" ];
-          "vsinpu" = [ "ort-sys/vsinpu" ];
           "webgpu" = [ "ort-sys/webgpu" ];
           "xnnpack" = [ "ort-sys/xnnpack" ];
         };
-        resolvedDefaultFeatures = [ "api-17" "api-18" "api-19" "api-20" "copy-dylibs" "cuda" "download-binaries" "ndarray" "std" "tls-rustls" "tls-rustls-no-provider" "tracing" ];
+        resolvedDefaultFeatures = [ "api-17" "api-18" "api-19" "api-20" "copy-dylibs" "cuda" "download-binaries" "ndarray" "std" "tls-rustls" "tracing" ];
       };
       "ort-sys" = rec {
         crateName = "ort-sys";
-        version = "2.0.0-rc.13";
+        version = "2.0.0-rc.12";
         edition = "2024";
         links = "onnxruntime";
-        sha256 = "0wjq7rgh360wil2l9qp5n7hp0vblvlca2bsmi34sx9pffqviw8fg";
+        sha256 = "140y7jggiiii3m0rxp8amq4im03ynynqykslb95vnvwb3b99gd6p";
         build = "build/main.rs";
         libName = "ort_sys";
         authors = [
@@ -10882,10 +10876,6 @@ rec {
           "api-22" = [ "api-21" ];
           "api-23" = [ "api-22" ];
           "api-24" = [ "api-23" ];
-          "api-25" = [ "api-24" ];
-          "api-26" = [ "api-25" ];
-          "api-27" = [ "api-26" ];
-          "api-28" = [ "api-27" ];
           "default" = [ "std" "api-17" ];
           "download-binaries" = [ "dep:ureq" "dep:lzma-rust2" "dep:hmac-sha256" ];
           "pkg-config" = [ "dep:pkg-config" ];
