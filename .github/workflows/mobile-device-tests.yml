@@ -17,23 +17,27 @@ name: "Mobile Device Tests"
 # Auth is keyless via Workload Identity Federation. Requires three repo secrets:
 #   GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT, GCP_WORKLOAD_IDENTITY_PROVIDER
 on:
-  # TEMPORARY: run on push to the feature branch so we can iterate without
-  # merging to main (workflow_dispatch requires the file on the default branch).
-  # Remove this push trigger before merging to main.
-  push:
-    branches:
-      - feat/android-testing
+  # Nightly. GitHub only runs scheduled workflows on the default branch, so this
+  # is the canonical "does main still work on real hardware" run.
+  schedule:
+    - cron: "0 4 * * *"
+
   workflow_dispatch:
     inputs:
-      binding:
-        description: "Which binding(s) to test"
+      jobs:
+        description: "Which device-test job(s) to run"
         type: choice
         default: all
         options:
           - all
-          - kotlin
-          - flutter
-          - react-native
+          - source        # every binding, built from this repo
+          - released      # every binding, from its published package
+          - kotlin-source
+          - kotlin-released
+          - flutter-source
+          - flutter-released
+          - react-native-source
+          - react-native-released
       device:
         description: "Which device(s) to run on"
         type: choice
@@ -47,18 +51,74 @@ on:
         type: string
         default: "30m"
 
+  # Called from build-and-test.yml, so a release can be gated on its binding's
+  # device job and so /<binding>-device-ci comments can reach these jobs.
+  workflow_call:
+    inputs:
+      jobs:
+        description: "Comma-separated job names, or all/local/released"
+        type: string
+        default: all
+      device:
+        type: string
+        default: both
+      test_timeout:
+        type: string
+        default: "30m"
+    secrets:
+      GCP_PROJECT_ID:
+        required: true
+      GCP_SERVICE_ACCOUNT:
+        required: true
+      GCP_WORKLOAD_IDENTITY_PROVIDER:
+        required: true
+
 permissions:
   contents: read
   id-token: write   # required for Workload Identity Federation
 
-concurrency:
-  group: mobile-device-tests-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
+  # Resolves the `jobs` input into one boolean per job, so each job carries a
+  # plain condition instead of repeating the selection logic six times.
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      kotlin_source: ${{ steps.pick.outputs.kotlin_source }}
+      kotlin_released: ${{ steps.pick.outputs.kotlin_released }}
+      flutter_source: ${{ steps.pick.outputs.flutter_source }}
+      flutter_released: ${{ steps.pick.outputs.flutter_released }}
+      react_native_source: ${{ steps.pick.outputs.react_native_source }}
+      react_native_released: ${{ steps.pick.outputs.react_native_released }}
+    steps:
+      - id: pick
+        env:
+          # Empty on a schedule event, where everything should run.
+          SELECTION: ${{ inputs.jobs || 'all' }}
+        run: |
+          set -euo pipefail
+          sel="${SELECTION:-all}"
+          # $1 = job name, $2 = group. Whole-token match, so selecting
+          # "kotlin-source" never also selects "kotlin-released".
+          want() {
+            if [[ ",$sel," == *",all,"* || ",$sel," == *",$2,"* || ",$sel," == *",$1,"* ]]; then
+              echo true
+            else
+              echo false
+            fi
+          }
+          {
+            echo "kotlin_source=$(want kotlin-source source)"
+            echo "kotlin_released=$(want kotlin-released released)"
+            echo "flutter_source=$(want flutter-source source)"
+            echo "flutter_released=$(want flutter-released released)"
+            echo "react_native_source=$(want react-native-source source)"
+            echo "react_native_released=$(want react-native-released released)"
+          } >> "$GITHUB_OUTPUT"
+
   # ---------------------------------------------------------------- Kotlin ---
-  kotlin:
-    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'kotlin' }}
+  kotlin-source:
+    needs: select
+    if: needs.select.outputs.kotlin_source == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
@@ -167,7 +227,8 @@ jobs:
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   kotlin-released:
-    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'kotlin' }}
+    needs: select
+    if: needs.select.outputs.kotlin_released == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 60
     steps:
@@ -236,8 +297,9 @@ jobs:
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   # --------------------------------------------------------------- Flutter ---
-  flutter:
-    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'flutter' }}
+  flutter-source:
+    needs: select
+    if: needs.select.outputs.flutter_source == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
@@ -340,7 +402,8 @@ jobs:
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   flutter-released:
-    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'flutter' }}
+    needs: select
+    if: needs.select.outputs.flutter_released == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 60
     steps:
@@ -397,8 +460,9 @@ jobs:
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   # ---------------------------------------------------------- React Native ---
-  react-native:
-    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'react-native' }}
+  react-native-source:
+    needs: select
+    if: needs.select.outputs.react_native_source == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
@@ -516,7 +580,8 @@ jobs:
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   react-native-released:
-    if: ${{ (inputs.binding || 'all') == 'all' || (inputs.binding || 'all') == 'react-native' }}
+    needs: select
+    if: needs.select.outputs.react_native_released == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 60
     steps:
