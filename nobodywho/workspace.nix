@@ -61,6 +61,13 @@ let
           env.ORT_LIB_PATH = "${pkgs.onnxruntime}/lib";
           env.ORT_PREFER_DYNAMIC_LINK = "1";
           buildInputs = [ pkgs.onnxruntime ];
+          # ort-sys's `copy-dylibs` feature symlinks onnxruntime libs into
+          # OUT_DIR.ancestors(3)/{examples,deps}. buildRustCrate sets
+          # OUT_DIR=$(pwd)/target/build/ort-sys.out, so ancestors(3) is the
+          # source root — but `examples` and `deps` don't exist there.
+          preConfigure = ''
+            mkdir -p examples deps
+          '';
         };
 
         # XXX: this is a mildly crazy hack that the clanker came up with in order to
@@ -156,8 +163,20 @@ let
   #   src = ./.;
   # };
 
-  # Pre-generated with: nix run github:nix-community/crate2nix -- generate -h crate-hashes.json
-  # Re-run when Cargo.toml or Cargo.lock changes.
+  # ── Regenerating Cargo.nix ──────────────────────────────────────────────
+  # Cargo.nix is checked in and consumed directly (instead of generated via
+  # import-from-derivation) because crate2nix's IFD path is broken for git
+  # workspace deps that use inheritance (crate2nix#207).
+  #
+  # Regenerate whenever Cargo.toml or Cargo.lock changes:
+  #
+  #   cd nobodywho
+  #   nix run github:nix-community/crate2nix -- generate -h crate-hashes.json
+  #
+  # The -h crate-hashes.json pins hashes for git/path deps so the generated
+  # Cargo.nix is reproducible. Review the diff and commit Cargo.nix alongside
+  # the Cargo.toml/Cargo.lock changes.
+  # ─────────────────────────────────────────────────────────────────────────
   cargoNix = import ./Cargo.nix {
     inherit pkgs buildRustCrateForPkgs;
   };
