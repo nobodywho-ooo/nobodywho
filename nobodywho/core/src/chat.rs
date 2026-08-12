@@ -2142,8 +2142,12 @@ impl<'a> Chat<'a> {
     /// Asset ids identify a bitmap within one worker, so a message that came from
     /// another session — a saved conversation, say — carries ids this worker knows
     /// nothing about. The path is the part that keeps its meaning, so the bitmap is
-    /// loaded from it again and the asset is pointed at the new id. Runs before the
-    /// history is replaced, so an unreadable file leaves the chat untouched.
+    /// loaded from it again and the asset is pointed at the new id.
+    ///
+    /// Runs before the history is replaced, so an unreadable file leaves the
+    /// conversation as it was. Bitmaps registered before that point stay in the
+    /// context unreferenced until the next `garbage_collect_bitmaps` clears them,
+    /// which is the same path any replaced history takes.
     fn reload_media(&mut self, messages: &mut [Message]) -> Result<(), MultimodalError> {
         for message in messages {
             let Message::User { assets, .. } = message else {

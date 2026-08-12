@@ -96,8 +96,10 @@ class Chat:
 
         Args:
             messages: List of message dicts, each with a 'role' ('system', 'user',
-                      'assistant' or 'tool') and a 'content'. Must not be empty, must end
-                      in a user or tool message, and may only have a system message first.
+                      'assistant' or 'tool') and a 'content'. A 'tool' message also
+                      needs the 'name' of the tool it answers. Must not be empty, must
+                      end in a user or tool message, and may only have a system message
+                      first.
 
         Returns:
             A TokenStream that yields tokens as they are generated
@@ -349,8 +351,10 @@ class ChatAsync:
 
         Args:
             messages: List of message dicts, each with a 'role' ('system', 'user',
-                      'assistant' or 'tool') and a 'content'. Must not be empty, must end
-                      in a user or tool message, and may only have a system message first.
+                      'assistant' or 'tool') and a 'content'. A 'tool' message also
+                      needs the 'name' of the tool it answers. Must not be empty, must
+                      end in a user or tool message, and may only have a system message
+                      first.
 
         Returns:
             A TokenStreamAsync that yields tokens as they are generated
