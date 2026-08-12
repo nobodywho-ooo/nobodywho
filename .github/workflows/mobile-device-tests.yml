@@ -480,6 +480,15 @@ jobs:
       # Point the app at the in-repo binding, and stage the .so we just built
       # where the binding's resolver looks — otherwise it downloads the last
       # released one and the job would test a stale binary.
+      # Building the binding from source compiles its C++, which resolves
+      # headers from its own dependency (uniffi-bindgen-react-native) relative
+      # to the binding directory — so the binding needs its node_modules too.
+      # Consumers never hit this: npm installs the published package's
+      # dependencies into their own tree.
+      - name: "Install the binding's dependencies"
+        working-directory: ./nobodywho/react-native
+        run: npm ci
+
       - name: "Point the app at the bindings in this repo"
         working-directory: ./nobodywho/testing-apps/react-native
         run: |
