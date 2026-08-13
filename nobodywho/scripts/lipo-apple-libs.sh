@@ -1,32 +1,45 @@
 #!/bin/bash
-# Combine the embedded ggml/llama libs from two single-arch build dirs into <out-dir> for
-# make-apple-framework.sh. Libs present in both arches (the ggml/llama dylibs and the Metal
-# backend module) are lipo'd into universal binaries; the per-microarch CPU backend modules
-# (libggml-cpu-apple_m*.so on arm64, libggml-cpu-<x86>.so on x86_64) exist in only one arch
-# and are copied as-is — they can't be lipo'd, and ggml picks the right one per host at
-# runtime. The caller lipos the main cdylib itself (its filename differs CI vs local).
-#
 # Usage: lipo-apple-libs.sh <arch-dir-a> <arch-dir-b> <out-dir>
 set -euo pipefail
 A=$1; B=$2; OUT=$3
 mkdir -p "$OUT"
-shopt -s nullglob
-# Union of ggml/llama basenames across both arches (dylibs + dlopen'd .so modules).
-names=$(for f in "$A"/libggml* "$A"/libllama* "$B"/libggml* "$B"/libllama*; do basename "$f"; done | sort -u)
-n=0
-for name in $names; do
-    if [ -e "$A/$name" ] && [ -e "$B/$name" ]; then
-        lipo -create "$A/$name" "$B/$name" -output "$OUT/$name"
-    elif [ -e "$A/$name" ]; then
-        cp -L "$A/$name" "$OUT/$name"
-    else
-        cp -L "$B/$name" "$OUT/$name"
-    fi
-    n=$((n + 1))
-done
-# An empty union means no ggml at all downstream — a load failure on the consumer's
-# machine, not here — so fail loudly instead.
-if [ "$n" -eq 0 ]; then
-    echo "lipo-apple-libs: no libggml*/libllama* files found in $A or $B" >&2
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+RUNTIME_TOOL="$SCRIPT_DIR/runtime-bundle.py"
+MANIFEST_A="$A/nobodywho-runtime/manifest.json"
+MANIFEST_B="$B/nobodywho-runtime/manifest.json"
+RUNTIME_OUT="$OUT/nobodywho-runtime"
+rm -rf "$RUNTIME_OUT"
+mkdir -p "$RUNTIME_OUT"
+
+linked_a=$(python3 "$RUNTIME_TOOL" names "$MANIFEST_A" --kind libraries)
+linked_b=$(python3 "$RUNTIME_TOOL" names "$MANIFEST_B" --kind libraries)
+if [ "$linked_a" != "$linked_b" ]; then
+    echo "lipo-apple-libs: linked runtime sets differ between $MANIFEST_A and $MANIFEST_B" >&2
     exit 1
 fi
+
+for name in $linked_a; do
+    lipo -create \
+        "$A/nobodywho-runtime/$name" \
+        "$B/nobodywho-runtime/$name" \
+        -output "$RUNTIME_OUT/$name"
+done
+
+# CPU backend modules can be specific to one architecture.
+backend_names=$({
+    python3 "$RUNTIME_TOOL" names "$MANIFEST_A" --kind backends
+    python3 "$RUNTIME_TOOL" names "$MANIFEST_B" --kind backends
+} | sort -u)
+for name in $backend_names; do
+    file_a="$A/nobodywho-runtime/$name"
+    file_b="$B/nobodywho-runtime/$name"
+    if [ -e "$file_a" ] && [ -e "$file_b" ]; then
+        lipo -create "$file_a" "$file_b" -output "$RUNTIME_OUT/$name"
+    elif [ -e "$file_a" ]; then
+        cp -L "$file_a" "$RUNTIME_OUT/$name"
+    else
+        cp -L "$file_b" "$RUNTIME_OUT/$name"
+    fi
+done
+
+python3 "$RUNTIME_TOOL" merge "$RUNTIME_OUT/manifest.json" "$MANIFEST_A" "$MANIFEST_B"

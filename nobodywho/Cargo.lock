@@ -3022,6 +3022,7 @@ version = "2.4.0"
 dependencies = [
  "ahash",
  "bashkit",
+ "cc",
  "chrono",
  "dirs",
  "emojis",
@@ -3046,6 +3047,7 @@ dependencies = [
  "ndarray 0.17.2",
  "nom 8.0.0",
  "ort",
+ "process_path",
  "rand 0.9.5",
  "rand_distr",
  "regex",
@@ -3690,6 +3692,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "process_path"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f676f11eb0b3e2ea0fbaee218fa6b806689e2297b8c8adc5bf73df465c4f6171"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]

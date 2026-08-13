@@ -1,24 +1,12 @@
 #!/bin/bash
-# Assemble a dynamic .framework from a Rust cdylib, embedding the sibling ggml/llama
-# dylibs (dynamic-link feature) inside the bundle. The binary references them via
-# @rpath and gets an @loader_path rpath, so the whole graph resolves once Xcode/
-# CocoaPods embeds & signs the framework. Verified on macOS and the iOS simulator.
-#
-# Usage:
-#   make-apple-framework.sh <src_dir> <dylib> <fw_name> <flat|versioned> <out_dir> [ffi_header] [bundle_id]
-#     src_dir     dir containing the cdylib AND the libggml*/libllama* dylibs
-#     dylib       cdylib filename within src_dir
-#     fw_name     framework + module name (e.g. nobodywhoFFI, nobodywho_flutter)
-#     layout      flat (iOS/sim/visionOS/watchOS) | versioned (macOS)
-#     out_dir     output dir; the framework is created at <out_dir>/<fw_name>.framework
-#     ffi_header  optional: path to a uniffi FFI header -> adds Headers/ + a
-#                 `framework module <fw_name>` modulemap (needed by Swift SPM;
-#                 omit for flutter_rust_bridge / React Native which link directly)
-#     bundle_id   optional CFBundleIdentifier (default ooo.nobodywho.<fw_name>)
+# Usage: make-apple-framework.sh <src-dir> <dylib> <name> <flat|versioned> <out-dir> [header] [bundle-id]
 set -euo pipefail
 
 SRC_DIR=$1; DYLIB=$2; FW_NAME=$3; LAYOUT=$4; OUT_DIR=$5
 FFI_HEADER=${6:-}; BUNDLE_ID=${7:-ooo.nobodywho.$FW_NAME}
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+RUNTIME_TOOL="$SCRIPT_DIR/runtime-bundle.py"
+RUNTIME_MANIFEST="$SRC_DIR/nobodywho-runtime/manifest.json"
 
 FW="$OUT_DIR/$FW_NAME.framework"
 rm -rf "$FW"
@@ -32,35 +20,9 @@ fi
 
 cp -L "$SRC_DIR/$DYLIB" "$ROOT/$FW_NAME"
 install_name_tool -id "@rpath/$FW_NAME.framework/$FW_NAME" "$ROOT/$FW_NAME"
-install_name_tool -add_rpath "@loader_path" "$ROOT/$FW_NAME" 2>/dev/null || true
 
-# Embed the ggml/llama dylibs. cp -L dereferences any stray symlink to a real file.
-embedded=0
-for real in "$SRC_DIR"/libggml*.dylib "$SRC_DIR"/libllama*.dylib; do
-    [ -e "$real" ] || continue
-    name=$(basename "$real")
-    cp -L "$real" "$ROOT/$name"
-    install_name_tool -id "@rpath/$FW_NAME.framework/$name" "$ROOT/$name" 2>/dev/null || true
-    install_name_tool -add_rpath "@loader_path" "$ROOT/$name" 2>/dev/null || true
-    embedded=$((embedded + 1))
-done
-# The binary @rpath-references these, so a framework built without them loads nowhere.
-# Fail here rather than ship a framework that only fails on the consumer's machine.
-if [ "$embedded" -eq 0 ]; then
-    echo "make-apple-framework: no libggml*/libllama* dylibs found in $SRC_DIR" >&2
-    exit 1
-fi
+python3 "$RUNTIME_TOOL" copy "$RUNTIME_MANIFEST" "$ROOT"
 
-# Embed the dlopen'd ggml backend modules (CPU SIMD variants + Metal, from GGML_BACKEND_DL).
-# Plain cp: ggml loads these via load_backends_from_path at runtime (see core llm.rs), so
-# they're not @rpath-linked and need no install_name_tool. Slices legitimately differ in
-# which modules they carry, so absence is not fatal here — the runtime smoke test guards it.
-for module in "$SRC_DIR"/libggml-*.so; do
-    [ -e "$module" ] || continue
-    cp -L "$module" "$ROOT/$(basename "$module")"
-done
-
-# optional uniffi FFI module
 if [ -n "$FFI_HEADER" ]; then
     mkdir -p "$ROOT/Headers" "$ROOT/Modules"
     cp "$FFI_HEADER" "$ROOT/Headers/"
@@ -72,16 +34,11 @@ framework module $FW_NAME {
 EOF
 fi
 
-# Versioned (macOS) frameworks keep Info.plist in Resources/ (the Resources symlink
-# target, where codesign expects it); flat (iOS et al.) keep it at the bundle root.
 if [ "$LAYOUT" = versioned ]; then
     PLIST="$ROOT/Resources/Info.plist"
 else
     PLIST="$ROOT/Info.plist"
 fi
-# MinimumOSVersion must match the slice's real platform minimum — it differs per
-# platform (visionOS 1.x, watchOS 10.x, iOS 18.x, …), so read it from the binary's
-# LC_BUILD_VERSION instead of hardcoding a value that's wrong for most slices.
 MIN_OS=$(vtool -show-build "$ROOT/$FW_NAME" | awk '/minos/{print $2; exit}')
 if [ -z "$MIN_OS" ]; then
     echo "make-apple-framework: could not read MinimumOSVersion (minos) from $ROOT/$FW_NAME" >&2

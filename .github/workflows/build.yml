@@ -17,7 +17,13 @@ on:
       run_react_native:
         type: boolean
         default: false
+      # Selects the tier-3 visionOS/watchOS slices. Independent of full_ci so
+      # /apple-extended-ci can compile-check just those targets.
       apple_extended:
+        type: boolean
+        default: false
+      # Gates the full-run-only extras (godot macOS universal, apple runtime smoke).
+      full_ci:
         type: boolean
         default: false
 
@@ -44,9 +50,10 @@ jobs:
 
           combos=()
           add() { combos+=("{\"integration\":\"$1\",\"target\":\"$2\"}"); }
-          desktop_ios=(x86_64-apple-darwin aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim)
-          [[ "${{ inputs.run_godot }}"   == "true" ]] && for t in "${desktop_ios[@]}"; do add godot "$t"; done
-          [[ "${{ inputs.run_flutter }}" == "true" ]] && for t in "${desktop_ios[@]}"; do add flutter "$t"; done
+          desktop=(x86_64-apple-darwin aarch64-apple-darwin)
+          apple=("${desktop[@]}" aarch64-apple-ios aarch64-apple-ios-sim)
+          [[ "${{ inputs.run_godot }}"   == "true" ]] && for t in "${desktop[@]}"; do add godot "$t"; done
+          [[ "${{ inputs.run_flutter }}" == "true" ]] && for t in "${apple[@]}"; do add flutter "$t"; done
           declare -A uni=()
           if [[ "${{ inputs.run_swift }}" == "true" ]]; then
             for t in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim; do uni["$t"]=1; done
@@ -85,9 +92,9 @@ jobs:
     env:
       # $ORIGIN rpath, duplicated from .cargo/config.toml because RUSTFLAGS env overrides it.
       RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,-rpath,$ORIGIN' || '-C link-arg=-Wl,-rpath,$ORIGIN' }}
-      # GGML_CPU_ALL_VARIANTS builds armv9.2 CPU variants that compile with -march=…+sme;
+      # GGML_CPU_ALL_VARIANTS builds armv9.2 CPU variants that compile with -march=...+sme;
       # Ubuntu's default GCC 13 doesn't know +sme (GCC 14 does, and covers the whole ARM
-      # variant flag set). Per-target var, so only the aarch64 build uses it — x86 unchanged.
+      # variant flag set). The per-target setting leaves x86 unchanged.
       CC_aarch64_unknown_linux_gnu: gcc-14
       CXX_aarch64_unknown_linux_gnu: g++-14
     steps:
@@ -118,8 +125,6 @@ jobs:
           sudo apt-get install -y libclang-dev cmake
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
 
-      # GGML_CPU_ALL_VARIANTS' armv9.2 variants compile with -march=…+sme, unsupported by
-      # the default GCC 13; GCC 14 knows the full ARM variant flag set (see CC_ env above).
       - name: "Install GCC 14 for aarch64 CPU variants"
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt-get install -y gcc-14 g++-14
@@ -146,16 +151,15 @@ jobs:
         run: |
           PROFILE="./nobodywho/target/${{ matrix.target }}/release"
           cp "$PROFILE/libnobodywho_${{ matrix.integration }}.so" ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-          # ggml/llama .so are nested in the build tree, so gather them recursively.
-          find "$PROFILE" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} ./ \;
+          rm -rf ./nobodywho-runtime
+          cp -R "$PROFILE/nobodywho-runtime" ./nobodywho-runtime
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-            ./libggml*.so
-            ./libllama*.so
+            ./nobodywho-runtime/**
   cargo-build-windows:
     needs: matrix-gen
     if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
@@ -247,8 +251,18 @@ jobs:
         run: |
           cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
           cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
-            ./ggml*.dll
-            ./llama*.dll
+          Remove-Item -Recurse -Force ./nobodywho-runtime -ErrorAction SilentlyContinue
+          Copy-Item -Recurse C:/t/${{ matrix.target }}/release/nobodywho-runtime ./nobodywho-runtime
+
+      - name: "Upload build artifacts"
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
+            ./nobodywho-runtime/**
+
   cargo-build-macos:
     needs: matrix-gen
     # No run_kotlin: kotlin's CI tests use the Linux uniffi lib and it downloads
@@ -342,57 +356,34 @@ jobs:
           echo 'set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)' > "$RUNNER_TEMP/no-subprocess.cmake"
           export CMAKE_PROJECT_INCLUDE="$RUNNER_TEMP/no-subprocess.cmake"
           TARGET="${{ matrix.target }}"
-          # The built-in aarch64-apple-watchos (device) spec has dynamic-linking off,
-          # so cargo silently drops the cdylib and emits only a static .a (useless under
-          # dynamic-link). watchOS 6+ supports embedded dynamic frameworks, so derive a
-          # spec with the flag on. The JSON stem must equal the triple so cargo still
-          # emits into target/aarch64-apple-watchos/ (matching the later steps).
-          ZFLAGS=""
+          # The built-in watchOS device target disables dynamic libraries.
+          ZFLAGS=()
           if [ "$TARGET" = "aarch64-apple-watchos" ]; then
             rustc +nightly -Z unstable-options --target aarch64-apple-watchos \
               --print target-spec-json \
               | python3 -c 'import json,sys; d=json.load(sys.stdin); d["dynamic-linking"]=True; d.pop("metadata",None); json.dump(d, open("aarch64-apple-watchos.json","w"))'
             TARGET="$(pwd)/aarch64-apple-watchos.json"
-            # nightly gates building against a .json target spec behind this flag.
-            ZFLAGS="-Z json-target-spec"
+            ZFLAGS=(-Z json-target-spec)
           fi
-          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std $ZFLAGS --verbose --target "$TARGET" --release
+          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std \
+            "${ZFLAGS[@]}" --verbose --target "$TARGET" --release
         working-directory: ./nobodywho
 
       - name: "Rename built file"
         run: |
-          if [ "${{ matrix.integration }}" = "uniffi" ]; then
-            # Static library (.a) for xcframeworks (React Native, Swift)
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.a \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.a
-            # Dynamic library (.dylib) for macOS desktop JNA (Kotlin JVM)
-            if [ -f ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib ]; then
-              cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
-                ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
-            fi
-          else
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
-          fi
-          # Ship the ggml/llama dylibs + the dlopen'd backend modules (libggml-*.so, from
-          # GGML_BACKEND_DL — co-located next to the binding by core/build.rs) alongside.
-          # -L dereferences any symlink. No-op for the .a slices.
-          cp -L ./nobodywho/target/${{ matrix.target }}/release/libggml*.dylib ./ 2>/dev/null || true
-          cp -L ./nobodywho/target/${{ matrix.target }}/release/libllama*.dylib ./ 2>/dev/null || true
-          cp -L ./nobodywho/target/${{ matrix.target }}/release/libggml*.so ./ 2>/dev/null || true
+          cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
+          PROFILE=./nobodywho/target/${{ matrix.target }}/release
+          rm -rf ./nobodywho-runtime
+          cp -R "$PROFILE/nobodywho-runtime" ./nobodywho-runtime
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
-          # wildcard path to match both .dylib and .a
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.*
-            ./libggml*.dylib
-            ./libllama*.dylib
-            ./libggml*.so
-  # builds an "xcframework"
-  # which is an apple thing that contains binaries for multiple systems
+            ./nobodywho-runtime/**
   build-flutter-xcframework:
     if: inputs.run_flutter
     runs-on: warp-macos-15-arm64-6x
@@ -403,13 +394,11 @@ jobs:
       - name: "Download all build artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: generically-named ggml dylibs would collide across slices.
           pattern: nobodywho-flutter-*-apple-*
           path: artifacts
 
       - name: Build XCFramework
         run: |
-          # No FFI modulemap arg: flutter_rust_bridge links the framework binary directly.
           HELPER=nobodywho/scripts/make-apple-framework.sh
           ios_sim=artifacts/nobodywho-flutter-aarch64-apple-ios-sim-release
           ios_dev=artifacts/nobodywho-flutter-aarch64-apple-ios-release
@@ -444,13 +433,11 @@ jobs:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
 
-  # The Godot addon ships ONE universal ggml/llama set for macOS instead of a per-arch
-  # set. Godot resolves .gdextension [dependencies] by first matching tag set, and the
-  # arch-less macos.debug/macos.release keys always match before macos.*.arm64, so an
-  # arch-split set would pair the arm64 binding with x86_64 dylibs. See the comments in
-  # nobodywho/godot/nobodywho.gdextension.
+  # Godot's macOS dependencies must be universal because its keys are not architecture-specific.
   build-godot-macos-universal:
-    if: inputs.full_ci
+    # Also needs run_godot: a dispatch with full_ci and a restricted bucket list
+    # would otherwise download godot artifacts that were never produced.
+    if: inputs.full_ci && inputs.run_godot
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -459,47 +446,37 @@ jobs:
       - name: "Download macOS godot build artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: generically-named ggml dylibs would collide across arches.
           pattern: nobodywho-godot-*-apple-darwin-release
           path: artifacts
 
       - name: "lipo the ggml/llama dylibs"
         run: |
-          # release-only: a debug binding loads the release ggml (same ABI), matching
-          # how the release job assembles the addon.
           bash nobodywho/scripts/lipo-apple-libs.sh \
             artifacts/nobodywho-godot-aarch64-apple-darwin-release \
             artifacts/nobodywho-godot-x86_64-apple-darwin-release \
             universal
 
-          # The release job assembles the addon straight from this artifact, so a
-          # partial set has to fail here — it cannot be detected downstream.
-          # Core DT_NEEDED dylibs + the Metal backend module are present in both arches and
-          # must be universal. (libggml-cpu/libggml-metal are no longer dylibs under
-          # GGML_BACKEND_DL — they're the modules below.)
-          for f in universal/libggml.dylib universal/libggml-base.dylib \
-                   universal/libllama.dylib universal/libllama-common.dylib \
-                   universal/libggml-metal.so; do
-            [ -f "$f" ] || { echo "::error::$f missing — a macOS slice did not build it"; exit 1; }
+          # Linked libraries and Metal exist in both architectures.
+          RUNTIME=universal/nobodywho-runtime
+          for f in "$RUNTIME"/libggml.dylib "$RUNTIME"/libggml-base.dylib \
+                   "$RUNTIME"/libllama.dylib "$RUNTIME"/libllama-common.dylib \
+                   "$RUNTIME"/libggml-metal.so; do
+            [ -f "$f" ] || { echo "::error::$f missing from a macOS slice"; exit 1; }
             lipo -info "$f" | grep -q x86_64 || { echo "::error::$f has no x86_64 slice"; exit 1; }
             lipo -info "$f" | grep -q arm64  || { echo "::error::$f has no arm64 slice"; exit 1; }
           done
-          # CPU SIMD-variant modules are per-microarch (single-arch each): arm64 ships
-          # libggml-cpu-apple_*.so, x86_64 ships the non-apple variants. Require both sets.
-          ls universal/libggml-cpu-apple_*.so >/dev/null 2>&1 \
+          # CPU modules remain architecture-specific.
+          compgen -G "$RUNTIME/libggml-cpu-apple_*.so" >/dev/null \
             || { echo "::error::no arm64 (apple_*) CPU variant modules"; exit 1; }
-          ls universal/libggml-cpu-*.so 2>/dev/null | grep -qv apple_ \
+          compgen -G "$RUNTIME/libggml-cpu-*.so" | grep -qv apple_ \
             || { echo "::error::no x86_64 CPU variant modules"; exit 1; }
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho-godot-macos-universal-dylibs
-          path: |
-            ./universal/*.dylib
-            ./universal/*.so
+          path: ./universal
 
-  # builds an xcframework containing static libraries for React Native iOS
   build-react-native-xcframework:
     if: inputs.run_react_native
     runs-on: warp-macos-15-arm64-6x
@@ -510,14 +487,11 @@ jobs:
       - name: "Download uniffi iOS artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: generically-named ggml dylibs would collide across slices.
           pattern: nobodywho-uniffi-*-apple-ios*-release
           path: artifacts
 
       - name: "Build dynamic-framework XCFramework"
         run: |
-          # No FFI modulemap/header: uniffi-bindgen-react-native's generated C++ links
-          # the framework binary's symbols directly; CocoaPods `vendored_frameworks` embeds it.
           HELPER=nobodywho/scripts/make-apple-framework.sh
           bash "$HELPER" artifacts/nobodywho-uniffi-aarch64-apple-ios-release \
             libnobodywho-uniffi-aarch64-apple-ios-release.dylib NobodywhoFramework flat device
@@ -537,7 +511,6 @@ jobs:
           name: nobodywho-react-native-xcframework
           path: ./NobodywhoFramework.xcframework.zip
 
-  # builds an xcframework containing static libraries + headers for Swift SPM
   build-swift-xcframework:
     if: inputs.run_swift
     runs-on: warp-macos-15-arm64-6x
@@ -548,19 +521,22 @@ jobs:
       - name: "Download uniffi Apple artifacts"
         uses: actions/download-artifact@v5
         with:
-          # No merge-multiple: generically-named ggml dylibs would collide across slices.
           pattern: nobodywho-uniffi-*-apple-*-release
           path: artifacts
 
       - name: "Build dynamic-framework XCFramework"
         run: |
-          # The framework module is `nobodywhoFFI` so the generated swift's
-          # `import nobodywhoFFI` resolves.
           HELPER=nobodywho/scripts/make-apple-framework.sh
           HDR=nobodywho/swift/generated/nobodywhoFFI.h
+          frameworks=()
           mkslice() { # $1=target $2=layout $3=slice-out-dir
+            # `return 0`, not a bare `return`: a bare one propagates the failed
+            # test's status and `set -e` would abort the step instead of skipping
+            # the slice on partial swift runs.
+            [ -d "artifacts/nobodywho-uniffi-$1-release" ] || return 0
             bash "$HELPER" "artifacts/nobodywho-uniffi-$1-release" \
               "libnobodywho-uniffi-$1-release.dylib" nobodywhoFFI "$2" "$3" "$HDR" ooo.nobodywho.ffi
+            frameworks+=(-framework "$3/nobodywhoFFI.framework")
           }
           mkslice aarch64-apple-ios          flat      ios-device
           mkslice aarch64-apple-ios-sim      flat      ios-sim
@@ -570,14 +546,12 @@ jobs:
           mkslice aarch64-apple-watchos      flat      watchos-device
           mkslice aarch64-apple-watchos-sim  flat      watchos-sim
 
-          xcodebuild -create-xcframework \
-            -framework ios-device/nobodywhoFFI.framework \
-            -framework ios-sim/nobodywhoFFI.framework \
-            -framework macos/nobodywhoFFI.framework \
-            -framework visionos-device/nobodywhoFFI.framework \
-            -framework visionos-sim/nobodywhoFFI.framework \
-            -framework watchos-device/nobodywhoFFI.framework \
-            -framework watchos-sim/nobodywhoFFI.framework \
+          if [[ ${#frameworks[@]} -eq 0 ]]; then
+            echo "::error::no uniffi Apple slices were built"
+            exit 1
+          fi
+
+          xcodebuild -create-xcframework "${frameworks[@]}" \
             -output NobodyWhoNative.xcframework
       - name: "Zip XCFramework"
         run: zip -y -r NobodyWhoNative.xcframework.zip NobodyWhoNative.xcframework
@@ -588,10 +562,10 @@ jobs:
           name: nobodywho-swift-xcframework
           path: ./NobodyWhoNative.xcframework.zip
 
-  # Runtime smoke test: prove the dynamically-linked ggml/llama graph resolves on a real
-  # iOS simulator — rpath/install_name/embedding mistakes surface here, not on a user device.
   apple-runtime-smoke:
-    if: inputs.full_ci
+    # Also needs run_swift: the uniffi artifact it dlopens only exists when the
+    # swift bucket ran, which full_ci alone does not guarantee on a dispatch.
+    if: inputs.full_ci && inputs.run_swift
     runs-on: warp-macos-15-arm64-6x
     needs: [cargo-build-macos]
     steps:
@@ -600,9 +574,6 @@ jobs:
       - name: "Download iOS simulator uniffi artifact"
         uses: actions/download-artifact@v5
         with:
-          # Use `name:` (not `pattern:`): `name:` extracts the artifact's contents
-          # directly into `path`, whereas a single-match `pattern` extracts to the path
-          # root without a per-artifact subdir, leaving artifacts/<name>/ empty.
           name: nobodywho-uniffi-aarch64-apple-ios-sim-release
           path: artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release
 
@@ -627,7 +598,6 @@ jobs:
 
           out=$(xcrun simctl spawn "$UDID" "$PWD/smoke/dlopen-smoke" "$PWD/smoke/nobodywhoFFI.framework/nobodywhoFFI")
           echo "$out"
-          # "SMOKE OK" prints only after the backend modules load and a device registers.
           echo "$out" | grep -q "SMOKE OK"
 
   cargo-build-android:
@@ -704,7 +674,8 @@ jobs:
             export ORT_LIB_PATH="${{ steps.ort-android.outputs.ort_dir }}"
             export ORT_PREFER_DYNAMIC_LINK=1
           fi
-          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} --release --locked
+          cargo build -p nobodywho-${{ matrix.integration }} \
+            --verbose --target ${{ matrix.target }} --release --locked
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
@@ -724,23 +695,17 @@ jobs:
         # XXX: .so files for android in godot MUST start with "lib"
       - name: "Rename built file"
         run: |
-          if [ "${{ matrix.integration }}" = "uniffi" ]; then
-            # uniffi produces both static (.a) for React Native/Swift and shared (.so) for Kotlin/JNA
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.a \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.a
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-          else
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-          fi
+          cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
           # x86_64 Android links dynamically against libonnxruntime.so — ship it alongside.
           if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
             cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
           fi
-          # ggml/llama .so are nested in the build tree; gather recursively (Android loads them from jniLibs/<abi>).
-          PROFILE="./nobodywho/target/${{ matrix.target }}/release"
-          find "$PROFILE" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} ./ \;
+          if [ "${{ matrix.integration }}" != "godot" ]; then
+            PROFILE="./nobodywho/target/${{ matrix.target }}/release"
+            rm -rf ./nobodywho-runtime
+            cp -R "$PROFILE/nobodywho-runtime" ./nobodywho-runtime
+          fi
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
@@ -749,5 +714,4 @@ jobs:
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.*
             ./libonnxruntime.so
-            ./libggml*.so
-            ./libllama*.so
+            ./nobodywho-runtime/**

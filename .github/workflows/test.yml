@@ -108,7 +108,6 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
       - uses: actions/checkout@v4
-      # ONNX Runtime is statically linked into the cdylib, so no separate onnx lib is needed.
       - uses: ./.github/actions/flutter-native-lib
 
       - name: Download Whisper model

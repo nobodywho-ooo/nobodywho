@@ -21,6 +21,32 @@
 }:
 
 let
+  withLlamaRuntime =
+    attrs:
+    let
+      dependency =
+        name: dependencies:
+        lib.findFirst (item: item.crateName == name) (throw "${attrs.crateName}: missing ${name}") dependencies;
+      core = dependency "nobodywho" attrs.dependencies;
+      llama = dependency "llama-cpp-sys-2" core.dependencies;
+      runtime = "${llama.lib}/lib/llama-cpp-sys-2.out";
+    in
+    {
+      postInstall = (attrs.postInstall or "") + ''
+        cp -L ${runtime}/lib/libggml* ${runtime}/lib/libllama* "$lib/lib/"
+        cp -L ${runtime}/backends/* "$lib/lib/"
+      '' + lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+        binding="$lib/lib/lib${attrs.libName}.dylib"
+        for path in @loader_path ${pkgs.onnxruntime}/lib; do
+          if ! otool -l "$binding" | grep -q "path $path "; then
+            install_name_tool -add_rpath "$path" "$binding"
+          fi
+        done
+      '' + lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+        ${pkgs.patchelf}/bin/patchelf --add-rpath '$ORIGIN:${pkgs.onnxruntime}/lib' "$lib/lib/lib${attrs.libName}.so"
+      '';
+    };
+
   buildRustCrateForPkgs =
     pkgs:
     pkgs.buildRustCrate.override {
@@ -28,12 +54,13 @@ let
         llama-cpp-sys-2 = attrs: {
           env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
 
-          # crate2nix builds llama-cpp-sys-2 as an isolated derivation that never reads
-          # the workspace .cargo/config.toml, so re-inject our CMake override here.
-          # Without it the dynamic-link ggml/llama libs are born versioned with a
-          # build-tree /build/... rpath, which nixpkgs' audit-tmpdir hook rejects
-          # ("forbidden reference to /build/"). The override strips the SOVERSION and
-          # bakes an $ORIGIN rpath instead.
+          # Upstream derives `.` as the target dir from crate2nix's shorter OUT_DIR.
+          preConfigure = ''
+            mkdir -p target/deps
+            ln -s target/deps deps
+          '';
+
+          # crate2nix does not read the workspace Cargo config.
           env.CMAKE_PROJECT_INCLUDE = "${./scripts/llama-build-overrides.cmake}";
 
           # Architecture-specific CPU feature flags
@@ -135,7 +162,7 @@ let
           ];
         };
 
-        nobodywho-flutter = attrs: {
+        nobodywho-flutter = attrs: withLlamaRuntime attrs // {
           env.NOBODYWHO_SKIP_CODEGEN = "True";
           nativeBuildInputs = [
             # this needs to be available at link-time
@@ -145,7 +172,7 @@ let
           ];
         };
 
-        nobodywho-godot = attrs: {
+        nobodywho-godot = attrs: lib.optionalAttrs (!pkgs.stdenv.hostPlatform.isAndroid) (withLlamaRuntime attrs) // {
           nativeBuildInputs = [
             # XXX: can we do this with propagatedNativeBuildInputs??
             # this needs to be available at link-time
@@ -154,13 +181,15 @@ let
           ];
         };
 
-        nobodywho-python = attrs: {
+        nobodywho-python = attrs: withLlamaRuntime attrs // {
           nativeBuildInputs = [
             vulkan-loader
             pkgs.onnxruntime
             pkgs.python3
           ];
         };
+
+        nobodywho-uniffi = withLlamaRuntime;
       };
     };
 

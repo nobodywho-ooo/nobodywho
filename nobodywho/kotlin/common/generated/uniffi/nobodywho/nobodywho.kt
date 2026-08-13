@@ -354,14 +354,7 @@ internal class UniffiHandleMap<T: Any> {
 
 // Contains loading, initialization code,
 // and the FFI Function declarations in a com.sun.jna.Library.
-@Synchronized
-private fun findLibraryName(componentName: String): String {
-    val libOverride = System.getProperty("uniffi.component.$componentName.libraryOverride")
-    if (libOverride != null) {
-        return libOverride
-    }
-    return "nobodywho_uniffi"
-}
+private fun findLibraryName(componentName: String) = NativeLoader.findLibraryName(componentName)
 
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
@@ -681,7 +674,6 @@ internal open class UniffiVTableCallbackInterfaceRustToolCallback(
 // We now use JNA's "direct mapping" - unclear if same considerations apply exactly.
 internal object IntegrityCheckingUniffiLib {
     init {
-        ai.nobodywho.NativeLoader.ensureLoaded()
         Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "nobodywho"))
         uniffiCheckContractApiVersion(this)
         uniffiCheckApiChecksums(this)
@@ -867,7 +859,6 @@ internal object UniffiLib {
     
 
     init {
-        ai.nobodywho.NativeLoader.ensureLoaded()
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "nobodywho"))
         uniffiCallbackInterfaceRustDownloadProgressCallback.register(this)
         uniffiCallbackInterfaceRustToolCallback.register(this)
@@ -8107,6 +8098,3 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
 }
     )
     }
-    
-
-

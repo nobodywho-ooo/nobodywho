@@ -1,52 +1,120 @@
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-// Co-locate the ggml backend modules (CPU SIMD variants, Metal, Vulkan, …) next to our
-// built binary. Under GGML_BACKEND_DL those backends are separate dlopen'd modules that
-// llama-cpp-sys-2 installs into its own `out/backends` and — unlike the ggml/llama shared
-// libs — does NOT relocate next to the artifact. We mirror that relocation so every
-// downstream binding ships the modules beside our binding, and the runtime loader
-// (llm.rs::current_dylib_dir) finds them there. Linking into the profile root AND deps/
-// (as llama-cpp-sys-2 does) means `cargo build`/`cargo test` binaries are covered too, so
-// the runtime has a single path with no dev/test special-case.
+fn files_in(directory: &Path, extension: &str) -> Vec<PathBuf> {
+    let mut files = std::fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("reading {}: {error}", directory.display()))
+        .map(|entry| entry.expect("reading runtime file").path())
+        .filter(|path| path.is_file() && path.extension() == Some(OsStr::new(extension)))
+        .collect::<Vec<_>>();
+    files.sort();
+    files
+}
+
+fn filename(path: &Path) -> &str {
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or_else(|| panic!("invalid runtime filename: {}", path.display()))
+}
+
+fn install(source: &Path, destination: &Path) {
+    if destination.exists() {
+        std::fs::remove_file(destination).unwrap();
+    }
+    let source = std::fs::canonicalize(source).unwrap();
+    if std::fs::hard_link(&source, destination).is_err() {
+        std::fs::copy(source, destination).unwrap();
+    }
+}
+
+fn android_cxx_runtime() -> PathBuf {
+    let output = cc::Build::new()
+        .cpp(true)
+        .get_compiler()
+        .to_command()
+        .arg("--print-file-name=libc++_shared.so")
+        .output()
+        .expect("locating Android libc++");
+    assert!(output.status.success(), "locating Android libc++ failed");
+    let path = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
+    assert!(
+        path.is_file(),
+        "Android libc++ not found at {}",
+        path.display()
+    );
+    path
+}
+
 fn main() {
-    println!("cargo:rerun-if-env-changed=DEP_LLAMA_BACKENDS_DIR");
-    let Ok(backends_dir) = std::env::var("DEP_LLAMA_BACKENDS_DIR") else {
-        return; // dynamic-backends not active in this build — nothing to relocate
-    };
-    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR is set for build scripts");
-    // OUT_DIR = <target>/<triple>/<profile>/build/<pkg>-<hash>/out
-    let profile_dir = Path::new(&out_dir)
+    if !cfg!(feature = "dynamic-llama") {
+        return;
+    }
+
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let profile = std::env::var("PROFILE").unwrap();
+    let profile_dir = out_dir
         .ancestors()
-        .nth(3)
-        .expect("OUT_DIR has the expected depth")
-        .to_path_buf();
+        .find(|path| path.file_name() == Some(OsStr::new(&profile)))
+        .expect("Cargo profile directory not found");
 
-    let modules: Vec<PathBuf> = std::fs::read_dir(&backends_dir)
-        .unwrap_or_else(|e| panic!("reading backends dir {backends_dir}: {e}"))
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.is_file())
-        .collect();
+    let backends_dir = PathBuf::from(
+        std::env::var("DEP_LLAMA_BACKENDS_DIR").expect("llama backend directory is set"),
+    );
+    let llama_out = backends_dir.parent().unwrap();
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let target_vendor = std::env::var("CARGO_CFG_TARGET_VENDOR").unwrap();
+    let (library_dir, library_extension) = if target_os == "windows" {
+        (llama_out.join("bin"), "dll")
+    } else if target_vendor == "apple" {
+        (llama_out.join("lib"), "dylib")
+    } else {
+        (llama_out.join("lib"), "so")
+    };
 
-    for dest in [
-        profile_dir.clone(),
+    let mut libraries = files_in(&library_dir, library_extension);
+    let backends = files_in(
+        &backends_dir,
+        if target_os == "windows" { "dll" } else { "so" },
+    );
+    assert!(!libraries.is_empty(), "no llama runtime libraries found");
+    assert!(!backends.is_empty(), "no llama backend modules found");
+    let cxx_runtime = (target_os == "android").then(android_cxx_runtime);
+    libraries.extend(cxx_runtime.iter().cloned());
+    libraries.sort_by_key(|path| path.file_name().map(OsStr::to_owned));
+
+    for directory in [
+        profile_dir.to_path_buf(),
         profile_dir.join("deps"),
         profile_dir.join("examples"),
     ] {
-        if !dest.is_dir() {
-            continue;
-        }
-        for module in &modules {
-            let dst = dest.join(module.file_name().expect("module has a file name"));
-            if dst.exists() {
-                continue;
-            }
-            // Hard-link (cheap, same filesystem as target/); fall back to copy if that fails.
-            if std::fs::hard_link(module, &dst).is_err() {
-                std::fs::copy(module, &dst).unwrap_or_else(|e| {
-                    panic!("copying {} -> {}: {e}", module.display(), dst.display())
-                });
+        if directory.is_dir() {
+            for source in &backends {
+                install(source, &directory.join(filename(source)));
             }
         }
     }
+    if let Some(source) = &cxx_runtime {
+        install(source, &profile_dir.join(filename(source)));
+    }
+
+    let runtime_dir = profile_dir.join("nobodywho-runtime");
+    if runtime_dir.exists() {
+        std::fs::remove_dir_all(&runtime_dir).unwrap();
+    }
+    std::fs::create_dir(&runtime_dir).unwrap();
+    for source in libraries.iter().chain(&backends) {
+        let destination = runtime_dir.join(filename(source));
+        assert!(!destination.exists(), "duplicate runtime file");
+        install(source, &destination);
+    }
+
+    let manifest = serde_json::json!({
+        "libraries": libraries.iter().map(|path| filename(path)).collect::<Vec<_>>(),
+        "backends": backends.iter().map(|path| filename(path)).collect::<Vec<_>>(),
+    });
+    std::fs::write(
+        runtime_dir.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
 }

@@ -26,6 +26,7 @@ stdenv.mkDerivation {
     echo "Setting up gdextension files..."
     rm ./nobodywho.gdextension
     mkdir -p ./bin/
+    cp ${nobodywho-godot.lib}/lib/libggml* ${nobodywho-godot.lib}/lib/libllama* ./bin/
     cp ${nobodywho-godot.lib}/lib/libnobodywho_godot.so ./bin/libnobodywho_godot.so
     cat << EOF > bin/nobodywho.gdextension
     [configuration]

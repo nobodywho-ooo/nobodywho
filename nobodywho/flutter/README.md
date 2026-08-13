@@ -66,11 +66,7 @@ The package also contains platform-specific build scripts for including pre-buil
 
 ### Binary Resolution
 
-The build scripts (CMakeLists.txt, Podspec, gradle/ktl files) resolve binaries using these strategies (in order):
-
-1. check the environment variable `NOBODYWHO_FLUTTER_LIB_PATH`
-2. check for libnobodywho_flutter.so in a parent cargo target dir (`../../../target/release/libnobodywho_flutter.so`), useful during development
-3. figure out the verison number of the flutter package, and download the corresponding dynamic lib from github releases (WIP)
+The platform build files use a local Cargo build when present. Otherwise they download the matching release archive and cache it under the build directory.
 
 ## Building for Android
 

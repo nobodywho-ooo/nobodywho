@@ -23,6 +23,9 @@ python3Packages.buildPythonPackage {
   installPhase = ''
     runHook preInstall
     mkdir -p $out/${python3.sitePackages}
+    cp ${nobodywho-python-rs.lib}/lib/libggml* \
+       ${nobodywho-python-rs.lib}/lib/libllama* \
+       $out/${python3.sitePackages}/
     cp ${nobodywho-python-rs.lib}/lib/libnobodywho_python.so \
        $out/${python3.sitePackages}/nobodywho.abi3.so
     runHook postInstall

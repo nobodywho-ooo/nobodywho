@@ -9595,25 +9595,19 @@ rec {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
-            features = [ "openmp" "mtmd" "llguidance" "common" "dynamic-link" "dynamic-backends" ];
+            features = [ "openmp" "mtmd" "llguidance" "common" ];
           }
           {
             name = "llama-cpp-2";
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ((!("macos" == target."os" or null)) && (!("ios" == target."os" or null)) && (!("visionos" == target."os" or null)) && (!("watchos" == target."os" or null)) && (!("android" == target."os" or null)) && (("x86_64" == target."arch" or null) || ("x86" == target."arch" or null) || ("aarch64" == target."arch" or null)));
-            features = [ "openmp" "vulkan" "mtmd" "llguidance" "common" "dynamic-link" "dynamic-backends" ];
-          }
-          {
-            name = "llama-cpp-2";
-            packageId = "llama-cpp-2";
-            usesDefaultFeatures = false;
-            target = { target, features }: ("android" == target."os" or null);
-            features = [ "android-static-stdcxx" "dynamic-link" "dynamic-backends" ];
+            features = [ "openmp" "vulkan" "mtmd" "llguidance" "common" ];
           }
           {
             name = "llama-cpp-sys-2";
             packageId = "llama-cpp-sys-2";
+            optional = true;
             usesDefaultFeatures = false;
           }
           {
@@ -9676,6 +9670,12 @@ rec {
             usesDefaultFeatures = false;
             target = { target, features }: ("android" == target."os" or null);
             features = [ "std" "ndarray" "tracing" "download-binaries" "tls-rustls" "copy-dylibs" "api-20" ];
+          }
+          {
+            name = "process_path";
+            packageId = "process_path";
+            optional = true;
+            target = { target, features }: (("linux" == target."os" or null) || ("macos" == target."os" or null) || ("windows" == target."os" or null));
           }
           {
             name = "rand";
@@ -9773,10 +9773,24 @@ rec {
             name = "windows-sys";
             packageId = "windows-sys 0.61.2";
             target = { target, features }: ("windows" == target."os" or null);
-            features = [ "Win32_System_SystemInformation" "Win32_System_LibraryLoader" "Win32_Foundation" ];
+            features = [ "Win32_System_SystemInformation" ];
           }
         ];
-
+        buildDependencies = [
+          {
+            name = "cc";
+            packageId = "cc";
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+        ];
+        features = {
+          "android-static-stdcxx" = [ "llama-cpp-2/android-static-stdcxx" ];
+          "dynamic-llama" = [ "dep:process_path" "dep:llama-cpp-sys-2" "llama-cpp-2/dynamic-backends" "llama-cpp-2/dynamic-link" ];
+        };
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "dynamic-llama" ];
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
@@ -9796,6 +9810,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            features = [ "dynamic-llama" ];
           }
           {
             name = "nom";
@@ -9847,6 +9862,18 @@ rec {
             packageId = "nobodywho";
           }
           {
+            name = "nobodywho";
+            packageId = "nobodywho";
+            target = { target, features }: (!("android" == target."os" or null));
+            features = [ "dynamic-llama" ];
+          }
+          {
+            name = "nobodywho";
+            packageId = "nobodywho";
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-static-stdcxx" ];
+          }
+          {
             name = "serde_json";
             packageId = "serde_json";
             features = [ "preserve_order" ];
@@ -9891,6 +9918,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            features = [ "dynamic-llama" ];
           }
           {
             name = "nom";
@@ -9969,6 +9997,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            features = [ "dynamic-llama" ];
           }
           {
             name = "serde_json";
@@ -11655,6 +11684,30 @@ rec {
           "default" = [ "proc-macro" ];
         };
         resolvedDefaultFeatures = [ "default" "proc-macro" "span-locations" ];
+      };
+      "process_path" = rec {
+        crateName = "process_path";
+        version = "0.1.4";
+        edition = "2018";
+        sha256 = "0wb19xf4dpvkpz2svj5qjwi9ws06p2k8y8gfp87ymqmkn0gg2xpn";
+        authors = [
+          "Wesley Wiser <wwiser@gmail.com>"
+          "Moritz Moeller <virtualritz@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "libc";
+            packageId = "libc";
+            target = { target, features }: (("linux" == target."os" or null) || ("freebsd" == target."os" or null) || ("dragonfly" == target."os" or null) || ("netbsd" == target."os" or null) || ("macos" == target."os" or null));
+          }
+          {
+            name = "winapi";
+            packageId = "winapi";
+            target = { target, features }: (target."windows" or false);
+            features = [ "errhandlingapi" "libloaderapi" "minwindef" "winerror" ];
+          }
+        ];
+
       };
       "pulp" = rec {
         crateName = "pulp";
@@ -19240,7 +19293,7 @@ rec {
         features = {
           "debug" = [ "impl-debug" ];
         };
-        resolvedDefaultFeatures = [ "consoleapi" "handleapi" "processenv" "winbase" "wincon" "winnt" "winsock2" ];
+        resolvedDefaultFeatures = [ "consoleapi" "errhandlingapi" "handleapi" "libloaderapi" "minwindef" "processenv" "winbase" "wincon" "winerror" "winnt" "winsock2" ];
       };
       "winapi-i686-pc-windows-gnu" = rec {
         crateName = "winapi-i686-pc-windows-gnu";
@@ -21354,7 +21407,15 @@ rec {
                 )
                 crateConfigs;
               target = makeTarget pkgs.stdenv.hostPlatform;
-              build = mkBuiltByPackageIdByPkgs pkgs.buildPackages;
+              # Build-time dependency graph (for proc-macros and build
+              # dependencies). When not cross-compiling it equals the host
+              # graph, so reuse `self`; otherwise build it for
+              # `pkgs.buildPackages`.
+              build =
+                if pkgs.stdenv.buildPlatform.config == pkgs.stdenv.hostPlatform.config then
+                  self
+                else
+                  mkBuiltByPackageIdByPkgs pkgs.buildPackages;
             };
           in
           self;
@@ -21370,38 +21431,35 @@ rec {
             devDependencies = lib.optionals (runTests && packageId == rootPackageId) (
               crateConfig'.devDependencies or [ ]
             );
-            dependencies = dependencyDerivations {
+            # Enabled (platform- and feature-filtered) dependency lists, reused
+            # for both derivation wiring and the crate renames below.
+            enabledDependencies = filterEnabledDependencies {
               inherit features;
               inherit (self) target;
-              buildByPackageId =
-                depPackageId:
-                # proc_macro crates must be compiled for the build architecture
-                if crateConfigs.${depPackageId}.procMacro or false then
-                  self.build.crates.${depPackageId}
-                else
-                  self.crates.${depPackageId};
               dependencies = (crateConfig.dependencies or [ ]) ++ devDependencies;
             };
-            buildDependencies = dependencyDerivations {
+            enabledBuildDependencies = filterEnabledDependencies {
               inherit features;
               inherit (self.build) target;
-              buildByPackageId = depPackageId: self.build.crates.${depPackageId};
               dependencies = crateConfig.buildDependencies or [ ];
             };
+            dependencies = map
+              (
+                dependency:
+                # proc_macro crates must be compiled for the build architecture
+                if crateConfigs.${dependency.packageId}.procMacro or false then
+                  self.build.crates.${dependency.packageId}
+                else
+                  self.crates.${dependency.packageId}
+              )
+              enabledDependencies;
+            buildDependencies = map
+              (dependency: self.build.crates.${dependency.packageId})
+              enabledBuildDependencies;
+            # Order (build dependencies, then normal dependencies) feeds the
+            # crateRenames grouping below.
             dependenciesWithRenames =
-              let
-                buildDeps = filterEnabledDependencies {
-                  inherit features;
-                  inherit (self) target;
-                  dependencies = crateConfig.dependencies or [ ] ++ devDependencies;
-                };
-                hostDeps = filterEnabledDependencies {
-                  inherit features;
-                  inherit (self.build) target;
-                  dependencies = crateConfig.buildDependencies or [ ];
-                };
-              in
-              lib.filter (d: d ? "rename") (hostDeps ++ buildDeps);
+              lib.filter (d: d ? "rename") (enabledBuildDependencies ++ enabledDependencies);
             # Crate renames have the form:
             #
             # {
@@ -21573,6 +21631,17 @@ rec {
     corresponding feature sets are merged. Features in rust are additive.
   */
   mergePackageFeatures =
+    args: builtins.mapAttrs (_packageId: builtins.attrNames) (mergePackageFeaturesImpl args);
+
+  /*
+    Core of the feature-resolution fixpoint. The cache (`featuresByPackageId`)
+    maps each packageId to a feature *set* (an attrset `feature -> 1`) rather
+    than a sorted list, so the fold merges with `//` and detects convergence
+    with attrset equality instead of re-concatenating and re-sorting the
+    accumulated feature list on every step. `mergePackageFeatures` projects the
+    result back to canonical sorted lists.
+  */
+  mergePackageFeaturesImpl =
     { crateConfigs ? crates
     , packageId
     , rootPackageId ? packageId
@@ -21621,14 +21690,15 @@ rec {
               cache:
               { packageId, features }:
               let
-                cacheFeatures = cache.${packageId} or [ ];
-                combinedFeatures = sortedUnique (cacheFeatures ++ features);
+                cacheFeatures = cache.${packageId} or { };
+                # `features` is the (small) incoming list; merge it into the set.
+                combinedFeatures = cacheFeatures // listToSet features;
               in
-              if cache ? ${packageId} && cache.${packageId} == combinedFeatures then
+              if cache ? ${packageId} && cacheFeatures == combinedFeatures then
                 cache
               else
-                mergePackageFeatures {
-                  features = combinedFeatures;
+                mergePackageFeaturesImpl {
+                  features = builtins.attrNames combinedFeatures;
                   featuresByPackageId = cache;
                   inherit
                     crateConfigs
@@ -21641,8 +21711,8 @@ rec {
             );
         cacheWithSelf =
           let
-            cacheFeatures = featuresByPackageId.${packageId} or [ ];
-            combinedFeatures = sortedUnique (cacheFeatures ++ enabledFeatures);
+            cacheFeatures = featuresByPackageId.${packageId} or { };
+            combinedFeatures = cacheFeatures // listToSet enabledFeatures;
           in
           featuresByPackageId
           // {
@@ -21669,27 +21739,31 @@ rec {
       assert (builtins.isList features);
       assert (builtins.isAttrs target);
 
+      let
+        # Identical for every dep in this call; build the predicate arg once.
+        targetArgs = { inherit features target; };
+      in
       lib.filter
         (
           dep:
-          let
-            targetFunc = dep.target or (features: true);
-          in
-          targetFunc { inherit features target; }
+          (dep.target or (features: true)) targetArgs
           && (!(dep.optional or false) || builtins.any (doesFeatureEnableDependency dep) features)
         )
         dependencies;
 
   # Returns whether the given feature should enable the given dependency.
   doesFeatureEnableDependency =
-    dependency: feature:
+    dependency:
+    # Callers partially apply this once per dependency, then test every feature,
+    # so hoist the dep-invariant strings out of the per-feature comparison.
     let
       name = dependency.rename or dependency.name;
+      depName = "dep:" + name;
       prefix = "${name}/";
       len = builtins.stringLength prefix;
-      startsWithPrefix = builtins.substring 0 len feature == prefix;
     in
-    feature == name || feature == "dep:" + name || startsWithPrefix;
+    feature:
+    feature == name || feature == depName || builtins.substring 0 len feature == prefix;
 
   /*
     Returns the expanded features for the given inputFeatures by applying the
@@ -21703,29 +21777,24 @@ rec {
       assert (builtins.isAttrs featureMap);
       assert (builtins.isList inputFeatures);
       let
+        # Transitive closure of `inputFeatures` under `featureMap`. `seen`
+        # tracks already-expanded features so each is visited at most once;
+        # this also breaks feature cycles (issue #209).
         expandFeaturesNoCycle =
-          oldSeen: inputFeatures:
-          if inputFeatures != [ ] then
-            let
-              # The feature we're currently expanding.
-              feature = builtins.head inputFeatures;
-              # All the features we've seen/expanded so far, including the one
-              # we're currently processing.
-              seen = oldSeen // {
-                ${feature} = 1;
-              };
-              # Expand the feature but be careful to not re-introduce a feature
-              # that we've already seen: this can easily cause a cycle, see issue
-              # #209.
-              enables = builtins.filter (f: !(seen ? "${f}")) (featureMap."${feature}" or [ ]);
-            in
-            [ feature ] ++ (expandFeaturesNoCycle seen (builtins.tail inputFeatures ++ enables))
-          # No more features left, nothing to expand to.
-          else
-            [ ];
-        outFeatures = expandFeaturesNoCycle { } inputFeatures;
+          seen: features:
+          builtins.foldl'
+            (
+              acc: feature:
+              if acc ? ${feature} then
+                acc
+              else
+                expandFeaturesNoCycle (acc // { ${feature} = 1; }) (featureMap.${feature} or [ ])
+            )
+            seen
+            features;
+        seen = expandFeaturesNoCycle { } inputFeatures;
       in
-      sortedUnique outFeatures;
+      sortedUnique (builtins.attrNames seen);
 
   /*
     This function adds optional dependencies as features if they are enabled
@@ -21784,16 +21853,19 @@ rec {
       in
       defaultOrNil ++ explicitFeatures ++ additionalDependencyFeatures;
 
+  # Builds a feature set (attrset `feature -> 1`) from a list of feature names.
+  listToSet =
+    features:
+    builtins.listToAttrs (map (feature: { name = feature; value = 1; }) features);
+
   # Sorts and removes duplicates from a list of strings.
   sortedUnique =
     features:
       assert (builtins.isList features);
-      assert (builtins.all builtins.isString features);
-      let
-        outFeaturesSet = lib.foldl (set: feature: set // { "${feature}" = 1; }) { } features;
-        outFeaturesUnique = builtins.attrNames outFeaturesSet;
-      in
-      builtins.sort (a: b: a < b) outFeaturesUnique;
+      # attrNames returns keys in ascending string order, so the result is
+      # sorted and deduplicated. The feature-merge fixpoint relies on this
+      # canonical order to detect convergence.
+      builtins.attrNames (listToSet features);
 
   deprecationWarning =
     message: value:

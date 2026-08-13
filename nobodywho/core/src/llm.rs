@@ -36,95 +36,47 @@ lazy_static! {
 }
 
 static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
-    ensure_backends_loaded();
+    #[cfg(feature = "dynamic-llama")]
+    {
+        let path = self_lib_path().expect("could not locate the nobodywho library");
+        let dir = path
+            .parent()
+            .expect("nobodywho library has no parent directory");
+        info!("loading ggml backends from {}", dir.display());
+        llama_cpp_2::llama_backend::load_backends_from_path(dir);
+    }
     LlamaBackend::init().expect("Failed to initialize llama backend")
 });
 
-/// Address in this crate's own image, used as a `dladdr`/`GetModuleHandleEx` anchor.
-static SELF_ANCHOR: u8 = 0;
-
-/// Loads the dynamically-linked ggml backends (CPU SIMD variants, Metal, Vulkan, …).
-///
-/// Under `GGML_BACKEND_DL` the backends are separate `dlopen`'d modules, and ggml only
-/// searches the host executable's dir / cwd for them — never next to our own library. So
-/// we point its loader at *our* directory, where `build.rs` co-locates the modules and
-/// every binding ships them (the Rust equivalent of llama-cpp-python's `dirname(__file__)`).
-/// Idempotent; must run before the ggml registry is first read — i.e. before backend init
-/// or device enumeration — so it's called from [`LLAMA_BACKEND`] and [`list_backend_devices`].
-fn ensure_backends_loaded() {
-    static LOAD: std::sync::Once = std::sync::Once::new();
-    LOAD.call_once(|| match current_dylib_dir() {
-        Some(dir) => {
-            info!("loading ggml backends from {}", dir.display());
-            llama_cpp_2::llama_backend::load_backends_from_path(&dir);
-            for d in llama_cpp_2::list_llama_ggml_backend_devices() {
-                info!(
-                    "available backend device [{}]: {} — {} (backend={}, type={:?}, {} MiB free / {} MiB total)",
-                    d.index, d.name, d.description, d.backend, d.device_type,
-                    d.memory_free / (1024 * 1024), d.memory_total / (1024 * 1024),
-                );
-            }
-        }
-        // dladdr/GetModuleHandleEx on our own code should never fail; if it does there are
-        // no backends to load, and the imminent backend init / model load fails loudly.
-        None => error!("could not locate the nobodywho library dir; ggml backends not loaded"),
-    });
-}
-
-/// Enumerates ggml backend devices, ensuring the dynamic backends are loaded first.
-/// Every device-enumeration path goes through here so loading always precedes a registry read.
 pub(crate) fn list_backend_devices() -> Vec<llama_cpp_2::LlamaBackendDevice> {
-    ensure_backends_loaded();
+    LazyLock::force(&LLAMA_BACKEND);
     llama_cpp_2::list_llama_ggml_backend_devices()
 }
 
-/// Directory of the shared library this code is compiled into — the Rust equivalent of
-/// Python's `dirname(__file__)`. NOT `current_exe()`: the host process (game engine,
-/// python, JVM) lives elsewhere; the backend modules ship next to *our* library.
-fn current_dylib_dir() -> Option<std::path::PathBuf> {
-    self_lib_path()?.parent().map(std::path::Path::to_path_buf)
-}
+#[cfg(all(
+    feature = "dynamic-llama",
+    any(target_os = "linux", target_os = "macos", target_os = "windows")
+))]
+use process_path::get_dylib_path as self_lib_path;
 
-#[cfg(unix)]
+#[cfg(all(
+    feature = "dynamic-llama",
+    unix,
+    not(any(target_os = "linux", target_os = "macos"))
+))]
 fn self_lib_path() -> Option<std::path::PathBuf> {
     use std::os::unix::ffi::OsStrExt;
-    // dladdr on an address inside this image fills dli_fname with the .so/.dylib path.
-    let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
-    let anchor = std::ptr::addr_of!(SELF_ANCHOR) as *const libc::c_void;
-    if unsafe { libc::dladdr(anchor, &mut info) } == 0 || info.dli_fname.is_null() {
-        return None;
-    }
-    let bytes = unsafe { std::ffi::CStr::from_ptr(info.dli_fname) }.to_bytes();
-    Some(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(bytes)))
-}
 
-#[cfg(windows)]
-fn self_lib_path() -> Option<std::path::PathBuf> {
-    use std::os::windows::ffi::OsStringExt;
-    use windows_sys::Win32::System::LibraryLoader::{
-        GetModuleFileNameW, GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-    };
-    let mut module = std::ptr::null_mut();
-    let anchor = std::ptr::addr_of!(SELF_ANCHOR) as *const u16;
-    if unsafe {
-        GetModuleHandleExW(
-            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            anchor,
-            &mut module,
-        )
-    } == 0
-    {
-        return None;
+    // process_path does not support Android or Apple mobile targets.
+    unsafe {
+        let mut info: libc::Dl_info = std::mem::zeroed();
+        let address = self_lib_path as *const () as *const libc::c_void;
+        if libc::dladdr(address, &mut info) == 0 || info.dli_fname.is_null() {
+            return None;
+        }
+        let bytes = std::ffi::CStr::from_ptr(info.dli_fname).to_bytes();
+        Some(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(bytes)))
     }
-    let mut buf = [0u16; 4096];
-    let len = unsafe { GetModuleFileNameW(module, buf.as_mut_ptr(), buf.len() as u32) };
-    if len == 0 {
-        return None;
-    }
-    Some(std::path::PathBuf::from(std::ffi::OsString::from_wide(
-        &buf[..len as usize],
-    )))
 }
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
@@ -170,40 +122,23 @@ pub fn has_gpu_backend() -> bool {
         all(target_os = "ios", target_arch = "x86_64")
     ))]
     {
-        // GPU-acceleration not working on ios simulators seems to be a known issue in llama.cpp:
-        // https://github.com/ggml-org/llama.cpp/blob/017eceed61e885b79f6cf3542e0879be68c6e922/examples/llama.swiftui/llama.cpp.swift/LibLlama.swift#L66
         warn!("Running on iOS simulator. Disabling GPU support.");
-        return false;
+        false
     }
 
-    for backend_device in list_backend_devices() {
-        // TODO: account for memory available on backend device - .memory_total and .memory free
-        //       we might use these with GGUF model metadata, to decide on a number of layers to offload
-        match backend_device.device_type {
-            llama_cpp_2::LlamaBackendDeviceType::Unknown => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Cpu => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Accelerator => {
-                // Accelerator devices (e.g. NPUs) are auto-initialized by llama.cpp during
-                // context creation regardless of n_gpu_layers — no explicit handling needed.
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
-            | llama_cpp_2::LlamaBackendDeviceType::Gpu => {
-                info!(
-                    "selected GPU backend for inference: {} — {} (backend={})",
-                    backend_device.name, backend_device.description, backend_device.backend
-                );
-                return true;
-            }
-        }
+    #[cfg(not(any(
+        all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
+        all(target_os = "ios", target_arch = "x86_64")
+    )))]
+    {
+        list_backend_devices().into_iter().any(|device| {
+            matches!(
+                device.device_type,
+                llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+                    | llama_cpp_2::LlamaBackendDeviceType::Gpu
+            )
+        })
     }
-
-    info!("no GPU backend device available; inference will run on CPU");
-    false
 }
 
 #[tracing::instrument(level = "info", skip(progress))]
@@ -621,19 +556,12 @@ mod tests {
         assert!((1..=5).contains(&n), "expected 1–5 emits, got {}", n);
     }
 
-    /// Under GGML_BACKEND_DL the registry is empty until we `dlopen` the backend modules
-    /// (see [`ensure_backends_loaded`]). If that loading regresses, the device list comes
-    /// back empty and inference has no backend — so a non-empty list is the guard.
     #[test]
-    fn dynamic_backends_load_and_register() {
+    fn backends_load_and_register() {
         crate::test_utils::init_test_tracing();
         crate::send_llamacpp_logs_to_tracing();
         let devices = list_backend_devices();
-        assert!(
-            !devices.is_empty(),
-            "no ggml backends registered — dynamic-backend module loading failed"
-        );
-        // Exercises the device-selection log path too.
+        assert!(!devices.is_empty(), "no ggml backends registered");
         let _ = has_gpu_backend();
     }
 

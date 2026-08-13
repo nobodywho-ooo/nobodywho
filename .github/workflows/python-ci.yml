@@ -11,6 +11,10 @@ on:
         description: "Run the 6-model tool-calling matrix (multi-GB downloads)."
         type: boolean
         default: false
+      full_ci:
+        description: "Full run; enables wheel smoke tests."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -101,7 +105,8 @@ jobs:
       env:
         WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
+      # $ORIGIN rpath duplicated from .cargo/config.toml (RUSTFLAGS env overrides it).
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,-rpath,$ORIGIN' || '-C link-arg=-Wl,-rpath,$ORIGIN' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -184,8 +189,6 @@ jobs:
           cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
 
       - name: Build linux python wheel
-        # Skip maturin's auditwheel (it can't graft the inter-dependent ggml libs — the next
-        # step vendors them). --compatibility forces the manylinux_2_34 tag (skip alone tags `linux`).
         run: |
           source "$HOME/.cargo/env"
           maturin build --verbose --release --locked \
@@ -193,8 +196,7 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: Bundle native libs into the wheel
-        # Vendor the ggml/llama libs + OpenMP runtime next to the extension, each with an
-        # $ORIGIN rpath. libstdc++/libc/libm/Vulkan stay system.
+        # The extension's $ORIGIN rpath resolves these siblings.
         run: |
           set -eux
           pip3 install wheel
@@ -204,15 +206,11 @@ jobs:
           pkg="$(echo "$work"/nobodywho-*/)"
           extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
 
-          # ggml/llama .so are nested in the build tree, so gather them recursively.
-          find "$(pwd)/nobodywho/target/release" \( -name 'libggml*.so' -o -name 'libllama*.so' \) ! -type l -exec cp -n {} "$extdir/" \;
-          # Bundle the OpenMP runtime (ggml-cpu needs libgomp.so.1); fail loudly if absent.
+          python3 nobodywho/scripts/runtime-bundle.py copy \
+            nobodywho/target/release/nobodywho-runtime/manifest.json "$extdir"
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
-          if [ -z "$gomp" ]; then echo "libgomp.so.1 not found — cannot bundle OpenMP runtime" >&2; exit 1; fi
+          if [ -z "$gomp" ]; then echo "libgomp.so.1 not found; cannot bundle OpenMP runtime" >&2; exit 1; fi
           cp "$gomp" "$extdir"/libgomp.so.1
-          # Give the extension its own $ORIGIN rpath (the job's RUSTFLAGS override drops the config one).
-          find "$pkg" -name '*.abi3.so' -exec patchelf --set-rpath '$ORIGIN' {} \;
-
           mkdir -p wheelhouse
           python3 -m wheel pack "$pkg" -d wheelhouse
           ls -l wheelhouse "$extdir"
@@ -289,15 +287,17 @@ jobs:
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
-      - name: "Delvewheel repair (bundle ggml/llama DLLs)"
-        # --add-path points delvewheel at the built DLLs (in the short C:/target dir).
-        # delvewheel follows the DLL link graph; the dlopen'd backend modules (ggml-cpu-*.dll,
-        # ggml-vulkan.dll — GGML_BACKEND_DL) aren't in it, so force-include them by name
-        # (also carries ggml-base.dll under its real name, which the modules import at load).
+      - name: "Bundle ggml/llama DLLs"
         run: |
-          pip install delvewheel
-          $mods = ((Get-ChildItem "C:/target/${{ matrix.target }}/release/ggml-*.dll").Name) -join ';'
-          delvewheel repair --add-path C:/target/${{ matrix.target }}/release --include "$mods" -w C:/wheelhouse (Get-Item C:/target/wheels/nobodywho*.whl).FullName
+          pip install delvewheel wheel
+          $runtime = "C:/target/${{ matrix.target }}/release/nobodywho-runtime"
+          $work = "$env:RUNNER_TEMP/nobodywho-wheel"
+          python -m wheel unpack (Get-Item C:/target/wheels/nobodywho*.whl).FullName -d $work
+          $package = (Get-ChildItem $work -Directory -Filter "nobodywho-*").FullName
+          $extension = Get-ChildItem $package -Recurse -Filter "*.pyd" | Select-Object -First 1
+          python C:/scripts/runtime-bundle.py copy "$runtime/manifest.json" $extension.DirectoryName --kind backends
+          python -m wheel pack $package -d C:/repacked
+          delvewheel repair --add-path "$runtime" --analyze-existing -w C:/wheelhouse (Get-Item C:/repacked/nobodywho*.whl).FullName
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:
@@ -307,8 +307,6 @@ jobs:
   mac-os-build:
     if: inputs.run_python
     runs-on: warp-macos-latest-arm64-6x
-    strategy:
-      fail-fast: false
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -332,25 +330,22 @@ jobs:
         working-directory: ./nobodywho/python
 
       - name: "Delocate wheel (bundle ggml/llama dylibs + backend modules)"
-        # delocate vendors the DT_NEEDED dylib graph. The dlopen'd backend modules
-        # (libggml-*.so — GGML_BACKEND_DL) aren't in that graph, so insert them next to the
-        # extension BEFORE delocate; delocate then rewrites their @rpath libggml-base.dylib
-        # ref into nobodywho.dylibs/. DYLD_*_LIBRARY_PATH points delocate at the built dylibs.
+        # Insert runtime-loaded backends before delocate repairs dependencies.
         run: |
           set -eux
           pip3 install delocate wheel
           rel="$(pwd)/nobodywho/target/aarch64-apple-darwin/release"
-          # newest match: a cached target/wheels/ can hold wheels from a prior version, and
-          # `wheel unpack` takes a single wheel (unlike the multi-arg delocate-wheel below).
+          runtime="$rel/nobodywho-runtime"
           whl="$(ls -t nobodywho/target/wheels/nobodywho*.whl | head -1)"
           work="$(mktemp -d)"
           python3 -m wheel unpack "$whl" -d "$work"
           pkg="$(echo "$work"/nobodywho-*/)"
           extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
-          cp "$rel"/libggml-*.so "$extdir/"
+          python3 nobodywho/scripts/runtime-bundle.py copy \
+            "$runtime/manifest.json" "$extdir" --kind backends
           mkdir -p repacked
           python3 -m wheel pack "$pkg" -d repacked
-          export DYLD_LIBRARY_PATH="$rel:${DYLD_LIBRARY_PATH:-}"
+          export DYLD_LIBRARY_PATH="$runtime:${DYLD_LIBRARY_PATH:-}"
           export DYLD_FALLBACK_LIBRARY_PATH="$DYLD_LIBRARY_PATH"
           mkdir -p wheelhouse
           delocate-wheel -w wheelhouse -v repacked/nobodywho*.whl
@@ -438,16 +433,10 @@ jobs:
           # odd (old examples vs new code). Edited docs live in docs-python.
           python3 -m pytest --durations=30 --markdown-docs ../../docs/docs-python --markdown-docs-syntax=superfences
 
-  # Runtime smoke tests for the Windows/macOS wheels. Unlike Linux (which vendors the
-  # backend modules with an explicit `find … cp`), those wheels are repaired by
-  # delvewheel/delocate, which only follow the link graph — the dlopen'd backend modules
-  # aren't in it. A model load + generation is the only thing that proves the repaired
-  # wheel actually carries a working backend, so run one blocking generation off the
-  # published wheel; a missing backend fails here instead of silently on PyPI.
   macos-pytest:
     if: inputs.full_ci
     needs: [mac-os-build]
-    runs-on: macos-latest
+    runs-on: warp-macos-latest-arm64-6x
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -534,7 +523,6 @@ jobs:
         run: |
           source .venv/bin/activate
           python3 -m pytest tests/test_multimodal.py -v --tb=short
-  
 
   linux-model-downloading-tests:
     needs: [linux-build]
@@ -571,7 +559,6 @@ jobs:
         if: always()
         run: |
           echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-    
 
   linux-tool-calling-tests:
     if: inputs.run_python_models

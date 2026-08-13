@@ -1,8 +1,5 @@
 name: "Flutter native lib"
-description: >-
-  Download the prebuilt Linux flutter cdylib + its dynamic-link ggml/llama libs
-  from the build job, set up Flutter, and expose the libs via LD_LIBRARY_PATH.
-  Tests then exercise the shipped artifact rather than a local rebuild.
+description: "Prepare the prebuilt Linux Flutter library for tests"
 runs:
   using: "composite"
   steps:
@@ -14,10 +11,10 @@ runs:
     - name: Name the cdylib for flutter_rust_bridge
       shell: bash
       run: |
-        # frb dlopens the bare name `libnobodywho_flutter.so`; the sibling ggml/llama
-        # libs (unversioned, $ORIGIN rpath) resolve from the same dir.
         cp ./native-lib/libnobodywho-flutter-x86_64-unknown-linux-gnu-release.so \
           ./native-lib/libnobodywho_flutter.so
+        python3 nobodywho/scripts/runtime-bundle.py copy \
+          ./native-lib/nobodywho-runtime/manifest.json ./native-lib
         echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/native-lib" >> "$GITHUB_ENV"
     - name: Install Vulkan runtime
       shell: bash

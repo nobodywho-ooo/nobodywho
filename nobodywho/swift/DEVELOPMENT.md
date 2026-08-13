@@ -53,7 +53,7 @@ swift/
 
 The Swift package has four layers:
 
-1. **NobodyWhoNative** — prebuilt xcframework containing the compiled Rust static library (`.a` files for each platform)
+1. **NobodyWhoNative**: prebuilt xcframework containing the Rust dynamic framework and its runtime libraries
 2. **NobodyWhoGenerated** — auto-generated Swift bindings from UniFFI (`nobodywho.swift`), with raw FFI types like `RustChat`, `RustModel`, etc.
 3. **NobodyWho** — hand-written Swift wrappers that provide an idiomatic API (`Chat`, `Model`, `Tool`, etc.)
 4. **NobodyWhoMacros** — Swift compiler plugin for the `@DeclareTool` macro
@@ -162,7 +162,7 @@ The `uniffi/Cargo.toml` version is independent and does not need to match the Sw
 ### watchOS
 
 - **CPU-only** — Apple Watch has no Metal for general compute
-- The `llama-cpp-rs` fork handles this in `build.rs`: disables Metal linking, sets `-D_DARWIN_C_SOURCE` for BSD type compatibility, keeps Accelerate framework for vDSP operations
+- `llama-cpp-rs` disables Metal and keeps Accelerate; our CMake override defines `_DARWIN_C_SOURCE`
 - Tier 3 Rust target — requires nightly + `-Z build-std`
 - Untested at runtime — unclear if Apple Watch hardware can practically run LLM inference
 
