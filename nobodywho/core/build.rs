@@ -11,6 +11,34 @@ fn files_in(directory: &Path, extension: &str) -> Vec<PathBuf> {
     files
 }
 
+/// Picks the first candidate that exists. CMake's GNUInstallDirs resolves the
+/// libdir per platform — `lib64` on some Linux distros, `lib` on others — so the
+/// install location cannot be hardcoded. llama-cpp-sys-2 emits link-search
+/// entries for both and probes the same pair for its ggml cmake dir.
+fn first_dir(candidates: &[PathBuf]) -> PathBuf {
+    if let Some(found) = candidates.iter().find(|path| path.is_dir()) {
+        return found.clone();
+    }
+    let parent = candidates[0].parent().map(Path::to_path_buf).unwrap_or_default();
+    let present = std::fs::read_dir(&parent)
+        .map(|entries| {
+            entries
+                .filter_map(|entry| Some(entry.ok()?.file_name().to_string_lossy().into_owned()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_else(|error| format!("<unreadable: {error}>"));
+    panic!(
+        "no llama runtime library directory found.\n  looked for: {}\n  {} contains: {present}",
+        candidates
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+        parent.display(),
+    );
+}
+
 fn filename(path: &Path) -> &str {
     path.file_name()
         .and_then(OsStr::to_str)
@@ -64,11 +92,11 @@ fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap();
     let target_vendor = std::env::var("CARGO_CFG_TARGET_VENDOR").unwrap();
     let (library_dir, library_extension) = if target_os == "windows" {
-        (llama_out.join("bin"), "dll")
+        (first_dir(&[llama_out.join("bin")]), "dll")
     } else if target_vendor == "apple" {
-        (llama_out.join("lib"), "dylib")
+        (first_dir(&[llama_out.join("lib")]), "dylib")
     } else {
-        (llama_out.join("lib"), "so")
+        (first_dir(&[llama_out.join("lib64"), llama_out.join("lib")]), "so")
     };
 
     let mut libraries = files_in(&library_dir, library_extension);
