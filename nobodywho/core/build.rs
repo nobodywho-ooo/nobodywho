@@ -19,7 +19,10 @@ fn first_dir(candidates: &[PathBuf]) -> PathBuf {
     if let Some(found) = candidates.iter().find(|path| path.is_dir()) {
         return found.clone();
     }
-    let parent = candidates[0].parent().map(Path::to_path_buf).unwrap_or_default();
+    let parent = candidates[0]
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
     let present = std::fs::read_dir(&parent)
         .map(|entries| {
             entries
@@ -96,7 +99,10 @@ fn main() {
     } else if target_vendor == "apple" {
         (first_dir(&[llama_out.join("lib")]), "dylib")
     } else {
-        (first_dir(&[llama_out.join("lib64"), llama_out.join("lib")]), "so")
+        (
+            first_dir(&[llama_out.join("lib64"), llama_out.join("lib")]),
+            "so",
+        )
     };
 
     let mut libraries = files_in(&library_dir, library_extension);
