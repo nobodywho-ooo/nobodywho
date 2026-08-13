@@ -83,10 +83,24 @@ fn main() {
 
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let profile = std::env::var("PROFILE").unwrap();
-    let profile_dir = out_dir
+    // Cargo puts OUT_DIR under target/<profile>/build/<crate>/out, and staging the
+    // runtime libraries next to the built artifacts only means anything in that
+    // layout. Other drivers have no profile directory — crate2nix's buildRustCrate
+    // invokes rustc directly — and stage the runtime themselves instead (see
+    // `withLlamaRuntime` in workspace.nix), so there is nothing to do here.
+    let Some(profile_dir) = out_dir
         .ancestors()
         .find(|path| path.file_name() == Some(OsStr::new(&profile)))
-        .expect("Cargo profile directory not found");
+        .map(Path::to_path_buf)
+    else {
+        println!(
+            "cargo:warning=no cargo profile directory above {}; \
+             skipping llama runtime staging",
+            out_dir.display()
+        );
+        return;
+    };
+    let profile_dir = profile_dir.as_path();
 
     let backends_dir = PathBuf::from(
         std::env::var("DEP_LLAMA_BACKENDS_DIR").expect("llama backend directory is set"),
