@@ -348,13 +348,24 @@ jobs:
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
         run: |
           export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
-          # llama.cpp defaults LLAMA_SUBPROCESS ON here: its mobile opt-out lists only
-          # iOS/Android/Emscripten, so visionOS/watchOS compile
-          # posix_spawn_file_actions_addchdir_np, which those SDKs mark unavailable.
-          # subproc.{h,cpp} have a complete no-op path when it is OFF. build.rs forwards
-          # CMAKE_*-prefixed env vars to CMake as -D defines.
-          echo 'set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)' > "$RUNNER_TEMP/no-subprocess.cmake"
-          export CMAKE_PROJECT_INCLUDE="$RUNNER_TEMP/no-subprocess.cmake"
+          # Two upstream gaps that only bite on these targets. build.rs forwards
+          # CMAKE_*-prefixed env vars to CMake as -D defines, and
+          # CMAKE_PROJECT_INCLUDE is processed right after the top-level project()
+          # and before add_subdirectory(ggml), so both settings propagate.
+          #
+          # 1. llama.cpp defaults LLAMA_SUBPROCESS ON here: its mobile opt-out lists
+          #    only iOS/Android/Emscripten, so visionOS/watchOS compile
+          #    posix_spawn_file_actions_addchdir_np, which those SDKs mark
+          #    unavailable. subproc.{h,cpp} have a complete no-op path when it is OFF.
+          # 2. llama-cpp-sys-2 defines _DARWIN_C_SOURCE only for AppleVariant::WatchOS
+          #    (build.rs:733), but the XROS SDK hides the BSD types u_int/u_char/
+          #    u_short that sys/sysctl.h needs just the same, so visionOS fails to
+          #    compile the per-variant cpu-feats.cpp files. Those exist only under
+          #    GGML_CPU_ALL_VARIANTS=ON, which dynamic-backends turns on — which is
+          #    why main never hits it. Redundant but harmless on watchOS.
+          echo 'set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)' > "$RUNNER_TEMP/tier3-fixups.cmake"
+          echo 'add_compile_definitions(_DARWIN_C_SOURCE)' >> "$RUNNER_TEMP/tier3-fixups.cmake"
+          export CMAKE_PROJECT_INCLUDE="$RUNNER_TEMP/tier3-fixups.cmake"
           TARGET="${{ matrix.target }}"
           # The built-in watchOS device target disables dynamic libraries.
           ZFLAGS=()
