@@ -365,6 +365,16 @@ jobs:
             TARGET="$(pwd)/aarch64-apple-watchos.json"
             ZFLAGS=(-Z json-target-spec)
           fi
+          # llama-cpp-sys-2's build.rs derives the cargo target dir as OUT_DIR's
+          # 3rd ancestor, which assumes stable's build/<crate>-<hash>/out layout.
+          # Nightly splits that into build/<crate>/<hash>/out — one level deeper —
+          # so it resolves target/<triple>/release/build and then hard-links the
+          # shared libs into a deps/ under it that nothing creates, on an
+          # unguarded unwrap (the examples/ copy beside it is .exists()-checked).
+          # Only reachable with dynamic-link, since BUILD_SHARED_LIBS=ON is what
+          # enables that copy at all. Pre-create it; the files landing there are
+          # never read. Same workaround shape as workspace.nix's for crate2nix.
+          mkdir -p "target/${{ matrix.target }}/release/build/deps"
           cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std \
             "${ZFLAGS[@]}" --verbose --target "$TARGET" --release
         working-directory: ./nobodywho

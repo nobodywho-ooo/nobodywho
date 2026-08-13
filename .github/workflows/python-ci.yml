@@ -296,8 +296,8 @@ jobs:
           $package = (Get-ChildItem $work -Directory -Filter "nobodywho-*").FullName
           $extension = Get-ChildItem $package -Recurse -Filter "*.pyd" | Select-Object -First 1
           python C:/scripts/runtime-bundle.py copy "$runtime/manifest.json" $extension.DirectoryName --kind backends
-          python -m wheel pack $package -d C:/repacked
-          delvewheel repair --add-path "$runtime" --analyze-existing -w C:/wheelhouse (Get-Item C:/repacked/nobodywho*.whl).FullName
+          python -m wheel pack $package -d $work
+          delvewheel repair --add-path "$runtime" --analyze-existing -w C:/wheelhouse (Get-Item "$work/nobodywho*.whl").FullName
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:
