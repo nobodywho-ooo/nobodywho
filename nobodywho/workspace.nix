@@ -33,7 +33,27 @@ let
     in
     {
       postInstall = (attrs.postInstall or "") + ''
-        cp -L ${runtime}/lib/libggml* ${runtime}/lib/libllama* "$lib/lib/"
+        # CMake's GNUInstallDirs resolves the libdir per platform: lib64 on some
+        # Linux distros, lib elsewhere. llama-cpp-sys-2 emits link-search entries
+        # for both and probes the same pair, so neither can be assumed here.
+        # Probed with a plain glob rather than `compgen`, which stdenv's shell
+        # does not provide. With nullglob off the unmatched pattern stays literal
+        # and fails -e; with it on the loop body never runs. Correct either way.
+        runtimeLibDir=""
+        for candidate in ${runtime}/lib64 ${runtime}/lib; do
+          for probe in "$candidate"/libggml*; do
+            if [ -e "$probe" ]; then
+              runtimeLibDir="$candidate"
+              break 2
+            fi
+          done
+        done
+        if [ -z "$runtimeLibDir" ]; then
+          echo "no llama runtime libraries under ${runtime}/{lib64,lib}" >&2
+          ls -la ${runtime} >&2
+          exit 1
+        fi
+        cp -L "$runtimeLibDir"/libggml* "$runtimeLibDir"/libllama* "$lib/lib/"
         cp -L ${runtime}/backends/* "$lib/lib/"
       '' + lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
         binding="$lib/lib/lib${attrs.libName}.dylib"
