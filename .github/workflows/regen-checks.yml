@@ -126,6 +126,7 @@ jobs:
         run: |
           chmod +x ../uniffi-host/uniffi-bindgen
           ../uniffi-host/uniffi-bindgen generate \
+            --no-format \
             --library ../uniffi-host/libnobodywho_uniffi.so \
             --language kotlin \
             --out-dir kotlin/common/generated
@@ -171,12 +172,12 @@ jobs:
 
       - name: "Install react-native npm dependencies"
         working-directory: ./nobodywho/react-native
-        run: npm install
+        run: npm ci
 
       - name: "Generate React Native bindings"
         working-directory: ./nobodywho
         run: |
-          npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
+          node react-native/node_modules/uniffi-bindgen-react-native/bin/cli.cjs generate jsi bindings \
             --library \
             --ts-dir react-native/generated/ts \
             --cpp-dir react-native/generated/cpp \
@@ -191,7 +192,7 @@ jobs:
             echo "ERROR: Committed React Native bindings are out of date."
             echo "Run the binding generation command and commit the results:"
             echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
-            echo "  npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \\"
+            echo "  node react-native/node_modules/uniffi-bindgen-react-native/bin/cli.cjs generate jsi bindings \\"
             echo "    --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp \\"
             echo "    target/debug/libnobodywho_uniffi.so"
             exit 1
