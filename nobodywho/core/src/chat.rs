@@ -23,6 +23,7 @@
 //! ```
 //!
 
+pub use crate::content::{ContentPart, MessageContent};
 use crate::errors::{
     ChatWorkerError, CompleteError, ContextSyncError, GenerateResponseError, InitWorkerError,
     InvalidHistoryError, MultimodalError, RenderError, SayError, ShiftError, TokenizeError,
@@ -34,82 +35,26 @@ use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::SamplerConfig;
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
-use crate::tokenizer::{ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk, TokenizerChunks};
+use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::collections::HashSet;
-use std::fmt;
 use std::hash::Hasher;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, warn};
-
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
-pub struct Asset {
-    pub id: String,
-    pub path: PathBuf,
-}
-
-/// The content of a user message — either plain text or a raw JSON value.
-///
-/// Serializes transparently: `Text` becomes a JSON string, `Json` becomes the
-/// raw JSON value (array, object, etc.). This lets chat templates that expect
-/// `content: [{"type": "translate", ...}]` receive the actual array rather than
-/// a stringified version of it.
-#[derive(Clone, Debug)]
-pub enum MessageContent {
-    Text(String),
-    Json(serde_json::Value),
-}
-
-impl Serialize for MessageContent {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        match self {
-            MessageContent::Text(t) => t.serialize(s),
-            MessageContent::Json(v) => v.serialize(s),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for MessageContent {
-    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let v = serde_json::Value::deserialize(d)?;
-        Ok(match v {
-            serde_json::Value::String(s) => MessageContent::Text(s),
-            other => MessageContent::Json(other),
-        })
-    }
-}
-
-impl fmt::Display for MessageContent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MessageContent::Text(t) => write!(f, "{t}"),
-            MessageContent::Json(v) => write!(f, "{v}"),
-        }
-    }
-}
-
-impl From<String> for MessageContent {
-    fn from(s: String) -> Self {
-        MessageContent::Text(s)
-    }
-}
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(tag = "role", rename_all = "lowercase")]
 pub enum Message {
     User {
         content: MessageContent,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        assets: Vec<Asset>,
     },
     // The optional tool_calls field distinguishes a plain assistant response
     // from one that includes tool calls. When tool_calls is Some, the content
@@ -165,17 +110,21 @@ impl Message {
         }
     }
 
-    pub fn assets(&self) -> Vec<Asset> {
+    /// Ids of the bitmaps this message's media parts reference, in order.
+    pub fn media_ids(&self) -> Vec<&str> {
         match self {
-            Message::User { assets, .. } => assets.clone(),
+            Message::User { content } => content
+                .media_parts()
+                .into_iter()
+                .filter_map(ContentPart::id)
+                .collect(),
             _ => vec![],
         }
     }
 
-    pub fn new_user(content: String) -> Self {
+    pub fn new_user(content: impl Into<MessageContent>) -> Self {
         Self::User {
-            content: MessageContent::Text(content),
-            assets: vec![],
+            content: content.into(),
         }
     }
 
@@ -1491,8 +1440,8 @@ impl ChatContext {
         // Garbage collection for the bitmaps.
         let referenced_bitmaps: HashSet<String> = messages
             .iter()
-            .flat_map(|msg| msg.assets())
-            .map(|asset| asset.id)
+            .flat_map(|msg| msg.media_ids())
+            .map(str::to_string)
             .collect();
 
         let unreferenced_bitmap_ids: Vec<_> = self
@@ -1741,10 +1690,9 @@ impl<'a> Chat<'a> {
         self.messages.push(Message::new_assistant(content));
     }
 
-    pub fn add_user_message(&mut self, content: impl Into<MessageContent>, assets: Vec<Asset>) {
+    pub fn add_user_message(&mut self, content: impl Into<MessageContent>) {
         self.messages.push(Message::User {
             content: content.into(),
-            assets,
         });
     }
 
@@ -1996,47 +1944,42 @@ impl<'a> Chat<'a> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        let prompt_text = prompt.to_string();
-
-        let assets = self.register_media(&prompt.extract_media_assets())?;
-
-        let content = match prompt {
-            Prompt::Json(v) => MessageContent::Json(v),
-            Prompt::Parts(_) => MessageContent::Text(prompt_text),
-        };
-        self.add_user_message(content, assets);
+        // A prompt is message content, so it becomes the user turn as-is —
+        // interleaving and all. Flattening to `<__media__>` markers happens at
+        // render time.
+        let mut content = prompt;
+        self.register_media(&mut content)?;
+        self.add_user_message(content);
 
         self.run_turn(respond)?;
 
         Ok(self)
     }
 
-    /// Load each media part and register its bitmap, returning the assets that link
-    /// them to the `<__media__>` markers in the message content, in the same order.
-    fn register_media(&mut self, parts: &[&PromptPart]) -> Result<Vec<Asset>, MultimodalError> {
-        let bitmaps = parts
-            .iter()
+    /// Load each media part's file, register its bitmap and write the bitmap id
+    /// back into the part.
+    ///
+    /// The nth media part pairs with the nth `<__media__>` marker in the
+    /// flattened text, which holds by construction: both come from the same
+    /// list of parts, in the same order.
+    fn register_media(&mut self, content: &mut MessageContent) -> Result<(), MultimodalError> {
+        let bitmaps = content
+            .media_parts()
+            .into_iter()
             .map(|part| match part {
-                PromptPart::Image(path) => self.engine.load_image(path),
-                PromptPart::Audio(path) => self.engine.load_audio(path),
-                PromptPart::Text(_) => unreachable!(),
+                ContentPart::Image { path, .. } => self.engine.load_image(path),
+                ContentPart::Audio { path, .. } => self.engine.load_audio(path),
+                ContentPart::Text { .. } => unreachable!("media_parts filters out text"),
             })
             .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
         debug!("Detected bitmaps: {:?}", bitmaps);
 
         let bitmap_ids = self.context.add_bitmaps(bitmaps)?;
-        Ok(bitmap_ids
-            .into_iter()
-            .zip(parts)
-            .map(|(id, part)| Asset {
-                id,
-                path: match part {
-                    PromptPart::Image(path) | PromptPart::Audio(path) => path.to_path_buf(),
-                    PromptPart::Text(_) => unreachable!(),
-                },
-            })
-            .collect())
+        for (part, id) in content.media_parts_mut().into_iter().zip(bitmap_ids) {
+            part.set_id(id);
+        }
+        Ok(())
     }
 
     /// Generate one assistant turn from the current `messages`, running the tool
@@ -2138,13 +2081,13 @@ impl<'a> Chat<'a> {
         Ok(self)
     }
 
-    /// Re-read the media files referenced by `messages` and relink the assets to
+    /// Re-read the media files referenced by `messages` and relink the parts to
     /// the freshly registered bitmaps.
     ///
-    /// Asset ids identify a bitmap within one worker, so a message that came from
-    /// another session — a saved conversation, say — carries ids this worker knows
-    /// nothing about. The path is the part that keeps its meaning, so the bitmap is
-    /// loaded from it again and the asset is pointed at the new id.
+    /// A bitmap id identifies a bitmap within one worker, so a message that came
+    /// from another session — a saved conversation, say — carries ids this worker
+    /// knows nothing about. The path is the part that keeps its meaning, so the
+    /// bitmap is loaded from it again and the part is pointed at the new id.
     ///
     /// Runs before the history is replaced, so an unreadable file leaves the
     /// conversation as it was. Bitmaps registered before that point stay in the
@@ -2152,20 +2095,10 @@ impl<'a> Chat<'a> {
     /// which is the same path any replaced history takes.
     fn reload_media(&mut self, messages: &mut [Message]) -> Result<(), MultimodalError> {
         for message in messages {
-            let Message::User { assets, .. } = message else {
+            let Message::User { content } = message else {
                 continue;
             };
-            if assets.is_empty() {
-                continue;
-            }
-
-            // A stored asset does not record whether it is image or audio, but
-            // both load the same way — the variant only picks the error label.
-            let parts: Vec<PromptPart> = assets
-                .iter()
-                .map(|asset| PromptPart::Image(asset.path.clone()))
-                .collect();
-            *assets = self.register_media(&parts.iter().collect::<Vec<_>>())?;
+            self.register_media(content)?;
         }
         Ok(())
     }
@@ -2206,8 +2139,8 @@ impl<'a> Chat<'a> {
         let bitmaps: Vec<&MtmdBitmap> = self
             .messages
             .iter()
-            .flat_map(|msg| msg.assets())
-            .filter_map(|asset| self.context.bitmaps.get(&asset.id))
+            .flat_map(|msg| msg.media_ids())
+            .filter_map(|id| self.context.bitmaps.get(id))
             .collect();
         Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
     }
@@ -2366,13 +2299,13 @@ impl<'a> Chat<'a> {
     }
 
     pub fn tokenize(&mut self, prompt: Prompt) -> Result<Vec<Option<i32>>, TokenizeError> {
-        let media_assets = prompt.extract_media_assets();
-        let bitmaps = media_assets
-            .iter()
+        let bitmaps = prompt
+            .media_parts()
+            .into_iter()
             .map(|part| match part {
-                PromptPart::Image(path) => self.engine.load_image(path),
-                PromptPart::Audio(path) => self.engine.load_audio(path),
-                PromptPart::Text(_) => unreachable!(),
+                ContentPart::Image { path, .. } => self.engine.load_image(path),
+                ContentPart::Audio { path, .. } => self.engine.load_audio(path),
+                ContentPart::Text { .. } => unreachable!("media_parts filters out text"),
             })
             .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
@@ -2871,17 +2804,17 @@ mod tests {
 
         // Add many exchanges with longer messages to fill up the context
         for i in 1..=n_messages {
-            worker.add_user_message(
-                format!("This is user message number {}. What is {} * {}?", i, i, i),
-                vec![],
-            );
+            worker.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
             worker.add_assistant_message(format!(
                 "<think> </think> The answer is {}. Do you have any further questions?",
                 i * i
             ));
         }
 
-        worker.add_user_message("Hello!".to_string(), vec![]);
+        worker.add_user_message("Hello!".to_string());
 
         // Check that we have many messages before shift
         let messages_before = worker.messages.len();
@@ -2981,10 +2914,7 @@ mod tests {
 
         // Add exchanges with tool calls mixed in
         for i in 1..=n_messages {
-            worker.add_user_message(
-                format!("User message {}. What is {} * {}?", i, i, i),
-                vec![],
-            );
+            worker.add_user_message(format!("User message {}. What is {} * {}?", i, i, i));
 
             // Add a tool call every other message
             // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
@@ -3005,7 +2935,7 @@ mod tests {
             }
         }
 
-        worker.add_user_message("Final question!".to_string(), vec![]);
+        worker.add_user_message("Final question!".to_string());
 
         // Check that we have many messages before shift
         let messages_before = worker.messages.len();
@@ -3095,10 +3025,10 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.add_user_message(
-                format!("This is user message number {}. What is {} * {}?", i, i, i),
-                vec![],
-            );
+            worker.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
@@ -3179,10 +3109,10 @@ mod tests {
 
         // Fill up the context until it's almost full
         for i in 1..=n_messages {
-            worker.add_user_message(
-                format!("This is user message number {}. What is {} * {}?", i, i, i),
-                vec![],
-            );
+            worker.add_user_message(format!(
+                "This is user message number {}. What is {} * {}?",
+                i, i, i
+            ));
             worker.add_assistant_message(format!("The answer is {}.", i * i));
         }
 
@@ -3552,18 +3482,100 @@ mod tests {
         ));
     }
 
-    /// Replacing the history releases the media it referenced, and a history that
-    /// arrives with media is loaded from the asset paths — the asset ids in it mean
-    /// nothing to this worker.
+    /// The wire format the API promises: a user message whose content is a list
+    /// of parts, with an image interleaved between two runs of text.
     #[test]
-    fn test_complete_reloads_media_from_asset_paths() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_complete_with_content_parts_from_json() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
         let (Ok(vision_path), Ok(mmproj_path)) = (
             std::env::var("TEST_VISION_MODEL"),
             std::env::var("TEST_MMPROJ_MODEL"),
         ) else {
             eprintln!(
-                "skipping test_complete_reloads_media_from_asset_paths: \
+                "skipping test_complete_with_content_parts_from_json: \
+                 set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
+            );
+            return Ok(());
+        };
+
+        let model = Arc::new(llm::get_model(
+            &vision_path,
+            true,
+            Some(&mmproj_path),
+            None,
+            None,
+        )?);
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 4096,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let messages: Vec<Message> = serde_json::from_value(serde_json::json!([{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Here is an image:"},
+                {"type": "image", "path": image},
+                {"type": "text", "text": "What animal is in it? Answer in one word."},
+            ],
+        }]))?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        worker.complete(messages, move |out| {
+            if let llm::WriteOutput::Done(resp) = out {
+                sender.send(resp).unwrap();
+            }
+        })?;
+        let resp = receiver.recv()?.to_lowercase();
+
+        assert!(
+            ["dog", "retriever", "puppy"]
+                .iter()
+                .any(|word| resp.contains(word)),
+            "the interleaved image did not reach the model: {resp}"
+        );
+        assert_eq!(
+            worker.context.bitmaps.len(),
+            1,
+            "the image part should have been registered"
+        );
+
+        // The history keeps the parts, with the bitmap id filled in, and the
+        // text between them intact.
+        let history = worker.get_chat_history();
+        let Message::User { content } = &history[0] else {
+            panic!("expected a user message: {:?}", history[0]);
+        };
+        let MessageContent::Parts(parts) = content else {
+            panic!("expected the content to stay parts: {content:?}");
+        };
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0], ContentPart::text("Here is an image:"));
+        assert_eq!(content.media_parts().len(), 1);
+        assert!(
+            content.media_parts()[0].id().is_some(),
+            "the registered bitmap id should be on the part"
+        );
+
+        Ok(())
+    }
+
+    /// Replacing the history releases the media it referenced, and a history that
+    /// arrives with media is loaded from the part paths — the bitmap ids in it
+    /// mean nothing to this worker.
+    #[test]
+    fn test_complete_reloads_media_from_part_paths() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let (Ok(vision_path), Ok(mmproj_path)) = (
+            std::env::var("TEST_VISION_MODEL"),
+            std::env::var("TEST_MMPROJ_MODEL"),
+        ) else {
+            eprintln!(
+                "skipping test_complete_reloads_media_from_part_paths: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
             );
             return Ok(());
@@ -3590,9 +3602,9 @@ mod tests {
             "/../python/tests/img/dog.png"
         ));
         worker.ask(
-            Prompt::new([
-                PromptPart::Text("What is in this image?".to_string()),
-                PromptPart::Image(image),
+            Prompt::parts([
+                ContentPart::text("What is in this image?"),
+                ContentPart::image(image),
             ]),
             |_| {},
         )?;
@@ -3602,8 +3614,8 @@ mod tests {
             "expected the image to be registered"
         );
 
-        // Keep the message the image arrived in: its content holds the media marker
-        // and its asset holds the path, which is what a saved conversation stores.
+        // Keep the message the image arrived in: its content holds the image part,
+        // path and all, which is what a saved conversation stores.
         let stored = worker.get_chat_history()[0].clone();
 
         worker.complete(vec![user("Say the word 'banana'.")], |_| {})?;
@@ -3613,18 +3625,16 @@ mod tests {
             "the replaced history's image bitmap should have been released"
         );
 
-        // Replay it with an asset id from nowhere — ids are per-worker, so this is
+        // Replay it with a bitmap id from nowhere — ids are per-worker, so this is
         // what the same history looks like coming from another session.
-        let Message::User { content, assets } = &stored else {
+        let Message::User { content } = &stored else {
             panic!("expected the image to be on a user message: {stored:?}");
         };
-        let replayed = Message::User {
-            content: content.clone(),
-            assets: vec![Asset {
-                id: "id-from-another-session".to_string(),
-                path: assets[0].path.clone(),
-            }],
-        };
+        let mut content = content.clone();
+        for part in content.media_parts_mut() {
+            part.set_id("id-from-another-session".to_string());
+        }
+        let replayed = Message::User { content };
 
         let (sender, receiver) = std::sync::mpsc::channel();
         worker.complete(vec![replayed], move |out| {
