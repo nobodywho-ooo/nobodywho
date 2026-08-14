@@ -58,6 +58,28 @@ fn install(source: &Path, destination: &Path) {
     }
 }
 
+fn stage_runtime(directory: &Path, libraries: &[PathBuf], backends: &[PathBuf]) {
+    if directory.exists() {
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    std::fs::create_dir(directory).unwrap();
+    for source in libraries.iter().chain(backends) {
+        let destination = directory.join(filename(source));
+        assert!(!destination.exists(), "duplicate runtime file");
+        install(source, &destination);
+    }
+
+    let manifest = serde_json::json!({
+        "libraries": libraries.iter().map(|path| filename(path)).collect::<Vec<_>>(),
+        "backends": backends.iter().map(|path| filename(path)).collect::<Vec<_>>(),
+    });
+    std::fs::write(
+        directory.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+}
+
 fn android_cxx_runtime() -> PathBuf {
     let output = cc::Build::new()
         .cpp(true)
@@ -145,24 +167,10 @@ fn main() {
         install(source, &profile_dir.join(filename(source)));
     }
 
-    let runtime_dir = profile_dir.join("nobodywho-runtime");
-    if runtime_dir.exists() {
-        std::fs::remove_dir_all(&runtime_dir).unwrap();
-    }
-    std::fs::create_dir(&runtime_dir).unwrap();
-    for source in libraries.iter().chain(&backends) {
-        let destination = runtime_dir.join(filename(source));
-        assert!(!destination.exists(), "duplicate runtime file");
-        install(source, &destination);
-    }
-
-    let manifest = serde_json::json!({
-        "libraries": libraries.iter().map(|path| filename(path)).collect::<Vec<_>>(),
-        "backends": backends.iter().map(|path| filename(path)).collect::<Vec<_>>(),
-    });
-    std::fs::write(
-        runtime_dir.join("manifest.json"),
-        serde_json::to_vec_pretty(&manifest).unwrap(),
-    )
-    .unwrap();
+    stage_runtime(
+        &profile_dir.join("nobodywho-runtime"),
+        &libraries,
+        &backends,
+    );
+    stage_runtime(&out_dir, &libraries, &backends);
 }

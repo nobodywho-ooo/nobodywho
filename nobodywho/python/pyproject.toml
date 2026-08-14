@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
+requires = ["maturin>=1.14,<2.0"]
 build-backend = "maturin"
 
 [project]
@@ -21,13 +21,16 @@ dependencies = [
 # "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
 features = ["pyo3/extension-module"]
 module-name = "nobodywho"
+include = [
+    { path = "*", from = "out-dir", to = "nobodywho/", crate_name = "nobodywho" },
+]
 
 [tool.uv]
 exclude-newer = "2 weeks"
 
 [dependency-groups]
 dev = [
-    "maturin>=1.0,<2.0",
+    "maturin>=1.14,<2.0",
     "numpy>=2.2.6",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.3.0",

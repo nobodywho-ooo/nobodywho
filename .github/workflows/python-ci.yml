@@ -115,6 +115,13 @@ jobs:
       - name: "Install cache prerequisites"
         run: yum install -y zstd wget
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
+
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -145,9 +152,11 @@ jobs:
           cache: false
 
       - name: Install build dependencies
-        run: |
-          yum install -y clang cmake wget tar gzip python3-pip
-          pip3 install maturin auditwheel
+        run: yum install -y clang cmake wget tar gzip python3-pip
+
+      - name: Install Python dependencies
+        working-directory: ./nobodywho/python
+        run: uv sync --python /opt/python/cp313-cp313/bin/python --locked --no-install-project
 
       - name: Setup Vulkan SDK (manual for ARM64)
         if: matrix.runner == 'warp-ubuntu-latest-arm64-4x'
@@ -191,12 +200,11 @@ jobs:
       - name: Build linux python wheel
         run: |
           source "$HOME/.cargo/env"
-          maturin build --verbose --release --locked \
+          uv run --no-sync maturin build --verbose --release --locked \
             --auditwheel skip --compatibility manylinux_2_34
         working-directory: ./nobodywho/python
 
-      - name: Bundle native libs into the wheel
-        # The extension's $ORIGIN rpath resolves these siblings.
+      - name: Bundle OpenMP runtime into the wheel
         run: |
           set -eux
           pip3 install wheel
@@ -205,9 +213,6 @@ jobs:
           python3 -m wheel unpack "$whl" -d "$work"
           pkg="$(echo "$work"/nobodywho-*/)"
           extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
-
-          python3 nobodywho/scripts/runtime-bundle.py copy \
-            nobodywho/target/release/nobodywho-runtime/manifest.json "$extdir"
           gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
           if [ -z "$gomp" ]; then echo "libgomp.so.1 not found; cannot bundle OpenMP runtime" >&2; exit 1; fi
           cp "$gomp" "$extdir"/libgomp.so.1
@@ -238,6 +243,12 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
       - name: "Cache Cargo Home"
         uses: actions/cache@v5
         with:
@@ -257,7 +268,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: pip install maturin
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
@@ -280,24 +290,20 @@ jobs:
           git config --system core.longpaths true
           cd C:/
           cd python
-          maturin build --verbose --release --locked --target ${{ matrix.target }}
+          uv sync --locked --no-install-project
+          uv run --no-sync maturin build --verbose --release --locked --target ${{ matrix.target }}
         env:
           # Use Ninja generator instead of Visual Studio generator.
           # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
-      - name: "Bundle ggml/llama DLLs"
+      - name: "Repair wheel"
         run: |
-          pip install delvewheel wheel
+          pip install delvewheel
           $runtime = "C:/target/${{ matrix.target }}/release/nobodywho-runtime"
-          $work = "$env:RUNNER_TEMP/nobodywho-wheel"
-          python -m wheel unpack (Get-Item C:/target/wheels/nobodywho*.whl).FullName -d $work
-          $package = (Get-ChildItem $work -Directory -Filter "nobodywho-*").FullName
-          $extension = Get-ChildItem $package -Recurse -Filter "*.pyd" | Select-Object -First 1
-          python C:/scripts/runtime-bundle.py copy "$runtime/manifest.json" $extension.DirectoryName --kind backends
-          python -m wheel pack $package -d $work
-          delvewheel repair --add-path "$runtime" --analyze-existing -w C:/wheelhouse (Get-Item "$work/nobodywho*.whl").FullName
+          $wheel = (Get-Item C:/target/wheels/nobodywho*.whl).FullName
+          delvewheel repair --add-path "$runtime" --analyze-existing -w C:/wheelhouse $wheel
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:
@@ -309,6 +315,12 @@ jobs:
     runs-on: warp-macos-latest-arm64-6x
     steps:
       - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
@@ -324,31 +336,20 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: brew install maturin
+      - name: Install Python dependencies
+        working-directory: ./nobodywho/python
+        run: uv sync --locked --no-install-project
       - name: "Build macos python wheel"
-        run: maturin build --verbose --release --locked --target aarch64-apple-darwin
+        run: uv run --no-sync maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
 
-      - name: "Delocate wheel (bundle ggml/llama dylibs + backend modules)"
-        # Insert runtime-loaded backends before delocate repairs dependencies.
+      - name: "Repair macOS wheel"
         run: |
           set -eux
-          pip3 install delocate wheel
-          rel="$(pwd)/nobodywho/target/aarch64-apple-darwin/release"
-          runtime="$rel/nobodywho-runtime"
+          pip3 install delocate
           whl="$(ls -t nobodywho/target/wheels/nobodywho*.whl | head -1)"
-          work="$(mktemp -d)"
-          python3 -m wheel unpack "$whl" -d "$work"
-          pkg="$(echo "$work"/nobodywho-*/)"
-          extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
-          python3 nobodywho/scripts/runtime-bundle.py copy \
-            "$runtime/manifest.json" "$extdir" --kind backends
-          mkdir -p repacked
-          python3 -m wheel pack "$pkg" -d repacked
-          export DYLD_LIBRARY_PATH="$runtime:${DYLD_LIBRARY_PATH:-}"
-          export DYLD_FALLBACK_LIBRARY_PATH="$DYLD_LIBRARY_PATH"
           mkdir -p wheelhouse
-          delocate-wheel -w wheelhouse -v repacked/nobodywho*.whl
+          delocate-wheel -w wheelhouse -v "$whl"
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
