@@ -10,7 +10,7 @@ clippy:
     cd nobodywho/core && cargo clippy --no-deps --all-targets -- -D warnings
 
 regen-python:
-    cd nobodywho/python && maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
+    cd nobodywho/python && uv run maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
     git diff --exit-code nobodywho/python/nobodywho.pyi || (echo "Python stubs are out of date — commit them before pushing" && exit 1)
 
 regen-flutter:
