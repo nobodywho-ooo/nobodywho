@@ -504,10 +504,10 @@ impl ChatHandle {
     /// Answer a full message list, which replaces the chat history.
     ///
     /// The list is the whole conversation: it must be non-empty, end in a user or
-    /// tool message, and carry a system message only in front. It becomes the
-    /// history verbatim, so a list without a system message leaves the chat with
-    /// no system prompt. The response is appended, and a following `ask`
-    /// continues from there.
+    /// tool message, and carry a system message only in front. A leading system
+    /// message becomes the chat's system prompt; a list without one keeps the
+    /// prompt the chat already had. The response is appended, and a following
+    /// `ask` continues from there.
     ///
     /// # Example
     /// ```
@@ -646,7 +646,10 @@ impl ChatHandle {
         self.guard.stop();
     }
 
-    /// Get the chat history without the system prompt (lower-level API).
+    /// Get the chat history (lower-level API).
+    ///
+    /// The system prompt is a separate setting, so it is never part of this
+    /// list. See [`get_system_prompt`](Self::get_system_prompt).
     pub fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetChatHistory { output_tx });
@@ -706,9 +709,9 @@ impl ChatHandle {
 
     /// Update the system prompt without resetting chat history.
     ///
-    /// This modifies the system message while preserving the conversation history.
-    /// If no system prompt exists, it will be added. If one exists, it will be replaced.
-    /// The model context is re-synchronized after the change, reusing the KV cache where possible.
+    /// Replaces the prompt while preserving the conversation history. The model
+    /// context is re-synchronized after the change, reusing the KV cache where
+    /// possible.
     ///
     /// # Arguments
     ///
@@ -856,10 +859,10 @@ impl ChatHandleAsync {
     /// Answer a full message list, which replaces the chat history.
     ///
     /// The list is the whole conversation: it must be non-empty, end in a user or
-    /// tool message, and carry a system message only in front. It becomes the
-    /// history verbatim, so a list without a system message leaves the chat with
-    /// no system prompt. The response is appended, and a following `ask`
-    /// continues from there.
+    /// tool message, and carry a system message only in front. A leading system
+    /// message becomes the chat's system prompt; a list without one keeps the
+    /// prompt the chat already had. The response is appended, and a following
+    /// `ask` continues from there.
     ///
     /// # Example
     /// ```
@@ -1009,7 +1012,10 @@ impl ChatHandleAsync {
         self.guard.stop();
     }
 
-    /// Get the chat history without the system prompt (lower-level API).
+    /// Get the chat history (lower-level API).
+    ///
+    /// The system prompt is a separate setting, so it is never part of this
+    /// list. See [`get_system_prompt`](Self::get_system_prompt).
     pub async fn get_chat_history(&self) -> Result<Vec<Message>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         self.guard.send(ChatMsg::GetChatHistory { output_tx });
@@ -1075,9 +1081,9 @@ impl ChatHandleAsync {
 
     /// Update the system prompt without resetting chat history.
     ///
-    /// This modifies the system message while preserving the conversation history.
-    /// If no system prompt exists, it will be added. If one exists, it will be replaced.
-    /// The model context is re-synchronized after the change, reusing the KV cache where possible.
+    /// Replaces the prompt while preserving the conversation history. The model
+    /// context is re-synchronized after the change, reusing the KV cache where
+    /// possible.
     ///
     /// # Arguments
     ///
@@ -1653,6 +1659,7 @@ struct Chat<'a> {
     sampler: ChatSampler,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
+    system_prompt: Option<String>,
     template_variables: std::collections::HashMap<String, bool>,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
@@ -1717,10 +1724,8 @@ impl<'a> Chat<'a> {
             tool_format,
             sampler: ChatSampler::new(base_sampler, tool_sampler),
             sampler_config,
-            messages: match config.system_prompt {
-                Some(msg) => vec![Message::System { content: msg }],
-                None => vec![],
-            },
+            messages: vec![],
+            system_prompt: config.system_prompt,
             chat_template: template,
             template_variables: config.template_variables,
             tools: config.tools,
@@ -1730,10 +1735,6 @@ impl<'a> Chat<'a> {
 
     fn should_stop(&self) -> bool {
         self.should_stop.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn add_system_message(&mut self, content: String) {
-        self.messages.push(Message::System { content });
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
@@ -1791,10 +1792,10 @@ impl<'a> Chat<'a> {
         let target_token_size = (self.engine.ctx.n_ctx() / 2) as usize;
         let mut messages = self.messages.clone();
 
-        // Find indices to preserve
-        let system_end = if messages[0].is_system() { 1 } else { 0 };
+        // Find indices to preserve. The system prompt is not in `messages`, so
+        // there is nothing to skip past and nothing to accidentally delete.
         let first_user_message_index = self
-            .find_next_user_message(&messages, system_end)
+            .find_next_user_message(&messages, 0)
             .ok_or(ShiftError::NoUserMessages)?;
         let first_deletable_index = self
             .find_next_user_message(&messages, first_user_message_index + 1)
@@ -2110,10 +2111,10 @@ impl<'a> Chat<'a> {
 
     /// Answer a full message list, which replaces the chat history.
     ///
-    /// `messages` becomes the history verbatim, including whether or not it
-    /// carries a system message — passing a list without one leaves the chat
-    /// with no system prompt. The turn's output is appended as usual, so a
-    /// following [`ask`](Self::ask) continues that conversation.
+    /// A leading system message sets the system prompt; without one the current
+    /// system prompt is kept. The rest of `messages` becomes the history, and
+    /// the turn's output is appended as usual, so a following [`ask`](Self::ask)
+    /// continues that conversation.
     pub fn complete<F>(
         &mut self,
         mut messages: Vec<Message>,
@@ -2130,6 +2131,7 @@ impl<'a> Chat<'a> {
 
         self.reload_media(&mut messages)?;
 
+        self.hoist_system_message(&mut messages);
         self.messages = messages;
         self.run_turn(respond)?;
 
@@ -2168,11 +2170,23 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
+    /// The history as the chat template expects to see it: the system prompt,
+    /// which we hold as a setting rather than a turn, put back at index 0.
+    fn messages_for_render(&self) -> Vec<Message> {
+        self.system_prompt
+            .iter()
+            .map(|content| Message::System {
+                content: content.clone(),
+            })
+            .chain(self.messages.iter().cloned())
+            .collect()
+    }
+
     /// Go for the unhandled mode when you are context shifting.
     /// That is for avoiding the render will concat system message with the first user message.
     /// Otherwise please handle stuff.
     fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
-        let messages = &self.messages;
+        let messages = &self.messages_for_render();
         let template_context = ChatTemplateContext::new(
             self.template_variables.clone(),
             if self.tools.is_empty() {
@@ -2242,10 +2256,8 @@ impl<'a> Chat<'a> {
         self.sampler.set_tool(tool_sampler);
         self.tools = tools;
         self.messages = Vec::new();
+        self.system_prompt = system_prompt;
         self.context = ChatContext::new();
-        if let Some(sys_msg) = system_prompt {
-            self.add_system_message(sys_msg);
-        }
         Ok(())
     }
 
@@ -2295,35 +2307,12 @@ impl<'a> Chat<'a> {
         &mut self,
         system_prompt: Option<String>,
     ) -> Result<(), ContextSyncError> {
-        match system_prompt {
-            Some(sys_msg) => {
-                let system_message = Message::System { content: sys_msg };
-                if self.messages.is_empty() {
-                    self.messages.push(system_message);
-                } else if self.messages[0].is_system() {
-                    self.messages[0] = system_message;
-                } else {
-                    self.messages.insert(0, system_message);
-                }
-            }
-            None => {
-                if !self.messages.is_empty() && self.messages[0].is_system() {
-                    self.messages.remove(0);
-                }
-            }
-        }
-
+        self.system_prompt = system_prompt;
         Ok(())
     }
 
     pub fn get_system_prompt(&self) -> Option<String> {
-        if self.messages.is_empty() {
-            return None;
-        };
-        match &self.messages[0] {
-            Message::System { content } => Some(content.clone()),
-            _ => None,
-        }
+        self.system_prompt.clone()
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
@@ -2341,14 +2330,21 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    pub fn set_chat_history(&mut self, messages: Vec<Message>) -> Result<(), ContextSyncError> {
-        // get system prompt, if it is there
-        let system_msg: Option<Message> = match self.messages.as_slice() {
-            [msg @ Message::System { .. }, ..] => Some(msg.clone()),
-            _ => None,
+    /// Take a leading system message out of `messages` and make it the system
+    /// prompt, so that an OpenAI-shaped array can be passed in as-is. A system
+    /// message anywhere else is rejected by `validate_completion_messages`.
+    fn hoist_system_message(&mut self, messages: &mut Vec<Message>) {
+        let system_prompt = match messages.first() {
+            Some(Message::System { content }) => content.clone(),
+            _ => return,
         };
+        messages.remove(0);
+        self.system_prompt = Some(system_prompt);
+    }
 
-        self.messages = system_msg.into_iter().chain(messages).collect();
+    pub fn set_chat_history(&mut self, mut messages: Vec<Message>) -> Result<(), ContextSyncError> {
+        self.hoist_system_message(&mut messages);
+        self.messages = messages;
 
         // We used to call sync_context_with_render here but this can
         // crash as some chat templates will attempt to access fields on
@@ -2362,10 +2358,7 @@ impl<'a> Chat<'a> {
     }
 
     pub fn get_chat_history(&self) -> Vec<Message> {
-        match self.messages.as_slice() {
-            [Message::System { .. }, rest @ ..] => rest.to_vec(),
-            _ => self.messages.clone(),
-        }
+        self.messages.clone()
     }
 
     pub fn get_sampler_config(&self) -> SamplerConfig {
@@ -2905,18 +2898,15 @@ mod tests {
         let messages_after = worker.messages.clone();
 
         // Verify essential messages are preserved:
-        // 1. System prompt should be first
+        // 1. System prompt survives — it is a setting, not a message the
+        //    shift could delete.
         assert!(
-            messages_after[0].is_system(),
-            "System message should remain"
+            worker
+                .system_prompt
+                .as_deref()
+                .is_some_and(|prompt| prompt.contains("helpful assistant")),
+            "System prompt should be preserved"
         );
-
-        if let Message::System { content, .. } = &messages_after[0] {
-            assert!(
-                content.to_string().contains("helpful assistant"),
-                "System prompt should be preserved"
-            );
-        }
 
         // 2. Should have first user message
         let first_user_idx = messages_after.iter().position(|m| m.is_user());
@@ -3029,8 +3019,9 @@ mod tests {
         let messages_after = worker.messages.clone();
 
         // Verify essential messages are preserved:
-        // 1. System prompt should be first
-        assert!(messages_after[0].is_system());
+        // 1. System prompt survives — it is a setting, not a message the
+        //    shift could delete.
+        assert!(worker.system_prompt.is_some());
 
         // 2. Should have first user message
         let first_user_idx = messages_after.iter().position(|m| m.is_user());
@@ -3139,8 +3130,9 @@ mod tests {
         );
 
         // Verify essential messages are preserved
-        // 1. System prompt should be first
-        assert!(messages_after[0].is_system());
+        // 1. System prompt survives — it is a setting, not a message the
+        //    shift could delete.
+        assert!(worker.system_prompt.is_some());
 
         // 2. Should have first user message
         let first_user_idx = messages_after.iter().position(|m| m.is_user());
@@ -3219,8 +3211,9 @@ mod tests {
         );
 
         // Verify essential messages are preserved
-        // 1. System prompt should be first
-        assert!(messages_after[0].is_system());
+        // 1. System prompt survives — it is a setting, not a message the
+        //    shift could delete.
+        assert!(worker.system_prompt.is_some());
 
         // 2. Should have first user message
         let first_user_idx = messages_after.iter().position(|m| m.is_user());
@@ -3423,7 +3416,7 @@ mod tests {
     }
 
     /// A system message in the list becomes the chat's system prompt; a list
-    /// without one leaves the chat without a system prompt.
+    /// without one keeps the prompt the chat already had.
     #[test]
     fn test_complete_replaces_system_prompt() {
         test_utils::init_test_tracing();
@@ -3455,17 +3448,17 @@ mod tests {
         let cat_again = chat.ask("Hello again!").completed().unwrap();
         assert!(cat_again.to_lowercase().contains("meow"), "{cat_again}");
 
-        chat.complete(vec![user("Hello!")])
+        let still_cat = chat
+            .complete(vec![user("Hello!")])
             .unwrap()
             .completed()
             .unwrap();
-        assert_eq!(chat.get_system_prompt().unwrap(), None);
-
-        let no_persona = chat.ask("Hello again!").completed().unwrap();
-        assert!(
-            !no_persona.to_lowercase().contains("meow"),
-            "System prompt survived a complete() that had none: {no_persona}"
+        assert_eq!(
+            chat.get_system_prompt().unwrap().as_deref(),
+            Some("You are a cat. End all responses with meow."),
+            "a complete() without a system message should keep the current one"
         );
+        assert!(still_cat.to_lowercase().contains("meow"), "{still_cat}");
     }
 
     #[test]
