@@ -58,26 +58,16 @@ fn install(source: &Path, destination: &Path) {
     }
 }
 
-fn stage_runtime(directory: &Path, libraries: &[PathBuf], backends: &[PathBuf]) {
+fn stage_runtime(directory: &Path, files: &[PathBuf]) {
     if directory.exists() {
         std::fs::remove_dir_all(directory).unwrap();
     }
     std::fs::create_dir(directory).unwrap();
-    for source in libraries.iter().chain(backends) {
+    for source in files {
         let destination = directory.join(filename(source));
         assert!(!destination.exists(), "duplicate runtime file");
         install(source, &destination);
     }
-
-    let manifest = serde_json::json!({
-        "libraries": libraries.iter().map(|path| filename(path)).collect::<Vec<_>>(),
-        "backends": backends.iter().map(|path| filename(path)).collect::<Vec<_>>(),
-    });
-    std::fs::write(
-        directory.join("manifest.json"),
-        serde_json::to_vec_pretty(&manifest).unwrap(),
-    )
-    .unwrap();
 }
 
 fn android_cxx_runtime() -> PathBuf {
@@ -151,6 +141,11 @@ fn main() {
     let cxx_runtime = (target_os == "android").then(android_cxx_runtime);
     libraries.extend(cxx_runtime.iter().cloned());
     libraries.sort_by_key(|path| path.file_name().map(OsStr::to_owned));
+    let runtime = libraries
+        .iter()
+        .chain(&backends)
+        .cloned()
+        .collect::<Vec<_>>();
 
     for directory in [
         profile_dir.to_path_buf(),
@@ -167,10 +162,6 @@ fn main() {
         install(source, &profile_dir.join(filename(source)));
     }
 
-    stage_runtime(
-        &profile_dir.join("nobodywho-runtime"),
-        &libraries,
-        &backends,
-    );
-    stage_runtime(&out_dir, &libraries, &backends);
+    stage_runtime(&profile_dir.join("nobodywho-runtime"), &runtime);
+    stage_runtime(&out_dir, &runtime);
 }

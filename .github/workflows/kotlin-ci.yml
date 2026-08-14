@@ -35,8 +35,7 @@ jobs:
         run: |
           cp ./native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
             ./native-lib/libnobodywho_uniffi.so
-          python3 nobodywho/scripts/runtime-bundle.py copy \
-            ./native-lib/nobodywho-runtime/manifest.json ./native-lib
+          cp -L ./native-lib/nobodywho-runtime/* ./native-lib/
 
       - name: "Install Vulkan runtime"
         # The .so links libvulkan; JNA needs it at test runtime.
@@ -79,8 +78,7 @@ jobs:
           dest=nobodywho/kotlin/jvm/src/main/resources/linux-x86-64
           mkdir -p "$dest"
           cp "$d/libnobodywho_uniffi.so" "$dest/"
-          python3 nobodywho/scripts/runtime-bundle.py copy \
-            "$d/nobodywho-runtime/manifest.json" "$dest"
+          cp -L "$d/nobodywho-runtime/"* "$dest/"
 
       - name: "Run JVM packaging smoke test"
         working-directory: ./nobodywho/kotlin

@@ -1,13 +1,10 @@
 #!/bin/bash
-# Usage: make-apple-framework.sh <src-dir> <dylib> <name> <flat|versioned> <out-dir> [header] [bundle-id]
+# Usage: make-framework.sh <src-dir> <dylib> <name> <flat|versioned> <out-dir> [header] [bundle-id]
 set -euo pipefail
+shopt -s nullglob
 
 SRC_DIR=$1; DYLIB=$2; FW_NAME=$3; LAYOUT=$4; OUT_DIR=$5
 FFI_HEADER=${6:-}; BUNDLE_ID=${7:-ooo.nobodywho.$FW_NAME}
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-RUNTIME_TOOL="$SCRIPT_DIR/runtime-bundle.py"
-RUNTIME_MANIFEST="$SRC_DIR/nobodywho-runtime/manifest.json"
-
 FW="$OUT_DIR/$FW_NAME.framework"
 rm -rf "$FW"
 if [ "$LAYOUT" = versioned ]; then
@@ -20,8 +17,9 @@ fi
 
 cp -L "$SRC_DIR/$DYLIB" "$ROOT/$FW_NAME"
 install_name_tool -id "@rpath/$FW_NAME.framework/$FW_NAME" "$ROOT/$FW_NAME"
-
-python3 "$RUNTIME_TOOL" copy "$RUNTIME_MANIFEST" "$ROOT"
+runtime=("$SRC_DIR/nobodywho-runtime/"*)
+[ ${#runtime[@]} -gt 0 ] || { echo "no runtime files in $SRC_DIR/nobodywho-runtime" >&2; exit 1; }
+cp -L "${runtime[@]}" "$ROOT/"
 
 if [ -n "$FFI_HEADER" ]; then
     mkdir -p "$ROOT/Headers" "$ROOT/Modules"
@@ -40,10 +38,7 @@ else
     PLIST="$ROOT/Info.plist"
 fi
 MIN_OS=$(vtool -show-build "$ROOT/$FW_NAME" | awk '/minos/{print $2; exit}')
-if [ -z "$MIN_OS" ]; then
-    echo "make-apple-framework: could not read MinimumOSVersion (minos) from $ROOT/$FW_NAME" >&2
-    exit 1
-fi
+[ -n "$MIN_OS" ] || { echo "could not read MinimumOSVersion from $ROOT/$FW_NAME" >&2; exit 1; }
 
 plutil -create xml1 "$PLIST"
 plutil -insert CFBundleExecutable            -string "$FW_NAME"   "$PLIST"
@@ -63,5 +58,3 @@ if [ "$LAYOUT" = versioned ]; then
     fi
     ln -sf Versions/Current/Resources "$FW/Resources"
 fi
-
-echo "built $FW"

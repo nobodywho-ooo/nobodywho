@@ -142,7 +142,7 @@ bool installed(Config config, Directory directory) =>
     FileSystemEntity.typeSync(installedPath(config, directory)) !=
         FileSystemEntityType.notFound &&
     (config.isApple ||
-        File('${directory.path}/nobodywho-runtime/manifest.json').existsSync());
+        Directory('${directory.path}/nobodywho-runtime').existsSync());
 
 String? cachedDownload(Config config) {
   final directory = cacheDirectory(config, version());

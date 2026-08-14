@@ -36,12 +36,12 @@ UNIVERSAL="$TARGET/universal-macos/$PROFILE"
 mkdir -p "$UNIVERSAL"
 lipo -create "$ARM/libnobodywho_flutter.dylib" "$X64/libnobodywho_flutter.dylib" \
     -output "$UNIVERSAL/libnobodywho_flutter.dylib"
-bash "$ROOT/scripts/lipo-apple-libs.sh" "$ARM" "$X64" "$UNIVERSAL"
+bash "$ROOT/apple/lipo-runtime.sh" "$ARM" "$X64" "$UNIVERSAL"
 
 FRAMEWORKS="$UNIVERSAL/frameworks"
 rm -rf "$FRAMEWORKS" "$OUTPUT"
 mkdir -p "$FRAMEWORKS"
-bash "$ROOT/scripts/make-apple-framework.sh" "$UNIVERSAL" \
+bash "$ROOT/apple/make-framework.sh" "$UNIVERSAL" \
     libnobodywho_flutter.dylib nobodywho_flutter versioned "$FRAMEWORKS" \
     "" ooo.nobodywho.flutter
 xcodebuild -create-xcframework \

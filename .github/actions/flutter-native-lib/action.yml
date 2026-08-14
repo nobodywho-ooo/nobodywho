@@ -13,8 +13,7 @@ runs:
       run: |
         cp ./native-lib/libnobodywho-flutter-x86_64-unknown-linux-gnu-release.so \
           ./native-lib/libnobodywho_flutter.so
-        python3 nobodywho/scripts/runtime-bundle.py copy \
-          ./native-lib/nobodywho-runtime/manifest.json ./native-lib
+        cp -L ./native-lib/nobodywho-runtime/* ./native-lib/
         echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/native-lib" >> "$GITHUB_ENV"
     - name: Install Vulkan runtime
       shell: bash

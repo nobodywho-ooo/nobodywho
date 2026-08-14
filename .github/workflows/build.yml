@@ -434,7 +434,7 @@ jobs:
 
       - name: Build XCFramework
         run: |
-          HELPER=nobodywho/scripts/make-apple-framework.sh
+          HELPER=nobodywho/apple/make-framework.sh
           ios_sim=artifacts/nobodywho-flutter-aarch64-apple-ios-sim-release
           ios_dev=artifacts/nobodywho-flutter-aarch64-apple-ios-release
           dar_arm=artifacts/nobodywho-flutter-aarch64-apple-darwin-release
@@ -449,7 +449,7 @@ jobs:
           lipo -create -output universal-src/libnobodywho_flutter.dylib \
             "$dar_arm/libnobodywho-flutter-aarch64-apple-darwin-release.dylib" \
             "$dar_x64/libnobodywho-flutter-x86_64-apple-darwin-release.dylib"
-          bash nobodywho/scripts/lipo-apple-libs.sh "$dar_arm" "$dar_x64" universal-src
+          bash nobodywho/apple/lipo-runtime.sh "$dar_arm" "$dar_x64" universal-src
           bash "$HELPER" universal-src libnobodywho_flutter.dylib \
             nobodywho_flutter versioned macos "" ooo.nobodywho.flutter
 
@@ -486,7 +486,7 @@ jobs:
 
       - name: "lipo the ggml/llama dylibs"
         run: |
-          bash nobodywho/scripts/lipo-apple-libs.sh \
+          bash nobodywho/apple/lipo-runtime.sh \
             artifacts/nobodywho-godot-aarch64-apple-darwin-release \
             artifacts/nobodywho-godot-x86_64-apple-darwin-release \
             universal
@@ -527,7 +527,7 @@ jobs:
 
       - name: "Build dynamic-framework XCFramework"
         run: |
-          HELPER=nobodywho/scripts/make-apple-framework.sh
+          HELPER=nobodywho/apple/make-framework.sh
           bash "$HELPER" artifacts/nobodywho-uniffi-aarch64-apple-ios-release \
             libnobodywho-uniffi-aarch64-apple-ios-release.dylib NobodywhoFramework flat device
           bash "$HELPER" artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release \
@@ -561,7 +561,7 @@ jobs:
 
       - name: "Build dynamic-framework XCFramework"
         run: |
-          HELPER=nobodywho/scripts/make-apple-framework.sh
+          HELPER=nobodywho/apple/make-framework.sh
           HDR=nobodywho/swift/generated/nobodywhoFFI.h
           frameworks=()
           mkslice() { # $1=target $2=layout $3=slice-out-dir
@@ -616,13 +616,13 @@ jobs:
         run: |
           set -euo pipefail
           SRC=artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release
-          bash nobodywho/scripts/make-apple-framework.sh \
+          bash nobodywho/apple/make-framework.sh \
             "$SRC" libnobodywho-uniffi-aarch64-apple-ios-sim-release.dylib \
             nobodywhoFFI flat ./smoke nobodywho/swift/generated/nobodywhoFFI.h ooo.nobodywho.ffi
 
           SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
           xcrun -sdk iphonesimulator clang -target arm64-apple-ios15.0-simulator \
-            -isysroot "$SDK" nobodywho/scripts/apple-dlopen-smoke.c -o smoke/dlopen-smoke
+            -isysroot "$SDK" nobodywho/apple/tests/dlopen-smoke.c -o smoke/dlopen-smoke
 
           UDID=$(xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}') || true
           if [ -z "$UDID" ]; then

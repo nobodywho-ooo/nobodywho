@@ -22,7 +22,7 @@ cargo +nightly build -p nobodywho-uniffi -Z build-std -Z json-target-spec \
 rm -rf "$WATCHOS_SPEC_DIR"
 
 FRAMEWORK_NAME=nobodywhoFFI
-HELPER="$PWD/scripts/make-apple-framework.sh"
+HELPER="$PWD/apple/make-framework.sh"
 FFI_HEADER="$PWD/swift/generated/nobodywhoFFI.h"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT

@@ -51,7 +51,7 @@ cargo run --bin uniffi-bindgen -- generate \
   --out-dir kotlin/common/generated
 
 # Restore the custom native-library lookup overwritten by uniffi-bindgen.
-python3 scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
+python3 kotlin/scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
 ```
 
 **After regenerating:** Check that the wrapper classes in `src/` still match the generated API. In particular:

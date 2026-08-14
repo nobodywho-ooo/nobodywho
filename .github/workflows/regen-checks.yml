@@ -50,8 +50,7 @@ jobs:
           mkdir -p uniffi-host-out
           cp nobodywho/target/debug/libnobodywho_uniffi.so uniffi-host-out/
           cp nobodywho/target/debug/uniffi-bindgen uniffi-host-out/
-          python3 nobodywho/scripts/runtime-bundle.py copy \
-            nobodywho/target/debug/nobodywho-runtime/manifest.json uniffi-host-out
+          cp -L nobodywho/target/debug/nobodywho-runtime/* uniffi-host-out/
 
       - name: "Upload uniffi host artifact"
         uses: actions/upload-artifact@v5
@@ -131,7 +130,7 @@ jobs:
             --language kotlin \
             --out-dir kotlin/common/generated
           # Restore our native-library lookup after regeneration.
-          python3 scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
+          python3 kotlin/scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
 
       - name: "Verify committed Kotlin bindings are up to date"
         working-directory: ./nobodywho/kotlin

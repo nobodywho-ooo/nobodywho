@@ -81,7 +81,7 @@ let
           '';
 
           # crate2nix does not read the workspace Cargo config.
-          env.CMAKE_PROJECT_INCLUDE = "${./scripts/llama-build-overrides.cmake}";
+          env.CMAKE_PROJECT_INCLUDE = "${./core/cmake/llama-build-overrides.cmake}";
 
           # Architecture-specific CPU feature flags
           # For ARM64: use defaults for compatibility with weaker devices (Raspberry Pi, etc.)

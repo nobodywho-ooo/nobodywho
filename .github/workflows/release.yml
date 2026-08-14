@@ -36,7 +36,6 @@ jobs:
           shopt -s nullglob
           ADDON=nobodywho-release/bin/addons/nobodywho
           UNIVERSAL=./artifacts/nobodywho-godot-macos-universal-dylibs
-          RUNTIME_TOOL=nobodywho/scripts/runtime-bundle.py
           mkdir -p "$ADDON"
 
           # Generic runtime names require one directory per target. macOS uses universal files.
@@ -45,6 +44,12 @@ jobs:
               *-apple-darwin) echo "$ADDON/apple-darwin" ;;
               *)              echo "$ADDON/$1" ;;
             esac
+          }
+          copy_runtime() {
+            local files=("$1"/*)
+            [ ${#files[@]} -gt 0 ] || { echo "::error::empty runtime directory: $1"; exit 1; }
+            mkdir -p "$2"
+            cp -L "${files[@]}" "$2/"
           }
 
           for d in ./artifacts/nobodywho-godot-*/; do
@@ -62,12 +67,10 @@ jobs:
           for d in ./artifacts/nobodywho-godot-*-release/; do
             name=$(basename "$d"); triple=${name#nobodywho-godot-}; triple=${triple%-release}
             case "$triple" in *-apple-darwin|*-linux-android) continue ;; esac
-            python3 "$RUNTIME_TOOL" copy "$d/nobodywho-runtime/manifest.json" "$(addon_dir "$triple")"
+            copy_runtime "$d/nobodywho-runtime" "$(addon_dir "$triple")"
           done
 
-          mkdir -p "$ADDON/apple-darwin"
-          python3 "$RUNTIME_TOOL" copy \
-            "$UNIVERSAL/nobodywho-runtime/manifest.json" "$ADDON/apple-darwin"
+          copy_runtime "$UNIVERSAL/nobodywho-runtime" "$ADDON/apple-darwin"
 
           cp ./nobodywho/godot/nobodywho.gdextension "$ADDON/"
           cp ./assets/icon.svg "$ADDON/"
@@ -76,14 +79,17 @@ jobs:
           # Empty dependency destinations keep runtime files beside the binding.
           gd="$ADDON/nobodywho.gdextension"
           printf '\n[dependencies]\n' >> "$gd"
-          emit_deps() { # $1=platform  $2=arch (may be empty)  $3=addon subdir  $4=manifest
-            local dir="$ADDON/$3" manifest=$4
+          emit_deps() { # $1=platform  $2=arch (may be empty)  $3=addon subdir  $4=runtime dir
+            local dir="$ADDON/$3" runtime=$4
             [ -d "$dir" ]
             local entries=""
-            while IFS= read -r name; do
+            local files=("$runtime"/*)
+            [ ${#files[@]} -gt 0 ] || { echo "::error::empty runtime directory: $runtime"; exit 1; }
+            for file in "${files[@]}"; do
+              local name=${file##*/}
               [ -f "$dir/$name" ] || { echo "::error::$dir/$name missing"; exit 1; }
               entries="$entries\"res://addons/nobodywho/$3/$name\": \"\", "
-            done < <(python3 "$RUNTIME_TOOL" names "$manifest")
+            done
             entries="${entries%, }"
             for cfg in debug release; do
               local key="$1.$cfg"; [ -n "$2" ] && key="$key.$2"
@@ -91,12 +97,12 @@ jobs:
             done
           }
           emit_deps linux x86_64 x86_64-unknown-linux-gnu \
-            ./artifacts/nobodywho-godot-x86_64-unknown-linux-gnu-release/nobodywho-runtime/manifest.json
+            ./artifacts/nobodywho-godot-x86_64-unknown-linux-gnu-release/nobodywho-runtime
           emit_deps linux arm64 aarch64-unknown-linux-gnu \
-            ./artifacts/nobodywho-godot-aarch64-unknown-linux-gnu-release/nobodywho-runtime/manifest.json
+            ./artifacts/nobodywho-godot-aarch64-unknown-linux-gnu-release/nobodywho-runtime
           emit_deps windows x86_64 x86_64-pc-windows-msvc \
-            ./artifacts/nobodywho-godot-x86_64-pc-windows-msvc-release/nobodywho-runtime/manifest.json
-          emit_deps macos "" apple-darwin "$UNIVERSAL/nobodywho-runtime/manifest.json"
+            ./artifacts/nobodywho-godot-x86_64-pc-windows-msvc-release/nobodywho-runtime
+          emit_deps macos "" apple-darwin "$UNIVERSAL/nobodywho-runtime"
 
       - name: "Verify the addon has every file the .gdextension references"
         # Check every res:// path in the addon metadata.
@@ -326,9 +332,8 @@ jobs:
             local bundle
             bundle=$(mktemp -d)
             cp "$1/libnobodywho-uniffi-$2-release.so" "$bundle/libnobodywho_uniffi.so"
-            python3 nobodywho/scripts/runtime-bundle.py copy \
-              "$1/nobodywho-runtime/manifest.json" "$bundle" \
-              --exclude libc++_shared.so
+            cp -L "$1/nobodywho-runtime/"* "$bundle/"
+            rm "$bundle/libc++_shared.so"
             [ ! -f "$1/libonnxruntime.so" ] || cp "$1/libonnxruntime.so" "$bundle/"
             (cd "$bundle" && python3 -m zipfile -c \
               "$OUT/nobodywho-react-native-$2-release.zip" ./*)
@@ -451,8 +456,7 @@ jobs:
             local d="artifacts/nobodywho-uniffi-$1-release"
             local dest="nobodywho/kotlin/android/build/jniLibs/$2"
             cp "$d/libnobodywho-uniffi-$1-release.so" "$dest/libnobodywho_uniffi.so"
-            python3 nobodywho/scripts/runtime-bundle.py copy \
-              "$d/nobodywho-runtime/manifest.json" "$dest"
+            cp -L "$d/nobodywho-runtime/"* "$dest/"
             # libonnxruntime.so ships for x86_64 only (arm64 links ORT statically).
             [ ! -f "$d/libonnxruntime.so" ] || cp "$d/libonnxruntime.so" "$dest/"
           }
@@ -467,8 +471,7 @@ jobs:
             local d="artifacts/nobodywho-uniffi-$1-release"
             local dest="nobodywho/kotlin/jvm/src/main/resources/$2"
             cp "$d/libnobodywho-uniffi-$1-release.$4" "$dest/$3"
-            python3 nobodywho/scripts/runtime-bundle.py copy \
-              "$d/nobodywho-runtime/manifest.json" "$dest"
+            cp -L "$d/nobodywho-runtime/"* "$dest/"
           }
           place_jvm x86_64-unknown-linux-gnu  linux-x86-64   libnobodywho_uniffi.so    so
           place_jvm aarch64-unknown-linux-gnu linux-aarch64  libnobodywho_uniffi.so    so

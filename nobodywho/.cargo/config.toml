@@ -5,4 +5,4 @@ rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
 rustflags = ["-C", "link-arg=-Wl,-rpath,@loader_path"]
 
 [env]
-CMAKE_PROJECT_INCLUDE = { value = "scripts/llama-build-overrides.cmake", relative = true }
+CMAKE_PROJECT_INCLUDE = { value = "core/cmake/llama-build-overrides.cmake", relative = true }
