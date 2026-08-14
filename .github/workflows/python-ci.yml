@@ -349,7 +349,8 @@ jobs:
           pip3 install delocate
           whl="$(ls -t nobodywho/target/wheels/nobodywho*.whl | head -1)"
           mkdir -p wheelhouse
-          delocate-wheel -w wheelhouse -v "$whl"
+          DYLD_LIBRARY_PATH="$PWD/nobodywho/target/aarch64-apple-darwin/release/nobodywho-runtime" \
+            delocate-wheel -w wheelhouse -v "$whl"
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
