@@ -1,15 +1,21 @@
-use crate::errors::{InitWorkerError, LoadModelError, ReadError};
-use crate::huggingface::{download_model_from_hf, download_model_from_url};
-use crate::inference::{acquire_inference_lock, InferenceEngine};
+#[cfg(test)]
+use crate::errors::ReadError;
+use crate::errors::{InitWorkerError, LoadModelError};
+use crate::huggingface::{download_gguf, parse_model_path};
+#[cfg(test)]
+use crate::inference::acquire_inference_lock;
+use crate::inference::{BatchCapacity, EngineContext, InferenceEngine};
 use crate::memory;
+use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
-use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
+use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
+use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeParams};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -32,10 +38,15 @@ lazy_static! {
 static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
+// llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
+// returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
+const MAX_EMBEDDING_SEQUENCES: u32 = 256;
+
 #[derive(Debug)]
 pub struct Model {
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
+    pub(crate) draft_model: Option<LlamaModel>,
 }
 
 impl Model {
@@ -103,99 +114,47 @@ pub fn has_gpu_backend() -> bool {
     false
 }
 
-#[derive(Clone)]
-enum ParsedModelPath {
-    HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
-    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
-    FilesystemPath(std::path::PathBuf),     // e.g. ./qwen3.gguf
-}
-
-fn parse_model_path(
-    model_path: &str,
-) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
-    use nom::branch::alt;
-    use nom::bytes::complete::{tag, tag_no_case, take_until};
-    use nom::combinator::{cut, map, rest, verify};
-    use nom::sequence::{preceded, terminated};
-    use nom::Parser;
-
-    let mut parser = alt((
-        // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
-        map(
-            preceded(
-                alt((
-                    tag_no_case("huggingface://"),
-                    tag_no_case("huggingface:"),
-                    tag_no_case("hf://"),
-                    tag_no_case("hf:"),
-                )),
-                cut((
-                    terminated(take_until("/"), tag("/")),
-                    terminated(take_until("/"), tag("/")),
-                    verify(rest, |s: &str| !s.is_empty()),
-                )),
-            ),
-            |(owner, repo, filename): (&str, &str, &str)| {
-                ParsedModelPath::HuggingFaceUrl(owner.into(), repo.into(), filename.into())
-            },
-        ),
-        // https://... or http://...
-        map(
-            (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
-            |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
-        ),
-        // Anything else is a filesystem path (expand leading ~ on non-Android)
-        map(rest, |p: &str| {
-            ParsedModelPath::FilesystemPath(std::path::PathBuf::from(p))
-        }),
-    ));
-    let result: nom::IResult<&str, ParsedModelPath> = parser.parse(model_path);
-    result
-        .map(|(_, parsed)| parsed)
-        .map_err(|e| e.map(|e| e.cloned()))
-}
-
-/// takes a fancy path (possibly with hf: or https:// in front), and resolve it to a realized path
-/// on the filesystem
-fn resolve_fancy_path_to_fs(
-    parsed_path: ParsedModelPath,
-    progress: &DownloadProgressCallback,
-    headers: &[(String, String)],
-) -> Result<std::path::PathBuf, LoadModelError> {
-    let fs_model_path = match parsed_path {
-        ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
-            download_model_from_hf(&owner, &repo, &filename, progress, headers)?
-        }
-        ParsedModelPath::FilesystemPath(path) => path,
-        ParsedModelPath::HttpUrl(url) => download_model_from_url(&url, progress, headers)?,
-    };
-
-    if !fs_model_path.exists() {
-        return Err(LoadModelError::from_missing_path(&fs_model_path));
-    }
-
-    LoadModelError::validate_model_file(&fs_model_path)?;
-
-    Ok(fs_model_path)
-}
-
 #[tracing::instrument(level = "info", skip(progress))]
 pub fn get_model(
     model_path: &str,
     use_gpu_if_available: bool,
     mmproj_path: Option<&str>,
+    draft_model_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
-    let progress = progress.unwrap_or_else(default_progress_callback);
-    let real_model_path = resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &[])?;
-    let real_mmproj_path = mmproj_path
-        .map(parse_model_path) // parse inside option
-        .transpose()? // return early if parse fails
-        .map(|p| resolve_fancy_path_to_fs(p, &progress, &[])) // download the file if needed
-        .transpose()?; // return early if download fails
+    if model_path == "auto" && mmproj_path.is_some() {
+        return Err(LoadModelError::InvalidModel(
+            "Automatic model selection does not support projection models; pass an explicit multimodal model path"
+                .to_string(),
+        ));
+    }
+
+    let use_gpu = use_gpu_if_available && has_gpu_backend();
+    let model_path = model_selection::resolve_model_path(model_path, use_gpu)?;
+    let model_progress = progress
+        .clone()
+        .unwrap_or_else(|| default_progress_callback(model_path));
+    let real_model_path = download_gguf(parse_model_path(model_path)?, &model_progress, &[])?;
+    let real_mmproj_path = match mmproj_path {
+        Some(p) => {
+            let mmproj_progress = progress
+                .clone()
+                .unwrap_or_else(|| default_progress_callback(p));
+            Some(download_gguf(parse_model_path(p)?, &mmproj_progress, &[])?)
+        }
+        None => None,
+    };
+    let real_draft_model_path = match draft_model_path {
+        Some(p) => {
+            let draft_progress = progress
+                .clone()
+                .unwrap_or_else(|| default_progress_callback(p));
+            Some(download_gguf(parse_model_path(p)?, &draft_progress, &[])?)
+        }
+        None => None,
+    };
 
     // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
-    let use_gpu = use_gpu_if_available && has_gpu_backend();
     let loading_plan =
         memory::plan_model_loading(&real_model_path, real_mmproj_path.as_deref(), use_gpu);
     let gpu_layers = loading_plan.gpu_layers;
@@ -235,9 +194,26 @@ pub fn get_model(
         .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
         .transpose()?;
 
+    let draft_model = real_draft_model_path
+        .as_ref()
+        .map(|path| {
+            info!(path = %path.display(), "Loading MTP draft model");
+            LlamaModel::load_from_file(&LLAMA_BACKEND, path, &model_params).map_err(|e| {
+                let error_msg = format!(
+                    "Failed to load MTP draft model at {}: {}",
+                    path.display(),
+                    e
+                );
+                error!(error = %error_msg, "Failed to load MTP draft model");
+                LoadModelError::InvalidModel(error_msg)
+            })
+        })
+        .transpose()?;
+
     Ok(Model {
         language_model,
         projection_model,
+        draft_model,
     })
 }
 
@@ -249,7 +225,7 @@ pub fn get_model(
 ///
 /// # Arguments
 ///
-/// * `model_path` - Path to the GGUF model file
+/// * `model_path` - `auto` for memory-based LLM selection, or a path to a GGUF model
 /// * `use_gpu_if_available` - Whether to attempt GPU acceleration if a discrete GPU is available
 ///
 /// # Returns
@@ -267,6 +243,7 @@ pub async fn get_model_async(
     model_path: String,
     use_gpu_if_available: bool,
     mmproj_path: Option<String>,
+    draft_model_path: Option<String>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
     let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(4096);
@@ -275,6 +252,7 @@ pub async fn get_model_async(
             &model_path,
             use_gpu_if_available,
             mmproj_path.as_deref(),
+            draft_model_path.as_deref(),
             progress,
         ))
     });
@@ -290,8 +268,8 @@ pub fn download_model(
     headers: Vec<(String, String)>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
-    let progress = progress.unwrap_or_else(default_progress_callback);
-    resolve_fancy_path_to_fs(parse_model_path(model_path)?, &progress, &headers)
+    let progress = progress.unwrap_or_else(|| default_progress_callback(model_path));
+    download_gguf(parse_model_path(model_path)?, &progress, &headers)
 }
 
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
@@ -345,49 +323,102 @@ where
         model: &'a Model,
         n_ctx: u32,
         use_embeddings: bool,
+        mtp: Option<crate::chat::MtpConfig>,
+        n_threads: Option<u32>,
         extra: T,
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
 
         let projection_model = model.projection_model.as_ref();
 
-        // Set up context parameters using available parallelism
-        let (ctx, n_batch) = {
-            let n_threads = std::thread::available_parallelism()?.get() as i32;
-            let ctx_plan = memory::plan_context(
-                std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
-                projection_model.is_some(),
-                memory::ModelArchitecture {
-                    n_layers: model.language_model.n_layer(),
-                    n_embd: model.language_model.n_embd() as u32,
-                    n_head: model.language_model.n_head(),
-                    n_head_kv: model.language_model.n_head_kv(),
-                },
-            )?;
-            let n_ctx = ctx_plan.n_ctx;
-            let n_ubatch = ctx_plan.n_ubatch;
-            for w in &ctx_plan.warnings {
-                warn!("{}", w);
-            }
-
-            let ctx_params = LlamaContextParams::default()
-                .with_n_ctx(std::num::NonZero::new(n_ctx))
-                .with_n_batch(n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
-                .with_n_ubatch(n_ubatch)
-                .with_n_threads(n_threads)
-                .with_n_threads_batch(n_threads)
-                .with_embeddings(use_embeddings)
-                .with_pooling_type(extra.pooling_type());
-
-            // Create inference context and sampler
-            let ctx = model
-                .language_model
-                .new_context(&LLAMA_BACKEND, ctx_params)?;
-            (ctx, n_ctx as usize)
+        // Set up context parameters. Without an explicit request this uses physical cores
+        // rather than logical ones: hyperthread siblings and efficiency cores slow down
+        // ggml's per-node barrier.
+        let n_threads = crate::cpu::inference_thread_count(n_threads) as i32;
+        let ctx_plan = memory::plan_context(
+            std::cmp::min(n_ctx, model.language_model.n_ctx_train()),
+            projection_model.is_some(),
+            memory::ModelArchitecture {
+                n_layers: model.language_model.n_layer(),
+                n_embd: model.language_model.n_embd() as u32,
+                n_head: model.language_model.n_head(),
+                n_head_kv: model.language_model.n_head_kv(),
+            },
+        )?;
+        let planned_n_ctx = ctx_plan.n_ctx;
+        let pooling_type = extra.pooling_type();
+        let n_seq_max = if use_embeddings
+            && !matches!(
+                pooling_type,
+                LlamaPoolingType::None | LlamaPoolingType::Unspecified
+            ) {
+            planned_n_ctx.min(MAX_EMBEDDING_SEQUENCES)
+        } else {
+            1
         };
+        // llama.cpp cannot split non-causal embedding batches into micro-batches.
+        let n_ubatch = if n_seq_max > 1 {
+            planned_n_ctx
+        } else {
+            ctx_plan.n_ubatch
+        };
+        for w in &ctx_plan.warnings {
+            warn!("{}", w);
+        }
 
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
+            .with_n_batch(planned_n_ctx) // n_batch sets the max size of a batch (i.e. max prompt size)
+            .with_n_ubatch(n_ubatch)
+            .with_n_seq_max(n_seq_max)
+            .with_n_threads(n_threads)
+            .with_n_threads_batch(n_threads)
+            .with_embeddings(use_embeddings)
+            .with_pooling_type(pooling_type)
+            .with_kv_unified(n_seq_max > 1);
+
+        let ctx = model
+            .language_model
+            .new_context(&LLAMA_BACKEND, ctx_params)?;
+        let n_batch = planned_n_ctx as usize;
+
+        // The batch limit is sequence IDs per token; each embedding token belongs to one sequence.
         let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
         let small_batch = LlamaBatch::new(1, 1);
+
+        let engine_ctx = if let Some(mtp_config) = mtp {
+            match &model.draft_model {
+                Some(draft_model) => {
+                    info!("Initializing MTP speculative draft context");
+                    let draft_batch_cap: u32 = 32;
+                    let draft_params = LlamaContextParams::default()
+                        .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
+                        .with_n_batch(draft_batch_cap)
+                        .with_n_ubatch(draft_batch_cap)
+                        .with_n_threads(n_threads)
+                        .with_n_threads_batch(n_threads)
+                        .with_context_type(LlamaContextType::Mtp)
+                        .with_n_rs_seq(0);
+                    let draft_ctx = draft_model.new_context_with_ctx_other(
+                        &LLAMA_BACKEND,
+                        draft_params,
+                        &ctx,
+                    )?;
+                    let spec_params = MtpSpeculativeParams {
+                        n_max: mtp_config.k_max as i32,
+                        n_min: 0,
+                        p_min: mtp_config.p_min,
+                    };
+                    let spec = MtpSpeculative::new(ctx, draft_ctx, spec_params)?;
+                    EngineContext::Speculative(spec)
+                }
+                None => {
+                    return Err(InitWorkerError::MtpDraftModelNotLoaded);
+                }
+            }
+        } else {
+            EngineContext::Solo(ctx)
+        };
 
         let add_bos = read_add_bos_metadata(&model.language_model)?;
         debug!(?add_bos, "Read add_bos from GGUF metadata:");
@@ -395,24 +426,22 @@ where
         let tokenizer = Tokenizer::new(&model.language_model, projection_model, add_bos);
 
         let engine = InferenceEngine::new(
-            ctx,
+            engine_ctx,
             big_batch,
             small_batch,
             projection_model,
-            n_batch,
+            BatchCapacity {
+                tokens: n_batch,
+                sequences: n_seq_max as usize,
+            },
             tokenizer,
             use_embeddings,
         );
         Ok(Worker { engine, extra })
     }
 
-    /// Reset the KV cache and token count. Delegates to the inference engine.
-    pub fn reset_context(&mut self) -> &mut Self {
-        self.engine.reset_context();
-        self
-    }
-
     /// Tokenize `text` and read it into the context under the global inference lock.
+    #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
         let inference_lock_token = acquire_inference_lock();
@@ -477,6 +506,12 @@ impl<T> Drop for WorkerGuard<T> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn rejects_projection_model_with_auto_selection() {
+        let result = get_model("auto", true, Some("projection.gguf"), None, None);
+        assert!(matches!(result, Err(LoadModelError::InvalidModel(_))));
+    }
 
     #[test]
     fn throttled_callback_drops_intermediate_calls_within_window() {

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "nobodywho"
-version = "1.5.0"
+version = "1.7.0"
 description = "Python bindings for nobodywho"
 readme = "PYPI_DESCRIPTION.md"
 requires-python = ">=3.10"
@@ -12,6 +12,9 @@ urls = {Homepage = "https://nobodywho.ooo/", Documentation = "https://docs.nobod
 license = { text = "EUPL-1.2" }
 keywords = ["AI", "LLM", "Large Language Models", "Inference", "Tool calling", "Local LLM", "Local Inference",
 "On-device AI", "SLM", "Edge AI", "Realtime LLM", "Sustainable AI", "Inference engine", "Inference library", "Local AI"]
+dependencies = [
+    "sounddevice>=0.5.5",
+]
 
 
 [tool.maturin]
@@ -25,11 +28,13 @@ exclude-newer = "2 weeks"
 [dependency-groups]
 dev = [
     "maturin>=1.0,<2.0",
+    "numpy>=2.2.6",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.3.0",
     "pytest-markdown-docs>=0.9.0",
     "pytest-stub>=1.1.0",
     "ruff>=0.15.16",
+    "sounddevice>=0.5.5",
     "ty>=0.0.47",
 ]
 

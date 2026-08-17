@@ -7,8 +7,10 @@ const sidebars: SidebarsConfig = {
     'chat',
     'tool-calling',
     'vision',
-    'sampling',
+    'speech-to-text',
     'text-to-speech',
+    'voice-activity-detection',
+    'sampling',
     'embeddings-and-rag',
   ],
 };

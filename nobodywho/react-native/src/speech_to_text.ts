@@ -1,0 +1,77 @@
+import type { RustSpeechToTextInterface } from "../generated/ts/nobodywho";
+import * as nobodywho from "../generated/ts/nobodywho";
+import { TokenStream } from "./streaming";
+
+export type SpeechToTextOptions = {
+  source: string;
+  language?: string;
+  quantization?: string;
+};
+
+/**
+ * Speech-to-text using a local Whisper ONNX model.
+ *
+ * @example
+ * ```typescript
+ * const stt = await SpeechToText.load({
+ *   source: "hf://onnx-community/whisper-base",
+ *   language: "en",
+ * });
+ * for await (const piece of stt.transcribeFile("recording.mp3")) {
+ *   process.stdout.write(piece);
+ * }
+ *
+ * // From microphone (react-native-audio-pcm-stream gives Int16Array):
+ * const stream = stt.transcribePcm(samplesI16, 44100);
+ * const text = await stream.completed();
+ * ```
+ */
+export class SpeechToText {
+  /** @internal */
+  private readonly _inner: RustSpeechToTextInterface;
+
+  /** @internal */
+  private constructor(inner: RustSpeechToTextInterface) {
+    this._inner = inner;
+  }
+
+  /**
+   * Load a Whisper SpeechToText model.
+   *
+   * @param opts - See {@link SpeechToTextOptions}.
+   */
+  static async load(opts: SpeechToTextOptions): Promise<SpeechToText> {
+    const inner = await nobodywho.loadSpeechToText(
+      opts.source,
+      opts.language,
+      opts.quantization,
+    );
+    return new SpeechToText(inner);
+  }
+
+  /**
+   * Transcribe an audio file (WAV / MP3).
+   * Returns an `SpeechToTextStream` to consume tokens as they arrive.
+   */
+  transcribeFile(path: string): TokenStream {
+    return new TokenStream(this._inner.transcribeFile(path));
+  }
+
+  /**
+   * Transcribe raw i16 PCM samples (e.g. from a microphone).
+   * The backend resamples to 16 kHz internally, so pass whatever rate your
+   * mic captures at (typically 44100 or 48000).
+   *
+   * @param samples - Flat array of signed 16-bit samples (mono).
+   * @param sampleRate - Capture rate in Hz.
+   */
+  transcribePcm(samples: Int16Array | number[], sampleRate: number): TokenStream {
+    const arr = samples instanceof Int16Array ? Array.from(samples) : samples;
+    return new TokenStream(this._inner.transcribePcm(arr, sampleRate));
+  }
+
+  /** Release native resources. Call when done with this handle. */
+  destroy(): void {
+    (this._inner as any).uniffiDestroy?.();
+  }
+}

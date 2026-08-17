@@ -30,6 +30,18 @@ console.log(`Vector with ${embedding.length} dimensions`);
 
 The resulting embedding is an array of numbers (typically 384 or 768 dimensions depending on the model).
 
+### Batch Encoding
+
+Use `encodeBatch` for multiple texts. It returns embeddings in input order:
+
+```typescript
+const texts = [
+  "Paris is the capital of France.",
+  "Berlin is the capital of Germany.",
+];
+const embeddings = await encoder.encodeBatch(texts);
+```
+
 ### Comparing Embeddings
 
 To measure how similar two pieces of text are, compare their embeddings using cosine similarity:

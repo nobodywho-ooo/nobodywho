@@ -14,6 +14,16 @@ func run_test():
 	encode("This doesn't matter.")
 	var irrelevant_enc = await self.encoding_finished
 
+	var batch_texts = PackedStringArray([
+		"The dragon is on the hill.",
+		"The dragon is hungry for humans.",
+	])
+	var batched_embeddings = await encode_batch(batch_texts)
+	assert(batched_embeddings.size() == batch_texts.size())
+	assert(batched_embeddings[0].size() == dragon_hill_enc.size())
+	for index in dragon_hill_enc.size():
+		assert(is_equal_approx(batched_embeddings[0][index], dragon_hill_enc[index]))
+
 	# test similarity
 	var low_similarity = cosine_similarity(irrelevant_enc, dragon_hill_enc)
 	var high_similarity = cosine_similarity(dragon_hill_enc, dragon_hungry_enc) 

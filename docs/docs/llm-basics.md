@@ -4,7 +4,7 @@ description: Essential concepts for working with language models in NobodyWho
 sidebar_position: 2
 ---
 
-Our goal with NobodyWho is to make it easy to run local LLMs. For this reason we have made it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers and tools. 
+Our goal with NobodyWho is to make it easy to run local LLMs. For this reason we have made it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers, tools, and thinking/reasoning. 
 
 ## Tokens
 
@@ -33,6 +33,35 @@ Once you reach the context limit, you must either:
 Currently NobodyWho resolves this issue automatically by removing old messages from the context.
 Having a larger context allows for longer and more complex conversations, but it also slows down the response time, as the model has to process more tokens each time it generates a response.
 
+## CPU threads
+
+When layers run on the CPU, inference is split across a pool of threads. Every operation in
+the model ends at a barrier where all threads wait for the slowest one, so the pool is only as
+fast as its weakest member. That makes "more threads" the wrong instinct:
+
+- **Hyperthreads (SMT) don't add compute.** Two threads on one physical core contend for the
+  same vector units, so pairing them up mostly adds synchronisation overhead.
+- **Efficiency cores are genuinely slower hardware.** On a big.LITTLE CPU — Apple silicon, most
+  phones, newer Intel — an E-core in the pool holds every P-core at the barrier until it
+  catches up.
+
+So NobodyWho defaults to one thread per *performance* core rather than per logical CPU, the
+same choice llama.cpp's own tools make. On a 12-core Mac with 8 P-cores and 4 E-cores, that
+means 8 threads — and measured on that machine it is roughly twice as fast at generation as
+using all 12:
+
+| threads | prompt processing | generation |
+|---|---|---|
+| 8 (performance cores only) | 435 tok/s | 90 tok/s |
+| 12 (every logical CPU) | 327 tok/s | 48 tok/s |
+
+You normally shouldn't need to touch this. Two cases where you might: lowering it to leave CPU
+headroom for other work (rendering a game, serving several models from one box), or raising it
+if NobodyWho could not read your machine's topology and guessed low — it logs a warning when
+that happens. Every binding exposes the option on its chat type; see your binding's chat docs.
+Values above your CPU count are clamped, and offloading to the GPU makes the setting largely
+irrelevant.
+
 ## Samplers
 
 LLMs don't output text directly. Instead, they generate a probability distribution over all possible next tokens. Since the model weights are static after training, this means that the same input tokens always generate the same distribution. Depending on the use case however, there are many possible ways of choosing a next token from this distribution. This is configured using a **sampler**. A **sampler** splits the process of choosing a next token into two parts: Shifting the distribution and Sampling the distribution.
@@ -59,6 +88,16 @@ Since this part actually chooses the next token, these cannot be chained.
 
 NobodyWho also supports more advanced ways of configuraing a sampler, like for example follow a JSON Schema.
 
+## Speculative decoding (MTP)
+
+Speculative decoding is a way of making inference faster without changing the model's outputs. A small, cheap "draft" model proposes the next few tokens, and the real target model verifies them in one batch. Tokens that the target would have picked anyway are accepted for free — otherwise the target's own choice is used. Same distribution, fewer sequential forward passes.
+
+NobodyWho supports the **MTP** (Multi-Token Prediction) flavour used by Gemma 4: instead of running a separate draft model, MTP uses extra "heads" trained to predict several tokens ahead of the target. You download the MTP heads as a companion `.gguf` (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B), pass it as the draft model path when loading the model, and enable MTP when constructing the chat (see your binding's chat docs for the exact option).
+
+Expect a large speedup on structured/deterministic output (code, JSON, math, tool calls) and a neutral to modest speedup on high-entropy prose. MTP is also highly hardware-dependent — you will get the most out of it when memory bandwidth is the biggest bottleneck during generation.
+This means that on systems with unified memory (e.g. a Mac mini), the speedup might not be very big and you might even get worse performance. For this reason it is important to be mindful about both your hardware and your use case. The best option is of course to benchmark it yourself.
+Enabling MTP adds around 5% to VRAM usage. It is off by default.
+
 ## Tools
 
 Tools (also called function calling) allow the LLM to request external actions. Instead of just generating text, the model can indicate it wants to:
@@ -70,3 +109,23 @@ Tools (also called function calling) allow the LLM to request external actions. 
 You define available tools, and the model decides when to use them based on the conversation. After a tool executes, you provide the result back to the model so it can continue the conversation.
 
 This enables LLMs to go beyond pure text generation and interact with your application's functionality.
+
+## Thinking/Reasoning
+
+Some models have been specifically trained to reason through complex tasks step-by-step before giving a final answer. You can check the model's Hugging Face page to find out whether it supports thinking. 
+
+Inside the LLM's raw output, the thinking/reasoning content usually appears between model-specific tags:
+
+```
+<think>
+...reasoning steps...
+</think>
+...final answer...
+```
+
+Here are some tags examples:
+- Qwen3: `<think>...</think>`
+- Gemma 4: `<|channel>thought ...<channel|>`
+- Ministral: `[THINK]…[/THINK]`
+
+These tags are model and template specific, so always check the model's chat template if you need to parse out the thinking content yourself.

@@ -1,0 +1,681 @@
+name: "Python CI"
+
+on:
+  workflow_call:
+    inputs:
+      run_python:
+        description: "Build wheels + run pytest / multimodal / pip-install checks. If false, only static checks run."
+        type: boolean
+        default: false
+      run_python_models:
+        description: "Run the 6-model tool-calling matrix (multi-GB downloads)."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
+
+      - name: Install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc
+          uv venv
+          uv sync --locked --no-install-project
+
+      - name: Format check
+        working-directory: ./nobodywho/python
+        run: uv run --no-sync ruff format --check
+
+      - name: Lint check
+        working-directory: ./nobodywho/python
+        run: uv run --no-sync ruff check
+
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-static-checks-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-static-checks-cargo-
+
+      - name: Regenerate stubs
+        working-directory: ./nobodywho/python
+        run: cargo build && cargo run --bin make_stubs
+
+      - name: Format generated stubs
+        working-directory: ./nobodywho/python
+        run: uv run --no-sync ruff format nobodywho.pyi
+
+      - name: Check generated stubs
+        working-directory: ./nobodywho/python
+        run: |
+          if git diff --quiet -- nobodywho.pyi; then
+            echo "✅ Generated stubs are up to date"
+          else
+            echo "❌ Generated stubs are outdated. Run:"
+            echo "   cargo build"
+            echo "   cargo run --bin make_stubs"
+            echo "   uv run ruff format nobodywho.pyi"
+            git --no-pager diff -- nobodywho.pyi
+            exit 1
+          fi
+
+      - name: Type check
+        working-directory: ./nobodywho/python
+        run: uv run --no-sync ty check
+
+  linux-build:
+    if: inputs.run_python || inputs.run_python_models
+    # Build inside manylinux_2_34 container for glibc 2.34 compatibility
+    # This targets glibc version 2.34 which covers most distros going back to 2021
+    # See: https://github.com/mayeut/pep600_compliance?tab=readme-ov-file#distro-compatibility
+
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x]
+        include:
+          - runner: warp-ubuntu-latest-x64-4x
+            manylinux_target: manylinux_2_34_x86_64
+          - runner: warp-ubuntu-latest-arm64-4x
+            manylinux_target: manylinux_2_34_aarch64
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: quay.io/pypa/${{ matrix.manylinux_target }}
+      # Passed through so WarpBuilds/cache can authenticate from inside the container.
+      env:
+        WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
+    env:
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # Warp cache in a container needs zstd + wget available before the cache
+      # step (the token is passed in via container.env above).
+      - name: "Install cache prerequisites"
+        run: yum install -y zstd wget
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          source "$HOME/.cargo/env"
+
+      - name: "Cache Cargo Home"
+        # Warp cache (off GitHub's 10 GiB budget). Without it every wheel build
+        # recompiles llama.cpp + ORT cold; keyed per manylinux_target/arch.
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ matrix.manylinux_target }}-cargo-wheel-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.manylinux_target }}-cargo-wheel-
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          # The new ggml-vulkan backend needs SPIRV-HeadersConfig.cmake, only
+          # bundled in the SDK from ~1.4.313+. Linux uses .0 (not the Windows
+          # job's .2): jakoch's ARM-Linux mirror (jakoch/vulkan-sdk-arm) only
+          # publishes 1.4.313.0, and 1.4.313.2 fails to download for arm64.
+          vulkan_version: 1.4.313.0
+          # cache off: restoring/saving the ~550 MB SDK in-container took ~7-9
+          # min, far longer than the ~1 min fresh install.
+          cache: false
+
+      - name: Install build dependencies
+        run: |
+          yum install -y clang cmake wget tar gzip python3-pip
+          pip3 install maturin auditwheel
+
+      - name: Setup Vulkan SDK (manual for ARM64)
+        if: matrix.runner == 'warp-ubuntu-latest-arm64-4x'
+        run: |
+          SDK_VERSION="1.4.304.0"
+          SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
+
+          # Download and extract Vulkan SDK
+          cd /tmp
+          wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
+          tar -xf vulkan-sdk.tar.xz
+
+          # ARM64 SDK has architecture-specific subdirectory
+          SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
+          VULKAN_SDK="${SDK_DIR%/}/aarch64"
+
+          # Persist to GitHub environment
+          echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+          echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
+
+          # Build shaderc to get glslc compiler (not included in ARM64 SDK)
+          yum install -y python3 git
+          cd /tmp
+          git clone --depth 1 --branch v2024.3 https://github.com/google/shaderc.git
+          cd shaderc
+          ./utils/git-sync-deps
+
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$VULKAN_SDK" \
+                -DSHADERC_SKIP_TESTS=ON \
+                -DSHADERC_SKIP_EXAMPLES=ON \
+                ..
+          make -j$(nproc)
+
+          # Copy glslc to SDK bin directory
+          cp glslc/glslc "$VULKAN_SDK/bin/" || { echo "ERROR: glslc not found"; exit 1; }
+
+      - name: Build linux python wheel
+        run: |
+          source "$HOME/.cargo/env"
+          maturin build --verbose --release --locked
+        working-directory: ./nobodywho/python
+
+      - name: Repair wheel to use manylinux
+        # auditwheel bundles external libraries and verifies manylinux compliance
+        run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho_python_linux_${{ matrix.manylinux_target }}
+          path: ./wheelhouse/nobodywho*.whl
+
+  windows-build:
+    if: inputs.run_python
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - "x86_64-pc-windows-msvc"
+    runs-on: windows-latest
+    env:
+      RUSTFLAGS: -l Advapi32 -C target-cpu=x86-64-v3
+      # libgit2 (cargo's default git backend) ignores core.longpaths, so the deep
+      # llama.cpp tools/ui/ submodule paths exceed Windows' 260-char MAX_PATH even
+      # though LongPathsEnabled + core.longpaths are set below. Fetch with the git
+      # CLI instead, which honors core.longpaths and uses \\?\ extended paths.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - name: "Cache Cargo Home"
+        uses: actions/cache@v5
+        with:
+          # The build moves sources to C:/ and maturin compiles into C:/target
+          # (see the build step + wheel artifact path). setup-rust-toolchain's
+          # built-in cache targets the pre-move workspace, so disable it below.
+          path: |
+            ~/.cargo
+            C:/target
+          key: ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install maturin
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          # 1.4.313.2 matches llama.cpp's own Windows Vulkan CI. The newer
+          # ggml-vulkan backend does find_package(SPIRV-Headers CONFIG REQUIRED);
+          # SPIRV-HeadersConfig.cmake is only bundled in the SDK from ~1.4.313+,
+          # so 1.4.304.0 fails to configure. (Discovery uses the VULKAN_SDK env
+          # var this action sets; stripdown doesn't touch the cmake config.)
+          vulkan_version: 1.4.313.2
+          install_runtime: false
+          cache: true
+          stripdown: true
+      - name: Install Ninja
+        run: choco install ninja
+
+      - name: "Build windows python wheel"
+        run: |
+          mv ./nobodywho/* C:/
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+          git config --system core.longpaths true
+          cd C:/
+          cd python
+          maturin build --verbose --release --locked --target ${{ matrix.target }}
+        env:
+          # Use Ninja generator instead of Visual Studio generator.
+          # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
+          # install step fails to find cmake_install.cmake with the VS generator.
+          # Ninja's simpler build structure avoids this problem entirely.
+          CMAKE_GENERATOR: "Ninja"
+      - name: "Upload wheel artifact"
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho_python_windows_${{ matrix.target }}
+          path: C:/target/wheels/nobodywho*.whl
+
+  mac-os-build:
+    if: inputs.run_python
+    runs-on: warp-macos-latest-arm64-6x
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: false
+      - name: Cache Rust build
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+          key: ${{ runner.os }}-macos-wheel-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-macos-wheel-cargo-
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: brew install maturin
+      - name: "Build macos python wheel"
+        run: maturin build --verbose --release --locked --target aarch64-apple-darwin
+        working-directory: ./nobodywho/python
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho_python_macos
+          path: ./nobodywho/target/wheels/nobodywho*.whl
+
+  linux-pytest:
+    if: inputs.run_python
+    needs: [linux-build]
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
+      - name: Download wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_linux_manylinux_2_34_x86_64
+          path: ./wheels
+      # Test models are downloaded fresh, not cached: the ~4.8 GiB model cache
+      # filled the repo's 10 GiB Actions budget and evicted the Rust build
+      # caches, which cost far more to rebuild than models cost to re-download.
+      - name: Download test models
+        run: |
+          download_pids=()
+          download() {
+            test -f "$2" && return
+            if [ "${#download_pids[@]}" -ge 4 ]; then
+              wait "${download_pids[0]}"
+              download_pids=("${download_pids[@]:1}")
+            fi
+            curl -L --fail --progress-bar "$1" -o "$2" &
+            download_pids+=("$!")
+          }
+          mkdir -p models/whisper-base/onnx
+          download https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+          download https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf models/bge-small-en-v1.5-q8_0.gguf
+          download https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf models/bge-reranker-v2-m3-Q8_0.gguf
+          download https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf models/google_gemma-4-E2B-it-Q4_K_M.gguf
+          download https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          whisper_base=https://huggingface.co/onnx-community/whisper-base/resolve/main
+          download "$whisper_base/onnx/encoder_model.onnx" models/whisper-base/onnx/encoder_model.onnx
+          download "$whisper_base/onnx/decoder_model_merged.onnx" models/whisper-base/onnx/decoder_model_merged.onnx
+          download "$whisper_base/tokenizer.json" models/whisper-base/tokenizer.json
+          download "$whisper_base/generation_config.json" models/whisper-base/generation_config.json
+          download "$whisper_base/config.json" models/whisper-base/config.json
+          download "$whisper_base/preprocessor_config.json" models/whisper-base/preprocessor_config.json
+          for pid in "${download_pids[@]}"; do
+            wait "$pid"
+          done
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          # install deps - and not nobodywho-python - into the venv
+          uv sync --locked --no-install-project --group dev
+          # install nobodywho from pre-built wheel
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
+      - name: Run pytest
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+          TEST_EMBEDDINGS_MODEL: ${{ github.workspace }}/models/bge-small-en-v1.5-q8_0.gguf
+          TEST_CROSSENCODER_MODEL: ${{ github.workspace }}/models/bge-reranker-v2-m3-Q8_0.gguf
+          TEST_VISION_MODEL: ${{ github.workspace }}/models/google_gemma-4-E2B-it-Q4_K_M.gguf
+          TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-google_gemma-4-E2B-it-f16.gguf
+          TEST_WHISPER_MODEL: ${{ github.workspace }}/models/whisper-base
+        run: |
+          source .venv/bin/activate
+          # bindings tests; model-downloading and multimodal have dedicated jobs
+          python3 -m pytest --durations=30 \
+            --ignore=tests/test_model_downloading.py \
+            --ignore=tests/test_multimodal.py
+          # docs tests — current docs only. python_versioned_docs/* are frozen
+          # snapshots of shipped releases; doctesting them against the current
+          # wheel is ~5x the work (each example re-run per version) and semantically
+          # odd (old examples vs new code). Edited docs live in docs-python.
+          python3 -m pytest --durations=30 --markdown-docs ../../docs/docs-python --markdown-docs-syntax=superfences
+
+  linux-multimodal-tests:
+    if: inputs.run_python
+    needs: [linux-build]
+    runs-on: warp-ubuntu-latest-x64-4x
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
+      - name: Download wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_linux_manylinux_2_34_x86_64
+          path: ./wheels
+      - name: Download vision models
+        run: |
+          mkdir -p models
+          test -f models/google_gemma-4-E2B-it-Q4_K_M.gguf || curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf -o models/google_gemma-4-E2B-it-Q4_K_M.gguf
+          test -f models/mmproj-google_gemma-4-E2B-it-f16.gguf || curl -L --fail --progress-bar https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/mmproj-google_gemma-4-E2B-it-f16.gguf -o models/mmproj-google_gemma-4-E2B-it-f16.gguf
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          uv sync --locked --no-install-project --group dev
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
+      - name: Run multimodal tests
+        working-directory: ./nobodywho/python
+        env:
+          TEST_VISION_MODEL: ${{ github.workspace }}/models/google_gemma-4-E2B-it-Q4_K_M.gguf
+          TEST_MMPROJ_MODEL: ${{ github.workspace }}/models/mmproj-google_gemma-4-E2B-it-f16.gguf
+        run: |
+          source .venv/bin/activate
+          python3 -m pytest tests/test_multimodal.py -v --tb=short
+  
+
+  linux-model-downloading-tests:
+    needs: [linux-build]
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_linux_manylinux_2_34_x86_64
+          path: ./wheels
+
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          uv sync --locked --no-install-project --group dev
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
+
+      - name: Run model downloading tests
+        working-directory: ./nobodywho/python
+        run: |
+          source .venv/bin/activate
+          python3 -m pytest tests/test_model_downloading.py -v --tb=short
+      - name: Display test summary
+        if: always()
+        run: |
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+    
+
+  linux-tool-calling-tests:
+    if: inputs.run_python_models
+    needs: [linux-build]
+    runs-on: warp-ubuntu-latest-x64-4x
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - name: Qwen3
+            file: Qwen_Qwen3-0.6B-Q4_K_M.gguf
+            url: https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
+            format: Qwen3
+          - name: Qwen3.5
+            file: Qwen3.5-0.8B-Q4_K_M.gguf
+            url: https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf
+            format: Qwen35_36
+          - name: FunctionGemma
+            file: functiongemma-270m-it-BF16.gguf
+            url: https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/functiongemma-270m-it-BF16.gguf
+            format: FunctionGemma
+          - name: Ministral3
+            file: mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
+            url: https://huggingface.co/bartowski/mistralai_Ministral-3-3B-Instruct-2512-GGUF/resolve/main/mistralai_Ministral-3-3B-Instruct-2512-Q6_K_L.gguf
+            format: Ministral3
+          - name: Gemma4
+            file: gemma-4-E2B-it-Q4_0.gguf
+            url: https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_0.gguf
+            format: Gemma4
+          - name: LFM2.5-VL 1.6B
+            file: LFM2.5-VL-1.6B-Q8_0-vendor-sampling.gguf
+            url: https://huggingface.co/NobodyWho/LFM2.5-VL-1.6B-GGUF/resolve/main/LFM2.5-VL-1.6B-Q8_0-vendor-sampling.gguf
+            format: LFM2.5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_linux_manylinux_2_34_x86_64
+          path: ./wheels
+
+      - name: Download ${{ matrix.model.name }} model
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar \
+            ${{ matrix.model.url }} \
+            -o models/${{ matrix.model.file }}
+          echo "Model size:"
+          ls -lh models/${{ matrix.model.file }}
+
+      - name: Set up virtualenv and install dependencies
+        working-directory: ./nobodywho/python
+        run: |
+          uv venv
+          uv sync --locked --no-install-project --group dev
+          uv pip install ../../wheels/nobodywho*manylinux*x86*.whl
+
+      - name: Run tool calling tests with ${{ matrix.model.name }}
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/${{ matrix.model.file }}
+        run: |
+          source .venv/bin/activate
+          python3 -m pytest tests/test_tool_calling.py -v --tb=short
+      - name: Display test summary
+        if: always()
+        run: |
+          echo "### Tool Calling Tests: ${{ matrix.model.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Model: ${{ matrix.model.file }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Format: ${{ matrix.model.format }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
+  linux-pip-install-test:
+    if: inputs.run_python
+    needs: [linux-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [Qwen, Gemma]
+        runner: [warp-ubuntu-latest-x64-4x, warp-ubuntu-latest-arm64-4x]
+        include:
+          - model: Qwen
+            model_name: Qwen3-0.6B-UD-Q6_K_XL.gguf
+            model_iterations: 10
+            model_link: https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-UD-Q6_K_XL.gguf
+          - model: Gemma
+            model_name: google_gemma-3-4b-it-Q4_1.gguf
+            model_iterations: 10
+            model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
+          - runner: warp-ubuntu-latest-x64-4x
+            manylinux_target: manylinux_2_34_x86_64
+          - runner: warp-ubuntu-latest-arm64-4x
+            manylinux_target: manylinux_2_34_aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: "Download wheel"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_linux_${{ matrix.manylinux_target }}
+          path: ./wheels
+
+      - name: Install wheel
+        run: |
+          python3 -m venv maturinvenv
+          source ./maturinvenv/bin/activate
+          pip install wheels/nobodywho*.whl
+
+      - name: Download models
+        run: |
+          mkdir -p linux/nobodypython/models
+          curl -L --fail --progress-bar ${{ matrix.model_link }} -o linux/nobodypython/models/${{ matrix.model_name }}
+
+      - name: Run small model in python
+        run: |
+          source ./maturinvenv/bin/activate
+          chmod +x nobodywho/python/tests/test_reliability.sh
+          bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "linux/nobodypython/models/${{ matrix.model_name }}"
+
+  windows-pip-install-test:
+    if: inputs.run_python
+    needs: [windows-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest]
+        model: [Gemma]
+        include:
+          - model: Gemma
+            model_name: google_gemma-3-4b-it-Q4_1.gguf
+            model_iterations: 10
+            model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: "Download wheel"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_windows_${{ matrix.target }}
+          path: ./wheels
+      - name: Install wheel
+        run: |
+          python -m venv maturinvenv
+          maturinvenv/Scripts/activate
+          pip install (Get-ChildItem ./wheels/nobodywho*.whl).FullName
+
+      - name: Download models
+        run: |
+          mkdir -p ${{ github.workspace }}/windows/nobodywho_python/models
+          pip install -U "huggingface_hub"
+          Invoke-WebRequest ${{ matrix.model_link }} -OutFile "${{ github.workspace }}/windows/nobodywho_python/models/${{ matrix.model_name}}"
+
+      # uncomment this to get an interactive shell on the github runner
+      # - name: Debug with sshx
+      #   run: |
+      #     Invoke-WebRequest -Uri "https://s3.amazonaws.com/sshx/sshx-x86_64-pc-windows-msvc.zip" -OutFile sshx.zip
+      #     Expand-Archive sshx.zip -DestinationPath .
+      #     .\sshx.exe --shell pwsh
+      #   shell: pwsh
+
+      - name: Run small model in python
+        run: |
+          maturinvenv/Scripts/activate
+          ./nobodywho/python/tests/test_reliability.ps1 -ScriptPath "${{ github.workspace }}/nobodywho/python/examples/small_model_demo.py" -Iterations ${{ matrix.model_iterations }} "${{ github.workspace }}/windows/nobodywho_python/models/${{ matrix.model_name }}"
+
+  mac-os-pip-install-test:
+    if: inputs.run_python
+    needs: [mac-os-build]
+    runs-on: warp-macos-latest-arm64-6x
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [Gemma]
+        include:
+          - model: Gemma
+            model_name: google_gemma-3-4b-it-Q4_1.gguf
+            model_iterations: 10
+            model_link: https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-Q4_1.gguf
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: "Download wheel"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_macos
+          path: ./wheels
+
+      - name: Install wheel
+        run: |
+          python3 -m venv maturinvenv
+          source ./maturinvenv/bin/activate
+          pip install wheels/nobodywho*.whl
+
+      - name: Download models
+        run: |
+          mkdir -p macos/nobodypython/models
+          curl -L --fail --progress-bar ${{ matrix.model_link }} -o macos/nobodypython/models/${{ matrix.model_name }}
+
+      - name: Run small model in python
+        run: |
+          source ./maturinvenv/bin/activate
+          python -c "import nobodywho; print('Import successful')"
+          chmod +x nobodywho/python/tests/test_reliability.sh
+          bash nobodywho/python/tests/test_reliability.sh -n ${{ matrix.model_iterations }} nobodywho/python/examples/small_model_demo.py "macos/nobodypython/models/${{ matrix.model_name }}"

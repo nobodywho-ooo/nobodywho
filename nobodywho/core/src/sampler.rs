@@ -89,23 +89,26 @@ impl SamplerPresets {
     }
 
     pub fn json() -> SamplerConfig {
-        let mut steps = SamplerConfig::default().steps;
-        steps.push(ShiftStep::Grammar {
+        // the grammar must run before the truncation samplers: if top-k
+        // runs first and none of the surviving candidates is grammar-valid,
+        // the grammar masks out every token and generation aborts
+        let mut steps = vec![ShiftStep::Grammar {
             trigger_on: None,
             root: "root".into(),
             grammar: JSON_GRAMMAR.into(),
-        });
+        }];
+        steps.extend(SamplerConfig::default().steps);
         SamplerConfig::new(steps, SampleStep::Dist, default_seed())
     }
 
     #[deprecated(note = "Use SamplerPresets::constrain_with_grammar() instead")]
     pub fn grammar(grammar: String) -> SamplerConfig {
-        let mut steps = SamplerConfig::default().steps;
-        steps.push(ShiftStep::Grammar {
+        let mut steps = vec![ShiftStep::Grammar {
             trigger_on: None,
             root: "root".into(),
             grammar,
-        });
+        }];
+        steps.extend(SamplerConfig::default().steps);
         SamplerConfig::new(steps, SampleStep::Dist, default_seed())
     }
 }
@@ -136,16 +139,38 @@ impl SamplerConfig {
         }
     }
 
-    pub fn to_stateful(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
-        let sample_step = self.sample_step.clone();
+    pub fn build_sampler(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
+        self.build_sampler_with_prepended_step(model, None)
+    }
 
-        let mut shift_steps = self
-            .steps
-            .iter()
-            .map(|step| self.build_step(model, step.clone()))
+    /// Builds a sampler chain with a `LarkWithSlices` grammar step prepended.
+    /// `slices` are vocabulary hint regexes llguidance uses as bitmask
+    /// shortcuts instead of a full vocab walk (see [`llguidance_sampler`]).
+    pub fn build_sampler_with_grammar(
+        &self,
+        model: &LlamaModel,
+        lark: &str,
+        slices: Vec<String>,
+    ) -> Result<LlamaSampler, SamplerError> {
+        self.build_sampler_with_prepended_step(
+            model,
+            Some(ShiftStep::LarkWithSlices(lark.to_string(), slices)),
+        )
+    }
+
+    fn build_sampler_with_prepended_step(
+        &self,
+        model: &LlamaModel,
+        extra_step: Option<ShiftStep>,
+    ) -> Result<LlamaSampler, SamplerError> {
+        // Grammar step goes first, so it constrains before anything else runs.
+        let mut shift_steps = extra_step
+            .into_iter()
+            .chain(self.steps.iter().cloned())
+            .map(|step| self.build_step(model, step))
             .collect::<Result<Vec<_>, SamplerError>>()?;
 
-        let final_sampler = match sample_step {
+        let final_sampler = match self.sample_step.clone() {
             SampleStep::Dist => LlamaSampler::dist(self.seed),
             SampleStep::Greedy => LlamaSampler::greedy(),
             SampleStep::MirostatV1 { tau, eta, m } => {
@@ -219,17 +244,15 @@ impl SamplerConfig {
                 penalty_present,
             )),
             ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
-            ShiftStep::JsonSchema(schema) => {
-                LlamaSampler::llguidance(model, "json_schema", &schema)
-                    .map_err(SamplerError::LlguidanceGrammarError)
-            }
-            ShiftStep::Regex(pattern) => LlamaSampler::llguidance(model, "regex", &pattern)
-                .map_err(SamplerError::LlguidanceGrammarError),
+            ShiftStep::JsonSchema(schema) => llguidance_sampler(model, "json_schema", &schema, &[]),
+            ShiftStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
             ShiftStep::Lark(lark) => {
                 let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
                     .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
-                LlamaSampler::llguidance(model, "lark", &lark)
-                    .map_err(SamplerError::LlguidanceGrammarError)
+                llguidance_sampler(model, "lark", &lark, &[])
+            }
+            ShiftStep::LarkWithSlices(lark, slices) => {
+                llguidance_sampler(model, "lark", &lark, &slices)
             }
         }
     }
@@ -269,6 +292,28 @@ impl SamplerConfig {
     ) -> Result<LlamaSampler, SamplerError> {
         Ok(LlamaSampler::grammar(model, grammar, root)?)
     }
+}
+
+/// Builds an llguidance [`LlamaSampler`] for a `json_schema`/`regex`/`lark`
+/// `tag` + `grammar` content string. `slices` are optional vocabulary hints
+/// (see [`crate::tool_calling::ToolFormatHandler::slice_regexes`]), `&[]` for none.
+pub fn llguidance_sampler(
+    model: &LlamaModel,
+    tag: &str,
+    grammar: &str,
+    slices: &[String],
+) -> Result<LlamaSampler, SamplerError> {
+    use llguidance::toktrie::InferenceCapabilities;
+    use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
+    let tok_env = LlamaSampler::llguidance_tok_env(model);
+    let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), slices)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    let tlg = TopLevelGrammar::from_tagged_str(tag, grammar)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    let parser = factory
+        .create_parser(tlg)
+        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+    Ok(LlamaSampler::from(Matcher::new(Ok(parser))))
 }
 
 impl Default for SamplerConfig {
@@ -395,6 +440,9 @@ pub enum ShiftStep {
     Regex(String),
     /// Constrain output using a Lark context-free grammar via llguidance.
     Lark(String),
+    /// Like [`Lark`][ShiftStep::Lark] but with custom slice regexes passed to the `ParserFactory`.
+    /// See [`llguidance_sampler`] for how slices speed up per-token constraint evaluation.
+    LarkWithSlices(String, Vec<String>),
     #[serde(rename = "dry")]
     DRY {
         multiplier: f32,
@@ -566,6 +614,79 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_json_preset_builds_sampler() {
+        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
+        let model = crate::llm::get_model(&path, false, None, None, None).expect("load model");
+
+        let res = SamplerPresets::json().build_sampler(&model.language_model);
+        assert!(res.is_ok(), "json preset failed: {:?}", res.err());
+    }
+
+    /// Model-independent regression test for issue #421: a grammar whose
+    /// only valid first token is never in the top-k forces an empty
+    /// candidate set when the grammar runs after truncation, which aborts
+    /// the process with an uncatchable C++ exception. With the grammar
+    /// first the literal is emitted regardless of the model.
+    #[test]
+    fn test_ordering_grammar_first_with_unlikely_literal() {
+        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
+        let model = std::sync::Arc::new(
+            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
+        );
+
+        let cfg = SamplerConfig::new(
+            vec![
+                ShiftStep::Grammar {
+                    trigger_on: None,
+                    root: "root".into(),
+                    grammar: "root ::= \"zqxjvkw\"".into(),
+                },
+                ShiftStep::TopK { top_k: 1 },
+            ],
+            SampleStep::Dist,
+            default_seed(),
+        );
+
+        let chat = crate::chat::ChatBuilder::new(model)
+            .build()
+            .expect("build chat");
+        chat.set_sampler_config(cfg).expect("set sampler config");
+        let response = chat
+            .ask("Say hello.")
+            .completed()
+            .expect("generation with grammar-first unlikely literal failed");
+
+        assert_eq!(response, "zqxjvkw");
+    }
+
+    /// Regression test for issue #421, mirroring the Godot repro (start
+    /// worker, set the json preset, ask). Before the fix the grammar step
+    /// ran after top-k, and models whose top candidates contained no
+    /// grammar-valid token (e.g. thinking models such as Qwen3) crashed
+    /// the process during generation.
+    #[test]
+    fn test_json_preset_full_generation() {
+        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
+        let model = std::sync::Arc::new(
+            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
+        );
+
+        let chat = crate::chat::ChatBuilder::new(model)
+            .build()
+            .expect("build chat");
+        chat.set_sampler_config(SamplerPresets::json())
+            .expect("set sampler config");
+        let response = chat
+            .ask("Return {\"hello\": \"world\"}.")
+            .completed()
+            .expect("generation with json preset failed");
+
+        assert!(!response.is_empty(), "empty response");
+        serde_json::from_str::<serde_json::Value>(&response)
+            .unwrap_or_else(|e| panic!("response is not valid JSON ({e}): {response}"));
+    }
 
     #[test]
     fn test_shift_appends_to_end() {

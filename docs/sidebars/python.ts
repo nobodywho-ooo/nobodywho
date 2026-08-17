@@ -7,10 +7,12 @@ const sidebars: SidebarsConfig = {
     'chat',
     'tool-calling',
     'vision',
+    'speech-to-text',
+    'text-to-speech',
+    'voice-activity-detection',
     'sampling',
     'streaming-and-async-api',
     'embeddings-and-rag',
-    'text-to-speech',
     'logging-and-troubleshooting',
   ],
 };

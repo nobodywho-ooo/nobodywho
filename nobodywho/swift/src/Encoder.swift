@@ -31,4 +31,9 @@ public class Encoder {
     public func encode(_ text: String) async throws -> [Float] {
         return try await inner.encode(text: text)
     }
+
+    /// Encode multiple texts, preserving input order.
+    public func encodeBatch(_ texts: [String]) async throws -> [[Float]] {
+        return try await inner.encodeBatch(texts: texts)
+    }
 }

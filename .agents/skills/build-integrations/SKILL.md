@@ -1,12 +1,12 @@
 ---
 name: build-integrations
-description: Wire up a finished core Rust feature across all nobodywho language bindings, regenerate all generated files, and verify everything passes CI checks. Use when the user asks to build, propagate, or integrate a feature (e.g. TTS, STT, Encoder) across Python, Godot, Flutter, Swift, Kotlin, or React Native.
+description: Wire up a finished core Rust feature across all nobodywho language bindings, regenerate all generated files, and verify everything passes CI checks. Use when the user asks to build, propagate, or integrate a feature (e.g. TextToSpeech, SpeechToText, Encoder) across Python, Godot, Flutter, Swift, Kotlin, or React Native.
 compatibility: Designed for Claude Code. Requires cargo, nix, uv, and npx on PATH.
 ---
 
 Wire up a finished core Rust feature across all nobodywho language bindings, regenerate all generated files, and verify everything passes CI checks.
 
-The feature name is taken from the user's invocation message (e.g. "TTS", "STT"). It should match a module name in `nobodywho/core/src/`.
+The feature name is taken from the user's invocation message (e.g. "TextToSpeech", "SpeechToText"). It should match a module name in `nobodywho/core/src/`.
 
 ---
 
@@ -16,7 +16,7 @@ Run `ls nobodywho/core/src` to list available modules and identify the one match
 
 Then read `nobodywho/uniffi/src/lib.rs` to identify what is already bridged and what is missing.
 
-Find the closest existing analog that is fully integrated across bindings (e.g. `RustSTT` for a streaming API, `RustEncoder` for a simple sync API) — use it as the implementation template throughout.
+Find the closest existing analog that is fully integrated across bindings (e.g. `RustSpeechToText` for a streaming API, `RustEncoder` for a simple sync API) — use it as the implementation template throughout.
 
 ---
 
@@ -36,7 +36,7 @@ Work in this order. Each step compiles before moving to the next.
 
 ### 3a. UniFFI bridge → Kotlin / Swift / React Native
 
-Add a `Rust<Feature>` struct to `nobodywho/uniffi/src/lib.rs`. Mirror the pattern of `RustSTT` (around line 546): use `Arc<Self>`, `#[uniffi::export]`, wrap core errors with `map_err(|e| e.to_string())`.
+Add a `Rust<Feature>` struct to `nobodywho/uniffi/src/lib.rs`. Mirror the pattern of `RustSpeechToText` (around line 546): use `Arc<Self>`, `#[uniffi::export]`, wrap core errors with `map_err(|e| e.to_string())`.
 
 Then build and run codegen (from `nobodywho/` — the inner directory containing `Cargo.toml`):
 
@@ -65,7 +65,7 @@ npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
 
 ### 3b. React Native wrapper
 
-Add a TypeScript wrapper class in `react-native/src/<feature-lowercase>.ts` following the pattern of `react-native/src/stt.ts`. Export it from `react-native/src/wrapper.ts`.
+Add a TypeScript wrapper class in `react-native/src/<feature-lowercase>.ts` following the pattern of `react-native/src/speech_to_text.ts`. Export it from `react-native/src/wrapper.ts`.
 
 ### 3c. Godot
 
@@ -93,7 +93,7 @@ godot::task::spawn(async move {
 
 `tokio::sync::mpsc` and `tokio::sync::oneshot` channels are fine to *use* (create, send, await) inside `godot::task::spawn` — they are just data structures backed by standard Rust wakers.
 
-**Godot integration test lifecycle.** Every Godot inference node requires `start_worker()` followed by `await <node>.worker_started` before calling any inference method (`transcribe_file`, `ask`, etc.). Skipping this causes an "STT/worker not started" error at runtime. See `grammar_test.gd` and `hf_path_test.gd` for the canonical pattern:
+**Godot integration test lifecycle.** Every Godot inference node requires `start_worker()` followed by `await <node>.worker_started` before calling any inference method (`transcribe_file`, `ask`, etc.). Skipping this causes an "SpeechToText/worker not started" error at runtime. See `grammar_test.gd` and `hf_path_test.gd` for the canonical pattern:
 
 ```gdscript
 node.start_worker()

@@ -1,0 +1,90 @@
+import Foundation
+import NobodyWhoGenerated
+
+/// A stream of transcript tokens from a Whisper SpeechToText run.
+///
+/// ```swift
+/// let stream = try stt.transcribeFile(path: "recording.mp3")
+/// for try await token in stream {
+///     print(token, terminator: "")
+/// }
+/// // Or collect the full transcript:
+/// let text = try await stt.transcribeFile(path: "recording.mp3").completed()
+/// ```
+public struct SpeechToTextStream: AsyncSequence {
+    public typealias Element = String
+
+    let inner: RustSpeechToTextStream
+
+    init(_ inner: RustSpeechToTextStream) {
+        self.inner = inner
+    }
+
+    /// Get the next token. Returns nil when transcription is complete.
+    public func nextToken() async throws -> String? {
+        return try await inner.nextToken()
+    }
+
+    /// Wait for transcription to finish and return the full transcript.
+    public func completed() async throws -> String {
+        return try await inner.completed()
+    }
+
+    public func makeAsyncIterator() -> AsyncIterator {
+        return AsyncIterator(inner: inner)
+    }
+
+    public struct AsyncIterator: AsyncIteratorProtocol {
+        let inner: RustSpeechToTextStream
+
+        public mutating func next() async throws -> String? {
+            return try await inner.nextToken()
+        }
+    }
+}
+
+/// Speech-to-text using a Whisper ONNX model.
+///
+/// `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
+/// `"hf://onnx-community/whisper-base"`) or a local directory path. The model is
+/// downloaded and cached on first use.
+///
+/// ```swift
+/// let stt = try await SpeechToText.load(source: "hf://onnx-community/whisper-base")
+/// let text = try await stt.transcribeFile(path: "recording.mp3").completed()
+///
+/// // Stream tokens as they arrive:
+/// for try await token in stt.transcribeFile(path: "recording.mp3") {
+///     print(token, terminator: "")
+/// }
+/// ```
+public class SpeechToText {
+    private let inner: RustSpeechToText
+
+    private init(inner: RustSpeechToText) {
+        self.inner = inner
+    }
+
+    /// Load a Whisper SpeechToText model.
+    ///
+    /// - Parameters:
+    ///   - source: HuggingFace repo ID or local directory path.
+    ///   - language: ISO 639-1 language code (e.g. `"en"`). Pass `nil` to auto-detect.
+    ///   - quantization: ONNX precision variant to download and load: one of
+    ///     `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`.
+    ///     Pass `nil` to use `"default"`.
+    public static func load(source: String, language: String? = nil, quantization: String? = nil) async throws -> SpeechToText {
+        let inner = try await NobodyWhoGenerated.loadSpeechToText(source: source, language: language, quantization: quantization)
+        return SpeechToText(inner: inner)
+    }
+
+    /// Transcribe an audio file (WAV / MP3). Returns an `SpeechToTextStream`.
+    public func transcribeFile(path: String) throws -> SpeechToTextStream {
+        return SpeechToTextStream(try inner.transcribeFile(path: path))
+    }
+
+    /// Transcribe raw i16 PCM samples. Returns an `SpeechToTextStream`.
+    public func transcribePcm(samples: [Int16], sampleRate: UInt32) throws -> SpeechToTextStream {
+        return SpeechToTextStream(try inner.transcribePcm(samples: samples, sampleRate: sampleRate))
+    }
+}

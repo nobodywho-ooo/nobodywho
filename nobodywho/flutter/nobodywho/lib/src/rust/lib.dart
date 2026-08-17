@@ -8,8 +8,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_tts_config`, `dart_function_type_to_json_schema`, `parse_tts_backend`, `sample_step`, `shift_step`, `tts_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `dart_function_type_to_json_schema`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -133,6 +133,9 @@ abstract class CrossEncoderWorkerError implements RustOpaqueInterface {}
 abstract class Encoder implements RustOpaqueInterface {
   Future<Float32List> encode({required String text});
 
+  /// Encode multiple texts, preserving input order.
+  Future<List<Float32List>> encodeBatch({required List<String> texts});
+
   /// Load an embedding model from a local path, HuggingFace path, or HTTPS URL.
   ///
   /// Args:
@@ -173,23 +176,28 @@ abstract class Model implements RustOpaqueInterface {
         noopOnDownloadProgress,
     bool useGpu = true,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
   }) => NobodyWho.instance.api.crateModelLoad(
     modelPath: modelPath,
     onDownloadProgress: onDownloadProgress,
     useGpu: useGpu,
     projectionModelPath: projectionModelPath,
+    draftModelPath: draftModelPath,
   );
 
   /// Load a model from a local path, HuggingFace path (`huggingface:owner/repo/file.gguf`),
-  /// or HTTPS URL. Remote models are downloaded and cached automatically.
+  /// HTTPS URL, or `auto` for memory-based selection. Remote models are downloaded
+  /// and cached automatically.
   ///
   /// Args:
-  ///     model_path: Path or URL to a GGUF model file.
+  ///     model_path: Path, URL, or `auto`.
   ///     on_download_progress: Invoked with `(downloadedBytes, totalBytes)` while a
   ///         remote model is being downloaded. Throttled to ~10 Hz with a guaranteed
   ///         final emit on completion. Not invoked for cached/local files.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
   ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
+  ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
+  ///         chats built from this model opt into MTP speculative decoding.
   Future<int> maxCtx();
 }
 
@@ -221,11 +229,16 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
   ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+  ///         device's physical core count (performance cores only, on Apple silicon) —
+  ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+  ///         headroom for the rest of the app. Clamped to the CPU count.
   static Future<RustChat> fromPath({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
         noopOnDownloadProgress,
     String? projectionModelPath = null,
+    String? draftModelPath = null,
     String? systemPrompt = null,
     int contextSize = 4096,
     bool? allowThinking = null,
@@ -233,10 +246,13 @@ abstract class RustChat implements RustOpaqueInterface {
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
     bool useGpu = true,
+    MtpConfig? mtp = null,
+    int? threadCount = null,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
     onDownloadProgress: onDownloadProgress,
     projectionModelPath: projectionModelPath,
+    draftModelPath: draftModelPath,
     systemPrompt: systemPrompt,
     contextSize: contextSize,
     allowThinking: allowThinking,
@@ -244,6 +260,8 @@ abstract class RustChat implements RustOpaqueInterface {
     tools: tools,
     sampler: sampler,
     useGpu: useGpu,
+    mtp: mtp,
+    threadCount: threadCount,
   );
 
   Future<List<Message>> getChatHistory();
@@ -255,6 +273,11 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<String?> getSystemPrompt();
 
   Future<Map<String, bool>> getTemplateVariables();
+
+  /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+  /// Resets each generation (per-response, not cumulative). Null when MTP is
+  /// disabled or no drafts were proposed in the last generation.
+  Future<double?> mtpAcceptanceRate();
 
   /// Create chat from existing model.
   ///
@@ -270,6 +293,13 @@ abstract class RustChat implements RustOpaqueInterface {
   ///     context_size: Context size (maximum conversation length in tokens)
   ///     tools: List of Tool instances the model can call
   ///     sampler: SamplerConfig for token selection. Pass null to use default sampler.
+  ///     mtp: Optional MtpConfig to enable MTP speculative decoding. Requires the
+  ///         Model to have been loaded with a compatible `draft_model_path`. Adds
+  ///         around 5% to VRAM usage. Defaults to null (disabled).
+  ///     thread_count: CPU threads used for inference. Defaults to null, which detects the
+  ///         device's physical core count (performance cores only, on Apple silicon) —
+  ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
+  ///         headroom for the rest of the app. Clamped to the CPU count.
   factory RustChat({
     required Model model,
     String? systemPrompt = null,
@@ -278,6 +308,8 @@ abstract class RustChat implements RustOpaqueInterface {
     Map<String, bool> templateVariables = const {},
     List<RustTool> tools = const [],
     SamplerConfig? sampler = null,
+    MtpConfig? mtp = null,
+    int? threadCount = null,
   }) => NobodyWho.instance.api.crateRustChatNew(
     model: model,
     systemPrompt: systemPrompt,
@@ -286,6 +318,8 @@ abstract class RustChat implements RustOpaqueInterface {
     templateVariables: templateVariables,
     tools: tools,
     sampler: sampler,
+    mtp: mtp,
+    threadCount: threadCount,
   );
 
   Future<void> resetContext({
@@ -316,30 +350,37 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<List<int?>> tokenizeWithPrompt({required List<PromptPart> parts});
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTT>>
-abstract class RustStt implements RustOpaqueInterface {
-  /// Create an STT handle.
-  /// `source` — HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or local dir.
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSpeechToText>>
+abstract class RustSpeechToText implements RustOpaqueInterface {
+  /// Create an SpeechToText handle.
+  /// `source` — HuggingFace repo (`hf://owner/repo`, e.g. `"hf://onnx-community/whisper-base"`) or local dir.
   /// `language` — ISO 639-1 code (e.g. `"en"`); pass `None` for auto-detect.
-  static RustStt new_({required String source, String? language = null}) =>
-      NobodyWho.instance.api.crateRustSttNew(
-        source: source,
-        language: language,
-      );
+  /// `quantization` — ONNX precision variant to download and load: one of
+  /// `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`; pass `None`
+  /// to use `"default"`.
+  static Future<RustSpeechToText> load({
+    required String source,
+    String? language = null,
+    String? quantization = null,
+  }) => NobodyWho.instance.api.crateRustSpeechToTextLoad(
+    source: source,
+    language: language,
+    quantization: quantization,
+  );
 
-  /// Transcribe an audio file (WAV / MP3 / FLAC).
-  RustSttStream transcribeFile({required String path});
+  /// Transcribe an audio file (WAV / MP3).
+  RustSpeechToTextStream transcribeFile({required String path});
 
   /// Transcribe raw i16 PCM samples (e.g. from `mic_stream`).
   /// `sample_rate` is the capture rate in Hz; resampled to 16 kHz internally.
-  RustSttStream transcribePcm({
+  RustSpeechToTextStream transcribePcm({
     required List<int> samples,
     required int sampleRate,
   });
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSTTStream>>
-abstract class RustSttStream implements RustOpaqueInterface {
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSpeechToTextStream>>
+abstract class RustSpeechToTextStream implements RustOpaqueInterface {
   Future<String> completed();
 
   /// Stream all tokens into `sink`. Resolves when transcription is complete.
@@ -361,6 +402,47 @@ abstract class RustTokenStream implements RustOpaqueInterface {
 abstract class RustTool implements RustOpaqueInterface {
   /// Get the JSON schema for this tool's parameters as a string
   String getSchemaJson();
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustVoiceActivityDetection>>
+abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
+  /// Return the current turn's captured audio (from the confirmed
+  /// `SpeechStarted`, including a small pre-roll, through to `SpeechEnded`)
+  /// and reset internal state for the next turn. Empty if speech was never confirmed.
+  Int16List finish();
+
+  /// Create a voice activity detector.
+  /// `sample_rate` — rate of the audio you'll pass to `push`; anything other than 16kHz is resampled.
+  /// `source` — HuggingFace repo (`hf://owner/repo`) or local dir for the Silero VAD ONNX model;
+  /// pass `None` to use the default (`hf://onnx-community/silero-vad`).
+  static Future<RustVoiceActivityDetection> load({
+    required int sampleRate,
+    String? source = null,
+    double? threshold = null,
+    int? minSilenceDurationMs = null,
+    int? minSpeechDurationMs = null,
+    int? prerollDurationMs = null,
+  }) => NobodyWho.instance.api.crateRustVoiceActivityDetectionLoad(
+    sampleRate: sampleRate,
+    source: source,
+    threshold: threshold,
+    minSilenceDurationMs: minSilenceDurationMs,
+    minSpeechDurationMs: minSpeechDurationMs,
+    prerollDurationMs: prerollDurationMs,
+  );
+
+  /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
+  /// buffer — the detector tracks the current turn internally). Always
+  /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+  /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+  /// confirmed the transition.
+  VoiceActivityDetectionEvent push({required List<int> chunk});
+
+  /// Detect every speech segment in a complete audio buffer, returning
+  /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+  /// correctly finds every segment regardless of buffer size — use this
+  /// for offline/batch processing instead of live streaming.
+  List<Int16List> segment({required List<int> samples});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
@@ -576,6 +658,52 @@ abstract class SamplerPresets implements RustOpaqueInterface {
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
 abstract class SetterError implements RustOpaqueInterface {}
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TextToSpeech>>
+abstract class TextToSpeech implements RustOpaqueInterface {
+  /// Create a TextToSpeech synthesizer.
+  ///
+  /// Args:
+  ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+  ///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+  ///     voice: Voice name. Architecture default is used when omitted.
+  ///     language: Language code. Architecture default is used when omitted.
+  ///     speed: Speaking speed. Architecture default is used when omitted.
+  ///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
+  ///     silence_duration: Supertonic silence between chunks in seconds.
+  ///     precision: Pocket TTS precision: "int8" or "fp32".
+  ///     temperature: Pocket TTS generation temperature.
+  ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
+  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
+  static Future<TextToSpeech> load({
+    required String source,
+    String? architecture = null,
+    String? voice = null,
+    String? language = null,
+    double? speed = null,
+    int? steps = null,
+    double? silenceDuration = null,
+    String? precision = null,
+    double? temperature = null,
+    String? huggingfaceToken = null,
+    bool useGpu = true,
+  }) => NobodyWho.instance.api.crateTextToSpeechLoad(
+    source: source,
+    architecture: architecture,
+    voice: voice,
+    language: language,
+    speed: speed,
+    steps: steps,
+    silenceDuration: silenceDuration,
+    precision: precision,
+    temperature: temperature,
+    huggingfaceToken: huggingfaceToken,
+    useGpu: useGpu,
+  );
+
+  /// Synthesize text and return WAV bytes.
+  Future<Uint8List> synthesize({required String text});
+}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< TokenizeError>>
 abstract class TokenizeError implements RustOpaqueInterface {}
 
@@ -588,43 +716,6 @@ abstract class ToolCall implements RustOpaqueInterface {
   set arguments(Value arguments);
 
   set name(String name);
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Tts>>
-abstract class Tts implements RustOpaqueInterface {
-  /// Create a TTS synthesizer.
-  ///
-  /// Args:
-  ///     source: Local model directory or HuggingFace repo ID.
-  ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
-  ///     voice: Voice name. Backend default is used when omitted.
-  ///     language: Language code. Backend default is used when omitted.
-  ///     speed: Speaking speed. Backend default is used when omitted.
-  ///     steps: Supertonic denoising steps. Ignored by Kokoro.
-  ///     silence_duration: Supertonic silence between chunks in seconds.
-  ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
-  static Future<Tts> load({
-    required String source,
-    String? backend = null,
-    String? voice = null,
-    String? language = null,
-    double? speed = null,
-    int? steps = null,
-    double? silenceDuration = null,
-    bool useGpu = true,
-  }) => NobodyWho.instance.api.crateTtsLoad(
-    source: source,
-    backend: backend,
-    voice: voice,
-    language: language,
-    speed: speed,
-    steps: steps,
-    silenceDuration: silenceDuration,
-    useGpu: useGpu,
-  );
-
-  /// Synthesize text and return WAV bytes.
-  Future<Uint8List> synthesize({required String text});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Value>>
@@ -665,6 +756,30 @@ sealed class Message with _$Message {
       Message_Tool;
 }
 
+/// Tuning for MTP speculative decoding. Pass one as the `mtp` argument to a
+/// chat constructor to enable MTP; pass null to disable. Requires the model to
+/// have been loaded with a compatible `draft_model_path`.
+class MtpConfig {
+  /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+  final int kMax;
+
+  /// Minimum draft-token probability the drafter will propose (llama.cpp `p_min`).
+  final double pMin;
+
+  const MtpConfig({this.kMax = 3, this.pMin = 0.0});
+
+  @override
+  int get hashCode => kMax.hashCode ^ pMin.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MtpConfig &&
+          runtimeType == other.runtimeType &&
+          kMax == other.kMax &&
+          pMin == other.pMin;
+}
+
 @freezed
 sealed class PromptPart with _$PromptPart {
   const PromptPart._();
@@ -673,3 +788,8 @@ sealed class PromptPart with _$PromptPart {
   const factory PromptPart.image({required String path}) = PromptPart_Image;
   const factory PromptPart.audio({required String path}) = PromptPart_Audio;
 }
+
+/// `push` always returns one of these: `Speech`/`Silence` for the confirmed
+/// state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+/// on the call that confirmed the transition.
+enum VoiceActivityDetectionEvent { speech, speechStarted, speechEnded, silence }

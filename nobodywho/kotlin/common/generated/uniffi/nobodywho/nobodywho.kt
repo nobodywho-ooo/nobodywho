@@ -693,7 +693,11 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_load_model(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_func_load_tts(
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar(
     ): Short
@@ -733,6 +737,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(
@@ -759,15 +765,21 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_ruststtstream_completed(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_ruststtstream_next_token(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed(
     ): Short
@@ -779,9 +791,11 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async(
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
     ): Short
@@ -819,13 +833,15 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new(
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new(
+    external fun uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new(
     ): Short
@@ -859,7 +875,7 @@ internal object UniffiLib {
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,`threadCount`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -876,6 +892,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_stats(`ptr`: Long,
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_system_prompt(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_template_variables(`ptr`: Long,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(`ptr`: Long,`systemPrompt`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,
 ): Long
@@ -915,29 +933,41 @@ external fun uniffi_nobodywho_uniffi_fn_constructor_rustencoder_new(`model`: Lon
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode(`ptr`: Long,`text`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(`ptr`: Long,`texts`: RustBuffer.ByValue,
+): Long
 external fun uniffi_nobodywho_uniffi_fn_clone_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustmodel(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Int
-external fun uniffi_nobodywho_uniffi_fn_clone_ruststt(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_ruststt(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustspeechtotext_new(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(`ptr`: Long,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_file(`ptr`: Long,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(`ptr`: Long,`samples`: RustBuffer.ByValue,`sampleRate`: Int,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_pcm(`ptr`: Long,`samples`: RustBuffer.ByValue,`sampleRate`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_clone_ruststtstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rustspeechtotextstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_ruststtstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustspeechtotextstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(`ptr`: Long,
+external fun uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_completed(`ptr`: Long,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(`ptr`: Long,
+external fun uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_next_token(`ptr`: Long,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_clone_rusttexttospeech(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize_async(`ptr`: Long,`text`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_clone_rusttokenstream(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -961,16 +991,18 @@ external fun uniffi_nobodywho_uniffi_fn_method_rusttool_next_pending_call(`ptr`:
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rusttool_resolve_pending_call(`ptr`: Long,`callId`: RustBuffer.ByValue,`result`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_clone_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_free_rusttts(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(`source`: RustBuffer.ByValue,`backend`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(`ptr`: Long,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(`ptr`: Long,`text`: RustBuffer.ByValue,
-): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(`ptr`: Long,`chunk`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(`ptr`: Long,`samples`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_clone_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_samplerbuilder(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1023,9 +1055,13 @@ external fun uniffi_nobodywho_uniffi_fn_func_download_model(`modelPath`: RustBuf
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_get_cached_models(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
-external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_model(`modelPath`: RustBuffer.ByValue,`useGpu`: Byte,`projectionModelPath`: RustBuffer.ByValue,`draftModelPath`: RustBuffer.ByValue,`onDownloadProgress`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_func_load_tts(`source`: RustBuffer.ByValue,`backend`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+external fun uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(`source`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`quantization`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(`source`: RustBuffer.ByValue,`architecture`: RustBuffer.ByValue,`voice`: RustBuffer.ByValue,`language`: RustBuffer.ByValue,`speed`: RustBuffer.ByValue,`steps`: RustBuffer.ByValue,`silenceDuration`: RustBuffer.ByValue,`precision`: RustBuffer.ByValue,`temperature`: RustBuffer.ByValue,`huggingfaceToken`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(`source`: RustBuffer.ByValue,`sampleRate`: Int,`threshold`: RustBuffer.ByValue,`minSilenceDurationMs`: RustBuffer.ByValue,`minSpeechDurationMs`: RustBuffer.ByValue,`prerollDurationMs`: RustBuffer.ByValue,`device`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1177,10 +1213,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 33587.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_model() != 22964.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_tts() != 1569.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() != 45176.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() != 42331.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() != 13698.toShort()) {
@@ -1240,6 +1282,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() != 19616.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() != 727.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() != 47191.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1279,19 +1324,28 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() != 52601.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() != 20675.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() != 47529.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file() != 59975.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() != 61166.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm() != 9293.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststtstream_completed() != 22443.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed() != 15944.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_ruststtstream_next_token() != 38526.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token() != 8103.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize() != 61700.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async() != 14494.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() != 26060.toShort()) {
@@ -1309,10 +1363,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() != 10096.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize() != 56024.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() != 1447.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async() != 54670.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() != 58012.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
@@ -1360,7 +1417,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 24505.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 2313.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -1369,7 +1426,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() != 27902.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() != 16224.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() != 9249.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() != 55766.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() != 9431.toShort()) {
@@ -1378,7 +1438,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() != 54521.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() != 12955.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() != 47351.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() != 50214.toShort()) {
@@ -1981,6 +2041,13 @@ public interface RustChatInterface {
     suspend fun `getTemplateVariables`(): Map<kotlin.String, kotlin.Boolean>
     
     /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    suspend fun `mtpAcceptanceRate`(): kotlin.Float?
+    
+    /**
      * Reset the chat context with a new system prompt and tools.
      */
     suspend fun `resetContext`(`systemPrompt`: kotlin.String?, `tools`: List<RustTool>?)
@@ -2060,13 +2127,23 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     }
     /**
      * Create a new chat session.
+     *
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
+     *
+     * `thread_count` is the number of CPU threads used for inference; `null`
+     * detects the device's physical core count (performance cores only, on
+     * Apple silicon), since hyperthreads and efficiency cores make inference
+     * slower. Clamped to the CPU count.
      */
-    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?) :
+    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?, `threadCount`: kotlin.UInt?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),_status)
+        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),FfiConverterOptionalUInt.lower(`threadCount`),_status)
 }
     )
 
@@ -2311,6 +2388,32 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterMapStringBoolean.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `mtpAcceptanceRate`() : kotlin.Float? {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                uniffiHandle,
+                
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterOptionalFloat.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -3006,6 +3109,11 @@ public interface RustEncoderInterface {
      */
     suspend fun `encode`(`text`: kotlin.String): List<kotlin.Float>
     
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    suspend fun `encodeBatch`(`texts`: List<kotlin.String>): List<List<kotlin.Float>>
+    
     companion object
 }
 
@@ -3135,6 +3243,30 @@ open class RustEncoder: Disposable, AutoCloseable, RustEncoderInterface
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
         // lift function
         { FfiConverterSequenceFloat.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `encodeBatch`(`texts`: List<kotlin.String>) : List<List<kotlin.Float>> {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                uniffiHandle,
+                FfiConverterSequenceString.lower(`texts`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceSequenceFloat.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )
@@ -3527,31 +3659,31 @@ public object FfiConverterTypeRustModel: FfiConverter<RustModel, Long> {
 
 //
 /**
- * Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
- * Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+ * Speech-to-text handle. Wraps `nobodywho::speech_to_text::SpeechToText`.
+ * Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
  */
-public interface RustSttInterface {
+public interface RustSpeechToTextInterface {
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
-     * Returns a `RustSTTStream` to consume tokens as they are generated.
+     * Start transcribing an audio file (WAV / MP3).
+     * Returns a `RustSpeechToTextStream` to consume tokens as they are generated.
      */
-    fun `transcribeFile`(`path`: kotlin.String): RustSttStream
+    fun `transcribeFile`(`path`: kotlin.String): RustSpeechToTextStream
     
     /**
      * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
      * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
      */
-    fun `transcribePcm`(`samples`: List<kotlin.Short>, `sampleRate`: kotlin.UInt): RustSttStream
+    fun `transcribePcm`(`samples`: List<kotlin.Short>, `sampleRate`: kotlin.UInt): RustSpeechToTextStream
     
     companion object
 }
 
 /**
- * Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
- * Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+ * Speech-to-text handle. Wraps `nobodywho::speech_to_text::SpeechToText`.
+ * Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
  */
-open class RustStt: Disposable, AutoCloseable, RustSttInterface
+open class RustSpeechToText: Disposable, AutoCloseable, RustSpeechToTextInterface
 {
 
     @Suppress("UNUSED_PARAMETER")
@@ -3576,16 +3708,19 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
     /**
-     * Create an STT handle. `source` is a HuggingFace repo ID
-     * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+     * Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+     * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+     * `quantization` selects the ONNX precision variant to download and load:
+     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+     * pass `None` to use `"default"`.
      */
-    constructor(`source`: kotlin.String, `language`: kotlin.String?) :
+    constructor(`source`: kotlin.String, `language`: kotlin.String?, `quantization`: kotlin.String?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustspeechtotext_new(
     
-        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`language`),_status)
+        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalString.lower(`quantization`),_status)
 }
     )
 
@@ -3643,7 +3778,7 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
                 return;
             }
             uniffiRustCall { status ->
-                UniffiLib.uniffi_nobodywho_uniffi_fn_free_ruststt(handle, status)
+                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(handle, status)
             }
         }
     }
@@ -3656,20 +3791,20 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
             throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
         return uniffiRustCall() { status ->
-            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_ruststt(handle, status)
+            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(handle, status)
         }
     }
 
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
-     * Returns a `RustSTTStream` to consume tokens as they are generated.
+     * Start transcribing an audio file (WAV / MP3).
+     * Returns a `RustSpeechToTextStream` to consume tokens as they are generated.
      */
-    @Throws(NobodyWhoException::class)override fun `transcribeFile`(`path`: kotlin.String): RustSttStream {
-            return FfiConverterTypeRustSTTStream.lift(
+    @Throws(NobodyWhoException::class)override fun `transcribeFile`(`path`: kotlin.String): RustSpeechToTextStream {
+            return FfiConverterTypeRustSpeechToTextStream.lift(
     callWithHandle {
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_file(
         it,
         FfiConverterString.lower(`path`),_status)
 }
@@ -3683,11 +3818,11 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
      * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
      * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
      */
-    @Throws(NobodyWhoException::class)override fun `transcribePcm`(`samples`: List<kotlin.Short>, `sampleRate`: kotlin.UInt): RustSttStream {
-            return FfiConverterTypeRustSTTStream.lift(
+    @Throws(NobodyWhoException::class)override fun `transcribePcm`(`samples`: List<kotlin.Short>, `sampleRate`: kotlin.UInt): RustSpeechToTextStream {
+            return FfiConverterTypeRustSpeechToTextStream.lift(
     callWithHandle {
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_pcm(
         it,
         FfiConverterSequenceShort.lower(`samples`),FfiConverterUInt.lower(`sampleRate`),_status)
 }
@@ -3714,22 +3849,22 @@ open class RustStt: Disposable, AutoCloseable, RustSttInterface
 /**
  * @suppress
  */
-public object FfiConverterTypeRustSTT: FfiConverter<RustStt, Long> {
-    override fun lower(value: RustStt): Long {
+public object FfiConverterTypeRustSpeechToText: FfiConverter<RustSpeechToText, Long> {
+    override fun lower(value: RustSpeechToText): Long {
         return value.uniffiCloneHandle()
     }
 
-    override fun lift(value: Long): RustStt {
-        return RustStt(UniffiWithHandle, value)
+    override fun lift(value: Long): RustSpeechToText {
+        return RustSpeechToText(UniffiWithHandle, value)
     }
 
-    override fun read(buf: ByteBuffer): RustStt {
+    override fun read(buf: ByteBuffer): RustSpeechToText {
         return lift(buf.getLong())
     }
 
-    override fun allocationSize(value: RustStt) = 8UL
+    override fun allocationSize(value: RustSpeechToText) = 8UL
 
-    override fun write(value: RustStt, buf: ByteBuffer) {
+    override fun write(value: RustSpeechToText, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
@@ -3832,9 +3967,9 @@ public object FfiConverterTypeRustSTT: FfiConverter<RustStt, Long> {
 
 //
 /**
- * A stream of transcript tokens from a Whisper STT run.
+ * A stream of transcript tokens from a Whisper SpeechToText run.
  */
-public interface RustSttStreamInterface {
+public interface RustSpeechToTextStreamInterface {
     
     /**
      * Wait for transcription to finish and return the full transcript.
@@ -3850,9 +3985,9 @@ public interface RustSttStreamInterface {
 }
 
 /**
- * A stream of transcript tokens from a Whisper STT run.
+ * A stream of transcript tokens from a Whisper SpeechToText run.
  */
-open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
+open class RustSpeechToTextStream: Disposable, AutoCloseable, RustSpeechToTextStreamInterface
 {
 
     @Suppress("UNUSED_PARAMETER")
@@ -3931,7 +4066,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
                 return;
             }
             uniffiRustCall { status ->
-                UniffiLib.uniffi_nobodywho_uniffi_fn_free_ruststtstream(handle, status)
+                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rustspeechtotextstream(handle, status)
             }
         }
     }
@@ -3944,7 +4079,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
             throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
         return uniffiRustCall() { status ->
-            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_ruststtstream(handle, status)
+            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rustspeechtotextstream(handle, status)
         }
     }
 
@@ -3957,7 +4092,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
     override suspend fun `completed`() : kotlin.String {
         return uniffiRustCallAsync(
         callWithHandle { uniffiHandle ->
-            UniffiLib.uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_completed(
                 uniffiHandle,
                 
             )
@@ -3981,7 +4116,7 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
     override suspend fun `nextToken`() : kotlin.String? {
         return uniffiRustCallAsync(
         callWithHandle { uniffiHandle ->
-            UniffiLib.uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_next_token(
                 uniffiHandle,
                 
             )
@@ -4014,22 +4149,320 @@ open class RustSttStream: Disposable, AutoCloseable, RustSttStreamInterface
 /**
  * @suppress
  */
-public object FfiConverterTypeRustSTTStream: FfiConverter<RustSttStream, Long> {
-    override fun lower(value: RustSttStream): Long {
+public object FfiConverterTypeRustSpeechToTextStream: FfiConverter<RustSpeechToTextStream, Long> {
+    override fun lower(value: RustSpeechToTextStream): Long {
         return value.uniffiCloneHandle()
     }
 
-    override fun lift(value: Long): RustSttStream {
-        return RustSttStream(UniffiWithHandle, value)
+    override fun lift(value: Long): RustSpeechToTextStream {
+        return RustSpeechToTextStream(UniffiWithHandle, value)
     }
 
-    override fun read(buf: ByteBuffer): RustSttStream {
+    override fun read(buf: ByteBuffer): RustSpeechToTextStream {
         return lift(buf.getLong())
     }
 
-    override fun allocationSize(value: RustSttStream) = 8UL
+    override fun allocationSize(value: RustSpeechToTextStream) = 8UL
 
-    override fun write(value: RustSttStream, buf: ByteBuffer) {
+    override fun write(value: RustSpeechToTextStream, buf: ByteBuffer) {
+        buf.putLong(lower(value))
+    }
+}
+
+
+// This template implements a class for working with a Rust struct via a handle
+// to the live Rust struct on the other side of the FFI.
+//
+// There's some subtlety here, because we have to be careful not to operate on a Rust
+// struct after it has been dropped, and because we must expose a public API for freeing
+// theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
+//
+//   * Each instance holds an opaque handle to the underlying Rust struct.
+//     Method calls need to read this handle from the object's state and pass it in to
+//     the Rust FFI.
+//
+//   * When an instance is no longer needed, its handle should be passed to a
+//     special destructor function provided by the Rust FFI, which will drop the
+//     underlying Rust struct.
+//
+//   * Given an instance, calling code is expected to call the special
+//     `destroy` method in order to free it after use, either by calling it explicitly
+//     or by using a higher-level helper like the `use` method. Failing to do so risks
+//     leaking the underlying Rust struct.
+//
+//   * We can't assume that calling code will do the right thing, and must be prepared
+//     to handle Kotlin method calls executing concurrently with or even after a call to
+//     `destroy`, and to handle multiple (possibly concurrent!) calls to `destroy`.
+//
+//   * We must never allow Rust code to operate on the underlying Rust struct after
+//     the destructor has been called, and must never call the destructor more than once.
+//     Doing so may trigger memory unsafety.
+//
+//   * To mitigate many of the risks of leaking memory and use-after-free unsafety, a `Cleaner`
+//     is implemented to call the destructor when the Kotlin object becomes unreachable.
+//     This is done in a background thread. This is not a panacea, and client code should be aware that
+//      1. the thread may starve if some there are objects that have poorly performing
+//     `drop` methods or do significant work in their `drop` methods.
+//      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
+//         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
+//
+// If we try to implement this with mutual exclusion on access to the handle, there is the
+// possibility of a race between a method call and a concurrent call to `destroy`:
+//
+//    * Thread A starts a method call, reads the value of the handle, but is interrupted
+//      before it can pass the handle over the FFI to Rust.
+//    * Thread B calls `destroy` and frees the underlying Rust struct.
+//    * Thread A resumes, passing the already-read handle value to Rust and triggering
+//      a use-after-free.
+//
+// One possible solution would be to use a `ReadWriteLock`, with each method call taking
+// a read lock (and thus allowed to run concurrently) and the special `destroy` method
+// taking a write lock (and thus blocking on live method calls). However, we aim not to
+// generate methods with any hidden blocking semantics, and a `destroy` method that might
+// block if called incorrectly seems to meet that bar.
+//
+// So, we achieve our goals by giving each instance an associated `AtomicLong` counter to track
+// the number of in-flight method calls, and an `AtomicBoolean` flag to indicate whether `destroy`
+// has been called. These are updated according to the following rules:
+//
+//    * The initial value of the counter is 1, indicating a live object with no in-flight calls.
+//      The initial value for the flag is false.
+//
+//    * At the start of each method call, we atomically check the counter.
+//      If it is 0 then the underlying Rust struct has already been destroyed and the call is aborted.
+//      If it is nonzero them we atomically increment it by 1 and proceed with the method call.
+//
+//    * At the end of each method call, we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+//    * When `destroy` is called, we atomically flip the flag from false to true.
+//      If the flag was already true we silently fail.
+//      Otherwise we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+// Astute readers may observe that this all sounds very similar to the way that Rust's `Arc<T>` works,
+// and indeed it is, with the addition of a flag to guard against multiple calls to `destroy`.
+//
+// The overall effect is that the underlying Rust struct is destroyed only when `destroy` has been
+// called *and* all in-flight method calls have completed, avoiding violating any of the expectations
+// of the underlying Rust code.
+//
+// This makes a cleaner a better alternative to _not_ calling `destroy()` as
+// and when the object is finished with, but the abstraction is not perfect: if the Rust object's `drop`
+// method is slow, and/or there are many objects to cleanup, and it's on a low end Android device, then the cleaner
+// thread may be starved, and the app will leak memory.
+//
+// In this case, `destroy`ing manually may be a better solution.
+//
+// The cleaner can live side by side with the manual calling of `destroy`. In the order of responsiveness, uniffi objects
+// with Rust peers are reclaimed:
+//
+// 1. By calling the `destroy` method of the object, which calls `rustObject.free()`. If that doesn't happen:
+// 2. When the object becomes unreachable, AND the Cleaner thread gets to call `rustObject.free()`. If the thread is starved then:
+// 3. The memory is reclaimed when the process terminates.
+//
+// [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
+//
+
+
+//
+public interface RustTextToSpeechInterface {
+    
+    /**
+     * Synthesize text and return WAV bytes.
+     */
+    fun `synthesize`(`text`: kotlin.String): kotlin.ByteArray
+    
+    /**
+     * Synthesize text asynchronously and return WAV bytes.
+     */
+    suspend fun `synthesizeAsync`(`text`: kotlin.String): kotlin.ByteArray
+    
+    companion object
+}
+
+open class RustTextToSpeech: Disposable, AutoCloseable, RustTextToSpeechInterface
+{
+
+    @Suppress("UNUSED_PARAMETER")
+    /**
+     * @suppress
+     */
+    constructor(withHandle: UniffiWithHandle, handle: Long) {
+        this.handle = handle
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+    }
+
+    /**
+     * @suppress
+     *
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    constructor(noHandle: NoHandle) {
+        this.handle = 0
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
+    }
+    /**
+     * Create a TextToSpeech synthesizer.
+     */
+    constructor(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) :
+        this(UniffiWithHandle, 
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
+    
+        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),_status)
+}
+    )
+
+    protected val handle: Long
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed = AtomicBoolean(false)
+    private val callCounter = AtomicLong(1)
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        // TODO: maybe we should log a warning if called more than once?
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    @Synchronized
+    override fun close() {
+        this.destroy()
+    }
+
+    internal inline fun <R> callWithHandle(block: (handle: Long) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.get()
+            if (c == 0L) {
+                throw IllegalStateException("${this.javaClass.simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the handle being freed concurrently.
+        try {
+            return block(this.uniffiCloneHandle())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiCleanAction(private val handle: Long) : Runnable {
+        override fun run() {
+            if (handle == 0.toLong()) {
+                // Fake object created with `NoHandle`, don't try to free.
+                return;
+            }
+            uniffiRustCall { status ->
+                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(handle, status)
+            }
+        }
+    }
+
+    /**
+     * @suppress
+     */
+    fun uniffiCloneHandle(): Long {
+        if (handle == 0.toLong()) {
+            throw InternalException("uniffiCloneHandle() called on NoHandle object");
+        }
+        return uniffiRustCall() { status ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rusttexttospeech(handle, status)
+        }
+    }
+
+    
+    /**
+     * Synthesize text and return WAV bytes.
+     */
+    @Throws(NobodyWhoException::class)override fun `synthesize`(`text`: kotlin.String): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize(
+        it,
+        FfiConverterString.lower(`text`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Synthesize text asynchronously and return WAV bytes.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `synthesizeAsync`(`text`: kotlin.String) : kotlin.ByteArray {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize_async(
+                uniffiHandle,
+                FfiConverterString.lower(`text`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterByteArray.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+
+    
+
+
+    
+    
+    /**
+     * @suppress
+     */
+    companion object
+    
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRustTextToSpeech: FfiConverter<RustTextToSpeech, Long> {
+    override fun lower(value: RustTextToSpeech): Long {
+        return value.uniffiCloneHandle()
+    }
+
+    override fun lift(value: Long): RustTextToSpeech {
+        return RustTextToSpeech(UniffiWithHandle, value)
+    }
+
+    override fun read(buf: ByteBuffer): RustTextToSpeech {
+        return lift(buf.getLong())
+    }
+
+    override fun allocationSize(value: RustTextToSpeech) = 8UL
+
+    override fun write(value: RustTextToSpeech, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
@@ -4757,22 +5190,47 @@ public object FfiConverterTypeRustTool: FfiConverter<RustTool, Long> {
 
 
 //
-public interface RustTtsInterface {
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+public interface RustVoiceActivityDetectionInterface {
     
     /**
-     * Synthesize text and return WAV bytes.
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
      */
-    fun `synthesize`(`text`: kotlin.String): kotlin.ByteArray
+    fun `finish`(): List<kotlin.Short>
     
     /**
-     * Synthesize text asynchronously and return WAV bytes.
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
-    suspend fun `synthesizeAsync`(`text`: kotlin.String): kotlin.ByteArray
+    fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent
+    
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+    fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>>
     
     companion object
 }
 
-open class RustTts: Disposable, AutoCloseable, RustTtsInterface
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+open class RustVoiceActivityDetection: Disposable, AutoCloseable, RustVoiceActivityDetectionInterface
 {
 
     @Suppress("UNUSED_PARAMETER")
@@ -4797,14 +5255,22 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
         this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(handle))
     }
     /**
-     * Create a TTS synthesizer.
+     * Create a voice activity detector.
+     *
+     * `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
+     * for the Silero VAD ONNX model; `None` uses the default
+     * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+     * audio you'll pass to `push` — Silero runs at 16kHz internally,
+     * anything else is resampled. `threshold`, `min_silence_duration_ms`,
+     * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+     * core `VoiceActivityDetectionConfig` defaults when omitted.
      */
-    constructor(`source`: kotlin.String, `backend`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) :
+    constructor(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `prerollDurationMs`: kotlin.UInt?, `device`: kotlin.String?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
+    UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
     
-        FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`backend`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),_status)
+        FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalUInt.lower(`prerollDurationMs`),FfiConverterOptionalString.lower(`device`),_status)
 }
     )
 
@@ -4862,7 +5328,7 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
                 return;
             }
             uniffiRustCall { status ->
-                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rusttts(handle, status)
+                UniffiLib.uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(handle, status)
             }
         }
     }
@@ -4875,21 +5341,23 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
             throw InternalException("uniffiCloneHandle() called on NoHandle object");
         }
         return uniffiRustCall() { status ->
-            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rusttts(handle, status)
+            UniffiLib.uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(handle, status)
         }
     }
 
     
     /**
-     * Synthesize text and return WAV bytes.
-     */
-    @Throws(NobodyWhoException::class)override fun `synthesize`(`text`: kotlin.String): kotlin.ByteArray {
-            return FfiConverterByteArray.lift(
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
+     */override fun `finish`(): List<kotlin.Short> {
+            return FfiConverterSequenceShort.lift(
     callWithHandle {
-    uniffiRustCallWithError(NobodyWhoException) { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(
         it,
-        FfiConverterString.lower(`text`),_status)
+        _status)
 }
     }
     )
@@ -4898,27 +5366,44 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
 
     
     /**
-     * Synthesize text asynchronously and return WAV bytes.
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
-    @Throws(NobodyWhoException::class)
-    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-    override suspend fun `synthesizeAsync`(`text`: kotlin.String) : kotlin.ByteArray {
-        return uniffiRustCallAsync(
-        callWithHandle { uniffiHandle ->
-            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(
-                uniffiHandle,
-                FfiConverterString.lower(`text`),
-            )
-        },
-        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
-        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_rust_buffer(future, continuation) },
-        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_rust_buffer(future) },
-        // lift function
-        { FfiConverterByteArray.lift(it) },
-        // Error FFI converter
-        NobodyWhoException.ErrorHandler,
+    @Throws(NobodyWhoException::class)override fun `push`(`chunk`: List<kotlin.Short>): VoiceActivityDetectionEvent {
+            return FfiConverterTypeVoiceActivityDetectionEvent.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(
+        it,
+        FfiConverterSequenceShort.lower(`chunk`),_status)
+}
+    }
     )
     }
+    
+
+    
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+    @Throws(NobodyWhoException::class)override fun `segment`(`samples`: List<kotlin.Short>): List<List<kotlin.Short>> {
+            return FfiConverterSequenceSequenceShort.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(
+        it,
+        FfiConverterSequenceShort.lower(`samples`),_status)
+}
+    }
+    )
+    }
+    
 
     
 
@@ -4938,22 +5423,22 @@ open class RustTts: Disposable, AutoCloseable, RustTtsInterface
 /**
  * @suppress
  */
-public object FfiConverterTypeRustTts: FfiConverter<RustTts, Long> {
-    override fun lower(value: RustTts): Long {
+public object FfiConverterTypeRustVoiceActivityDetection: FfiConverter<RustVoiceActivityDetection, Long> {
+    override fun lower(value: RustVoiceActivityDetection): Long {
         return value.uniffiCloneHandle()
     }
 
-    override fun lift(value: Long): RustTts {
-        return RustTts(UniffiWithHandle, value)
+    override fun lift(value: Long): RustVoiceActivityDetection {
+        return RustVoiceActivityDetection(UniffiWithHandle, value)
     }
 
-    override fun read(buf: ByteBuffer): RustTts {
+    override fun read(buf: ByteBuffer): RustVoiceActivityDetection {
         return lift(buf.getLong())
     }
 
-    override fun allocationSize(value: RustTts) = 8UL
+    override fun allocationSize(value: RustVoiceActivityDetection) = 8UL
 
-    override fun write(value: RustTts, buf: ByteBuffer) {
+    override fun write(value: RustVoiceActivityDetection, buf: ByteBuffer) {
         buf.putLong(lower(value))
     }
 }
@@ -5886,6 +6371,56 @@ public object FfiConverterTypeChatStats: FfiConverterRustBuffer<ChatStats> {
 
 
 /**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+data class MtpConfig (
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    var `kMax`: kotlin.UInt = 3u 
+    , 
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    var `pMin`: kotlin.Float = 0.0f 
+    
+){
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeMtpConfig: FfiConverterRustBuffer<MtpConfig> {
+    override fun read(buf: ByteBuffer): MtpConfig {
+        return MtpConfig(
+            FfiConverterUInt.read(buf),
+            FfiConverterFloat.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: MtpConfig) = (
+            FfiConverterUInt.allocationSize(value.`kMax`) +
+            FfiConverterFloat.allocationSize(value.`pMin`)
+    )
+
+    override fun write(value: MtpConfig, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`kMax`, buf)
+            FfiConverterFloat.write(value.`pMin`, buf)
+    }
+}
+
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 data class PendingToolCall (
@@ -6284,6 +6819,43 @@ public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
 
 
 
+/**
+ * `push` always returns one of these: `Speech`/`Silence` for the confirmed
+ * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+ * on the call that confirmed the transition.
+ */
+
+enum class VoiceActivityDetectionEvent {
+    
+    SPEECH,
+    SPEECH_STARTED,
+    SPEECH_ENDED,
+    SILENCE;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeVoiceActivityDetectionEvent: FfiConverterRustBuffer<VoiceActivityDetectionEvent> {
+    override fun read(buf: ByteBuffer) = try {
+        VoiceActivityDetectionEvent.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: VoiceActivityDetectionEvent) = 4UL
+
+    override fun write(value: VoiceActivityDetectionEvent, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
 
 
 /**
@@ -6571,6 +7143,38 @@ public object FfiConverterOptionalTypeSamplerConfig: FfiConverterRustBuffer<Samp
         } else {
             buf.put(1)
             FfiConverterTypeSamplerConfig.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeMtpConfig: FfiConverterRustBuffer<MtpConfig?> {
+    override fun read(buf: ByteBuffer): MtpConfig? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeMtpConfig.read(buf)
+    }
+
+    override fun allocationSize(value: MtpConfig?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeMtpConfig.allocationSize(value)
+        }
+    }
+
+    override fun write(value: MtpConfig?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeMtpConfig.write(value, buf)
         }
     }
 }
@@ -7081,6 +7685,62 @@ public object FfiConverterSequenceOptionalInt: FfiConverterRustBuffer<List<kotli
 /**
  * @suppress
  */
+public object FfiConverterSequenceSequenceShort: FfiConverterRustBuffer<List<List<kotlin.Short>>> {
+    override fun read(buf: ByteBuffer): List<List<kotlin.Short>> {
+        val len = buf.getInt()
+        return List<List<kotlin.Short>>(len) {
+            FfiConverterSequenceShort.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<List<kotlin.Short>>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterSequenceShort.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<List<kotlin.Short>>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterSequenceShort.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer<List<List<kotlin.Float>>> {
+    override fun read(buf: ByteBuffer): List<List<kotlin.Float>> {
+        val len = buf.getInt()
+        return List<List<kotlin.Float>>(len) {
+            FfiConverterSequenceFloat.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<List<kotlin.Float>>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterSequenceFloat.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<List<kotlin.Float>>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterSequenceFloat.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterMapStringBoolean: FfiConverterRustBuffer<Map<kotlin.String, kotlin.Boolean>> {
     override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.Boolean> {
         val len = buf.getInt()
@@ -7211,8 +7871,16 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
         /**
          * Load a GGUF model from a local path or remote URL.
          *
-         * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
-         * or `https://` URLs. Downloaded models are cached automatically.
+         * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
+         * or `auto` for memory-based selection. Downloaded models are cached automatically.
+         *
+         * # MTP speculative decoding
+         *
+         * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+         * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+         * speculative decoding on chats built from this model. Whether MTP is
+         * actually used is a per-chat decision — pass it through
+         * `Chat`-level config on the wrapping binding.
          *
          * This is a free function instead of an async constructor because
          * uniffi-bindgen-react-native generates invalid JS (`async static` instead
@@ -7220,9 +7888,9 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
+     suspend fun `loadModel`(`modelPath`: kotlin.String, `useGpu`: kotlin.Boolean, `projectionModelPath`: kotlin.String?, `draftModelPath`: kotlin.String?, `onDownloadProgress`: RustDownloadProgressCallback?) : RustModel {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(`modelPath`),FfiConverterBoolean.lower(`useGpu`),FfiConverterOptionalString.lower(`projectionModelPath`),FfiConverterOptionalString.lower(`draftModelPath`),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(`onDownloadProgress`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
@@ -7234,18 +7902,66 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
     }
 
         /**
-         * Create a TTS synthesizer.
+         * Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+         * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+         * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+         * `quantization` selects the ONNX precision variant to download and load:
+         * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+         * pass `None` to use `"default"`.
          */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `loadTts`(`source`: kotlin.String, `backend`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `device`: kotlin.String?) : RustTts {
+     suspend fun `loadSpeechToText`(`source`: kotlin.String, `language`: kotlin.String?, `quantization`: kotlin.String?) : RustSpeechToText {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`backend`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`device`),),
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalString.lower(`quantization`),),
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
         { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
         // lift function
-        { FfiConverterTypeRustTts.lift(it) },
+        { FfiConverterTypeRustSpeechToText.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Create a TextToSpeech synthesizer.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `loadTextToSpeech`(`source`: kotlin.String, `architecture`: kotlin.String?, `voice`: kotlin.String?, `language`: kotlin.String?, `speed`: kotlin.Float?, `steps`: kotlin.UInt?, `silenceDuration`: kotlin.Float?, `precision`: kotlin.String?, `temperature`: kotlin.Float?, `huggingfaceToken`: kotlin.String?, `device`: kotlin.String?) : RustTextToSpeech {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(FfiConverterString.lower(`source`),FfiConverterOptionalString.lower(`architecture`),FfiConverterOptionalString.lower(`voice`),FfiConverterOptionalString.lower(`language`),FfiConverterOptionalFloat.lower(`speed`),FfiConverterOptionalUInt.lower(`steps`),FfiConverterOptionalFloat.lower(`silenceDuration`),FfiConverterOptionalString.lower(`precision`),FfiConverterOptionalFloat.lower(`temperature`),FfiConverterOptionalString.lower(`huggingfaceToken`),FfiConverterOptionalString.lower(`device`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustTextToSpeech.lift(it) },
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Create a voice activity detector. `source` is a HuggingFace repo
+         * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+         * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+         * is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+         * internally, anything else is resampled. `threshold`,
+         * `min_silence_duration_ms`, `min_speech_duration_ms`, and
+         * `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+         * defaults when omitted.
+         */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `loadVoiceActivityDetection`(`source`: kotlin.String?, `sampleRate`: kotlin.UInt, `threshold`: kotlin.Float?, `minSilenceDurationMs`: kotlin.UInt?, `minSpeechDurationMs`: kotlin.UInt?, `prerollDurationMs`: kotlin.UInt?, `device`: kotlin.String?) : RustVoiceActivityDetection {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(FfiConverterOptionalString.lower(`source`),FfiConverterUInt.lower(`sampleRate`),FfiConverterOptionalFloat.lower(`threshold`),FfiConverterOptionalUInt.lower(`minSilenceDurationMs`),FfiConverterOptionalUInt.lower(`minSpeechDurationMs`),FfiConverterOptionalUInt.lower(`prerollDurationMs`),FfiConverterOptionalString.lower(`device`),),
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_u64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_u64(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_u64(future) },
+        // lift function
+        { FfiConverterTypeRustVoiceActivityDetection.lift(it) },
         // Error FFI converter
         NobodyWhoException.ErrorHandler,
     )

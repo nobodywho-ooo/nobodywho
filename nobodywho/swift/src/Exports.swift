@@ -8,6 +8,7 @@
 @_exported import enum NobodyWhoGenerated.Message
 @_exported import enum NobodyWhoGenerated.PromptPart
 @_exported import enum NobodyWhoGenerated.NobodyWhoError
+@_exported import enum NobodyWhoGenerated.VoiceActivityDetectionEvent
 @_exported import struct NobodyWhoGenerated.Asset
 @_exported import struct NobodyWhoGenerated.ToolCall
 @_exported import class NobodyWhoGenerated.SamplerConfig

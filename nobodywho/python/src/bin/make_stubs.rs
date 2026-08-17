@@ -48,6 +48,29 @@ const GENERIC_TYPE_REPLACEMENTS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Remove `name` from the `from typing import ...` line, regardless of what
+/// other names appear alongside it. Whether `name` is still genuinely used
+/// elsewhere in the file is caught separately by the `has_any` check in
+/// `main`, which aborts generation before writing if so.
+fn strip_unused_typing_import(contents: String, name: &str) -> String {
+    let Some(line) = contents
+        .lines()
+        .find(|l| l.starts_with("from typing import "))
+    else {
+        return contents;
+    };
+    let names: Vec<&str> = line
+        .trim_start_matches("from typing import ")
+        .split(", ")
+        .collect();
+    if !names.contains(&name) {
+        return contents;
+    }
+    let remaining: Vec<&str> = names.into_iter().filter(|n| *n != name).collect();
+    let new_line = format!("from typing import {}", remaining.join(", "));
+    contents.replacen(line, &new_line, 1)
+}
+
 fn replace_exceptions(mut contents: String) -> String {
     // Normalize union type formatting before replacements: `str |None` -> `str | None`
     contents = contents.replace(" |None", " | None");
@@ -55,9 +78,11 @@ fn replace_exceptions(mut contents: String) -> String {
     for (pattern, replacement) in EXCEPTIONS_TO_REPLACE {
         contents = contents.replace(pattern, replacement);
     }
-    // Clean up Any from the typing import line if no longer used
-    contents = contents.replace("from typing import Any, final", "from typing import final");
-    contents = contents.replace("from typing import final, Any", "from typing import final");
+    // Clean up Any from the typing import line if no longer used. Generic over
+    // whatever else is imported alongside it (e.g. `Final`, pulled in whenever
+    // a pyclass enum has class-attribute constants) rather than two hardcoded
+    // full-line strings, since pyo3-introspection may emit any combination.
+    contents = strip_unused_typing_import(contents, "Any");
 
     // Ensure `import typing` is present (needed for typing.TypeVar, typing.Generic, etc.)
     if !contents.lines().any(|l| l == "import typing") {

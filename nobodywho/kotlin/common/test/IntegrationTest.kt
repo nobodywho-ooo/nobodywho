@@ -9,6 +9,7 @@ import org.junit.Assume
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
+import kotlin.math.abs
 
 fun ping(): String = "pong"
 suspend fun suspendPing(): String { delay(1); return "async pong" }
@@ -103,6 +104,22 @@ class IntegrationTest {
         val chat = Chat(model = model, templateVariables = mapOf("enable_thinking" to false))
         val tokens = chat.tokenize("Hey!")
         assertEquals(listOf<Int?>(18665, 0), tokens)
+    }
+
+    @Test
+    fun testEncoderBatch() = runBlocking {
+        val modelPath = requireEnv("TEST_EMBEDDINGS_MODEL")
+        val model = Model.load(modelPath = modelPath, useGpu = false)
+        val encoder = Encoder(model = model, contextSize = 1024u)
+        val texts = listOf("Copenhagen is in Denmark.", "Berlin is in Germany.")
+        val individual = texts.map { text -> encoder.encode(text = text) }
+        val batched = encoder.encodeBatch(texts = texts)
+
+        assertEquals(texts.size, batched.size)
+        individual.zip(batched).forEach { (expected, actual) ->
+            assertEquals(expected.size, actual.size)
+            assertTrue(expected.zip(actual).all { (a, b) -> abs(a - b) < 1e-5f })
+        }
     }
 
     @Test

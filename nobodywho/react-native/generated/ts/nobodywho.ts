@@ -145,20 +145,28 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
 /**
  * Load a GGUF model from a local path or remote URL.
  *
- * Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
- * or `https://` URLs. Downloaded models are cached automatically.
+ * Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
+ * or `auto` for memory-based selection. Downloaded models are cached automatically.
+ *
+ * # MTP speculative decoding
+ *
+ * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+ * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+ * speculative decoding on chats built from this model. Whether MTP is
+ * actually used is a per-chat decision — pass it through
+ * `Chat`-level config on the wrapping binding.
  *
  * This is a free function instead of an async constructor because
  * uniffi-bindgen-react-native generates invalid JS (`async static` instead
  * of `static async`) for async constructors.
  */
-export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
+export async function loadModel(modelPath: string, useGpu: boolean, projectionModelPath: string | undefined, draftModelPath: string | undefined, onDownloadProgress: RustDownloadProgressCallback | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustModelInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_model(FfiConverterString.lower(modelPath),FfiConverterBool.lower(useGpu),FfiConverterOptionalString.lower(projectionModelPath),FfiConverterOptionalString.lower(draftModelPath),FfiConverterOptionalTypeRustDownloadProgressCallback.lower(onDownloadProgress)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
@@ -178,22 +186,90 @@ export async function loadModel(modelPath: string, useGpu: boolean, projectionMo
     }
     }
 /**
- * Create a TTS synthesizer.
+ * Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+ * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+ * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+ * `quantization` selects the ONNX precision variant to download and load:
+ * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+ * pass `None` to use `"default"`.
  */
-export async function loadTts(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTtsInterface> /*throws*/ {
+export async function loadSpeechToText(source: string, language: string | undefined, quantization: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustSpeechToTextInterface> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_tts(FfiConverterString.lower(source),FfiConverterOptionalString.lower(backend),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(device)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_speech_to_text(FfiConverterString.lower(source),FfiConverterOptionalString.lower(language),FfiConverterOptionalString.lower(quantization)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
             /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
-            /*liftFunc:*/ FfiConverterTypeRustTts.lift.bind(FfiConverterTypeRustTts),
+            /*liftFunc:*/ FfiConverterTypeRustSpeechToText.lift.bind(FfiConverterTypeRustSpeechToText),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+/**
+ * Create a TextToSpeech synthesizer.
+ */
+export async function loadTextToSpeech(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, precision: string | undefined, temperature: /*f32*/number | undefined, huggingfaceToken: string | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustTextToSpeechInterface> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_text_to_speech(FfiConverterString.lower(source),FfiConverterOptionalString.lower(architecture),FfiConverterOptionalString.lower(voice),FfiConverterOptionalString.lower(language),FfiConverterOptionalFloat32.lower(speed),FfiConverterOptionalUInt32.lower(steps),FfiConverterOptionalFloat32.lower(silenceDuration),FfiConverterOptionalString.lower(precision),FfiConverterOptionalFloat32.lower(temperature),FfiConverterOptionalString.lower(huggingfaceToken),FfiConverterOptionalString.lower(device)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+            /*liftFunc:*/ FfiConverterTypeRustTextToSpeech.lift.bind(FfiConverterTypeRustTextToSpeech),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+/**
+ * Create a voice activity detector. `source` is a HuggingFace repo
+ * (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+ * `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+ * is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+ * internally, anything else is resampled. `threshold`,
+ * `min_silence_duration_ms`, `min_speech_duration_ms`, and
+ * `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+ * defaults when omitted.
+ */
+export async function loadVoiceActivityDetection(source: string | undefined, sampleRate: /*u32*/number, threshold: /*f32*/number | undefined, minSilenceDurationMs: /*u32*/number | undefined, minSpeechDurationMs: /*u32*/number | undefined, prerollDurationMs: /*u32*/number | undefined, device: string | undefined, asyncOpts_?: { signal: AbortSignal }): Promise<RustVoiceActivityDetectionInterface> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_load_voice_activity_detection(FfiConverterOptionalString.lower(source),FfiConverterUInt32.lower(sampleRate),FfiConverterOptionalFloat32.lower(threshold),FfiConverterOptionalUInt32.lower(minSilenceDurationMs),FfiConverterOptionalUInt32.lower(minSpeechDurationMs),FfiConverterOptionalUInt32.lower(prerollDurationMs),FfiConverterOptionalString.lower(device)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_u64,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_u64,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_u64,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_u64,
+            /*liftFunc:*/ FfiConverterTypeRustVoiceActivityDetection.lift.bind(FfiConverterTypeRustVoiceActivityDetection),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -649,6 +725,78 @@ const FfiConverterTypeChatStats = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterUInt32.allocationSize(value.contextSize) + 
             FfiConverterUInt32.allocationSize(value.contextUsed);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
+/**
+ * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+ * enables MTP; `null` runs the solo decode path. Requires the model to
+ * have been loaded with a compatible `draft_model_path`.
+ */
+export type MtpConfig = {
+    /**
+     * Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+     * Higher values draft more per decode; returns diminish past ~4–6.
+     */
+    kMax: /*u32*/number,
+    /**
+     * Minimum draft-token probability the drafter will propose (llama.cpp
+     * `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+     * drafts.
+     */
+    pMin: /*f32*/number
+}
+
+/**
+ * Generated factory for {@link MtpConfig} record objects.
+ */
+export const MtpConfig = (() => {
+    const defaults = () => ({kMax: 3,pMin: 0.0
+    });
+    const create = (() => {
+        return uniffiCreateRecord<MtpConfig, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link MtpConfig}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link MtpConfig}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<MtpConfig>,
+
+    });
+})();
+
+const FfiConverterTypeMtpConfig = (() => {
+    type TypeName = MtpConfig;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                kMax: FfiConverterUInt32.read(from), 
+                pMin: FfiConverterFloat32.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterUInt32.write(value.kMax, into);
+            FfiConverterFloat32.write(value.pMin, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterUInt32.allocationSize(value.kMax) + 
+            FfiConverterFloat32.allocationSize(value.pMin);
             
         }
     };
@@ -1370,6 +1518,50 @@ const FfiConverterTypePromptPart = (() => {
 
 
 
+/**
+ * `push` always returns one of these: `Speech`/`Silence` for the confirmed
+ * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+ * on the call that confirmed the transition.
+ */
+export enum VoiceActivityDetectionEvent {
+    Speech,
+    SpeechStarted,
+    SpeechEnded,
+    Silence
+}
+
+const FfiConverterTypeVoiceActivityDetectionEvent = (() => {
+    const ordinalConverter = FfiConverterInt32;
+    type TypeName = VoiceActivityDetectionEvent;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            switch (ordinalConverter.read(from)) {
+                case 1: return VoiceActivityDetectionEvent.Speech;
+                case 2: return VoiceActivityDetectionEvent.SpeechStarted;
+                case 3: return VoiceActivityDetectionEvent.SpeechEnded;
+                case 4: return VoiceActivityDetectionEvent.Silence;
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            switch (value) {
+                case VoiceActivityDetectionEvent.Speech: return ordinalConverter.write(1, into);
+                case VoiceActivityDetectionEvent.SpeechStarted: return ordinalConverter.write(2, into);
+                case VoiceActivityDetectionEvent.SpeechEnded: return ordinalConverter.write(3, into);
+                case VoiceActivityDetectionEvent.Silence: return ordinalConverter.write(4, into);
+            }
+        }
+        allocationSize(value: TypeName): number {
+            return ordinalConverter.allocationSize(0);
+        }
+    }
+    return new FFIConverter();
+})();
+
+
+
+
+
 // FfiConverter for Map<string, boolean>
 const FfiConverterMapStringBool = new FfiConverterMap(FfiConverterString, FfiConverterBool);
 
@@ -1418,6 +1610,12 @@ export interface RustChatInterface {
      * Get all template variables.
      */
     getTemplateVariables(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Map<string, boolean>>;
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+    mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise</*f32*/number | undefined>;
     /**
      * Reset the chat context with a new system prompt and tools.
      */
@@ -1469,8 +1667,18 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
      * Create a new chat session.
+     *
+     * Pass an `mtp` config to enable MTP speculative decoding for this
+     * chat; `null` disables it. Requires the `RustModel` to have been
+     * loaded with a compatible `draft_model_path`; otherwise construction
+     * fails. Adds around 5% to VRAM usage.
+     *
+     * `thread_count` is the number of CPU threads used for inference; `null`
+     * detects the device's physical core count (performance cores only, on
+     * Apple silicon), since hyperthreads and efficiency cores make inference
+     * slower. Clamped to the CPU count.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined) /*throws*/ {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: MtpConfig | undefined, threadCount: /*u32*/number | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -1484,6 +1692,8 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
         FfiConverterOptionalMapStringBool.lower(templateVariables),
         FfiConverterOptionalArrayTypeRustTool.lower(tools),
         FfiConverterOptionalTypeSamplerConfig.lower(sampler),
+        FfiConverterOptionalTypeMtpConfig.lower(mtp),
+        FfiConverterOptionalUInt32.lower(threadCount),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -1688,6 +1898,39 @@ async  getTemplateVariables(asyncOpts_?: { signal: AbortSignal }): Promise<Map<s
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             /*liftFunc:*/ FfiConverterMapStringBool.lift.bind(FfiConverterMapStringBool),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+     *
+     * Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+     */
+async  mtpAcceptanceRate(asyncOpts_?: { signal: AbortSignal }): Promise</*f32*/number | undefined> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_mtp_acceptance_rate(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this)
+                    
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterOptionalFloat32.lift.bind(FfiConverterOptionalFloat32),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -2253,6 +2496,10 @@ export interface RustEncoderInterface {
      * Encode text into an embedding vector.
      */
     encode(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*f32*/number>>;
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+    encodeBatch(texts: Array<string>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array<Array</*f32*/number>>>;
 }
 
 
@@ -2302,6 +2549,37 @@ async  encode(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array
             /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
             /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
             /*liftFunc:*/ FfiConverterArrayFloat32.lift.bind(FfiConverterArrayFloat32),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Encode multiple texts into embedding vectors, preserving input order.
+     */
+async  encodeBatch(texts: Array<string>, asyncOpts_?: { signal: AbortSignal }): Promise<Array<Array</*f32*/number>>> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustencoder_encode_batch(
+                    uniffiTypeRustEncoderObjectFactory.clonePointer(this),
+                    FfiConverterArrayString.lower(texts)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayArrayFloat32.lift.bind(FfiConverterArrayArrayFloat32),
             /*liftString:*/ FfiConverterString.lift,
             /*asyncOpts:*/ asyncOpts_,
             /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
@@ -2496,69 +2774,73 @@ const FfiConverterTypeRustModel =  new FfiConverterObject(uniffiTypeRustModelObj
 
 
 /**
- * Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
- * Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+ * Speech-to-text handle. Wraps `nobodywho::speech_to_text::SpeechToText`.
+ * Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
  */
-export interface RustSttInterface {
+export interface RustSpeechToTextInterface {
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
-     * Returns a `RustSTTStream` to consume tokens as they are generated.
+     * Start transcribing an audio file (WAV / MP3).
+     * Returns a `RustSpeechToTextStream` to consume tokens as they are generated.
      */
-    transcribeFile(path: string)  /*throws*/: RustSttStreamInterface;
+    transcribeFile(path: string)  /*throws*/: RustSpeechToTextStreamInterface;
     /**
      * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
      * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
      */
-    transcribePcm(samples: Array</*i16*/number>, sampleRate: /*u32*/number)  /*throws*/: RustSttStreamInterface;
+    transcribePcm(samples: Array</*i16*/number>, sampleRate: /*u32*/number)  /*throws*/: RustSpeechToTextStreamInterface;
 }
 
 
 /**
- * Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
- * Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+ * Speech-to-text handle. Wraps `nobodywho::speech_to_text::SpeechToText`.
+ * Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
  */
-export class RustStt extends UniffiAbstractObject implements RustSttInterface {
+export class RustSpeechToText extends UniffiAbstractObject implements RustSpeechToTextInterface {
 
-    readonly [uniffiTypeNameSymbol] = "RustStt";
+    readonly [uniffiTypeNameSymbol] = "RustSpeechToText";
     readonly [destructorGuardSymbol]: UniffiGcObject;
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
-     * Create an STT handle. `source` is a HuggingFace repo ID
-     * (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+     * Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+     * e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
      * `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+     * `quantization` selects the ONNX precision variant to download and load:
+     * one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+     * pass `None` to use `"default"`.
      */
-    constructor(source: string, language: string | undefined) /*throws*/ {
+    constructor(source: string, language: string | undefined, quantization: string | undefined) /*throws*/ {
         super();
         const pointer =
             
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_ruststt_new(
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustspeechtotext_new(
         FfiConverterString.lower(source),
         FfiConverterOptionalString.lower(language),
+        FfiConverterOptionalString.lower(quantization),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
     );
         this[pointerLiteralSymbol] = pointer;
-        this[destructorGuardSymbol] = uniffiTypeRustSttObjectFactory.bless(pointer);
+        this[destructorGuardSymbol] = uniffiTypeRustSpeechToTextObjectFactory.bless(pointer);
     }
 
     
 
     
     /**
-     * Start transcribing an audio file (WAV / MP3 / FLAC).
-     * Returns a `RustSTTStream` to consume tokens as they are generated.
+     * Start transcribing an audio file (WAV / MP3).
+     * Returns a `RustSpeechToTextStream` to consume tokens as they are generated.
      */
- transcribeFile(path: string): RustSttStreamInterface /*throws*/ {
-    return FfiConverterTypeRustSTTStream.lift(
+ transcribeFile(path: string): RustSpeechToTextStreamInterface /*throws*/ {
+    return FfiConverterTypeRustSpeechToTextStream.lift(
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_file(uniffiTypeRustSttObjectFactory.clonePointer(this), 
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_file(uniffiTypeRustSpeechToTextObjectFactory.clonePointer(this), 
         FfiConverterString.lower(path),
                 callStatus);
             },
@@ -2570,12 +2852,12 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
      * Start transcribing raw i16 PCM samples (e.g. from a microphone stream).
      * `sample_rate` is the capture rate in Hz; the backend resamples to 16 kHz internally.
      */
- transcribePcm(samples: Array</*i16*/number>, sampleRate: /*u32*/number): RustSttStreamInterface /*throws*/ {
-    return FfiConverterTypeRustSTTStream.lift(
+ transcribePcm(samples: Array</*i16*/number>, sampleRate: /*u32*/number): RustSpeechToTextStreamInterface /*throws*/ {
+    return FfiConverterTypeRustSpeechToTextStream.lift(
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_ruststt_transcribe_pcm(uniffiTypeRustSttObjectFactory.clonePointer(this), 
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustspeechtotext_transcribe_pcm(uniffiTypeRustSpeechToTextObjectFactory.clonePointer(this), 
         FfiConverterArrayInt16.lower(samples),
         FfiConverterUInt32.lower(sampleRate),
                 callStatus);
@@ -2591,28 +2873,28 @@ export class RustStt extends UniffiAbstractObject implements RustSttInterface {
     uniffiDestroy(): void {
         const ptr = (this as any)[destructorGuardSymbol];
         if (ptr !== undefined) {
-            const pointer = uniffiTypeRustSttObjectFactory.pointer(this);
-            uniffiTypeRustSttObjectFactory.freePointer(pointer);
-            uniffiTypeRustSttObjectFactory.unbless(ptr);
+            const pointer = uniffiTypeRustSpeechToTextObjectFactory.pointer(this);
+            uniffiTypeRustSpeechToTextObjectFactory.freePointer(pointer);
+            uniffiTypeRustSpeechToTextObjectFactory.unbless(ptr);
             delete (this as any)[destructorGuardSymbol];
         }
     }
 
-    static instanceOf(obj: any): obj is RustStt {
-        return uniffiTypeRustSttObjectFactory.isConcreteType(obj);
+    static instanceOf(obj: any): obj is RustSpeechToText {
+        return uniffiTypeRustSpeechToTextObjectFactory.isConcreteType(obj);
     }
 
     
 }
 
-const uniffiTypeRustSttObjectFactory: UniffiObjectFactory<RustSttInterface> = (() => {
+const uniffiTypeRustSpeechToTextObjectFactory: UniffiObjectFactory<RustSpeechToTextInterface> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustSttInterface {
-        const instance = Object.create(RustStt.prototype);
+    create(pointer: UniffiHandle): RustSpeechToTextInterface {
+        const instance = Object.create(RustSpeechToText.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "RustStt";
+        instance[uniffiTypeNameSymbol] = "RustSpeechToText";
         return instance;
     },
 
@@ -2620,7 +2902,7 @@ const uniffiTypeRustSttObjectFactory: UniffiObjectFactory<RustSttInterface> = ((
     bless(p: UniffiHandle): UniffiGcObject {
         return uniffiCaller.rustCall(
             /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_ruststt_ffi__bless_pointer(p, status),
+                nativeModule().ubrn_uniffi_internal_fn_method_rustspeechtotext_ffi__bless_pointer(p, status),
             /*liftString:*/ FfiConverterString.lift
         );
     },
@@ -2629,40 +2911,40 @@ const uniffiTypeRustSttObjectFactory: UniffiObjectFactory<RustSttInterface> = ((
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustSttInterface): UniffiHandle {
+    pointer(obj: RustSpeechToTextInterface): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustSttInterface): UniffiHandle {
+    clonePointer(obj: RustSpeechToTextInterface): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_ruststt(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
     freePointer(pointer: UniffiHandle): void {
         uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_ruststt(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
-    isConcreteType(obj: any): obj is RustSttInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustStt";
+    isConcreteType(obj: any): obj is RustSpeechToTextInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustSpeechToText";
     },
 }})();
-// FfiConverter for RustSttInterface
-const FfiConverterTypeRustSTT =  new FfiConverterObject(uniffiTypeRustSttObjectFactory);
+// FfiConverter for RustSpeechToTextInterface
+const FfiConverterTypeRustSpeechToText =  new FfiConverterObject(uniffiTypeRustSpeechToTextObjectFactory);
 
 
 /**
- * A stream of transcript tokens from a Whisper STT run.
+ * A stream of transcript tokens from a Whisper SpeechToText run.
  */
-export interface RustSttStreamInterface {
+export interface RustSpeechToTextStreamInterface {
     
     /**
      * Wait for transcription to finish and return the full transcript.
@@ -2676,18 +2958,18 @@ export interface RustSttStreamInterface {
 
 
 /**
- * A stream of transcript tokens from a Whisper STT run.
+ * A stream of transcript tokens from a Whisper SpeechToText run.
  */
-export class RustSttStream extends UniffiAbstractObject implements RustSttStreamInterface {
+export class RustSpeechToTextStream extends UniffiAbstractObject implements RustSpeechToTextStreamInterface {
 
-    readonly [uniffiTypeNameSymbol] = "RustSttStream";
+    readonly [uniffiTypeNameSymbol] = "RustSpeechToTextStream";
     readonly [destructorGuardSymbol]: UniffiGcObject;
     readonly [pointerLiteralSymbol]: UniffiHandle;
     // No primary constructor declared for this class.
 private constructor(pointer: UniffiHandle) {
     super();
     this[pointerLiteralSymbol] = pointer;
-    this[destructorGuardSymbol] = uniffiTypeRustSttStreamObjectFactory.bless(pointer);
+    this[destructorGuardSymbol] = uniffiTypeRustSpeechToTextStreamObjectFactory.bless(pointer);
 }
 
     
@@ -2702,8 +2984,8 @@ async  completed(asyncOpts_?: { signal: AbortSignal }): Promise<string> /*throws
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_ruststtstream_completed(
-                    uniffiTypeRustSttStreamObjectFactory.clonePointer(this)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_completed(
+                    uniffiTypeRustSpeechToTextStreamObjectFactory.clonePointer(this)
                     
                 );
             },
@@ -2733,8 +3015,8 @@ async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefin
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_ruststtstream_next_token(
-                    uniffiTypeRustSttStreamObjectFactory.clonePointer(this)
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustspeechtotextstream_next_token(
+                    uniffiTypeRustSpeechToTextStreamObjectFactory.clonePointer(this)
                     
                 );
             },
@@ -2762,28 +3044,28 @@ async  nextToken(asyncOpts_?: { signal: AbortSignal }): Promise<string | undefin
     uniffiDestroy(): void {
         const ptr = (this as any)[destructorGuardSymbol];
         if (ptr !== undefined) {
-            const pointer = uniffiTypeRustSttStreamObjectFactory.pointer(this);
-            uniffiTypeRustSttStreamObjectFactory.freePointer(pointer);
-            uniffiTypeRustSttStreamObjectFactory.unbless(ptr);
+            const pointer = uniffiTypeRustSpeechToTextStreamObjectFactory.pointer(this);
+            uniffiTypeRustSpeechToTextStreamObjectFactory.freePointer(pointer);
+            uniffiTypeRustSpeechToTextStreamObjectFactory.unbless(ptr);
             delete (this as any)[destructorGuardSymbol];
         }
     }
 
-    static instanceOf(obj: any): obj is RustSttStream {
-        return uniffiTypeRustSttStreamObjectFactory.isConcreteType(obj);
+    static instanceOf(obj: any): obj is RustSpeechToTextStream {
+        return uniffiTypeRustSpeechToTextStreamObjectFactory.isConcreteType(obj);
     }
 
     
 }
 
-const uniffiTypeRustSttStreamObjectFactory: UniffiObjectFactory<RustSttStreamInterface> = (() => {
+const uniffiTypeRustSpeechToTextStreamObjectFactory: UniffiObjectFactory<RustSpeechToTextStreamInterface> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustSttStreamInterface {
-        const instance = Object.create(RustSttStream.prototype);
+    create(pointer: UniffiHandle): RustSpeechToTextStreamInterface {
+        const instance = Object.create(RustSpeechToTextStream.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "RustSttStream";
+        instance[uniffiTypeNameSymbol] = "RustSpeechToTextStream";
         return instance;
     },
 
@@ -2791,7 +3073,7 @@ const uniffiTypeRustSttStreamObjectFactory: UniffiObjectFactory<RustSttStreamInt
     bless(p: UniffiHandle): UniffiGcObject {
         return uniffiCaller.rustCall(
             /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_ruststtstream_ffi__bless_pointer(p, status),
+                nativeModule().ubrn_uniffi_internal_fn_method_rustspeechtotextstream_ffi__bless_pointer(p, status),
             /*liftString:*/ FfiConverterString.lift
         );
     },
@@ -2800,34 +3082,207 @@ const uniffiTypeRustSttStreamObjectFactory: UniffiObjectFactory<RustSttStreamInt
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustSttStreamInterface): UniffiHandle {
+    pointer(obj: RustSpeechToTextStreamInterface): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustSttStreamInterface): UniffiHandle {
+    clonePointer(obj: RustSpeechToTextStreamInterface): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_ruststtstream(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotextstream(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
     freePointer(pointer: UniffiHandle): void {
         uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_ruststtstream(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustspeechtotextstream(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
-    isConcreteType(obj: any): obj is RustSttStreamInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustSttStream";
+    isConcreteType(obj: any): obj is RustSpeechToTextStreamInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustSpeechToTextStream";
     },
 }})();
-// FfiConverter for RustSttStreamInterface
-const FfiConverterTypeRustSTTStream =  new FfiConverterObject(uniffiTypeRustSttStreamObjectFactory);
+// FfiConverter for RustSpeechToTextStreamInterface
+const FfiConverterTypeRustSpeechToTextStream =  new FfiConverterObject(uniffiTypeRustSpeechToTextStreamObjectFactory);
+
+
+export interface RustTextToSpeechInterface {
+    
+    /**
+     * Synthesize text and return WAV bytes.
+     */
+    synthesize(text: string)  /*throws*/: ArrayBuffer;
+    /**
+     * Synthesize text asynchronously and return WAV bytes.
+     */
+    synthesizeAsync(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<ArrayBuffer>;
+}
+
+
+export class RustTextToSpeech extends UniffiAbstractObject implements RustTextToSpeechInterface {
+
+    readonly [uniffiTypeNameSymbol] = "RustTextToSpeech";
+    readonly [destructorGuardSymbol]: UniffiGcObject;
+    readonly [pointerLiteralSymbol]: UniffiHandle;
+    /**
+     * Create a TextToSpeech synthesizer.
+     */
+    constructor(source: string, architecture: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, precision: string | undefined, temperature: /*f32*/number | undefined, huggingfaceToken: string | undefined, device: string | undefined) /*throws*/ {
+        super();
+        const pointer =
+            
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttexttospeech_new(
+        FfiConverterString.lower(source),
+        FfiConverterOptionalString.lower(architecture),
+        FfiConverterOptionalString.lower(voice),
+        FfiConverterOptionalString.lower(language),
+        FfiConverterOptionalFloat32.lower(speed),
+        FfiConverterOptionalUInt32.lower(steps),
+        FfiConverterOptionalFloat32.lower(silenceDuration),
+        FfiConverterOptionalString.lower(precision),
+        FfiConverterOptionalFloat32.lower(temperature),
+        FfiConverterOptionalString.lower(huggingfaceToken),
+        FfiConverterOptionalString.lower(device),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    );
+        this[pointerLiteralSymbol] = pointer;
+        this[destructorGuardSymbol] = uniffiTypeRustTextToSpeechObjectFactory.bless(pointer);
+    }
+
+    
+
+    
+    /**
+     * Synthesize text and return WAV bytes.
+     */
+ synthesize(text: string): ArrayBuffer /*throws*/ {
+    return FfiConverterArrayBuffer.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize(uniffiTypeRustTextToSpeechObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(text),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Synthesize text asynchronously and return WAV bytes.
+     */
+async  synthesizeAsync(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<ArrayBuffer> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttexttospeech_synthesize_async(
+                    uniffiTypeRustTextToSpeechObjectFactory.clonePointer(this),
+                    FfiConverterString.lower(text)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
+            /*liftFunc:*/ FfiConverterArrayBuffer.lift.bind(FfiConverterArrayBuffer),
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+
+    /**
+     * {@inheritDoc uniffi-bindgen-react-native#UniffiAbstractObject.uniffiDestroy}
+     */
+    uniffiDestroy(): void {
+        const ptr = (this as any)[destructorGuardSymbol];
+        if (ptr !== undefined) {
+            const pointer = uniffiTypeRustTextToSpeechObjectFactory.pointer(this);
+            uniffiTypeRustTextToSpeechObjectFactory.freePointer(pointer);
+            uniffiTypeRustTextToSpeechObjectFactory.unbless(ptr);
+            delete (this as any)[destructorGuardSymbol];
+        }
+    }
+
+    static instanceOf(obj: any): obj is RustTextToSpeech {
+        return uniffiTypeRustTextToSpeechObjectFactory.isConcreteType(obj);
+    }
+
+    
+}
+
+const uniffiTypeRustTextToSpeechObjectFactory: UniffiObjectFactory<RustTextToSpeechInterface> = (() => {
+    
+    return {
+    create(pointer: UniffiHandle): RustTextToSpeechInterface {
+        const instance = Object.create(RustTextToSpeech.prototype);
+        instance[pointerLiteralSymbol] = pointer;
+        instance[destructorGuardSymbol] = this.bless(pointer);
+        instance[uniffiTypeNameSymbol] = "RustTextToSpeech";
+        return instance;
+    },
+
+    
+    bless(p: UniffiHandle): UniffiGcObject {
+        return uniffiCaller.rustCall(
+            /*caller:*/ (status) =>
+                nativeModule().ubrn_uniffi_internal_fn_method_rusttexttospeech_ffi__bless_pointer(p, status),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    unbless(ptr: UniffiGcObject) {
+        ptr.markDestroyed();
+    },
+
+    pointer(obj: RustTextToSpeechInterface): UniffiHandle {
+        if ((obj as any)[destructorGuardSymbol] === undefined) {
+            throw new UniffiInternalError.UnexpectedNullPointer();
+        }
+        return (obj as any)[pointerLiteralSymbol];
+    },
+
+    clonePointer(obj: RustTextToSpeechInterface): UniffiHandle {
+        const pointer = this.pointer(obj);
+        return uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttexttospeech(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    freePointer(pointer: UniffiHandle): void {
+        uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(pointer, callStatus),
+            /*liftString:*/ FfiConverterString.lift
+        );
+    },
+
+    isConcreteType(obj: any): obj is RustTextToSpeechInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustTextToSpeech";
+    },
+}})();
+// FfiConverter for RustTextToSpeechInterface
+const FfiConverterTypeRustTextToSpeech =  new FfiConverterObject(uniffiTypeRustTextToSpeechObjectFactory);
 
 
 export interface RustTokenStreamInterface {
@@ -3193,64 +3648,95 @@ const uniffiTypeRustToolObjectFactory: UniffiObjectFactory<RustToolInterface> = 
 const FfiConverterTypeRustTool =  new FfiConverterObject(uniffiTypeRustToolObjectFactory);
 
 
-export interface RustTtsInterface {
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+export interface RustVoiceActivityDetectionInterface {
     
     /**
-     * Synthesize text and return WAV bytes.
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
      */
-    synthesize(text: string)  /*throws*/: ArrayBuffer;
+    finish() : Array</*i16*/number>;
     /**
-     * Synthesize text asynchronously and return WAV bytes.
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
-    synthesizeAsync(text: string, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<ArrayBuffer>;
+    push(chunk: Array</*i16*/number>)  /*throws*/: VoiceActivityDetectionEvent;
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+    segment(samples: Array</*i16*/number>)  /*throws*/: Array<Array</*i16*/number>>;
 }
 
 
-export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
+/**
+ * Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+ * Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+ * `finish` to get that turn's captured audio (with pre-roll) and reset.
+ */
+export class RustVoiceActivityDetection extends UniffiAbstractObject implements RustVoiceActivityDetectionInterface {
 
-    readonly [uniffiTypeNameSymbol] = "RustTts";
+    readonly [uniffiTypeNameSymbol] = "RustVoiceActivityDetection";
     readonly [destructorGuardSymbol]: UniffiGcObject;
     readonly [pointerLiteralSymbol]: UniffiHandle;
     /**
-     * Create a TTS synthesizer.
+     * Create a voice activity detector.
+     *
+     * `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
+     * for the Silero VAD ONNX model; `None` uses the default
+     * (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+     * audio you'll pass to `push` — Silero runs at 16kHz internally,
+     * anything else is resampled. `threshold`, `min_silence_duration_ms`,
+     * `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+     * core `VoiceActivityDetectionConfig` defaults when omitted.
      */
-    constructor(source: string, backend: string | undefined, voice: string | undefined, language: string | undefined, speed: /*f32*/number | undefined, steps: /*u32*/number | undefined, silenceDuration: /*f32*/number | undefined, device: string | undefined) /*throws*/ {
+    constructor(source: string | undefined, sampleRate: /*u32*/number, threshold: /*f32*/number | undefined, minSilenceDurationMs: /*u32*/number | undefined, minSpeechDurationMs: /*u32*/number | undefined, prerollDurationMs: /*u32*/number | undefined, device: string | undefined) /*throws*/ {
         super();
         const pointer =
             
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rusttts_new(
-        FfiConverterString.lower(source),
-        FfiConverterOptionalString.lower(backend),
-        FfiConverterOptionalString.lower(voice),
-        FfiConverterOptionalString.lower(language),
-        FfiConverterOptionalFloat32.lower(speed),
-        FfiConverterOptionalUInt32.lower(steps),
-        FfiConverterOptionalFloat32.lower(silenceDuration),
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustvoiceactivitydetection_new(
+        FfiConverterOptionalString.lower(source),
+        FfiConverterUInt32.lower(sampleRate),
+        FfiConverterOptionalFloat32.lower(threshold),
+        FfiConverterOptionalUInt32.lower(minSilenceDurationMs),
+        FfiConverterOptionalUInt32.lower(minSpeechDurationMs),
+        FfiConverterOptionalUInt32.lower(prerollDurationMs),
         FfiConverterOptionalString.lower(device),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
     );
         this[pointerLiteralSymbol] = pointer;
-        this[destructorGuardSymbol] = uniffiTypeRustTtsObjectFactory.bless(pointer);
+        this[destructorGuardSymbol] = uniffiTypeRustVoiceActivityDetectionObjectFactory.bless(pointer);
     }
 
     
 
     
     /**
-     * Synthesize text and return WAV bytes.
+     * Return the current turn's captured audio (from the confirmed
+     * `SpeechStarted`, including a small pre-roll, through to
+     * `SpeechEnded`) and reset internal state for the next turn. Empty if
+     * speech was never confirmed.
      */
- synthesize(text: string): ArrayBuffer /*throws*/ {
-    return FfiConverterArrayBuffer.lift(
-        uniffiCaller.rustCallWithError(
-            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+ finish(): Array</*i16*/number> {
+    return FfiConverterArrayInt16.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize(uniffiTypeRustTtsObjectFactory.clonePointer(this), 
-        FfiConverterString.lower(text),
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_finish(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -3258,34 +3744,42 @@ export class RustTts extends UniffiAbstractObject implements RustTtsInterface {
     }
     
     /**
-     * Synthesize text asynchronously and return WAV bytes.
+     * Feed the newest chunk of i16 PCM audio (not the whole accumulated
+     * buffer — the detector tracks the current turn internally). Always
+     * returns the current confirmed state: `Speech`/`Silence` if unchanged
+     * since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+     * confirmed the transition.
      */
-async  synthesizeAsync(text: string, asyncOpts_?: { signal: AbortSignal }): Promise<ArrayBuffer> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rusttts_synthesize_async(
-                    uniffiTypeRustTtsObjectFactory.clonePointer(this),
-                    FfiConverterString.lower(text)
-                );
+ push(chunk: Array</*i16*/number>): VoiceActivityDetectionEvent /*throws*/ {
+    return FfiConverterTypeVoiceActivityDetectionEvent.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_push(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
+        FfiConverterArrayInt16.lower(chunk),
+                callStatus);
             },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_rust_buffer,
-            /*liftFunc:*/ FfiConverterArrayBuffer.lift.bind(FfiConverterArrayBuffer),
             /*liftString:*/ FfiConverterString.lift,
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
+    ));
     }
+    
+    /**
+     * Detect every speech segment in a complete audio buffer, returning
+     * each segment's audio (with a short pre-roll) in order. Unlike `push`,
+     * correctly finds every segment regardless of buffer size — use this
+     * for offline/batch processing instead of live streaming.
+     */
+ segment(samples: Array</*i16*/number>): Array<Array</*i16*/number>> /*throws*/ {
+    return FfiConverterArrayArrayInt16.lift(
+        uniffiCaller.rustCallWithError(
+            /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustvoiceactivitydetection_segment(uniffiTypeRustVoiceActivityDetectionObjectFactory.clonePointer(this), 
+        FfiConverterArrayInt16.lower(samples),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
     }
     
 
@@ -3295,28 +3789,28 @@ async  synthesizeAsync(text: string, asyncOpts_?: { signal: AbortSignal }): Prom
     uniffiDestroy(): void {
         const ptr = (this as any)[destructorGuardSymbol];
         if (ptr !== undefined) {
-            const pointer = uniffiTypeRustTtsObjectFactory.pointer(this);
-            uniffiTypeRustTtsObjectFactory.freePointer(pointer);
-            uniffiTypeRustTtsObjectFactory.unbless(ptr);
+            const pointer = uniffiTypeRustVoiceActivityDetectionObjectFactory.pointer(this);
+            uniffiTypeRustVoiceActivityDetectionObjectFactory.freePointer(pointer);
+            uniffiTypeRustVoiceActivityDetectionObjectFactory.unbless(ptr);
             delete (this as any)[destructorGuardSymbol];
         }
     }
 
-    static instanceOf(obj: any): obj is RustTts {
-        return uniffiTypeRustTtsObjectFactory.isConcreteType(obj);
+    static instanceOf(obj: any): obj is RustVoiceActivityDetection {
+        return uniffiTypeRustVoiceActivityDetectionObjectFactory.isConcreteType(obj);
     }
 
     
 }
 
-const uniffiTypeRustTtsObjectFactory: UniffiObjectFactory<RustTtsInterface> = (() => {
+const uniffiTypeRustVoiceActivityDetectionObjectFactory: UniffiObjectFactory<RustVoiceActivityDetectionInterface> = (() => {
     
     return {
-    create(pointer: UniffiHandle): RustTtsInterface {
-        const instance = Object.create(RustTts.prototype);
+    create(pointer: UniffiHandle): RustVoiceActivityDetectionInterface {
+        const instance = Object.create(RustVoiceActivityDetection.prototype);
         instance[pointerLiteralSymbol] = pointer;
         instance[destructorGuardSymbol] = this.bless(pointer);
-        instance[uniffiTypeNameSymbol] = "RustTts";
+        instance[uniffiTypeNameSymbol] = "RustVoiceActivityDetection";
         return instance;
     },
 
@@ -3324,7 +3818,7 @@ const uniffiTypeRustTtsObjectFactory: UniffiObjectFactory<RustTtsInterface> = ((
     bless(p: UniffiHandle): UniffiGcObject {
         return uniffiCaller.rustCall(
             /*caller:*/ (status) =>
-                nativeModule().ubrn_uniffi_internal_fn_method_rusttts_ffi__bless_pointer(p, status),
+                nativeModule().ubrn_uniffi_internal_fn_method_rustvoiceactivitydetection_ffi__bless_pointer(p, status),
             /*liftString:*/ FfiConverterString.lift
         );
     },
@@ -3333,34 +3827,34 @@ const uniffiTypeRustTtsObjectFactory: UniffiObjectFactory<RustTtsInterface> = ((
         ptr.markDestroyed();
     },
 
-    pointer(obj: RustTtsInterface): UniffiHandle {
+    pointer(obj: RustVoiceActivityDetectionInterface): UniffiHandle {
         if ((obj as any)[destructorGuardSymbol] === undefined) {
             throw new UniffiInternalError.UnexpectedNullPointer();
         }
         return (obj as any)[pointerLiteralSymbol];
     },
 
-    clonePointer(obj: RustTtsInterface): UniffiHandle {
+    clonePointer(obj: RustVoiceActivityDetectionInterface): UniffiHandle {
         const pointer = this.pointer(obj);
         return uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rusttts(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_clone_rustvoiceactivitydetection(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
     freePointer(pointer: UniffiHandle): void {
         uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rusttts(pointer, callStatus),
+            /*caller:*/ (callStatus) => nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(pointer, callStatus),
             /*liftString:*/ FfiConverterString.lift
         );
     },
 
-    isConcreteType(obj: any): obj is RustTtsInterface {
-        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustTts";
+    isConcreteType(obj: any): obj is RustVoiceActivityDetectionInterface {
+        return obj[destructorGuardSymbol] && obj[uniffiTypeNameSymbol] === "RustVoiceActivityDetection";
     },
 }})();
-// FfiConverter for RustTtsInterface
-const FfiConverterTypeRustTts =  new FfiConverterObject(uniffiTypeRustTtsObjectFactory);
+// FfiConverter for RustVoiceActivityDetectionInterface
+const FfiConverterTypeRustVoiceActivityDetection =  new FfiConverterObject(uniffiTypeRustVoiceActivityDetectionObjectFactory);
 
 
 export interface SamplerBuilderInterface {
@@ -3879,6 +4373,10 @@ const FfiConverterOptionalFloat32 = new FfiConverterOptional(FfiConverterFloat32
 const FfiConverterOptionalInt32 = new FfiConverterOptional(FfiConverterInt32);
 
 
+// FfiConverter for MtpConfig | undefined
+const FfiConverterOptionalTypeMtpConfig = new FfiConverterOptional(FfiConverterTypeMtpConfig);
+
+
 // FfiConverter for PendingToolCall | undefined
 const FfiConverterOptionalTypePendingToolCall = new FfiConverterOptional(FfiConverterTypePendingToolCall);
 
@@ -3951,6 +4449,14 @@ const FfiConverterArrayTypeRustTool = new FfiConverterArray(FfiConverterTypeRust
 const FfiConverterArrayOptionalInt32 = new FfiConverterArray(FfiConverterOptionalInt32);
 
 
+// FfiConverter for Array<Array</*f32*/number>>
+const FfiConverterArrayArrayFloat32 = new FfiConverterArray(FfiConverterArrayFloat32);
+
+
+// FfiConverter for Array<Array</*i16*/number>>
+const FfiConverterArrayArrayInt16 = new FfiConverterArray(FfiConverterArrayInt16);
+
+
 // FfiConverter for Array<RustToolInterface> | undefined
 const FfiConverterOptionalArrayTypeRustTool = new FfiConverterOptional(FfiConverterArrayTypeRustTool);
 
@@ -3981,11 +4487,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models() !== 12002) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_get_cached_models");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 33587) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 22964) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_tts() !== 1569) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_tts");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() !== 3224) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech() !== 45176) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_text_to_speech");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection() !== 42331) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_voice_activity_detection");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar() !== 13698) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_grammar");
@@ -4044,6 +4556,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables() !== 19616) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_get_template_variables");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate() !== 727) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_mtp_acceptance_rate");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context() !== 47191) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context");
     }
@@ -4083,20 +4598,29 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode() !== 52601) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch() !== 20675) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() !== 52004) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file() !== 47529) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_file");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file() !== 59975) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm() !== 61166) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_ruststt_transcribe_pcm");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm() !== 9293) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststtstream_completed() !== 22443) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_ruststtstream_completed");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed() !== 15944) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_ruststtstream_next_token() !== 38526) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_ruststtstream_next_token");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token() !== 8103) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_next_token");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize() !== 61700) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async() !== 14494) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttexttospeech_synthesize_async");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed() !== 26060) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttokenstream_completed");
@@ -4113,11 +4637,14 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call() !== 10096) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttool_resolve_pending_call");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize() !== 56024) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish() !== 1447) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_finish");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async() !== 54670) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rusttts_synthesize_async");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push() !== 58012) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_push");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() !== 39967) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
@@ -4164,7 +4691,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 24505) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 2313) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {
@@ -4173,8 +4700,11 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new() !== 27902) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustencoder_new");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new() !== 16224) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_ruststt_new");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new() !== 9249) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustspeechtotext_new");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new() !== 55766) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttexttospeech_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new() !== 9431) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new");
@@ -4182,8 +4712,8 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async() !== 54521) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttool_new_async");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new() !== 12955) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rusttts_new");
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new() !== 47351) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustvoiceactivitydetection_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new() !== 50214) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_samplerbuilder_new");
@@ -4209,6 +4739,7 @@ export default Object.freeze({
     FfiConverterTypeCachedModel,
     FfiConverterTypeChatStats,
     FfiConverterTypeMessage,
+    FfiConverterTypeMtpConfig,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePendingToolCall,
     FfiConverterTypePromptPart,
@@ -4216,14 +4747,16 @@ export default Object.freeze({
     FfiConverterTypeRustCrossEncoder,
     FfiConverterTypeRustEncoder,
     FfiConverterTypeRustModel,
-    FfiConverterTypeRustSTT,
-    FfiConverterTypeRustSTTStream,
+    FfiConverterTypeRustSpeechToText,
+    FfiConverterTypeRustSpeechToTextStream,
+    FfiConverterTypeRustTextToSpeech,
     FfiConverterTypeRustTokenStream,
     FfiConverterTypeRustTool,
-    FfiConverterTypeRustTts,
+    FfiConverterTypeRustVoiceActivityDetection,
     FfiConverterTypeSamplerBuilder,
     FfiConverterTypeSamplerConfig,
     FfiConverterTypeToolCall,
     FfiConverterTypeToolParameter,
+    FfiConverterTypeVoiceActivityDetectionEvent,
   }
 });

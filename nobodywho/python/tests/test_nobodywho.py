@@ -141,6 +141,16 @@ def test_encoder_sync(encoder):
     )
 
 
+def test_encoder_batch_sync(encoder):
+    texts = ["Copenhagen is in Denmark.", "Berlin is in Germany."]
+    individual = [encoder.encode(text) for text in texts]
+    batched = encoder.encode_batch(texts)
+
+    assert len(batched) == len(texts)
+    for expected, actual in zip(individual, batched, strict=True):
+        assert actual == pytest.approx(expected, abs=1e-5)
+
+
 @pytest.mark.asyncio
 async def test_encoder_async(encoder_model):
     """Test that encoder can generate embeddings using async API"""
@@ -153,6 +163,18 @@ async def test_encoder_async(encoder_model):
     assert all(isinstance(x, float) for x in embedding), (
         "All embedding values should be floats"
     )
+
+
+@pytest.mark.asyncio
+async def test_encoder_batch_async(encoder_model):
+    encoder = nobodywho.EncoderAsync(encoder_model, n_ctx=1024)
+    texts = ["Copenhagen is in Denmark.", "Berlin is in Germany."]
+    individual = [await encoder.encode(text) for text in texts]
+    batched = await encoder.encode_batch(texts)
+
+    assert len(batched) == len(texts)
+    for expected, actual in zip(individual, batched, strict=True):
+        assert actual == pytest.approx(expected, abs=1e-5)
 
 
 def test_cosine_similarity():
@@ -308,6 +330,21 @@ def test_stats(model):
     assert stats.context_size == n_ctx
     assert stats.context_used > 0
     assert stats.context_used <= n_ctx
+
+
+def test_explicit_thread_count(model):
+    # n_threads is not readable back through stats(), so this asserts the option is accepted
+    # and that generation still works with a non-default pool size. Core clamps the value,
+    # so an absurd request must not fail either.
+    for n_threads in (1, 1_000_000):
+        chat = nobodywho.Chat(
+            model,
+            n_ctx=1024,
+            n_threads=n_threads,
+            template_variables={"enable_thinking": False},
+        )
+        response = chat.ask("What is the capital of Denmark?").completed()
+        assert "Copenhagen" in response
 
 
 def test_set_and_get_chat_history(chat):

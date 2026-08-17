@@ -58,9 +58,10 @@ impl Model {
     /// Create a new Model from a GGUF file.
     ///
     /// Args:
-    ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
+    ///     model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
     ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     draft_model_path: Path or URL to a compatible MTP draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Loading it lets subsequent Chats opt into MTP speculative decoding via `mtp=MtpConfig()` on `Chat(...)`. Adds around 5% to VRAM usage. Defaults to None.
     ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
@@ -69,11 +70,12 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[new]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, draft_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub fn new(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
         projection_model_path: Option<std::path::PathBuf>,
+        draft_model_path: Option<std::path::PathBuf>,
         on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
@@ -93,9 +95,25 @@ impl Model {
                 })
             })
             .transpose()?;
+        let draft_str = draft_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
         let progress = resolve_on_download_progress(on_download_progress)?;
-        let model_result =
-            nobodywho::llm::get_model(path_str, use_gpu_if_available, mmproj_str, progress);
+        let model_result = nobodywho::llm::get_model(
+            path_str,
+            use_gpu_if_available,
+            mmproj_str,
+            draft_str,
+            progress,
+        );
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
@@ -113,9 +131,10 @@ impl Model {
     /// a background thread, allowing other async tasks to continue running.
     ///
     /// Args:
-    ///     model_path: Path or URL to a GGUF model file. Accepts a local file path (e.g. `./model.gguf`), a `huggingface:` path (e.g. `huggingface:owner/repo/file.gguf`), or an `https://` URL. Remote models are downloaded and cached automatically.
+    ///     model_path: Local path, `huggingface:` path, `https://` URL, or `auto` for memory-based model selection. Remote models are downloaded and cached automatically.
     ///     use_gpu_if_available: If True, attempts to use GPU acceleration. Defaults to True.
     ///     projection_model_path: Path or URL to a multimodal projector file for vision models. Accepts the same formats as model_path. Defaults to None.
+    ///     draft_model_path: Path or URL to a compatible MTP draft-heads gguf. See `Model.__init__` for details. Defaults to None.
     ///     on_download_progress: Optional callable invoked during model downloads with `(downloaded_bytes, total_bytes)`. Not called for locally cached models. If a projection model is also downloaded, the callback fires for each download sequentially, so `total_bytes` resets between them. Defaults to None.
     ///
     /// Returns:
@@ -124,11 +143,12 @@ impl Model {
     /// Raises:
     ///     RuntimeError: If the model file cannot be loaded
     #[staticmethod]
-    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
+    #[pyo3(signature = (model_path: "os.PathLike | str", use_gpu_if_available = true, projection_model_path: "os.PathLike | str | None" = None, draft_model_path: "os.PathLike | str | None" = None, on_download_progress: "typing.Callable[[int, int], None] | None" = None) -> "Model")]
     pub async fn load_model_async(
         model_path: std::path::PathBuf,
         use_gpu_if_available: bool,
         projection_model_path: Option<std::path::PathBuf>,
+        draft_model_path: Option<std::path::PathBuf>,
         on_download_progress: Option<Py<PyAny>>,
     ) -> PyResult<Self> {
         let path_str = model_path.to_str().ok_or_else(|| {
@@ -148,11 +168,23 @@ impl Model {
                 })
             })
             .transpose()?;
+        let draft_str = draft_model_path
+            .as_ref()
+            .map(|p| {
+                p.to_str().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Path contains invalid UTF-8: {}",
+                        p.display()
+                    ))
+                })
+            })
+            .transpose()?;
         let progress = resolve_on_download_progress(on_download_progress)?;
         let model_result = nobodywho::llm::get_model_async(
             path_str.to_owned(),
             use_gpu_if_available,
             mmproj_str.map(str::to_owned),
+            draft_str.map(str::to_owned),
             progress,
         )
         .await;
@@ -196,7 +228,7 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None, None)
+                nobodywho::llm::get_model(path_str, true, None, None, None)
                     .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
                     .map(Arc::new)
             }
@@ -205,48 +237,108 @@ impl<'py> ModelOrPath<'py> {
 }
 
 // ---------------------------------------------------------------------------
-// STT
+// SpeechToText
 // ---------------------------------------------------------------------------
 
-/// `STT` transcribes speech to text using a Whisper ONNX model.
+/// `SpeechToText` transcribes speech to text using a Whisper ONNX model.
 ///
-/// `source` is a HuggingFace repo ID (e.g. `"onnx-community/whisper-base"`) or
-/// a local directory path. `language` is an ISO 639-1 code (e.g. `"en"`);
-/// omit or pass `None` to auto-detect.
+/// `source` is a HuggingFace repo (`hf://owner/repo`, e.g.
+/// `"hf://onnx-community/whisper-base"`) or a local directory path. `language`
+/// is an ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+/// `quantization` selects the ONNX precision variant to download and load: one
+/// of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`,
+/// `"q4f16"`, `"quantized"`; omit or pass `None` to use `"default"`.
 ///
 /// Example::
 ///
-///     stt = nobodywho.STT("onnx-community/whisper-base")
+///     stt = nobodywho.SpeechToText("hf://onnx-community/whisper-base")
 ///     text = stt.transcribe_file("recording.mp3").completed()
 ///
 ///     # Or stream tokens:
 ///     for piece in stt.transcribe_file("recording.mp3"):
 ///         print(piece, end="", flush=True)
 #[pyclass]
-pub struct STT {
-    stt: nobodywho::stt::Stt,
+pub struct SpeechToText {
+    stt: nobodywho::speech_to_text::SpeechToText,
 }
 
 #[pymethods]
-impl STT {
+impl SpeechToText {
     #[new]
-    #[pyo3(signature = (source, language = None))]
-    pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(source);
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub fn new(
+        source: &str,
+        language: Option<&str>,
+        quantization: Option<&str>,
+        py: Python,
+    ) -> PyResult<Self> {
+        let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
+        if let Some(quantization) = quantization {
+            cfg.quantization = quantization.to_string();
+        }
         let stt = py
-            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+            .detach(|| {
+                nobodywho::speech_to_text::SpeechToText::new(
+                    nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+                )
+            })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self { stt })
     }
 
-    /// Transcribe an audio file (WAV / MP3 / FLAC). Returns a `TokenStream`.
+    /// Asynchronously load an SpeechToText model.
+    ///
+    /// This static method loads the model asynchronously, which is useful for loading large models
+    /// without blocking the async event loop. The blocking model load operation is offloaded to
+    /// a background thread, allowing other async tasks to continue running.
+    ///
+    /// Args:
+    ///     source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+    ///     language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+    ///     quantization: ONNX precision variant to download and load: one of
+    ///         `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+    ///         omit or pass `None` to use `"default"`.
+    ///
+    /// Returns:
+    ///     An SpeechToText instance wrapped in an awaitable (async function returns a coroutine)
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[staticmethod]
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub async fn load(
+        source: String,
+        language: Option<String>,
+        quantization: Option<String>,
+    ) -> PyResult<Self> {
+        tokio::task::spawn_blocking(move || {
+            let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(&source);
+            cfg.language = language;
+            if let Some(quantization) = quantization {
+                cfg.quantization = quantization;
+            }
+            nobodywho::speech_to_text::SpeechToText::new(
+                nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+            )
+        })
+        .await
+        .map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "SpeechToText load task panicked: {e}"
+            ))
+        })?
+        .map(|stt| Self { stt })
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Transcribe an audio file (WAV / MP3). Returns a `TokenStream`.
     pub fn transcribe_file(&self, path: &str, py: Python) -> PyResult<TokenStream> {
         let stream = py
             .detach(|| self.stt.transcribe_file_stream(path))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStream {
-            inner: SyncStreamInner::Stt(stream),
+            inner: SyncStreamInner::SpeechToText(stream),
         })
     }
 
@@ -261,28 +353,85 @@ impl STT {
             .detach(|| self.stt.transcribe_pcm_stream(samples, sample_rate))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStream {
-            inner: SyncStreamInner::Stt(stream),
+            inner: SyncStreamInner::SpeechToText(stream),
         })
     }
 }
 
-/// `STTAsync` is the async variant of `STT`.
+/// `SpeechToTextAsync` is the async variant of `SpeechToText`.
 #[pyclass]
-pub struct STTAsync {
-    stt: nobodywho::stt::Stt,
+pub struct SpeechToTextAsync {
+    stt: nobodywho::speech_to_text::SpeechToText,
 }
 
 #[pymethods]
-impl STTAsync {
+impl SpeechToTextAsync {
     #[new]
-    #[pyo3(signature = (source, language = None))]
-    pub fn new(source: &str, language: Option<&str>, py: Python) -> PyResult<Self> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(source);
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub fn new(
+        source: &str,
+        language: Option<&str>,
+        quantization: Option<&str>,
+        py: Python,
+    ) -> PyResult<Self> {
+        let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(source);
         cfg.language = language.map(String::from);
+        if let Some(quantization) = quantization {
+            cfg.quantization = quantization.to_string();
+        }
         let stt = py
-            .detach(|| nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)))
+            .detach(|| {
+                nobodywho::speech_to_text::SpeechToText::new(
+                    nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+                )
+            })
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(Self { stt })
+    }
+
+    /// Asynchronously load an SpeechToText model.
+    ///
+    /// This static method loads the model asynchronously, which is useful for loading large models
+    /// without blocking the async event loop. The blocking model load operation is offloaded to
+    /// a background thread, allowing other async tasks to continue running.
+    ///
+    /// Args:
+    ///     source: HuggingFace repo (`hf://owner/repo`) or a local directory path.
+    ///     language: ISO 639-1 code (e.g. `"en"`); omit or pass `None` to auto-detect.
+    ///     quantization: ONNX precision variant to download and load: one of
+    ///         `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+    ///         omit or pass `None` to use `"default"`.
+    ///
+    /// Returns:
+    ///     An SpeechToTextAsync instance wrapped in an awaitable (async function returns a coroutine)
+    ///
+    /// Raises:
+    ///     RuntimeError: If the model cannot be loaded
+    #[staticmethod]
+    #[pyo3(signature = (source, language = None, quantization = None))]
+    pub async fn load(
+        source: String,
+        language: Option<String>,
+        quantization: Option<String>,
+    ) -> PyResult<Self> {
+        tokio::task::spawn_blocking(move || {
+            let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(&source);
+            cfg.language = language;
+            if let Some(quantization) = quantization {
+                cfg.quantization = quantization;
+            }
+            nobodywho::speech_to_text::SpeechToText::new(
+                nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+            )
+        })
+        .await
+        .map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "SpeechToText load task panicked: {e}"
+            ))
+        })?
+        .map(|stt| Self { stt })
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     pub fn transcribe_file(&self, path: String) -> PyResult<TokenStreamAsync> {
@@ -291,7 +440,9 @@ impl STTAsync {
             .transcribe_file_stream_async(path)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStreamAsync {
-            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::SpeechToText(
+                stream,
+            ))),
         })
     }
 
@@ -305,32 +456,161 @@ impl STTAsync {
             .transcribe_pcm_stream_async(samples, sample_rate)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         Ok(TokenStreamAsync {
-            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Stt(stream))),
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::SpeechToText(
+                stream,
+            ))),
         })
     }
 }
 
 // ---------------------------------------------------------------------------
-// Token streams (shared by Chat and STT)
+// VoiceActivityDetection
 // ---------------------------------------------------------------------------
 
-// Type-erased inner for sync streams — lets Chat and STT share one pyclass.
+/// `VoiceActivityDetection.push` always returns one of these: `Speech`/`Silence`
+/// for the confirmed state when unchanged since the last call, or
+/// `SpeechStarted`/`SpeechEnded` on the call that confirmed the transition.
+#[pyclass(eq, eq_int, skip_from_py_object)]
+#[derive(Clone, Copy, PartialEq)]
+pub enum VoiceActivityDetectionEvent {
+    Speech,
+    SpeechStarted,
+    SpeechEnded,
+    Silence,
+}
+
+impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
+    for VoiceActivityDetectionEvent
+{
+    fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
+        match e {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Speech => {
+                VoiceActivityDetectionEvent::Speech
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
+                VoiceActivityDetectionEvent::SpeechStarted
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
+                VoiceActivityDetectionEvent::SpeechEnded
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Silence => {
+                VoiceActivityDetectionEvent::Silence
+            }
+        }
+    }
+}
+
+/// `VoiceActivityDetection` detects speech start/end from streaming, live audio using Silero VAD.
+///
+/// `source` is a HuggingFace repo (`hf://owner/repo`) or local directory path
+/// for the Silero VAD ONNX model; omit or pass `None` to use the default
+/// (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+/// buffers you'll pass to `push` — anything other than 16kHz is resampled
+/// internally.
+///
+/// Example::
+///
+///     from nobodywho import VoiceActivityDetection, VoiceActivityDetectionEvent
+///
+///     vad = VoiceActivityDetection(sample_rate=16000)
+///     for chunk in mic_chunks():
+///         if vad.push(chunk) == VoiceActivityDetectionEvent.SpeechEnded:
+///             audio = vad.finish()
+///             break
+#[pyclass]
+pub struct VoiceActivityDetection {
+    // Core type is Send but not Sync (rubato's resampler isn't); pyclass
+    // fields must be Sync, so wrap in a Mutex to satisfy that.
+    vad: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
+}
+
+#[pymethods]
+impl VoiceActivityDetection {
+    #[new]
+    #[pyo3(signature = (source = None, sample_rate = 16_000, threshold = None, min_silence_duration_ms = None, min_speech_duration_ms = None, preroll_duration_ms = None))]
+    pub fn new(
+        source: Option<&str>,
+        sample_rate: u32,
+        threshold: Option<f32>,
+        min_silence_duration_ms: Option<u32>,
+        min_speech_duration_ms: Option<u32>,
+        preroll_duration_ms: Option<u32>,
+        py: Python,
+    ) -> PyResult<Self> {
+        let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
+        let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
+            source: source.map(String::from).unwrap_or(defaults.source),
+            sample_rate,
+            threshold: threshold.unwrap_or(defaults.threshold),
+            min_silence_duration_ms: min_silence_duration_ms
+                .unwrap_or(defaults.min_silence_duration_ms),
+            min_speech_duration_ms: min_speech_duration_ms
+                .unwrap_or(defaults.min_speech_duration_ms),
+            preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
+        };
+        let vad = py
+            .detach(|| nobodywho::voice_activity_detection::VoiceActivityDetection::new(config))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+        Ok(Self {
+            vad: std::sync::Mutex::new(vad),
+        })
+    }
+
+    /// Feed the newest chunk of audio (not the whole accumulated buffer —
+    /// `VoiceActivityDetection` tracks the current turn internally). Always
+    /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+    /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+    /// confirmed the transition.
+    pub fn push(&self, chunk: Vec<i16>, py: Python) -> PyResult<VoiceActivityDetectionEvent> {
+        py.detach(|| self.vad.lock().unwrap().push(&chunk))
+            .map(Into::into)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Return the current turn's captured audio (from the confirmed
+    /// `VoiceActivityDetectionEvent.SpeechStarted`, including a small pre-roll, through to
+    /// `VoiceActivityDetectionEvent.SpeechEnded`) and reset internal state for the next turn.
+    /// Empty if speech was never confirmed.
+    pub fn finish(&self, py: Python) -> Vec<i16> {
+        py.detach(|| self.vad.lock().unwrap().finish())
+    }
+
+    /// Detect every speech segment in a complete audio buffer, returning
+    /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+    /// correctly finds every segment regardless of buffer size — use this
+    /// for offline/batch processing instead of live streaming.
+    ///
+    /// Example::
+    ///
+    ///     for audio in vad.segment(full_recording):
+    ///         transcribe(audio)
+    pub fn segment(&self, samples: Vec<i16>, py: Python) -> PyResult<Vec<Vec<i16>>> {
+        py.detach(|| self.vad.lock().unwrap().segment(&samples))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Token streams (shared by Chat and SpeechToText)
+// ---------------------------------------------------------------------------
+
+// Type-erased inner for sync streams — lets Chat and SpeechToText share one pyclass.
 enum SyncStreamInner {
     Chat(nobodywho::chat::TokenStream),
-    Stt(nobodywho::stream::TokenStream<nobodywho::errors::SttError>),
+    SpeechToText(nobodywho::stream::TokenStream<nobodywho::errors::SpeechToTextError>),
 }
 
 impl SyncStreamInner {
     fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
             Self::Chat(s) => s.next_token().map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.next_token().map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.next_token().map_err(|e| e.to_string()),
         }
     }
     fn completed(&mut self) -> Result<String, String> {
         match self {
             Self::Chat(s) => s.completed().map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.completed().map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.completed().map_err(|e| e.to_string()),
         }
     }
 }
@@ -338,69 +618,80 @@ impl SyncStreamInner {
 // Type-erased inner for async streams.
 enum AsyncStreamInner {
     Chat(nobodywho::chat::TokenStreamAsync),
-    Stt(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SttError>),
+    SpeechToText(nobodywho::stream::TokenStreamAsync<nobodywho::errors::SpeechToTextError>),
 }
 
 impl AsyncStreamInner {
     async fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
             Self::Chat(s) => s.next_token().await.map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.next_token().await.map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.next_token().await.map_err(|e| e.to_string()),
         }
     }
     async fn completed(&mut self) -> Result<String, String> {
         match self {
             Self::Chat(s) => s.completed().await.map_err(|e| render_miette(&e)),
-            Self::Stt(s) => s.completed().await.map_err(|e| e.to_string()),
+            Self::SpeechToText(s) => s.completed().await.map_err(|e| e.to_string()),
         }
     }
 }
 
-/// `TokenStream` is returned by `Chat.ask`, `STT.transcribe_file`, and `STT.transcribe_pcm`.
+/// `TokenStream` is returned by `Chat.ask`, `SpeechToText.transcribe_file`, and `SpeechToText.transcribe_pcm`.
 /// Iterate over it token-by-token or call `.completed()` for the full text at once.
 /// Also see `TokenStreamAsync` for the async variant.
 
-fn parse_tts_device(device: &str) -> PyResult<nobodywho::tts::TtsDevice> {
+fn parse_text_to_speech_device(
+    device: &str,
+) -> PyResult<nobodywho::text_to_speech::TextToSpeechDevice> {
     match device.to_ascii_lowercase().as_str() {
-        "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
-        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
-        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
+        "auto" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Auto),
+        "cpu" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cpu),
+        "cuda" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cuda),
         _ => Err(pyo3::exceptions::PyValueError::new_err(
             "device must be one of 'auto', 'cpu', or 'cuda'",
         )),
     }
 }
 
-fn parse_tts_backend(backend: &str) -> PyResult<nobodywho::tts::TtsBackendKind> {
-    backend.parse().map_err(|()| {
-        pyo3::exceptions::PyValueError::new_err("backend must be one of 'kokoro' or 'supertonic'")
+fn parse_text_to_speech_architecture(
+    architecture: &str,
+) -> PyResult<nobodywho::text_to_speech::TextToSpeechArchitecture> {
+    architecture.parse().map_err(|()| {
+        pyo3::exceptions::PyValueError::new_err(
+            "architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'",
+        )
     })
 }
 
-fn build_tts_config(
+fn build_text_to_speech_config(
     source: std::path::PathBuf,
-    backend: Option<&str>,
+    architecture: Option<&str>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
     steps: Option<usize>,
     silence_duration: Option<f32>,
-) -> PyResult<nobodywho::tts::TtsConfig> {
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
+) -> PyResult<nobodywho::text_to_speech::TextToSpeechConfig> {
     let source = source.to_str().ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!(
             "Path contains invalid UTF-8: {}",
             source.display()
         ))
     })?;
-    let backend = backend.map(parse_tts_backend).transpose()?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(source, backend).ok_or_else(|| {
+    let architecture = architecture
+        .map(parse_text_to_speech_architecture)
+        .transpose()?;
+    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(source, architecture).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(
-            "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'",
+            "architecture is required for unknown TextToSpeech sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
         )
     })?;
 
     match &mut config {
-        nobodywho::tts::TtsConfig::Kokoro(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Kokoro(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -411,7 +702,33 @@ fn build_tts_config(
                 config.speed = speed;
             }
         }
-        nobodywho::tts::TtsConfig::Supertonic(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::PocketTts(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(steps) = steps {
+                config.lsd_steps = steps;
+            }
+            if let Some(precision) = precision {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::text_to_speech::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::text_to_speech::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err(pyo3::exceptions::PyValueError::new_err(
+                            "precision must be 'int8' or 'fp32' for Pocket TTS",
+                        ))
+                    }
+                };
+            }
+            if let Some(temperature) = temperature {
+                config.temperature = temperature;
+            }
+            config.huggingface_token = huggingface_token;
+        }
+        nobodywho::text_to_speech::TextToSpeechConfig::Supertonic(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -432,49 +749,58 @@ fn build_tts_config(
     Ok(config)
 }
 
-/// `Tts` synthesizes speech to WAV bytes.
+/// `TextToSpeech` synthesizes speech to WAV bytes.
 #[pyclass]
-pub struct Tts {
-    tts: nobodywho::tts::Tts,
+pub struct TextToSpeech {
+    tts: nobodywho::text_to_speech::TextToSpeech,
 }
 
 #[pymethods]
-impl Tts {
-    /// Create a TTS synthesizer.
+impl TextToSpeech {
+    /// Create a TextToSpeech synthesizer.
     ///
     /// Args:
-    ///     source: Local model directory or HuggingFace repo ID.
-    ///     backend: "kokoro" or "supertonic". Required for local or unknown sources.
-    ///         Known sources infer the backend when omitted.
-    ///     voice: Voice name. Backend default is used when omitted.
-    ///     language: Language code. Backend default is used when omitted.
-    ///     speed: Speaking speed. Backend default is used when omitted.
-    ///     steps: Supertonic denoising steps. Ignored by Kokoro.
+    ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+    ///     architecture: "kokoro", "pocket-tts", or "supertonic". Required for local or unknown sources.
+    ///         Sources containing an architecture name infer it when omitted.
+    ///     voice: Voice name. Architecture default is used when omitted.
+    ///     language: Language code. Architecture default is used when omitted.
+    ///     speed: Speaking speed. Architecture default is used when omitted.
+    ///     steps: Supertonic denoising steps or Pocket TTS LSD steps.
     ///     silence_duration: Supertonic silence between chunks in seconds.
+    ///     precision: Pocket TTS precision: "int8" or "fp32".
+    ///     temperature: Pocket TTS generation temperature.
+    ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
     ///     device: "auto", "cpu", or "cuda". Defaults to "auto".
     #[new]
-    #[pyo3(signature = (source: "os.PathLike | str", backend: "typing.Literal['kokoro', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Tts")]
+    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, precision = None, temperature = None, huggingface_token = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "TextToSpeech")]
     pub fn new(
         source: std::path::PathBuf,
-        backend: Option<&str>,
+        architecture: Option<&str>,
         voice: Option<String>,
         language: Option<String>,
         speed: Option<f32>,
         steps: Option<usize>,
         silence_duration: Option<f32>,
+        precision: Option<String>,
+        temperature: Option<f32>,
+        huggingface_token: Option<String>,
         device: &str,
     ) -> PyResult<Self> {
-        let device = parse_tts_device(device)?;
-        let config = build_tts_config(
+        let device = parse_text_to_speech_device(device)?;
+        let config = build_text_to_speech_config(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
         )?;
-        let tts = nobodywho::tts::Tts::with_device(config, device)
+        let tts = nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
         Ok(Self { tts })
     }
@@ -577,7 +903,7 @@ impl TokenStreamAsync {
 /// `Encoder` will let you generate vector representations of text.
 /// It must be initialized with a model that specifically supports generating embeddings.
 /// A regular chat/text-generation model will not just work.
-/// Once initialized, you can call `.encode()` on a string, which returns a list of 32-bit floats.
+/// Once initialized, call `.encode()` for one string or `.encode_batch()` for multiple strings.
 /// See `EncoderAsync` for the async version of this class.
 #[pyclass]
 pub struct Encoder {
@@ -635,6 +961,24 @@ impl Encoder {
         py.detach(|| {
             self.inner()
                 .encode(text)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
+        })
+    }
+
+    /// Generate embedding vectors for multiple texts in input order. This method blocks until complete.
+    ///
+    /// Args:
+    ///     texts: The texts to encode
+    ///
+    /// Returns:
+    ///     One embedding vector per input text, in input order
+    ///
+    /// Raises:
+    ///     RuntimeError: If encoding fails
+    pub fn encode_batch(&self, texts: Vec<String>, py: Python) -> PyResult<Vec<Vec<f32>>> {
+        py.detach(|| {
+            self.inner()
+                .encode_batch(texts)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("{}", e)))
         })
     }
@@ -699,6 +1043,24 @@ impl EncoderAsync {
         self.inner().encode(text).await.map_err(|e| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Failed to receive embedding: {e}"
+            ))
+        })
+    }
+
+    /// Generate embedding vectors for multiple texts asynchronously.
+    ///
+    /// Args:
+    ///     texts: The texts to encode
+    ///
+    /// Returns:
+    ///     One embedding vector per input text, in input order
+    ///
+    /// Raises:
+    ///     RuntimeError: If encoding fails
+    async fn encode_batch(&self, texts: Vec<String>) -> PyResult<Vec<Vec<f32>>> {
+        self.inner().encode_batch(texts).await.map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to receive embeddings: {e}"
             ))
         })
     }
@@ -884,6 +1246,46 @@ impl CrossEncoderAsync {
     }
 }
 
+/// Tuning for MTP speculative decoding. Pass an instance as the `mtp`
+/// argument to `Chat`/`ChatAsync` to enable MTP; leave it `None` to disable.
+/// Requires the `Model` to have been loaded with a compatible `draft_model_path`.
+// `from_py_object` opts into the `FromPyObject` derive so `MtpConfig` can be
+// accepted by value as the `mtp` argument. pyo3 0.28 made this opt-in for
+// `Clone` pyclasses; without it the build fails under `-D deprecated`.
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp n_max).
+    #[pyo3(get, set)]
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp p_min).
+    #[pyo3(get, set)]
+    pub p_min: f32,
+}
+
+#[pymethods]
+impl MtpConfig {
+    /// Create an MTP config. Defaults mirror core `MtpConfig::default()`.
+    ///
+    /// Args:
+    ///     k_max: Max draft tokens proposed per speculative step. Defaults to 3.
+    ///     p_min: Minimum draft-token probability accepted. Defaults to 0.0.
+    #[new]
+    #[pyo3(signature = (k_max = 3, p_min = 0.0))]
+    fn new(k_max: u32, p_min: f32) -> Self {
+        Self { k_max, p_min }
+    }
+}
+
+impl From<MtpConfig> for nobodywho::chat::MtpConfig {
+    fn from(c: MtpConfig) -> Self {
+        nobodywho::chat::MtpConfig {
+            k_max: c.k_max,
+            p_min: c.p_min,
+        }
+    }
+}
+
 /// `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
 /// It should be initialized with a turn-taking LLM, which includes a chat template.
 /// On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
@@ -927,6 +1329,13 @@ impl Chat {
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
+    ///     mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+    ///         Requires the `Model` to have been loaded with a compatible
+    ///         `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+    ///     n_threads: Number of CPU threads to use for inference. Defaults to None, which
+    ///         detects the host's physical core count (performance cores only, on Apple
+    ///         silicon) — hyperthreads and efficiency cores slow inference down. Set it
+    ///         lower to leave CPU headroom for other work. Clamped to the logical CPU count.
     ///
     /// Returns:
     ///     A Chat instance
@@ -935,7 +1344,7 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -944,6 +1353,8 @@ impl Chat {
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
+        mtp: Option<MtpConfig>,
+        n_threads: Option<u32>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -970,6 +1381,12 @@ impl Chat {
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
                 .with_system_prompt(system_prompt);
+            if let Some(mtp) = mtp {
+                builder = builder.with_mtp(mtp.into());
+            }
+            if let Some(n_threads) = n_threads {
+                builder = builder.with_n_threads(n_threads);
+            }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.
@@ -1249,6 +1666,20 @@ impl Chat {
         })
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+    ///
+    /// Resets each generation. None when MTP is disabled or no drafts were proposed.
+    ///
+    /// Returns:
+    ///     Optional[float]
+    pub fn mtp_acceptance_rate(&self, py: Python) -> PyResult<Option<f32>> {
+        py.detach(|| {
+            self.handle()
+                .mtp_acceptance_rate()
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        })
+    }
+
     /// Get the current system prompt.
     ///
     /// Returns:
@@ -1331,6 +1762,13 @@ impl ChatAsync {
     ///         embedded in the model file (general.sampling.* metadata) are used when
     ///         present, otherwise SamplerConfig.default().
     ///     allow_thinking: DEPRECATED. Use template_variables={"enable_thinking": True} instead. If set, overrides enable_thinking in template_variables.
+    ///     mtp: Optional MtpConfig to enable MTP speculative decoding on this chat.
+    ///         Requires the `Model` to have been loaded with a compatible
+    ///         `draft_model_path`. Adds around 5% to VRAM usage. Defaults to None.
+    ///     n_threads: Number of CPU threads to use for inference. Defaults to None, which
+    ///         detects the host's physical core count (performance cores only, on Apple
+    ///         silicon) — hyperthreads and efficiency cores slow inference down. Set it
+    ///         lower to leave CPU headroom for other work. Clamped to the logical CPU count.
     ///
     /// Returns:
     ///     A ChatAsync instance
@@ -1339,7 +1777,7 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -1348,6 +1786,8 @@ impl ChatAsync {
         tools: Vec<Tool>,
         sampler: Option<SamplerConfig>,
         allow_thinking: Option<bool>,
+        mtp: Option<MtpConfig>,
+        n_threads: Option<u32>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -1374,6 +1814,12 @@ impl ChatAsync {
                 .with_tools(tools.into_iter().map(|t| t.tool).collect())
                 .with_template_variables(template_vars)
                 .with_system_prompt(system_prompt);
+            if let Some(mtp) = mtp {
+                builder = builder.with_mtp(mtp.into());
+            }
+            if let Some(n_threads) = n_threads {
+                builder = builder.with_n_threads(n_threads);
+            }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
             // and only then to the built-in default.
@@ -1637,6 +2083,19 @@ impl ChatAsync {
                 context_size: s.context_size,
                 context_used: s.context_used,
             })
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// MTP draft acceptance rate for the most recent generation, in [0.0, 1.0].
+    ///
+    /// Resets each generation. None when MTP is disabled or no drafts were proposed.
+    ///
+    /// Returns:
+    ///     Optional[float]
+    pub async fn mtp_acceptance_rate(&self) -> PyResult<Option<f32>> {
+        self.handle()
+            .mtp_acceptance_rate()
+            .await
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
@@ -3073,9 +3532,9 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Model;
     #[pymodule_export]
-    use super::Prompt;
+    use super::MtpConfig;
     #[pymodule_export]
-    use super::STTAsync;
+    use super::Prompt;
     #[pymodule_export]
     use super::SamplerBuilder;
     #[pymodule_export]
@@ -3083,7 +3542,13 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::SamplerPresets;
     #[pymodule_export]
+    use super::SpeechToText;
+    #[pymodule_export]
+    use super::SpeechToTextAsync;
+    #[pymodule_export]
     use super::Text;
+    #[pymodule_export]
+    use super::TextToSpeech;
     #[pymodule_export]
     use super::TokenStream;
     #[pymodule_export]
@@ -3091,7 +3556,7 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::Tool;
     #[pymodule_export]
-    use super::Tts;
+    use super::VoiceActivityDetection;
     #[pymodule_export]
-    use super::STT;
+    use super::VoiceActivityDetectionEvent;
 }

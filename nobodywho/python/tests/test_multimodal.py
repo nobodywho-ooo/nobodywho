@@ -120,7 +120,9 @@ def test_image_recollection(multimodal_chat):
 
 def test_audio_transcription(multimodal_chat):
     """Test that the model can transcribe audio"""
-    audio_path = os.path.join(os.path.dirname(__file__), "audio/sound_16k.wav")
+    audio_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "..", "assets", "sound_16k.wav"
+    )
     prompt = nobodywho.Prompt(
         [
             nobodywho.Text("Please transcribe this audio."),
@@ -133,7 +135,9 @@ def test_audio_transcription(multimodal_chat):
 
 def test_audio_transcription_and_image_ingestion(multimodal_chat):
     """Test that the model can transcribe audio"""
-    audio_path = os.path.join(os.path.dirname(__file__), "audio/sound_16k.wav")
+    audio_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "..", "assets", "sound_16k.wav"
+    )
     image_path = os.path.join(os.path.dirname(__file__), "img/dog.png")
     prompt = nobodywho.Prompt(
         [
@@ -143,6 +147,6 @@ def test_audio_transcription_and_image_ingestion(multimodal_chat):
         ]
     )
     response = multimodal_chat.ask(prompt).completed()
-    assert "billy" in response.lower() and (
+    assert "hey" in response.lower() and (
         "dog" in response.lower() or "retriever" in response.lower()
     )

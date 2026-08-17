@@ -2,7 +2,7 @@
  * NobodyWho — React Native bindings for local LLM inference.
  *
  * This is the public entry point. It re-exports the public API:
- * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, Tts, Tool, TokenStream, Prompt
+ * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, TextToSpeech, Tool, TokenStream, Prompt
  * - Direct re-exports: SamplerBuilder, SamplerConfig
  * - Types: Message, Asset, ToolCall
  * - Utilities: SamplerPresets, cosineSimilarity, downloadModel
@@ -57,10 +57,11 @@ export async function downloadModel(opts: {
 // Wrapper classes
 export { Model } from "./model";
 export { Chat } from "./chat";
-export { STT } from "./stt";
+export { SpeechToText } from "./speech_to_text";
+export { VoiceActivityDetection } from "./vad";
 export { Encoder } from "./encoder";
 export { CrossEncoder } from "./cross_encoder";
-export { Tts } from "./tts";
+export { TextToSpeech } from "./text_to_speech";
 export { Prompt } from "./prompt";
 export { Tool } from "./tool";
 export { TokenStream } from "./streaming";
@@ -85,7 +86,10 @@ export type {
   CachedModel,
   ChatStats,
 } from "../generated/ts/nobodywho";
-export type { TtsBackend, TtsDevice, TtsOptions } from "./tts";
+export type { TextToSpeechArchitecture, TextToSpeechDevice, TextToSpeechOptions } from "./text_to_speech";
+export type { SpeechToTextOptions } from "./speech_to_text";
+export { VoiceActivityDetectionEvent } from "./vad";
+export type { VoiceActivityDetectionOptions } from "./vad";
 
 // Ergonomic wrapper additions.
 export { SamplerPresets } from "./sampler_presets";

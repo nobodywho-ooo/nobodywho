@@ -394,6 +394,11 @@ article img {
   color: var(--ifm-font-color-base) !important;
 }
 
+/* ── Category/doc card grid (generated index pages) ─────── */
+.theme-doc-card-icon {
+  display: none;
+}
+
 /* ── GitHub navbar icon + star count ─────────────────────── */
 .header-github-link {
   display: flex !important;

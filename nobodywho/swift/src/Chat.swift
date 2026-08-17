@@ -15,13 +15,19 @@ import NobodyWhoGenerated
 public class Chat {
     private let inner: RustChat
 
+    /// `threadCount` is the number of CPU threads used for inference. Leave it `nil` to
+    /// detect the device's physical core count (performance cores only, on Apple silicon) —
+    /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
+    /// CPU headroom for the rest of the app.
     public init(
         model: Model,
         systemPrompt: String? = nil,
         contextSize: UInt32 = 4096,
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
-        sampler: SamplerConfig? = nil
+        sampler: SamplerConfig? = nil,
+        mtp: MtpConfig? = nil,
+        threadCount: UInt32? = nil
     ) throws {
         self.inner = try RustChat(
             model: model.inner,
@@ -29,7 +35,9 @@ public class Chat {
             contextSize: contextSize,
             templateVariables: templateVariables,
             tools: tools?.map { $0.inner },
-            sampler: sampler
+            sampler: sampler,
+            mtp: mtp,
+            threadCount: threadCount
         )
     }
 
@@ -39,17 +47,21 @@ public class Chat {
         modelPath: String,
         useGpu: Bool = true,
         projectionModelPath: String? = nil,
+        draftModelPath: String? = nil,
         systemPrompt: String? = nil,
         contextSize: UInt32 = 4096,
         templateVariables: [String: Bool]? = nil,
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil,
+        mtp: MtpConfig? = nil,
+        threadCount: UInt32? = nil,
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Chat {
         let model = try await Model.load(
             modelPath: modelPath,
             useGpu: useGpu,
             projectionModelPath: projectionModelPath,
+            draftModelPath: draftModelPath,
             onDownloadProgress: onDownloadProgress
         )
         return try Chat(
@@ -58,7 +70,9 @@ public class Chat {
             contextSize: contextSize,
             templateVariables: templateVariables,
             tools: tools,
-            sampler: sampler
+            sampler: sampler,
+            mtp: mtp,
+            threadCount: threadCount
         )
     }
 
@@ -141,6 +155,11 @@ public class Chat {
     /// Get context usage statistics.
     public func getStats() async throws -> ChatStats {
         return try await inner.getStats()
+    }
+
+    /// MTP draft acceptance rate for the most recent generation, or nil if unavailable.
+    public func mtpAcceptanceRate() async throws -> Float? {
+        return try await inner.mtpAcceptanceRate()
     }
 
     /// Tokenize a message using the model's tokenizer.

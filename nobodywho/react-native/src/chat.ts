@@ -1,6 +1,7 @@
 import {
   RustChat,
   SamplerConfig,
+  MtpConfig,
   type ChatStats,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
@@ -31,6 +32,12 @@ export class Chat {
   /** @internal */
   private readonly _inner: RustChat;
 
+  /**
+   * `threadCount` is the number of CPU threads used for inference. Omit it to detect the
+   * device's physical core count (performance cores only, on Apple silicon) — hyperthreads
+   * and efficiency cores make inference slower, not faster. Lower it to leave CPU headroom
+   * for the rest of the app.
+   */
   constructor(opts: {
     model: Model;
     systemPrompt?: string;
@@ -38,6 +45,8 @@ export class Chat {
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
+    mtp?: Partial<MtpConfig>;
+    threadCount?: number;
   }) {
     this._inner = new RustChat(
       opts.model._inner,
@@ -46,6 +55,8 @@ export class Chat {
       opts.templateVariables ? new Map(Object.entries(opts.templateVariables)) : undefined,
       opts.tools?.map((t) => t._inner) ?? undefined,
       opts.sampler ?? undefined,
+      opts.mtp !== undefined ? MtpConfig.create(opts.mtp) : undefined,
+      opts.threadCount ?? undefined,
     );
   }
 
@@ -65,17 +76,21 @@ export class Chat {
     modelPath: string;
     useGpu?: boolean;
     projectionModelPath?: string;
+    draftModelPath?: string;
     systemPrompt?: string;
     contextSize?: number;
     templateVariables?: Record<string, boolean>;
     tools?: Tool[];
     sampler?: SamplerConfig;
+    mtp?: Partial<MtpConfig>;
+    threadCount?: number;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({
       modelPath: opts.modelPath,
       useGpu: opts.useGpu,
       projectionModelPath: opts.projectionModelPath,
+      draftModelPath: opts.draftModelPath,
       onDownloadProgress: opts.onDownloadProgress,
     });
     return new Chat({ model, ...opts });
@@ -171,6 +186,10 @@ export class Chat {
   /** Get context usage statistics. */
   async getStats(): Promise<ChatStats> {
     return this._inner.getStats();
+  }
+
+  async mtpAcceptanceRate(): Promise<number | undefined> {
+    return this._inner.mtpAcceptanceRate();
   }
 
   /**

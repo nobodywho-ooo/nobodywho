@@ -1,7 +1,34 @@
+// `miette`'s `Diagnostic` derive (we're on miette 5) expands `#[error(..)]` /
+// `#[diagnostic(help(..))]` format arguments into assignments that rustc 1.92+ reports as
+// `unused_assignments`, pointing at the enum's own field declarations. The lint is a
+// macro-expansion artifact — there is nothing to fix at these sites — and it fails
+// `cargo clippy -- -D warnings`. Drop this once miette is upgraded.
+#![allow(unused_assignments)]
+
 use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
 use std::path::PathBuf;
 
 // Memory errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum MemoryDetectionError {
+    #[error("could not read {path}")]
+    ReadFile {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("invalid memory information from {origin}: {reason}")]
+    InvalidData { origin: String, reason: String },
+    #[error("{operation} failed")]
+    SystemCall {
+        operation: &'static str,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("memory detection is unsupported on {platform}")]
+    UnsupportedPlatform { platform: &'static str },
+}
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum MemoryError {
@@ -196,6 +223,9 @@ pub enum LoadModelError {
 
     #[error("Could not determine cache directory: {0}")]
     CacheDir(#[from] GetCacheDirError),
+
+    #[error("Could not select a model automatically: {0}")]
+    AutomaticModelSelectionMemory(#[from] MemoryDetectionError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -376,6 +406,25 @@ pub enum InitWorkerError {
     #[error("Insufficient memory for context: {0}")]
     #[diagnostic(transparent)]
     Memory(#[from] MemoryError),
+
+    #[error("MTP speculative decoding failed to initialize: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("MTP requested but no draft model was loaded")]
+    #[diagnostic(
+        code(nobodywho::mtp_draft_model_not_loaded),
+        help(
+            "Load the model with a `draft_model_path` to enable MTP, or disable it on this chat. \
+             See https://docs.nobodywho.ooo/docs/llm-basics#speculative-decoding-mtp"
+        )
+    )]
+    MtpDraftModelNotLoaded,
+
+    #[error("Invalid sampler configuration: {0}")]
+    InvalidSamplerConfig(#[from] SamplerError),
+
+    #[error("Failed setting up tool calling: {0}")]
+    ToolCallingSetup(#[from] ToolCallingSetupError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -468,6 +517,9 @@ pub enum ReadError {
         )
     )]
     InputExceedsContext { n_tokens: usize, n_ctx: usize },
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
 // CrossEncoderWorker errors
@@ -511,7 +563,7 @@ pub enum EncoderWorkerError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum HuggingFaceError {
-    #[error("invalid model source {0:?}: must be an existing directory or `owner/repo`")]
+    #[error("invalid model source {0:?}: must be an existing directory or `hf://owner/repo`")]
     #[diagnostic(code(nobodywho::hf_invalid_source))]
     InvalidSource(String),
 
@@ -546,6 +598,10 @@ pub enum HuggingFaceError {
     #[diagnostic(code(nobodywho::hf_empty_repo))]
     EmptyRepo { repo: String, revision: String },
 
+    #[error("HuggingFace repo {repo:?} is missing required file(s): {}", files.join(", "))]
+    #[diagnostic(code(nobodywho::hf_missing_required_files))]
+    MissingRequiredFiles { repo: String, files: Vec<String> },
+
     #[error("Failed to download entry {path:?} from HuggingFace repo")]
     #[diagnostic(code(nobodywho::hf_download_entry))]
     DownloadEntry {
@@ -555,10 +611,10 @@ pub enum HuggingFaceError {
     },
 }
 
-// TTS errors
+// TextToSpeech errors
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
-pub enum TtsError {
+pub enum TextToSpeechError {
     // ── Config / language ────────────────────────────────────────────
     #[error("Language {language:?} is not supported")]
     #[diagnostic(
@@ -698,7 +754,7 @@ pub enum TtsError {
     #[diagnostic(code(nobodywho::tts_empty_text))]
     EmptyText,
 
-    #[error("Missing TTS asset: {path}")]
+    #[error("Missing TextToSpeech asset: {path}")]
     #[diagnostic(code(nobodywho::tts_missing_asset))]
     MissingAsset { path: String },
 
@@ -706,16 +762,20 @@ pub enum TtsError {
     #[diagnostic(code(nobodywho::tts_missing_voice))]
     MissingVoice { voice: String, available: String },
 
-    #[error("Invalid TTS asset {path}: {message}")]
+    #[error("Unknown Pocket TTS voice '{voice}'. Available voices: {available}")]
+    #[diagnostic(code(nobodywho::tts_pocket_missing_voice))]
+    PocketMissingVoice { voice: String, available: String },
+
+    #[error("Invalid TextToSpeech asset {path}: {message}")]
     #[diagnostic(code(nobodywho::tts_invalid_asset))]
     InvalidAsset { path: String, message: String },
 
-    #[error("Invalid TTS config: {message}")]
+    #[error("Invalid TextToSpeech config: {message}")]
     #[diagnostic(code(nobodywho::tts_invalid_config))]
     InvalidConfig { message: String },
 
     // ── Worker thread plumbing ───────────────────────────────────────
-    #[error("TTS worker thread is no longer running")]
+    #[error("TextToSpeech worker thread is no longer running")]
     #[diagnostic(code(nobodywho::tts_worker_dead))]
     WorkerDead,
 
@@ -739,11 +799,11 @@ pub enum TtsError {
     HuggingFace(#[from] HuggingFaceError),
 }
 
-// STT errors
+// SpeechToText errors
 
 #[derive(Debug, thiserror::Error)]
-pub enum SttError {
-    #[error("Error initializing STT: {0}")]
+pub enum SpeechToTextError {
+    #[error("Error initializing SpeechToText: {0}")]
     Init(String),
 
     #[error("Error during transcription: {0}")]
@@ -756,9 +816,29 @@ pub enum SttError {
     Audio(String),
 }
 
-impl From<HuggingFaceError> for SttError {
+impl From<HuggingFaceError> for SpeechToTextError {
     fn from(e: HuggingFaceError) -> Self {
-        SttError::Init(e.to_string())
+        SpeechToTextError::Init(e.to_string())
+    }
+}
+
+// VAD errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum VoiceActivityDetectionError {
+    #[error("Error initializing VAD: {0}")]
+    Init(String),
+
+    #[error("ONNX Runtime error: {0}")]
+    Ort(#[from] ort::Error),
+
+    #[error("Audio resample error: {0}")]
+    Audio(String),
+}
+
+impl From<HuggingFaceError> for VoiceActivityDetectionError {
+    fn from(e: HuggingFaceError) -> Self {
+        VoiceActivityDetectionError::Init(e.to_string())
     }
 }
 
@@ -790,8 +870,11 @@ pub(crate) enum ChatWorkerError {
     #[error("Error during context syncing: {0}")]
     ContextSyncError(#[from] ContextSyncError),
 
-    #[error("Error setting tools: {0}")]
-    SetTools(#[from] SetToolsError),
+    #[error("Invalid sampler configuration: {0}")]
+    InvalidSamplerConfig(#[from] SamplerError),
+
+    #[error("Failed setting up tool calling: {0}")]
+    ToolCallingSetup(#[from] ToolCallingSetupError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -853,6 +936,9 @@ pub enum GenerateResponseError {
     #[error("Error converting token to bytes: {0}")]
     TokenToString(#[from] llama_cpp_2::TokenToStringError),
 
+    #[error("Error tokenizing tool-call begin token: {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
+
     #[error("Error while decoding next token: {0}")]
     Decoding(#[from] DecodingError),
 
@@ -877,7 +963,7 @@ pub enum SamplerError {
     LazyGrammarError(#[from] llama_cpp_2::GrammarError),
 
     #[error("Could not initialize llguidance grammar: {0}")]
-    LlguidanceGrammarError(llama_cpp_2::GrammarError),
+    LlguidanceGrammarError(String),
 
     #[error("Could not convert GBNF grammar to Lark: {0}")]
     GbnfConversionError(String),
@@ -890,6 +976,19 @@ pub enum DecodingError {
 
     #[error("Llama.cpp failed decoding: {0}")]
     Decode(#[from] llama_cpp_2::DecodeError),
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error("KV cache rollback failed: {0}")]
+    KvCache(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
+
+    #[error(
+        "MTP speculative decoding requires a model whose KV cache supports partial removal \
+         (attention-based). This architecture (recurrent / hybrid-recurrent) rejected the \
+         partial rollback needed to discard mispredicted draft tokens."
+    )]
+    MtpPartialRollbackUnsupported,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -1065,14 +1164,19 @@ impl From<llama_cpp_2::ChatTemplateError> for SelectTemplateError {
     }
 }
 
+/// Errors building the tool-calling state (format detection, Lark grammar
+/// generation, and pre-building the tool-call sampler) for a non-empty set
+/// of tools.
 #[derive(Debug, thiserror::Error)]
-pub enum SetToolsError {
-    #[error("Failed syncing context to include the new tools: {0}")]
-    ContextSync(#[from] ContextSyncError),
-    #[error("Failed selecting chat template for the new tools: {0}")]
-    SelectTemplate(#[from] SelectTemplateError),
-    #[error("Failed rendering chat template with the new tools: {0}")]
-    Render(#[from] RenderError),
+pub enum ToolCallingSetupError {
+    #[error("Failed to detect or apply tool calling format: {0}")]
+    ToolFormat(#[from] crate::tool_calling::ToolFormatError),
+
+    #[error("Failed to build tool-call sampler: {0}")]
+    Sampler(#[from] SamplerError),
+
+    #[error("Failed to tokenize the tool-call begin token: {0}")]
+    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

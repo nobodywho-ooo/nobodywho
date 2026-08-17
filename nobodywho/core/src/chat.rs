@@ -11,7 +11,7 @@
 //! use std::sync::Arc;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
+//! let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
@@ -25,20 +25,20 @@
 
 use crate::errors::{
     ChatWorkerError, ContextSyncError, GenerateResponseError, InitWorkerError, MultimodalError,
-    RenderError, SayError, SelectTemplateError, SetToolsError, ShiftError, TokenizeError,
-    WrappedResponseError,
+    RenderError, SayError, ShiftError, TokenizeError, ToolCallingSetupError, WrappedResponseError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
 use crate::sampler::read_sampler_from_metadata;
-use crate::sampler::{SamplerConfig, ShiftStep};
+use crate::sampler::SamplerConfig;
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{ChunkId, Prompt, PromptPart, Promptable, TokenizerChunk, TokenizerChunks};
-use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat};
+use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::mtmd::MtmdBitmap;
+use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cmp::min;
@@ -48,7 +48,7 @@ use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Asset {
@@ -190,9 +190,35 @@ impl Message {
     }
 }
 
-// PARALLELISM
-
+/// Tuning for MTP speculative decoding.
 ///
+/// Attaching one to a chat (via [`ChatBuilder::with_mtp`] or
+/// [`ChatConfig::mtp`]) is what *enables* MTP — `None` runs the solo decode
+/// path. Requires the [`llm::Model`] to have been loaded with a compatible
+/// `draft_model_path`, otherwise worker construction fails with
+/// `InitWorkerError::MtpDraftModelNotLoaded`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Higher values draft more per decode; returns diminish past ~4–6.
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+    /// drafts.
+    pub p_min: f32,
+}
+
+impl Default for MtpConfig {
+    fn default() -> Self {
+        // Mirrors llama.cpp's MtpSpeculativeParams::default() (n_max=3, p_min=0.0).
+        // Binding-side field defaults must mirror these exact values.
+        Self {
+            k_max: 3,
+            p_min: 0.0,
+        }
+    }
+}
+
 /// Configuration for chat sessions.
 ///
 /// This struct groups all the settings needed to initialize a chat worker.
@@ -208,6 +234,17 @@ pub struct ChatConfig {
     pub template_variables: std::collections::HashMap<String, bool>,
     /// Sampler configuration for inference.
     pub sampler_config: Option<SamplerConfig>,
+    /// MTP speculative decoding config. `Some(..)` enables MTP with the given
+    /// tuning; `None` (the default) runs the solo decode path. Requires the
+    /// [`llm::Model`] to have been loaded with a compatible `draft_model_path`
+    /// (see `llm::get_model`) — otherwise worker construction fails with
+    /// `InitWorkerError::MtpDraftModelNotLoaded`.
+    pub mtp: Option<MtpConfig>,
+    /// Threads used for inference. `None` (the default) detects the host's physical core
+    /// count — performance cores only, on Apple silicon — because hyperthread siblings and
+    /// efficiency cores slow down ggml's per-node thread barrier. Set it lower to leave CPU
+    /// headroom for other work. Values are clamped to the logical CPU count.
+    pub n_threads: Option<u32>,
 }
 
 impl Default for ChatConfig {
@@ -218,6 +255,8 @@ impl Default for ChatConfig {
             system_prompt: None,
             tools: Vec::new(),
             sampler_config: None,
+            mtp: None,
+            n_threads: None,
         }
     }
 }
@@ -232,7 +271,7 @@ impl Default for ChatConfig {
 /// use std::sync::Arc;
 ///
 /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let model = Arc::new(llm::get_model("model.gguf", true, None, None)?);
+/// let model = Arc::new(llm::get_model("model.gguf", true, None, None, None)?);
 ///
 /// let my_tool = Tool::new(
 ///     "example".to_string(),
@@ -317,6 +356,23 @@ impl ChatBuilder {
     /// Set a custom sampler configuration
     pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
         self.config.sampler_config = Some(sampler);
+        self
+    }
+
+    /// Enable MTP speculative decoding for this chat with the given tuning.
+    pub fn with_mtp(mut self, config: MtpConfig) -> Self {
+        self.config.mtp = Some(config);
+        self
+    }
+
+    /// Set the number of threads used for inference.
+    ///
+    /// Leave this unset to detect the host's physical core count (performance cores only, on
+    /// Apple silicon), which is usually fastest — hyperthread siblings and efficiency cores
+    /// slow down ggml's per-node thread barrier. Set it lower to leave CPU headroom for other
+    /// work. The value is clamped to the logical CPU count.
+    pub fn with_n_threads(mut self, n_threads: u32) -> Self {
+        self.config.n_threads = Some(n_threads);
         self
     }
 
@@ -564,6 +620,20 @@ impl ChatHandle {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    ///
+    /// The counters reset at the start of each generation.
+    /// Returns `None` when no drafts were proposed in the last generation.
+    pub fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
+        output_rx
+            .blocking_recv()
+            .ok_or(crate::errors::GetterError::GetterError(
+                "mtp_acceptance_rate".into(),
+            ))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -585,7 +655,7 @@ impl ChatHandle {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -876,6 +946,21 @@ impl ChatHandleAsync {
             .ok_or(crate::errors::GetterError::GetterError("get_stats".into()))
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    ///
+    /// The counters reset at the start of each generation.
+    /// Returns `None` when no drafts were proposed in the last generation.
+    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, crate::errors::GetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::GetMtpAcceptanceRate { output_tx });
+        output_rx
+            .recv()
+            .await
+            .ok_or(crate::errors::GetterError::GetterError(
+                "mtp_acceptance_rate".into(),
+            ))
+    }
+
     /// Update the system prompt without resetting chat history.
     ///
     /// This modifies the system message while preserving the conversation history.
@@ -897,7 +982,7 @@ impl ChatHandleAsync {
     /// # use nobodywho::chat::ChatBuilder;
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
-    /// # let model = Arc::new(get_model("model.gguf", true, None, None).unwrap());
+    /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
     /// # let chat = ChatBuilder::new(model).build_async();
     /// # chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string())).await?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
@@ -1041,6 +1126,9 @@ enum ChatMsg {
     GetStats {
         output_tx: tokio::sync::mpsc::Sender<ChatStats>,
     },
+    GetMtpAcceptanceRate {
+        output_tx: tokio::sync::mpsc::Sender<Option<f32>>,
+    },
     Tokenize {
         prompt: Prompt,
         output_tx: tokio::sync::mpsc::Sender<Result<Vec<Option<i32>>, TokenizeError>>,
@@ -1094,6 +1182,7 @@ impl std::fmt::Debug for ChatMsg {
                 .finish(),
             ChatMsg::GetSamplerConfig { .. } => f.debug_struct("GetSamplerConfig").finish(),
             ChatMsg::GetStats { .. } => f.debug_struct("GetStats").finish(),
+            ChatMsg::GetMtpAcceptanceRate { .. } => f.debug_struct("GetMtpAcceptanceRate").finish(),
             ChatMsg::Tokenize { prompt, .. } => f
                 .debug_struct("Tokenize")
                 .field(
@@ -1176,7 +1265,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             sampler_config,
             output_tx,
         } => {
-            worker_state.set_sampler_config(sampler_config);
+            worker_state.set_sampler_config(sampler_config)?;
             let _ = output_tx.blocking_send(());
         }
         ChatMsg::GetChatHistory { output_tx } => {
@@ -1200,6 +1289,15 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
                 context_used: worker_state.engine.n_past(),
             };
             let _ = output_tx.blocking_send(stats);
+        }
+        ChatMsg::GetMtpAcceptanceRate { output_tx } => {
+            let proposed = worker_state.engine.mtp_drafts_proposed;
+            let rate = if proposed > 0 {
+                Some(worker_state.engine.mtp_drafts_accepted as f32 / proposed as f32)
+            } else {
+                None
+            };
+            let _ = output_tx.blocking_send(rate);
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);
@@ -1281,13 +1379,143 @@ impl ChatContext {
     }
 }
 
+/// Builds the tool-call grammar sampler for an already-detected `tool_format`
+/// (detection happens once, in `new_chat_worker` — see the `tool_format`
+/// field doc), along with the begin-token sequence that triggers the switch to
+/// it. `Ok(None)` if `tools` is empty. `Err(DetectionFailed)` if tools are
+/// requested but no format was ever detected for this model.
+fn build_tool_sampler(
+    model: &llama_cpp_2::model::LlamaModel,
+    tools: &[Tool],
+    sampler_config: &SamplerConfig,
+    tool_format: Option<&ToolFormat>,
+) -> Result<Option<(LlamaSampler, Vec<LlamaToken>)>, ToolCallingSetupError> {
+    if tools.is_empty() {
+        return Ok(None);
+    }
+
+    let tool_format = tool_format.ok_or(ToolFormatError::DetectionFailed)?;
+
+    let lark = tool_format.to_lark(tools, Some(model))?;
+    debug!(grammar = %lark, "Generated tool calling grammar (Lark)");
+
+    // ~400ms llguidance init cost, paid here once instead of per activation.
+    let slices = tool_format.slice_regexes();
+    let tool_sampler = sampler_config.build_sampler_with_grammar(model, &lark, slices)?;
+
+    let begin_tokens =
+        model.str_to_token(tool_format.begin_token(), llama_cpp_2::model::AddBos::Never)?;
+
+    Ok(Some((tool_sampler, begin_tokens)))
+}
+
+/// The samplers a chat response can draw from: `base` for free generation,
+/// `tool` (grammar-constrained) once the model emits the tool-call begin token.
+/// The switch is driven token-by-token via [`ChatSampler::observe`].
+pub(crate) struct ChatSampler {
+    base: LlamaSampler,
+    tool: Option<LlamaSampler>,
+    /// Sequence whose completion switches to `tool`. Empty when `tool` is None.
+    begin_tokens: Vec<LlamaToken>,
+    /// How many leading `begin_tokens` the emitted stream has matched so far.
+    begin_match_len: usize,
+    grammar_activated: bool,
+}
+
+impl ChatSampler {
+    fn new(base: LlamaSampler, tool: Option<(LlamaSampler, Vec<LlamaToken>)>) -> Self {
+        let mut sampler = Self {
+            base,
+            tool: None,
+            begin_tokens: Vec::new(),
+            begin_match_len: 0,
+            grammar_activated: false,
+        };
+        sampler.set_tool(tool);
+        sampler
+    }
+
+    /// The sampler that should produce the next token.
+    pub(crate) fn active(&mut self) -> &mut LlamaSampler {
+        if self.grammar_activated {
+            self.tool
+                .as_mut()
+                .expect("tool sampler must exist once the grammar is activated")
+        } else {
+            &mut self.base
+        }
+    }
+
+    /// Feed an emitted token back in so the begin sequence can be tracked, and
+    /// switch to the tool sampler once it completes. Must be called on each
+    /// emitted token, in order, before its successor is sampled. Returns whether
+    /// the switch just happened.
+    pub(crate) fn observe(&mut self, token: LlamaToken) -> bool {
+        if self.grammar_activated || self.begin_tokens.is_empty() {
+            return false;
+        }
+
+        // Rolling match: extend on a hit, else restart from this token.
+        self.begin_match_len = if token == self.begin_tokens[self.begin_match_len] {
+            self.begin_match_len + 1
+        } else if token == self.begin_tokens[0] {
+            1
+        } else {
+            0
+        };
+
+        if self.begin_match_len < self.begin_tokens.len() {
+            return false;
+        }
+        self.begin_match_len = 0;
+
+        // Fast-forward the grammar matcher past the begin tokens.
+        let ts = self
+            .tool
+            .as_mut()
+            .expect("begin_tokens is non-empty only when a tool sampler exists");
+        ts.accept_many(self.begin_tokens.iter());
+        self.grammar_activated = true;
+        true
+    }
+
+    fn set_base(&mut self, base: LlamaSampler) {
+        self.base = base;
+    }
+
+    fn set_tool(&mut self, tool: Option<(LlamaSampler, Vec<LlamaToken>)>) {
+        match tool {
+            Some((sampler, begin_tokens)) => {
+                self.tool = Some(sampler);
+                self.begin_tokens = begin_tokens;
+            }
+            None => {
+                self.tool = None;
+                self.begin_tokens = Vec::new();
+            }
+        }
+        self.begin_match_len = 0;
+    }
+
+    /// Reset per-response state (RNG, penalty/DRY history, grammar matcher) and
+    /// return to free generation.
+    fn reset(&mut self) {
+        self.base.reset();
+        if let Some(ts) = self.tool.as_mut() {
+            ts.reset();
+        }
+        self.grammar_activated = false;
+        self.begin_match_len = 0;
+    }
+}
+
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
 /// (messages, tools, template, sampler config).
 struct Chat<'a> {
     engine: InferenceEngine<'a>,
     should_stop: Arc<AtomicBool>,
-    tool_grammar: Option<gbnf::GbnfGrammar>,
     tool_format: Option<ToolFormat>,
+    sampler: ChatSampler,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     template_variables: std::collections::HashMap<String, bool>,
@@ -1312,47 +1540,47 @@ impl<'a> Chat<'a> {
 
         let template = select_template(&model.language_model, !config.tools.is_empty())?;
 
-        // Only detect tool calling format if tools are provided
-        let (tool_format, grammar) = if !config.tools.is_empty() {
-            match detect_tool_format(&model.language_model) {
-                Ok(format) => {
-                    debug!(format = ?format, "Detected tool calling format");
-
-                    let grammar = match format.generate_grammar(&config.tools) {
-                        Ok(g) => {
-                            debug!(grammar = %g.as_str(), root = %g.root_name, "Generated tool calling grammar");
-                            Some(g)
-                        }
-                        Err(e) => {
-                            debug!(error = %e, "Failed to generate grammar from tools");
-                            None
-                        }
-                    };
-
-                    (Some(format), grammar)
-                }
-                Err(e) => {
-                    debug!(error = %e, "Failed to detect tool format, tools will not work");
-                    (None, None)
-                }
-            }
-        } else {
-            (None, None)
-        };
         let sampler_config = match config.sampler_config {
             Some(sc) => sc,
             None => read_sampler_from_metadata(&model.language_model).unwrap_or_default(),
         };
 
+        // Pre-build the base sampler for `sampler_config`, reused (via
+        // `ChatSampler`) for every response.
+        let base_sampler = sampler_config.build_sampler(&model.language_model)?;
+
+        // Depends only on the model's chat template, not on `config.tools`,
+        // so detect it once here regardless (cheap — see `tool_format` field
+        // doc). Only a hard error if tools were actually requested.
+        let tool_format = match detect_tool_format(&model.language_model) {
+            Ok(format) => {
+                debug!(?format, "Detected tool calling format");
+                Some(format)
+            }
+            Err(e) if config.tools.is_empty() => {
+                debug!(error = %e, "Failed to detect tool calling format");
+                None
+            }
+            Err(e) => return Err(InitWorkerError::ToolCallingSetup(e.into())),
+        };
+
+        let tool_sampler = build_tool_sampler(
+            &model.language_model,
+            &config.tools,
+            &sampler_config,
+            tool_format.as_ref(),
+        )?;
+
         // Build the low-level inference engine via the shared Worker constructor,
         // then take ownership of just the engine for the chat session.
-        let Worker { engine, extra: () } = Worker::new_with_type(model, config.n_ctx, false, ())?;
+        let Worker { engine, extra: () } =
+            Worker::new_with_type(model, config.n_ctx, false, config.mtp, config.n_threads, ())?;
 
         Ok(Chat {
             engine,
             should_stop,
-            tool_grammar: grammar,
             tool_format,
+            sampler: ChatSampler::new(base_sampler, tool_sampler),
             sampler_config,
             messages: match config.system_prompt {
                 Some(msg) => vec![Message::System { content: msg }],
@@ -1403,10 +1631,10 @@ impl<'a> Chat<'a> {
         &mut self,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let mut chunks = self.render_as_chunks(true)?;
+        let mut chunks = self.render_as_chunks(&self.messages, true)?;
         if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
             self.context_shift()?;
-            chunks = self.render_as_chunks(true)?;
+            chunks = self.render_as_chunks(&self.messages, true)?;
         }
 
         // We should never try to sync with an empty render
@@ -1455,7 +1683,7 @@ impl<'a> Chat<'a> {
                 break;
             }
 
-            let chunks = self.render_as_chunks(false)?;
+            let chunks = self.render_as_chunks(&messages, false)?;
             if chunks.n_tokens() <= target_token_size {
                 break;
             }
@@ -1516,7 +1744,6 @@ impl<'a> Chat<'a> {
     // but assume it is.
     pub fn generate_response_until_done<F>(
         &mut self,
-        sampler_config: SamplerConfig,
         mut respond: F,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, GenerateResponseError>
@@ -1526,14 +1753,15 @@ impl<'a> Chat<'a> {
         // Token generation loop
         info!("Worker writing until done");
 
+        self.engine.reset_mtp_stats();
+
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
-        let mut tokens_written_until_now = TokenizerChunks::new();
+        let mut tokens_written_until_now = Vec::new();
+        let mut new_tokens = Vec::new();
 
-        // initialize sampler
-        // stateful samplers only live for one response
-        let mut sampler = sampler_config.to_stateful(self.engine.ctx.model)?;
+        self.sampler.reset();
 
         // init statefull decoder for split up tokens like emojis
         let mut decoder = encoding_rs::UTF_8.new_decoder();
@@ -1541,68 +1769,84 @@ impl<'a> Chat<'a> {
         while !self.should_stop() {
             // Check if the context is full
             if self.engine.is_context_full() {
+                // pending should be preserved during context shift
+                let deferred_pending = self.engine.take_pending();
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
-                self.engine
-                    .read_chunks(tokens_written_until_now.clone(), inference_lock_token)?;
+                if !tokens_written_until_now.is_empty() {
+                    let mut generated_chunks = TokenizerChunks::new();
+                    generated_chunks
+                        .append(TokenizerChunk::new_text(tokens_written_until_now.clone()));
+                    self.engine
+                        .read_chunks(generated_chunks, inference_lock_token)?;
+                }
+                self.engine.restore_pending(deferred_pending);
                 // do not update tokens_in_context as this is done later by ask
             }
 
-            // Sample next token, no need to use sampler.accept as sample already accepts the token.
+            // Sample next token(s), no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let new_token = self.engine.sample_and_decode_next_token(&mut sampler)?;
+            self.engine
+                .sample_and_decode_next_tokens(&mut self.sampler, &mut new_tokens)?;
 
-            tokens_written_until_now.append(TokenizerChunk::new_text(vec![new_token]));
+            tokens_written_until_now.extend_from_slice(&new_tokens);
 
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
-                .engine
-                .ctx
-                .model
-                .token_to_piece_bytes(new_token, 8, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
+            let mut hit_eog = false;
+            for &new_token in &new_tokens {
+                // Attempt to convert token(s) to bytes
+                let token_bytes = match self
+                    .engine
+                    .ctx
+                    .model
+                    .token_to_piece_bytes(new_token, 64, true, None)
+                {
+                    Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
+                        self.engine.ctx.model.token_to_piece_bytes(
+                            new_token,
+                            (-i).try_into().expect("Error buffer size is positive"),
+                            true,
+                            None,
+                        )
+                    }
+                    x => x,
+                }?;
+
+                // Attempt to convert bytes to utf8 string.
+                let max_len = decoder
+                    .max_utf8_buffer_length(token_bytes.len())
+                    .unwrap_or(32);
+                let mut token_str = String::with_capacity(max_len);
+
+                // this is where the utf-8 decoder handles partial unicode
+                // it'll write whatever printable chars it can into `token_str`
+                // and retain partial codepoints for next decoding attempt
+                let (_result, _bytes_read, _had_errors) =
+                    decoder.decode_to_string(&token_bytes, &mut token_str, false);
+
+                // HACK (gemma4): some gemma4 models emit token id 1 (which renders as the
+                // literal "<eos>") as a stop token after tool calls. llama.cpp's `is_eog_token`
+                // does not flag it, which causes a runaway generation loop, so match it
+                // explicitly. vllm handles the same case:
+                // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
+                let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
+
+                let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
+                trace!(?new_token, ?token_str, ?has_eog);
+
+                if !has_eog {
+                    full_response.push_str(&token_str);
+                    trace!(?token_str, "Sending out token:");
+                    respond(WriteOutput::Token(token_str));
                 }
-                x => x,
-            }?;
 
-            // Attempt to convert bytes to utf8 string.
-            let max_len = decoder
-                .max_utf8_buffer_length(token_bytes.len())
-                .unwrap_or(32);
-            let mut token_str = String::with_capacity(max_len);
-
-            // this is where the utf-8 decoder handles partial unicode
-            // it'll write whatever printable chars it can into `token_str`
-            // and retain partial codepoints for next decoding attempt
-            let (_result, _bytes_read, _had_errors) =
-                decoder.decode_to_string(&token_bytes, &mut token_str, false);
-
-            // XXX: this literal '<eos>' token match is a fucked hotfix for gemma4. it seems like
-            // some gemma4 models will emit a *wrong* eos token (doesn't match the expected format)
-            // after tool calls. This doesn't trigger the is_eog_token match in llama.cpp and
-            // causes a bad infinite generation loop.
-            // it seems like vllm also has a codepath to handle this specific case:
-            // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
-            let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
-
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
-            trace!(?new_token, ?token_str, ?has_eog);
-
-            if !has_eog {
-                full_response.push_str(&token_str);
-                trace!(?token_str, "Sending out token:");
-                respond(WriteOutput::Token(token_str.to_string()));
+                if has_eog {
+                    hit_eog = true;
+                    break;
+                }
             }
 
-            if has_eog {
+            if hit_eog {
                 break;
             }
         }
@@ -1620,12 +1864,6 @@ impl<'a> Chat<'a> {
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
-
-        // Get the tool call begin token from the format if tools are configured
-        let tool_call_begin = self
-            .tool_format
-            .as_ref()
-            .map(|fmt| fmt.begin_token().to_string());
 
         let prompt_text = prompt.to_string();
 
@@ -1660,33 +1898,15 @@ impl<'a> Chat<'a> {
         };
         self.add_user_message(content, assets);
 
-        // Modify sampler with tool grammar if we have tools
-        let sampler =
-            self.tool_grammar
-                .as_ref()
-                .map_or(self.sampler_config.clone(), |tool_grammar| {
-                    let mut steps = self.sampler_config.steps.clone();
-                    steps.insert(
-                        0,
-                        ShiftStep::Grammar {
-                            trigger_on: tool_call_begin.clone(),
-                            root: tool_grammar.root_name.to_string(),
-                            grammar: tool_grammar.as_str().into(),
-                        },
-                    );
-                    SamplerConfig::new(
-                        steps,
-                        self.sampler_config.sample_step.clone(),
-                        self.sampler_config.seed,
-                    )
-                });
+        // The tool-call grammar is NOT pre-injected into the chain. Lark/
+        // llguidance has no "trigger word" mechanism, so an always-on grammar
+        // would block EOS when the model just wants to chat. Instead the
+        // grammar is added dynamically inside `generate_response_until_done`
+        // the moment the begin token appears in the streamed output.
 
         // get the finished response
-        let mut response: String = self.wrapped_update_context_and_generate_response(
-            sampler.clone(),
-            respond.clone(),
-            tool_call_begin.clone(),
-        )?;
+        let mut response: String =
+            self.wrapped_update_context_and_generate_response(respond.clone())?;
 
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
@@ -1724,20 +1944,17 @@ impl<'a> Chat<'a> {
                 }
 
                 // get the finished response
-                response = self.wrapped_update_context_and_generate_response(
-                    sampler.clone(),
-                    respond.clone(),
-                    tool_call_begin.clone(),
-                )?;
+                response = self.wrapped_update_context_and_generate_response(respond.clone())?;
             }
         } // Close if let Some(tool_format)
 
-        debug_assert!(tool_call_begin
+        debug_assert!(self
+            .tool_format
             .as_ref()
-            .is_none_or(|t| !response.contains(t.as_str())));
+            .is_none_or(|fmt| !response.contains(fmt.begin_token())));
         self.add_assistant_message(response);
 
-        self.context.chunks = self.render_as_chunks(true)?;
+        self.context.chunks = self.render_as_chunks(&self.messages, true)?;
 
         Ok(self)
     }
@@ -1745,8 +1962,11 @@ impl<'a> Chat<'a> {
     /// Go for the unhandled mode when you are context shifting.
     /// That is for avoiding the render will concat system message with the first user message.
     /// Otherwise please handle stuff.
-    fn render_as_chunks(&mut self, handled: bool) -> Result<TokenizerChunks, RenderError> {
-        let messages = &self.messages;
+    fn render_as_chunks(
+        &self,
+        messages: &[Message],
+        handled: bool,
+    ) -> Result<TokenizerChunks, RenderError> {
         let template_context = ChatTemplateContext::new(
             self.template_variables.clone(),
             if self.tools.is_empty() {
@@ -1763,8 +1983,7 @@ impl<'a> Chat<'a> {
                 .render_unhandled(messages, &template_context)?
         };
 
-        let bitmaps: Vec<&MtmdBitmap> = self
-            .messages
+        let bitmaps: Vec<&MtmdBitmap> = messages
             .iter()
             .flat_map(|msg| msg.assets())
             .filter_map(|asset| self.context.bitmaps.get(&asset.id))
@@ -1774,9 +1993,7 @@ impl<'a> Chat<'a> {
 
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
-        sampler: SamplerConfig,
         respond: F,
-        tool_call_begin_token: Option<String>,
     ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
@@ -1785,13 +2002,18 @@ impl<'a> Chat<'a> {
         let inference_lock_token = acquire_inference_lock();
         self.sync_context_with_render(&inference_lock_token)?;
 
+        let tool_call_begin_token = self
+            .tool_format
+            .as_ref()
+            .map(|fmt| fmt.begin_token().to_string());
+
         // wrap the response callback to keep a copy of the completed response
         // and to avoid emitting tool calls
         let (wrapped_respond, resp_receiver) =
             crate::inference::wrap_respond(respond.clone(), tool_call_begin_token);
 
         // llm go brrr
-        self.generate_response_until_done(sampler, wrapped_respond, &inference_lock_token)?;
+        self.generate_response_until_done(wrapped_respond, &inference_lock_token)?;
 
         Ok(resp_receiver.recv()?)
     }
@@ -1800,37 +2022,17 @@ impl<'a> Chat<'a> {
         &mut self,
         system_prompt: Option<String>,
         tools: Vec<Tool>,
-    ) -> Result<(), SelectTemplateError> {
+    ) -> Result<(), ChatWorkerError> {
+        // Run fallible functions before committing to state.
+        let tool_sampler = build_tool_sampler(
+            self.engine.ctx.model,
+            &tools,
+            &self.sampler_config,
+            self.tool_format.as_ref(),
+        )?;
+
         self.engine.reset_context();
-
-        // Detect tool format if not already detected and tools are provided
-        if !tools.is_empty() && self.tool_format.is_none() {
-            match detect_tool_format(self.engine.ctx.model) {
-                Ok(format) => {
-                    debug!(format = ?format, "Detected tool calling format");
-                    self.tool_format = Some(format);
-                }
-                Err(e) => {
-                    debug!(error = %e, "Failed to detect tool format, tools will not work");
-                }
-            }
-        }
-
-        self.tool_grammar = if !tools.is_empty() {
-            if let Some(ref format) = self.tool_format {
-                match format.generate_grammar(&tools) {
-                    Ok(g) => Some(g),
-                    Err(e) => {
-                        debug!(error = %e, "Failed to generate grammar from tools");
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        self.sampler.set_tool(tool_sampler);
         self.tools = tools;
         self.messages = Vec::new();
         self.context = ChatContext::new();
@@ -1864,8 +2066,22 @@ impl<'a> Chat<'a> {
         self.template_variables.clone()
     }
 
-    pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) {
+    pub fn set_sampler_config(
+        &mut self,
+        sampler_config: SamplerConfig,
+    ) -> Result<(), ChatWorkerError> {
+        // Run fallible functions before committing to state.
+        let base_sampler = sampler_config.build_sampler(self.engine.ctx.model)?;
+        let tool_sampler = build_tool_sampler(
+            self.engine.ctx.model,
+            &self.tools,
+            &sampler_config,
+            self.tool_format.as_ref(),
+        )?;
         self.sampler_config = sampler_config;
+        self.sampler.set_base(base_sampler);
+        self.sampler.set_tool(tool_sampler);
+        Ok(())
     }
 
     pub fn set_system_prompt(
@@ -1903,39 +2119,18 @@ impl<'a> Chat<'a> {
         }
     }
 
-    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetToolsError> {
-        // Detect tool format if not already detected and tools are provided
-        if !tools.is_empty() && self.tool_format.is_none() {
-            match detect_tool_format(self.engine.ctx.model) {
-                Ok(format) => {
-                    debug!(format = ?format, "Detected tool calling format");
-                    self.tool_format = Some(format);
-                }
-                Err(e) => {
-                    debug!(error = %e, "Failed to detect tool format, tools will not work");
-                }
-            }
-        }
-
-        self.tool_grammar = if !tools.is_empty() {
-            if let Some(ref format) = self.tool_format {
-                match format.generate_grammar(&tools) {
-                    Ok(g) => Some(g),
-                    Err(e) => {
-                        debug!(error = %e, "Failed to generate grammar from tools");
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
+        // Run fallible functions before committing to state.
+        let tool_sampler = build_tool_sampler(
+            self.engine.ctx.model,
+            &tools,
+            &self.sampler_config,
+            self.tool_format.as_ref(),
+        )?;
+        let chat_template = select_template(self.engine.ctx.model, !tools.is_empty())?;
+        self.sampler.set_tool(tool_sampler);
         self.tools = tools;
-
-        self.chat_template = select_template(self.engine.ctx.model, !self.tools.is_empty())?;
-
+        self.chat_template = chat_template;
         Ok(())
     }
 
@@ -2071,6 +2266,66 @@ mod tests {
         println!("{}", resp);
 
         assert!(resp.contains("Danish"));
+
+        Ok(())
+    }
+
+    /// Smoke test: load Gemma-4 base + MTP draft heads with `mtp=true`
+    /// and verify a factual generation succeeds end-to-end. Skipped
+    /// unless both `TEST_MTP_TARGET_MODEL` and `TEST_MTP_DRAFT_MODEL`
+    /// env vars are set to existing files.
+    #[test]
+    fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
+        // test_utils::init_test_tracing();
+        let (Some(target_path), Some(draft_path)) = (
+            test_utils::test_mtp_target_model_path(),
+            test_utils::test_mtp_draft_model_path(),
+        ) else {
+            eprintln!(
+                "skipping test_mtp_gemma4_smoke: \
+                 set TEST_MTP_TARGET_MODEL and TEST_MTP_DRAFT_MODEL to enable"
+            );
+            return Ok(());
+        };
+        if !std::path::Path::new(&target_path).exists()
+            || !std::path::Path::new(&draft_path).exists()
+        {
+            eprintln!(
+                "skipping test_mtp_gemma4_smoke: file missing at {} or {}",
+                target_path, draft_path
+            );
+            return Ok(());
+        }
+
+        let model = Arc::new(crate::llm::get_model(
+            &target_path,
+            true,
+            None,
+            Some(&draft_path),
+            None,
+        )?);
+
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                mtp: Some(MtpConfig::default()),
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
+                sender.send(resp).unwrap();
+            }
+        };
+
+        worker.ask("What is the capital of Denmark?".into(), f)?;
+        let resp = receiver.recv()?;
+        println!("MTP response: {}", resp);
+        assert!(resp.contains("Copenhagen"));
 
         Ok(())
     }
@@ -2223,6 +2478,68 @@ mod tests {
         }
     }
 
+    /// Time three sequential tool-calling turns on the same worker to confirm the
+    /// pre-built tool sampler amortizes the llguidance init cost at worker creation.
+    /// The one-time llguidance build appears in `setup_ms`; all three turns run at
+    /// similar speed. Turns 2 and 3 are slightly slower than turn 1 due to KV cache
+    /// growth, not grammar overhead.
+    #[test]
+    #[ignore = "manual perf benchmark — run with `cargo test bench_pre_built_sampler_amortization -- --ignored --nocapture`"]
+    fn bench_pre_built_sampler_amortization() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let setup_start = std::time::Instant::now();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                system_prompt: Some("You're a helpful assistant.".into()),
+                n_ctx: 4096,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+        let setup_ms = setup_start.elapsed().as_millis();
+        eprintln!("[bench] worker setup: {setup_ms} ms");
+
+        // Warmup: one discarded turn to put GPU pipeline in steady state.
+        let (warmup_tx, warmup_rx) = std::sync::mpsc::channel::<String>();
+        worker
+            .ask("Hello.".into(), move |x| {
+                if let llm::WriteOutput::Done(r) = x {
+                    let _ = warmup_tx.send(r);
+                }
+            })
+            .expect("warmup failed");
+        let _ = warmup_rx.recv();
+
+        // Three distinct prompts that should each elicit a tool call.
+        let prompts = [
+            "What's the temperature in Copenhagen?",
+            "Now check the temperature in Beijing.",
+            "And one more: temperature in Copenhagen again, please.",
+        ];
+
+        for (i, prompt) in prompts.iter().enumerate() {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let f = move |x| {
+                if let llm::WriteOutput::Done(resp) = x {
+                    sender.send(resp).unwrap();
+                }
+            };
+            let turn_start = std::time::Instant::now();
+            worker.ask((*prompt).into(), f).expect("ask failed");
+            let _ = receiver.recv().unwrap();
+            eprintln!(
+                "[bench] turn {} ({} chars): {} ms",
+                i + 1,
+                prompt.len(),
+                turn_start.elapsed().as_millis()
+            );
+        }
+    }
+
     #[test]
     fn test_tool_chat() {
         test_utils::init_test_tracing();
@@ -2256,7 +2573,6 @@ mod tests {
 
         let result = receiver.recv().unwrap();
         println!("{}", result);
-        println!("{}", worker.tool_grammar.unwrap().as_str());
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
     }
@@ -2420,7 +2736,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(true)?.len();
+        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -2443,6 +2759,51 @@ mod tests {
         println!("Messages after shift: {}", messages_after.len());
         println!("Token count after shift: {}", token_count);
         println!("Target token size: {}", target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_measures_shortened_history() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 512,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+
+        for (user, assistant) in [
+            ("first".to_string(), "first".to_string()),
+            ("padding ".repeat(target_size), "large".to_string()),
+            ("keep".to_string(), "keep".to_string()),
+            ("recent".to_string(), "recent".to_string()),
+        ] {
+            worker.add_user_message(user, vec![]);
+            worker.add_assistant_message(assistant);
+        }
+        worker.add_user_message("final".to_string(), vec![]);
+
+        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
+
+        let mut shortened_messages = worker.messages.clone();
+        shortened_messages.drain(2..=3);
+        assert!(
+            worker
+                .render_as_chunks(&shortened_messages, false)?
+                .n_tokens()
+                <= target_size
+        );
+
+        worker.context_shift()?;
+
+        assert!(worker.messages.iter().any(|message| {
+            matches!(message, Message::User { content, .. } if content.to_string() == "keep")
+        }));
+        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() <= target_size);
 
         Ok(())
     }
@@ -2534,7 +2895,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(true)?.len();
+        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(

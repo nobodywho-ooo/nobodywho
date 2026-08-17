@@ -74,14 +74,18 @@ String addTwoNumbers({required double a, required double b}) {
 }
 
 void main() {
+  // Initialize flutter_rust_bridge once for the whole file. A top-level
+  // setUpAll runs before any group, even when a CI job filters to a single
+  // group with `--name`. (flutter_rust_bridge throws on double-init, so we keep
+  // a single init here rather than one per group.)
+  setUpAll(() async {
+    await nobodywho.NobodyWho.init();
+  });
+
   group('A group of tests', () {
     final modelPath = Platform.environment["TEST_MODEL"];
     if (modelPath == null) return; // skip all LLM tests if no model provided
     nobodywho.Chat? chat;
-
-    setUpAll(() async {
-      await nobodywho.NobodyWho.init();
-    });
 
     setUp(() async {
       // Additional setup goes here.
@@ -507,11 +511,19 @@ void main() {
 
       final encoder = await nobodywho.Encoder.fromPath(modelPath: modelPath);
       final embeddings = await encoder.encode(text: "Test text for embedding.");
+      final batched = await encoder.encodeBatch(
+        texts: ["Test text for embedding.", "Another text."],
+      );
 
       // Basic checks
       expect(embeddings, isA<List<double>>());
       expect(embeddings.length, greaterThan(0));
       expect(embeddings, isNotEmpty);
+      expect(batched.length, 2);
+      expect(batched.every((embedding) => embedding.length == embeddings.length), isTrue);
+      for (var i = 0; i < embeddings.length; i++) {
+        expect(batched.first[i], closeTo(embeddings[i], 1e-5));
+      }
 
       // Verify self-similarity is close to 1.0 (embeddings make sense)
       final selfSim = nobodywho.cosineSimilarity(a: embeddings, b: embeddings);
@@ -714,9 +726,9 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // STT (Whisper)
+  // SpeechToText (Whisper)
   // ---------------------------------------------------------------------------
-  group('STT', () {
+  group('SpeechToText', () {
     final whisperModel = Platform.environment['TEST_WHISPER_MODEL'];
     final audioFile = Platform.environment['TEST_AUDIO_FILE'];
 
@@ -724,8 +736,10 @@ void main() {
       if (whisperModel == null || audioFile == null) {
         return; // Skip test if model or audio file not provided
       }
-      final stt = nobodywho.RustStt.new_(source: whisperModel);
-      final stream = stt.transcribeFile(path: audioFile);
+      // Use fp32 ("default"): the q4 whisper-base encoder mis-transcribes
+      // "Billy" as "Bailey", while fp32 gets it right.
+      final stt = await nobodywho.SpeechToText.load(source: whisperModel, quantization: 'default');
+      final stream = stt.transcribeFile(audioFile);
       final text = await stream.completed();
       expect(text.toLowerCase(), contains('ron'));
       expect(text.toLowerCase(), contains('billy'));

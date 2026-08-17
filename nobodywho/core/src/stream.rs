@@ -1,4 +1,4 @@
-//! Generic token streaming types shared by the LLM and STT modules.
+//! Generic token streaming types shared by the LLM and SpeechToText modules.
 
 use tokio::sync::mpsc::UnboundedReceiver;
 

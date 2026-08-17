@@ -186,8 +186,16 @@ pub struct RustModel {
 
 /// Load a GGUF model from a local path or remote URL.
 ///
-/// Accepts local filesystem paths, `hf://owner/repo/file.gguf` for HuggingFace downloads,
-/// or `https://` URLs. Downloaded models are cached automatically.
+/// Accepts local filesystem paths, `hf://owner/repo/file.gguf`, `https://` URLs,
+/// or `auto` for memory-based selection. Downloaded models are cached automatically.
+///
+/// # MTP speculative decoding
+///
+/// Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
+/// `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
+/// speculative decoding on chats built from this model. Whether MTP is
+/// actually used is a per-chat decision — pass it through
+/// `Chat`-level config on the wrapping binding.
 ///
 /// This is a free function instead of an async constructor because
 /// uniffi-bindgen-react-native generates invalid JS (`async static` instead
@@ -197,14 +205,16 @@ pub async fn load_model(
     model_path: String,
     use_gpu: bool,
     projection_model_path: Option<String>,
+    draft_model_path: Option<String>,
     on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
     log::info!(
-        "load_model called: path={}, gpu={}, mmproj={:?}",
+        "load_model called: path={}, gpu={}, mmproj={:?}, draft={:?}",
         model_path,
         use_gpu,
-        projection_model_path
+        projection_model_path,
+        draft_model_path,
     );
 
     let progress = on_download_progress.map(wrap_progress);
@@ -212,6 +222,7 @@ pub async fn load_model(
         model_path.clone(),
         use_gpu,
         projection_model_path,
+        draft_model_path,
         progress,
     )
     .await
@@ -271,6 +282,35 @@ pub struct ChatStats {
     pub context_used: u32,
 }
 
+// ---------- MtpConfig ----------
+
+/// Tuning for MTP speculative decoding. Passing one to `RustChat::new`
+/// enables MTP; `null` runs the solo decode path. Requires the model to
+/// have been loaded with a compatible `draft_model_path`.
+#[derive(uniffi::Record, Clone)]
+pub struct MtpConfig {
+    /// Maximum draft tokens proposed per speculative step (llama.cpp `n_max`).
+    /// Higher values draft more per decode; returns diminish past ~4–6.
+    // Default mirrors core `MtpConfig::default()`.
+    #[uniffi(default = 3)]
+    pub k_max: u32,
+    /// Minimum draft-token probability the drafter will propose (llama.cpp
+    /// `p_min`). `0.0` accepts all proposals; raise it to skip low-confidence
+    /// drafts.
+    // Default mirrors core `MtpConfig::default()`.
+    #[uniffi(default = 0.0)]
+    pub p_min: f32,
+}
+
+impl From<MtpConfig> for nobodywho::chat::MtpConfig {
+    fn from(c: MtpConfig) -> Self {
+        nobodywho::chat::MtpConfig {
+            k_max: c.k_max,
+            p_min: c.p_min,
+        }
+    }
+}
+
 // ---------- RustChat ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `Chat`).
 
@@ -282,7 +322,18 @@ pub struct RustChat {
 #[uniffi::export]
 impl RustChat {
     /// Create a new chat session.
+    ///
+    /// Pass an `mtp` config to enable MTP speculative decoding for this
+    /// chat; `null` disables it. Requires the `RustModel` to have been
+    /// loaded with a compatible `draft_model_path`; otherwise construction
+    /// fails. Adds around 5% to VRAM usage.
+    ///
+    /// `thread_count` is the number of CPU threads used for inference; `null`
+    /// detects the device's physical core count (performance cores only, on
+    /// Apple silicon), since hyperthreads and efficiency cores make inference
+    /// slower. Clamped to the CPU count.
     #[uniffi::constructor]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         model: &RustModel,
         system_prompt: Option<String>,
@@ -290,6 +341,8 @@ impl RustChat {
         template_variables: Option<HashMap<String, bool>>,
         tools: Option<Vec<Arc<RustTool>>>,
         sampler: Option<Arc<SamplerConfig>>,
+        mtp: Option<MtpConfig>,
+        thread_count: Option<u32>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
@@ -299,16 +352,21 @@ impl RustChat {
 
         let sampler_config = sampler.map(|s| s.inner.clone()).unwrap_or_default();
 
-        let chat = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.inner))
+        let mut builder = nobodywho::chat::ChatBuilder::new(Arc::clone(&model.inner))
             .with_context_size(context_size)
             .with_system_prompt(system_prompt)
             .with_template_variables(template_variables.unwrap_or_default())
             .with_tools(core_tools)
-            .with_sampler(sampler_config)
-            .build_async()
-            .map_err(|e| NobodyWhoError::Error {
-                message: nobodywho::render_miette(&e),
-            })?;
+            .with_sampler(sampler_config);
+        if let Some(mtp) = mtp {
+            builder = builder.with_mtp(mtp.into());
+        }
+        if let Some(thread_count) = thread_count {
+            builder = builder.with_n_threads(thread_count);
+        }
+        let chat = builder.build_async().map_err(|e| NobodyWhoError::Error {
+            message: nobodywho::render_miette(&e),
+        })?;
 
         Ok(Arc::new(Self { inner: chat }))
     }
@@ -524,6 +582,18 @@ impl RustChat {
             })
     }
 
+    /// MTP draft acceptance rate for the most recent generation, in `[0.0, 1.0]`.
+    ///
+    /// Resets each generation. `null` when MTP is disabled or no drafts were proposed.
+    pub async fn mtp_acceptance_rate(&self) -> Result<Option<f32>, NobodyWhoError> {
+        self.inner
+            .mtp_acceptance_rate()
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
     /// Get the current sampler configuration as a JSON string.
     pub async fn get_sampler_config_json(&self) -> Result<String, NobodyWhoError> {
         let config = self
@@ -539,43 +609,88 @@ impl RustChat {
     }
 }
 
-// ---------- RustSTT ----------
+// ---------- RustSpeechToText ----------
 
-/// Speech-to-text handle. Wraps `nobodywho::stt::Stt`.
-/// Use `transcribe_file` or `transcribe_pcm` to get a `RustSTTStream`.
+/// Speech-to-text handle. Wraps `nobodywho::speech_to_text::SpeechToText`.
+/// Use `transcribe_file` or `transcribe_pcm` to get a `RustSpeechToTextStream`.
 #[derive(uniffi::Object)]
-pub struct RustSTT {
-    inner: nobodywho::stt::Stt,
+pub struct RustSpeechToText {
+    inner: nobodywho::speech_to_text::SpeechToText,
+}
+
+fn create_speech_to_text(
+    source: String,
+    language: Option<String>,
+    quantization: Option<String>,
+) -> Result<Arc<RustSpeechToText>, NobodyWhoError> {
+    let mut cfg = nobodywho::speech_to_text::WhisperConfig::new(&source);
+    cfg.language = language;
+    if let Some(quantization) = quantization {
+        cfg.quantization = quantization;
+    }
+    let inner = nobodywho::speech_to_text::SpeechToText::new(
+        nobodywho::speech_to_text::SpeechToTextConfig::Whisper(cfg),
+    )
+    .map_err(|e| NobodyWhoError::Error {
+        message: e.to_string(),
+    })?;
+    Ok(Arc::new(RustSpeechToText { inner }))
+}
+
+/// Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+/// e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
+/// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+/// `quantization` selects the ONNX precision variant to download and load:
+/// one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+/// pass `None` to use `"default"`.
+#[uniffi::export]
+pub async fn load_speech_to_text(
+    source: String,
+    language: Option<String>,
+    quantization: Option<String>,
+) -> Result<Arc<RustSpeechToText>, NobodyWhoError> {
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = create_speech_to_text(source, language, quantization);
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "SpeechToText load thread terminated unexpectedly".into(),
+    })?
 }
 
 #[uniffi::export]
-impl RustSTT {
-    /// Create an STT handle. `source` is a HuggingFace repo ID
-    /// (e.g. `"onnx-community/whisper-base"`) or a local directory path.
+impl RustSpeechToText {
+    /// Create an SpeechToText handle. `source` is a HuggingFace repo (`hf://owner/repo`,
+    /// e.g. `"hf://onnx-community/whisper-base"`) or a local directory path.
     /// `language` is an ISO 639-1 code (e.g. `"en"`); pass `None` to auto-detect.
+    /// `quantization` selects the ONNX precision variant to download and load:
+    /// one of `"default"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, `"quantized"`;
+    /// pass `None` to use `"default"`.
     #[uniffi::constructor]
-    pub fn new(source: String, language: Option<String>) -> Result<Arc<Self>, NobodyWhoError> {
-        let mut cfg = nobodywho::stt::WhisperConfig::new(&source);
-        cfg.language = language;
-        let inner =
-            nobodywho::stt::Stt::new(nobodywho::stt::SttConfig::Whisper(cfg)).map_err(|e| {
-                NobodyWhoError::Error {
-                    message: e.to_string(),
-                }
-            })?;
-        Ok(Arc::new(Self { inner }))
+    pub fn new(
+        source: String,
+        language: Option<String>,
+        quantization: Option<String>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
+        create_speech_to_text(source, language, quantization)
     }
 
-    /// Start transcribing an audio file (WAV / MP3 / FLAC).
-    /// Returns a `RustSTTStream` to consume tokens as they are generated.
-    pub fn transcribe_file(&self, path: String) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
+    /// Start transcribing an audio file (WAV / MP3).
+    /// Returns a `RustSpeechToTextStream` to consume tokens as they are generated.
+    pub fn transcribe_file(
+        &self,
+        path: String,
+    ) -> Result<Arc<RustSpeechToTextStream>, NobodyWhoError> {
         let stream =
             self.inner
                 .transcribe_file_stream_async(path)
                 .map_err(|e| NobodyWhoError::Error {
                     message: e.to_string(),
                 })?;
-        Ok(Arc::new(RustSTTStream {
+        Ok(Arc::new(RustSpeechToTextStream {
             inner: tokio::sync::Mutex::new(stream),
         }))
     }
@@ -586,29 +701,31 @@ impl RustSTT {
         &self,
         samples: Vec<i16>,
         sample_rate: u32,
-    ) -> Result<Arc<RustSTTStream>, NobodyWhoError> {
+    ) -> Result<Arc<RustSpeechToTextStream>, NobodyWhoError> {
         let stream = self
             .inner
             .transcribe_pcm_stream_async(samples, sample_rate)
             .map_err(|e| NobodyWhoError::Error {
                 message: e.to_string(),
             })?;
-        Ok(Arc::new(RustSTTStream {
+        Ok(Arc::new(RustSpeechToTextStream {
             inner: tokio::sync::Mutex::new(stream),
         }))
     }
 }
 
-// ---------- RustSTTStream ----------
+// ---------- RustSpeechToTextStream ----------
 
-/// A stream of transcript tokens from a Whisper STT run.
+/// A stream of transcript tokens from a Whisper SpeechToText run.
 #[derive(uniffi::Object)]
-pub struct RustSTTStream {
-    inner: tokio::sync::Mutex<nobodywho::stt::TokenStreamAsync<nobodywho::errors::SttError>>,
+pub struct RustSpeechToTextStream {
+    inner: tokio::sync::Mutex<
+        nobodywho::speech_to_text::TokenStreamAsync<nobodywho::errors::SpeechToTextError>,
+    >,
 }
 
 #[uniffi::export]
-impl RustSTTStream {
+impl RustSpeechToTextStream {
     /// Get the next transcript token. Returns `None` when transcription is complete.
     pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
         self.inner
@@ -842,6 +959,16 @@ impl RustEncoder {
                 message: e.to_string(),
             })
     }
+
+    /// Encode multiple texts into embedding vectors, preserving input order.
+    pub async fn encode_batch(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, NobodyWhoError> {
+        self.inner
+            .encode_batch(texts)
+            .await
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
 }
 
 /// Compute the cosine similarity between two vectors.
@@ -872,62 +999,73 @@ pub fn get_cached_models() -> Result<Vec<CachedModel>, NobodyWhoError> {
         .collect())
 }
 
-// ---------- RustTts ----------
-// Wrapper intended to be wrapped again in the target language (e.g. as `Tts`).
+// ---------- RustTextToSpeech ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `TextToSpeech`).
 
 #[derive(uniffi::Object)]
-pub struct RustTts {
-    inner: nobodywho::tts::Tts,
+pub struct RustTextToSpeech {
+    inner: nobodywho::text_to_speech::TextToSpeech,
 }
 
-fn tts_error(message: impl Into<String>) -> NobodyWhoError {
+fn text_to_speech_error(message: impl Into<String>) -> NobodyWhoError {
     NobodyWhoError::Error {
         message: message.into(),
     }
 }
 
-fn parse_tts_backend(
-    backend: Option<String>,
-) -> Result<Option<nobodywho::tts::TtsBackendKind>, NobodyWhoError> {
-    backend
+fn parse_text_to_speech_architecture(
+    architecture: Option<String>,
+) -> Result<Option<nobodywho::text_to_speech::TextToSpeechArchitecture>, NobodyWhoError> {
+    architecture
         .as_deref()
         .map(str::parse)
         .transpose()
-        .map_err(|()| tts_error("backend must be one of 'kokoro' or 'supertonic'"))
+        .map_err(|()| {
+            text_to_speech_error(
+                "architecture must be one of 'kokoro', 'pocket-tts', or 'supertonic'",
+            )
+        })
 }
 
-fn parse_tts_device(device: Option<String>) -> Result<nobodywho::tts::TtsDevice, NobodyWhoError> {
+fn parse_text_to_speech_device(
+    device: Option<String>,
+) -> Result<nobodywho::text_to_speech::TextToSpeechDevice, NobodyWhoError> {
     match device
         .as_deref()
         .unwrap_or("auto")
         .to_ascii_lowercase()
         .as_str()
     {
-        "auto" => Ok(nobodywho::tts::TtsDevice::Auto),
-        "cpu" => Ok(nobodywho::tts::TtsDevice::Cpu),
-        "cuda" => Ok(nobodywho::tts::TtsDevice::Cuda),
-        _ => Err(tts_error("device must be one of 'auto', 'cpu', or 'cuda'")),
+        "auto" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Auto),
+        "cpu" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cpu),
+        "cuda" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cuda),
+        _ => Err(text_to_speech_error(
+            "device must be one of 'auto', 'cpu', or 'cuda'",
+        )),
     }
 }
 
-fn build_tts_config(
+fn build_text_to_speech_config(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
-) -> Result<nobodywho::tts::TtsConfig, NobodyWhoError> {
-    let backend = parse_tts_backend(backend)?;
-    let mut config = nobodywho::tts::TtsConfig::from_source(&source, backend).ok_or_else(|| {
-        tts_error(
-            "backend is required for unknown TTS sources; pass backend='kokoro' or backend='supertonic'",
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
+) -> Result<nobodywho::text_to_speech::TextToSpeechConfig, NobodyWhoError> {
+    let architecture = parse_text_to_speech_architecture(architecture)?;
+    let mut config = nobodywho::text_to_speech::TextToSpeechConfig::from_source(&source, architecture).ok_or_else(|| {
+        text_to_speech_error(
+            "architecture is required for unknown TextToSpeech sources; pass architecture='kokoro', architecture='pocket-tts', or architecture='supertonic'",
         )
     })?;
 
     match &mut config {
-        nobodywho::tts::TtsConfig::Kokoro(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::Kokoro(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -938,7 +1076,33 @@ fn build_tts_config(
                 config.speed = speed;
             }
         }
-        nobodywho::tts::TtsConfig::Supertonic(config) => {
+        nobodywho::text_to_speech::TextToSpeechConfig::PocketTts(config) => {
+            if let Some(voice) = voice {
+                config.voice = voice;
+            }
+            if let Some(language) = language {
+                config.language = language;
+            }
+            if let Some(steps) = steps {
+                config.lsd_steps = steps as usize;
+            }
+            if let Some(precision) = precision {
+                config.precision = match precision.to_ascii_lowercase().as_str() {
+                    "int8" => nobodywho::text_to_speech::PocketTtsPrecision::Int8,
+                    "fp32" => nobodywho::text_to_speech::PocketTtsPrecision::Fp32,
+                    _ => {
+                        return Err(text_to_speech_error(
+                            "precision must be 'int8' or 'fp32' for Pocket TTS",
+                        ))
+                    }
+                };
+            }
+            if let Some(temperature) = temperature {
+                config.temperature = temperature;
+            }
+            config.huggingface_token = huggingface_token;
+        }
+        nobodywho::text_to_speech::TextToSpeechConfig::Supertonic(config) => {
             if let Some(voice) = voice {
                 config.voice = voice;
             }
@@ -959,86 +1123,104 @@ fn build_tts_config(
     Ok(config)
 }
 
-fn create_tts(
+fn create_text_to_speech(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
     device: Option<String>,
-) -> Result<Arc<RustTts>, NobodyWhoError> {
-    let config = build_tts_config(
+) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
+    let config = build_text_to_speech_config(
         source,
-        backend,
+        architecture,
         voice,
         language,
         speed,
         steps,
         silence_duration,
+        precision,
+        temperature,
+        huggingface_token,
     )?;
-    let device = parse_tts_device(device)?;
-    let inner = nobodywho::tts::Tts::with_device(config, device)
-        .map_err(|e| tts_error(nobodywho::render_miette(&e)))?;
-    Ok(Arc::new(RustTts { inner }))
+    let device = parse_text_to_speech_device(device)?;
+    let inner = nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
+        .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))?;
+    Ok(Arc::new(RustTextToSpeech { inner }))
 }
 
-/// Create a TTS synthesizer.
+/// Create a TextToSpeech synthesizer.
 #[uniffi::export]
-pub async fn load_tts(
+pub async fn load_text_to_speech(
     source: String,
-    backend: Option<String>,
+    architecture: Option<String>,
     voice: Option<String>,
     language: Option<String>,
     speed: Option<f32>,
     steps: Option<u32>,
     silence_duration: Option<f32>,
+    precision: Option<String>,
+    temperature: Option<f32>,
+    huggingface_token: Option<String>,
     device: Option<String>,
-) -> Result<Arc<RustTts>, NobodyWhoError> {
+) -> Result<Arc<RustTextToSpeech>, NobodyWhoError> {
     // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
     // because UniFFI's async bridge doesn't provide a Tokio runtime.
     let (tx, mut rx) = tokio::sync::mpsc::channel(1);
     std::thread::spawn(move || {
-        let result = create_tts(
+        let result = create_text_to_speech(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
             device,
         );
         let _ = tx.blocking_send(result);
     });
     rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
-        message: "TTS load thread terminated unexpectedly".into(),
+        message: "TextToSpeech load thread terminated unexpectedly".into(),
     })?
 }
 
 #[uniffi::export]
-impl RustTts {
-    /// Create a TTS synthesizer.
+impl RustTextToSpeech {
+    /// Create a TextToSpeech synthesizer.
     #[uniffi::constructor]
     pub fn new(
         source: String,
-        backend: Option<String>,
+        architecture: Option<String>,
         voice: Option<String>,
         language: Option<String>,
         speed: Option<f32>,
         steps: Option<u32>,
         silence_duration: Option<f32>,
+        precision: Option<String>,
+        temperature: Option<f32>,
+        huggingface_token: Option<String>,
         device: Option<String>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
-        create_tts(
+        create_text_to_speech(
             source,
-            backend,
+            architecture,
             voice,
             language,
             speed,
             steps,
             silence_duration,
+            precision,
+            temperature,
+            huggingface_token,
             device,
         )
     }
@@ -1047,7 +1229,7 @@ impl RustTts {
     pub fn synthesize(&self, text: String) -> Result<Vec<u8>, NobodyWhoError> {
         self.inner
             .synthesize(text)
-            .map_err(|e| tts_error(nobodywho::render_miette(&e)))
+            .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
     }
 
     /// Synthesize text asynchronously and return WAV bytes.
@@ -1055,7 +1237,7 @@ impl RustTts {
         self.inner
             .synthesize_async(text)
             .await
-            .map_err(|e| tts_error(nobodywho::render_miette(&e)))
+            .map_err(|e| text_to_speech_error(nobodywho::render_miette(&e)))
     }
 }
 
@@ -1111,6 +1293,209 @@ impl RustCrossEncoder {
         serde_json::to_string(&results).map_err(|e| NobodyWhoError::Error {
             message: e.to_string(),
         })
+    }
+}
+
+// ---------- RustVoiceActivityDetection ----------
+// Wrapper intended to be wrapped again in the target language (e.g. as `VoiceActivityDetection`).
+
+/// `push` always returns one of these: `Speech`/`Silence` for the confirmed
+/// state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
+/// on the call that confirmed the transition.
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VoiceActivityDetectionEvent {
+    Speech,
+    SpeechStarted,
+    SpeechEnded,
+    Silence,
+}
+
+impl From<nobodywho::voice_activity_detection::VoiceActivityDetectionEvent>
+    for VoiceActivityDetectionEvent
+{
+    fn from(e: nobodywho::voice_activity_detection::VoiceActivityDetectionEvent) -> Self {
+        match e {
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Speech => {
+                VoiceActivityDetectionEvent::Speech
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechStarted => {
+                VoiceActivityDetectionEvent::SpeechStarted
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::SpeechEnded => {
+                VoiceActivityDetectionEvent::SpeechEnded
+            }
+            nobodywho::voice_activity_detection::VoiceActivityDetectionEvent::Silence => {
+                VoiceActivityDetectionEvent::Silence
+            }
+        }
+    }
+}
+
+fn parse_vad_device(
+    device: Option<String>,
+) -> Result<nobodywho::voice_activity_detection::Device, NobodyWhoError> {
+    match device
+        .as_deref()
+        .unwrap_or("auto")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "auto" => Ok(nobodywho::voice_activity_detection::Device::Auto),
+        "cpu" => Ok(nobodywho::voice_activity_detection::Device::Cpu),
+        "cuda" => Ok(nobodywho::voice_activity_detection::Device::Cuda),
+        _ => Err(NobodyWhoError::Error {
+            message: "device must be one of 'auto', 'cpu', or 'cuda'".into(),
+        }),
+    }
+}
+
+/// Voice activity detector. Wraps `nobodywho::voice_activity_detection::VoiceActivityDetection`.
+/// Feed audio chunks via `push`; once `push` returns `SpeechEnded`, call
+/// `finish` to get that turn's captured audio (with pre-roll) and reset.
+#[derive(uniffi::Object)]
+pub struct RustVoiceActivityDetection {
+    inner: std::sync::Mutex<nobodywho::voice_activity_detection::VoiceActivityDetection>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_voice_activity_detection(
+    source: Option<String>,
+    sample_rate: u32,
+    threshold: Option<f32>,
+    min_silence_duration_ms: Option<u32>,
+    min_speech_duration_ms: Option<u32>,
+    preroll_duration_ms: Option<u32>,
+    device: Option<String>,
+) -> Result<Arc<RustVoiceActivityDetection>, NobodyWhoError> {
+    let defaults = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig::default();
+    let config = nobodywho::voice_activity_detection::VoiceActivityDetectionConfig {
+        source: source.unwrap_or(defaults.source),
+        sample_rate,
+        threshold: threshold.unwrap_or(defaults.threshold),
+        min_silence_duration_ms: min_silence_duration_ms
+            .unwrap_or(defaults.min_silence_duration_ms),
+        min_speech_duration_ms: min_speech_duration_ms.unwrap_or(defaults.min_speech_duration_ms),
+        preroll_duration_ms: preroll_duration_ms.unwrap_or(defaults.preroll_duration_ms),
+    };
+    let device = parse_vad_device(device)?;
+    let vad =
+        nobodywho::voice_activity_detection::VoiceActivityDetection::with_device(config, device)
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })?;
+    Ok(Arc::new(RustVoiceActivityDetection {
+        inner: std::sync::Mutex::new(vad),
+    }))
+}
+
+/// Create a voice activity detector. `source` is a HuggingFace repo
+/// (`hf://owner/repo`) or local directory for the Silero VAD ONNX model;
+/// `None` uses the default (`hf://onnx-community/silero-vad`). `sample_rate`
+/// is the rate of the audio you'll pass to `push` — Silero runs at 16kHz
+/// internally, anything else is resampled. `threshold`,
+/// `min_silence_duration_ms`, `min_speech_duration_ms`, and
+/// `preroll_duration_ms` default to the core `VoiceActivityDetectionConfig`
+/// defaults when omitted.
+#[uniffi::export]
+#[allow(clippy::too_many_arguments)]
+pub async fn load_voice_activity_detection(
+    source: Option<String>,
+    sample_rate: u32,
+    threshold: Option<f32>,
+    min_silence_duration_ms: Option<u32>,
+    min_speech_duration_ms: Option<u32>,
+    preroll_duration_ms: Option<u32>,
+    device: Option<String>,
+) -> Result<Arc<RustVoiceActivityDetection>, NobodyWhoError> {
+    // Use std::thread::spawn + tokio channel instead of tokio::task::spawn_blocking,
+    // because UniFFI's async bridge doesn't provide a Tokio runtime.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+    std::thread::spawn(move || {
+        let result = create_voice_activity_detection(
+            source,
+            sample_rate,
+            threshold,
+            min_silence_duration_ms,
+            min_speech_duration_ms,
+            preroll_duration_ms,
+            device,
+        );
+        let _ = tx.blocking_send(result);
+    });
+    rx.recv().await.ok_or_else(|| NobodyWhoError::Error {
+        message: "VoiceActivityDetection load thread terminated unexpectedly".into(),
+    })?
+}
+
+#[uniffi::export]
+impl RustVoiceActivityDetection {
+    /// Create a voice activity detector.
+    ///
+    /// `source` is a HuggingFace repo (`hf://owner/repo`) or local directory
+    /// for the Silero VAD ONNX model; `None` uses the default
+    /// (`hf://onnx-community/silero-vad`). `sample_rate` is the rate of the
+    /// audio you'll pass to `push` — Silero runs at 16kHz internally,
+    /// anything else is resampled. `threshold`, `min_silence_duration_ms`,
+    /// `min_speech_duration_ms`, and `preroll_duration_ms` default to the
+    /// core `VoiceActivityDetectionConfig` defaults when omitted.
+    #[uniffi::constructor]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source: Option<String>,
+        sample_rate: u32,
+        threshold: Option<f32>,
+        min_silence_duration_ms: Option<u32>,
+        min_speech_duration_ms: Option<u32>,
+        preroll_duration_ms: Option<u32>,
+        device: Option<String>,
+    ) -> Result<Arc<Self>, NobodyWhoError> {
+        create_voice_activity_detection(
+            source,
+            sample_rate,
+            threshold,
+            min_silence_duration_ms,
+            min_speech_duration_ms,
+            preroll_duration_ms,
+            device,
+        )
+    }
+
+    /// Feed the newest chunk of i16 PCM audio (not the whole accumulated
+    /// buffer — the detector tracks the current turn internally). Always
+    /// returns the current confirmed state: `Speech`/`Silence` if unchanged
+    /// since the last call, or `SpeechStarted`/`SpeechEnded` on the call that
+    /// confirmed the transition.
+    pub fn push(&self, chunk: Vec<i16>) -> Result<VoiceActivityDetectionEvent, NobodyWhoError> {
+        self.inner
+            .lock()
+            .unwrap()
+            .push(&chunk)
+            .map(Into::into)
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
+    }
+
+    /// Return the current turn's captured audio (from the confirmed
+    /// `SpeechStarted`, including a small pre-roll, through to
+    /// `SpeechEnded`) and reset internal state for the next turn. Empty if
+    /// speech was never confirmed.
+    pub fn finish(&self) -> Vec<i16> {
+        self.inner.lock().unwrap().finish()
+    }
+
+    /// Detect every speech segment in a complete audio buffer, returning
+    /// each segment's audio (with a short pre-roll) in order. Unlike `push`,
+    /// correctly finds every segment regardless of buffer size — use this
+    /// for offline/batch processing instead of live streaming.
+    pub fn segment(&self, samples: Vec<i16>) -> Result<Vec<Vec<i16>>, NobodyWhoError> {
+        self.inner
+            .lock()
+            .unwrap()
+            .segment(&samples)
+            .map_err(|e| NobodyWhoError::Error {
+                message: e.to_string(),
+            })
     }
 }
 

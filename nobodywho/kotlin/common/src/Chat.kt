@@ -2,6 +2,7 @@ package ai.nobodywho
 
 import java.io.Closeable
 import uniffi.nobodywho.ChatStats
+import uniffi.nobodywho.MtpConfig
 import uniffi.nobodywho.RustChat as InternalRustChat
 import uniffi.nobodywho.SamplerConfig
 
@@ -25,7 +26,14 @@ class Chat(
     contextSize: UInt = 4096u,
     templateVariables: Map<String, Boolean>? = null,
     tools: List<Tool>? = null,
-    sampler: SamplerConfig? = null
+    sampler: SamplerConfig? = null,
+    mtp: MtpConfig? = null,
+    /**
+     * CPU threads used for inference. Leave null to detect the device's physical core count
+     * (performance cores only, on Apple silicon) — hyperthreads and efficiency cores make
+     * inference slower, not faster. Lower it to leave CPU headroom for the rest of the app.
+     */
+    threadCount: UInt? = null
 ) : Closeable {
     private val inner: InternalRustChat = InternalRustChat(
         model.inner,
@@ -33,7 +41,9 @@ class Chat(
         contextSize,
         templateVariables,
         tools?.map { it.inner },
-        sampler
+        sampler,
+        mtp,
+        threadCount
     )
 
     companion object {
@@ -42,15 +52,18 @@ class Chat(
             modelPath: String,
             useGpu: Boolean = true,
             projectionModelPath: String? = null,
+            draftModelPath: String? = null,
             systemPrompt: String? = null,
             contextSize: UInt = 4096u,
             templateVariables: Map<String, Boolean>? = null,
             tools: List<Tool>? = null,
             sampler: SamplerConfig? = null,
+            mtp: MtpConfig? = null,
+            threadCount: UInt? = null,
             onDownloadProgress: ((downloaded: ULong, total: ULong) -> Unit)? = null
         ): Chat {
-            val model = Model.load(modelPath, useGpu, projectionModelPath, onDownloadProgress)
-            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler)
+            val model = Model.load(modelPath, useGpu, projectionModelPath, draftModelPath, onDownloadProgress)
+            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler, mtp, threadCount)
         }
     }
 
@@ -81,6 +94,8 @@ class Chat(
     suspend fun setSamplerConfig(sampler: SamplerConfig) = inner.setSamplerConfig(sampler)
     suspend fun getSamplerConfigJson(): String = inner.getSamplerConfigJson()
     suspend fun getStats(): ChatStats = inner.getStats()
+
+    suspend fun mtpAcceptanceRate(): Float? = inner.mtpAcceptanceRate()
     suspend fun tokenize(message: String): List<Int?> = inner.tokenize(message)
 
     /** Free the underlying Rust resources. */

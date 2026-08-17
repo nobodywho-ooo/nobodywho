@@ -28,6 +28,18 @@ print(f"Vector with {len(embedding)} dimensions")
 
 The resulting embedding is a list of floats (typically 384 or 768 dimensions depending on the model).
 
+### Batch Encoding
+
+Use `encode_batch` when encoding multiple texts. It batches the work internally and returns one embedding per text in input order.
+
+```python continuation
+texts = [
+    "Paris is the capital of France.",
+    "Berlin is the capital of Germany.",
+]
+embeddings = encoder.encode_batch(texts)
+```
+
 ### Comparing Embeddings
 
 To measure how similar two pieces of text are, compare their embeddings using cosine similarity:
@@ -65,8 +77,8 @@ documents = [
     "Git is a version control system for tracking changes in source code"
 ]
 
-# Pre-compute document embeddings
-doc_embeddings = [encoder.encode(doc) for doc in documents]
+# Pre-compute document embeddings in a batch
+doc_embeddings = encoder.encode_batch(documents)
 
 # Search query
 query = "What language should I use for database queries?"
@@ -195,7 +207,10 @@ async def main():
     crossencoder = CrossEncoderAsync('./reranker-model.gguf')
     
     # Generate embeddings asynchronously
-    embedding = await encoder.encode("What is the weather?")
+    embeddings = await encoder.encode_batch([
+        "What is the weather?",
+        "What is the return policy?",
+    ])
     
     # Rank documents asynchronously
     query = "What is our refund policy?"
@@ -255,7 +270,7 @@ knowledge_base = [
 ]
 
 # Precompute embeddings for all documents
-doc_embeddings = [encoder.encode(doc) for doc in knowledge_base]
+doc_embeddings = encoder.encode_batch(knowledge_base)
 
 @tool(description="Search the knowledge base for information relevant to the query")
 def search(query: str) -> str:

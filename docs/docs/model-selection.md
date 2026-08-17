@@ -8,7 +8,10 @@ Choosing the right language model can make or break your project. In general you
 
 ## TL;DR
 
-You can pick a model based on your needs on our [model selection page](https://www.nobodywho.ai/models/). If you just want a ~2GB chat model that works well to get started, use:
+You can pick a model based on your needs on our [model selection page](https://www.nobodywho.ai/models/). 
+
+If you don't want to choose a chat model, pass `auto` as the model path to select one based on available memory.
+If you just want a ~2GB chat model that works well, use:
 
 ```
 huggingface:NobodyWho/Qwen_Qwen3-4B-GGUF/Qwen_Qwen3-4B-Q4_K_M.gguf
