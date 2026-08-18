@@ -4,7 +4,7 @@ description: How NobodyWho downloads, caches, and inspects GGUF models in React 
 sidebar_position: 1
 ---
 
-NobodyWho can either load a model from a path on disk or download it for you on first use, caching it for subsequent runs. This page covers the available model path formats, how to observe a download in progress, how to access gated/private models, and how to inspect what's already in the local cache.
+NobodyWho can either load a model from a path on disk or download it for you on first use, caching it for subsequent runs. This page covers the available model path formats, how to access gated/private models, how to observe a download in progress, and how to inspect what's already in the local cache.
 
 ## Supported model path formats
 
@@ -18,18 +18,15 @@ The `modelPath` option to `Chat.fromPath` and `downloadModel` accepts:
 
 The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
 
-## Tracking download progress
+## Android permissions
 
-When loading a remote model, pass an `onDownloadProgress` option to observe the download. It receives `(downloaded, total)` byte counts, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
+Loading a model from `hf://` or `https://` needs network access. The React Native app template already declares the internet permission in `android/app/src/main/AndroidManifest.xml`:
 
-```typescript
-const chat = await Chat.fromPath({
-  modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
-  onDownloadProgress: (downloaded, total) => {
-    console.log(`${downloaded} / ${total} bytes`);
-  },
-});
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
 ```
+
+If your project has removed it, add it back. Apps that only load models from local paths need no network permission.
 
 ## Downloading a gated model
 
@@ -57,6 +54,19 @@ const chat = await Chat.fromPath({ modelPath });
 ```
 
 You can generate a HuggingFace token in [your account settings](https://huggingface.co/settings/tokens).
+
+## Tracking download progress
+
+When loading a remote model, pass an `onDownloadProgress` option to observe the download. It receives `(downloaded, total)` byte counts, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
+
+```typescript
+const chat = await Chat.fromPath({
+  modelPath: "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+  onDownloadProgress: (downloaded, total) => {
+    console.log(`${downloaded} / ${total} bytes`);
+  },
+});
+```
 
 ## Inspecting the model cache
 

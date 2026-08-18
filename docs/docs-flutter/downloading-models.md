@@ -4,7 +4,7 @@ description: How NobodyWho downloads, caches, and inspects GGUF models in Flutte
 sidebar_position: 1
 ---
 
-NobodyWho can either load a model from a path on disk or download it for you on first use, caching it for subsequent runs. This page covers the available model path formats, how to observe a download in progress, how to access gated/private models, and how to inspect what's already in the local cache.
+NobodyWho can either load a model from a path on disk or download it for you on first use, caching it for subsequent runs. This page covers the available model path formats, how to access gated/private models, how to observe a download in progress, and how to inspect what's already in the local cache.
 
 ## Supported model path formats
 
@@ -18,18 +18,15 @@ The `modelPath` argument to `Chat.fromPath`, `downloadModel`, and friends accept
 
 The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
 
-## Tracking download progress
+## Android permissions
 
-When loading a remote model, pass an `onDownloadProgress` callback to observe the download. It receives `(downloadedBytes, totalBytes)`, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
+Loading a model from `hf://` or `https://` needs network access. Add the internet permission to `android/app/src/main/AndroidManifest.xml`:
 
-```dart
-final chat = await nobodywho.Chat.fromPath(
-  modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-  onDownloadProgress: (downloaded, total) {
-    print('$downloaded / $total bytes');
-  },
-);
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
 ```
+
+Things to note: Flutter's generated debug and profile manifests already include this permission for the development tooling, so downloads can succeed while you are debugging and then fail in a release build. Declaring it in the main manifest covers every build mode. Apps that only load models from local paths need no network permission.
 
 ## Downloading a gated model
 
@@ -57,6 +54,19 @@ final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
 ```
 
 You can generate a HuggingFace token in [your account settings](https://huggingface.co/settings/tokens).
+
+## Tracking download progress
+
+When loading a remote model, pass an `onDownloadProgress` callback to observe the download. It receives `(downloadedBytes, totalBytes)`, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
+
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+  onDownloadProgress: (downloaded, total) {
+    print('$downloaded / $total bytes');
+  },
+);
+```
 
 ## Inspecting the model cache
 

@@ -19,7 +19,7 @@ The `model_path` field on `NobodyWhoModel` (and `projection_model_path` for visi
 
 The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
 
-## Showing download progress
+## Tracking download progress
 
 `NobodyWhoModel` emits a `download_progress(downloaded, total)` signal while a remote model is downloading, throttled to roughly 10 Hz with a guaranteed final emit on completion. Connect it if you'd like to drive a progress bar:
 
@@ -70,3 +70,10 @@ Each entry is a `Dictionary` with two keys:
 - `"size"` — size in bytes
 
 The array is empty if nothing has been downloaded yet. On error the function returns `null` and logs a Godot error to the console.
+
+## Android permissions
+
+Loading a model from `hf://` or `https://` needs network access. In the Android export preset, enable the **Internet** permission under **Permissions** before exporting.
+
+Exports that only load models from local paths need no network permission.
+
