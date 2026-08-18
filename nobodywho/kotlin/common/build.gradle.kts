@@ -1,8 +1,6 @@
 plugins {
     id("org.jetbrains.kotlin.jvm")
-    // Provides the `api` configuration — needed so types we expose publicly
-    // (notably kotlinx.coroutines Flow) reach consumers' compile classpath.
-    `java-library`
+    `java-library` // provides the `api` configuration
     id("maven-publish")
     signing
 }
@@ -31,10 +29,7 @@ sourceSets {
 dependencies {
     // JNA is required by UniFFI-generated Kotlin bindings
     implementation("net.java.dev.jna:jna:5.14.0")
-    // Coroutines for suspend functions and Flow. `api`, not `implementation`:
-    // Flow appears in public return types (e.g. Chat.ask(...).asFlow()), so it
-    // must land on consumers' compile classpath — otherwise they cannot call
-    // our API without declaring coroutines themselves.
+    // Coroutines for suspend functions and Flow. `api`: exposed by TokenStream.asFlow.
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     // Reflection for Tool function introspection
     implementation(kotlin("reflect"))
