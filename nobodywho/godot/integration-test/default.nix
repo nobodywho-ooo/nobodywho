@@ -50,6 +50,7 @@ stdenv.mkDerivation {
     # this kind internet stranger tells me that the export actually works fine, even though it segfaults
     # https://github.com/godotengine/godot/issues/112955#issuecomment-3554723333
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game || true
+    cp ./bin/libggml-*.so $out/
 
     echo "Finished exporting godot game"
 

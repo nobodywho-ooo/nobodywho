@@ -332,6 +332,9 @@ def test_tool_with_dict(chat):
 
 
 def test_python_tool(model):
+    if is_functiongemma():
+        pytest.skip("Test not supported with FunctionGemma models")
+
     chat = nobodywho.Chat(
         model,
         tools=[
