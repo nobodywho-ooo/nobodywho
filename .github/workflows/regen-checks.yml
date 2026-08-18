@@ -24,9 +24,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-dynlink-uniffi-host-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-dynlink-v2-uniffi-host-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-dynlink-uniffi-host-
+            ${{ runner.os }}-cargo-home-dynlink-v2-uniffi-host-
 
       - name: "Setup rust toolchain"
         run: |

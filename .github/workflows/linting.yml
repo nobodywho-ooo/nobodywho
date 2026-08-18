@@ -20,9 +20,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-lint-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-lint-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-lint-cargo-
+            ${{ runner.os }}-lint-cargo-v2-
 
       - name: "Install distro dependencies"
         run: |

@@ -53,9 +53,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-static-checks-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-static-checks-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-static-checks-cargo-
+            ${{ runner.os }}-static-checks-cargo-v2-
 
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
@@ -136,9 +136,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ matrix.manylinux_target }}-cargo-wheel-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ matrix.manylinux_target }}-cargo-wheel-v2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ matrix.manylinux_target }}-cargo-wheel-
+            ${{ matrix.manylinux_target }}-cargo-wheel-v2-
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
@@ -258,9 +258,9 @@ jobs:
           path: |
             ~/.cargo
             C:/target
-          key: ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-python-cargo-v2-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-
+            ${{ runner.os }}-python-cargo-v2-${{ matrix.target }}-release-
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
@@ -330,9 +330,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-macos-wheel-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-macos-wheel-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-macos-wheel-cargo-
+            ${{ runner.os }}-macos-wheel-cargo-v2-
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"

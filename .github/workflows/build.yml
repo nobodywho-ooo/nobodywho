@@ -107,9 +107,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -191,9 +191,9 @@ jobs:
           path: |
             ~/.cargo
             C:/t
-          key: ${{ runner.os }}-cargo-home-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -284,24 +284,15 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: "Cache Cargo Home"
-        # Warp cache — macOS runners are ephemeral now, so a Cargo.lock-keyed
-        # cache safely reuses the build instead of compiling cold every run.
-        #
-        # The `dynlink` marker in the key exists because restore-keys falls back to
-        # a prefix match: without it, a Cargo.lock change misses the exact key and
-        # restores a pre-dynamic-link target/, whose llama-cpp-sys-2 CMakeCache.txt
-        # still says BUILD_SHARED_LIBS=OFF with no GGML_BACKEND_DL. cmake-rs then
-        # logs "CMake project was already configured. Skipping configuration step."
-        # and the stale config survives into the build. Bump the marker whenever the
-        # CMake configuration changes incompatibly.
+        # Bump the cache version when CMake configuration becomes incompatible.
         uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-macos-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-macos-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-macos-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-macos-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
 
       - name: "Setup Rust nightly for tier 3 targets"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
@@ -656,9 +647,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-dynlink-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
