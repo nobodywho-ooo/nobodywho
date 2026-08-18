@@ -18,6 +18,16 @@ The `modelPath` argument to `Chat.fromPath`, `downloadModel`, and friends accept
 
 The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
 
+## Android permissions
+
+Loading a model from `hf://` or `https://` needs network access. Add the internet permission to `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+Things to note: Flutter's generated debug and profile manifests already include this permission for the development tooling, so downloads can succeed while you are debugging and then fail in a release build. Declaring it in the main manifest covers every build mode. Apps that only load models from local paths need no network permission.
+
 ## Tracking download progress
 
 When loading a remote model, pass an `onDownloadProgress` callback to observe the download. It receives `(downloadedBytes, totalBytes)`, is throttled to roughly 10 Hz with a guaranteed final emit on completion, and is not called for cached or local files.
