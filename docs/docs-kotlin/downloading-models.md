@@ -1,12 +1,26 @@
 ---
-title: Downloading Models
-description: How to download and manage GGUF models
+title: Downloading models
+description: How NobodyWho downloads, caches, and inspects GGUF models in Kotlin
 sidebar_position: 6
 ---
 
+NobodyWho can either load a model from a path on disk or download it for you on first use, caching it for subsequent runs. This page covers the available model path formats, how to access gated/private models, how to observe a download in progress, and how to inspect what's already in the local cache.
+
+## Supported model path formats
+
+The `modelPath` argument to `Model.load`, `Chat.fromPath`, and `Model.download` accepts:
+
+| Form | Example | Notes |
+| ---- | ------- | ----- |
+| HuggingFace reference | `hf:owner/repo/file.gguf` | Downloaded and cached on first use |
+| HTTPS URL | `https://example.com/model.gguf` | Downloaded and cached on first use |
+| Local path | `./model.gguf` | Used as-is |
+
+The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
+
 ## Android permissions
 
-Loading a model from `hf://` or `https://` needs network access, so add the internet permission to your app's `AndroidManifest.xml`:
+Android requires explicit approval, adding the internet permission to your app's `AndroidManifest.xml`:
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
@@ -14,7 +28,7 @@ Loading a model from `hf://` or `https://` needs network access, so add the inte
 
 NobodyWho does not declare this permission for you, so apps that only load models from local paths keep working without requesting any network access.
 
-## Downloading gated models
+## Downloading a gated model
 
 Some HuggingFace models are either private or gated by a license that you need to accept. For both scenarios, you need to be authorized to download the model weights.
 
@@ -52,7 +66,7 @@ val model = Model.load(
 }
 ```
 
-## Listing cached models
+## Inspecting the model cache
 
 `getCachedModels()` returns every `.gguf` model in NobodyWho's cache directory, paired with its size in bytes. This is the same cache used by `Model.download` and by `Chat.fromPath`'s `hf://` paths.
 

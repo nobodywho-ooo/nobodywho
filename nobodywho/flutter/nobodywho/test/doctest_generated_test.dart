@@ -168,28 +168,28 @@ void main() {
       );
     });
 
-    test('downloading-models.md:35', () async {
-      final chat = await nobodywho.Chat.fromPath(
-        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
-        onDownloadProgress: (downloaded, total) {
-          print('$downloaded / $total bytes');
-        },
-      );
-    });
-
-    test('downloading-models.md:50', () async {
+    test('downloading-models.md:37', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
       );
     });
 
-    test('downloading-models.md:58', () async {
+    test('downloading-models.md:45', () async {
       final modelPath = await nobodywho.downloadModel(
         modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
         headers: {'Authorization': 'Bearer your_hf_token'},
       );
       
       final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
+    });
+
+    test('downloading-models.md:62', () async {
+      final chat = await nobodywho.Chat.fromPath(
+        modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+        onDownloadProgress: (downloaded, total) {
+          print('$downloaded / $total bytes');
+        },
+      );
     });
 
     test('downloading-models.md:75', () async {
