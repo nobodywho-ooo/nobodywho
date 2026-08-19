@@ -13,6 +13,7 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::speculative::MtpSpeculative;
 use llama_cpp_2::token::LlamaToken;
+use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
@@ -50,6 +51,15 @@ where
         }
     };
     (wrapped_respond, resp_receiver)
+}
+
+/// On-device sequence-state snapshot for rewinding recurrent / hybrid-recurrent
+/// contexts, where `clear_kv_cache_seq` can't unroll the running state. At most
+/// one exists per engine; a fresh snapshot invalidates the previous one.
+#[derive(Debug)]
+struct Checkpoint {
+    data: SeqState,
+    n_past: i32,
 }
 
 /// The low-level inference state for a single llama.cpp context.
@@ -128,9 +138,17 @@ pub(crate) struct InferenceEngine<'a> {
     pending: Option<LlamaToken>,
     pub(crate) mtp_drafts_proposed: u64,
     pub(crate) mtp_drafts_accepted: u64,
+    needs_checkpointing: bool,
+    checkpoint: Option<Checkpoint>,
 }
 
+const SEQ_ID: i32 = 0;
+const CHECKPOINT_FLAGS: LlamaStateSeqFlags = LlamaStateSeqFlags::from_bits(
+    LlamaStateSeqFlags::PARTIAL_ONLY.bits() | LlamaStateSeqFlags::ON_DEVICE.bits(),
+);
+
 impl<'a> InferenceEngine<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         ctx: EngineContext<'a>,
         big_batch: LlamaBatch<'a>,
@@ -139,6 +157,7 @@ impl<'a> InferenceEngine<'a> {
         batch_capacity: BatchCapacity,
         tokenizer: Tokenizer<'a>,
         use_embeddings: bool,
+        needs_checkpointing: bool,
     ) -> Self {
         Self {
             n_past: 0,
@@ -152,7 +171,13 @@ impl<'a> InferenceEngine<'a> {
             pending: None,
             mtp_drafts_proposed: 0,
             mtp_drafts_accepted: 0,
+            needs_checkpointing,
+            checkpoint: None,
         }
+    }
+
+    pub(crate) fn needs_checkpointing(&self) -> bool {
+        self.needs_checkpointing
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
@@ -160,7 +185,12 @@ impl<'a> InferenceEngine<'a> {
         self.ctx.clear_kv_cache();
         self.n_past = 0;
         self.pending = None;
+        self.checkpoint = None;
         self
+    }
+
+    pub(crate) fn discard_checkpoint(&mut self) {
+        self.checkpoint = None;
     }
 
     pub(crate) fn reset_mtp_stats(&mut self) {
@@ -235,6 +265,79 @@ impl<'a> InferenceEngine<'a> {
         }
 
         Ok(outputs)
+    }
+
+    /// Snapshot the current sequence state for a later rewind. No-op on
+    /// attention-only models; best-effort (a failed save is logged, not returned).
+    #[tracing::instrument(level = "trace", skip(self))]
+    pub(crate) fn save_checkpoint(&mut self) {
+        if !self.needs_checkpointing {
+            return;
+        }
+        match self.ctx.state_seq_get(SEQ_ID, CHECKPOINT_FLAGS) {
+            Ok(data) => {
+                trace!(
+                    n_past = self.n_past,
+                    bytes = data.byte_len(),
+                    "Saved checkpoint"
+                );
+                self.checkpoint = Some(Checkpoint {
+                    data,
+                    n_past: self.n_past,
+                });
+            }
+            Err(err) => {
+                warn!(
+                    ?err,
+                    "Failed to save sequence checkpoint; clearing any stale one"
+                );
+                self.checkpoint = None;
+            }
+        }
+    }
+
+    /// Rewind to `target_pos` from the saved checkpoint. Returns `true` on
+    /// success (`n_past` moves to the checkpoint position), or `false` if no
+    /// usable checkpoint exists — the caller should then do a full reset.
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn try_restore_checkpoint(&mut self, target_pos: i32) -> bool {
+        let Some(ckpt) = self.checkpoint.as_ref() else {
+            trace!("No checkpoint to restore from");
+            return false;
+        };
+        if ckpt.n_past > target_pos {
+            trace!(
+                ckpt_n_past = ckpt.n_past,
+                target_pos,
+                "Checkpoint is past rewind target; cannot use"
+            );
+            return false;
+        }
+        if let Err(err) = self.ctx.state_seq_set(&ckpt.data, SEQ_ID) {
+            warn!(?err, "Failed to restore sequence checkpoint");
+            return false;
+        }
+        // Keep the checkpoint: its prefix is stable, so intra-round restores can
+        // reuse it. It's refreshed at the next round start, or dropped on reset/shift.
+        let restored_pos = ckpt.n_past;
+        self.n_past = restored_pos;
+        match self
+            .ctx
+            .clear_kv_cache_seq(Some(SEQ_ID as u32), Some(restored_pos as u32), None)
+        {
+            Ok(true) => {}
+            other => {
+                warn!(
+                    ?other,
+                    restored_pos,
+                    "clear_kv_cache_seq did not free attention cells past the restored \
+                     position; abandoning checkpoint restore for a full reset"
+                );
+                return false;
+            }
+        }
+        trace!(restored_pos, target_pos, "Restored from checkpoint");
+        true
     }
 
     pub(crate) fn read_chunks(
@@ -368,13 +471,17 @@ impl<'a> InferenceEngine<'a> {
 
         if seq_rm_success {
             self.n_past = index as i32;
+        } else if self.try_restore_checkpoint(index as i32) {
+            trace!(
+                index,
+                n_past = self.n_past,
+                "Partial KV cache removal not supported; recovered via checkpoint"
+            );
         } else {
-            // Partial sequence removal is not supported by this model's memory type
-            // (e.g. hybrid models with recurrent components). Fall back to full reset.
             warn!(
                 index,
                 n_past = self.n_past,
-                "Partial KV cache removal not supported, falling back to full context reset"
+                "Partial KV cache removal not supported and no usable checkpoint; falling back to full context reset"
             );
             self.reset_context();
         }
