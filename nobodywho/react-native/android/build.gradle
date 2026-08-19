@@ -70,7 +70,11 @@ task resolveNativeLibraries {
   description = "Downloads NobodyWho native shared libraries from GitHub Releases"
 
   doLast {
-    abiToTriple.each { abi, triple ->
+    // Honor reactNativeArchitectures (the standard RN convention for
+    // restricting which ABIs a build needs) so a consumer building
+    // arm64-v8a-only never triggers an x86_64 download it doesn't need.
+    def wantedAbis = reactNativeArchitectures().toList()
+    abiToTriple.findAll { abi, triple -> wantedAbis.contains(abi) }.each { abi, triple ->
       def abiDir = new File(nativeLibsDir, abi)
       def libFile = new File(abiDir, "libnobodywho_uniffi.so")
 

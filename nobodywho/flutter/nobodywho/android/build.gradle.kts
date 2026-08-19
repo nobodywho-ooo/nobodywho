@@ -19,7 +19,23 @@ group = "ooo.nobodywho.nobodywho"
 version = "1.0"
 
 // Supported ABIs (32-bit not supported due to llama.cpp build issues)
-val targetAbis = listOf("arm64-v8a", "x86_64")
+val supportedAbis = listOf("arm64-v8a", "x86_64")
+
+// `flutter build apk --target-platform android-arm64` passes
+// -Ptarget-platform=android-arm64 (comma-separated for multiple) on every
+// Gradle invocation it drives — restrict to just the ABIs actually requested
+// instead of always resolving all of them, e.g. so a CI job building only
+// arm64-v8a locally never falls through to downloading x86_64.
+private val flutterPlatformToAbi = mapOf(
+    "android-arm64" to "arm64-v8a",
+    "android-x64" to "x86_64",
+)
+val targetAbis = (findProperty("target-platform") as String?)
+    ?.split(",")
+    ?.mapNotNull { flutterPlatformToAbi[it.trim()] }
+    ?.filter { it in supportedAbis }
+    ?.takeIf { it.isNotEmpty() }
+    ?: supportedAbis
 
 // Map Android ABI to NDK triple (for finding libc++_shared.so)
 val abiToNdkTriple = mapOf(

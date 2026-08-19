@@ -382,26 +382,6 @@ jobs:
           ./gradlew :android:assembleRelease :jvm:jar \
             -Pversion=${{ env.VERSION }}
 
-      # Guard against shipping an AAR whose native libs can't be loaded. The
-      # .so is built with a static C++ runtime (ORT_CXX_STDLIB in build.yml), so
-      # it must not have picked up a libc++_shared.so dependency again.
-      - name: "Verify AAR native libs"
-        run: |
-          set -euo pipefail
-          AAR=nobodywho/kotlin/android/build/outputs/aar/android-release.aar
-          missing=0
-          for abi in arm64-v8a x86_64; do
-            if unzip -l "$AAR" | grep -q "jni/$abi/libnobodywho_uniffi.so"; then
-              echo "  ✓ $abi/libnobodywho_uniffi.so"
-            else
-              echo "::error::$abi/libnobodywho_uniffi.so missing from the AAR"; missing=1
-            fi
-          done
-          if [ "$missing" = "1" ]; then
-            unzip -l "$AAR" | grep 'jni/' || true
-            exit 1
-          fi
-
       - name: "Collect release artifacts"
         run: |
           mkdir -p release

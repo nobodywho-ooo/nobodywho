@@ -46,7 +46,11 @@ runs:
         APK="${{ inputs.app-apk }}"
         LIB="${{ inputs.native-lib }}"
         TMP="$(mktemp -d)"
-        unzip -o -q "$APK" 'lib/arm64-v8a/*' -d "$TMP"
+        # || true: unzip exits non-zero when the APK has no arm64-v8a
+        # entries at all. Under set -e that would kill the script here,
+        # skipping the crafted error message and ABI listing below in favor
+        # of a bare unzip exit code.
+        unzip -o -q "$APK" 'lib/arm64-v8a/*' -d "$TMP" || true
 
         SO="$TMP/lib/arm64-v8a/$LIB"
         if [ ! -f "$SO" ]; then
@@ -93,11 +97,16 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        # Explicit "both", not a fallthrough default — a typo in $devices would
+        # otherwise silently run on both devices, doubling billed FTL minutes
+        # instead of failing fast.
         case "${{ inputs.devices }}" in
           pixel8-mali)     DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait) ;;
           s24ultra-adreno) DEVICES=(--device model=e3q,version=34,locale=en,orientation=portrait) ;;
-          *)               DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait \
+          both)            DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait \
                                     --device model=e3q,version=34,locale=en,orientation=portrait) ;;
+          *)               echo "::error::unknown devices input '${{ inputs.devices }}'; expected both, pixel8-mali, or s24ultra-adreno"
+                            exit 1 ;;
         esac
 
         gcloud firebase test android run \
