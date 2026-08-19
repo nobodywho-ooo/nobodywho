@@ -99,9 +99,33 @@ jobs:
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+  # On-device tests on real phones via Firebase Test Lab. plan.yml selects jobs
+  # here only for a release tag (the binding being released) or an explicit
+  # /<binding>-device-<source|released>-ci comment — never for an ordinary push,
+  # because these bill per device-minute. main is covered by the nightly
+  # schedule inside mobile-device-tests.yml.
+  mobile-device-tests:
+    needs: plan
+    if: needs.plan.outputs.device_jobs != ''
+    uses: ./.github/workflows/mobile-device-tests.yml
+    with:
+      jobs: ${{ needs.plan.outputs.device_jobs }}
+    secrets:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
   release:
-    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci]
-    if: needs.plan.outputs.run_release == 'true'
+    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci, mobile-device-tests]
+    # always() so a *skipped* mobile-device-tests does not skip the release —
+    # Swift/Python/Godot tags have no Android device tests. Failures and
+    # cancellations still block, which is the point: a kotlin release cannot
+    # ship unless its device job passed.
+    if: >-
+      always() &&
+      needs.plan.outputs.run_release == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     uses: ./.github/workflows/release.yml
     secrets:
       TEST_PYPI_AUTH_TOKEN: ${{ secrets.TEST_PYPI_AUTH_TOKEN }}
@@ -123,32 +147,3 @@ jobs:
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-  # Single check name for branch protection / merge queue. Passes when every
-  # listed job either succeeded or was correctly skipped by the plan job.
-  # Renaming any matrix entry inside a child workflow no longer breaks the
-  # protection rule.
-  required:
-    if: always()
-    needs:
-      - plan
-      - linting
-      - regen-checks
-      - python-ci
-      - build
-      - swift-ci
-      - kotlin-ci
-      - test
-      - docs
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Verify required jobs succeeded or were skipped"
-        env:
-          RESULTS: ${{ toJSON(needs.*.result) }}
-        run: |
-          echo "Job results: $RESULTS"
-          if echo "$RESULTS" | grep -qE '"(failure|cancelled)"'; then
-            echo "::error::One or more required jobs failed or were cancelled."
-            exit 1
-          fi
-          echo "All required jobs succeeded or were correctly skipped."
