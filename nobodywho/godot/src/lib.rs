@@ -1892,6 +1892,60 @@ impl NobodyWhoSamplerBuilder {
         self.to_gd()
     }
 
+    /// Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+    /// <https://arxiv.org/abs/2309.02772>.
+    ///
+    /// temperature: Temperature value (lower = more focused, higher = more random)
+    /// delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+    /// exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+    #[func]
+    fn dynamic_temperature(
+        &mut self,
+        temperature: f32,
+        delta: f32,
+        exponent: f32,
+    ) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::DynamicTemperature {
+            temperature,
+            delta,
+            exponent,
+        });
+        self.to_gd()
+    }
+
+    /// Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+    /// <https://arxiv.org/pdf/2411.07641>
+    ///
+    /// n: Number of standard deviations from the mean to include in sampling.
+    #[func]
+    fn top_n_sigma(&mut self, n: f32) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().shift(ShiftStep::TopNSigma { n });
+        self.to_gd()
+    }
+
+    /// Modify the likelihood of specific tokens.
+    ///
+    /// biases: Mapping from token ID to its bias.
+    /// The bias modifies the likelihood of the token being selected
+    /// (`>0.0` means higher probability of the token being selected).
+    /// Use `-Infinity` to ban a token.
+    #[func]
+    fn logit_bias(&mut self, biases: VarDictionary) -> Gd<NobodyWhoSamplerBuilder> {
+        // FIXME(madsmtm): Use Dictionary<i32, f32> instead of converting manually.
+        let biases = biases
+            .iter_shared()
+            .map(|(k, v)| {
+                (
+                    k.try_to().expect("dictionary key was not an integer"),
+                    v.try_to().expect("dictionary value was not a float"),
+                )
+            })
+            .collect();
+
+        self.inner = self.inner.clone().shift(ShiftStep::LogitBias { biases });
+        self.to_gd()
+    }
+
     /// Set the RNG seed used by random samplers (`dist`, `mirostat_v1`,
     /// `mirostat_v2`, and the `xtc` shift step). `greedy` ignores it.
     /// If unset, a default seed is used.

@@ -22,6 +22,13 @@ class SamplerScope {
     fun topP(topP: Double, minKeep: Int = 1) { builder = builder.topP(topP.toFloat(), minKeep.toUInt()) }
     fun minP(minP: Double, minKeep: Int = 1) { builder = builder.minP(minP.toFloat(), minKeep.toUInt()) }
     fun temperature(temperature: Double) { builder = builder.temperature(temperature.toFloat()) }
+    fun dynamicTemperature(
+        temperature: Double,
+        delta: Double,
+        exponent: Double
+    ) { builder = builder.dynamicTemperature(temperature.toFloat(), delta.toFloat(), exponent.toFloat()) }
+    fun topNSigma(n: Double) { builder = builder.topNSigma(n.toFloat()) }
+    fun logitBias(biases: Map<Int, Float>) { builder = builder.logitBias(biases) }
     fun typicalP(typP: Double, minKeep: Int = 1) { builder = builder.typicalP(typP.toFloat(), minKeep.toUInt()) }
     fun xtc(xtcProbability: Double, xtcThreshold: Double, minKeep: Int = 1) { builder = builder.xtc(xtcProbability.toFloat(), xtcThreshold.toFloat(), minKeep.toUInt()) }
     fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder = builder.grammar(grammar, triggerOn, root) }

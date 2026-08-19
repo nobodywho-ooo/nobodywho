@@ -1467,6 +1467,50 @@ impl SamplerBuilder {
         )
     }
 
+    /// Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+    /// <https://arxiv.org/abs/2309.02772>.
+    ///
+    /// Args:
+    ///     temperature: Temperature value (lower = more focused, higher = more random)
+    ///     delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+    ///     exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn dynamic_temperature(&self, temperature: f32, delta: f32, exponent: f32) -> Self {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler::ShiftStep::DynamicTemperature {
+                temperature,
+                delta,
+                exponent,
+            },
+        )
+    }
+
+    /// Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+    /// <https://arxiv.org/pdf/2411.07641>
+    ///
+    /// Args:
+    ///     n: Number of standard deviations from the mean to include in sampling.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn top_n_sigma(&self, n: f32) -> Self {
+        shift_step(self.clone(), nobodywho::sampler::ShiftStep::TopNSigma { n })
+    }
+
+    /// Modify the likelihood of specific tokens.
+    ///
+    /// Args:
+    ///     biases: Mapping from token ID to its bias.
+    ///     The bias modifies the likelihood of the token being selected
+    ///     (`>0.0` means higher probability of the token being selected).
+    ///     Use `-Infinity` to ban a token.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn logit_bias(&self, biases: HashMap<i32, f32>) -> Self {
+        shift_step(
+            self.clone(),
+            nobodywho::sampler::ShiftStep::LogitBias { biases },
+        )
+    }
+
     /// Sample from the probability distribution (weighted random selection).
     ///
     /// Returns:
