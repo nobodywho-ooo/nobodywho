@@ -1,13 +1,9 @@
 #!/usr/bin/env dart
-// Binary resolution script for NobodyWho Flutter plugin
-// Resolves the native library path using multiple strategies:
-// 1. Environment variable override
-// 2. Local cargo build
-// 3. Cached download
-// 4. Download from GitHub releases
 
 import 'dart:async';
 import 'dart:io';
+
+import 'package:args/args.dart';
 
 // Applied to HttpClient.connectionTimeout and as an overall timeout on
 // request.close(), so a stalled download fails fast instead of hanging.
@@ -21,165 +17,173 @@ const onnxRuntimeArches = {
   'android': ['x86_64'],
 };
 
-// Platform/architecture mappings to Rust triples and library names
-const platformMappings = {
-  'linux': {
-    'x86_64': {
-      'triple': 'x86_64-unknown-linux-gnu',
-      'lib': 'libnobodywho_flutter.so',
-    },
-    'aarch64': {
-      'triple': 'aarch64-unknown-linux-gnu',
-      'lib': 'libnobodywho_flutter.so',
-    },
-  },
-  'windows': {
-    'x86_64': {
-      'triple': 'x86_64-pc-windows-msvc',
-      'lib': 'nobodywho_flutter.dll',
-    },
-  },
-  'android': {
-    'arm64-v8a': {
-      'triple': 'aarch64-linux-android',
-      'lib': 'libnobodywho_flutter.so',
-    },
-    // Note: 32-bit targets (armeabi-v7a, x86) are not supported due to build issues
-    'x86_64': {
-      'triple': 'x86_64-linux-android',
-      'lib': 'libnobodywho_flutter.so',
-    },
-  },
+typedef Binary = ({String triple, String library});
+
+const binaries = <String, Binary>{
+  'linux-x86_64': (
+    triple: 'x86_64-unknown-linux-gnu',
+    library: 'libnobodywho_flutter.so',
+  ),
+  'linux-aarch64': (
+    triple: 'aarch64-unknown-linux-gnu',
+    library: 'libnobodywho_flutter.so',
+  ),
+  'windows-x86_64': (
+    triple: 'x86_64-pc-windows-msvc',
+    library: 'nobodywho_flutter.dll',
+  ),
+  'android-arm64-v8a': (
+    triple: 'aarch64-linux-android',
+    library: 'libnobodywho_flutter.so',
+  ),
+  'android-x86_64': (
+    triple: 'x86_64-linux-android',
+    library: 'libnobodywho_flutter.so',
+  ),
 };
 
-void main(List<String> arguments) async {
-  try {
-    final config = parseArguments(arguments);
-    final resolvedPath = config.component == 'onnxruntime'
-        ? await resolveOnnxRuntime(config)
-        : await resolveBinary(config);
-    stdout.writeln(resolvedPath);
-    exit(0);
-  } catch (e) {
-    stderr.writeln('Error: $e');
-    exit(1);
-  }
-}
-
 class Config {
+  Config(
+    this.platform,
+    this.arch,
+    this.buildType,
+    this.cacheDir, {
+    this.component = 'main',
+  });
+
   final String platform;
   final String? arch;
   final String buildType;
   final String cacheDir;
+
+  /// Which artifact to resolve: the binding itself ('main') or the separately
+  /// shipped ONNX Runtime .so ('onnxruntime').
   final String component;
 
-  Config({
-    required this.platform,
-    this.arch,
-    required this.buildType,
-    required this.cacheDir,
-    this.component = 'main',
-  });
+  bool get isApple => platform == 'ios' || platform == 'macos';
 
-  bool get isApplePlatform => platform == 'ios' || platform == 'macos';
+  Binary get binary =>
+      binaries['$platform-$arch'] ??
+      (throw Exception('Unsupported platform/arch: $platform/$arch'));
 }
 
-Config parseArguments(List<String> args) {
-  String? platform;
-  String? arch;
-  String? buildType;
-  String? cacheDir;
-  String component = 'main';
-
-  for (int i = 0; i < args.length; i++) {
-    if (args[i].startsWith('--')) {
-      final parts = args[i].substring(2).split('=');
-      final key = parts[0];
-      final value = parts.length > 1 ? parts[1] : (i + 1 < args.length ? args[++i] : null);
-
-      switch (key) {
-        case 'platform':
-          platform = value;
-          break;
-        case 'arch':
-          arch = value;
-          break;
-        case 'build-type':
-          buildType = value;
-          break;
-        case 'cache-dir':
-          cacheDir = value;
-          break;
-        case 'component':
-          component = value ?? 'main';
-          break;
-      }
-    }
+Future<void> main(List<String> arguments) async {
+  try {
+    stdout.writeln(await resolve(parseArguments(arguments)));
+  } catch (error) {
+    stderr.writeln('Error: $error');
+    exitCode = 1;
   }
+}
 
-  if (platform == null) {
-    throw ArgumentError('Missing required argument: --platform');
+Config parseArguments(List<String> arguments) {
+  final parser = ArgParser()
+    ..addOption('platform', mandatory: true)
+    ..addOption('arch')
+    ..addOption('build-type', mandatory: true, allowed: ['debug', 'release'])
+    ..addOption('cache-dir', mandatory: true)
+    ..addOption('component', defaultsTo: 'main', allowed: ['main', 'onnxruntime']);
+  final values = parser.parse(arguments);
+  if (values.rest.isNotEmpty) {
+    throw ArgumentError('Unexpected arguments: ${values.rest.join(' ')}');
   }
-  if (buildType == null) {
-    throw ArgumentError('Missing required argument: --build-type');
-  }
-  if (cacheDir == null) {
-    throw ArgumentError('Missing required argument: --cache-dir');
-  }
-
-  // Arch is not required for iOS/macOS (they use xcframework)
-  if (platform != 'ios' && platform != 'macos' && arch == null) {
-    throw ArgumentError('Missing required argument: --arch (required for $platform)');
-  }
-
-  if (!['debug', 'release'].contains(buildType)) {
-    throw ArgumentError('Invalid build-type: $buildType (must be debug or release)');
-  }
-
-  return Config(
-    platform: platform,
-    arch: arch,
-    buildType: buildType,
-    cacheDir: cacheDir,
-    component: component,
+  final config = Config(
+    values.option('platform')!,
+    values.option('arch'),
+    values.option('build-type')!,
+    values.option('cache-dir')!,
+    component: values.option('component')!,
   );
+  if (!config.isApple && config.arch == null) {
+    throw ArgumentError('Missing required argument: --arch');
+  }
+  if (!config.isApple) config.binary;
+  return config;
 }
 
-Future<String> resolveBinary(Config config) async {
-  // Strategy 1: Environment variable override
-  final envPath = checkEnvironmentOverride(config);
-  if (envPath != null) {
-    return envPath;
-  }
-
-  // Strategy 2: Local cargo build
-  final localPath = checkLocalBuild(config);
-  if (localPath != null) {
-    return localPath;
-  }
-
-  // Strategy 3: Cached download
-  final cachedPath = checkCachedDownload(config);
-  if (cachedPath != null) {
-    return cachedPath;
-  }
-
-  // Strategy 4: Download from GitHub
-  return await downloadFromGitHub(config);
+Future<String> resolve(Config config) async {
+  if (config.component == 'onnxruntime') return resolveOnnxRuntime(config);
+  return localBuild(config) ??
+      cachedDownload(config) ??
+      await downloadRelease(config);
 }
 
+String absolute(String path) => File(path).absolute.path;
+
+Directory get targetDirectory {
+  final plugin = File(Platform.script.toFilePath()).parent.parent;
+  return Directory('${plugin.parent.parent.path}/target');
+}
+
+String? localBuild(Config config) {
+  final directory = config.isApple
+      ? Directory('${targetDirectory.path}/xcframework')
+      : Directory(
+          '${targetDirectory.path}/${config.binary.triple}/${config.buildType}',
+        );
+  if (!installed(config, directory)) return null;
+  final path = installedPath(config, directory);
+  stderr.writeln('Using local build: $path');
+  return absolute(path);
+}
+
+Directory cacheDirectory(Config config, String version) {
+  final name = config.isApple
+      ? 'xcframework'
+      : '${config.platform}-${config.arch}-${config.buildType}';
+  return Directory('${config.cacheDir}/nobodywho/$version/$name');
+}
+
+String installedPath(Config config, Directory directory) => config.isApple
+    ? '${directory.path}/nobodywho_flutter.xcframework'
+    : '${directory.path}/${config.binary.library}';
+
+bool installed(Config config, Directory directory) =>
+    FileSystemEntity.typeSync(installedPath(config, directory)) !=
+        FileSystemEntityType.notFound &&
+    (config.isApple ||
+        Directory('${directory.path}/nobodywho-runtime').existsSync());
+
+String? cachedDownload(Config config) {
+  final directory = cacheDirectory(config, version());
+  if (!installed(config, directory)) return null;
+  final path = installedPath(config, directory);
+  stderr.writeln('Using cached binary: $path');
+  return absolute(path);
+}
+
+Future<String> downloadRelease(Config config) async {
+  if (config.isApple && config.buildType == 'debug') {
+    throw Exception('Release XCFrameworks do not provide debug builds');
+  }
+
+  final packageVersion = version();
+  final asset = config.isApple
+      ? 'nobodywho_flutter.xcframework.zip'
+      : 'nobodywho-flutter-${config.binary.triple}-${config.buildType}.zip';
+  final url =
+      'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$packageVersion/$asset';
+  final directory = cacheDirectory(config, packageVersion);
+  await installArchive(url, directory, config);
+  return absolute(installedPath(config, directory));
+}
+
+/// Resolves the standalone ONNX Runtime .so. Only Android x86_64 needs it —
+/// everywhere else ORT is linked into the binding itself.
 Future<String> resolveOnnxRuntime(Config config) async {
-  final needsIt = onnxRuntimeArches[config.platform]?.contains(config.arch) ?? false;
+  final needsIt =
+      onnxRuntimeArches[config.platform]?.contains(config.arch) ?? false;
   if (!needsIt) {
     throw Exception(
       'onnxruntime component was requested for ${config.platform}/${config.arch}, '
       'but it is only needed on: '
-      '${onnxRuntimeArches.entries.map((e) => '${e.key}/${e.value.join(",")}').join("; ")}'
+      '${onnxRuntimeArches.entries.map((e) => '${e.key}/${e.value.join(",")}').join("; ")}',
     );
   }
 
   // Strategy 1: cached extraction from a previous run
-  final cacheBasePath = '${config.cacheDir}/onnxruntime/$onnxRuntimeVersion/${config.platform}-${config.arch}';
+  final cacheBasePath =
+      '${config.cacheDir}/onnxruntime/$onnxRuntimeVersion/${config.platform}-${config.arch}';
   final cachedFile = File('$cacheBasePath/libonnxruntime.so');
   if (cachedFile.existsSync()) {
     stderr.writeln('Using cached onnxruntime library: ${cachedFile.path}');
@@ -188,26 +192,15 @@ Future<String> resolveOnnxRuntime(Config config) async {
 
   // Strategy 2: download Microsoft's prebuilt AAR from Maven Central and
   // extract the .so - same artifact CI uses to link x86_64 (see build.yml).
-  final url = 'https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/'
+  final url =
+      'https://repo1.maven.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/'
       '$onnxRuntimeVersion/onnxruntime-android-$onnxRuntimeVersion.aar';
-  stderr.writeln('Downloading onnxruntime AAR: $url');
+  final aarFile = File(
+    '$cacheBasePath/onnxruntime-android-$onnxRuntimeVersion.aar',
+  );
 
-  final cacheDirObj = Directory(cacheBasePath);
-  await cacheDirObj.create(recursive: true);
-  final aarFile = File('$cacheBasePath/onnxruntime-android-$onnxRuntimeVersion.aar');
-
-  final httpClient = HttpClient()..connectionTimeout = httpTimeout;
   try {
-    final request = await httpClient.getUrl(Uri.parse(url));
-    final response = await request.close().timeout(httpTimeout);
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to download onnxruntime AAR: HTTP ${response.statusCode}\nURL: $url');
-    }
-
-    final sink = aarFile.openWrite();
-    await response.pipe(sink);
-    await sink.close();
+    await download(url, aarFile);
 
     stderr.writeln('Extracting jni/${config.arch}/libonnxruntime.so...');
     final unzipResult = await Process.run('unzip', [
@@ -216,333 +209,87 @@ Future<String> resolveOnnxRuntime(Config config) async {
       'jni/${config.arch}/libonnxruntime.so',
       '-d', cacheBasePath,
     ]);
-
     if (unzipResult.exitCode != 0) {
-      throw Exception('Failed to extract libonnxruntime.so from AAR: ${unzipResult.stderr}');
+      throw Exception(
+        'Failed to extract libonnxruntime.so from AAR: ${unzipResult.stderr}',
+      );
     }
-
-    aarFile.deleteSync();
-
     if (!cachedFile.existsSync()) {
-      throw Exception('libonnxruntime.so not found in AAR after extraction: ${cachedFile.path}');
+      throw Exception(
+        'libonnxruntime.so not found in AAR after extraction: ${cachedFile.path}',
+      );
     }
-
     stderr.writeln('Extracted to: ${cachedFile.path}');
     return cachedFile.absolute.path;
-  } catch (e) {
-    if (aarFile.existsSync()) {
-      aarFile.deleteSync();
-    }
-    if (e is TimeoutException) {
-      throw Exception('Timed out downloading onnxruntime AAR from $url');
-    }
-    if (e is SocketException) {
-      throw Exception('Network error downloading onnxruntime AAR from $url: $e');
-    }
-    rethrow;
   } finally {
-    httpClient.close(force: true);
+    if (aarFile.existsSync()) aarFile.deleteSync();
   }
 }
 
-String? checkEnvironmentOverride(Config config) {
-  if (config.isApplePlatform) {
-    // For iOS/macOS, check for xcframework path
-    final xcframeworkPath = Platform.environment['NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH'];
-    if (xcframeworkPath != null && xcframeworkPath.isNotEmpty) {
-      final xcframeworkDir = Directory(xcframeworkPath);
-      if (xcframeworkDir.existsSync()) {
-        stderr.writeln('Using xcframework from environment variable: $xcframeworkPath');
-        return xcframeworkPath;
-      } else {
-        throw Exception(
-          'NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH is set but path does not exist: $xcframeworkPath'
-        );
-      }
-    }
-  } else {
-    // For desktop/Android, check for library path
-    final libPath = Platform.environment['NOBODYWHO_FLUTTER_LIB_PATH'];
-    if (libPath != null && libPath.isNotEmpty) {
-      final libFile = File(libPath);
-      if (libFile.existsSync()) {
-        stderr.writeln('Using library from environment variable: $libPath');
-        return libPath;
-      } else {
-        throw Exception(
-          'NOBODYWHO_FLUTTER_LIB_PATH is set but file does not exist: $libPath'
-        );
-      }
-    }
-  }
-  return null;
-}
-
-String? checkLocalBuild(Config config) {
-  // Find the script directory (tool/) and navigate to workspace root
-  final scriptFile = File(Platform.script.toFilePath());
-  final toolDir = scriptFile.parent;
-  final pluginDir = toolDir.parent; // nobodywho/
-  final flutterDir = pluginDir.parent; // flutter/
-  final nobodywhoDir = flutterDir.parent; // nobodywho/
-  final targetDir = Directory('${nobodywhoDir.path}/target');
-
-  if (!targetDir.existsSync()) {
-    return null;
-  }
-
-  if (config.isApplePlatform) {
-    // For iOS/macOS, we can't easily construct xcframework from local builds
-    // User should use environment variable for local development
-    // Check if any .dylib files exist to give a helpful error
-    final triples = [
-      'aarch64-apple-darwin',
-      'x86_64-apple-darwin',
-      'aarch64-apple-ios',
-      'aarch64-apple-ios-sim',
-      'x86_64-apple-ios',
-    ];
-
-    for (final triple in triples) {
-      final dylibFile = File('${targetDir.path}/$triple/${config.buildType}/libnobodywho_flutter.dylib');
-      if (dylibFile.existsSync()) {
-        throw Exception(
-          'Found local .dylib files but xcframework is not built.\n'
-          'Run scripts/build_macos.sh or scripts/build_ios.sh to create the xcframework.\n'
-          'Or set NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH to point to your xcframework.'
-        );
-      }
-    }
-    return null;
-  }
-
-  // For desktop/Android, check for the library file
-  final mapping = platformMappings[config.platform]?[config.arch];
-  if (mapping == null) {
-    return null;
-  }
-
-  final triple = mapping['triple'] as String;
-  final libName = mapping['lib'] as String;
-  final libFile = File('${targetDir.path}/$triple/${config.buildType}/$libName');
-
-  if (libFile.existsSync()) {
-    stderr.writeln('Using local build: ${libFile.path}');
-    return libFile.absolute.path;
-  }
-
-  return null;
-}
-
-String? checkCachedDownload(Config config) {
-  final version = getVersion();
-  final cacheBasePath = '${config.cacheDir}/nobodywho/$version';
-
-  if (config.isApplePlatform) {
-    // Check for cached xcframework
-    final xcframeworkPath = '$cacheBasePath/xcframework/nobodywho_flutter.xcframework';
-    final xcframeworkDir = Directory(xcframeworkPath);
-    if (xcframeworkDir.existsSync()) {
-      stderr.writeln('Using cached xcframework: $xcframeworkPath');
-      return xcframeworkPath;
-    }
-  } else {
-    // Check for cached library file
-    final mapping = platformMappings[config.platform]?[config.arch];
-    if (mapping == null) {
-      return null;
-    }
-
-    final libName = mapping['lib'] as String;
-    final libPath = '$cacheBasePath/${config.platform}-${config.arch}/$libName';
-    final libFile = File(libPath);
-    if (libFile.existsSync()) {
-      stderr.writeln('Using cached library: $libPath');
-      return libFile.absolute.path;
-    }
-  }
-
-  return null;
-}
-
-Future<String> downloadFromGitHub(Config config) async {
-  final version = getVersion();
-
-  if (config.isApplePlatform && config.buildType == 'debug') {
-    throw Exception(
-      'Debug builds for iOS/macOS are not provided in releases.\n'
-      'For local development, set NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH to point to your xcframework.\n'
-      'You can build it manually from the .a files in target/{triple}/debug/ using xcodebuild.'
-    );
-  }
-
-  stderr.writeln('Downloading from GitHub releases (version: $version)...');
-
-  if (config.isApplePlatform) {
-    return await downloadXCFramework(config, version);
-  } else {
-    return await downloadLibrary(config, version);
-  }
-}
-
-Future<String> downloadLibrary(Config config, String version) async {
-  final mapping = platformMappings[config.platform]?[config.arch];
-  if (mapping == null) {
-    throw Exception('Unsupported platform/arch: ${config.platform}/${config.arch}');
-  }
-
-  final triple = mapping['triple'] as String;
-  final libName = mapping['lib'] as String;
-
-  // Construct download URL
-  // All artifacts have "lib" prefix for consistency
-  final fileName = 'libnobodywho-flutter-$triple-${config.buildType}.${libName.split('.').last}';
-  final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
-
-  // Prepare cache directory
-  final cacheDir = '${config.cacheDir}/nobodywho/$version/${config.platform}-${config.arch}';
-  final cacheDirObj = Directory(cacheDir);
-  await cacheDirObj.create(recursive: true);
-
-  final outputPath = '$cacheDir/$libName';
-  final outputFile = File(outputPath);
-
+Future<void> installArchive(
+  String url,
+  Directory destination,
+  Config config,
+) async {
+  final staging = Directory('${destination.path}.tmp-$pid');
+  final archive = File('${destination.path}.tmp-$pid.zip');
   stderr.writeln('Downloading: $url');
-
-  final httpClient = HttpClient()..connectionTimeout = httpTimeout;
   try {
-    final request = await httpClient.getUrl(Uri.parse(url));
-    final response = await request.close().timeout(httpTimeout);
-
-    if (response.statusCode != 200) {
-      throw Exception(
-        'Failed to download library: HTTP ${response.statusCode}\n'
-        'URL: $url\n'
-        'This version may not be available in releases. Check: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-flutter-v$version'
-      );
+    if (staging.existsSync()) staging.deleteSync(recursive: true);
+    await download(url, archive);
+    await extract(archive, staging);
+    if (!installed(config, staging)) {
+      throw Exception('Invalid NobodyWho archive');
     }
-
-    final sink = outputFile.openWrite();
-    await response.pipe(sink);
-    await sink.close();
-
-    stderr.writeln('Downloaded to: $outputPath');
-    return outputFile.absolute.path;
-  } catch (e) {
-    // Clean up partial download
-    if (outputFile.existsSync()) {
-      outputFile.deleteSync();
-    }
-    if (e is TimeoutException) {
-      throw Exception('Timed out downloading library from $url');
-    }
-    if (e is SocketException) {
-      throw Exception('Network error downloading library from $url: $e');
-    }
-    rethrow;
+    if (destination.existsSync()) destination.deleteSync(recursive: true);
+    await staging.rename(destination.path);
   } finally {
-    httpClient.close(force: true);
+    if (archive.existsSync()) archive.deleteSync();
+    if (staging.existsSync()) staging.deleteSync(recursive: true);
   }
 }
 
-Future<String> downloadXCFramework(Config config, String version) async {
-  // Download URL for xcframework
-  final fileName = 'nobodywho_flutter.xcframework.zip';
-  final url = 'https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-flutter-v$version/$fileName';
-
-  // Prepare cache directory
-  final cacheDir = '${config.cacheDir}/nobodywho/$version/xcframework';
-  final cacheDirObj = Directory(cacheDir);
-  await cacheDirObj.create(recursive: true);
-
-  final zipPath = '$cacheDir/$fileName';
-  final zipFile = File(zipPath);
-  final xcframeworkPath = '$cacheDir/nobodywho_flutter.xcframework';
-
-  stderr.writeln('Downloading: $url');
-
-  final httpClient = HttpClient()..connectionTimeout = httpTimeout;
+Future<void> download(String url, File output) async {
+  await output.parent.create(recursive: true);
+  final client = HttpClient()..connectionTimeout = httpTimeout;
   try {
-    final request = await httpClient.getUrl(Uri.parse(url));
-    final response = await request.close().timeout(httpTimeout);
-
-    if (response.statusCode != 200) {
-      throw Exception(
-        'Failed to download xcframework: HTTP ${response.statusCode}\n'
-        'URL: $url\n'
-        'This version may not be available in releases. Check: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-flutter-v$version'
-      );
+    final response = await (await client.getUrl(
+      Uri.parse(url),
+    )).close().timeout(httpTimeout);
+    if (response.statusCode != HttpStatus.ok) {
+      await response.drain();
+      throw Exception('Download failed: HTTP ${response.statusCode}\n$url');
     }
-
-    final sink = zipFile.openWrite();
-    await response.pipe(sink);
-    await sink.close();
-
-    stderr.writeln('Downloaded to: $zipPath');
-
-    // Unzip the xcframework
-    stderr.writeln('Extracting xcframework...');
-    final unzipResult = await Process.run(
-      'unzip',
-      ['-o', '-q', zipPath, '-d', cacheDir],
-      workingDirectory: cacheDir,
-    );
-
-    if (unzipResult.exitCode != 0) {
-      throw Exception('Failed to unzip xcframework: ${unzipResult.stderr}');
-    }
-
-    // Clean up zip file
-    zipFile.deleteSync();
-
-    // Verify xcframework exists
-    if (!Directory(xcframeworkPath).existsSync()) {
-      throw Exception('Xcframework not found after extraction: $xcframeworkPath');
-    }
-
-    stderr.writeln('Extracted to: $xcframeworkPath');
-    return xcframeworkPath;
-  } catch (e) {
-    // Clean up partial download
-    if (zipFile.existsSync()) {
-      zipFile.deleteSync();
-    }
-    if (Directory(xcframeworkPath).existsSync()) {
-      Directory(xcframeworkPath).deleteSync(recursive: true);
-    }
-    if (e is TimeoutException) {
-      throw Exception('Timed out downloading xcframework from $url');
-    }
-    if (e is SocketException) {
-      throw Exception('Network error downloading xcframework from $url: $e');
-    }
-    rethrow;
+    await response.pipe(output.openWrite());
+  } on TimeoutException {
+    throw Exception('Timed out downloading $url');
+  } on SocketException catch (e) {
+    throw Exception('Network error downloading $url: $e');
   } finally {
-    httpClient.close(force: true);
+    client.close(force: true);
   }
 }
 
-String getVersion() {
-  // Find pubspec.yaml relative to this script
-  final scriptFile = File(Platform.script.toFilePath());
-  final toolDir = scriptFile.parent;
-  final pluginDir = toolDir.parent;
-  final pubspecFile = File('${pluginDir.path}/pubspec.yaml');
+Future<void> extract(File archive, Directory destination) async {
+  await destination.create(recursive: true);
+  final result = await Process.run(
+    Platform.isWindows ? 'tar' : 'unzip',
+    Platform.isWindows
+        ? ['-xf', archive.path, '-C', destination.path]
+        : ['-q', archive.path, '-d', destination.path],
+  );
+  if (result.exitCode != 0)
+    throw Exception('Archive extraction failed: ${result.stderr}');
+}
 
-  if (!pubspecFile.existsSync()) {
-    throw Exception('Could not find pubspec.yaml at: ${pubspecFile.path}');
-  }
-
-  final content = pubspecFile.readAsStringSync();
-
-  // Parse version using regex (no yaml dependency)
-  final versionRegex = RegExp(r'^version:\s*(.+)$', multiLine: true);
-  final match = versionRegex.firstMatch(content);
-
-  if (match == null || match.group(1) == null) {
-    throw Exception('Could not parse version from pubspec.yaml');
-  }
-
-  final version = match.group(1)!.trim();
-  return version;
+String version() {
+  final pubspec = File(
+    '${File(Platform.script.toFilePath()).parent.parent.path}/pubspec.yaml',
+  );
+  final value = RegExp(
+    r'^version:\s*(.+)$',
+    multiLine: true,
+  ).firstMatch(pubspec.readAsStringSync())?.group(1)?.trim();
+  if (value == null) throw Exception('Could not read $pubspec');
+  return value;
 }

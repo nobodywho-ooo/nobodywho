@@ -2,7 +2,7 @@ name: "Build and test"
 on:
   push:
     branches: [main]
-    tags: ['nobodywho-*']
+    tags: ["nobodywho-*"]
   pull_request:
     types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
@@ -10,11 +10,11 @@ on:
       full_ci:
         type: boolean
         default: true
-        description: 'Run full CI suite (all platforms, all tests)'
+        description: "Run full CI suite (all platforms, all tests)"
       buckets:
         type: string
-        default: ''
-        description: 'Space-separated bucket keys to run (set by /<bucket>-ci PR comments)'
+        default: ""
+        description: "Space-separated bucket keys to run (set by /<bucket>-ci PR comments)"
 
 # Cancel in-flight PR runs when a new commit is pushed to that PR.
 # Don't cancel main / tag / dispatch runs — those are canonical signals we
@@ -54,8 +54,9 @@ jobs:
     if: needs.plan.outputs.run_python == 'true' || needs.plan.outputs.run_python_models == 'true'
     uses: ./.github/workflows/python-ci.yml
     with:
-      run_python:        ${{ needs.plan.outputs.run_python == 'true' }}
+      run_python: ${{ needs.plan.outputs.run_python == 'true' }}
       run_python_models: ${{ needs.plan.outputs.run_python_models == 'true' }}
+      full_ci: ${{ needs.plan.outputs.is_full == 'true' }}
 
   build:
     needs: plan
@@ -68,14 +69,17 @@ jobs:
       needs.plan.outputs.run_apple_extended == 'true'
     uses: ./.github/workflows/build.yml
     with:
-      run_godot:        ${{ needs.plan.outputs.run_godot == 'true' }}
-      run_flutter:      ${{ needs.plan.outputs.run_flutter == 'true' }}
-      run_swift:        ${{ needs.plan.outputs.run_swift == 'true' }}
-      run_kotlin:       ${{ needs.plan.outputs.run_kotlin == 'true' }}
+      run_godot: ${{ needs.plan.outputs.run_godot == 'true' }}
+      run_flutter: ${{ needs.plan.outputs.run_flutter == 'true' }}
+      run_swift: ${{ needs.plan.outputs.run_swift == 'true' }}
+      run_kotlin: ${{ needs.plan.outputs.run_kotlin == 'true' }}
       run_react_native: ${{ needs.plan.outputs.run_react_native == 'true' }}
       # visionOS/watchOS: nightly rust + ORT from source. Full runs, or
       # /apple-extended-ci to compile-check just those targets.
       apple_extended:   ${{ needs.plan.outputs.run_apple_extended == 'true' }}
+      # Separate from apple_extended: gates the full-run-only extras
+      # (godot macOS universal, apple runtime dlopen smoke).
+      full_ci: ${{ needs.plan.outputs.is_full == 'true' }}
 
   swift-ci:
     needs: [plan, build]
@@ -90,17 +94,22 @@ jobs:
   test:
     # Always invoked so the flutter doctest-drift check runs on every event.
     # The heavy jobs inside (nix flake check, flutter multimodal/SpeechToText) gate
-    # themselves on run_rust_core / run_flutter.
-    needs: plan
+    # themselves on run_rust_core / run_flutter. `build` is a dependency because
+    # the flutter jobs download its native-library artifact via flutter-native-lib;
+    # `!cancelled()` keeps this job running when `build` is skipped entirely, and
+    # run_flutter additionally requires the artifact to actually exist.
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
     uses: ./.github/workflows/test.yml
     with:
       run_rust_core: ${{ needs.plan.outputs.run_rust_core == 'true' }}
-      run_flutter:   ${{ needs.plan.outputs.run_flutter == 'true' }}
+      run_flutter: ${{ needs.plan.outputs.run_flutter == 'true' && needs.build.result == 'success' }}
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
   release:
-    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci]
+    needs:
+      [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci]
     if: needs.plan.outputs.run_release == 'true'
     uses: ./.github/workflows/release.yml
     secrets:

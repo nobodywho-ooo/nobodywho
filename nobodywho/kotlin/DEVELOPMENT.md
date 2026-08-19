@@ -48,7 +48,10 @@ cargo build -p nobodywho-uniffi
 cargo run --bin uniffi-bindgen -- generate \
   --library target/debug/libnobodywho_uniffi.so \
   --language kotlin \
-  --out-dir kotlin/generated
+  --out-dir kotlin/common/generated
+
+# Restore the custom native-library lookup overwritten by uniffi-bindgen.
+python3 kotlin/scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
 ```
 
 **After regenerating:** Check that the wrapper classes in `src/` still match the generated API. In particular:
@@ -76,7 +79,7 @@ nix develop .#android --command bash -c \
    ./gradlew test'
 ```
 
-- `NOBODYWHO_LIB_DIR` — directory containing `libnobodywho_uniffi.so` (sets `jna.library.path`)
+- `NOBODYWHO_LIB_DIR` - test-only directory containing `libnobodywho_uniffi.so`
 - `TEST_MODEL` — path to a GGUF model file (integration tests are skipped if unset)
 
 Unit tests (`SchemaUtilsTest`, `SamplerDslTest`) also require the native lib since we removed the uniffi stubs.

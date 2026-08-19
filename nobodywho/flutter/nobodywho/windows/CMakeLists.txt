@@ -4,21 +4,11 @@
 # customers of the plugin.
 cmake_minimum_required(VERSION 3.14)
 
-# Project-level configuration.
 set(PROJECT_NAME "nobodywho")
 project(${PROJECT_NAME} LANGUAGES CXX)
 
-# The binary resolution is handled by a Dart script that supports multiple methods:
-# 1. Environment variable override (NOBODYWHO_FLUTTER_LIB_PATH)
-# 2. Local cargo build detection
-# 3. Cached download
-# 4. Download from GitHub releases
-
-# Windows only supports x86_64 currently
 set(WINDOWS_ARCH "x86_64")
 
-# Find dart executable - Flutter sets FLUTTER_ROOT during builds
-# On Windows, bin/dart is a .bat file; the real executable is in the bundled dart-sdk
 if(DEFINED ENV{FLUTTER_ROOT})
   set(DART_EXECUTABLE "$ENV{FLUTTER_ROOT}/bin/cache/dart-sdk/bin/dart.exe")
 else()
@@ -28,7 +18,6 @@ else()
   endif()
 endif()
 
-# Resolve binary using Dart script
 execute_process(
   COMMAND ${DART_EXECUTABLE} run "${CMAKE_CURRENT_SOURCE_DIR}/../tool/resolve_binary.dart"
           --platform=windows
@@ -48,8 +37,13 @@ endif()
 
 message(STATUS "Using NobodyWho library for Windows ${WINDOWS_ARCH}: ${NOBODYWHO_LIB_PATH}")
 
-# List of absolute paths to libraries that should be bundled with the plugin.
+get_filename_component(NOBODYWHO_LIB_DIR "${NOBODYWHO_LIB_PATH}" DIRECTORY)
+file(GLOB NOBODYWHO_RUNTIME_LIBS
+  "${NOBODYWHO_LIB_DIR}/nobodywho-runtime/*.dll"
+)
+
 set(nobodywho_bundled_libraries
-  ${NOBODYWHO_LIB_PATH}
+  "${NOBODYWHO_LIB_PATH}"
+  ${NOBODYWHO_RUNTIME_LIBS}
   PARENT_SCOPE
 )

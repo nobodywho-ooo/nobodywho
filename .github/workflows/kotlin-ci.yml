@@ -35,6 +35,7 @@ jobs:
         run: |
           cp ./native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
             ./native-lib/libnobodywho_uniffi.so
+          cp -L ./native-lib/nobodywho-runtime/* ./native-lib/
 
       - name: "Install Vulkan runtime"
         # The .so links libvulkan; JNA needs it at test runtime.
@@ -69,3 +70,16 @@ jobs:
           NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
         run: ./gradlew :nobodywho-core:test
+
+      - name: "Bundle native libs into JVM JAR resources"
+        run: |
+          set -euo pipefail
+          d=./native-lib
+          dest=nobodywho/kotlin/jvm/src/main/resources/linux-x86-64
+          mkdir -p "$dest"
+          cp "$d/libnobodywho_uniffi.so" "$dest/"
+          cp -L "$d/nobodywho-runtime/"* "$dest/"
+
+      - name: "Run JVM packaging smoke test"
+        working-directory: ./nobodywho/kotlin
+        run: ./gradlew :jvm:jvmSmoke

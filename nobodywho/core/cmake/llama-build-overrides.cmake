@@ -1,0 +1,19 @@
+if(NOT PROJECT_NAME STREQUAL "llama.cpp")
+  return()
+endif()
+
+set(LLAMA_OPENSSL OFF CACHE BOOL "" FORCE)
+
+if(GGML_CPU_ALL_VARIANTS AND GGML_CPU_ARM_ARCH)
+  set(GGML_CPU_ARM_ARCH "" CACHE STRING "" FORCE)
+endif()
+
+if(APPLE)
+  add_compile_definitions(_DARWIN_C_SOURCE)
+  set(CMAKE_INSTALL_RPATH "@loader_path")
+elseif(UNIX)
+  set(CMAKE_INSTALL_RPATH "$ORIGIN")
+endif()
+
+set(CMAKE_PLATFORM_NO_VERSIONED_SONAME ON)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)

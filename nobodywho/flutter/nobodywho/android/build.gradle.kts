@@ -1,12 +1,3 @@
-// NobodyWho Flutter Plugin - Android Build Configuration
-//
-// This build script resolves prebuilt native libraries using a Dart script
-// that supports multiple resolution strategies:
-// 1. Environment variable override (NOBODYWHO_FLUTTER_LIB_PATH)
-// 2. Local cargo build detection
-// 3. Cached download
-// 4. Download from GitHub releases
-
 import java.io.ByteArrayOutputStream
 import org.gradle.process.ExecOperations
 import org.gradle.kotlin.dsl.support.serviceOf
@@ -18,7 +9,6 @@ plugins {
 group = "ooo.nobodywho.nobodywho"
 version = "1.0"
 
-// Supported ABIs (32-bit not supported due to llama.cpp build issues)
 val targetAbis = listOf("arm64-v8a", "x86_64")
 
 // Map Android ABI to NDK triple (for finding libc++_shared.so)
@@ -46,8 +36,6 @@ android {
         }
     }
 
-    // Point jniLibs to our build output directory instead of src/main/jniLibs
-    // This ensures all artifacts are in cleanable locations
     sourceSets {
         getByName("main") {
             jniLibs.srcDirs(layout.buildDirectory.dir("jniLibs"))
@@ -55,23 +43,12 @@ android {
     }
 }
 
-// Task to resolve and copy native libraries for all ABIs
 val resolveNativeLibraries by tasks.registering {
     description = "Resolves NobodyWho native libraries using the Dart resolution script"
 
     val jniLibsDir = layout.buildDirectory.dir("jniLibs")
     val cacheDir = layout.buildDirectory.dir("nobodywho-cache")
 
-    // Declare inputs so Gradle re-runs this task when the version or resolve logic changes.
-    // Without these, Gradle considers the task UP-TO-DATE after the first run, causing stale
-    // .so files from a previous plugin version to persist across upgrades.
-    inputs.file("${projectDir}/../pubspec.yaml")
-    inputs.file("${projectDir}/../tool/resolve_binary.dart")
-    outputs.dir(jniLibsDir)
-
-    // Capture the ExecOperations service at configuration time. Project.exec() was
-    // deprecated in Gradle 8.x and removed in Gradle 9.0, so we inject the service
-    // instead of calling project.exec { } during task execution (see issue #624).
     val execOperations = serviceOf<ExecOperations>()
 
     doLast {
@@ -139,21 +116,39 @@ val resolveNativeLibraries by tasks.registering {
 
         targetAbis.forEach { abi ->
             val abiOutputDir = jniLibsDir.get().dir(abi).asFile
+            // Wipe first: a stale .so from an earlier runtime set would otherwise linger
+            // in jniLibs and get packaged alongside the current one.
+            abiOutputDir.deleteRecursively()
             abiOutputDir.mkdirs()
 
-            // Copy the resolved library to jniLibs
+            // resolve_binary.dart already yields a file named libnobodywho_flutter.so,
+            // so no rename is needed here.
             val resolvedLibPath = resolveLibrary(abi, "main")
             logger.lifecycle("[$abi] Resolved library: $resolvedLibPath")
             copy {
                 from(resolvedLibPath)
                 into(abiOutputDir)
-                rename { "libnobodywho_flutter.so" }
             }
 
             copyLibcxxShared(abi, abiOutputDir)
 
+            // The dlopen'd ggml/llama libs ship in a nobodywho-runtime/ subdir next to the
+            // binding; flatten them into jniLibs/<abi>, where the Android loader resolves
+            // NEEDED libs.
+            copy {
+                from(File(File(resolvedLibPath).parentFile, "nobodywho-runtime")) {
+                    include("*.so")
+                }
+                from(File(resolvedLibPath).parentFile) {
+                    include("libonnxruntime.so")
+                }
+                into(abiOutputDir)
+            }
+
             // Only x86_64 needs onnxruntime as a separate .so (Microsoft ships
             // no static build for it); arm64 statically embeds it (see objdump -p).
+            // Runs after the copy above: this one comes from the Maven AAR (a separate
+            // cache dir, not the resolved binding's dir), so it is authoritative.
             if (abi == "x86_64") {
                 val resolvedOrtPath = resolveLibrary(abi, "onnxruntime")
                 logger.lifecycle("[$abi] Resolved onnxruntime library: $resolvedOrtPath")
@@ -167,12 +162,8 @@ val resolveNativeLibraries by tasks.registering {
     }
 }
 
-// Ensure native libraries are resolved before they're needed for packaging
-// This hooks into the Android Gradle Plugin's build lifecycle
-afterEvaluate {
-    tasks.matching {
-        it.name.contains("merge") && it.name.contains("JniLibFolders")
-    }.configureEach {
+tasks.configureEach {
+    if (name.contains("merge") && name.contains("JniLibFolders")) {
         dependsOn(resolveNativeLibraries)
     }
 }

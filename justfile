@@ -10,7 +10,7 @@ clippy:
     cd nobodywho/core && cargo clippy --no-deps --all-targets -- -D warnings
 
 regen-python:
-    cd nobodywho/python && maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
+    cd nobodywho/python && uv run --isolated maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
     git diff --exit-code nobodywho/python/nobodywho.pyi || (echo "Python stubs are out of date — commit them before pushing" && exit 1)
 
 regen-flutter:
@@ -30,6 +30,8 @@ godot-build:
 regen-uniffi:
     cd nobodywho && cargo build -p nobodywho-uniffi --locked
     cd nobodywho && target/debug/uniffi-bindgen generate --library target/debug/libnobodywho_uniffi.{{LIB_EXT}} --language swift --out-dir swift/generated
-    cd nobodywho && target/debug/uniffi-bindgen generate --library target/debug/libnobodywho_uniffi.{{LIB_EXT}} --language kotlin --out-dir kotlin/common/generated
-    cd nobodywho && npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp $(pwd)/target/debug/libnobodywho_uniffi.{{LIB_EXT}}
+    cd nobodywho && target/debug/uniffi-bindgen generate --no-format --library target/debug/libnobodywho_uniffi.{{LIB_EXT}} --language kotlin --out-dir kotlin/common/generated
+    cd nobodywho && python3 kotlin/scripts/inject-native-loader.py kotlin/common/generated/uniffi/nobodywho/nobodywho.kt
+    test -f nobodywho/react-native/node_modules/uniffi-bindgen-react-native/bin/cli.cjs || npm --prefix nobodywho/react-native ci
+    cd nobodywho && node react-native/node_modules/uniffi-bindgen-react-native/bin/cli.cjs generate jsi bindings --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp $(pwd)/target/debug/libnobodywho_uniffi.{{LIB_EXT}}
     git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/react-native/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)

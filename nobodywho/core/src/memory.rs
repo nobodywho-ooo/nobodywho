@@ -44,7 +44,7 @@ fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
 }
 
 fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
-    llama_cpp_2::list_llama_ggml_backend_devices()
+    crate::llm::list_backend_devices()
         .into_iter()
         .filter(|d| {
             matches!(
@@ -101,7 +101,7 @@ pub(crate) fn available_model_memory(
     use_gpu: bool,
 ) -> Result<AvailableMemory, MemoryDetectionError> {
     let host = host_memory::available()?;
-    let gpus = llama_cpp_2::list_llama_ggml_backend_devices()
+    let gpus = crate::llm::list_backend_devices()
         .into_iter()
         .filter(|device| {
             matches!(
@@ -283,7 +283,7 @@ pub(crate) fn plan_context(
         );
     }
 
-    let devices = llama_cpp_2::list_llama_ggml_backend_devices();
+    let devices = crate::llm::list_backend_devices();
     let cpu_free: u64 = devices
         .iter()
         .find(|d| matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Cpu))

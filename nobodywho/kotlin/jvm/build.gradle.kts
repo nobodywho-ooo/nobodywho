@@ -4,6 +4,11 @@ plugins {
     signing
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
 kotlin {
     jvmToolchain(17)
     compilerOptions {
@@ -15,13 +20,19 @@ dependencies {
     api(project(":nobodywho-core"))
 }
 
-// Native libs are placed in src/main/resources/ following JNA's expected layout:
-//   linux-x86-64/libnobodywho_uniffi.so
-//   linux-aarch64/libnobodywho_uniffi.so
-//   darwin-x86-64/libnobodywho_uniffi.dylib
-//   darwin-aarch64/libnobodywho_uniffi.dylib
-//   win32-x86-64/nobodywho_uniffi.dll
-// JNA automatically extracts and loads the correct one at runtime.
+// Load from the built JAR, not Gradle's exploded classes and resources.
+val smoke = sourceSets.create("smoke") {
+    compileClasspath += configurations.runtimeClasspath.get()
+    runtimeClasspath += output + compileClasspath
+}
+
+val jvmSmoke by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.named("jar"))
+    mainClass.set("ai.nobodywho.SmokeKt")
+    classpath = smoke.output +
+        files(tasks.named<Jar>("jar").flatMap { it.archiveFile }) +
+        configurations.runtimeClasspath.get()
+}
 
 val sourcesJar by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")

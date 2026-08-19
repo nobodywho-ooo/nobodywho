@@ -11,6 +11,10 @@ on:
         description: "Run the 6-model tool-calling matrix (multi-GB downloads)."
         type: boolean
         default: false
+      full_ci:
+        description: "Full run; enables wheel smoke tests."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -49,9 +53,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-static-checks-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-static-checks-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-static-checks-cargo-
+            ${{ runner.os }}-static-checks-cargo-v2-
 
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
@@ -101,7 +105,8 @@ jobs:
       env:
         WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
+      # $ORIGIN rpath duplicated from .cargo/config.toml (RUSTFLAGS env overrides it).
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,-rpath,$ORIGIN' || '-C link-arg=-Wl,-rpath,$ORIGIN' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -109,6 +114,13 @@ jobs:
       # step (the token is passed in via container.env above).
       - name: "Install cache prerequisites"
         run: yum install -y zstd wget
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
 
       - name: Install Rust
         run: |
@@ -124,9 +136,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ matrix.manylinux_target }}-cargo-wheel-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ matrix.manylinux_target }}-cargo-wheel-v2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ matrix.manylinux_target }}-cargo-wheel-
+            ${{ matrix.manylinux_target }}-cargo-wheel-v2-
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
@@ -140,9 +152,11 @@ jobs:
           cache: false
 
       - name: Install build dependencies
-        run: |
-          yum install -y clang cmake wget tar gzip python3-pip
-          pip3 install maturin auditwheel
+        run: yum install -y clang cmake wget tar gzip python3-pip
+
+      - name: Install Python dependencies
+        working-directory: ./nobodywho/python
+        run: uv sync --python /opt/python/cp313-cp313/bin/python --locked --no-install-project
 
       - name: Setup Vulkan SDK (manual for ARM64)
         if: matrix.runner == 'warp-ubuntu-latest-arm64-4x'
@@ -186,12 +200,25 @@ jobs:
       - name: Build linux python wheel
         run: |
           source "$HOME/.cargo/env"
-          maturin build --verbose --release --locked
+          uv run --no-sync maturin build --verbose --release --locked \
+            --auditwheel skip --compatibility manylinux_2_34
         working-directory: ./nobodywho/python
 
-      - name: Repair wheel to use manylinux
-        # auditwheel bundles external libraries and verifies manylinux compliance
-        run: auditwheel repair --plat ${{ matrix.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
+      - name: Bundle OpenMP runtime into the wheel
+        run: |
+          set -eux
+          pip3 install wheel
+          whl="$(ls nobodywho/target/wheels/nobodywho*.whl)"
+          work="$(mktemp -d)"
+          python3 -m wheel unpack "$whl" -d "$work"
+          pkg="$(echo "$work"/nobodywho-*/)"
+          extdir="$(dirname "$(find "$pkg" -name '*.abi3.so' | head -1)")"
+          gomp="$(find /opt/rh /usr/lib /usr/lib64 -name 'libgomp.so.1*' -type f 2>/dev/null | head -1)"
+          if [ -z "$gomp" ]; then echo "libgomp.so.1 not found; cannot bundle OpenMP runtime" >&2; exit 1; fi
+          cp "$gomp" "$extdir"/libgomp.so.1
+          mkdir -p wheelhouse
+          python3 -m wheel pack "$pkg" -d wheelhouse
+          ls -l wheelhouse "$extdir"
 
       - name: Upload wheel
         uses: actions/upload-artifact@v5
@@ -216,6 +243,12 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
       - name: "Cache Cargo Home"
         uses: actions/cache@v5
         with:
@@ -225,9 +258,9 @@ jobs:
           path: |
             ~/.cargo
             C:/target
-          key: ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-python-cargo-v2-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-
+            ${{ runner.os }}-python-cargo-v2-${{ matrix.target }}-release-
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
@@ -235,7 +268,6 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: pip install maturin
       - name: Install Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1.2.5
         with:
@@ -258,26 +290,37 @@ jobs:
           git config --system core.longpaths true
           cd C:/
           cd python
-          maturin build --verbose --release --locked --target ${{ matrix.target }}
+          uv sync --locked --no-install-project
+          uv run --no-sync maturin build --verbose --release --locked --target ${{ matrix.target }}
         env:
           # Use Ninja generator instead of Visual Studio generator.
           # This fixes a CMake ExternalProject issue where vulkan-shaders-gen's
           # install step fails to find cmake_install.cmake with the VS generator.
           # Ninja's simpler build structure avoids this problem entirely.
           CMAKE_GENERATOR: "Ninja"
+      - name: "Repair wheel"
+        run: |
+          pip install delvewheel
+          $runtime = "C:/target/${{ matrix.target }}/release/nobodywho-runtime"
+          $wheel = (Get-Item C:/target/wheels/nobodywho*.whl).FullName
+          delvewheel repair --add-path "$runtime" --analyze-existing -w C:/wheelhouse $wheel
       - name: "Upload wheel artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_windows_${{ matrix.target }}
-          path: C:/target/wheels/nobodywho*.whl
+          path: C:/wheelhouse/nobodywho*.whl
 
   mac-os-build:
     if: inputs.run_python
     runs-on: warp-macos-latest-arm64-6x
-    strategy:
-      fail-fast: false
     steps:
       - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: nobodywho/python/uv.lock
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
@@ -287,22 +330,33 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-macos-wheel-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-macos-wheel-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-macos-wheel-cargo-
+            ${{ runner.os }}-macos-wheel-cargo-v2-
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: brew install maturin
-      - name: "Build macos python wheel"
-        run: maturin build --verbose --release --locked --target aarch64-apple-darwin
+      - name: Install Python dependencies
         working-directory: ./nobodywho/python
+        run: uv sync --locked --no-install-project
+      - name: "Build macos python wheel"
+        run: uv run --no-sync maturin build --verbose --release --locked --target aarch64-apple-darwin
+        working-directory: ./nobodywho/python
+
+      - name: "Repair macOS wheel"
+        run: |
+          set -eux
+          pip3 install delocate
+          whl="$(ls -t nobodywho/target/wheels/nobodywho*.whl | head -1)"
+          mkdir -p wheelhouse
+          DYLD_LIBRARY_PATH="$PWD/nobodywho/target/aarch64-apple-darwin/release/nobodywho-runtime" \
+            delocate-wheel -w wheelhouse -v "$whl"
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho_python_macos
-          path: ./nobodywho/target/wheels/nobodywho*.whl
+          path: ./wheelhouse/nobodywho*.whl
 
   linux-pytest:
     if: inputs.run_python
@@ -381,6 +435,60 @@ jobs:
           # odd (old examples vs new code). Edited docs live in docs-python.
           python3 -m pytest --durations=30 --markdown-docs ../../docs/docs-python --markdown-docs-syntax=superfences
 
+  macos-pytest:
+    if: inputs.full_ci
+    needs: [mac-os-build]
+    runs-on: warp-macos-latest-arm64-6x
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Download wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_macos
+          path: ./wheels
+      - name: Download test model
+        run: |
+          mkdir -p models
+          curl -L --fail --progress-bar https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf -o models/model.gguf
+      - name: Install wheel and run smoke test
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/model.gguf
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pip install ../../wheels/nobodywho*.whl
+          python -m pytest tests/test_nobodywho.py -k test_blocking_completed -v
+
+  windows-pytest:
+    if: inputs.full_ci
+    needs: [windows-build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Download wheel
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho_python_windows_x86_64-pc-windows-msvc
+          path: ./wheels
+      - name: Download test model
+        run: |
+          mkdir models
+          curl.exe -L --fail https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf -o models/model.gguf
+      - name: Install wheel and run smoke test
+        working-directory: ./nobodywho/python
+        env:
+          TEST_MODEL: ${{ github.workspace }}/models/model.gguf
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pip install (Get-ChildItem ../../wheels/nobodywho*.whl).FullName
+          python -m pytest tests/test_nobodywho.py -k test_blocking_completed -v
+
   linux-multimodal-tests:
     if: inputs.run_python
     needs: [linux-build]
@@ -417,7 +525,6 @@ jobs:
         run: |
           source .venv/bin/activate
           python3 -m pytest tests/test_multimodal.py -v --tb=short
-  
 
   linux-model-downloading-tests:
     needs: [linux-build]
@@ -454,7 +561,6 @@ jobs:
         if: always()
         run: |
           echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-    
 
   linux-tool-calling-tests:
     if: inputs.run_python_models

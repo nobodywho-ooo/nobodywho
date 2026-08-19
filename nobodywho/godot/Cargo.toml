@@ -15,3 +15,12 @@ futures = "0.3.31"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 serde_json = { version = "1.0.140", features = [ "preserve_order" ] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+nobodywho = { path = "../core", features = ["dynamic-llama"] }
+
+# Android links llama statically (no `dynamic-llama`, so no runtime bundle step),
+# which means the C++ stdlib has to be static too or the addon ships a .so with an
+# unsatisfiable `libc++_shared.so` DT_NEEDED.
+[target.'cfg(target_os = "android")'.dependencies]
+nobodywho = { path = "../core", features = ["android-static-stdcxx"] }

@@ -1,0 +1,27 @@
+name: "Flutter native lib"
+description: "Prepare the prebuilt Linux Flutter library for tests"
+runs:
+  using: "composite"
+  steps:
+    - name: Download flutter Linux artifact
+      uses: actions/download-artifact@v5
+      with:
+        name: nobodywho-flutter-x86_64-unknown-linux-gnu-release
+        path: ./native-lib
+    - name: Name the cdylib for flutter_rust_bridge
+      shell: bash
+      run: |
+        cp ./native-lib/libnobodywho-flutter-x86_64-unknown-linux-gnu-release.so \
+          ./native-lib/libnobodywho_flutter.so
+        cp -L ./native-lib/nobodywho-runtime/* ./native-lib/
+        echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/native-lib" >> "$GITHUB_ENV"
+    - name: Install Vulkan runtime
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libvulkan1
+    - name: Setup Flutter SDK
+      uses: flutter-actions/setup-flutter@v4
+      with:
+        channel: stable
+        version: 3.35.5

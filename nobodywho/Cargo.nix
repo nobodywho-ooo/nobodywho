@@ -8312,7 +8312,7 @@ rec {
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "dynamic-backends" "dynamic-link" "llguidance" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -8360,7 +8360,7 @@ rec {
           "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "dynamic-backends" "dynamic-link" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
@@ -9589,7 +9589,7 @@ rec {
           {
             name = "libc";
             packageId = "libc";
-            target = { target, features }: (("android" == target."os" or null) || ("apple" == target."vendor" or null));
+            target = { target, features }: (target."unix" or false);
           }
           {
             name = "llama-cpp-2";
@@ -9605,11 +9605,10 @@ rec {
             features = [ "openmp" "vulkan" "mtmd" "llguidance" "common" ];
           }
           {
-            name = "llama-cpp-2";
-            packageId = "llama-cpp-2";
+            name = "llama-cpp-sys-2";
+            packageId = "llama-cpp-sys-2";
+            optional = true;
             usesDefaultFeatures = false;
-            target = { target, features }: ("android" == target."os" or null);
-            features = [ "android-static-stdcxx" ];
           }
           {
             name = "llguidance";
@@ -9671,6 +9670,12 @@ rec {
             usesDefaultFeatures = false;
             target = { target, features }: ("android" == target."os" or null);
             features = [ "std" "ndarray" "tracing" "download-binaries" "tls-rustls" "copy-dylibs" "api-20" ];
+          }
+          {
+            name = "process_path";
+            packageId = "process_path";
+            optional = true;
+            target = { target, features }: (("linux" == target."os" or null) || ("macos" == target."os" or null) || ("windows" == target."os" or null));
           }
           {
             name = "rand";
@@ -9771,7 +9776,21 @@ rec {
             features = [ "Win32_System_SystemInformation" ];
           }
         ];
-
+        buildDependencies = [
+          {
+            name = "cc";
+            packageId = "cc";
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+          }
+        ];
+        features = {
+          "android-static-stdcxx" = [ "llama-cpp-2/android-static-stdcxx" ];
+          "dynamic-llama" = [ "dep:process_path" "dep:llama-cpp-sys-2" "llama-cpp-2/dynamic-backends" "llama-cpp-2/dynamic-link" ];
+        };
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "dynamic-llama" ];
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
@@ -9791,6 +9810,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            features = [ "dynamic-llama" ];
           }
           {
             name = "nom";
@@ -9842,6 +9862,18 @@ rec {
             packageId = "nobodywho";
           }
           {
+            name = "nobodywho";
+            packageId = "nobodywho";
+            target = { target, features }: (!("android" == target."os" or null));
+            features = [ "dynamic-llama" ];
+          }
+          {
+            name = "nobodywho";
+            packageId = "nobodywho";
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-static-stdcxx" ];
+          }
+          {
             name = "serde_json";
             packageId = "serde_json";
             features = [ "preserve_order" ];
@@ -9886,6 +9918,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            features = [ "dynamic-llama" ];
           }
           {
             name = "nom";
@@ -9964,6 +9997,7 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            features = [ "dynamic-llama" ];
           }
           {
             name = "serde_json";
@@ -11650,6 +11684,30 @@ rec {
           "default" = [ "proc-macro" ];
         };
         resolvedDefaultFeatures = [ "default" "proc-macro" "span-locations" ];
+      };
+      "process_path" = rec {
+        crateName = "process_path";
+        version = "0.1.4";
+        edition = "2018";
+        sha256 = "0wb19xf4dpvkpz2svj5qjwi9ws06p2k8y8gfp87ymqmkn0gg2xpn";
+        authors = [
+          "Wesley Wiser <wwiser@gmail.com>"
+          "Moritz Moeller <virtualritz@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "libc";
+            packageId = "libc";
+            target = { target, features }: (("linux" == target."os" or null) || ("freebsd" == target."os" or null) || ("dragonfly" == target."os" or null) || ("netbsd" == target."os" or null) || ("macos" == target."os" or null));
+          }
+          {
+            name = "winapi";
+            packageId = "winapi";
+            target = { target, features }: (target."windows" or false);
+            features = [ "errhandlingapi" "libloaderapi" "minwindef" "winerror" ];
+          }
+        ];
+
       };
       "pulp" = rec {
         crateName = "pulp";
@@ -19235,7 +19293,7 @@ rec {
         features = {
           "debug" = [ "impl-debug" ];
         };
-        resolvedDefaultFeatures = [ "consoleapi" "handleapi" "processenv" "winbase" "wincon" "winnt" "winsock2" ];
+        resolvedDefaultFeatures = [ "consoleapi" "errhandlingapi" "handleapi" "libloaderapi" "minwindef" "processenv" "winbase" "wincon" "winerror" "winnt" "winsock2" ];
       };
       "winapi-i686-pc-windows-gnu" = rec {
         crateName = "winapi-i686-pc-windows-gnu";

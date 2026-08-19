@@ -1,0 +1,8 @@
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
+
+[target.'cfg(target_vendor = "apple")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,@loader_path"]
+
+[env]
+CMAKE_PROJECT_INCLUDE = { value = "core/cmake/llama-build-overrides.cmake", relative = true }

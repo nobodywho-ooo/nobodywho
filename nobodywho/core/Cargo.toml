@@ -3,6 +3,25 @@ name = "nobodywho"
 version = "2.4.0"
 edition = "2021"
 
+[features]
+dynamic-llama = [
+    "dep:process_path",
+    "dep:llama-cpp-sys-2",
+    "llama-cpp-2/dynamic-backends",
+    "llama-cpp-2/dynamic-link",
+]
+# For Android consumers that link llama statically (i.e. without `dynamic-llama`):
+# statically link the C++ stdlib so the produced .so is self-contained. Without
+# `dynamic-llama` there is no build.rs pass to co-locate `libc++_shared.so`, so a
+# dynamic libc++ would leave a DT_NEEDED nothing in the package satisfies.
+#
+# Never enable this on Linux: there `static-stdcxx` makes llama-cpp-rs's build.rs
+# add the compiler's static-archive dir (`emit_compiler_static_archive_search_path`)
+# to the link search path, which resolves `-lgomp` to the non-PIC `libgomp.a` and
+# breaks linking the cdylib ("relocation R_X86_64_TPOFF32 against hidden symbol
+# `gomp_tls_data`").
+android-static-stdcxx = ["llama-cpp-2/android-static-stdcxx"]
+
 [dependencies]
 misaki-rs = { git = "https://github.com/MicheleYin/misaki-rs", branch = "main", default-features = false }
 encoding_rs = "0.8.34"
@@ -23,6 +42,13 @@ llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", rev = "b48ce8
     "llguidance",
     "common",
 ] }
+# Direct dep (alongside the transitive one via llama-cpp-2) so this crate's build.rs
+# receives DEP_LLAMA_BACKENDS_DIR — the dir where GGML_BACKEND_DL installs the dlopen'd
+# ggml backend modules — and can co-locate them next to our binary (see build.rs).
+# Optional: only pulled in by `dynamic-llama`.
+# Must stay pinned to the exact same rev as llama-cpp-2 above: both resolve to a
+# crate declaring `links = "llama"`, and cargo refuses a graph with two of those.
+llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs", rev = "b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc", default-features = false, optional = true }
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = [
     "sync",
@@ -60,20 +86,19 @@ unicode-normalization = "0.1"
 emojis = "0.9.0"
 unicode-segmentation = "1.13.3"
 
-[target.'cfg(any(target_os = "android", target_vendor = "apple"))'.dependencies]
+[build-dependencies]
+cc = "1"
+
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+process_path = { version = "0.1.4", optional = true }
+
 [target.'cfg(target_os = "android")'.dependencies]
-# Statically link the C++ stdlib (libc++) on Android so the produced shared
-# library is self-contained. This is Android-only on purpose: on Linux, the
-# `static-stdcxx` feature makes llama-cpp-rs's build.rs add the compiler's
-# static-archive dir (`emit_compiler_static_archive_search_path`) to the link
-# search path, which then resolves `-lgomp` to the non-PIC `libgomp.a` and
-# breaks linking the cdylib ("relocation R_X86_64_TPOFF32 against hidden symbol
-# `gomp_tls_data`"). Desktop keeps the dynamic libstdc++ it has always used.
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", rev = "b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc", default-features = false, features = [
-    "android-static-stdcxx",
-] }
+# No llama-cpp-2 override here any more: Android's llama config is selected by the
+# consuming binding's feature choice (`dynamic-llama` vs `android-static-stdcxx`,
+# see the [features] block above), not hardcoded per-target.
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]

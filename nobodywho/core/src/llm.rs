@@ -35,8 +35,49 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
-    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    #[cfg(feature = "dynamic-llama")]
+    {
+        let path = self_lib_path().expect("could not locate the nobodywho library");
+        let dir = path
+            .parent()
+            .expect("nobodywho library has no parent directory");
+        info!("loading ggml backends from {}", dir.display());
+        llama_cpp_2::llama_backend::load_backends_from_path(dir);
+    }
+    LlamaBackend::init().expect("Failed to initialize llama backend")
+});
+
+pub(crate) fn list_backend_devices() -> Vec<llama_cpp_2::LlamaBackendDevice> {
+    LazyLock::force(&LLAMA_BACKEND);
+    llama_cpp_2::list_llama_ggml_backend_devices()
+}
+
+#[cfg(all(
+    feature = "dynamic-llama",
+    any(target_os = "linux", target_os = "macos", target_os = "windows")
+))]
+use process_path::get_dylib_path as self_lib_path;
+
+#[cfg(all(
+    feature = "dynamic-llama",
+    unix,
+    not(any(target_os = "linux", target_os = "macos"))
+))]
+fn self_lib_path() -> Option<std::path::PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+
+    // process_path does not support Android or Apple mobile targets.
+    unsafe {
+        let mut info: libc::Dl_info = std::mem::zeroed();
+        let address = self_lib_path as *const () as *const libc::c_void;
+        if libc::dladdr(address, &mut info) == 0 || info.dli_fname.is_null() {
+            return None;
+        }
+        let bytes = std::ffi::CStr::from_ptr(info.dli_fname).to_bytes();
+        Some(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(bytes)))
+    }
+}
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
@@ -81,37 +122,23 @@ pub fn has_gpu_backend() -> bool {
         all(target_os = "ios", target_arch = "x86_64")
     ))]
     {
-        // GPU-acceleration not working on ios simulators seems to be a known issue in llama.cpp:
-        // https://github.com/ggml-org/llama.cpp/blob/017eceed61e885b79f6cf3542e0879be68c6e922/examples/llama.swiftui/llama.cpp.swift/LibLlama.swift#L66
         warn!("Running on iOS simulator. Disabling GPU support.");
-        return false;
+        false
     }
 
-    for backend_device in llama_cpp_2::list_llama_ggml_backend_devices() {
-        // TODO: account for memory available on backend device - .memory_total and .memory free
-        //       we might use these with GGUF model metadata, to decide on a number of layers to offload
-        match backend_device.device_type {
-            llama_cpp_2::LlamaBackendDeviceType::Unknown => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Cpu => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Accelerator => {
-                // Accelerator devices (e.g. NPUs) are auto-initialized by llama.cpp during
-                // context creation regardless of n_gpu_layers — no explicit handling needed.
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu => {
-                return true;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Gpu => {
-                return true;
-            }
-        }
+    #[cfg(not(any(
+        all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
+        all(target_os = "ios", target_arch = "x86_64")
+    )))]
+    {
+        list_backend_devices().into_iter().any(|device| {
+            matches!(
+                device.device_type,
+                llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+                    | llama_cpp_2::LlamaBackendDeviceType::Gpu
+            )
+        })
     }
-
-    false
 }
 
 #[tracing::instrument(level = "info", skip(progress))]
@@ -527,6 +554,15 @@ mod tests {
         }
         let n = count.load(Ordering::Relaxed);
         assert!((1..=5).contains(&n), "expected 1–5 emits, got {}", n);
+    }
+
+    #[test]
+    fn backends_load_and_register() {
+        crate::test_utils::init_test_tracing();
+        crate::send_llamacpp_logs_to_tracing();
+        let devices = list_backend_devices();
+        assert!(!devices.is_empty(), "no ggml backends registered");
+        let _ = has_gpu_backend();
     }
 
     #[test]

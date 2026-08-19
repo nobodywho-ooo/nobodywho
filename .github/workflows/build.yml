@@ -17,7 +17,13 @@ on:
       run_react_native:
         type: boolean
         default: false
+      # Selects the tier-3 visionOS/watchOS slices. Independent of full_ci so
+      # /apple-extended-ci can compile-check just those targets.
       apple_extended:
+        type: boolean
+        default: false
+      # Gates the full-run-only extras (godot macOS universal, apple runtime smoke).
+      full_ci:
         type: boolean
         default: false
 
@@ -44,9 +50,10 @@ jobs:
 
           combos=()
           add() { combos+=("{\"integration\":\"$1\",\"target\":\"$2\"}"); }
-          desktop_ios=(x86_64-apple-darwin aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim)
-          [[ "${{ inputs.run_godot }}"   == "true" ]] && for t in "${desktop_ios[@]}"; do add godot "$t"; done
-          [[ "${{ inputs.run_flutter }}" == "true" ]] && for t in "${desktop_ios[@]}"; do add flutter "$t"; done
+          desktop=(x86_64-apple-darwin aarch64-apple-darwin)
+          apple=("${desktop[@]}" aarch64-apple-ios aarch64-apple-ios-sim)
+          [[ "${{ inputs.run_godot }}"   == "true" ]] && for t in "${desktop[@]}"; do add godot "$t"; done
+          [[ "${{ inputs.run_flutter }}" == "true" ]] && for t in "${apple[@]}"; do add flutter "$t"; done
           declare -A uni=()
           if [[ "${{ inputs.run_swift }}" == "true" ]]; then
             for t in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim; do uni["$t"]=1; done
@@ -83,7 +90,13 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     env:
-      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
+      # $ORIGIN rpath, duplicated from .cargo/config.toml because RUSTFLAGS env overrides it.
+      RUSTFLAGS: ${{ matrix.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3 -C link-arg=-Wl,-rpath,$ORIGIN' || '-C link-arg=-Wl,-rpath,$ORIGIN' }}
+      # GGML_CPU_ALL_VARIANTS builds armv9.2 CPU variants that compile with -march=...+sme;
+      # Ubuntu's default GCC 13 doesn't know +sme (GCC 14 does, and covers the whole ARM
+      # variant flag set). The per-target setting leaves x86 unchanged.
+      CC_aarch64_unknown_linux_gnu: gcc-14
+      CXX_aarch64_unknown_linux_gnu: g++-14
     steps:
       - uses: actions/checkout@v5
 
@@ -94,9 +107,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -111,6 +124,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev cmake
           sudo apt-get install libshaderc-dev libvulkan-dev glslc
+
+      - name: "Install GCC 14 for aarch64 CPU variants"
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get install -y gcc-14 g++-14
 
       - name: "Setup Flutter SDK (manual for ARM64)"
         if: matrix.integration == 'flutter' && matrix.target == 'aarch64-unknown-linux-gnu'
@@ -132,14 +149,17 @@ jobs:
 
       - name: "Rename built file"
         run: |
-          cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-
+          PROFILE="./nobodywho/target/${{ matrix.target }}/release"
+          cp "$PROFILE/libnobodywho_${{ matrix.integration }}.so" ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
+          rm -rf ./nobodywho-runtime
+          cp -R "$PROFILE/nobodywho-runtime" ./nobodywho-runtime
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
-          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
+            ./nobodywho-runtime/**
   cargo-build-windows:
     needs: matrix-gen
     if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
@@ -171,9 +191,9 @@ jobs:
           path: |
             ~/.cargo
             C:/t
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -231,6 +251,8 @@ jobs:
         run: |
           cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.dll ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
           cp C:/t/${{ matrix.target }}/release/nobodywho_${{ matrix.integration }}.pdb ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
+          Remove-Item -Recurse -Force ./nobodywho-runtime -ErrorAction SilentlyContinue
+          Copy-Item -Recurse C:/t/${{ matrix.target }}/release/nobodywho-runtime ./nobodywho-runtime
 
       - name: "Upload build artifacts"
         uses: actions/upload-artifact@v5
@@ -239,6 +261,7 @@ jobs:
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dll
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.pdb
+            ./nobodywho-runtime/**
 
   cargo-build-macos:
     needs: matrix-gen
@@ -261,16 +284,15 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: "Cache Cargo Home"
-        # Warp cache — macOS runners are ephemeral now, so a Cargo.lock-keyed
-        # cache safely reuses the build instead of compiling cold every run.
+        # Bump the cache version when CMake configuration becomes incompatible.
         uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-macos-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-macos-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-macos-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-macos-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
 
       - name: "Setup Rust nightly for tier 3 targets"
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
@@ -325,41 +347,69 @@ jobs:
         if: contains(matrix.target, 'visionos') || contains(matrix.target, 'watchos')
         run: |
           export ORT_LIB_PATH="${{ steps.ort.outputs.lib_path }}"
-          # llama.cpp defaults LLAMA_SUBPROCESS ON here: its mobile opt-out lists only
-          # iOS/Android/Emscripten, so visionOS/watchOS compile
-          # posix_spawn_file_actions_addchdir_np, which those SDKs mark unavailable.
-          # subproc.{h,cpp} have a complete no-op path when it is OFF. build.rs forwards
-          # CMAKE_*-prefixed env vars to CMake as -D defines.
+          # Two upstream gaps that only bite on these targets. build.rs forwards
+          # CMAKE_*-prefixed env vars to CMake as -D defines, and
+          # CMAKE_PROJECT_INCLUDE is processed right after the top-level project()
+          # and before add_subdirectory(ggml), so both settings propagate.
+          #
+          # 1. llama.cpp defaults LLAMA_SUBPROCESS ON here: its mobile opt-out lists
+          #    only iOS/Android/Emscripten, so visionOS/watchOS compile
+          #    posix_spawn_file_actions_addchdir_np, which those SDKs mark
+          #    unavailable. subproc.{h,cpp} have a complete no-op path when it is OFF.
+          # 2. llama-cpp-sys-2 defines _DARWIN_C_SOURCE only for AppleVariant::WatchOS
+          #    (build.rs:733), but the XROS SDK hides the BSD types u_int/u_char/
+          #    u_short that sys/sysctl.h needs just the same, so visionOS fails to
+          #    compile the per-variant cpu-feats.cpp files. Those exist only under
+          #    GGML_CPU_ALL_VARIANTS=ON, which dynamic-backends turns on — which is
+          #    why main never hits it. Redundant but harmless on watchOS.
+          # Filename is load-bearing, despite now covering more than the subprocess
+          # opt-out: these runners persist the workspace, so a cached CMakeCache.txt
+          # records this exact path as CMAKE_PROJECT_INCLUDE. Renaming it makes
+          # every cached build dir fail its re-check with "project could not find
+          # requested file". Content changes are fine — CMake tracks the file and
+          # reconfigures — but the path must stay put.
           echo 'set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)' > "$RUNNER_TEMP/no-subprocess.cmake"
+          echo 'add_compile_definitions(_DARWIN_C_SOURCE)' >> "$RUNNER_TEMP/no-subprocess.cmake"
           export CMAKE_PROJECT_INCLUDE="$RUNNER_TEMP/no-subprocess.cmake"
-          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std --verbose --target ${{ matrix.target }} --release
+          TARGET="${{ matrix.target }}"
+          # The built-in watchOS device target disables dynamic libraries.
+          ZFLAGS=()
+          if [ "$TARGET" = "aarch64-apple-watchos" ]; then
+            rustc +nightly -Z unstable-options --target aarch64-apple-watchos \
+              --print target-spec-json \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); d["dynamic-linking"]=True; d.pop("metadata",None); json.dump(d, open("aarch64-apple-watchos.json","w"))'
+            TARGET="$(pwd)/aarch64-apple-watchos.json"
+            ZFLAGS=(-Z json-target-spec)
+          fi
+          # llama-cpp-sys-2's build.rs derives the cargo target dir as OUT_DIR's
+          # 3rd ancestor, which assumes stable's build/<crate>-<hash>/out layout.
+          # Nightly splits that into build/<crate>/<hash>/out — one level deeper —
+          # so it resolves target/<triple>/release/build and then hard-links the
+          # shared libs into a deps/ under it that nothing creates, on an
+          # unguarded unwrap (the examples/ copy beside it is .exists()-checked).
+          # Only reachable with dynamic-link, since BUILD_SHARED_LIBS=ON is what
+          # enables that copy at all. Pre-create it; the files landing there are
+          # never read. Same workaround shape as workspace.nix's for crate2nix.
+          mkdir -p "target/${{ matrix.target }}/release/build/deps"
+          cargo +nightly build -p nobodywho-${{ matrix.integration }} -Z build-std \
+            "${ZFLAGS[@]}" --verbose --target "$TARGET" --release
         working-directory: ./nobodywho
 
       - name: "Rename built file"
         run: |
-          if [ "${{ matrix.integration }}" = "uniffi" ]; then
-            # Static library (.a) for xcframeworks (React Native, Swift)
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.a \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.a
-            # Dynamic library (.dylib) for macOS desktop JNA (Kotlin JVM)
-            if [ -f ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib ]; then
-              cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
-                ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
-            fi
-          else
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
-          fi
+          cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.dylib \
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.dylib
+          PROFILE=./nobodywho/target/${{ matrix.target }}/release
+          rm -rf ./nobodywho-runtime
+          cp -R "$PROFILE/nobodywho-runtime" ./nobodywho-runtime
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho-${{ matrix.integration }}-${{ matrix.target }}-release
-          # wildcard path to match both .dylib and .a
-          path: ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.*
-
-  # builds an "xcframework"
-  # which is an apple thing that contains binaries for multiple systems
+          path: |
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.*
+            ./nobodywho-runtime/**
   build-flutter-xcframework:
     if: inputs.run_flutter
     runs-on: warp-macos-15-arm64-6x
@@ -371,58 +421,29 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-flutter-*-apple-*
-          merge-multiple: true
+          path: artifacts
 
       - name: Build XCFramework
         run: |
-          # Create Info.plist template (will be copied to each framework)
-          cat > Info.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleExecutable</key>
-              <string>nobodywho_flutter</string>
-              <key>CFBundleIdentifier</key>
-              <string>ooo.nobodywho.flutter</string>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleName</key>
-              <string>nobodywho_flutter</string>
-              <key>CFBundlePackageType</key>
-              <string>FMWK</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-          </dict>
-          </plist>
-          EOF
+          HELPER=nobodywho/apple/make-framework.sh
+          ios_sim=artifacts/nobodywho-flutter-aarch64-apple-ios-sim-release
+          ios_dev=artifacts/nobodywho-flutter-aarch64-apple-ios-release
+          dar_arm=artifacts/nobodywho-flutter-aarch64-apple-darwin-release
+          dar_x64=artifacts/nobodywho-flutter-x86_64-apple-darwin-release
 
-          # iOS simulator (aarch64 only, no lipo needed in CI)
-          mkdir -p ios-sim/nobodywho_flutter.framework
-          cp libnobodywho-flutter-aarch64-apple-ios-sim-release.dylib ios-sim/nobodywho_flutter.framework/nobodywho_flutter
-          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-sim/nobodywho_flutter.framework/nobodywho_flutter
-          cp Info.plist ios-sim/nobodywho_flutter.framework/
+          bash "$HELPER" "$ios_sim" libnobodywho-flutter-aarch64-apple-ios-sim-release.dylib \
+            nobodywho_flutter flat ios-sim ""  ooo.nobodywho.flutter
+          bash "$HELPER" "$ios_dev" libnobodywho-flutter-aarch64-apple-ios-release.dylib \
+            nobodywho_flutter flat ios-device "" ooo.nobodywho.flutter
 
-          # macOS universal binary (versioned framework structure required for macOS deep bundles)
-          lipo -create -output macos-universal.dylib \
-            libnobodywho-flutter-aarch64-apple-darwin-release.dylib \
-            libnobodywho-flutter-x86_64-apple-darwin-release.dylib
-          mkdir -p macos/nobodywho_flutter.framework/Versions/A/Resources
-          cp macos-universal.dylib macos/nobodywho_flutter.framework/Versions/A/nobodywho_flutter
-          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter macos/nobodywho_flutter.framework/Versions/A/nobodywho_flutter
-          cp Info.plist macos/nobodywho_flutter.framework/Versions/A/Resources/
-          ln -sf A macos/nobodywho_flutter.framework/Versions/Current
-          ln -sf Versions/Current/nobodywho_flutter macos/nobodywho_flutter.framework/nobodywho_flutter
-          ln -sf Versions/Current/Resources macos/nobodywho_flutter.framework/Resources
+          mkdir -p universal-src
+          lipo -create -output universal-src/libnobodywho_flutter.dylib \
+            "$dar_arm/libnobodywho-flutter-aarch64-apple-darwin-release.dylib" \
+            "$dar_x64/libnobodywho-flutter-x86_64-apple-darwin-release.dylib"
+          bash nobodywho/apple/lipo-runtime.sh "$dar_arm" "$dar_x64" universal-src
+          bash "$HELPER" universal-src libnobodywho_flutter.dylib \
+            nobodywho_flutter versioned macos "" ooo.nobodywho.flutter
 
-          # iOS device (arm64)
-          mkdir -p ios-device/nobodywho_flutter.framework
-          cp libnobodywho-flutter-aarch64-apple-ios-release.dylib ios-device/nobodywho_flutter.framework/nobodywho_flutter
-          install_name_tool -id @rpath/nobodywho_flutter.framework/nobodywho_flutter ios-device/nobodywho_flutter.framework/nobodywho_flutter
-          cp Info.plist ios-device/nobodywho_flutter.framework/
-
-          # Create xcframework with dynamic frameworks
           xcodebuild -create-xcframework \
                   -framework ios-sim/nobodywho_flutter.framework \
                   -framework macos/nobodywho_flutter.framework \
@@ -438,7 +459,50 @@ jobs:
           name: nobodywho-flutter-xcframework
           path: ./nobodywho_flutter.xcframework.zip
 
-  # builds an xcframework containing static libraries for React Native iOS
+  # Godot's macOS dependencies must be universal because its keys are not architecture-specific.
+  build-godot-macos-universal:
+    # Also needs run_godot: a dispatch with full_ci and a restricted bucket list
+    # would otherwise download godot artifacts that were never produced.
+    if: inputs.full_ci && inputs.run_godot
+    runs-on: warp-macos-15-arm64-6x
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download macOS godot build artifacts"
+        uses: actions/download-artifact@v5
+        with:
+          pattern: nobodywho-godot-*-apple-darwin-release
+          path: artifacts
+
+      - name: "lipo the ggml/llama dylibs"
+        run: |
+          bash nobodywho/apple/lipo-runtime.sh \
+            artifacts/nobodywho-godot-aarch64-apple-darwin-release \
+            artifacts/nobodywho-godot-x86_64-apple-darwin-release \
+            universal
+
+          # Linked libraries and Metal exist in both architectures.
+          RUNTIME=universal/nobodywho-runtime
+          for f in "$RUNTIME"/libggml.dylib "$RUNTIME"/libggml-base.dylib \
+                   "$RUNTIME"/libllama.dylib "$RUNTIME"/libllama-common.dylib \
+                   "$RUNTIME"/libggml-metal.so; do
+            [ -f "$f" ] || { echo "::error::$f missing from a macOS slice"; exit 1; }
+            lipo -info "$f" | grep -q x86_64 || { echo "::error::$f has no x86_64 slice"; exit 1; }
+            lipo -info "$f" | grep -q arm64  || { echo "::error::$f has no arm64 slice"; exit 1; }
+          done
+          # CPU modules remain architecture-specific.
+          compgen -G "$RUNTIME/libggml-cpu-apple_*.so" >/dev/null \
+            || { echo "::error::no arm64 (apple_*) CPU variant modules"; exit 1; }
+          compgen -G "$RUNTIME/libggml-cpu-*.so" | grep -qv apple_ \
+            || { echo "::error::no x86_64 CPU variant modules"; exit 1; }
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho-godot-macos-universal-dylibs
+          path: ./universal
+
   build-react-native-xcframework:
     if: inputs.run_react_native
     runs-on: warp-macos-15-arm64-6x
@@ -450,19 +514,18 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-uniffi-*-apple-ios*-release
-          merge-multiple: true
+          path: artifacts
 
-      - name: "List downloaded artifacts"
-        run: ls -la libnobodywho-uniffi-*
-
-      - name: "Build XCFramework from static libraries"
+      - name: "Build dynamic-framework XCFramework"
         run: |
-          mkdir -p device sim
-          cp libnobodywho-uniffi-aarch64-apple-ios-release.a device/libnobodywho_uniffi.a
-          cp libnobodywho-uniffi-aarch64-apple-ios-sim-release.a sim/libnobodywho_uniffi.a
+          HELPER=nobodywho/apple/make-framework.sh
+          bash "$HELPER" artifacts/nobodywho-uniffi-aarch64-apple-ios-release \
+            libnobodywho-uniffi-aarch64-apple-ios-release.dylib NobodywhoFramework flat device
+          bash "$HELPER" artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release \
+            libnobodywho-uniffi-aarch64-apple-ios-sim-release.dylib NobodywhoFramework flat sim
           xcodebuild -create-xcframework \
-            -library device/libnobodywho_uniffi.a \
-            -library sim/libnobodywho_uniffi.a \
+            -framework device/NobodywhoFramework.framework \
+            -framework sim/NobodywhoFramework.framework \
             -output NobodywhoFramework.xcframework
 
       - name: "Zip XCFramework"
@@ -474,7 +537,6 @@ jobs:
           name: nobodywho-react-native-xcframework
           path: ./NobodywhoFramework.xcframework.zip
 
-  # builds an xcframework containing static libraries + headers for Swift SPM
   build-swift-xcframework:
     if: inputs.run_swift
     runs-on: warp-macos-15-arm64-6x
@@ -486,42 +548,37 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           pattern: nobodywho-uniffi-*-apple-*-release
-          merge-multiple: true
+          path: artifacts
 
-      - name: "List downloaded artifacts"
-        run: ls -la libnobodywho-uniffi-*
-
-      - name: "Build XCFramework with headers"
+      - name: "Build dynamic-framework XCFramework"
         run: |
-          set -euo pipefail
-          slices=(
-            "ios-device:aarch64-apple-ios"
-            "ios-sim:aarch64-apple-ios-sim"
-            "macos:aarch64-apple-darwin"
-            "visionos-device:aarch64-apple-visionos"
-            "visionos-sim:aarch64-apple-visionos-sim"
-            "watchos-device:aarch64-apple-watchos"
-            "watchos-sim:aarch64-apple-watchos-sim"
-          )
-          args=()
-          for entry in "${slices[@]}"; do
-            dir="${entry%%:*}"; target="${entry##*:}"
-            lib="libnobodywho-uniffi-${target}-release.a"
-            if [[ ! -f "$lib" ]]; then
-              echo "skipping $dir — $lib not built this run"
-              continue
-            fi
-            mkdir -p "$dir/Headers"
-            cp "$lib" "$dir/libnobodywho_uniffi.a"
-            cp nobodywho/swift/generated/nobodywhoFFI.h "$dir/Headers/"
-            cp nobodywho/swift/generated/nobodywhoFFI.modulemap "$dir/Headers/module.modulemap"
-            args+=(-library "$dir/libnobodywho_uniffi.a" -headers "$dir/Headers")
-          done
-          if [[ ${#args[@]} -eq 0 ]]; then
-            echo "::error::no uniffi Apple slices were built"; exit 1
-          fi
-          xcodebuild -create-xcframework "${args[@]}" -output NobodyWhoNative.xcframework
+          HELPER=nobodywho/apple/make-framework.sh
+          HDR=nobodywho/swift/generated/nobodywhoFFI.h
+          frameworks=()
+          mkslice() { # $1=target $2=layout $3=slice-out-dir
+            # `return 0`, not a bare `return`: a bare one propagates the failed
+            # test's status and `set -e` would abort the step instead of skipping
+            # the slice on partial swift runs.
+            [ -d "artifacts/nobodywho-uniffi-$1-release" ] || return 0
+            bash "$HELPER" "artifacts/nobodywho-uniffi-$1-release" \
+              "libnobodywho-uniffi-$1-release.dylib" nobodywhoFFI "$2" "$3" "$HDR" ooo.nobodywho.ffi
+            frameworks+=(-framework "$3/nobodywhoFFI.framework")
+          }
+          mkslice aarch64-apple-ios          flat      ios-device
+          mkslice aarch64-apple-ios-sim      flat      ios-sim
+          mkslice aarch64-apple-darwin       versioned macos
+          mkslice aarch64-apple-visionos     flat      visionos-device
+          mkslice aarch64-apple-visionos-sim flat      visionos-sim
+          mkslice aarch64-apple-watchos      flat      watchos-device
+          mkslice aarch64-apple-watchos-sim  flat      watchos-sim
 
+          if [[ ${#frameworks[@]} -eq 0 ]]; then
+            echo "::error::no uniffi Apple slices were built"
+            exit 1
+          fi
+
+          xcodebuild -create-xcframework "${frameworks[@]}" \
+            -output NobodyWhoNative.xcframework
       - name: "Zip XCFramework"
         run: zip -y -r NobodyWhoNative.xcframework.zip NobodyWhoNative.xcframework
 
@@ -530,6 +587,44 @@ jobs:
         with:
           name: nobodywho-swift-xcframework
           path: ./NobodyWhoNative.xcframework.zip
+
+  apple-runtime-smoke:
+    # Also needs run_swift: the uniffi artifact it dlopens only exists when the
+    # swift bucket ran, which full_ci alone does not guarantee on a dispatch.
+    if: inputs.full_ci && inputs.run_swift
+    runs-on: warp-macos-15-arm64-6x
+    needs: [cargo-build-macos]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download iOS simulator uniffi artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-aarch64-apple-ios-sim-release
+          path: artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release
+
+      - name: "Assemble framework and dlopen it on a booted simulator"
+        run: |
+          set -euo pipefail
+          SRC=artifacts/nobodywho-uniffi-aarch64-apple-ios-sim-release
+          bash nobodywho/apple/make-framework.sh \
+            "$SRC" libnobodywho-uniffi-aarch64-apple-ios-sim-release.dylib \
+            nobodywhoFFI flat ./smoke nobodywho/swift/generated/nobodywhoFFI.h ooo.nobodywho.ffi
+
+          SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          xcrun -sdk iphonesimulator clang -target arm64-apple-ios15.0-simulator \
+            -isysroot "$SDK" nobodywho/apple/tests/dlopen-smoke.c -o smoke/dlopen-smoke
+
+          UDID=$(xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}') || true
+          if [ -z "$UDID" ]; then
+            RT=$(xcrun simctl list runtimes | grep -m1 -oE 'com.apple.CoreSimulator.SimRuntime.iOS[^ ]*')
+            UDID=$(xcrun simctl create smoke-iphone com.apple.CoreSimulator.SimDeviceType.iPhone-15 "$RT")
+          fi
+          xcrun simctl boot "$UDID" || true
+
+          out=$(xcrun simctl spawn "$UDID" "$PWD/smoke/dlopen-smoke" "$PWD/smoke/nobodywhoFFI.framework/nobodywhoFFI")
+          echo "$out"
+          echo "$out" | grep -q "SMOKE OK"
 
   cargo-build-android:
     needs: matrix-gen
@@ -552,9 +647,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-dynlink-v2-${{ matrix.integration }}-${{ matrix.target }}-release-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -605,7 +700,8 @@ jobs:
             export ORT_LIB_PATH="${{ steps.ort-android.outputs.ort_dir }}"
             export ORT_PREFER_DYNAMIC_LINK=1
           fi
-          cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} --release --locked
+          cargo build -p nobodywho-${{ matrix.integration }} \
+            --verbose --target ${{ matrix.target }} --release --locked
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
@@ -625,19 +721,16 @@ jobs:
         # XXX: .so files for android in godot MUST start with "lib"
       - name: "Rename built file"
         run: |
-          if [ "${{ matrix.integration }}" = "uniffi" ]; then
-            # uniffi produces both static (.a) for React Native/Swift and shared (.so) for Kotlin/JNA
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.a \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.a
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-          else
-            cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
-              ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
-          fi
+          cp ./nobodywho/target/${{ matrix.target }}/release/libnobodywho_${{ matrix.integration }}.so \
+            ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.so
           # x86_64 Android links dynamically against libonnxruntime.so — ship it alongside.
           if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
             cp "${{ steps.ort-android.outputs.ort_dir }}/libonnxruntime.so" ./libonnxruntime.so
+          fi
+          if [ "${{ matrix.integration }}" != "godot" ]; then
+            PROFILE="./nobodywho/target/${{ matrix.target }}/release"
+            rm -rf ./nobodywho-runtime
+            cp -R "$PROFILE/nobodywho-runtime" ./nobodywho-runtime
           fi
 
       - name: "Upload build artifact"
@@ -647,3 +740,4 @@ jobs:
           path: |
             ./libnobodywho-${{ matrix.integration }}-${{ matrix.target }}-release.*
             ./libonnxruntime.so
+            ./nobodywho-runtime/**

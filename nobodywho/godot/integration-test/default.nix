@@ -26,6 +26,7 @@ stdenv.mkDerivation {
     echo "Setting up gdextension files..."
     rm ./nobodywho.gdextension
     mkdir -p ./bin/
+    cp ${nobodywho-godot.lib}/lib/libggml* ${nobodywho-godot.lib}/lib/libllama* ./bin/
     cp ${nobodywho-godot.lib}/lib/libnobodywho_godot.so ./bin/libnobodywho_godot.so
     cat << EOF > bin/nobodywho.gdextension
     [configuration]
@@ -49,6 +50,7 @@ stdenv.mkDerivation {
     # this kind internet stranger tells me that the export actually works fine, even though it segfaults
     # https://github.com/godotengine/godot/issues/112955#issuecomment-3554723333
     ${godot_4}/bin/godot4 --verbose --headless --export-debug "Linux" $out/game || true
+    cp ./bin/libggml-*.so $out/
 
     echo "Finished exporting godot game"
 

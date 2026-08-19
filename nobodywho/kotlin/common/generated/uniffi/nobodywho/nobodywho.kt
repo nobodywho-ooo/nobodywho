@@ -354,14 +354,7 @@ internal class UniffiHandleMap<T: Any> {
 
 // Contains loading, initialization code,
 // and the FFI Function declarations in a com.sun.jna.Library.
-@Synchronized
-private fun findLibraryName(componentName: String): String {
-    val libOverride = System.getProperty("uniffi.component.$componentName.libraryOverride")
-    if (libOverride != null) {
-        return libOverride
-    }
-    return "nobodywho_uniffi"
-}
+private fun findLibraryName(componentName: String) = NativeLoader.findLibraryName(componentName)
 
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
@@ -8105,6 +8098,3 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
 }
     )
     }
-    
-
-

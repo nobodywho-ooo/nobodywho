@@ -3,19 +3,20 @@ entry_symbol = "gdext_rust_init"
 compatibility_minimum = 4.5
 reloadable = true
 
+# macOS uses universal dependencies because Godot ignores later arch-specific keys.
 [libraries]
-linux.debug.x86_64 =     "res://addons/nobodywho/libnobodywho-godot-x86_64-unknown-linux-gnu-release.so"
-linux.release.x86_64 =   "res://addons/nobodywho/libnobodywho-godot-x86_64-unknown-linux-gnu-release.so"
-linux.debug.arm64 =      "res://addons/nobodywho/libnobodywho-godot-aarch64-unknown-linux-gnu-release.so"
-linux.release.arm64 =    "res://addons/nobodywho/libnobodywho-godot-aarch64-unknown-linux-gnu-release.so"
-windows.debug.x86_64 =   "res://addons/nobodywho/libnobodywho-godot-x86_64-pc-windows-msvc-release.dll"
-windows.release.x86_64 = "res://addons/nobodywho/libnobodywho-godot-x86_64-pc-windows-msvc-release.dll"
-macos.debug =            "res://addons/nobodywho/libnobodywho-godot-x86_64-apple-darwin-release.dylib"
-macos.release =          "res://addons/nobodywho/libnobodywho-godot-x86_64-apple-darwin-release.dylib"
-macos.debug.arm64 =      "res://addons/nobodywho/libnobodywho-godot-aarch64-apple-darwin-release.dylib"
-macos.release.arm64 =    "res://addons/nobodywho/libnobodywho-godot-aarch64-apple-darwin-release.dylib"
-android.debug.arm64 =      "res://addons/nobodywho/libnobodywho-godot-aarch64-linux-android-release.so"
-android.release.arm64 =    "res://addons/nobodywho/libnobodywho-godot-aarch64-linux-android-release.so"
+linux.debug.x86_64 =     "res://addons/nobodywho/x86_64-unknown-linux-gnu/libnobodywho-godot-x86_64-unknown-linux-gnu-release.so"
+linux.release.x86_64 =   "res://addons/nobodywho/x86_64-unknown-linux-gnu/libnobodywho-godot-x86_64-unknown-linux-gnu-release.so"
+linux.debug.arm64 =      "res://addons/nobodywho/aarch64-unknown-linux-gnu/libnobodywho-godot-aarch64-unknown-linux-gnu-release.so"
+linux.release.arm64 =    "res://addons/nobodywho/aarch64-unknown-linux-gnu/libnobodywho-godot-aarch64-unknown-linux-gnu-release.so"
+windows.debug.x86_64 =   "res://addons/nobodywho/x86_64-pc-windows-msvc/libnobodywho-godot-x86_64-pc-windows-msvc-release.dll"
+windows.release.x86_64 = "res://addons/nobodywho/x86_64-pc-windows-msvc/libnobodywho-godot-x86_64-pc-windows-msvc-release.dll"
+macos.debug =            "res://addons/nobodywho/apple-darwin/libnobodywho-godot-x86_64-apple-darwin-release.dylib"
+macos.release =          "res://addons/nobodywho/apple-darwin/libnobodywho-godot-x86_64-apple-darwin-release.dylib"
+macos.debug.arm64 =      "res://addons/nobodywho/apple-darwin/libnobodywho-godot-aarch64-apple-darwin-release.dylib"
+macos.release.arm64 =    "res://addons/nobodywho/apple-darwin/libnobodywho-godot-aarch64-apple-darwin-release.dylib"
+android.debug.arm64 =      "res://addons/nobodywho/aarch64-linux-android/libnobodywho-godot-aarch64-linux-android-release.so"
+android.release.arm64 =    "res://addons/nobodywho/aarch64-linux-android/libnobodywho-godot-aarch64-linux-android-release.so"
 
 [icons]
 NobodyWhoModel =            "res://addons/nobodywho/icon.svg"

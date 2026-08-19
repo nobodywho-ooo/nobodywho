@@ -49,80 +49,70 @@ def supportsNamespace() {
   return (major == 7 && minor >= 3) || major >= 8
 }
 
-// ABI to Rust target triple mapping
 def abiToTriple = [
   "arm64-v8a": "aarch64-linux-android",
   "x86_64": "x86_64-linux-android",
 ]
 
-// Read version from package.json
 def packageJsonFile = file("${projectDir}/../package.json")
 def packageJson = new groovy.json.JsonSlurper().parseText(packageJsonFile.text)
 def nobodywhoVersion = packageJson.version
 
-// Directory for downloaded native shared libraries.
-// These .so files are fully linked at CI time with a known-good NDK, eliminating
-// NDK version coupling for consumers.
 def nativeLibsDir = new File(buildDir, "nobodywho-native/${nobodywhoVersion}")
+def hasNativeBundle = { File dir ->
+  new File(dir, "libnobodywho_uniffi.so").isFile() &&
+    dir.listFiles()?.any { it.name.startsWith("libggml-cpu") && it.name.endsWith(".so") }
+}
 
-// Download native shared libraries from GitHub Releases if not already present.
 task resolveNativeLibraries {
   description = "Downloads NobodyWho native shared libraries from GitHub Releases"
 
   doLast {
+    def releaseBase = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v${nobodywhoVersion}"
+
+    def downloadAsset = { String assetName, File destFile ->
+      destFile.parentFile.mkdirs()
+      new URL("${releaseBase}/${assetName}").withInputStream { input ->
+        destFile.withOutputStream { output ->
+          output << input
+        }
+      }
+      logger.lifecycle("[NobodyWho] Downloaded ${assetName} (${destFile.length()} bytes)")
+    }
+
     abiToTriple.each { abi, triple ->
       def abiDir = new File(nativeLibsDir, abi)
-      def libFile = new File(abiDir, "libnobodywho_uniffi.so")
 
-      if (libFile.exists()) {
-        logger.lifecycle("[NobodyWho] ${abi}: Using existing library at ${libFile.path}")
+      if (hasNativeBundle(abiDir)) {
+        logger.lifecycle("[NobodyWho] ${abi}: Using ${abiDir}")
         return
       }
 
-      abiDir.mkdirs()
-
-      def fileName = "libnobodywho-uniffi-${triple}-release.so"
-      def downloadUrl = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v${nobodywhoVersion}/${fileName}"
-
-      logger.lifecycle("[NobodyWho] ${abi}: Downloading from ${downloadUrl}")
-
+      def staging = new File(nativeLibsDir, ".${abi}.tmp")
+      def archive = new File(nativeLibsDir, ".${abi}.zip")
+      staging.deleteDir()
+      archive.delete()
       try {
-        // Follow redirects manually to handle cross-protocol redirects
-        // (GitHub redirects from github.com to objects.githubusercontent.com)
-        def url = downloadUrl
-        def maxRedirects = 5
-        for (int i = 0; i < maxRedirects; i++) {
-          def connection = (java.net.HttpURLConnection) new URL(url).openConnection()
-          connection.setInstanceFollowRedirects(false)
-          connection.connect()
-
-          def code = connection.responseCode
-          if (code == 200) {
-            libFile.withOutputStream { out ->
-              out << connection.inputStream
-            }
-            logger.lifecycle("[NobodyWho] ${abi}: Downloaded to ${libFile.path} (${libFile.length()} bytes)")
-            return
-          } else if (code == 301 || code == 302 || code == 307 || code == 308) {
-            url = connection.getHeaderField("Location")
-            connection.disconnect()
-          } else {
-            throw new GradleException(
-              "Failed to download NobodyWho library for ${abi}: HTTP ${code}\n" +
-              "URL: ${downloadUrl}\n" +
-              "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v${nobodywhoVersion}"
-            )
-          }
+        downloadAsset("nobodywho-react-native-${triple}-release.zip", archive)
+        project.copy {
+          from zipTree(archive)
+          into staging
         }
-        throw new GradleException("Too many redirects downloading NobodyWho library for ${abi}")
-      } catch (GradleException e) {
-        throw e
+        if (!hasNativeBundle(staging)) {
+          throw new GradleException("Invalid NobodyWho archive for ${triple}")
+        }
+        abiDir.deleteDir()
+        if (!staging.renameTo(abiDir)) {
+          throw new GradleException("Could not install NobodyWho archive for ${triple}")
+        }
       } catch (Exception e) {
         throw new GradleException(
-          "Failed to download NobodyWho library for ${abi}: ${e.message}\n" +
-          "For local development, build the uniffi crate and place the .so file at: ${libFile.path}",
+          "Failed to resolve NobodyWho libraries for ${abi}: ${e.message}",
           e
         )
+      } finally {
+        archive.delete()
+        staging.deleteDir()
       }
     }
   }

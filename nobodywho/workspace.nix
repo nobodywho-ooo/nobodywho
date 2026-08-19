@@ -21,12 +21,67 @@
 }:
 
 let
+  withLlamaRuntime =
+    attrs:
+    let
+      dependency =
+        name: dependencies:
+        lib.findFirst (item: item.crateName == name) (throw "${attrs.crateName}: missing ${name}") dependencies;
+      core = dependency "nobodywho" attrs.dependencies;
+      llama = dependency "llama-cpp-sys-2" core.dependencies;
+      runtime = "${llama.lib}/lib/llama-cpp-sys-2.out";
+    in
+    {
+      postInstall = (attrs.postInstall or "") + ''
+        # CMake's GNUInstallDirs resolves the libdir per platform: lib64 on some
+        # Linux distros, lib elsewhere. llama-cpp-sys-2 emits link-search entries
+        # for both and probes the same pair, so neither can be assumed here.
+        # Probed with a plain glob rather than `compgen`, which stdenv's shell
+        # does not provide. With nullglob off the unmatched pattern stays literal
+        # and fails -e; with it on the loop body never runs. Correct either way.
+        runtimeLibDir=""
+        for candidate in ${runtime}/lib64 ${runtime}/lib; do
+          for probe in "$candidate"/libggml*; do
+            if [ -e "$probe" ]; then
+              runtimeLibDir="$candidate"
+              break 2
+            fi
+          done
+        done
+        if [ -z "$runtimeLibDir" ]; then
+          echo "no llama runtime libraries under ${runtime}/{lib64,lib}" >&2
+          ls -la ${runtime} >&2
+          exit 1
+        fi
+        cp -L "$runtimeLibDir"/libggml* "$runtimeLibDir"/libllama* "$lib/lib/"
+        cp -L ${runtime}/backends/* "$lib/lib/"
+      '' + lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+        binding="$lib/lib/lib${attrs.libName}.dylib"
+        for path in @loader_path ${pkgs.onnxruntime}/lib; do
+          if ! otool -l "$binding" | grep -q "path $path "; then
+            install_name_tool -add_rpath "$path" "$binding"
+          fi
+        done
+      '' + lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+        ${pkgs.patchelf}/bin/patchelf --add-rpath '$ORIGIN:${pkgs.onnxruntime}/lib' "$lib/lib/lib${attrs.libName}.so"
+      '';
+    };
+
   buildRustCrateForPkgs =
     pkgs:
     pkgs.buildRustCrate.override {
       defaultCrateOverrides = pkgs.defaultCrateOverrides // {
         llama-cpp-sys-2 = attrs: {
           env.LIBCLANG_PATH = "${pkgs.libclang.lib}/lib/libclang.so";
+
+          # Upstream derives `.` as the target dir from crate2nix's shorter OUT_DIR.
+          preConfigure = ''
+            mkdir -p target/deps
+            ln -s target/deps deps
+          '';
+
+          # crate2nix does not read the workspace Cargo config.
+          env.CMAKE_PROJECT_INCLUDE = "${./core/cmake/llama-build-overrides.cmake}";
 
           # Architecture-specific CPU feature flags
           # For ARM64: use defaults for compatibility with weaker devices (Raspberry Pi, etc.)
@@ -127,7 +182,7 @@ let
           ];
         };
 
-        nobodywho-flutter = attrs: {
+        nobodywho-flutter = attrs: withLlamaRuntime attrs // {
           env.NOBODYWHO_SKIP_CODEGEN = "True";
           nativeBuildInputs = [
             # this needs to be available at link-time
@@ -137,7 +192,7 @@ let
           ];
         };
 
-        nobodywho-godot = attrs: {
+        nobodywho-godot = attrs: lib.optionalAttrs (!pkgs.stdenv.hostPlatform.isAndroid) (withLlamaRuntime attrs) // {
           nativeBuildInputs = [
             # XXX: can we do this with propagatedNativeBuildInputs??
             # this needs to be available at link-time
@@ -146,13 +201,15 @@ let
           ];
         };
 
-        nobodywho-python = attrs: {
+        nobodywho-python = attrs: withLlamaRuntime attrs // {
           nativeBuildInputs = [
             vulkan-loader
             pkgs.onnxruntime
             pkgs.python3
           ];
         };
+
+        nobodywho-uniffi = withLlamaRuntime;
       };
     };
 
