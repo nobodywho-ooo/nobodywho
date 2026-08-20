@@ -353,12 +353,20 @@ impl<'a> InferenceEngine<'a> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
+    /// Remove everything in the KV cache from `index` onward.
+    ///
+    /// Returns `(effective_prefix, trimmed)` where:
+    /// - `effective_prefix` is the number of tokens still valid in the KV cache
+    ///   afterwards, in token-index space — the caller should read `target.tail(effective_prefix)`.
+    ///   This equals `index` on a successful partial trim, and `0` on a full-reset fallback
+    ///   (hybrid/recurrent models), so the caller re-loads the whole target in that case.
+    /// - `trimmed` is how many positions were evicted.
     pub(crate) fn remove_all_tokens_from_index_from_ctx(
         &mut self,
         index: usize,
-    ) -> Result<i32, KvCacheConversionError> {
+    ) -> Result<(usize, i32), KvCacheConversionError> {
         if self.n_past <= index as i32 {
-            return Ok(0);
+            return Ok((self.n_past as usize, 0));
         }
 
         let before = self.n_past;
@@ -368,18 +376,19 @@ impl<'a> InferenceEngine<'a> {
 
         if seq_rm_success {
             self.n_past = index as i32;
+            Ok((index, before - self.n_past))
         } else {
             // Partial sequence removal is not supported by this model's memory type
-            // (e.g. hybrid models with recurrent components). Fall back to full reset.
+            // (e.g. hybrid models with recurrent components). Fall back to full reset,
+            // which leaves the cache empty — so the effective prefix is 0.
             warn!(
                 index,
                 n_past = self.n_past,
                 "Partial KV cache removal not supported, falling back to full context reset"
             );
             self.reset_context();
+            Ok((0, before))
         }
-
-        Ok(before - self.n_past)
     }
 
     /// Diff `target` chunks against `prev` and load only the new tail into the KV cache.
@@ -394,9 +403,10 @@ impl<'a> InferenceEngine<'a> {
 
         debug_assert!(!target.is_empty());
 
-        let trimmed = self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
+        let (effective_prefix, trimmed) =
+            self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
 
-        let chunks_to_read = target.tail(prefix_index);
+        let chunks_to_read = target.tail(effective_prefix);
         if chunks_to_read.n_tokens() > 0 {
             self.read_chunks(chunks_to_read, inference_lock_token)?;
         } else if trimmed > 0 {
