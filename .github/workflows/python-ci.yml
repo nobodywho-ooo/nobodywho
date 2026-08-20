@@ -121,9 +121,14 @@ jobs:
         # recompiles llama.cpp + ORT cold; keyed per manylinux_target/arch.
         uses: WarpBuilds/cache@v1
         with:
+          # ! excludes target/wheels from the cache: wheels are build output,
+          # not cacheable state, and caching them leaks old versions into
+          # later builds after a version bump (restore-keys restores across
+          # Cargo.lock changes)
           path: |
             ~/.cargo
             nobodywho/target
+            !nobodywho/target/wheels
           key: ${{ matrix.manylinux_target }}-cargo-wheel-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ matrix.manylinux_target }}-cargo-wheel-
@@ -186,6 +191,8 @@ jobs:
       - name: Build linux python wheel
         run: |
           source "$HOME/.cargo/env"
+          # the build cache may contain wheels from an older version
+          rm -rf ../target/wheels
           maturin build --verbose --release --locked
         working-directory: ./nobodywho/python
 
@@ -222,9 +229,13 @@ jobs:
           # The build moves sources to C:/ and maturin compiles into C:/target
           # (see the build step + wheel artifact path). setup-rust-toolchain's
           # built-in cache targets the pre-move workspace, so disable it below.
+          # ! excludes the wheels dir: wheels are build output, not cacheable
+          # state, and caching them leaks old versions into later builds after
+          # a version bump (restore-keys restores across Cargo.lock changes)
           path: |
             ~/.cargo
             C:/target
+            !C:/target/wheels
           key: ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-python-cargo-${{ matrix.target }}-release-
@@ -258,6 +269,9 @@ jobs:
           git config --system core.longpaths true
           cd C:/
           cd python
+          # the restored cache may contain wheels from an older version, which
+          # would otherwise be uploaded alongside the new one
+          Remove-Item -Recurse -Force C:/target/wheels -ErrorAction SilentlyContinue
           maturin build --verbose --release --locked --target ${{ matrix.target }}
         env:
           # Use Ninja generator instead of Visual Studio generator.
@@ -284,9 +298,14 @@ jobs:
       - name: Cache Rust build
         uses: WarpBuilds/cache@v1
         with:
+          # ! excludes target/wheels from the cache: wheels are build output,
+          # not cacheable state, and caching them leaks old versions into
+          # later builds after a version bump (restore-keys restores across
+          # Cargo.lock changes)
           path: |
             ~/.cargo
             nobodywho/target
+            !nobodywho/target/wheels
           key: ${{ runner.os }}-macos-wheel-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-macos-wheel-cargo-
@@ -295,7 +314,12 @@ jobs:
           python-version: "3.13"
       - run: brew install maturin
       - name: "Build macos python wheel"
-        run: maturin build --verbose --release --locked --target aarch64-apple-darwin
+        run: |
+          # the build cache may contain wheels from an older version (the
+          # restore-keys prefix fallback restores across Cargo.lock changes),
+          # which would otherwise be uploaded alongside the new one
+          rm -rf ../target/wheels
+          maturin build --verbose --release --locked --target aarch64-apple-darwin
         working-directory: ./nobodywho/python
 
       - name: "Upload build artifact"
