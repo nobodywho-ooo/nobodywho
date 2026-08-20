@@ -15,7 +15,7 @@
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
-//!     .build();
+//!     .build()?;
 //!
 //! let response = chat.ask("Hello!").completed()?;
 //! # Ok(())
@@ -506,11 +506,12 @@ impl ChatHandle {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) {
+    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
     /// let mut stream = chat.ask("Tell me a story");
-    /// while let Some(token) = stream.next_token().await {
+    /// while let Some(token) = stream.next_token().await? {
     ///     print!("{}", token);
     /// }
+    /// # Ok(())
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
@@ -786,7 +787,7 @@ impl ChatHandle {
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
     /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
-    /// # let chat = ChatBuilder::new(model).build();
+    /// # let chat = ChatBuilder::new(model).build().unwrap();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
@@ -886,11 +887,12 @@ impl ChatHandleAsync {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) {
+    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
     /// let mut stream = chat.ask("Tell me a story");
-    /// while let Some(token) = stream.next_token().await {
+    /// while let Some(token) = stream.next_token().await? {
     ///     print!("{}", token);
     /// }
+    /// # Ok(())
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
