@@ -89,8 +89,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(ptr: bigint, multiplier: number, base: number, allowedLength: number, penaltyLastN: number, seqBreakers: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(ptr: bigint, temperature: number, delta: number, exponent: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(ptr: bigint, grammar: Uint8Array, triggerOn: Uint8Array, root: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(ptr: bigint, biases: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(ptr: bigint, minP: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v1(ptr: bigint, tau: number, eta: number, m: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_mirostat_v2(ptr: bigint, tau: number, eta: number, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -98,6 +100,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(ptr: bigint, seed: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(ptr: bigint, temperature: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(ptr: bigint, topK: number, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(ptr: bigint, n: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(ptr: bigint, topP: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_typical_p(ptr: bigint, typP: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_xtc(ptr: bigint, xtcProbability: number, xtcThreshold: number, minKeep: number, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -231,8 +234,10 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2(): number;
@@ -240,6 +245,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc(): number;

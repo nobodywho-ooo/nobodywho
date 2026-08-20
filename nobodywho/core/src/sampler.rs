@@ -1,5 +1,8 @@
-use llama_cpp_2::model::LlamaModel;
+use std::collections::HashMap;
+
 use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_2::token::logit_bias::LlamaLogitBias;
+use llama_cpp_2::{model::LlamaModel, token::LlamaToken};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -244,6 +247,19 @@ impl SamplerConfig {
                 penalty_present,
             )),
             ShiftStep::Temperature { temperature } => Ok(LlamaSampler::temp(temperature)),
+            ShiftStep::DynamicTemperature {
+                temperature,
+                delta,
+                exponent,
+            } => Ok(LlamaSampler::temp_ext(temperature, delta, exponent)),
+            ShiftStep::TopNSigma { n } => Ok(LlamaSampler::top_n_sigma(n)),
+            ShiftStep::LogitBias { biases } => {
+                let biases: Vec<_> = biases
+                    .into_iter()
+                    .map(|(token_id, bias)| LlamaLogitBias::new(LlamaToken::new(token_id), bias))
+                    .collect();
+                Ok(LlamaSampler::logit_bias(model.n_vocab(), &biases))
+            }
             ShiftStep::JsonSchema(schema) => llguidance_sampler(model, "json_schema", &schema, &[]),
             ShiftStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
             ShiftStep::Lark(lark) => {
@@ -460,7 +476,37 @@ pub enum ShiftStep {
     Temperature {
         temperature: f32,
     },
+    /// Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+    /// <https://arxiv.org/abs/2309.02772>.
+    #[serde(rename = "temp_ext")]
+    DynamicTemperature {
+        /// Temperature value (lower = more focused, higher = more random)
+        temperature: f32,
+        /// Dynamic temperature range.
+        ///
+        /// The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+        delta: f32,
+        /// Temperature is calculated as `entropy^exponent` (bounded by the range above).
+        exponent: f32,
+    },
+    /// Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+    /// <https://arxiv.org/pdf/2411.07641>
+    TopNSigma {
+        /// Number of standard deviations from the mean to include in sampling.
+        n: f32,
+    },
+    /// Modify the likelihood of specific tokens.
+    LogitBias {
+        /// Mapping from token ID to its bias.
+        ///
+        /// The bias modifies the likelihood of the token being selected
+        /// (`>0.0` means higher probability of the token being selected).
+        /// Use [`f32::NEG_INFINITY`] to ban a token.
+        biases: HashMap<i32, f32>,
+    },
+    // FIXME(madsmtm): Add `Infill` variant once `llama-cpp-rs` supports it?
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum SampleStep {

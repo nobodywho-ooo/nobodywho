@@ -293,11 +293,17 @@ void uniffi_nobodywho_uniffi_fn_free_samplerbuilder(
     /*handle*/ uint64_t ptr, float multiplier, float base,
     int32_t allowed_length, int32_t penalty_last_n, RustBuffer seq_breakers,
     RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
+    /*handle*/ uint64_t ptr, float temperature, float delta, float exponent,
+    RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(
     /*handle*/ uint64_t ptr, RustBuffer grammar, RustBuffer trigger_on,
     RustBuffer root, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
     /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
+    /*handle*/ uint64_t ptr, RustBuffer biases, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(
     /*handle*/ uint64_t ptr, float min_p, uint32_t min_keep,
     RustCallStatus *uniffi_out_err);
@@ -319,6 +325,9 @@ uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(
     /*handle*/ uint64_t ptr, float temperature, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(
     /*handle*/ uint64_t ptr, int32_t top_k, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t
+uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(
+    /*handle*/ uint64_t ptr, float n, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(
     /*handle*/ uint64_t ptr, float top_p, uint32_t min_keep,
     RustCallStatus *uniffi_out_err);
@@ -582,8 +591,11 @@ uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry();
+uint16_t
+uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v1();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_mirostat_v2();
@@ -591,6 +603,7 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_penalties();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_seed();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_typical_p();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_xtc();
@@ -3602,6 +3615,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_"
+        "temperature"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_"
+                                    "samplerbuilder_dynamic_temperature"),
+      4,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -3626,6 +3651,18 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
                 ->cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_samplerbuilder_logit_bias"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p"] =
@@ -3712,6 +3749,18 @@ NativeNobodywho::NativeNobodywho(
                  const jsi::Value *args, size_t count) -> jsi::Value {
             return this
                 ->cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(
+                    rt, thisVal, args, count);
+          });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_fn_"
+                                        "method_samplerbuilder_top_n_sigma"),
+          2,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(
                     rt, thisVal, args, count);
           });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p"] =
@@ -5277,6 +5326,19 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_"
+        "temperature"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt,
+                                "ubrn_uniffi_nobodywho_uniffi_checksum_method_"
+                                "samplerbuilder_dynamic_temperature"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -5301,6 +5363,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_"
+        "bias"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_samplerbuilder_logit_bias"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -5385,6 +5459,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_"
+        "sigma"] = jsi::Function::createFromHostFunction(
+      rt,
+      jsi::PropNameID::forAscii(rt, "ubrn_uniffi_nobodywho_uniffi_checksum_"
+                                    "method_samplerbuilder_top_n_sigma"),
+      0,
+      [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+             const jsi::Value *args, size_t count) -> jsi::Value {
+        return this
+            ->cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma(
+                rt, thisVal, args, count);
+      });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -7075,6 +7161,26 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(
   return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
                                                          value);
 }
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value =
+      uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
+          uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                            args[0]),
+          uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[1]),
+          uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[2]),
+          uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[3]),
+          &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
 jsi::Value
 NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
@@ -7103,6 +7209,23 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
   auto value = uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
@@ -7225,6 +7348,22 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
       uniffi_jsi::Bridging<int32_t>::fromJs(rt, callInvoker, args[1]), &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi_jsi::Bridging<float>::fromJs(rt, callInvoker, args[1]), &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
 
@@ -8681,6 +8820,15 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
     cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
@@ -8693,6 +8841,15 @@ jsi::Value NativeNobodywho::
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
@@ -8753,6 +8910,15 @@ jsi::Value NativeNobodywho::
         jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
         size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeNobodywho::
+    cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma(
+        jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+        size_t count) {
+  auto value =
+      uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

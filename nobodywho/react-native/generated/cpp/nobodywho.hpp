@@ -257,10 +257,17 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(
@@ -282,6 +289,9 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(
@@ -722,10 +732,18 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p(
@@ -751,6 +769,10 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p(

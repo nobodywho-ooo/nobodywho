@@ -10,6 +10,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
+- Added `dynamic_temperature`, `top_n_sigma` and `logit_bias` sampler steps.
 - Batch embedding through `Encoder.encode_batch()`. Available for all bindings.
 - Added `VoiceActivityDetection` for detecting when audio includes speech.
 
@@ -18,7 +19,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - `CrossEncoder.rank()` now batches documents internally making re-raking faster. Affects all bindings.
 - Tool calling now uses Lark grammars with the llguidance sampler instead of GBNF, making tool-constrained generation noticeably faster — especially on large-vocabulary models — and pre-builds the tool-call sampler so the first tool-enabled response no longer stalls while the grammar compiles. No API changes. Available for all bindings.
 - **Behavior change:** creating a chat with tools on a model whose tool-call format cannot be detected now fails at setup instead of silently falling back to unconstrained (unreliable) tool calling. Chats created without tools are unaffected. Available for all bindings.
-- `STT` renamed to `SpeechToText`, `Tts` renamed to `TextToSpeech` 
+- `STT` renamed to `SpeechToText`, `Tts` renamed to `TextToSpeech`
 
 ### Fixed
 

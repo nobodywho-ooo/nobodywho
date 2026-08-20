@@ -801,9 +801,13 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p(
     ): Short
@@ -818,6 +822,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p(
     ): Short
@@ -1013,9 +1019,13 @@ external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(`ptr`: Long,u
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(`ptr`: Long,`multiplier`: Float,`base`: Float,`allowedLength`: Int,`penaltyLastN`: Int,`seqBreakers`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(`ptr`: Long,`temperature`: Float,`delta`: Float,`exponent`: Float,uniffi_out_err: UniffiRustCallStatus, 
+): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(`ptr`: Long,`grammar`: RustBuffer.ByValue,`triggerOn`: RustBuffer.ByValue,`root`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(`ptr`: Long,`biases`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_min_p(`ptr`: Long,`minP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1030,6 +1040,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_seed(`ptr`: Long,`
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(`ptr`: Long,`temperature`: Float,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(`ptr`: Long,`topK`: Int,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(`ptr`: Long,`n`: Float,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_p(`ptr`: Long,`topP`: Float,`minKeep`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1378,10 +1390,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() != 5004.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 3547.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() != 33705.toShort()) {
@@ -1403,6 +1421,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k() != 26600.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma() != 44336.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p() != 54577.toShort()) {
@@ -5553,6 +5574,17 @@ public interface SamplerBuilderInterface {
     fun `dry`(`multiplier`: kotlin.Float, `base`: kotlin.Float, `allowedLength`: kotlin.Int, `penaltyLastN`: kotlin.Int, `seqBreakers`: List<kotlin.String>): SamplerBuilder
     
     /**
+     * Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+     * <https://arxiv.org/abs/2309.02772>.
+     *
+     * Args:
+     * temperature: Temperature value (lower = more focused, higher = more random)
+     * delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+     * exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+     */
+    fun `dynamicTemperature`(`temperature`: kotlin.Float, `delta`: kotlin.Float, `exponent`: kotlin.Float): SamplerBuilder
+    
+    /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
     fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder
@@ -5561,6 +5593,17 @@ public interface SamplerBuilderInterface {
      * Always select the most probable token (deterministic).
      */
     fun `greedy`(): SamplerConfig
+    
+    /**
+     * Modify the likelihood of specific tokens.
+     *
+     * Args:
+     * biases: Mapping from token ID to its bias.
+     * The bias modifies the likelihood of the token being selected
+     * (`>0.0` means higher probability of the token being selected).
+     * Use `-Infinity` to ban a token.
+     */
+    fun `logitBias`(`biases`: Map<kotlin.Int, kotlin.Float>): SamplerBuilder
     
     /**
      * Keep tokens with probability above min_p * (probability of most likely token).
@@ -5597,6 +5640,15 @@ public interface SamplerBuilderInterface {
      * Keep only the top K most probable tokens.
      */
     fun `topK`(`topK`: kotlin.Int): SamplerBuilder
+    
+    /**
+     * Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+     * <https://arxiv.org/pdf/2411.07641>
+     *
+     * Args:
+     * n: Number of standard deviations from the mean to include in sampling.
+     */
+    fun `topNSigma`(`n`: kotlin.Float): SamplerBuilder
     
     /**
      * Keep tokens whose cumulative probability is below top_p.
@@ -5757,6 +5809,28 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
 
     
     /**
+     * Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+     * <https://arxiv.org/abs/2309.02772>.
+     *
+     * Args:
+     * temperature: Temperature value (lower = more focused, higher = more random)
+     * delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+     * exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+     */override fun `dynamicTemperature`(`temperature`: kotlin.Float, `delta`: kotlin.Float, `exponent`: kotlin.Float): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
+        it,
+        FfiConverterFloat.lower(`temperature`),FfiConverterFloat.lower(`delta`),FfiConverterFloat.lower(`exponent`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */override fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder {
             return FfiConverterTypeSamplerBuilder.lift(
@@ -5781,6 +5855,28 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
         it,
         _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Modify the likelihood of specific tokens.
+     *
+     * Args:
+     * biases: Mapping from token ID to its bias.
+     * The bias modifies the likelihood of the token being selected
+     * (`>0.0` means higher probability of the token being selected).
+     * Use `-Infinity` to ban a token.
+     */override fun `logitBias`(`biases`: Map<kotlin.Int, kotlin.Float>): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
+        it,
+        FfiConverterMapIntFloat.lower(`biases`),_status)
 }
     }
     )
@@ -5894,6 +5990,26 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(
         it,
         FfiConverterInt.lower(`topK`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+     * <https://arxiv.org/pdf/2411.07641>
+     *
+     * Args:
+     * n: Number of standard deviations from the mean to include in sampling.
+     */override fun `topNSigma`(`n`: kotlin.Float): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(
+        it,
+        FfiConverterFloat.lower(`n`),_status)
 }
     }
     )
@@ -7731,6 +7847,45 @@ public object FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer<List<Lis
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterSequenceFloat.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterMapIntFloat: FfiConverterRustBuffer<Map<kotlin.Int, kotlin.Float>> {
+    override fun read(buf: ByteBuffer): Map<kotlin.Int, kotlin.Float> {
+        val len = buf.getInt()
+        return buildMap<kotlin.Int, kotlin.Float>(len) {
+            repeat(len) {
+                val k = FfiConverterInt.read(buf)
+                val v = FfiConverterFloat.read(buf)
+                this[k] = v
+            }
+        }
+    }
+
+    override fun allocationSize(value: Map<kotlin.Int, kotlin.Float>): ULong {
+        val spaceForMapSize = 4UL
+        val spaceForChildren = value.map { (k, v) ->
+            FfiConverterInt.allocationSize(k) +
+            FfiConverterFloat.allocationSize(v)
+        }.sum()
+        return spaceForMapSize + spaceForChildren
+    }
+
+    override fun write(value: Map<kotlin.Int, kotlin.Float>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        // The parens on `(k, v)` here ensure we're calling the right method,
+        // which is important for compatibility with older android devices.
+        // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
+        value.forEach { (k, v) ->
+            FfiConverterInt.write(k, buf)
+            FfiConverterFloat.write(v, buf)
         }
     }
 }
