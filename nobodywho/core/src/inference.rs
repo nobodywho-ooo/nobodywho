@@ -357,16 +357,13 @@ impl<'a> InferenceEngine<'a> {
     ///
     /// Returns `(effective_prefix, trimmed)` where:
     /// - `effective_prefix` is the number of tokens still valid in the KV cache
-    ///   afterwards, in token-index space — the caller should read `target.tail(effective_prefix)`.
-    ///   This equals `index` on a successful partial trim, and `0` on a full-reset fallback
-    ///   (hybrid/recurrent models), so the caller re-loads the whole target in that case.
     /// - `trimmed` is how many positions were evicted.
     pub(crate) fn remove_all_tokens_from_index_from_ctx(
         &mut self,
         index: usize,
     ) -> Result<(usize, i32), KvCacheConversionError> {
         if self.n_past <= index as i32 {
-            return Ok((self.n_past as usize, 0));
+            return Ok((index, 0));
         }
 
         let before = self.n_past;
