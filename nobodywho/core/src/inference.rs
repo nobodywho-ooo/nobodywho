@@ -396,7 +396,7 @@ impl<'a> InferenceEngine<'a> {
 
         let trimmed = self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
 
-        let chunks_to_read = target.tail(self.n_past as usize);
+        let chunks_to_read = target.tail(prefix_index);
         if chunks_to_read.n_tokens() > 0 {
             self.read_chunks(chunks_to_read, inference_lock_token)?;
         } else if trimmed > 0 {
