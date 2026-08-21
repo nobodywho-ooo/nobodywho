@@ -3522,7 +3522,7 @@ pub mod nobodywhopython {
 
         // STEP 3: Route llamacpp logs to tracing dispatcher
         // Flow: llamacpp -> tracing -> LogForwardingLayer -> log crate -> pyo3_log -> Python
-        nobodywho::send_llamacpp_logs_to_tracing();
+        nobodywho::log::send_llamacpp_logs_to_tracing();
 
         // STEP 4: Enable log forwarding and register shutdown hook.
         // The atexit handler disables forwarding before Py_FinalizeEx so that

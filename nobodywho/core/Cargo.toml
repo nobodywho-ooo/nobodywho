@@ -31,8 +31,10 @@ tokio = { version = "1.43.0", features = [
     "macros",
 ] }
 tokio-stream = "0.1.17"
+# Make `tracing` emit `log` events when no subscriber is installed.
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
+log = "0.4.34"
 regex = "1.11.1"
 serde_json = "1.0.140"
 nom = "8.0.0"
@@ -60,10 +62,14 @@ unicode-normalization = "0.1"
 emojis = "0.9.0"
 unicode-segmentation = "1.13.3"
 
+[target.'cfg(target_vendor = "apple")'.dependencies]
+oslog = "0.2.0"
+
 [target.'cfg(any(target_os = "android", target_vendor = "apple"))'.dependencies]
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.15.1"
 # Statically link the C++ stdlib (libc++) on Android so the produced shared
 # library is self-contained. This is Android-only on purpose: on Linux, the
 # `static-stdcxx` feature makes llama-cpp-rs's build.rs add the compiler's
@@ -94,6 +100,9 @@ windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] 
 # to x86_64 or enable ort's `lax-feature-matching`).
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["cuda"] }
+
+[target.'cfg(not(any(target_os = "android", all(target_vendor = "apple", not(target_os = "macos")), target_family = "wasm")))'.dependencies]
+env_logger = "0.11.11"
 
 [dependencies.espeak-ng]
 version = "0.1.2"

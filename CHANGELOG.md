@@ -35,6 +35,8 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Android:** the C++ runtime is now linked statically, so no companion `libc++_shared.so` has to be shipped and no NDK is needed to build against the library. Affects all Android artifacts.
 - **Flutter:** Android builds now package the libc and onnxruntime `.so` files they depend on.
 - **Swift:** visionOS and watchOS builds fixed.
+- **Flutter:** Logs are now visible in `flutter run` and `adb logcat` on Android.
+- **Flutter/React Native/Swift:** Logs are now visible in Xcode on iOS.
 
 ## [Python v1.7.0, Flutter v2.5.0, Godot v9.6.0, Kotlin v2.2.0, React Native v2.5.0, Swift v2.3.0] - 2026-07-30
 

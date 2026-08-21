@@ -7,6 +7,7 @@ mod host_memory;
 pub mod huggingface;
 pub mod inference;
 pub mod llm;
+pub mod log;
 pub mod memory;
 mod model_selection;
 pub mod onnx;
@@ -34,10 +35,6 @@ pub fn render_miette(err: &dyn miette::Diagnostic) -> String {
         out = err.to_string();
     }
     out
-}
-
-pub fn send_llamacpp_logs_to_tracing() {
-    llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
 }
 
 #[cfg(test)]

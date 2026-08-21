@@ -1,7 +1,7 @@
 use flutter_rust_bridge::DartFnFuture;
 use nobodywho::chat::Asset;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 // ^ in general I've only done fully-qualified imports, but these things need to be imported to
 // satisfy some frb macros
 
@@ -1679,24 +1679,20 @@ impl SamplerPresets {
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
-    // send llamacpp logs into tracing
-    nobodywho::send_llamacpp_logs_to_tracing();
+    static INIT: Once = Once::new();
 
-    // send logs to the appropriate places for android, ios and wasm
-    flutter_rust_bridge::setup_default_user_utils();
+    // Only initialize once.
+    // This allows hot restart/reload to work.
+    INIT.call_once(|| {
+        let level = if cfg!(debug_assertions) {
+            nobodywho::log::LevelFilter::Debug
+        } else {
+            nobodywho::log::LevelFilter::Info
+        };
+        nobodywho::log::init(level);
 
-    let log_level = if cfg!(debug_assertions) {
-        tracing::Level::DEBUG
-    } else {
-        tracing::Level::INFO
-    };
-
-    tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-        .try_init()
-        .ok();
+        flutter_rust_bridge::setup_backtrace();
+    });
 }
 
 #[cfg(test)]

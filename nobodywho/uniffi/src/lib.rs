@@ -1,29 +1,23 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
+
+use tracing::{debug, error, info};
 
 uniffi::setup_scaffolding!("nobodywho");
 
-/// Initialize logging so tracing output goes to Android logcat.
-#[cfg(target_os = "android")]
 fn init_logging() {
-    use std::sync::Once;
     static INIT: Once = Once::new();
+
     INIT.call_once(|| {
-        // Set up android_logger so log crate macros go to logcat
-        android_logger::init_once(
-            android_logger::Config::default()
-                .with_max_level(log::LevelFilter::Debug)
-                .with_tag("nobodywho"),
-        );
-        // Bridge tracing → log crate → android_logger → logcat
-        tracing_log::LogTracer::init().ok();
-        log::info!("NobodyWho logging initialized");
+        let level = if cfg!(debug_assertions) {
+            nobodywho::log::LevelFilter::Debug
+        } else {
+            nobodywho::log::LevelFilter::Info
+        };
+        nobodywho::log::init(level);
     });
 }
-
-#[cfg(not(target_os = "android"))]
-fn init_logging() {}
 
 // ---------- Error type ----------
 // UniFFI 0.30 requires a proper error type instead of bare String.
@@ -209,12 +203,9 @@ pub async fn load_model(
     on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
-    log::info!(
+    info!(
         "load_model called: path={}, gpu={}, mmproj={:?}, draft={:?}",
-        model_path,
-        use_gpu,
-        projection_model_path,
-        draft_model_path,
+        model_path, use_gpu, projection_model_path, draft_model_path,
     );
 
     let progress = on_download_progress.map(wrap_progress);
@@ -228,11 +219,11 @@ pub async fn load_model(
     .await
     .map_err(|e| {
         let msg = nobodywho::render_miette(&e);
-        log::error!("{}", msg);
+        error!("{}", msg);
         NobodyWhoError::Error { message: msg }
     })?;
 
-    log::info!("load_model SUCCESS for {}", model_path);
+    info!("load_model SUCCESS for {}", model_path);
     Ok(Arc::new(RustModel {
         inner: Arc::new(model),
     }))
@@ -373,7 +364,7 @@ impl RustChat {
 
     /// Send a message and get a token stream for the response.
     pub fn ask(&self, message: String) -> Arc<RustTokenStream> {
-        log::info!("RustChat::ask called with message: {}", message);
+        info!("RustChat::ask called with message: {}", message);
         Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(message)),
         })
@@ -766,7 +757,7 @@ impl RustTokenStream {
     /// Get the next token. Returns None when generation is complete, or an error if generation failed.
     pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
         let result = self.inner.lock().await.next_token().await;
-        log::debug!("next_token: {:?}", result);
+        debug!("next_token: {:?}", result);
         result.map_err(|e| NobodyWhoError::Error {
             message: nobodywho::render_miette(&e),
         })
