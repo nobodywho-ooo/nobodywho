@@ -40,12 +40,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 # Set linker flags for 16KB page size alignment (required for Android 15+)
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,max-page-size=16384")
 
-# NOBODYWHO_NATIVE_LIBS_DIR is passed from build.gradle via cmake arguments.
-# Fall back to src/main/jniLibs for local development where libs are placed manually.
-# The .so files are pre-built shared libraries — fully linked at CI time — so the
-# consumer's NDK version does not affect the Rust code.
+# NOBODYWHO_NATIVE_LIBS_DIR points at the UniFFI library extracted from the
+# Gradle-resolved AAR. The .so is fully linked in CI, so the consumer's NDK only
+# builds this small JSI bridge.
 if(NOT NOBODYWHO_NATIVE_LIBS_DIR)
-  set(NOBODYWHO_NATIVE_LIBS_DIR "${CMAKE_SOURCE_DIR}/src/main/jniLibs")
+  message(FATAL_ERROR "NOBODYWHO_NATIVE_LIBS_DIR was not provided by Gradle")
 endif()
 
 cmake_path(
