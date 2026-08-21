@@ -606,8 +606,11 @@ fn copy_bytes_f32(
     source_shape: &[usize],
 ) {
     let source: Vec<f32> = source
-        .chunks_exact(4)
-        .map(|bytes| f32::from_le_bytes(bytes.try_into().expect("f32 chunks")))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .copied()
+        .map(f32::from_le_bytes)
         .collect();
     copy_tensor_values(target, target_shape, &source, source_shape);
 }
@@ -619,8 +622,11 @@ fn copy_bytes_i64(
     source_shape: &[usize],
 ) {
     let source: Vec<i64> = source
-        .chunks_exact(8)
-        .map(|bytes| i64::from_le_bytes(bytes.try_into().expect("i64 chunks")))
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .copied()
+        .map(i64::from_le_bytes)
         .collect();
     copy_tensor_values(target, target_shape, &source, source_shape);
 }
