@@ -62,15 +62,21 @@ flutter test test/doctest_generated_test.dart
 ```
 
 
-The package also contains platform-specific build scripts for including pre-built binary artifacts (so end-users don't need Rust and llama.cpp build dependencies).
+The package also contains platform-specific build scripts for including
+prebuilt binary artifacts, so end users do not need Rust or llama.cpp build
+dependencies.
 
 ### Binary Resolution
 
-The build scripts (CMakeLists.txt, Podspec, gradle/ktl files) resolve binaries using these strategies (in order):
+Desktop and Apple build scripts resolve binaries using these strategies:
 
 1. check the environment variable `NOBODYWHO_FLUTTER_LIB_PATH`
-2. check for libnobodywho_flutter.so in a parent cargo target dir (`../../../target/release/libnobodywho_flutter.so`), useful during development
-3. figure out the verison number of the flutter package, and download the corresponding dynamic lib from github releases (WIP)
+2. check the parent Cargo target directory, which is useful during development
+3. check the versioned cache
+4. download the matching artifact from GitHub Releases
+
+Android does not use this resolver. Gradle resolves the pinned multi-ABI
+`ai.nobodywho:nobodywho-flutter-android` AAR from Maven Central.
 
 ## Building for Android
 
@@ -80,3 +86,10 @@ You can activate it by running `nix develop '.#android'`.
 
 It is tested and works on x86_64-linux, and the github actions CI environment also tests that building the flutter example application inside this devshell works.
 I assume that it will also work on MacOS, with a few tweaks (e.g. setting the correct dynamic library extension, including a few macos "Frameworks" in the build env).
+
+For local native-AAR testing, build the shared Android package documented in
+[`../android/README.md`](../android/README.md), then set:
+
+```bash
+export NOBODYWHO_FLUTTER_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-2.5.0.aar"
+```

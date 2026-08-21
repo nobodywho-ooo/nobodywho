@@ -7,7 +7,6 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-nobodywho = { path = "../../core" }
 flutter_rust_bridge = "=2.12.0"
 regex = "1.11.2"
 serde_json = "1.0.145"
@@ -15,6 +14,12 @@ futures = "0.3.31"
 tracing-subscriber = "0.3.20"
 tracing = "0.1.41"
 nom = "8.0.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+nobodywho = { path = "../../core", features = ["android-dynamic-backends"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+nobodywho = { path = "../../core" }
 
 [build-dependencies]
 flutter_rust_bridge_codegen = "2.12.0"
