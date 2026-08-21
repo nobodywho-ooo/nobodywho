@@ -10,8 +10,6 @@ use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
-#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-use llama_cpp_2::llama_backend::load_backends_from_path;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
@@ -45,10 +43,6 @@ static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
 
 #[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
 fn load_best_backend() {
-    // ggml scores every `libggml-cpu-*.so` next to our own library and loads the
-    // best match for the running CPU (e.g. armv8.2 vs armv9.2 dot-product/i8mm support).
-    // Our own library and the backends are always co-packaged in the same jniLibs
-    // directory, so dladdr on a symbol of our own gives us that directory for free.
     let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
     let found = unsafe { libc::dladdr(load_best_backend as *const libc::c_void, &mut info) };
     assert!(
@@ -61,8 +55,55 @@ fn load_best_backend() {
     let dir = std::path::Path::new(own_path)
         .parent()
         .expect("shared library path has no parent directory");
-    load_backends_from_path(dir);
-    info!(dir = %dir.display(), "loaded ggml backends");
+
+    // Android can dlopen an exact `base.apk!/lib/<abi>/libfoo.so` path, but its
+    // filesystem APIs cannot enumerate that pseudo-directory. Score the exact
+    // backend filenames embedded by build.rs and register the best match.
+    let (backend_path, backend_path_c, score) = env!("NOBODYWHO_ANDROID_CPU_BACKENDS")
+        .split(':')
+        .filter_map(|filename| {
+            let path = dir.join(filename);
+            let path_c = std::ffi::CString::new(path.to_str().expect("backend path is not UTF-8"))
+                .expect("backend path contains a null byte");
+            score_backend(&path_c).map(|score| (path, path_c, score))
+        })
+        .max_by_key(|(_, _, score)| *score)
+        .expect("none of the packaged GGML CPU backends could be opened");
+
+    let backend = unsafe { llama_cpp_sys_2::ggml_backend_load(backend_path_c.as_ptr()) };
+    assert!(
+        !backend.is_null(),
+        "failed to register GGML CPU backend {}",
+        backend_path.display()
+    );
+    info!(backend = %backend_path.display(), score, "loaded GGML CPU backend");
+}
+
+#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
+fn score_backend(path: &std::ffi::CStr) -> Option<i32> {
+    let handle = unsafe { libc::dlopen(path.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
+    if handle.is_null() {
+        let error = unsafe { libc::dlerror() };
+        let error = if error.is_null() {
+            "unknown error".into()
+        } else {
+            unsafe { std::ffi::CStr::from_ptr(error) }
+                .to_string_lossy()
+                .into_owned()
+        };
+        debug!(backend = %path.to_string_lossy(), %error, "failed to open GGML CPU backend");
+        return None;
+    }
+
+    let symbol = unsafe { libc::dlsym(handle, c"ggml_backend_score".as_ptr()) };
+    let score = if symbol.is_null() {
+        None
+    } else {
+        let score_fn: unsafe extern "C" fn() -> i32 = unsafe { std::mem::transmute(symbol) };
+        Some(unsafe { score_fn() })
+    };
+    unsafe { libc::dlclose(handle) };
+    score
 }
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
