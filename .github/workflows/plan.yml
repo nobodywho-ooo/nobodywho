@@ -42,6 +42,12 @@ on:
         value: ${{ jobs.plan.outputs.run_regen }}
       run_release:
         value: ${{ jobs.plan.outputs.run_release }}
+      device_jobs:
+        # Which on-device (Firebase Test Lab) jobs to run, as the selector
+        # string mobile-device-tests.yml expects — e.g. "kotlin-source" or
+        # "all". Empty means none: device tests cost real device minutes, so
+        # they are opt-in per binding and never part of an ordinary run.
+        value: ${{ jobs.plan.outputs.device_jobs }}
       is_full:
         # True on the "run everything" triggers (push to main, tag, dispatch
         # full_ci, full-ci label). Consumers use it to gate expensive work
@@ -64,6 +70,7 @@ jobs:
       run_docs:           ${{ steps.decide.outputs.run_docs }}
       run_regen:          ${{ steps.decide.outputs.run_regen }}
       run_release:        ${{ steps.decide.outputs.run_release }}
+      device_jobs:        ${{ steps.decide.outputs.device_jobs }}
       is_full:            ${{ steps.decide.outputs.is_full }}
     steps:
       # fetch-depth: 0 is required so the `git diff` below can reach an
@@ -291,6 +298,35 @@ jobs:
           run_release=false
           if [[ "$REF" == refs/tags/nobodywho-* ]]; then run_release=true; fi
 
+          # ---- on-device tests (Firebase Test Lab) --------------------------
+          # Deliberately NOT tied to $everything: these run on real phones and
+          # bill per device-minute, so a push to main must not trigger them.
+          # Main is covered by the nightly schedule in mobile-device-tests.yml.
+          # They run here only when a release tag needs gating, or when someone
+          # explicitly asks via a /<binding>-device-<source|released>-ci comment.
+          device_jobs=""
+          add_device() { device_jobs="${device_jobs:+$device_jobs,}$1"; }
+
+          # A release tag must prove its own binding still works on hardware.
+          case "$REF" in
+            refs/tags/nobodywho-kotlin-v*)       add_device kotlin-source ;;
+            refs/tags/nobodywho-flutter-v*)      add_device flutter-source ;;
+            refs/tags/nobodywho-react-native-v*) add_device react-native-source ;;
+          esac
+
+          if [[ -n "${DISPATCH_BUCKETS:-}" ]]; then
+            if has_bucket device_all; then
+              device_jobs="all"
+            else
+              has_bucket device_kotlin_source        && add_device kotlin-source        || true
+              has_bucket device_kotlin_released      && add_device kotlin-released      || true
+              has_bucket device_flutter_source       && add_device flutter-source       || true
+              has_bucket device_flutter_released     && add_device flutter-released     || true
+              has_bucket device_react_native_source  && add_device react-native-source  || true
+              has_bucket device_react_native_released && add_device react-native-released || true
+            fi
+          fi
+
           # ---- emit --------------------------------------------------------
           {
             echo "run_rust_core=$run_rust_core"
@@ -305,6 +341,7 @@ jobs:
             echo "run_docs=$run_docs"
             echo "run_regen=$run_regen"
             echo "run_release=$run_release"
+            echo "device_jobs=$device_jobs"
             echo "is_full=$everything"
           } >> "$GITHUB_OUTPUT"
 
@@ -328,4 +365,5 @@ jobs:
             echo "| regen | $run_regen |"
             echo "| docs | $run_docs |"
             echo "| release | $run_release |"
+            echo "| device tests | ${device_jobs:-none} |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,119 @@
+name: "Run device tests on Firebase Test Lab"
+description: >
+  Checks that the app APK's native library can actually be loaded, then runs the
+  instrumentation tests on the pinned physical devices. Used by every binding's
+  device-test job so the device matrix and the loadability check live in one
+  place.
+
+inputs:
+  app-apk:
+    description: "Path to the app APK"
+    required: true
+  test-apk:
+    description: "Path to the androidTest APK"
+    required: true
+  native-lib:
+    description: "Name of the binding's .so inside the APK, e.g. libnobodywho_uniffi.so"
+    required: true
+  devices:
+    description: "both | pixel8-mali | s24ultra-adreno"
+    required: false
+    default: "both"
+  test-timeout:
+    description: "Per-device timeout passed to gcloud"
+    required: false
+    default: "30m"
+  results-bucket:
+    description: "Cloud Storage bucket for results"
+    required: false
+    default: "nobodywho-android-ci-ftl-results"
+  project-id:
+    required: true
+  workload-identity-provider:
+    required: true
+  service-account:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Fails in seconds with a precise message, instead of a cryptic
+    # UnsatisfiedLinkError minutes into a paid device run.
+    - name: "Verify the packaged native library can load"
+      shell: bash
+      run: |
+        set -euo pipefail
+        APK="${{ inputs.app-apk }}"
+        LIB="${{ inputs.native-lib }}"
+        TMP="$(mktemp -d)"
+        # || true: unzip exits non-zero when the APK has no arm64-v8a
+        # entries at all. Under set -e that would kill the script here,
+        # skipping the crafted error message and ABI listing below in favor
+        # of a bare unzip exit code.
+        unzip -o -q "$APK" 'lib/arm64-v8a/*' -d "$TMP" || true
+
+        SO="$TMP/lib/arm64-v8a/$LIB"
+        if [ ! -f "$SO" ]; then
+          echo "::error::$LIB is missing from $APK"
+          unzip -l "$APK" | grep 'lib/arm64-v8a/' || true
+          exit 1
+        fi
+        echo "  OK  $LIB is packaged"
+
+        # The library loads iff every non-system dependency sits next to it in
+        # the APK. That holds both for a self-contained build and for an older
+        # one that ships its own libc++_shared.so, so this check stays correct
+        # across releases instead of hard-coding an expected file list.
+        # Everything below is provided by Android itself (public NDK libraries).
+        missing=0
+        while read -r need; do
+          case "$need" in
+            libc.so|libm.so|libdl.so|liblog.so|libandroid.so|libz.so| \
+            libvulkan.so|libEGL.so|libGLESv1_CM.so|libGLESv2.so|libGLESv3.so| \
+            libjnigraphics.so|libmediandk.so|libaaudio.so|libOpenSLES.so|libnativewindow.so)
+              echo "  ..  $need (provided by Android)" ;;
+            *)
+              if [ -f "$TMP/lib/arm64-v8a/$need" ]; then
+                echo "  OK  $need (packaged alongside)"
+              else
+                echo "::error::$LIB needs $need at runtime, but it is neither packaged in the APK nor provided by Android. Fix this in the library, not in the test app."
+                missing=1
+              fi ;;
+          esac
+        done < <(readelf -d "$SO" | sed -n 's/.*Shared library: \[\(.*\)\].*/\1/p')
+        [ "$missing" = "0" ]
+
+    - name: "Authenticate to Google Cloud"
+      uses: google-github-actions/auth@v2
+      with:
+        project_id: ${{ inputs.project-id }}
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+        service_account: ${{ inputs.service-account }}
+
+    - name: "Setup gcloud"
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: "Run instrumentation tests on Firebase Test Lab"
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Explicit "both", not a fallthrough default — a typo in $devices would
+        # otherwise silently run on both devices, doubling billed FTL minutes
+        # instead of failing fast.
+        case "${{ inputs.devices }}" in
+          pixel8-mali)     DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait) ;;
+          s24ultra-adreno) DEVICES=(--device model=e3q,version=34,locale=en,orientation=portrait) ;;
+          both)            DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait \
+                                    --device model=e3q,version=34,locale=en,orientation=portrait) ;;
+          *)               echo "::error::unknown devices input '${{ inputs.devices }}'; expected both, pixel8-mali, or s24ultra-adreno"
+                            exit 1 ;;
+        esac
+
+        gcloud firebase test android run \
+          --project "${{ inputs.project-id }}" \
+          --type instrumentation \
+          --app "${{ inputs.app-apk }}" \
+          --test "${{ inputs.test-apk }}" \
+          "${DEVICES[@]}" \
+          --results-bucket "${{ inputs.results-bucket }}" \
+          --timeout "${{ inputs.test-timeout }}"

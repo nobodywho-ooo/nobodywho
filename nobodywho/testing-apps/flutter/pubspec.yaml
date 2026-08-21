@@ -1,0 +1,29 @@
+name: nobodywho_testapp
+description: "Device-test host app for the NobodyWho Flutter binding."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  # Matches the binding's own constraint so this app builds on the Flutter
+  # version CI pins as well as newer local toolchains.
+  sdk: ^3.8.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Resolved from pub.dev by default, which is what a consumer does. The
+  # local-source CI job writes a pubspec_overrides.yaml pointing at
+  # ../../flutter/nobodywho instead (see README).
+  nobodywho: ^2.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
