@@ -1,7 +1,7 @@
 // Root build file — shared configuration for all subprojects
 allprojects {
     group = "ai.nobodywho"
-    version = "3.0.0"
+    version = providers.gradleProperty("version").getOrElse("3.0.0")
 }
 
 // Shared POM metadata and signing for publishable subprojects
