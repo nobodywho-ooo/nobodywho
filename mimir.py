@@ -8,6 +8,8 @@
 
 """Run the NobodyWho Mimir ONNX prototype from Hugging Face."""
 
+# uv run --reinstall-package nobodywho mimir.py
+
 import nobodywho
 
 mimir = nobodywho.Mimir(
