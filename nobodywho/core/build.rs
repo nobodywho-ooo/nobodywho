@@ -59,6 +59,17 @@ fn main() {
             .starts_with(b"libggml-cpu")),
         "no GGML CPU backends built"
     );
+    let cpu_backend_names = backends
+        .iter()
+        .filter_map(|path| {
+            let name = path.file_name()?.to_str()?;
+            name.starts_with("libggml-cpu").then_some(name)
+        })
+        .collect::<Vec<_>>();
+    println!(
+        "cargo:rustc-env=NOBODYWHO_ANDROID_CPU_BACKENDS={}",
+        cpu_backend_names.join(":")
+    );
 
     for source in so_files(&library_dir)
         .into_iter()
