@@ -35,8 +35,76 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
-    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    #[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
+    load_best_backend();
+    LlamaBackend::init().expect("Failed to initialize llama backend")
+});
+
+#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
+fn load_best_backend() {
+    let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
+    let found = unsafe { libc::dladdr(load_best_backend as *const libc::c_void, &mut info) };
+    assert!(
+        found != 0 && !info.dli_fname.is_null(),
+        "failed to locate own shared library"
+    );
+    let own_path = unsafe { std::ffi::CStr::from_ptr(info.dli_fname) }
+        .to_str()
+        .expect("shared library path is not valid UTF-8");
+    let dir = std::path::Path::new(own_path)
+        .parent()
+        .expect("shared library path has no parent directory");
+
+    // Android can dlopen an exact `base.apk!/lib/<abi>/libfoo.so` path, but its
+    // filesystem APIs cannot enumerate that pseudo-directory. Score the exact
+    // backend filenames embedded by build.rs and register the best match.
+    let (backend_path, backend_path_c, score) = env!("NOBODYWHO_ANDROID_CPU_BACKENDS")
+        .split(':')
+        .filter_map(|filename| {
+            let path = dir.join(filename);
+            let path_c = std::ffi::CString::new(path.to_str().expect("backend path is not UTF-8"))
+                .expect("backend path contains a null byte");
+            score_backend(&path_c).map(|score| (path, path_c, score))
+        })
+        .max_by_key(|(_, _, score)| *score)
+        .expect("none of the packaged GGML CPU backends could be opened");
+
+    let backend = unsafe { llama_cpp_sys_2::ggml_backend_load(backend_path_c.as_ptr()) };
+    assert!(
+        !backend.is_null(),
+        "failed to register GGML CPU backend {}",
+        backend_path.display()
+    );
+    info!(backend = %backend_path.display(), score, "loaded GGML CPU backend");
+}
+
+#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
+fn score_backend(path: &std::ffi::CStr) -> Option<i32> {
+    let handle = unsafe { libc::dlopen(path.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
+    if handle.is_null() {
+        let error = unsafe { libc::dlerror() };
+        let error = if error.is_null() {
+            "unknown error".into()
+        } else {
+            unsafe { std::ffi::CStr::from_ptr(error) }
+                .to_string_lossy()
+                .into_owned()
+        };
+        debug!(backend = %path.to_string_lossy(), %error, "failed to open GGML CPU backend");
+        return None;
+    }
+
+    let symbol = unsafe { libc::dlsym(handle, c"ggml_backend_score".as_ptr()) };
+    let score = if symbol.is_null() {
+        None
+    } else {
+        let score_fn: unsafe extern "C" fn() -> i32 = unsafe { std::mem::transmute(symbol) };
+        Some(unsafe { score_fn() })
+    };
+    unsafe { libc::dlclose(handle) };
+    score
+}
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
@@ -76,6 +144,9 @@ impl Model {
 }
 
 pub fn has_gpu_backend() -> bool {
+    #[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
+    LazyLock::force(&LLAMA_BACKEND);
+
     #[cfg(any(
         all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
         all(target_os = "ios", target_arch = "x86_64")

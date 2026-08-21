@@ -18,7 +18,13 @@ buildscript {
 
 def reactNativeArchitectures() {
   def value = rootProject.getProperties().get("reactNativeArchitectures")
-  return value ? value.split(",") : ["armeabi-v7a", "x86", "x86_64", "arm64-v8a"]
+  def supported = ["arm64-v8a", "x86_64"]
+  def requested = value ? value.split(",").collect { it.trim() } : supported
+  def selected = requested.findAll { supported.contains(it) }
+  if (selected.isEmpty()) {
+    throw new GradleException("NobodyWho supports these Android ABIs: ${supported.join(', ')}")
+  }
+  return selected
 }
 
 def isNewArchitectureEnabled() {
@@ -49,80 +55,59 @@ def supportsNamespace() {
   return (major == 7 && minor >= 3) || major >= 8
 }
 
-// ABI to Rust target triple mapping
-def abiToTriple = [
-  "arm64-v8a": "aarch64-linux-android",
-  "x86_64": "x86_64-linux-android",
-]
+def nobodywhoAbis = reactNativeArchitectures()
 
-// Read version from package.json
-def packageJsonFile = file("${projectDir}/../package.json")
-def packageJson = new groovy.json.JsonSlurper().parseText(packageJsonFile.text)
-def nobodywhoVersion = packageJson.version
+// Gradle owns native artifact resolution and caching. We extract the AAR only
+// because this module's CMake build must link its JSI bridge against UniFFI.
+// Pinned independently of this module's own version — bump deliberately to adopt
+// a newer nobodywho-android-vX.Y.Z release.
+def nobodywhoNativeVersion = "2.5.0"
+def localNativeAar = rootProject.findProperty("Nobodywho_nativeAar") ?:
+  System.getenv("NOBODYWHO_UNIFFI_ANDROID_AAR")
+def nativeAarDependency = localNativeAar ?
+  files(file(localNativeAar)) :
+  "ai.nobodywho:nobodywho-uniffi-android:${nobodywhoNativeVersion}"
 
-// Directory for downloaded native shared libraries.
-// These .so files are fully linked at CI time with a known-good NDK, eliminating
-// NDK version coupling for consumers.
-def nativeLibsDir = new File(buildDir, "nobodywho-native/${nobodywhoVersion}")
+def nativeAar = configurations.create("nobodywhoNativeAar") {
+  canBeConsumed = false
+  canBeResolved = true
+  transitive = false
+}
+def nativeRoot = new File(buildDir, "nobodywho-native")
+def nativeLibsDir = new File(nativeRoot, "jni")
+def nativeAarTrees = nativeAar.incoming.files.elements.map { files ->
+  files.collect { zipTree(it.asFile) }
+}
 
-// Download native shared libraries from GitHub Releases if not already present.
-task resolveNativeLibraries {
-  description = "Downloads NobodyWho native shared libraries from GitHub Releases"
+def extractNobodywhoNativeAar = tasks.register("extractNobodywhoNativeAar", Sync) {
+  from(nativeAarTrees) {
+    include nobodywhoAbis.collect { "jni/${it}/*.so" }
+  }
+  into nativeRoot
+}
 
+def verifyNobodywhoNativeAar = tasks.register("verifyNobodywhoNativeAar") {
+  dependsOn extractNobodywhoNativeAar
   doLast {
-    abiToTriple.each { abi, triple ->
+    nobodywhoAbis.each { abi ->
       def abiDir = new File(nativeLibsDir, abi)
-      def libFile = new File(abiDir, "libnobodywho_uniffi.so")
+      def required = [
+        "libnobodywho_uniffi.so",
+        "libggml-base.so",
+        "libggml.so",
+        "libllama-common.so",
+        "libllama.so",
+      ]
+      if (abi == "x86_64") required.add("libonnxruntime.so")
 
-      if (libFile.exists()) {
-        logger.lifecycle("[NobodyWho] ${abi}: Using existing library at ${libFile.path}")
-        return
+      if (!required.every { new File(abiDir, it).isFile() } ||
+          !(abiDir.listFiles() ?: []).any {
+            it.name.startsWith("libggml-cpu") && it.name.endsWith(".so")
+          }) {
+        throw new GradleException("Incomplete NobodyWho native AAR for ${abi}")
       }
-
-      abiDir.mkdirs()
-
-      def fileName = "libnobodywho-uniffi-${triple}-release.so"
-      def downloadUrl = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v${nobodywhoVersion}/${fileName}"
-
-      logger.lifecycle("[NobodyWho] ${abi}: Downloading from ${downloadUrl}")
-
-      try {
-        // Follow redirects manually to handle cross-protocol redirects
-        // (GitHub redirects from github.com to objects.githubusercontent.com)
-        def url = downloadUrl
-        def maxRedirects = 5
-        for (int i = 0; i < maxRedirects; i++) {
-          def connection = (java.net.HttpURLConnection) new URL(url).openConnection()
-          connection.setInstanceFollowRedirects(false)
-          connection.connect()
-
-          def code = connection.responseCode
-          if (code == 200) {
-            libFile.withOutputStream { out ->
-              out << connection.inputStream
-            }
-            logger.lifecycle("[NobodyWho] ${abi}: Downloaded to ${libFile.path} (${libFile.length()} bytes)")
-            return
-          } else if (code == 301 || code == 302 || code == 307 || code == 308) {
-            url = connection.getHeaderField("Location")
-            connection.disconnect()
-          } else {
-            throw new GradleException(
-              "Failed to download NobodyWho library for ${abi}: HTTP ${code}\n" +
-              "URL: ${downloadUrl}\n" +
-              "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v${nobodywhoVersion}"
-            )
-          }
-        }
-        throw new GradleException("Too many redirects downloading NobodyWho library for ${abi}")
-      } catch (GradleException e) {
-        throw e
-      } catch (Exception e) {
-        throw new GradleException(
-          "Failed to download NobodyWho library for ${abi}: ${e.message}\n" +
-          "For local development, build the uniffi crate and place the .so file at: ${libFile.path}",
-          e
-        )
+      if (new File(abiDir, "libc++_shared.so").exists()) {
+        throw new GradleException("The UniFFI AAR must use React Native's libc++_shared.so")
       }
     }
   }
@@ -159,11 +144,11 @@ android {
       cmake {
         arguments '-DANDROID_STL=c++_shared',
                   "-DNOBODYWHO_NATIVE_LIBS_DIR=${nativeLibsDir.absolutePath}"
-        abiFilters (*reactNativeArchitectures())
+        abiFilters (*nobodywhoAbis)
       }
     }
     ndk {
-      abiFilters "arm64-v8a", "x86_64"
+      abiFilters (*nobodywhoAbis)
     }
   }
 
@@ -192,9 +177,13 @@ android {
     targetCompatibility JavaVersion.VERSION_1_8
   }
 
+  kotlinOptions {
+    jvmTarget = "1.8"
+  }
+
   sourceSets {
     main {
-      // Include downloaded .so files so they get packaged into the APK
+      // The same extracted tree is CMake's link input and Gradle's package input.
       jniLibs.srcDirs += [nativeLibsDir]
       if (isNewArchitectureEnabled()) {
           java.srcDirs += [
@@ -206,12 +195,13 @@ android {
   }
 }
 
-// Ensure native libraries are downloaded before CMake and JNI merge tasks run.
+// CMake and JNI packaging consume the Gradle-resolved AAR extraction.
 tasks.configureEach { task ->
-  if (task.name.contains("configureCMake") ||
-      task.name.contains("externalNativeBuild") ||
-      task.name.contains("ergeJniLibFolders")) {
-    task.dependsOn(resolveNativeLibraries)
+  if (task.name.contains("configureCMake")) {
+    task.dependsOn(verifyNobodywhoNativeAar)
+  }
+  if (task.name.contains("merge") && task.name.contains("JniLibFolders")) {
+    task.dependsOn(extractNobodywhoNativeAar, verifyNobodywhoNativeAar)
   }
 }
 
@@ -223,6 +213,7 @@ repositories {
 def kotlin_version = getExtOrDefault("kotlinVersion")
 
 dependencies {
+  add("nobodywhoNativeAar", nativeAarDependency)
   // For < 0.71, this will be from the local maven repo
   // For > 0.71, this will be replaced by `com.facebook.react:react-android:$version` by react gradle plugin
   //noinspection GradleDynamicVersion
