@@ -8606,7 +8606,7 @@ rec {
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "dynamic-backends" "llguidance" "mtmd" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -8654,7 +8654,7 @@ rec {
           "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "dynamic-backends" "dynamic-link" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
@@ -9880,11 +9880,11 @@ rec {
             features = [ "openmp" "vulkan" "mtmd" "llguidance" "common" ];
           }
           {
-            name = "llama-cpp-2";
-            packageId = "llama-cpp-2";
+            name = "llama-cpp-sys-2";
+            packageId = "llama-cpp-sys-2";
+            optional = true;
             usesDefaultFeatures = false;
             target = { target, features }: ("android" == target."os" or null);
-            features = [ "android-static-stdcxx" ];
           }
           {
             name = "llguidance";
@@ -10046,7 +10046,17 @@ rec {
             features = [ "Win32_System_SystemInformation" ];
           }
         ];
-
+        buildDependencies = [
+          {
+            name = "cc";
+            packageId = "cc";
+          }
+        ];
+        features = {
+          "android-dynamic-backends" = [ "dep:llama-cpp-sys-2" "llama-cpp-2/dynamic-backends" ];
+          "android-static-stdcxx" = [ "llama-cpp-2/android-static-stdcxx" ];
+        };
+        resolvedDefaultFeatures = [ "android-dynamic-backends" "android-static-stdcxx" ];
       };
       "nobodywho-flutter" = rec {
         crateName = "nobodywho-flutter";
@@ -10067,6 +10077,13 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            target = { target, features }: (!("android" == target."os" or null));
+          }
+          {
+            name = "nobodywho";
+            packageId = "nobodywho";
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-dynamic-backends" ];
           }
           {
             name = "nom";
@@ -10116,6 +10133,13 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            target = { target, features }: (!("android" == target."os" or null));
+          }
+          {
+            name = "nobodywho";
+            packageId = "nobodywho";
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-static-stdcxx" ];
           }
           {
             name = "serde_json";
@@ -10251,6 +10275,13 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+            target = { target, features }: (!("android" == target."os" or null));
+          }
+          {
+            name = "nobodywho";
+            packageId = "nobodywho";
+            target = { target, features }: ("android" == target."os" or null);
+            features = [ "android-dynamic-backends" ];
           }
           {
             name = "oslog";

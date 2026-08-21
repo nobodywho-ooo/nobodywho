@@ -1,3 +1,12 @@
+#[cfg(all(
+    target_os = "android",
+    feature = "android-dynamic-backends",
+    feature = "android-static-stdcxx"
+))]
+compile_error!(
+    "android-dynamic-backends and android-static-stdcxx cannot be enabled together on Android; build Godot and the dynamic-backend bindings separately"
+);
+
 pub mod chat;
 pub mod content;
 pub mod cpu;
