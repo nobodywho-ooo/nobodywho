@@ -591,12 +591,86 @@ impl VoiceActivityDetection {
 }
 
 // ---------------------------------------------------------------------------
-// Token streams (shared by Chat and SpeechToText)
+// Mimir
 // ---------------------------------------------------------------------------
 
-// Type-erased inner for sync streams — lets Chat and SpeechToText share one pyclass.
+/// `Mimir` is a focused ONNX prototype for DFM-Mimir and compatible HrmText models.
+///
+/// The source must contain an Optimum-style merged causal-LM graph, tokenizer
+/// files, and `chat_template.jinja`. Generation is greedy and CPU/CUDA only.
+#[pyclass]
+pub struct Mimir {
+    mimir: nobodywho::mimir::Mimir,
+}
+
+#[pymethods]
+impl Mimir {
+    /// Load an exported Mimir ONNX model.
+    ///
+    /// Args:
+    ///     source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+    ///     model_file: ONNX graph path relative to source.
+    ///     max_new_tokens: Maximum generated tokens per response.
+    ///     system_prompt: Optional system message.
+    ///     template_variables: Variables passed to the model chat template.
+    ///     device: "auto", "cpu", or "cuda".
+    #[new]
+    #[pyo3(signature = (source: "os.PathLike | str", model_file = "onnx/model_int8.onnx", max_new_tokens = 256, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Mimir")]
+    pub fn new(
+        source: std::path::PathBuf,
+        model_file: &str,
+        max_new_tokens: usize,
+        system_prompt: Option<String>,
+        template_variables: std::collections::HashMap<String, bool>,
+        device: &str,
+        py: Python,
+    ) -> PyResult<Self> {
+        let source = source.to_str().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Path contains invalid UTF-8: {}",
+                source.display()
+            ))
+        })?;
+        if max_new_tokens == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "max_new_tokens must be greater than zero",
+            ));
+        }
+        let device = parse_onnx_device(device)?;
+        let mut config = nobodywho::mimir::MimirConfig::new(source);
+        config.model_file = model_file.to_string();
+        config.max_new_tokens = max_new_tokens;
+        config.system_prompt = system_prompt;
+        config.template_variables = template_variables;
+        let mimir = py
+            .detach(|| nobodywho::mimir::Mimir::with_device(config, device))
+            .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))?;
+        Ok(Self { mimir })
+    }
+
+    /// Send a message and stream the greedy response.
+    #[pyo3(signature = (prompt: "str") -> "TokenStream")]
+    pub fn ask(&self, prompt: String) -> TokenStream {
+        TokenStream {
+            inner: SyncStreamInner::Mimir(self.mimir.ask(prompt)),
+        }
+    }
+
+    /// Clear the conversation history.
+    pub fn reset(&self, py: Python) -> PyResult<()> {
+        py.detach(|| self.mimir.reset())
+            .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Token streams (shared by Chat, Mimir, and SpeechToText)
+// ---------------------------------------------------------------------------
+
+// Type-erased inner for sync streams — lets the APIs share one pyclass.
 enum SyncStreamInner {
     Chat(nobodywho::chat::TokenStream),
+    Mimir(nobodywho::stream::TokenStream<nobodywho::errors::MimirError>),
     SpeechToText(nobodywho::stream::TokenStream<nobodywho::errors::SpeechToTextError>),
 }
 
@@ -604,12 +678,14 @@ impl SyncStreamInner {
     fn next_token(&mut self) -> Result<Option<String>, String> {
         match self {
             Self::Chat(s) => s.next_token().map_err(|e| render_miette(&e)),
+            Self::Mimir(s) => s.next_token().map_err(|e| e.to_string()),
             Self::SpeechToText(s) => s.next_token().map_err(|e| e.to_string()),
         }
     }
     fn completed(&mut self) -> Result<String, String> {
         match self {
             Self::Chat(s) => s.completed().map_err(|e| render_miette(&e)),
+            Self::Mimir(s) => s.completed().map_err(|e| e.to_string()),
             Self::SpeechToText(s) => s.completed().map_err(|e| e.to_string()),
         }
     }
@@ -636,17 +712,15 @@ impl AsyncStreamInner {
     }
 }
 
-/// `TokenStream` is returned by `Chat.ask`, `SpeechToText.transcribe_file`, and `SpeechToText.transcribe_pcm`.
+/// `TokenStream` is returned by `Chat.ask`, `Mimir.ask`, `SpeechToText.transcribe_file`, and `SpeechToText.transcribe_pcm`.
 /// Iterate over it token-by-token or call `.completed()` for the full text at once.
 /// Also see `TokenStreamAsync` for the async variant.
 
-fn parse_text_to_speech_device(
-    device: &str,
-) -> PyResult<nobodywho::text_to_speech::TextToSpeechDevice> {
+fn parse_onnx_device(device: &str) -> PyResult<nobodywho::onnx::Device> {
     match device.to_ascii_lowercase().as_str() {
-        "auto" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Auto),
-        "cpu" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cpu),
-        "cuda" => Ok(nobodywho::text_to_speech::TextToSpeechDevice::Cuda),
+        "auto" => Ok(nobodywho::onnx::Device::Auto),
+        "cpu" => Ok(nobodywho::onnx::Device::Cpu),
+        "cuda" => Ok(nobodywho::onnx::Device::Cuda),
         _ => Err(pyo3::exceptions::PyValueError::new_err(
             "device must be one of 'auto', 'cpu', or 'cuda'",
         )),
@@ -787,7 +861,7 @@ impl TextToSpeech {
         huggingface_token: Option<String>,
         device: &str,
     ) -> PyResult<Self> {
-        let device = parse_text_to_speech_device(device)?;
+        let device = parse_onnx_device(device)?;
         let config = build_text_to_speech_config(
             source,
             architecture,
@@ -824,7 +898,7 @@ impl TextToSpeech {
     }
 }
 
-/// `TokenStream` represents an in-progress text completion. It is the return value of `Chat.ask`.
+/// `TokenStream` represents an in-progress text completion. It is returned by `Chat.ask` and `Mimir.ask`.
 /// You can iterate over the tokens in a `TokenStream` using the normal python iterator protocol,
 /// or by explicitly calling the `.next_token()` method.
 /// If you want to wait for the entire response to be generated, you can call `.completed()`.
@@ -3529,6 +3603,8 @@ pub mod nobodywhopython {
     use super::EncoderAsync;
     #[pymodule_export]
     use super::Image;
+    #[pymodule_export]
+    use super::Mimir;
     #[pymodule_export]
     use super::Model;
     #[pymodule_export]

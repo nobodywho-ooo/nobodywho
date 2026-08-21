@@ -734,6 +734,44 @@ class Image:
     def path(self, /) -> str: ...
 
 @final
+class Mimir:
+    """
+    `Mimir` is a focused ONNX prototype for DFM-Mimir and compatible HrmText models.
+
+    The source must contain an Optimum-style merged causal-LM graph, tokenizer
+    files, and `chat_template.jinja`. Generation is greedy and CPU/CUDA only.
+    """
+    def __new__(
+        cls,
+        /,
+        source: "os.PathLike | str",
+        model_file: str = "onnx/model_int8.onnx",
+        max_new_tokens: int = 256,
+        system_prompt: str | None = None,
+        template_variables: "dict[str, bool]" = ...,
+        device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
+    ) -> "Mimir":
+        """
+        Load an exported Mimir ONNX model.
+
+        Args:
+            source: Local model directory or HuggingFace repo (`hf://owner/repo`).
+            model_file: ONNX graph path relative to source.
+            max_new_tokens: Maximum generated tokens per response.
+            system_prompt: Optional system message.
+            template_variables: Variables passed to the model chat template.
+            device: "auto", "cpu", or "cuda".
+        """
+    def ask(self, /, prompt: "str") -> "TokenStream":
+        """
+        Send a message and stream the greedy response.
+        """
+    def reset(self, /) -> None:
+        """
+        Clear the conversation history.
+        """
+
+@final
 class Model:
     """
     `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
@@ -1298,7 +1336,7 @@ class TextToSpeech:
 @final
 class TokenStream:
     """
-    `TokenStream` represents an in-progress text completion. It is the return value of `Chat.ask`.
+    `TokenStream` represents an in-progress text completion. It is returned by `Chat.ask` and `Mimir.ask`.
     You can iterate over the tokens in a `TokenStream` using the normal python iterator protocol,
     or by explicitly calling the `.next_token()` method.
     If you want to wait for the entire response to be generated, you can call `.completed()`.

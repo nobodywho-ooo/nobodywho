@@ -799,6 +799,38 @@ pub enum TextToSpeechError {
     HuggingFace(#[from] HuggingFaceError),
 }
 
+// Mimir errors
+
+#[derive(Debug, thiserror::Error)]
+pub enum MimirError {
+    #[error("Error initializing Mimir: {0}")]
+    Init(String),
+
+    #[error("Error generating with Mimir: {0}")]
+    Generation(String),
+
+    #[error("Mimir worker thread is no longer running")]
+    WorkerDead,
+
+    #[error("ONNX Runtime error: {0}")]
+    Ort(#[from] ort::Error),
+
+    #[error("Model download failed: {0}")]
+    HuggingFace(#[from] HuggingFaceError),
+
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("JSON parse error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Tokenizer error: {0}")]
+    Tokenizer(String),
+
+    #[error("Chat template error: {0}")]
+    Template(#[from] minijinja::Error),
+}
+
 // SpeechToText errors
 
 #[derive(Debug, thiserror::Error)]

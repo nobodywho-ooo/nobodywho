@@ -8,6 +8,11 @@ import logging
 logging.addLevelName(5, "TRACE")
 
 
+def test_mimir_rejects_zero_max_new_tokens():
+    with pytest.raises(ValueError, match="max_new_tokens must be greater than zero"):
+        nobodywho.Mimir("missing", max_new_tokens=0)
+
+
 @pytest.fixture(scope="module")
 def model():
     model_path = os.environ.get("TEST_MODEL")

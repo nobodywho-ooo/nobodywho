@@ -56,6 +56,7 @@ sentencepiece-rs = "0.2"
 # Shared by SpeechToText (via mel_spec) and TextToSpeech (supertonic); use 0.17 as the workspace default
 ndarray = "0.17"
 rand_distr = "0.5"
+half = "2.7"
 unicode-normalization = "0.1"
 emojis = "0.9.0"
 unicode-segmentation = "1.13.3"
@@ -74,11 +75,11 @@ libc = "0.2"
 llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", rev = "b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc", default-features = false, features = [
     "android-static-stdcxx",
 ] }
-ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
+ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "half", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
-ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
+ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "half", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }

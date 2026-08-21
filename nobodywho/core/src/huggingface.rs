@@ -624,9 +624,22 @@ impl OnnxSource {
     /// True if `path` is the ONNX external-data sidecar (or a chunk inside the
     /// sidecar directory) for one of the files in `required`.
     fn is_external_data_for(path: &str, required: &[String]) -> bool {
-        required.iter().any(|r| {
-            let prefix = format!("{r}_data");
-            path == prefix || path.starts_with(&format!("{prefix}/"))
+        required.iter().any(|required_file| {
+            [
+                format!("{required_file}_data"),
+                format!("{required_file}.data"),
+            ]
+            .iter()
+            .any(|prefix| {
+                path == prefix
+                    || path.starts_with(&format!("{prefix}/"))
+                    || path
+                        .strip_prefix(&format!("{prefix}_"))
+                        .is_some_and(|suffix| {
+                            !suffix.is_empty()
+                                && suffix.chars().all(|character| character.is_ascii_digit())
+                        })
+            })
         })
     }
 
@@ -935,6 +948,28 @@ mod tests {
     #[test]
     fn rejects_empty_owner_after_hf_scheme() {
         assert!(parse_onnx_path("hf:///repo").is_err());
+    }
+
+    #[test]
+    fn selects_split_external_data_files() {
+        let available = vec![
+            "onnx/model.onnx".to_string(),
+            "onnx/model.onnx_data".to_string(),
+            "onnx/model.onnx_data_1".to_string(),
+            "onnx/model.onnx.data".to_string(),
+            "onnx/other.onnx_data".to_string(),
+        ];
+        let selected =
+            OnnxSource::select_required_files(available, &["onnx/model.onnx".to_string()]).unwrap();
+        assert_eq!(
+            selected,
+            [
+                "onnx/model.onnx",
+                "onnx/model.onnx_data",
+                "onnx/model.onnx_data_1",
+                "onnx/model.onnx.data",
+            ]
+        );
     }
 
     #[test]

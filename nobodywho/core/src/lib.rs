@@ -8,6 +8,7 @@ pub mod huggingface;
 pub mod inference;
 pub mod llm;
 pub mod memory;
+pub mod mimir;
 mod model_selection;
 pub mod onnx;
 pub mod sampler;
