@@ -546,12 +546,15 @@ impl KokoroVoice {
 
     fn decode_style_rows(view: &safetensors::tensor::TensorView<'_>) -> Vec<[f32; STYLE_DIM]> {
         view.data()
-            .chunks_exact(4)
-            .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .copied()
+            .map(f32::from_le_bytes)
             .collect::<Vec<f32>>()
-            .chunks_exact(STYLE_DIM)
-            .map(|row| row.try_into().expect("STYLE_DIM-sized chunk"))
-            .collect()
+            .as_chunks::<STYLE_DIM>()
+            .0
+            .to_vec()
     }
 }
 
