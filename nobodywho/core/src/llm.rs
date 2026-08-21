@@ -10,8 +10,6 @@ use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
-#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-use llama_cpp_2::llama_backend::load_backends_from_path;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
@@ -37,33 +35,8 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
-    #[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-    load_best_backend();
-    LlamaBackend::init().expect("Failed to initialize llama backend")
-});
-
-#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-fn load_best_backend() {
-    // ggml scores every `libggml-cpu-*.so` next to our own library and loads the
-    // best match for the running CPU (e.g. armv8.2 vs armv9.2 dot-product/i8mm support).
-    // Our own library and the backends are always co-packaged in the same jniLibs
-    // directory, so dladdr on a symbol of our own gives us that directory for free.
-    let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
-    let found = unsafe { libc::dladdr(load_best_backend as *const libc::c_void, &mut info) };
-    assert!(
-        found != 0 && !info.dli_fname.is_null(),
-        "failed to locate own shared library"
-    );
-    let own_path = unsafe { std::ffi::CStr::from_ptr(info.dli_fname) }
-        .to_str()
-        .expect("shared library path is not valid UTF-8");
-    let dir = std::path::Path::new(own_path)
-        .parent()
-        .expect("shared library path has no parent directory");
-    load_backends_from_path(dir);
-    info!(dir = %dir.display(), "loaded ggml backends");
-}
+static LLAMA_BACKEND: LazyLock<LlamaBackend> =
+    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
@@ -103,9 +76,6 @@ impl Model {
 }
 
 pub fn has_gpu_backend() -> bool {
-    #[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-    LazyLock::force(&LLAMA_BACKEND);
-
     #[cfg(any(
         all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
         all(target_os = "ios", target_arch = "x86_64")

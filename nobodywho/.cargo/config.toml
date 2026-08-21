@@ -1,5 +1,0 @@
-[env]
-# llama-cpp-sys does not expose these Android dynamic-backend CMake settings.
-# The included file guards itself so other targets and CMake projects are unchanged.
-# After editing it, rebuild llama-cpp-sys (`cargo clean -p llama-cpp-sys-2`).
-CMAKE_PROJECT_INCLUDE = { value = "core/cmake/llama-build-overrides.cmake", relative = true }

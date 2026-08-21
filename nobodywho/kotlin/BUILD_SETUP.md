@@ -22,15 +22,15 @@ kotlin/
 
 ### Why three modules?
 
-The Kotlin wrapper code is identical across platforms. What differs is how the native library (`libnobodywho_uniffi`) is supplied:
+The Kotlin wrapper code is identical across platforms. What differs is how the native library (`libnobodywho_uniffi`) is packaged:
 
-- **Android** depends on the shared multi-ABI `nobodywho-uniffi-android` AAR, packages `libc++_shared.so`, and uses the AAR variant of JNA (`jna:5.14.0@aar`).
+- **Android** needs the native `.so` in `jniLibs/{arm64-v8a,x86_64}/` inside an AAR, and JNA must be the AAR variant (`jna:5.14.0@aar`).
 - **Desktop JVM** needs native libs for all platforms in `src/main/resources/` following JNA's naming convention (`linux-x86-64/`, `darwin-aarch64/`, `win32-x86-64/`), inside a regular JAR with JNA as a normal JAR dependency.
 
 A single module can't produce both an AAR and a JAR, so we split into three:
 
 - **`:common`** (published as `nobodywho-core`) — contains all Kotlin code. Pure JVM, no Android dependency. This is where compilation and tests happen.
-- **`:android`** — empty shell that depends on `:common` and the shared native AAR, applies the Android Gradle plugin, and packages the C++ runtime.
+- **`:android`** — empty shell that depends on `:common`, applies the Android Gradle plugin, and packages the AAR with Android-specific JNI libs.
 - **`:jvm`** — empty shell that depends on `:common`, packages a JAR with desktop native libs in JNA layout.
 
 ## Published artifacts
@@ -40,12 +40,8 @@ Three artifacts are published to Maven Central:
 | Artifact | Type | Contains |
 |---|---|---|
 | `ai.nobodywho:nobodywho-core` | JAR | Kotlin wrappers + generated UniFFI bindings (~100KB) |
-| `ai.nobodywho:nobodywho-android` | AAR | Kotlin facade + C++ runtime; depends on `nobodywho-core` and `nobodywho-uniffi-android` |
+| `ai.nobodywho:nobodywho-android` | AAR | Android native libs (arm64-v8a, x86_64), depends on `nobodywho-core` |
 | `ai.nobodywho:nobodywho` | JAR | Desktop native libs (Linux, macOS, Windows), depends on `nobodywho-core` |
-
-The Android-native release separately publishes
-`ai.nobodywho:nobodywho-uniffi-android`. Flutter and React Native use the same
-release pipeline, so native binaries are not copied into each wrapper package.
 
 Consumers add one dependency:
 
@@ -108,9 +104,7 @@ nmcpSettings {
 }
 ```
 
-The Kotlin `publishAggregationToCentralPortal` task collects all three wrapper
-publications, signs them, and uploads them as one deployment. The shared native
-AAR is published by the Android-native release before a Kotlin version pins it.
+The `publishAggregationToCentralPortal` task collects all three publications, signs them, and uploads them as a single atomic deployment bundle. Maven Central validates them together — all succeed or all fail.
 
 POM metadata (name, description, license, developers, SCM) is configured once in the root `build.gradle.kts` and applied to all subprojects via `afterEvaluate`. Signing uses in-memory PGP keys from environment variables (`SIGNING_KEY`, `SIGNING_PASSWORD`).
 
@@ -125,11 +119,9 @@ POM metadata (name, description, license, developers, SCM) is configured once in
 
 ### Testing locally
 
-After staging the native AAR inputs, publish the native artifacts before the
-Kotlin wrappers (no credentials needed):
+Publish to the local Maven repository (no credentials needed):
 
 ```bash
-./gradlew -p ../android publishToMavenLocal
 ./gradlew publishToMavenLocal
 ```
 
@@ -141,12 +133,8 @@ The version is set once in the root `build.gradle.kts`:
 
 ```kotlin
 allprojects {
-    version = providers.gradleProperty("version").getOrElse("2.2.0")
+    version = "0.1.0"
 }
 ```
 
-All three Kotlin artifacts share the same version. The CI release job passes
-`-Pversion=X.Y.Z` from the git tag; otherwise the root build uses its default
-version. The native AAR has its own version, set by the `nobodywho-android-vX.Y.Z`
-release tag; this project's `android/build.gradle.kts` pins the exact native
-version it depends on.
+All three artifacts share the same version. The CI release job also passes `-Pversion=X.Y.Z` from the git tag, though currently the hardcoded version must match.

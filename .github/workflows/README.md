@@ -18,15 +18,15 @@
 | `python` | wheels + pytest + pip-install + multimodal (+ always-on static checks: ruff/ty/stubs) | `python/` | main, tag |
 | `python_models` | 6-model tool-calling matrix (linux wheel only) | `core/` | main, tag |
 | `godot` | godot build (linux/win/macos/android) | `godot/` | main, tag |
-| `flutter` | flutter build + multimodal tests + xcframework | `flutter/`, `android/` | main, tag |
+| `flutter` | flutter build + multimodal tests + xcframework | `flutter/` | main, tag |
 | `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | main, tag |
-| `kotlin` | uniffi build + JVM/Android tests | `kotlin/`, `uniffi/`, `android/` | main, tag |
-| `react_native` | uniffi build + RN xcframework | `react-native/`, `uniffi/`, `android/` | main, tag |
+| `kotlin` | uniffi build + JVM/Android tests | `kotlin/`, `uniffi/` | main, tag |
+| `react_native` | uniffi build + RN xcframework | `react-native/`, `uniffi/` | main, tag |
 | `apple_extended` | uniffi visionOS/watchOS device+sim (nightly rust, ORT from source) | — (never path-triggered) | main, tag |
 | `docs` | docusaurus build + Cloudflare Pages deploy | — | main only |
 | `release` | publish PyPI / pub.dev / npm / Maven / Swift | — | release tag |
 
-Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`react_native`; `android/**` → `flutter`/`kotlin`/`react_native`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci`, or they're caught by the post-merge full run on `main`.
+Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`react_native`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci`, or they're caught by the post-merge full run on `main`.
 
 ## Triggers
 

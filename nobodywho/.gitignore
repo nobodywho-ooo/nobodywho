@@ -1,4 +1,5 @@
 /target
+/build
 /result
 __pycache__/
 .ruff_cache/
@@ -7,12 +8,9 @@ __pycache__/
 .venv/
 */result
 
-# Any Gradle subproject (android/, kotlin/, ...)
-.gradle/
-build/
-
 # React Native (uniffi-bindgen-react-native)
 react-native/node_modules/
+react-native/android/build/
 react-native/android/.cxx/
 react-native/android/src/main/jniLibs/
 react-native/test-app/

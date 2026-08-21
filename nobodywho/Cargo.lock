@@ -3022,7 +3022,6 @@ version = "2.4.0"
 dependencies = [
  "ahash",
  "bashkit",
- "cc",
  "chrono",
  "dirs",
  "emojis",
@@ -3036,7 +3035,6 @@ dependencies = [
  "lazy_static",
  "libc",
  "llama-cpp-2",
- "llama-cpp-sys-2",
  "llguidance",
  "mel_spec",
  "miette",

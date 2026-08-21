@@ -156,109 +156,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Publish both multi-ABI Android entry-point AARs from one native release.
-  create-android-native-release:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-android-v')
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: "Download Flutter Android artifacts"
-        uses: actions/download-artifact@v5
-        with:
-          pattern: nobodywho-flutter-*-linux-android-release
-          merge-multiple: true
-          path: ./artifacts/flutter
-
-      - name: "Download UniFFI Android artifacts"
-        uses: actions/download-artifact@v5
-        with:
-          pattern: nobodywho-uniffi-*-linux-android-release
-          merge-multiple: true
-          path: ./artifacts/uniffi
-
-      - name: "Set native version"
-        run: |
-          set -euo pipefail
-          VERSION=${GITHUB_REF_NAME#nobodywho-android-v}
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-
-      - name: "Stage Flutter jniLibs (arm64-v8a)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: flutter
-          target: aarch64-linux-android
-          source-dir: artifacts/flutter
-          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/arm64-v8a
-
-      - name: "Stage Flutter jniLibs (x86_64)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: flutter
-          target: x86_64-linux-android
-          source-dir: artifacts/flutter
-          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/x86_64
-
-      - name: "Stage UniFFI jniLibs (arm64-v8a)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: aarch64-linux-android
-          source-dir: artifacts/uniffi
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/arm64-v8a
-
-      - name: "Stage UniFFI jniLibs (x86_64)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: x86_64-linux-android
-          source-dir: artifacts/uniffi
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/x86_64
-
-      - name: "Remove libc++_shared.so from UniFFI AAR (consumer supplies it)"
-        run: |
-          set -euo pipefail
-          rm nobodywho/android/build/uniffi/jniLibs/arm64-v8a/libc++_shared.so
-          rm nobodywho/android/build/uniffi/jniLibs/x86_64/libc++_shared.so
-
-      - name: "Strip release libraries"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils
-          find nobodywho/android/build/flutter/jniLibs \
-               nobodywho/android/build/uniffi/jniLibs \
-            -type f -name '*.so' -exec strip --strip-unneeded {} +
-
-      - name: "Setup JDK"
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: "Build and validate AARs"
-        run: |
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            check assemble -Pversion=${{ env.VERSION }}
-
-      - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v2
-        with:
-          files: nobodywho/android/build/outputs/*.aar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "Publish AARs to Maven Central"
-        env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
-          SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
-        run: |
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            publishAggregationToCentralPortal -Pversion=${{ env.VERSION }}
-
   create-github-release-flutter:
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
     runs-on: warp-ubuntu-latest-x64-2x
@@ -276,12 +173,6 @@ jobs:
 
       - name: "List artifacts to include in release"
         run: ls -la ./nobodywho-flutter-release/
-
-      - name: "Remove Android inputs published through Maven"
-        run: |
-          rm -f nobodywho-flutter-release/libnobodywho-flutter-*-linux-android-release.so
-          rm -f nobodywho-flutter-release/libonnxruntime.so
-          rm -rf nobodywho-flutter-release/nobodywho-runtime-*-linux-android
 
       - name: "Verify XCFramework zip is present"
         working-directory: ./nobodywho-flutter-release
@@ -309,18 +200,36 @@ jobs:
     with:
       working-directory: nobodywho/flutter/nobodywho
 
-  # Create the iOS GitHub Release, then publish the Maven-backed npm package.
+  # Create GitHub Release with native binaries, then publish to npm.
   create-github-release-react-native:
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write
     steps:
+      - name: "Download Android ARM64 artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-aarch64-linux-android-release
+          path: ./nobodywho-react-native-release
+
+      - name: "Download Android x86_64 artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-x86_64-linux-android-release
+          path: ./nobodywho-react-native-release
+
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-react-native-xcframework
           path: ./nobodywho-react-native-release
+
+      - name: "Keep only React Native artifacts (.so and xcframework)"
+        run: |
+          cd nobodywho-react-native-release
+          rm -f *.a *.dll *.dylib *.pdb
+          ls -la
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
@@ -428,15 +337,14 @@ jobs:
       - name: "List artifacts"
         run: ls -la artifacts/
 
-      # Kotlin supplies the process-wide C++ runtime. NobodyWho itself comes
-      # from the shared ai.nobodywho:nobodywho-uniffi-android dependency.
-      - name: "Setup Android C++ runtime"
+      # Place Android native libs for AAR
+      - name: "Setup Android jniLibs"
         run: |
           mkdir -p nobodywho/kotlin/android/build/jniLibs/{arm64-v8a,x86_64}
-          cp -L artifacts/nobodywho-runtime-aarch64-linux-android/libc++_shared.so \
-            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
-          cp -L artifacts/nobodywho-runtime-x86_64-linux-android/libc++_shared.so \
-            nobodywho/kotlin/android/build/jniLibs/x86_64/
+          cp artifacts/libnobodywho-uniffi-aarch64-linux-android-release.so \
+            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-x86_64-linux-android-release.so \
+            nobodywho/kotlin/android/build/jniLibs/x86_64/libnobodywho_uniffi.so
 
       # Place desktop native libs for JVM JAR (JNA layout)
       - name: "Setup JVM native libs"

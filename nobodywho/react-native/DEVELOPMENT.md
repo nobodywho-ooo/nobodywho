@@ -54,7 +54,7 @@ react-native/
 │   └── Nobodywho.mm
 │
 ├── android/                     # Android native module
-│   ├── build.gradle             # Customized — resolves the shared native AAR
+│   ├── build.gradle             # Customized — downloads .so from GitHub Releases
 │   ├── CMakeLists.txt           # Customized — links shared lib + uniffi headers
 │   ├── cpp-adapter.cpp          # Generated glue
 │   └── src/main/
@@ -96,7 +96,7 @@ cd react-native
 npx uniffi-bindgen-react-native generate jsi turbo-module --config ubrn.config.yaml nobodywho
 ```
 
-**WARNING:** This overwrites `Nobodywho.podspec`, `android/build.gradle`, and `android/CMakeLists.txt` with defaults, destroying custom build logic (native AAR resolution, xcframework support, etc.). After running, restore these files:
+**WARNING:** This overwrites `Nobodywho.podspec`, `android/build.gradle`, and `android/CMakeLists.txt` with defaults, destroying custom build logic (binary download, xcframework support, etc.). After running, restore these files:
 
 ```bash
 git checkout -- Nobodywho.podspec android/build.gradle android/CMakeLists.txt
@@ -142,10 +142,7 @@ This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and gener
 
 ### Build native shared libraries for mobile targets
 
-Android consumes `ai.nobodywho:nobodywho-uniffi-android`, a prebuilt Maven AAR
-containing both supported ABIs. The pinned version is a `nobodywhoNativeVersion` constant in this module's
-`build.gradle`, so the React Native package version does not need to match the
-native version.
+The Android build expects shared libraries (`.so` files). These are prebuilt at CI time and downloaded by Gradle, so the consumer's NDK version does not affect the Rust code.
 
 For local development, use the nix android shell:
 
@@ -157,24 +154,23 @@ nix develop .#android --command bash -c \
   'cd nobodywho && cargo build -p nobodywho-uniffi --target aarch64-linux-android --release'
 
 # Android x86_64 (emulator)
-# Point this at the directory containing Android's x86_64 libonnxruntime.so.
-export NOBODYWHO_ANDROID_X86_64_ORT=/absolute/path/to/onnxruntime/lib
 nix develop .#android --command bash -c \
-  'cd nobodywho && ORT_LIB_PATH="$NOBODYWHO_ANDROID_X86_64_ORT" ORT_PREFER_DYNAMIC_LINK=1 \
-    cargo build -p nobodywho-uniffi --target x86_64-linux-android --release'
+  'cd nobodywho && cargo build -p nobodywho-uniffi --target x86_64-linux-android --release'
 ```
 
-Stage both builds in the shared Android packaging project and create the AAR as
-described in [`../android/README.md`](../android/README.md). Then point the
-React Native build at it:
+Then copy the `.so` files to where the Android build expects them:
 
 ```bash
-export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-2.5.0.aar"
-```
+mkdir -p nobodywho/react-native/android/build/nobodywho-native/{arm64-v8a,x86_64}
 
-Gradle extracts the AAR once; CMake links against its UniFFI entry point and
-the same directory is packaged as `jniLibs`. React Native supplies
-`libc++_shared.so`, so the shared UniFFI AAR deliberately excludes it.
+# ARM64
+cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+  nobodywho/react-native/android/build/nobodywho-native/arm64-v8a/
+
+# x86_64
+cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.so \
+  nobodywho/react-native/android/build/nobodywho-native/x86_64/
+```
 
 For iOS:
 ```bash
@@ -184,8 +180,8 @@ cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
 
 ### Release builds (CI)
 
-In CI, native `.so` files are cross-compiled and packaged separately from the npm release. At install time:
-- **Android:** Gradle resolves the pinned multi-ABI AAR from Maven Central
+In CI, native `.so` files are cross-compiled and uploaded as GitHub Release assets. At install time:
+- **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version
 - **iOS:** `Nobodywho.podspec` downloads and extracts `NobodywhoFramework.xcframework.zip` from the same release
 
 This keeps the npm package small (code only, no binaries).
@@ -232,7 +228,7 @@ adb shell am start -n com.nobodywhotest/.MainActivity
 These files were initially generated but have been customized with project-specific logic:
 
 - **`Nobodywho.podspec`** — Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
-- **`android/build.gradle`** — Resolves and validates the shared native AAR, then exposes its UniFFI library to CMake
+- **`android/build.gradle`** — Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
 - **`android/CMakeLists.txt`** — Links shared lib with `IMPORTED_NO_SONAME` for correct runtime resolution
 - **`android/src/main/java/ooo/nobodywho/NobodywhoModule.kt`** — Loads `libnobodywho_uniffi.so` before the bridge lib
 - **`android/src/main/java/ooo/nobodywho/NobodywhoPackage.kt`** — Uses `BaseReactPackage` instead of deprecated `TurboReactPackage`
