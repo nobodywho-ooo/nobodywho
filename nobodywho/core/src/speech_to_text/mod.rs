@@ -59,9 +59,19 @@ impl SpeechToText {
         config: SpeechToTextConfig,
         device: Device,
     ) -> Result<Self, SpeechToTextError> {
-        let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SpeechToTextRequest>();
+        let (init_tx, init_rx) = mpsc::channel();
         std::thread::spawn(move || {
+            let mut architecture = match architecture::load_architecture(config, device) {
+                Ok(architecture) => {
+                    let _ = init_tx.send(Ok(()));
+                    architecture
+                }
+                Err(error) => {
+                    let _ = init_tx.send(Err(error));
+                    return;
+                }
+            };
             while let Ok((input, response)) = msg_rx.recv() {
                 match response {
                     SpeechToTextResponseChannel::Full(tx) => {
@@ -78,6 +88,9 @@ impl SpeechToText {
                 }
             }
         });
+        init_rx.recv().map_err(|_| {
+            SpeechToTextError::Init("speech-to-text worker stopped during initialization".into())
+        })??;
         Ok(Self { msg_tx })
     }
 

@@ -597,7 +597,7 @@ impl VoiceActivityDetection {
 /// `Mimir` is a focused ONNX prototype for DFM-Mimir and compatible HrmText models.
 ///
 /// The source must contain an Optimum-style merged causal-LM graph, tokenizer
-/// files, and `chat_template.jinja`. Generation is greedy and CPU/CUDA only.
+/// files, and `chat_template.jinja`. Generation is greedy and supports CPU, CUDA, and MPS.
 #[pyclass]
 pub struct Mimir {
     mimir: nobodywho::mimir::Mimir,
@@ -613,9 +613,9 @@ impl Mimir {
     ///     max_new_tokens: Maximum generated tokens per response.
     ///     system_prompt: Optional system message.
     ///     template_variables: Variables passed to the model chat template.
-    ///     device: "auto", "cpu", or "cuda".
+    ///     device: "auto", "cpu", "cuda", or "mps".
     #[new]
-    #[pyo3(signature = (source: "os.PathLike | str", model_file = "onnx/model_int8.onnx", max_new_tokens = 256, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "Mimir")]
+    #[pyo3(signature = (source: "os.PathLike | str", model_file = "onnx/model_int8.onnx", max_new_tokens = 256, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), device: "typing.Literal['auto', 'cpu', 'cuda', 'mps']" = "auto") -> "Mimir")]
     pub fn new(
         source: std::path::PathBuf,
         model_file: &str,
@@ -636,7 +636,7 @@ impl Mimir {
                 "max_new_tokens must be greater than zero",
             ));
         }
-        let device = parse_onnx_device(device)?;
+        let device = parse_onnx_device(device, py)?;
         let mut config = nobodywho::mimir::MimirConfig::new(source);
         config.model_file = model_file.to_string();
         config.max_new_tokens = max_new_tokens;
@@ -716,13 +716,31 @@ impl AsyncStreamInner {
 /// Iterate over it token-by-token or call `.completed()` for the full text at once.
 /// Also see `TokenStreamAsync` for the async variant.
 
-fn parse_onnx_device(device: &str) -> PyResult<nobodywho::onnx::Device> {
+fn register_mps_execution_provider(py: Python<'_>) {
+    let result = (|| -> PyResult<()> {
+        let module = py.import("onnxruntime_ep_mlx")?;
+        let library_path = module
+            .call_method0("library_path")?
+            .extract::<std::path::PathBuf>()?;
+        nobodywho::onnx::register_mps_execution_provider(&library_path)
+            .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))
+    })();
+    if let Err(error) = result {
+        tracing::warn!(%error, "Could not register the MLX execution provider; MPS will fall back to CPU");
+    }
+}
+
+fn parse_onnx_device(device: &str, py: Python<'_>) -> PyResult<nobodywho::onnx::Device> {
     match device.to_ascii_lowercase().as_str() {
         "auto" => Ok(nobodywho::onnx::Device::Auto),
         "cpu" => Ok(nobodywho::onnx::Device::Cpu),
         "cuda" => Ok(nobodywho::onnx::Device::Cuda),
+        "mps" => {
+            register_mps_execution_provider(py);
+            Ok(nobodywho::onnx::Device::Mps)
+        }
         _ => Err(pyo3::exceptions::PyValueError::new_err(
-            "device must be one of 'auto', 'cpu', or 'cuda'",
+            "device must be one of 'auto', 'cpu', 'cuda', or 'mps'",
         )),
     }
 }
@@ -845,9 +863,9 @@ impl TextToSpeech {
     ///     precision: Pocket TTS precision: "int8" or "fp32".
     ///     temperature: Pocket TTS generation temperature.
     ///     huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
-    ///     device: "auto", "cpu", or "cuda". Defaults to "auto".
+    ///     device: "auto", "cpu", "cuda", or "mps". Defaults to "auto".
     #[new]
-    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, precision = None, temperature = None, huggingface_token = None, device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto") -> "TextToSpeech")]
+    #[pyo3(signature = (source: "os.PathLike | str", architecture: "typing.Literal['kokoro', 'pocket-tts', 'supertonic'] | None" = None, voice = None, language = None, speed = None, steps = None, silence_duration = None, precision = None, temperature = None, huggingface_token = None, device: "typing.Literal['auto', 'cpu', 'cuda', 'mps']" = "auto") -> "TextToSpeech")]
     pub fn new(
         source: std::path::PathBuf,
         architecture: Option<&str>,
@@ -860,8 +878,9 @@ impl TextToSpeech {
         temperature: Option<f32>,
         huggingface_token: Option<String>,
         device: &str,
+        py: Python<'_>,
     ) -> PyResult<Self> {
-        let device = parse_onnx_device(device)?;
+        let device = parse_onnx_device(device, py)?;
         let config = build_text_to_speech_config(
             source,
             architecture,

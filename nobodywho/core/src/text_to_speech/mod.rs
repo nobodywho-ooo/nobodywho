@@ -147,9 +147,19 @@ impl TextToSpeech {
         config: TextToSpeechConfig,
         device: TextToSpeechDevice,
     ) -> Result<Self, TextToSpeechError> {
-        let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
+        let (init_tx, init_rx) = mpsc::channel();
         std::thread::spawn(move || {
+            let mut architecture = match architecture::load_architecture(config, device) {
+                Ok(architecture) => {
+                    let _ = init_tx.send(Ok(()));
+                    architecture
+                }
+                Err(error) => {
+                    let _ = init_tx.send(Err(error));
+                    return;
+                }
+            };
             while let Ok((text, response_tx)) = msg_rx.recv() {
                 let result = architecture.synthesize(&text);
                 if response_tx.blocking_send(result).is_err() {
@@ -157,6 +167,9 @@ impl TextToSpeech {
                 }
             }
         });
+        init_rx
+            .recv()
+            .map_err(|_| TextToSpeechError::WorkerDead)??;
         Ok(Self { msg_tx })
     }
 

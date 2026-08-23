@@ -739,7 +739,7 @@ class Mimir:
     `Mimir` is a focused ONNX prototype for DFM-Mimir and compatible HrmText models.
 
     The source must contain an Optimum-style merged causal-LM graph, tokenizer
-    files, and `chat_template.jinja`. Generation is greedy and CPU/CUDA only.
+    files, and `chat_template.jinja`. Generation is greedy and supports CPU, CUDA, and MPS.
     """
     def __new__(
         cls,
@@ -749,7 +749,7 @@ class Mimir:
         max_new_tokens: int = 256,
         system_prompt: str | None = None,
         template_variables: "dict[str, bool]" = ...,
-        device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
+        device: "typing.Literal['auto', 'cpu', 'cuda', 'mps']" = "auto",
     ) -> "Mimir":
         """
         Load an exported Mimir ONNX model.
@@ -760,7 +760,7 @@ class Mimir:
             max_new_tokens: Maximum generated tokens per response.
             system_prompt: Optional system message.
             template_variables: Variables passed to the model chat template.
-            device: "auto", "cpu", or "cuda".
+            device: "auto", "cpu", "cuda", or "mps".
         """
     def ask(self, /, prompt: "str") -> "TokenStream":
         """
@@ -1305,7 +1305,7 @@ class TextToSpeech:
         precision: str | None = None,
         temperature: float | None = None,
         huggingface_token: str | None = None,
-        device: "typing.Literal['auto', 'cpu', 'cuda']" = "auto",
+        device: "typing.Literal['auto', 'cpu', 'cuda', 'mps']" = "auto",
     ) -> "TextToSpeech":
         """
         Create a TextToSpeech synthesizer.
@@ -1322,7 +1322,7 @@ class TextToSpeech:
             precision: Pocket TTS precision: "int8" or "fp32".
             temperature: Pocket TTS generation temperature.
             huggingface_token: Pocket TTS voice-state access token. Uses `HF_TOKEN` when omitted.
-            device: "auto", "cpu", or "cuda". Defaults to "auto".
+            device: "auto", "cpu", "cuda", or "mps". Defaults to "auto".
         """
     def synthesize(self, /, text: str) -> bytes:
         """

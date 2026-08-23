@@ -15,7 +15,7 @@ inputs:
   ort_version:
     description: "ONNX Runtime release tag to build"
     required: false
-    default: "v1.24.2"
+    default: "v1.28.0"
 
 outputs:
   lib_path:
@@ -33,9 +33,6 @@ runs:
         # sysroot, deploy target, and (sometimes) cmake patches.
         case "${{ inputs.target }}" in
           x86_64-apple-darwin)
-            # ORT 1.24.2 AVX2 MLAS kernel has a dead-code OOB array access caught
-            # by clang -Warray-bounds — the existing #pragma suppression doesn't
-            # activate because the header forgot to #include onnxruntime_config.h.
             # CMAKE_DISABLE_FIND_PACKAGE_Protobuf forces ORT to use its bundled
             # protobuf (matches the prebuilt protoc); a newer system protobuf
             # would mismatch the generated .pb.cc files.

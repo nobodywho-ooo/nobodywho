@@ -75,26 +75,18 @@ libc = "0.2"
 llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", rev = "b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc", default-features = false, features = [
     "android-static-stdcxx",
 ] }
-ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "half", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "half", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-27"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 dirs = "6"
-ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "half", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "half", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-27"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }
 
-# ort is pinned exactly: `2.0.0-rc.12` would also accept rc.13, which breaks us
-# in two ways. (1) rc.13 puts `ort::ep::CUDA` behind the `cuda` feature, which we
-# only enable on linux/windows, so every Apple/Android build fails to compile
-# `core/src/onnx.rs`. (2) rc.13 made prebuilt-dist feature matching strict, and
-# pyke ships no CUDA-capable dist for aarch64-linux — instead of falling back
-# like rc.12 did, ort-sys emits a deliberately unresolvable symbol, so aarch64
-# Linux cdylibs link fine but fail to load at runtime.
-# Unpin once we've migrated (cfg-gate the CUDA import, and either narrow `cuda`
-# to x86_64 or enable ort's `lax-feature-matching`).
-[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
-ort = { version = "=2.0.0-rc.12", default-features = false, features = ["cuda"] }
+# pyke does not ship CUDA-capable ONNX Runtime binaries for aarch64 Linux.
+[target.'cfg(all(any(target_os = "linux", target_os = "windows"), any(target_arch = "x86", target_arch = "x86_64")))'.dependencies]
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["cuda"] }
 
 [dependencies.espeak-ng]
 version = "0.1.2"

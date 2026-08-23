@@ -65,9 +65,19 @@ impl Mimir {
     }
 
     pub fn with_device(config: MimirConfig, device: Device) -> Result<Self, MimirError> {
-        let mut backend = MimirBackend::new(config, device)?;
         let (request_tx, request_rx) = mpsc::channel();
+        let (init_tx, init_rx) = mpsc::channel();
         std::thread::spawn(move || {
+            let mut backend = match MimirBackend::new(config, device) {
+                Ok(backend) => {
+                    let _ = init_tx.send(Ok(()));
+                    backend
+                }
+                Err(error) => {
+                    let _ = init_tx.send(Err(error));
+                    return;
+                }
+            };
             while let Ok(request) = request_rx.recv() {
                 match request {
                     Request::Ask { prompt, output } => {
@@ -89,6 +99,7 @@ impl Mimir {
                 }
             }
         });
+        init_rx.recv().map_err(|_| MimirError::WorkerDead)??;
         Ok(Self { request_tx })
     }
 
@@ -579,5 +590,15 @@ mod tests {
     fn rejects_parent_model_path() {
         assert!(validate_model_file("../model.onnx").is_err());
         assert!(validate_model_file("onnx/model.onnx").is_ok());
+    }
+
+    #[test]
+    fn returns_worker_initialization_errors() {
+        let mut config = MimirConfig::new("missing");
+        config.max_new_tokens = 0;
+        assert!(matches!(
+            Mimir::with_device(config, Device::Cpu),
+            Err(MimirError::Init(_))
+        ));
     }
 }
