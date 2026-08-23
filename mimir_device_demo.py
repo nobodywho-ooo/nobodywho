@@ -13,6 +13,7 @@
 """Compare NobodyWho Mimir inference on CPU and Apple MPS."""
 
 import argparse
+import time
 
 import nobodywho
 
@@ -22,14 +23,19 @@ PROMPT = "What's the capital of Le Marche region?"
 
 def run_inference(device: str) -> None:
     print(f"\n{device.upper()}:")
+    started_at = time.perf_counter()
     mimir = nobodywho.Mimir(
         source=MODEL_SOURCE,
         max_new_tokens=64,
         device=device,
     )
+    loaded_at = time.perf_counter()
+    print(f"Model loaded in {loaded_at - started_at:.2f}s")
     for piece in mimir.ask(prompt=PROMPT):
         print(piece, end="", flush=True)
-    print()
+    completed_at = time.perf_counter()
+    print(f"\nGenerated in {completed_at - loaded_at:.2f}s")
+    print(f"Total time: {completed_at - started_at:.2f}s")
 
 
 def main() -> None:

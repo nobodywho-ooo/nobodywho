@@ -1,0 +1,12 @@
+
+CPU:
+Model loaded in 0.54s
+The capital of the Le Marche region is Le Marche.
+Generated in 12.25s
+Total time: 12.79s
+
+MPS:
+Model loaded in 1.51s
+The capital of the Le Marche region is Le Marche.
+Generated in 1.35s
+Total time: 2.86s
