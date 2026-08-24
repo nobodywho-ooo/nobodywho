@@ -65,7 +65,10 @@ fn load_best_backend() {
             let path = dir.join(filename);
             let path_c = std::ffi::CString::new(path.to_str().expect("backend path is not UTF-8"))
                 .expect("backend path contains a null byte");
-            score_backend(&path_c).map(|score| (path, path_c, score))
+            score_backend(&path_c).map(|score| {
+                info!(backend = %path.display(), score, "scored GGML CPU backend");
+                (path, path_c, score)
+            })
         })
         .max_by_key(|(_, _, score)| *score)
         .expect("none of the packaged GGML CPU backends could be opened");
