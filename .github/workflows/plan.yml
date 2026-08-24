@@ -32,6 +32,10 @@ on:
         value: ${{ jobs.plan.outputs.run_kotlin }}
       run_react_native:
         value: ${{ jobs.plan.outputs.run_react_native }}
+      run_apple_extended:
+        # visionOS/watchOS uniffi builds (nightly rust, ORT from source).
+        # Expensive, so full runs only — or on demand via /apple-extended-ci.
+        value: ${{ jobs.plan.outputs.run_apple_extended }}
       run_docs:
         value: ${{ jobs.plan.outputs.run_docs }}
       run_regen:
@@ -48,18 +52,19 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      run_rust_core:     ${{ steps.decide.outputs.run_rust_core }}
-      run_python:        ${{ steps.decide.outputs.run_python }}
-      run_python_models: ${{ steps.decide.outputs.run_python_models }}
-      run_godot:         ${{ steps.decide.outputs.run_godot }}
-      run_flutter:       ${{ steps.decide.outputs.run_flutter }}
-      run_swift:         ${{ steps.decide.outputs.run_swift }}
-      run_kotlin:        ${{ steps.decide.outputs.run_kotlin }}
-      run_react_native:  ${{ steps.decide.outputs.run_react_native }}
-      run_docs:          ${{ steps.decide.outputs.run_docs }}
-      run_regen:         ${{ steps.decide.outputs.run_regen }}
-      run_release:       ${{ steps.decide.outputs.run_release }}
-      is_full:           ${{ steps.decide.outputs.is_full }}
+      run_rust_core:      ${{ steps.decide.outputs.run_rust_core }}
+      run_python:         ${{ steps.decide.outputs.run_python }}
+      run_python_models:  ${{ steps.decide.outputs.run_python_models }}
+      run_godot:          ${{ steps.decide.outputs.run_godot }}
+      run_flutter:        ${{ steps.decide.outputs.run_flutter }}
+      run_swift:          ${{ steps.decide.outputs.run_swift }}
+      run_kotlin:         ${{ steps.decide.outputs.run_kotlin }}
+      run_react_native:   ${{ steps.decide.outputs.run_react_native }}
+      run_apple_extended: ${{ steps.decide.outputs.run_apple_extended }}
+      run_docs:           ${{ steps.decide.outputs.run_docs }}
+      run_regen:          ${{ steps.decide.outputs.run_regen }}
+      run_release:        ${{ steps.decide.outputs.run_release }}
+      is_full:            ${{ steps.decide.outputs.is_full }}
     steps:
       # fetch-depth: 0 is required so the `git diff` below can reach an
       # arbitrary base SHA (github.event.before for a synchronize push). With
@@ -255,6 +260,11 @@ jobs:
           # regen-checks: only when the generated-binding surface changed (or full run).
           run_regen=$(any "$everything" "$p_regen")
 
+          # apple_extended: visionOS/watchOS tier-3 targets (nightly rust +
+          # -Z build-std, ORT from source). Never path-triggered — too slow to
+          # run on every core/uniffi change. Full runs, or /apple-extended-ci.
+          run_apple_extended="$everything"
+
           # workflow_dispatch with an explicit bucket list (a /<bucket>-ci PR
           # comment): force exactly those buckets on. Paths are empty on a
           # dispatch, so this is the sole selector.
@@ -269,6 +279,8 @@ jobs:
             has_bucket kotlin        && run_kotlin=true        || true
             has_bucket react_native  && run_react_native=true  || true
             has_bucket regen         && run_regen=true         || true
+            # Stands alone: builds only the 4 tier-3 slices, no swift matrix.
+            has_bucket apple_extended && run_apple_extended=true || true
           fi
 
           # docs: on a full run or a docs/** change. The docs job is ref-gated
@@ -289,6 +301,7 @@ jobs:
             echo "run_swift=$run_swift"
             echo "run_kotlin=$run_kotlin"
             echo "run_react_native=$run_react_native"
+            echo "run_apple_extended=$run_apple_extended"
             echo "run_docs=$run_docs"
             echo "run_regen=$run_regen"
             echo "run_release=$run_release"
@@ -311,6 +324,8 @@ jobs:
             echo "| swift | $run_swift |"
             echo "| kotlin | $run_kotlin |"
             echo "| react_native | $run_react_native |"
+            echo "| apple_extended | $run_apple_extended |"
+            echo "| regen | $run_regen |"
             echo "| docs | $run_docs |"
             echo "| release | $run_release |"
           } >> "$GITHUB_STEP_SUMMARY"

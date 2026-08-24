@@ -6,7 +6,7 @@ on:
 
 env:
   AI_REVIEW_PROVIDER: opencode-go
-  AI_REVIEW_MODEL: deepseek-v4-pro
+  AI_REVIEW_MODEL: glm-5.3
   AI_REVIEW_THINKING: high
 
 jobs:

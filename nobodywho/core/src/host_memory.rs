@@ -6,6 +6,23 @@ pub(crate) struct HostMemory {
     pub total_bytes: u64,
 }
 
+#[cfg(any(test, target_os = "linux", target_os = "android"))]
+fn read_cgroup_limit(
+    path: &std::path::Path,
+    missing_is_unlimited: bool,
+) -> Result<Option<String>, MemoryDetectionError> {
+    match std::fs::read_to_string(path) {
+        Ok(content) => Ok(Some(content)),
+        Err(source) if missing_is_unlimited && source.kind() == std::io::ErrorKind::NotFound => {
+            Ok(None)
+        }
+        Err(source) => Err(MemoryDetectionError::ReadFile {
+            path: path.to_path_buf(),
+            source,
+        }),
+    }
+}
+
 pub(crate) fn available() -> Result<HostMemory, MemoryDetectionError> {
     let memory = platform_memory()?;
     if memory.available_bytes == 0 || memory.total_bytes == 0 {
@@ -189,7 +206,13 @@ fn platform_memory() -> Result<HostMemory, MemoryDetectionError> {
         loop {
             let limit_path = directory.join(limit_name);
             let usage_path = directory.join(usage_name);
-            let limit_content = read(&limit_path)?;
+            let Some(limit_content) = read_cgroup_limit(
+                &limit_path,
+                matches!(membership.version, CgroupVersion::V2) && directory == mount.mount_point,
+            )?
+            else {
+                break;
+            };
             if unlimited != Some(limit_content.trim()) {
                 let limit = parse_bytes(&limit_path, &limit_content)?;
                 let usage = parse_bytes(&usage_path, &read(&usage_path)?)?;
@@ -336,5 +359,17 @@ mod tests {
         let memory = available().unwrap();
         assert!(memory.available_bytes > 0);
         assert!(memory.total_bytes >= memory.available_bytes);
+    }
+
+    #[test]
+    fn missing_cgroup_v2_root_limit_is_unlimited() {
+        let directory = tempfile::tempdir().unwrap();
+        let limit = directory.path().join("memory.max");
+
+        assert!(read_cgroup_limit(&limit, true).unwrap().is_none());
+        assert!(matches!(
+            read_cgroup_limit(&limit, false),
+            Err(MemoryDetectionError::ReadFile { .. })
+        ));
     }
 }

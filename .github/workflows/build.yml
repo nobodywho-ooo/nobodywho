@@ -50,10 +50,12 @@ jobs:
           declare -A uni=()
           if [[ "${{ inputs.run_swift }}" == "true" ]]; then
             for t in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim; do uni["$t"]=1; done
-            if [[ "${{ inputs.apple_extended }}" == "true" ]]; then
-              for t in aarch64-apple-visionos aarch64-apple-visionos-sim \
-                       aarch64-apple-watchos aarch64-apple-watchos-sim; do uni["$t"]=1; done
-            fi
+          fi
+          # Independent of run_swift so /apple-extended-ci can compile-check the
+          # tier-3 targets alone, without the rest of the swift matrix.
+          if [[ "${{ inputs.apple_extended }}" == "true" ]]; then
+            for t in aarch64-apple-visionos aarch64-apple-visionos-sim \
+                     aarch64-apple-watchos aarch64-apple-watchos-sim; do uni["$t"]=1; done
           fi
           if [[ "${{ inputs.run_react_native }}" == "true" ]]; then
             uni["aarch64-apple-ios"]=1; uni["aarch64-apple-ios-sim"]=1
@@ -242,7 +244,7 @@ jobs:
     needs: matrix-gen
     # No run_kotlin: kotlin's CI tests use the Linux uniffi lib and it downloads
     # no macOS artifact; its release dylib comes from swift's build on full runs.
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native || inputs.apple_extended
     runs-on: warp-macos-15-arm64-6x
     strategy:
       fail-fast: false
@@ -607,6 +609,12 @@ jobs:
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          # ort-sys hardcodes `-lc++_shared` on Android, which undoes the
+          # static C++ runtime that llama-cpp-rs's `android-static-stdcxx`
+          # already gives us. Linking it statically too leaves the .so needing
+          # only liblog/libdl/libm/libc, so no companion libc++_shared.so has to
+          # be shipped and consumers need no NDK to build against us.
+          ORT_CXX_STDLIB: "c++_static"
           # aarch64 (arm64-v8a)
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"

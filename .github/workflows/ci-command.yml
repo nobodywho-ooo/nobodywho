@@ -55,6 +55,7 @@ jobs:
               'swift-ci': 'swift',
               'kotlin-ci': 'kotlin',
               'react-native-ci': 'react_native',
+              'apple-extended-ci': 'apple_extended',
               'regen-ci': 'regen',
             };
             const tokens = [...body.matchAll(/\/([a-z-]+-ci)/g)].map((m) => m[1]);
