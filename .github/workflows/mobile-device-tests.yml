@@ -159,14 +159,14 @@ jobs:
           add-to-path: false
 
       # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
-      # a device run needs just the arm64-v8a .so.
+      # a device run needs just the arm64-v8a native runtime.
       - name: "Build uniffi .so (aarch64-linux-android)"
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
-          # Keep in sync with build.yml: links the C++ runtime statically so the
-          # .so carries no libc++_shared.so dependency.
+          # Keep in sync with build.yml. The dynamic CPU backends use the
+          # libc++_shared.so emitted into nobodywho-runtime.
           ORT_CXX_STDLIB: "c++_static"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
@@ -174,12 +174,16 @@ jobs:
           CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
           AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
-      # Exactly where release.yml puts it, so the test app consumes the library
-      # the same way a real consumer consumes the published AAR.
-      - name: "Place .so into :android jniLibs"
+      - name: "Stage arm64 UniFFI runtime"
         run: |
-          mkdir -p nobodywho/kotlin/android/build/jniLibs/arm64-v8a
+          set -euo pipefail
+          JNI=nobodywho/android/build/uniffi/jniLibs/arm64-v8a
+          mkdir -p "$JNI" nobodywho/kotlin/android/build/jniLibs/arm64-v8a
           cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+            "$JNI/"
+          cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
+            "$JNI/"
+          mv "$JNI/libc++_shared.so" \
             nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
 
       - name: "Setup JDK"
@@ -192,6 +196,16 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      # Build the same AAR shape that Maven Central serves. The local override
+      # keeps the source binding from resolving the last released native AAR.
+      - name: "Build source UniFFI AAR"
+        run: |
+          set -euo pipefail
+          ./nobodywho/kotlin/gradlew -p nobodywho/android \
+            uniffiAar -Pversion=0.0.0-device -PnobodywhoAbis=arm64-v8a
+          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-device.aar" \
+            >> "$GITHUB_ENV"
 
       - name: "Cache Gradle"
         uses: WarpBuilds/cache@v1
@@ -345,9 +359,6 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
-      # Without this the plugin's resolve_binary.dart silently downloads the
-      # last *released* .so, so the job would test a stale binary instead of the
-      # branch — checkLocalBuild() prefers target/<triple>/release.
       - name: "Build flutter .so (aarch64-linux-android)"
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-flutter --target aarch64-linux-android --release --locked
@@ -370,6 +381,22 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
+
+      # Feed the source plugin the same multi-library AAR shape that its Maven
+      # dependency supplies to real consumers.
+      - name: "Build source Flutter AAR"
+        run: |
+          set -euo pipefail
+          JNI=nobodywho/android/build/flutter/jniLibs/arm64-v8a
+          mkdir -p "$JNI"
+          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_flutter.so \
+            "$JNI/"
+          cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
+            "$JNI/"
+          ./nobodywho/kotlin/gradlew -p nobodywho/android \
+            flutterAar -Pversion=0.0.0-device -PnobodywhoAbis=arm64-v8a
+          echo "NOBODYWHO_FLUTTER_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-0.0.0-device.aar" \
+            >> "$GITHUB_ENV"
 
       # pub's standard local-override mechanism — the committed pubspec keeps
       # depending on the published package, as a consumer's would.
@@ -532,6 +559,23 @@ jobs:
         with:
           packages: "platform-tools platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358"
 
+      # React Native supplies libc++_shared.so itself; the source UniFFI AAR
+      # contains the entry point, common llama libraries, and CPU backends.
+      - name: "Build source UniFFI AAR"
+        run: |
+          set -euo pipefail
+          JNI=nobodywho/android/build/uniffi/jniLibs/arm64-v8a
+          mkdir -p "$JNI"
+          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
+            "$JNI/"
+          cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
+            "$JNI/"
+          rm "$JNI/libc++_shared.so"
+          ./nobodywho/kotlin/gradlew -p nobodywho/android \
+            uniffiAar -Pversion=0.0.0-device -PnobodywhoAbis=arm64-v8a
+          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-device.aar" \
+            >> "$GITHUB_ENV"
+
       - name: "Cache Gradle"
         uses: WarpBuilds/cache@v1
         with:
@@ -542,9 +586,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-rn-
 
-      # Point the app at the in-repo binding, and stage the .so we just built
-      # where the binding's resolver looks — otherwise it downloads the last
-      # released one and the job would test a stale binary.
+      # Point the app at the in-repo binding. NOBODYWHO_UNIFFI_ANDROID_AAR from
+      # the source-AAR step keeps its native dependency on this branch too.
       # Building the binding from source compiles its C++, which resolves
       # headers from its own dependency (uniffi-bindgen-react-native) relative
       # to the binding directory — so the binding needs its node_modules too.
@@ -560,10 +603,6 @@ jobs:
           set -euo pipefail
           # Installs the dependency tree and links the in-repo binding in one go.
           npm install ../../react-native
-          VERSION=$(node -p "require('../../react-native/package.json').version")
-          DEST=../../react-native/android/build/nobodywho-native/$VERSION/arm64-v8a
-          mkdir -p "$DEST"
-          cp ../../target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
 
       - name: "Build app + androidTest APKs"
         working-directory: ./nobodywho/testing-apps/react-native/android
