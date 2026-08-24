@@ -1,0 +1,114 @@
+Tagging on: d35e159f50c086921b66d30be8f1b01e111e79b1 (fix: replace chunks_exact with as_chunks in kokoro (#690))
+
+=== nobodywho-python-v2.0.0 ===
+Deleted tag 'nobodywho-python-v2.0.0' (was 0e50c5fe)
+✅ fmt
+✅ clippy
+✅ regen-python
+✅ regen-flutter
+✅ ruff
+✅ regen-uniffi
+✅ flutter-analyze
+✅ godot-build
+
+✅ all checks passed in 209s
+✅ fmt
+✅ clippy
+✅ regen-python
+✅ regen-flutter
+✅ ruff
+✅ regen-uniffi
+✅ flutter-analyze
+✅ godot-build
+
+✅ all checks passed in 11s
+To github.com:nobodywho-ooo/nobodywho.git
+ * [new tag]           nobodywho-python-v2.0.0 -> nobodywho-python-v2.0.0
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:30)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:31)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:31)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:32)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:32)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:33)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:33)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:34)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:34)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:35)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:35)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:36)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:36)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:37)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:37)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:38)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:38)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:39)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:39)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:40)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:41)
+  [nobodywho-python-v2.0.0] run 32648701614: queued (17:41)
+  [nobodywho-python-v2.0.0] run 32648701614: in_progress (17:42)
+  [nobodywho-python-v2.0.0] in progress — safe to dispatch the next tag
+
+=== nobodywho-flutter-v3.0.0 ===
+Deleted tag 'nobodywho-flutter-v3.0.0' (was 0e50c5fe)
+✅ fmt
+✅ clippy
+✅ regen-python
+✅ regen-flutter
+✅ ruff
+✅ regen-uniffi
+✅ flutter-analyze
+✅ godot-build
+
+✅ all checks passed in 12s
+✅ fmt
+✅ clippy
+✅ regen-python
+✅ regen-flutter
+✅ ruff
+✅ regen-uniffi
+✅ flutter-analyze
+✅ godot-build
+
+✅ all checks passed in 10s
+To github.com:nobodywho-ooo/nobodywho.git
+ * [new tag]           nobodywho-flutter-v3.0.0 -> nobodywho-flutter-v3.0.0
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:45)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:45)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:46)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:46)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:47)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:47)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:48)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:48)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:49)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:49)
+  [nobodywho-flutter-v3.0.0] run 32649397085: pending (17:50)
+  [nobodywho-flutter-v3.0.0] run 32649397085: in_progress (18:06)
+  [nobodywho-flutter-v3.0.0] in progress — safe to dispatch the next tag
+
+=== nobodywho-kotlin-v3.0.0 ===
+Deleted tag 'nobodywho-kotlin-v3.0.0' (was 0e50c5fe)
+✅ fmt
+✅ clippy
+✅ regen-python
+✅ regen-flutter
+✅ ruff
+✅ regen-uniffi
+✅ flutter-analyze
+✅ godot-build
+
+✅ all checks passed in 30s
+✅ fmt
+✅ clippy
+✅ regen-python
+✅ regen-flutter
+✅ ruff
+✅ regen-uniffi
+✅ flutter-analyze
+✅ godot-build
+
+✅ all checks passed in 27s
+To github.com:nobodywho-ooo/nobodywho.git
+ * [new tag]           nobodywho-kotlin-v3.0.0 -> nobodywho-kotlin-v3.0.0
+Get "https://api.github.com/repos/nobodywho-ooo/nobodywho/actions/runs?per_page=10": net/http: TLS handshake timeout

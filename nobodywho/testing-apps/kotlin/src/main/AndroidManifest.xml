@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The device test downloads its model from HuggingFace on first run. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- No activity on purpose: DeviceInferenceTest drives the library directly
+         and never launches UI, so this app exists only as the instrumentation
+         target that the androidTest APK is installed against. -->
+    <application android:label="NobodyWho Test" />
+</manifest>
