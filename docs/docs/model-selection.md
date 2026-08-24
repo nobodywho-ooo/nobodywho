@@ -8,8 +8,9 @@ Choosing the right language model can make or break your project. In general you
 
 ## TL;DR
 
-If you don't want to choose a chat model, pass `auto` as the model path to select one based on available memory.
+You can pick a model based on your needs on our [model selection page](https://www.nobodywho.ai/models/). 
 
+If you don't want to choose a chat model, pass `auto` as the model path to select one based on available memory.
 If you just want a ~2GB chat model that works well, use:
 
 ```
@@ -39,7 +40,7 @@ You can also pass a full `https://` URL to download a model from any host.
 
 Of course, you can still pass a local file path if you prefer to manage model files yourself.
 
-We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho or to have a look to our [selection page](https://www.nobodywho.ai/models/).
+We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho.
 
 Once you're more familiar, you can also try models from [Unsloth](https://huggingface.co/unsloth/models).
 

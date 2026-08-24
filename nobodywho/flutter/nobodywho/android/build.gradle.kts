@@ -19,13 +19,23 @@ group = "ooo.nobodywho.nobodywho"
 version = "1.0"
 
 // Supported ABIs (32-bit not supported due to llama.cpp build issues)
-val targetAbis = listOf("arm64-v8a", "x86_64")
+val supportedAbis = listOf("arm64-v8a", "x86_64")
 
-// Map Android ABI to NDK triple (for finding libc++_shared.so)
-val abiToNdkTriple = mapOf(
-    "arm64-v8a" to "aarch64-linux-android",
-    "x86_64" to "x86_64-linux-android"
+// `flutter build apk --target-platform android-arm64` passes
+// -Ptarget-platform=android-arm64 (comma-separated for multiple) on every
+// Gradle invocation it drives — restrict to just the ABIs actually requested
+// instead of always resolving all of them, e.g. so a CI job building only
+// arm64-v8a locally never falls through to downloading x86_64.
+private val flutterPlatformToAbi = mapOf(
+    "android-arm64" to "arm64-v8a",
+    "android-x64" to "x86_64",
 )
+val targetAbis = (findProperty("target-platform") as String?)
+    ?.split(",")
+    ?.mapNotNull { flutterPlatformToAbi[it.trim()] }
+    ?.filter { it in supportedAbis }
+    ?.takeIf { it.isNotEmpty() }
+    ?: supportedAbis
 
 android {
     namespace = "ooo.nobodywho.nobodywho"
@@ -111,32 +121,6 @@ val resolveNativeLibraries by tasks.registering {
             return stdout.toString().trim()
         }
 
-        // libnobodywho_flutter.so dynamically needs libc++_shared.so at runtime
-        // (android-static-stdcxx doesn't fully embed it - confirmed via `objdump -p`).
-        fun copyLibcxxShared(abi: String, abiOutputDir: File) {
-            val ndkDir = android.ndkDirectory
-            val ndkTriple = abiToNdkTriple[abi]
-                ?: throw GradleException("Unknown ABI: $abi")
-
-            // Find the prebuilt directory (works on any host platform)
-            val prebuiltDir = file("${ndkDir}/toolchains/llvm/prebuilt")
-                .listFiles()
-                ?.firstOrNull { it.isDirectory }
-                ?: throw GradleException("Could not find NDK prebuilt directory")
-
-            val libcxxShared = file("${prebuiltDir}/sysroot/usr/lib/${ndkTriple}/libc++_shared.so")
-
-            if (libcxxShared.exists()) {
-                logger.lifecycle("[$abi] Copying libc++_shared.so")
-                copy {
-                    from(libcxxShared)
-                    into(abiOutputDir)
-                }
-            } else {
-                throw GradleException("libc++_shared.so not found at: ${libcxxShared.absolutePath}")
-            }
-        }
-
         targetAbis.forEach { abi ->
             val abiOutputDir = jniLibsDir.get().dir(abi).asFile
             abiOutputDir.mkdirs()
@@ -149,8 +133,6 @@ val resolveNativeLibraries by tasks.registering {
                 into(abiOutputDir)
                 rename { "libnobodywho_flutter.so" }
             }
-
-            copyLibcxxShared(abi, abiOutputDir)
 
             // Only x86_64 needs onnxruntime as a separate .so (Microsoft ships
             // no static build for it); arm64 statically embeds it (see objdump -p).

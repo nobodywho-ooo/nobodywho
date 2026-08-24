@@ -456,12 +456,17 @@ impl<'a> InferenceEngine<'a> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
+    /// Remove everything in the KV cache from `index` onward.
+    ///
+    /// Returns `(effective_prefix, trimmed)` where:
+    /// - `effective_prefix` is the number of tokens still valid in the KV cache
+    /// - `trimmed` is how many positions were evicted.
     pub(crate) fn remove_all_tokens_from_index_from_ctx(
         &mut self,
         index: usize,
-    ) -> Result<i32, KvCacheConversionError> {
+    ) -> Result<(usize, i32), KvCacheConversionError> {
         if self.n_past <= index as i32 {
-            return Ok(0);
+            return Ok((index, 0));
         }
 
         let before = self.n_past;
@@ -471,22 +476,28 @@ impl<'a> InferenceEngine<'a> {
 
         if seq_rm_success {
             self.n_past = index as i32;
+
+            Ok((index, before - self.n_past))
         } else if self.try_restore_checkpoint(index as i32) {
             trace!(
                 index,
                 n_past = self.n_past,
                 "Partial KV cache removal not supported; recovered via checkpoint"
             );
+
+            Ok((index, before - self.n_past))
         } else {
+            // Partial sequence removal is not supported by this model's memory type
+            // (e.g. hybrid models with recurrent components). Fall back to full reset,
+            // which leaves the cache empty — so the effective prefix is 0.
             warn!(
                 index,
                 n_past = self.n_past,
                 "Partial KV cache removal not supported and no usable checkpoint; falling back to full context reset"
             );
             self.reset_context();
+            Ok((0, before))
         }
-
-        Ok(before - self.n_past)
     }
 
     /// Diff `target` chunks against `prev` and load only the new tail into the KV cache.
@@ -501,9 +512,10 @@ impl<'a> InferenceEngine<'a> {
 
         debug_assert!(!target.is_empty());
 
-        let trimmed = self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
+        let (effective_prefix, trimmed) =
+            self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
 
-        let chunks_to_read = target.tail(self.n_past as usize);
+        let chunks_to_read = target.tail(effective_prefix);
         if chunks_to_read.n_tokens() > 0 {
             self.read_chunks(chunks_to_read, inference_lock_token)?;
         } else if trimmed > 0 {

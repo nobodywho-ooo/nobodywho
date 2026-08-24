@@ -2640,8 +2640,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.153"
-source = "git+https://github.com/utilityai/llama-cpp-rs?rev=b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc#b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc"
+version = "0.1.154"
+source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#bed81ad4ab1a6c904b11d425608e50f976d8ea62"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2655,8 +2655,8 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.153"
-source = "git+https://github.com/utilityai/llama-cpp-rs?rev=b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc#b48ce80b4f2c6c0f76227be27f8cba8624f4c0dc"
+version = "0.1.154"
+source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#bed81ad4ab1a6c904b11d425608e50f976d8ea62"
 dependencies = [
  "bindgen",
  "cc",
@@ -3071,7 +3071,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-flutter"
-version = "2.5.0"
+version = "3.0.0"
 dependencies = [
  "flutter_rust_bridge",
  "flutter_rust_bridge_codegen",
@@ -3086,7 +3086,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-godot"
-version = "9.6.0"
+version = "10.0.0"
 dependencies = [
  "futures",
  "godot",
@@ -3099,7 +3099,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-python"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "futures",
  "log",
@@ -3119,7 +3119,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-uniffi"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "android_logger 0.14.1",
  "log",
@@ -3376,9 +3376,9 @@ dependencies = [
 
 [[package]]
 name = "ort"
-version = "2.0.0-rc.13"
+version = "2.0.0-rc.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4336a1e2b38848325241c72889086886004e589b7c74f335e60a8e8db5138a0b"
+checksum = "d7de3af33d24a745ffb8fab904b13478438d1cd52868e6f17735ef6e1f8bf133"
 dependencies = [
  "ndarray 0.17.2",
  "ort-sys",
@@ -3389,9 +3389,9 @@ dependencies = [
 
 [[package]]
 name = "ort-sys"
-version = "2.0.0-rc.13"
+version = "2.0.0-rc.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf211e3776eea6aec988552fa118dd746d70e1b1e5e244058d1c98015f3e5872"
+checksum = "d7b497d21a8b6fbb4b5a544f8fadb77e801a09ae0add9e411d31c6f89e3c1e90"
 dependencies = [
  "hmac-sha256",
  "lzma-rust2",

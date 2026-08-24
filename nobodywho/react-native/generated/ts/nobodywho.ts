@@ -1562,6 +1562,10 @@ const FfiConverterTypeVoiceActivityDetectionEvent = (() => {
 
 
 
+// FfiConverter for Map</*i32*/number, /*f32*/number>
+const FfiConverterMapInt32Float32 = new FfiConverterMap(FfiConverterInt32, FfiConverterFloat32);
+
+
 // FfiConverter for Map<string, boolean>
 const FfiConverterMapStringBool = new FfiConverterMap(FfiConverterString, FfiConverterBool);
 
@@ -3868,6 +3872,16 @@ export interface SamplerBuilderInterface {
      */
     dry(multiplier: /*f32*/number, base: /*f32*/number, allowedLength: /*i32*/number, penaltyLastN: /*i32*/number, seqBreakers: Array<string>) : SamplerBuilderInterface;
     /**
+     * Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+     * <https://arxiv.org/abs/2309.02772>.
+     *
+     * Args:
+     * temperature: Temperature value (lower = more focused, higher = more random)
+     * delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+     * exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+     */
+    dynamicTemperature(temperature: /*f32*/number, delta: /*f32*/number, exponent: /*f32*/number) : SamplerBuilderInterface;
+    /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
     grammar(grammar: string, triggerOn: string | undefined, root: string) : SamplerBuilderInterface;
@@ -3875,6 +3889,16 @@ export interface SamplerBuilderInterface {
      * Always select the most probable token (deterministic).
      */
     greedy() : SamplerConfigInterface;
+    /**
+     * Modify the likelihood of specific tokens.
+     *
+     * Args:
+     * biases: Mapping from token ID to its bias.
+     * The bias modifies the likelihood of the token being selected
+     * (`>0.0` means higher probability of the token being selected).
+     * Use `-Infinity` to ban a token.
+     */
+    logitBias(biases: Map</*i32*/number, /*f32*/number>) : SamplerBuilderInterface;
     /**
      * Keep tokens with probability above min_p * (probability of most likely token).
      */
@@ -3904,6 +3928,14 @@ export interface SamplerBuilderInterface {
      * Keep only the top K most probable tokens.
      */
     topK(topK: /*i32*/number) : SamplerBuilderInterface;
+    /**
+     * Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+     * <https://arxiv.org/pdf/2411.07641>
+     *
+     * Args:
+     * n: Number of standard deviations from the mean to include in sampling.
+     */
+    topNSigma(n: /*f32*/number) : SamplerBuilderInterface;
     /**
      * Keep tokens whose cumulative probability is below top_p.
      */
@@ -3976,6 +4008,28 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     }
     
     /**
+     * Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+     * <https://arxiv.org/abs/2309.02772>.
+     *
+     * Args:
+     * temperature: Temperature value (lower = more focused, higher = more random)
+     * delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+     * exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+     */
+ dynamicTemperature(temperature: /*f32*/number, delta: /*f32*/number, exponent: /*f32*/number): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterFloat32.lower(temperature),
+        FfiConverterFloat32.lower(delta),
+        FfiConverterFloat32.lower(exponent),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
  grammar(grammar: string, triggerOn: string | undefined, root: string): SamplerBuilderInterface {
@@ -3998,6 +4052,26 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Modify the likelihood of specific tokens.
+     *
+     * Args:
+     * biases: Mapping from token ID to its bias.
+     * The bias modifies the likelihood of the token being selected
+     * (`>0.0` means higher probability of the token being selected).
+     * Use `-Infinity` to ban a token.
+     */
+ logitBias(biases: Map</*i32*/number, /*f32*/number>): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterMapInt32Float32.lower(biases),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4104,6 +4178,24 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
         FfiConverterInt32.lower(topK),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+     * <https://arxiv.org/pdf/2411.07641>
+     *
+     * Args:
+     * n: Number of standard deviations from the mean to include in sampling.
+     */
+ topNSigma(n: /*f32*/number): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterFloat32.lower(n),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4652,11 +4744,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() !== 35315) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() !== 5004) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() !== 3547) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() !== 32898) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() !== 61844) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() !== 33705) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p");
@@ -4678,6 +4776,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k() !== 26600) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma() !== 44336) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p() !== 54577) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p");

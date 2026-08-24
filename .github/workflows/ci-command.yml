@@ -57,6 +57,15 @@ jobs:
               'react-native-ci': 'react_native',
               'apple-extended-ci': 'apple_extended',
               'regen-ci': 'regen',
+              // On-device tests: `source` builds from this repo, `released`
+              // from the published package.
+              'device-ci': 'device_all',
+              'kotlin-device-source-ci': 'device_kotlin_source',
+              'kotlin-device-released-ci': 'device_kotlin_released',
+              'flutter-device-source-ci': 'device_flutter_source',
+              'flutter-device-released-ci': 'device_flutter_released',
+              'react-native-device-source-ci': 'device_react_native_source',
+              'react-native-device-released-ci': 'device_react_native_released',
             };
             const tokens = [...body.matchAll(/\/([a-z-]+-ci)/g)].map((m) => m[1]);
             const unknown = [...new Set(tokens.filter((t) => !(t in MAP)))];

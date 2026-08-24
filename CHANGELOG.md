@@ -9,23 +9,35 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ## [Unreleased]
 
 ### Added
-
-- Batch embedding through `Encoder.encode_batch()`. Available for all bindings.
-- Added `VoiceActivityDetection` for detecting when audio includes speech.
 - Simple checkpointing for hybrid models like Qwen3.5. This will reduce how often the chat needs to redecode the entire history for hybrid models. Available for all bindings.
+
+## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20
+
+### Added
+
+- Added `dynamic_temperature`, `top_n_sigma` and `logit_bias` sampler steps.
+- Batch embedding through `Encoder.encode_batch()`. Available for all bindings.
+- Added `VoiceActivityDetection` for detecting when audio includes speech. Available for all bindings.
+- **Kotlin:** the coroutines API is now exposed for library consumers.
 
 ### Changed
 
 - `CrossEncoder.rank()` now batches documents internally making re-raking faster. Affects all bindings.
 - Tool calling now uses Lark grammars with the llguidance sampler instead of GBNF, making tool-constrained generation noticeably faster — especially on large-vocabulary models — and pre-builds the tool-call sampler so the first tool-enabled response no longer stalls while the grammar compiles. No API changes. Available for all bindings.
 - **Behavior change:** creating a chat with tools on a model whose tool-call format cannot be detected now fails at setup instead of silently falling back to unconstrained (unreliable) tool calling. Chats created without tools are unaffected. Available for all bindings.
-- `STT` renamed to `SpeechToText`, `Tts` renamed to `TextToSpeech` 
+- **Breaking:** `STT` renamed to `SpeechToText`, `Tts` renamed to `TextToSpeech`. Affects all bindings.
 
 ### Fixed
 
 - Context shifting now measures the shortened history, avoiding unnecessary history deletion and repeated tokenization. Affects all bindings.
 - Reworked allocation handling during chat inference, reducing allocation calls by 62% and allocated bytes by 91%.
 - Contructor for STT was synchronous, replaced with `load` function to make async and keep conventions
+- Prefix caching now works on token-level complete prefixes, speeding up prefill. Affects all bindings.
+- Vision-language models using M-RoPe positional embeddings no longer desynchronize the prefix cache when re-encoding images. Affects all bindings.
+- Available-memory detection no longer fails when the cgroup v2 root has no memory limit. Affects all bindings.
+- **Android:** the C++ runtime is now linked statically, so no companion `libc++_shared.so` has to be shipped and no NDK is needed to build against the library. Affects all Android artifacts.
+- **Flutter:** Android builds now package the libc and onnxruntime `.so` files they depend on.
+- **Swift:** visionOS and watchOS builds fixed.
 
 ## [Python v1.7.0, Flutter v2.5.0, Godot v9.6.0, Kotlin v2.2.0, React Native v2.5.0, Swift v2.3.0] - 2026-07-30
 

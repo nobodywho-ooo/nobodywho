@@ -1,3 +1,36 @@
+## 3.0.0
+
+### Breaking changes
+
+- `Stt` is renamed to `SpeechToText` and `Tts` is renamed to `TextToSpeech` (#661). `SpeechToText` is now constructed with `SpeechToText.load(...)` instead of a synchronous constructor (#660). Update imports and references.
+- Creating a chat with tools on a model whose tool-call format cannot be detected now throws at setup instead of silently falling back to unconstrained (unreliable) tool calling (#638). Chats created without tools are unaffected.
+
+### Voice Activity Detection (#612)
+
+New `VoiceActivityDetection` class for detecting when an audio stream includes speech.
+
+### Batch embedding (#654)
+
+`Encoder.encodeBatch()` generates embeddings for many inputs in one call, and `CrossEncoder.rank()` now batches documents internally, making re-ranking faster.
+
+### Faster tool calling (#638)
+
+Tool-constrained generation now uses Lark grammars with the llguidance sampler instead of GBNF, making it noticeably faster — especially on large-vocabulary models — and pre-building the tool-call sampler so the first tool-enabled response no longer stalls while the grammar compiles.
+
+### Fixes
+
+- **Android packaging (#662)** — the libc and onnxruntime `.so` files are now packaged into the Android build, which was previously unusable without them.
+- **libc++_shared linking (#682)** — the C++ runtime is now linked statically to the already-existing NDK version, so no companion `libc++_shared.so` has to be shipped and no NDK is needed to build against the plugin.
+- **Context shifting (#667)** — now measures the shortened history, avoiding unnecessary history deletion and repeated tokenization.
+- **Reduced allocations (#666)** — reworked allocation handling during chat inference, cutting allocation calls by 62% and allocated bytes by 91%.
+- **Prefix caching (#657)** — fixed token-level complete-prefix caching, speeding up prefill.
+- **M-RoPe vision-language models (#688)** — VL models that apply M-RoPe positional embeddings while encoding images no longer corrupt the KV cache and break prefix caching.
+- **cgroup v2 memory limit (#672)** — handle a missing cgroup v2 root memory limit instead of mis-detecting available memory.
+
+### Documentation
+
+- Documented the Android `INTERNET` permission requirement (#681).
+
 ## 2.5.0
 
 ### Automatic model selection (#630)

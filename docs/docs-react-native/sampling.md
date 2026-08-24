@@ -171,7 +171,10 @@ Shift steps — add as many as you want, applied in order:
 - `.typicalP(0.9, 1)` — keep tokens whose "surprise" is close to average, dropping both the too-predictable and the too-random ([locally typical sampling](https://arxiv.org/abs/2202.00666))
 - `.xtc(0.5, 0.1, 1)` — "exclude top choices": occasionally drop the top tokens for more variety
 - `.temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
+- `.dynamicTemperature(0.8, 0.3, 1.5)` — temperature in range [0.5; 1.1], scaled based on confidence level (`exponent` > 1.0 = when uncertain, higher temperature)
 - `.penalties(64, 1.1, 0.0, 0.0)` — per-token repetition penalty: `penaltyLastN, penaltyRepeat, penaltyFreq, penaltyPresent` (`penaltyRepeat` 1.0 = off)
+- `.topNSigma(2.0)` — keep only the tokens within 2 standard deviations of the most probable token
+- `.logitBias({ 1: -1.0, 2: 3.0 })` — token 1 less probable, token 2 is more probable
 - `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowedLength, penaltyLastN, seqBreakers`
 - `.seed(42)` — fix the RNG for reproducible output
 - `.grammar(...)` — deprecated; use the `constrainWith*` presets above

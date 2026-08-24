@@ -631,6 +631,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(uint64_t ptr, Rus
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(uint64_t ptr, float multiplier, float base, int32_t allowed_length, int32_t penalty_last_n, RustBuffer seq_breakers, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_DYNAMIC_TEMPERATURE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_DYNAMIC_TEMPERATURE
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(uint64_t ptr, float temperature, float delta, float exponent, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GRAMMAR
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GRAMMAR
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(uint64_t ptr, RustBuffer grammar, RustBuffer trigger_on, RustBuffer root, RustCallStatus *_Nonnull out_status
@@ -639,6 +644,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(uint64_t ptr, 
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GREEDY
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GREEDY
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_LOGIT_BIAS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_LOGIT_BIAS
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(uint64_t ptr, RustBuffer biases, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_MIN_P
@@ -674,6 +684,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_temperature(uint64_t p
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TOP_K
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TOP_K
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(uint64_t ptr, int32_t top_k, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TOP_N_SIGMA
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TOP_N_SIGMA
+uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(uint64_t ptr, float n, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_TOP_P
@@ -1424,6 +1439,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DYNAMIC_TEMPERATURE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DYNAMIC_TEMPERATURE
+uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_GRAMMAR
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_GRAMMAR
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(void
@@ -1433,6 +1454,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_GREEDY
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_GREEDY
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_LOGIT_BIAS
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_LOGIT_BIAS
+uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(void
     
 );
 #endif
@@ -1475,6 +1502,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_temperature(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_TOP_K
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_TOP_K
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_TOP_N_SIGMA
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_TOP_N_SIGMA
+uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma(void
     
 );
 #endif

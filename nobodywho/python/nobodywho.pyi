@@ -892,6 +892,18 @@ class SamplerBuilder:
             penalty_last_n: Number of recent tokens to consider
             seq_breakers: List of strings that break repetition sequences
         """
+    def dynamic_temperature(
+        self, /, temperature: float, delta: float, exponent: float
+    ) -> SamplerBuilder:
+        """
+        Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+        <https://arxiv.org/abs/2309.02772>.
+
+        Args:
+            temperature: Temperature value (lower = more focused, higher = more random)
+            delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+            exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+        """
     def grammar(
         self, /, grammar: str, trigger_on: str | None, root: str
     ) -> SamplerBuilder:
@@ -912,6 +924,16 @@ class SamplerBuilder:
 
         Returns:
             A complete SamplerConfig ready to use
+        """
+    def logit_bias(self, /, biases: dict[int, float]) -> SamplerBuilder:
+        """
+        Modify the likelihood of specific tokens.
+
+        Args:
+            biases: Mapping from token ID to its bias.
+            The bias modifies the likelihood of the token being selected
+            (`>0.0` means higher probability of the token being selected).
+            Use `-Infinity` to ban a token.
         """
     def min_p(self, /, min_p: float, min_keep: int) -> SamplerBuilder:
         """
@@ -983,6 +1005,14 @@ class SamplerBuilder:
 
         Args:
             top_k: Number of top tokens to keep
+        """
+    def top_n_sigma(self, /, n: float) -> SamplerBuilder:
+        """
+        Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+        <https://arxiv.org/pdf/2411.07641>
+
+        Args:
+            n: Number of standard deviations from the mean to include in sampling.
         """
     def top_p(self, /, top_p: float, min_keep: int) -> SamplerBuilder:
         """
@@ -1399,9 +1429,9 @@ class VoiceActivityDetectionEvent:
     Speech: Final[VoiceActivityDetectionEvent]
     SpeechEnded: Final[VoiceActivityDetectionEvent]
     SpeechStarted: Final[VoiceActivityDetectionEvent]
-    def __eq__(self, /, other: object) -> bool: ...
+    def __eq__(self, value: object, /) -> bool: ...
     def __int__(self, /) -> int: ...
-    def __ne__(self, /, other: object) -> bool: ...
+    def __ne__(self, value: object, /) -> bool: ...
     def __repr__(self, /) -> str: ...
 
 def bash_tool(max_commands: int | None = None) -> Tool:
