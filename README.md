@@ -51,7 +51,7 @@ We support Kotlin, Swift, Python, Flutter, React Native and Godot.
 | **React Native** | [npm](#react-native) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
 | **Flutter** | [pub.dev](#flutter) | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [pypi](#python) | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
-| **Godot** | [AssetLib](#godot) | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/install/) |
+| **Godot** | [AssetLib](#godot) | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/) |
 
 ## Quick Start
 
