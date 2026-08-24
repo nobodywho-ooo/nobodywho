@@ -340,6 +340,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Map<String, bool> dco_decode_Map_String_bool_None(dynamic raw);
 
   @protected
+  Map<int, double> dco_decode_Map_i_32_f_32_None(dynamic raw);
+
+  @protected
   Asset
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
     dynamic raw,
@@ -583,6 +586,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   List<PromptPart> dco_decode_list_prompt_part(dynamic raw);
 
   @protected
+  List<(int, double)> dco_decode_list_record_i_32_f_32(dynamic raw);
+
+  @protected
   List<(String, bool)> dco_decode_list_record_string_bool(dynamic raw);
 
   @protected
@@ -641,6 +647,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   PromptPart dco_decode_prompt_part(dynamic raw);
+
+  @protected
+  (int, double) dco_decode_record_i_32_f_32(dynamic raw);
 
   @protected
   (String, bool) dco_decode_record_string_bool(dynamic raw);
@@ -907,6 +916,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  Map<int, double> sse_decode_Map_i_32_f_32_None(SseDeserializer deserializer);
+
+  @protected
   Asset
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
     SseDeserializer deserializer,
@@ -1156,6 +1168,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   List<PromptPart> sse_decode_list_prompt_part(SseDeserializer deserializer);
 
   @protected
+  List<(int, double)> sse_decode_list_record_i_32_f_32(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<(String, bool)> sse_decode_list_record_string_bool(
     SseDeserializer deserializer,
   );
@@ -1224,6 +1241,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   PromptPart sse_decode_prompt_part(SseDeserializer deserializer);
+
+  @protected
+  (int, double) sse_decode_record_i_32_f_32(SseDeserializer deserializer);
 
   @protected
   (String, bool) sse_decode_record_string_bool(SseDeserializer deserializer);
@@ -1545,6 +1565,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_Map_i_32_f_32_None(
+    Map<int, double> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
     Asset self,
@@ -1847,6 +1873,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_list_record_i_32_f_32(
+    List<(int, double)> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_record_string_bool(
     List<(String, bool)> self,
     SseSerializer serializer,
@@ -1922,6 +1954,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_prompt_part(PromptPart self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_record_i_32_f_32(
+    (int, double) self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_record_string_bool(

@@ -2665,6 +2665,17 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     func dry(multiplier: Float, base: Float, allowedLength: Int32, penaltyLastN: Int32, seqBreakers: [String])  -> SamplerBuilder
     
     /**
+     * Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+     * <https://arxiv.org/abs/2309.02772>.
+     *
+     * Args:
+     * temperature: Temperature value (lower = more focused, higher = more random)
+     * delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+     * exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+     */
+    func dynamicTemperature(temperature: Float, delta: Float, exponent: Float)  -> SamplerBuilder
+    
+    /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
     func grammar(grammar: String, triggerOn: String?, root: String)  -> SamplerBuilder
@@ -2673,6 +2684,17 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
      * Always select the most probable token (deterministic).
      */
     func greedy()  -> SamplerConfig
+    
+    /**
+     * Modify the likelihood of specific tokens.
+     *
+     * Args:
+     * biases: Mapping from token ID to its bias.
+     * The bias modifies the likelihood of the token being selected
+     * (`>0.0` means higher probability of the token being selected).
+     * Use `-Infinity` to ban a token.
+     */
+    func logitBias(biases: [Int32: Float])  -> SamplerBuilder
     
     /**
      * Keep tokens with probability above min_p * (probability of most likely token).
@@ -2709,6 +2731,15 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
      * Keep only the top K most probable tokens.
      */
     func topK(topK: Int32)  -> SamplerBuilder
+    
+    /**
+     * Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+     * <https://arxiv.org/pdf/2411.07641>
+     *
+     * Args:
+     * n: Number of standard deviations from the mean to include in sampling.
+     */
+    func topNSigma(n: Float)  -> SamplerBuilder
     
     /**
      * Keep tokens whose cumulative probability is below top_p.
@@ -2812,6 +2843,26 @@ open func dry(multiplier: Float, base: Float, allowedLength: Int32, penaltyLastN
 }
     
     /**
+     * Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+     * <https://arxiv.org/abs/2309.02772>.
+     *
+     * Args:
+     * temperature: Temperature value (lower = more focused, higher = more random)
+     * delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+     * exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+     */
+open func dynamicTemperature(temperature: Float, delta: Float, exponent: Float) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
+            self.uniffiCloneHandle(),
+        FfiConverterFloat.lower(temperature),
+        FfiConverterFloat.lower(delta),
+        FfiConverterFloat.lower(exponent),$0
+    )
+})
+}
+    
+    /**
      * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
      */
 open func grammar(grammar: String, triggerOn: String?, root: String) -> SamplerBuilder  {
@@ -2832,6 +2883,24 @@ open func greedy() -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
             self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Modify the likelihood of specific tokens.
+     *
+     * Args:
+     * biases: Mapping from token ID to its bias.
+     * The bias modifies the likelihood of the token being selected
+     * (`>0.0` means higher probability of the token being selected).
+     * Use `-Infinity` to ban a token.
+     */
+open func logitBias(biases: [Int32: Float]) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
+            self.uniffiCloneHandle(),
+        FfiConverterDictionaryInt32Float.lower(biases),$0
     )
 })
 }
@@ -2924,6 +2993,22 @@ open func topK(topK: Int32) -> SamplerBuilder  {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_k(
             self.uniffiCloneHandle(),
         FfiConverterInt32.lower(topK),$0
+    )
+})
+}
+    
+    /**
+     * Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+     * <https://arxiv.org/pdf/2411.07641>
+     *
+     * Args:
+     * n: Number of standard deviations from the mean to include in sampling.
+     */
+open func topNSigma(n: Float) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_top_n_sigma(
+            self.uniffiCloneHandle(),
+        FfiConverterFloat.lower(n),$0
     )
 })
 }
@@ -4754,6 +4839,32 @@ fileprivate struct FfiConverterSequenceSequenceFloat: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterDictionaryInt32Float: FfiConverterRustBuffer {
+    public static func write(_ value: [Int32: Float], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterInt32.write(key, into: &buf)
+            FfiConverterFloat.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Int32: Float] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [Int32: Float]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterInt32.read(from: &buf)
+            let value = try FfiConverterFloat.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterDictionaryStringBool: FfiConverterRustBuffer {
     public static func write(_ value: [String: Bool], into buf: inout [UInt8]) {
         let len = Int32(value.count)
@@ -5278,10 +5389,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry() != 35315) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() != 5004) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 3547) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_min_p() != 33705) {
@@ -5303,6 +5420,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_k() != 26600) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_n_sigma() != 44336) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_top_p() != 54577) {

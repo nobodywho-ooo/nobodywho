@@ -12,6 +12,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
+- Added `dynamic_temperature`, `top_n_sigma` and `logit_bias` sampler steps.
 - Batch embedding through `Encoder.encode_batch()`. Available for all bindings.
 - Added `VoiceActivityDetection` for detecting when audio includes speech. Available for all bindings.
 - **Kotlin:** the coroutines API is now exposed for library consumers.

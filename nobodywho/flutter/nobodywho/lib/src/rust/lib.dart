@@ -469,6 +469,19 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required List<String> seqBreakers,
   });
 
+  /// Apply dynamic temperature scaling (a.k.a. entropy) described in the paper
+  /// <https://arxiv.org/abs/2309.02772>.
+  ///
+  /// Args:
+  ///     temperature: Temperature value (lower = more focused, higher = more random)
+  ///     delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
+  ///     exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
+  SamplerBuilder dynamicTemperature({
+    required double temperature,
+    required double delta,
+    required double exponent,
+  });
+
   /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
   SamplerBuilder grammar({
     required String grammar,
@@ -481,6 +494,15 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig greedy();
+
+  /// Modify the likelihood of specific tokens.
+  ///
+  /// Args:
+  ///     biases: Mapping from token ID to its bias.
+  ///     The bias modifies the likelihood of the token being selected
+  ///     (`>0.0` means higher probability of the token being selected).
+  ///     Use `-Infinity` to ban a token.
+  SamplerBuilder logitBias({required Map<int, double> biases});
 
   /// Keep tokens with probability above min_p * (probability of most likely token).
   ///
@@ -550,6 +572,13 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Args:
   ///     top_k: Number of top tokens to keep
   SamplerBuilder topK({required int topK});
+
+  /// Top-nσ sampling as described in academic paper "Top-nσ: Not All Logits Are You Need"
+  /// <https://arxiv.org/pdf/2411.07641>
+  ///
+  /// Args:
+  ///     n: Number of standard deviations from the mean to include in sampling.
+  SamplerBuilder topNSigma({required double n});
 
   /// Keep tokens whose cumulative probability is below top_p. Typical values: 0.9-0.95.
   ///
