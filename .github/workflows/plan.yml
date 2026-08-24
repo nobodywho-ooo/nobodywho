@@ -43,10 +43,8 @@ on:
       run_release:
         value: ${{ jobs.plan.outputs.run_release }}
       device_jobs:
-        # Which on-device (Firebase Test Lab) jobs to run, as the selector
-        # string mobile-device-tests.yml expects — e.g. "kotlin-source" or
-        # "all". Empty means none: device tests cost real device minutes, so
-        # they are opt-in per binding and never part of an ordinary run.
+        # Selector for mobile-device-tests.yml (e.g. "kotlin-source", "all");
+        # empty means none.
         value: ${{ jobs.plan.outputs.device_jobs }}
       is_full:
         # True on the "run everything" triggers (push to main, tag, dispatch

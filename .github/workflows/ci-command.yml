@@ -57,10 +57,8 @@ jobs:
               'react-native-ci': 'react_native',
               'apple-extended-ci': 'apple_extended',
               'regen-ci': 'regen',
-              // On-device tests on real phones via Firebase Test Lab. `source`
-              // builds the binding from this repo; `released` builds against
-              // the published package. These cost device minutes, so they are
-              // opt-in per binding and never part of /full-ci.
+              // On-device tests: `source` builds from this repo, `released`
+              // from the published package.
               'device-ci': 'device_all',
               'kotlin-device-source-ci': 'device_kotlin_source',
               'kotlin-device-released-ci': 'device_kotlin_released',

@@ -37,8 +37,6 @@ inputs:
 runs:
   using: composite
   steps:
-    # Fails in seconds with a precise message, instead of a cryptic
-    # UnsatisfiedLinkError minutes into a paid device run.
     - name: "Verify the packaged native library can load"
       shell: bash
       run: |
@@ -98,8 +96,7 @@ runs:
       run: |
         set -euo pipefail
         # Explicit "both", not a fallthrough default — a typo in $devices would
-        # otherwise silently run on both devices, doubling billed FTL minutes
-        # instead of failing fast.
+        # otherwise silently run on both devices instead of failing fast.
         case "${{ inputs.devices }}" in
           pixel8-mali)     DEVICES=(--device model=shiba,version=34,locale=en,orientation=portrait) ;;
           s24ultra-adreno) DEVICES=(--device model=e3q,version=34,locale=en,orientation=portrait) ;;

@@ -101,9 +101,7 @@ jobs:
 
   # On-device tests on real phones via Firebase Test Lab. plan.yml selects jobs
   # here only for a release tag (the binding being released) or an explicit
-  # /<binding>-device-<source|released>-ci comment — never for an ordinary push,
-  # because these bill per device-minute. main is covered by the nightly
-  # schedule inside mobile-device-tests.yml.
+  # /<binding>-device-<source|released>-ci comment — never for an ordinary push.
   mobile-device-tests:
     needs: plan
     if: needs.plan.outputs.device_jobs != ''
