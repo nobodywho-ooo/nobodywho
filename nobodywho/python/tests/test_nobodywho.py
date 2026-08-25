@@ -406,12 +406,12 @@ def test_complete_replaces_history(chat):
     assert chat.get_system_prompt() == "You are a helpful assistant."
 
 
-def test_complete_without_system_message_clears_it(chat):
+def test_complete_without_system_message_keeps_it(chat):
     assert chat.get_system_prompt() == "You are a helpful assistant"
 
     chat.complete([{"role": "user", "content": "Hello!"}]).completed()
 
-    assert chat.get_system_prompt() is None
+    assert chat.get_system_prompt() == "You are a helpful assistant"
 
 
 def test_complete_rejects_invalid_messages(chat):

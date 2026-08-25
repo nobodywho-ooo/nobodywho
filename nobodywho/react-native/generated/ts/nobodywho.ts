@@ -555,64 +555,6 @@ const FfiConverterTypeRustToolCallback = new FfiConverterCallback<RustToolCallba
 
 
 
-export type Asset = {
-    id: string,
-    path: string
-}
-
-/**
- * Generated factory for {@link Asset} record objects.
- */
-export const Asset = (() => {
-    const defaults = () => ({
-    });
-    const create = (() => {
-        return uniffiCreateRecord<Asset, ReturnType<typeof defaults>>(defaults);
-    })();
-    return Object.freeze({
-        /**
-         * Create a frozen instance of {@link Asset}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
-        create,
-
-        /**
-         * Create a frozen instance of {@link Asset}, with defaults specified
-         * in Rust, in the {@link nobodywho} crate.
-         */
-        new: create,
-
-        /**
-         * Defaults specified in the {@link nobodywho} crate.
-         */
-        defaults: () => Object.freeze(defaults()) as Partial<Asset>,
-
-    });
-})();
-
-const FfiConverterTypeAsset = (() => {
-    type TypeName = Asset;
-    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
-        read(from: RustBuffer): TypeName {
-            return {
-                id: FfiConverterString.read(from), 
-                path: FfiConverterString.read(from)
-            };
-        }
-        write(value: TypeName, into: RustBuffer): void {
-            FfiConverterString.write(value.id, into);
-            FfiConverterString.write(value.path, into);
-        }
-        allocationSize(value: TypeName): number {
-            return FfiConverterString.allocationSize(value.id) + 
-            FfiConverterString.allocationSize(value.path);
-            
-        }
-    };
-    return new FFIConverter();
-})();
-
-
 /**
  * A cached `.gguf` model and its on-disk size.
  */
@@ -999,6 +941,209 @@ const FfiConverterString = uniffiCreateFfiConverterString(stringConverter);
 
 
 
+// Enum: ContentPart
+export enum ContentPart_Tags {
+    Text = "Text",
+    Image = "Image",
+    Audio = "Audio"
+}
+/**
+ * One piece of a message: a run of text, or a media file at this position.
+ * The core type's bitmap id is worker-local, so it is not mirrored — media is
+ * re-registered from the path whenever content is handed back in.
+ */
+export const ContentPart = (() => {
+    
+
+    type Text__interface = {
+        tag: ContentPart_Tags.Text;
+        inner: Readonly<{text: string}>
+    };
+
+    
+    class Text_ extends UniffiEnum implements Text__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "ContentPart";
+        readonly tag = ContentPart_Tags.Text;
+        readonly inner: Readonly<{text: string}>;
+        constructor(inner: { text: string }) {
+            super("ContentPart", "Text");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { text: string }): Text_ {
+            return new Text_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Text_ {
+            return obj.tag === ContentPart_Tags.Text;
+        }
+        
+
+        
+
+    }
+    
+
+    type Image__interface = {
+        tag: ContentPart_Tags.Image;
+        inner: Readonly<{path: string}>
+    };
+
+    
+    class Image_ extends UniffiEnum implements Image__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "ContentPart";
+        readonly tag = ContentPart_Tags.Image;
+        readonly inner: Readonly<{path: string}>;
+        constructor(inner: { path: string }) {
+            super("ContentPart", "Image");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { path: string }): Image_ {
+            return new Image_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Image_ {
+            return obj.tag === ContentPart_Tags.Image;
+        }
+        
+
+        
+
+    }
+    
+
+    type Audio__interface = {
+        tag: ContentPart_Tags.Audio;
+        inner: Readonly<{path: string}>
+    };
+
+    
+    class Audio_ extends UniffiEnum implements Audio__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "ContentPart";
+        readonly tag = ContentPart_Tags.Audio;
+        readonly inner: Readonly<{path: string}>;
+        constructor(inner: { path: string }) {
+            super("ContentPart", "Audio");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { path: string }): Audio_ {
+            return new Audio_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Audio_ {
+            return obj.tag === ContentPart_Tags.Audio;
+        }
+        
+
+        
+
+    }
+
+    function instanceOf(obj: any): obj is ContentPart {
+        return obj[uniffiTypeNameSymbol] === "ContentPart";
+    }
+
+    return Object.freeze({
+        instanceOf,
+  Text: Text_, 
+  Image: Image_, 
+  Audio: Audio_
+    });
+
+})();
+
+
+/**
+ * One piece of a message: a run of text, or a media file at this position.
+ * The core type's bitmap id is worker-local, so it is not mirrored — media is
+ * re-registered from the path whenever content is handed back in.
+ */
+
+export type ContentPart = InstanceType<
+    typeof ContentPart[keyof Omit<typeof ContentPart, 'instanceOf'>]
+>;
+
+// FfiConverter for enum ContentPart
+const FfiConverterTypeContentPart = (() => {
+    const ordinalConverter = FfiConverterInt32;
+    type TypeName = ContentPart;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            switch (ordinalConverter.read(from)) {
+                case 1: return new ContentPart.Text({text: FfiConverterString.read(from) });
+                case 2: return new ContentPart.Image({path: FfiConverterString.read(from) });
+                case 3: return new ContentPart.Audio({path: FfiConverterString.read(from) });
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            switch (value.tag) {
+                case ContentPart_Tags.Text: {
+                    ordinalConverter.write(1, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.text, into);
+                    return;
+                }
+                case ContentPart_Tags.Image: {
+                    ordinalConverter.write(2, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.path, into);
+                    return;
+                }
+                case ContentPart_Tags.Audio: {
+                    ordinalConverter.write(3, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.path, into);
+                    return;
+                }
+                default:
+                    // Throwing from here means that ContentPart_Tags hasn't matched an ordinal.
+                    throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        allocationSize(value: TypeName): number {
+            switch (value.tag) {
+                case ContentPart_Tags.Text: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(1);
+                    size += FfiConverterString.allocationSize(inner.text);
+                    return size;
+                }
+                case ContentPart_Tags.Image: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(2);
+                    size += FfiConverterString.allocationSize(inner.path);
+                    return size;
+                }
+                case ContentPart_Tags.Audio: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(3);
+                    size += FfiConverterString.allocationSize(inner.path);
+                    return size;
+                }
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+    }
+    return new FFIConverter();
+})();
+
+
+
 // Enum: Message
 export enum Message_Tags {
     User = "User",
@@ -1011,7 +1156,7 @@ export const Message = (() => {
 
     type User__interface = {
         tag: Message_Tags.User;
-        inner: Readonly<{content: string; assets: Array<Asset>}>
+        inner: Readonly<{content: MessageContent}>
     };
 
     
@@ -1022,13 +1167,13 @@ export const Message = (() => {
          */
         readonly [uniffiTypeNameSymbol] = "Message";
         readonly tag = Message_Tags.User;
-        readonly inner: Readonly<{content: string; assets: Array<Asset>}>;
-        constructor(inner: { content: string, assets: Array<Asset> }) {
+        readonly inner: Readonly<{content: MessageContent}>;
+        constructor(inner: { content: MessageContent }) {
             super("Message", "User");
             this.inner = Object.freeze(inner);
         }
 
-        static new(inner: { content: string, assets: Array<Asset> }): User_ {
+        static new(inner: { content: MessageContent }): User_ {
             return new User_(inner);
         }
 
@@ -1044,7 +1189,7 @@ export const Message = (() => {
 
     type Assistant__interface = {
         tag: Message_Tags.Assistant;
-        inner: Readonly<{content: string; toolCalls: Array<ToolCall> | undefined}>
+        inner: Readonly<{content: MessageContent; toolCalls: Array<ToolCall> | undefined}>
     };
 
     
@@ -1055,13 +1200,13 @@ export const Message = (() => {
          */
         readonly [uniffiTypeNameSymbol] = "Message";
         readonly tag = Message_Tags.Assistant;
-        readonly inner: Readonly<{content: string; toolCalls: Array<ToolCall> | undefined}>;
-        constructor(inner: { content: string, toolCalls: Array<ToolCall> | undefined }) {
+        readonly inner: Readonly<{content: MessageContent; toolCalls: Array<ToolCall> | undefined}>;
+        constructor(inner: { content: MessageContent, toolCalls: Array<ToolCall> | undefined }) {
             super("Message", "Assistant");
             this.inner = Object.freeze(inner);
         }
 
-        static new(inner: { content: string, toolCalls: Array<ToolCall> | undefined }): Assistant_ {
+        static new(inner: { content: MessageContent, toolCalls: Array<ToolCall> | undefined }): Assistant_ {
             return new Assistant_(inner);
         }
 
@@ -1077,7 +1222,7 @@ export const Message = (() => {
 
     type System__interface = {
         tag: Message_Tags.System;
-        inner: Readonly<{content: string}>
+        inner: Readonly<{content: MessageContent}>
     };
 
     
@@ -1088,13 +1233,13 @@ export const Message = (() => {
          */
         readonly [uniffiTypeNameSymbol] = "Message";
         readonly tag = Message_Tags.System;
-        readonly inner: Readonly<{content: string}>;
-        constructor(inner: { content: string }) {
+        readonly inner: Readonly<{content: MessageContent}>;
+        constructor(inner: { content: MessageContent }) {
             super("Message", "System");
             this.inner = Object.freeze(inner);
         }
 
-        static new(inner: { content: string }): System_ {
+        static new(inner: { content: MessageContent }): System_ {
             return new System_(inner);
         }
 
@@ -1110,7 +1255,7 @@ export const Message = (() => {
 
     type Tool__interface = {
         tag: Message_Tags.Tool;
-        inner: Readonly<{name: string; content: string}>
+        inner: Readonly<{name: string; content: MessageContent}>
     };
 
     
@@ -1121,13 +1266,13 @@ export const Message = (() => {
          */
         readonly [uniffiTypeNameSymbol] = "Message";
         readonly tag = Message_Tags.Tool;
-        readonly inner: Readonly<{name: string; content: string}>;
-        constructor(inner: { name: string, content: string }) {
+        readonly inner: Readonly<{name: string; content: MessageContent}>;
+        constructor(inner: { name: string, content: MessageContent }) {
             super("Message", "Tool");
             this.inner = Object.freeze(inner);
         }
 
-        static new(inner: { name: string, content: string }): Tool_ {
+        static new(inner: { name: string, content: MessageContent }): Tool_ {
             return new Tool_(inner);
         }
 
@@ -1167,10 +1312,10 @@ const FfiConverterTypeMessage = (() => {
     class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
         read(from: RustBuffer): TypeName {
             switch (ordinalConverter.read(from)) {
-                case 1: return new Message.User({content: FfiConverterString.read(from), assets: FfiConverterArrayTypeAsset.read(from) });
-                case 2: return new Message.Assistant({content: FfiConverterString.read(from), toolCalls: FfiConverterOptionalArrayTypeToolCall.read(from) });
-                case 3: return new Message.System({content: FfiConverterString.read(from) });
-                case 4: return new Message.Tool({name: FfiConverterString.read(from), content: FfiConverterString.read(from) });
+                case 1: return new Message.User({content: FfiConverterTypeMessageContent.read(from) });
+                case 2: return new Message.Assistant({content: FfiConverterTypeMessageContent.read(from), toolCalls: FfiConverterOptionalArrayTypeToolCall.read(from) });
+                case 3: return new Message.System({content: FfiConverterTypeMessageContent.read(from) });
+                case 4: return new Message.Tool({name: FfiConverterString.read(from), content: FfiConverterTypeMessageContent.read(from) });
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
             }
         }
@@ -1179,28 +1324,27 @@ const FfiConverterTypeMessage = (() => {
                 case Message_Tags.User: {
                     ordinalConverter.write(1, into);
                     const inner = value.inner;
-                    FfiConverterString.write(inner.content, into);
-                    FfiConverterArrayTypeAsset.write(inner.assets, into);
+                    FfiConverterTypeMessageContent.write(inner.content, into);
                     return;
                 }
                 case Message_Tags.Assistant: {
                     ordinalConverter.write(2, into);
                     const inner = value.inner;
-                    FfiConverterString.write(inner.content, into);
+                    FfiConverterTypeMessageContent.write(inner.content, into);
                     FfiConverterOptionalArrayTypeToolCall.write(inner.toolCalls, into);
                     return;
                 }
                 case Message_Tags.System: {
                     ordinalConverter.write(3, into);
                     const inner = value.inner;
-                    FfiConverterString.write(inner.content, into);
+                    FfiConverterTypeMessageContent.write(inner.content, into);
                     return;
                 }
                 case Message_Tags.Tool: {
                     ordinalConverter.write(4, into);
                     const inner = value.inner;
                     FfiConverterString.write(inner.name, into);
-                    FfiConverterString.write(inner.content, into);
+                    FfiConverterTypeMessageContent.write(inner.content, into);
                     return;
                 }
                 default:
@@ -1213,28 +1357,224 @@ const FfiConverterTypeMessage = (() => {
                 case Message_Tags.User: {
                     const inner = value.inner;
                     let size = ordinalConverter.allocationSize(1);
-                    size += FfiConverterString.allocationSize(inner.content);
-                    size += FfiConverterArrayTypeAsset.allocationSize(inner.assets);
+                    size += FfiConverterTypeMessageContent.allocationSize(inner.content);
                     return size;
                 }
                 case Message_Tags.Assistant: {
                     const inner = value.inner;
                     let size = ordinalConverter.allocationSize(2);
-                    size += FfiConverterString.allocationSize(inner.content);
+                    size += FfiConverterTypeMessageContent.allocationSize(inner.content);
                     size += FfiConverterOptionalArrayTypeToolCall.allocationSize(inner.toolCalls);
                     return size;
                 }
                 case Message_Tags.System: {
                     const inner = value.inner;
                     let size = ordinalConverter.allocationSize(3);
-                    size += FfiConverterString.allocationSize(inner.content);
+                    size += FfiConverterTypeMessageContent.allocationSize(inner.content);
                     return size;
                 }
                 case Message_Tags.Tool: {
                     const inner = value.inner;
                     let size = ordinalConverter.allocationSize(4);
                     size += FfiConverterString.allocationSize(inner.name);
-                    size += FfiConverterString.allocationSize(inner.content);
+                    size += FfiConverterTypeMessageContent.allocationSize(inner.content);
+                    return size;
+                }
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+    }
+    return new FFIConverter();
+})();
+
+
+
+// Enum: MessageContent
+export enum MessageContent_Tags {
+    Text = "Text",
+    Parts = "Parts",
+    Json = "Json"
+}
+export const MessageContent = (() => {
+    
+
+    type Text__interface = {
+        tag: MessageContent_Tags.Text;
+        inner: Readonly<{text: string}>
+    };
+
+    
+    class Text_ extends UniffiEnum implements Text__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MessageContent";
+        readonly tag = MessageContent_Tags.Text;
+        readonly inner: Readonly<{text: string}>;
+        constructor(inner: { text: string }) {
+            super("MessageContent", "Text");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { text: string }): Text_ {
+            return new Text_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Text_ {
+            return obj.tag === MessageContent_Tags.Text;
+        }
+        
+
+        
+
+    }
+    
+
+    type Parts__interface = {
+        tag: MessageContent_Tags.Parts;
+        inner: Readonly<{parts: Array<ContentPart>}>
+    };
+
+    
+    class Parts_ extends UniffiEnum implements Parts__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MessageContent";
+        readonly tag = MessageContent_Tags.Parts;
+        readonly inner: Readonly<{parts: Array<ContentPart>}>;
+        constructor(inner: { parts: Array<ContentPart> }) {
+            super("MessageContent", "Parts");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { parts: Array<ContentPart> }): Parts_ {
+            return new Parts_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Parts_ {
+            return obj.tag === MessageContent_Tags.Parts;
+        }
+        
+
+        
+
+    }
+    
+
+    type Json__interface = {
+        tag: MessageContent_Tags.Json;
+        inner: Readonly<{json: string}>
+    };
+
+    
+    /**
+     * JSON-encoded. Chat templates written for structured content receive it
+     * as a real list or map rather than as a string.
+     */
+    class Json_ extends UniffiEnum implements Json__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "MessageContent";
+        readonly tag = MessageContent_Tags.Json;
+        readonly inner: Readonly<{json: string}>;
+        constructor(inner: { json: string }) {
+            super("MessageContent", "Json");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { json: string }): Json_ {
+            return new Json_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Json_ {
+            return obj.tag === MessageContent_Tags.Json;
+        }
+        
+
+        
+
+    }
+
+    function instanceOf(obj: any): obj is MessageContent {
+        return obj[uniffiTypeNameSymbol] === "MessageContent";
+    }
+
+    return Object.freeze({
+        instanceOf,
+  Text: Text_, 
+  Parts: Parts_, 
+  Json: Json_
+    });
+
+})();
+
+
+
+export type MessageContent = InstanceType<
+    typeof MessageContent[keyof Omit<typeof MessageContent, 'instanceOf'>]
+>;
+
+// FfiConverter for enum MessageContent
+const FfiConverterTypeMessageContent = (() => {
+    const ordinalConverter = FfiConverterInt32;
+    type TypeName = MessageContent;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            switch (ordinalConverter.read(from)) {
+                case 1: return new MessageContent.Text({text: FfiConverterString.read(from) });
+                case 2: return new MessageContent.Parts({parts: FfiConverterArrayTypeContentPart.read(from) });
+                case 3: return new MessageContent.Json({json: FfiConverterString.read(from) });
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            switch (value.tag) {
+                case MessageContent_Tags.Text: {
+                    ordinalConverter.write(1, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.text, into);
+                    return;
+                }
+                case MessageContent_Tags.Parts: {
+                    ordinalConverter.write(2, into);
+                    const inner = value.inner;
+                    FfiConverterArrayTypeContentPart.write(inner.parts, into);
+                    return;
+                }
+                case MessageContent_Tags.Json: {
+                    ordinalConverter.write(3, into);
+                    const inner = value.inner;
+                    FfiConverterString.write(inner.json, into);
+                    return;
+                }
+                default:
+                    // Throwing from here means that MessageContent_Tags hasn't matched an ordinal.
+                    throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        allocationSize(value: TypeName): number {
+            switch (value.tag) {
+                case MessageContent_Tags.Text: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(1);
+                    size += FfiConverterString.allocationSize(inner.text);
+                    return size;
+                }
+                case MessageContent_Tags.Parts: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(2);
+                    size += FfiConverterArrayTypeContentPart.allocationSize(inner.parts);
+                    return size;
+                }
+                case MessageContent_Tags.Json: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(3);
+                    size += FfiConverterString.allocationSize(inner.json);
                     return size;
                 }
                 default: throw new UniffiInternalError.UnexpectedEnumCase();
@@ -1319,205 +1659,6 @@ const FfiConverterTypeNobodyWhoError = (() => {
 })();
 
 
-// Enum: PromptPart
-export enum PromptPart_Tags {
-    Text = "Text",
-    Image = "Image",
-    Audio = "Audio"
-}
-/**
- * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
- */
-export const PromptPart = (() => {
-    
-
-    type Text__interface = {
-        tag: PromptPart_Tags.Text;
-        inner: Readonly<{content: string}>
-    };
-
-    
-    class Text_ extends UniffiEnum implements Text__interface {
-        /**
-         * @private
-         * This field is private and should not be used, use `tag` instead.
-         */
-        readonly [uniffiTypeNameSymbol] = "PromptPart";
-        readonly tag = PromptPart_Tags.Text;
-        readonly inner: Readonly<{content: string}>;
-        constructor(inner: { content: string }) {
-            super("PromptPart", "Text");
-            this.inner = Object.freeze(inner);
-        }
-
-        static new(inner: { content: string }): Text_ {
-            return new Text_(inner);
-        }
-
-        static instanceOf(obj: any): obj is Text_ {
-            return obj.tag === PromptPart_Tags.Text;
-        }
-        
-
-        
-
-    }
-    
-
-    type Image__interface = {
-        tag: PromptPart_Tags.Image;
-        inner: Readonly<{path: string}>
-    };
-
-    
-    class Image_ extends UniffiEnum implements Image__interface {
-        /**
-         * @private
-         * This field is private and should not be used, use `tag` instead.
-         */
-        readonly [uniffiTypeNameSymbol] = "PromptPart";
-        readonly tag = PromptPart_Tags.Image;
-        readonly inner: Readonly<{path: string}>;
-        constructor(inner: { path: string }) {
-            super("PromptPart", "Image");
-            this.inner = Object.freeze(inner);
-        }
-
-        static new(inner: { path: string }): Image_ {
-            return new Image_(inner);
-        }
-
-        static instanceOf(obj: any): obj is Image_ {
-            return obj.tag === PromptPart_Tags.Image;
-        }
-        
-
-        
-
-    }
-    
-
-    type Audio__interface = {
-        tag: PromptPart_Tags.Audio;
-        inner: Readonly<{path: string}>
-    };
-
-    
-    class Audio_ extends UniffiEnum implements Audio__interface {
-        /**
-         * @private
-         * This field is private and should not be used, use `tag` instead.
-         */
-        readonly [uniffiTypeNameSymbol] = "PromptPart";
-        readonly tag = PromptPart_Tags.Audio;
-        readonly inner: Readonly<{path: string}>;
-        constructor(inner: { path: string }) {
-            super("PromptPart", "Audio");
-            this.inner = Object.freeze(inner);
-        }
-
-        static new(inner: { path: string }): Audio_ {
-            return new Audio_(inner);
-        }
-
-        static instanceOf(obj: any): obj is Audio_ {
-            return obj.tag === PromptPart_Tags.Audio;
-        }
-        
-
-        
-
-    }
-
-    function instanceOf(obj: any): obj is PromptPart {
-        return obj[uniffiTypeNameSymbol] === "PromptPart";
-    }
-
-    return Object.freeze({
-        instanceOf,
-  Text: Text_, 
-  Image: Image_, 
-  Audio: Audio_
-    });
-
-})();
-
-
-/**
- * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
- */
-
-export type PromptPart = InstanceType<
-    typeof PromptPart[keyof Omit<typeof PromptPart, 'instanceOf'>]
->;
-
-// FfiConverter for enum PromptPart
-const FfiConverterTypePromptPart = (() => {
-    const ordinalConverter = FfiConverterInt32;
-    type TypeName = PromptPart;
-    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
-        read(from: RustBuffer): TypeName {
-            switch (ordinalConverter.read(from)) {
-                case 1: return new PromptPart.Text({content: FfiConverterString.read(from) });
-                case 2: return new PromptPart.Image({path: FfiConverterString.read(from) });
-                case 3: return new PromptPart.Audio({path: FfiConverterString.read(from) });
-                default: throw new UniffiInternalError.UnexpectedEnumCase();
-            }
-        }
-        write(value: TypeName, into: RustBuffer): void {
-            switch (value.tag) {
-                case PromptPart_Tags.Text: {
-                    ordinalConverter.write(1, into);
-                    const inner = value.inner;
-                    FfiConverterString.write(inner.content, into);
-                    return;
-                }
-                case PromptPart_Tags.Image: {
-                    ordinalConverter.write(2, into);
-                    const inner = value.inner;
-                    FfiConverterString.write(inner.path, into);
-                    return;
-                }
-                case PromptPart_Tags.Audio: {
-                    ordinalConverter.write(3, into);
-                    const inner = value.inner;
-                    FfiConverterString.write(inner.path, into);
-                    return;
-                }
-                default:
-                    // Throwing from here means that PromptPart_Tags hasn't matched an ordinal.
-                    throw new UniffiInternalError.UnexpectedEnumCase();
-            }
-        }
-        allocationSize(value: TypeName): number {
-            switch (value.tag) {
-                case PromptPart_Tags.Text: {
-                    const inner = value.inner;
-                    let size = ordinalConverter.allocationSize(1);
-                    size += FfiConverterString.allocationSize(inner.content);
-                    return size;
-                }
-                case PromptPart_Tags.Image: {
-                    const inner = value.inner;
-                    let size = ordinalConverter.allocationSize(2);
-                    size += FfiConverterString.allocationSize(inner.path);
-                    return size;
-                }
-                case PromptPart_Tags.Audio: {
-                    const inner = value.inner;
-                    let size = ordinalConverter.allocationSize(3);
-                    size += FfiConverterString.allocationSize(inner.path);
-                    return size;
-                }
-                default: throw new UniffiInternalError.UnexpectedEnumCase();
-            }
-        }
-    }
-    return new FFIConverter();
-})();
-
-
-
 /**
  * `push` always returns one of these: `Speech`/`Silence` for the confirmed
  * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
@@ -1590,10 +1731,10 @@ export interface RustChatInterface {
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
+     * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
      */
-    askWithPrompt(parts: Array<PromptPart>) : RustTokenStreamInterface;
+    askWithPrompt(parts: Array<ContentPart>) : RustTokenStreamInterface;
     /**
      * Answer a full list of messages and get a token stream, replacing the chat
      * history.
@@ -1670,7 +1811,7 @@ export interface RustChatInterface {
      * Tokenize a multimodal prompt and return the token IDs.
      * Text tokens produce an integer ID; image/audio embedding slots produce null.
      */
-    tokenizeWithPrompt(parts: Array<PromptPart>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*i32*/number | undefined>>;
+    tokenizeWithPrompt(parts: Array<ContentPart>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<Array</*i32*/number | undefined>>;
 }
 
 
@@ -1755,14 +1896,14 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
+     * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
      */
- askWithPrompt(parts: Array<PromptPart>): RustTokenStreamInterface {
+ askWithPrompt(parts: Array<ContentPart>): RustTokenStreamInterface {
     return FfiConverterTypeRustTokenStream.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(uniffiTypeRustChatObjectFactory.clonePointer(this), 
-        FfiConverterArrayTypePromptPart.lower(parts),
+        FfiConverterArrayTypeContentPart.lower(parts),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2242,7 +2383,7 @@ async  tokenize(message: string, asyncOpts_?: { signal: AbortSignal }): Promise<
      * Tokenize a multimodal prompt and return the token IDs.
      * Text tokens produce an integer ID; image/audio embedding slots produce null.
      */
-async  tokenizeWithPrompt(parts: Array<PromptPart>, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*i32*/number | undefined>> /*throws*/ {
+async  tokenizeWithPrompt(parts: Array<ContentPart>, asyncOpts_?: { signal: AbortSignal }): Promise<Array</*i32*/number | undefined>> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
@@ -2250,7 +2391,7 @@ async  tokenizeWithPrompt(parts: Array<PromptPart>, asyncOpts_?: { signal: Abort
             /*rustFutureFunc:*/ () => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(
                     uniffiTypeRustChatObjectFactory.clonePointer(this),
-                    FfiConverterArrayTypePromptPart.lower(parts)
+                    FfiConverterArrayTypeContentPart.lower(parts)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_rust_buffer,
@@ -4521,10 +4662,6 @@ const FfiConverterArrayFloat32 = new FfiConverterArray(FfiConverterFloat32);
 const FfiConverterArrayInt16 = new FfiConverterArray(FfiConverterInt16);
 
 
-// FfiConverter for Array<Asset>
-const FfiConverterArrayTypeAsset = new FfiConverterArray(FfiConverterTypeAsset);
-
-
 // FfiConverter for Array<CachedModel>
 const FfiConverterArrayTypeCachedModel = new FfiConverterArray(FfiConverterTypeCachedModel);
 
@@ -4557,12 +4694,12 @@ const FfiConverterOptionalTypeSamplerConfig = new FfiConverterOptional(FfiConver
 const FfiConverterOptionalArrayTypeToolCall = new FfiConverterOptional(FfiConverterArrayTypeToolCall);
 
 
+// FfiConverter for Array<ContentPart>
+const FfiConverterArrayTypeContentPart = new FfiConverterArray(FfiConverterTypeContentPart);
+
+
 // FfiConverter for Array<Message>
 const FfiConverterArrayTypeMessage = new FfiConverterArray(FfiConverterTypeMessage);
-
-
-// FfiConverter for Array<PromptPart>
-const FfiConverterArrayTypePromptPart = new FfiConverterArray(FfiConverterTypePromptPart);
 
 
 // FfiConverter for Array<RustToolInterface>
@@ -4662,7 +4799,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() !== 63877) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !== 65089) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !== 46807) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() !== 42877) {
@@ -4713,7 +4850,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize() !== 52520) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() !== 60528) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() !== 15286) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank() !== 55500) {
@@ -4871,14 +5008,14 @@ function uniffiEnsureInitialized() {
 export default Object.freeze({
   initialize: uniffiEnsureInitialized,
   converters: {
-    FfiConverterTypeAsset,
     FfiConverterTypeCachedModel,
     FfiConverterTypeChatStats,
+    FfiConverterTypeContentPart,
     FfiConverterTypeMessage,
+    FfiConverterTypeMessageContent,
     FfiConverterTypeMtpConfig,
     FfiConverterTypeNobodyWhoError,
     FfiConverterTypePendingToolCall,
-    FfiConverterTypePromptPart,
     FfiConverterTypeRustChat,
     FfiConverterTypeRustCrossEncoder,
     FfiConverterTypeRustEncoder,

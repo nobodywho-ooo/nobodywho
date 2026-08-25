@@ -10,7 +10,13 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
-- `Chat.complete(messages)` answers a whole conversation passed as a list of messages, for when you would rather hand over the conversation than let the `Chat` remember it. The list becomes the chat history — including its system message, or lack of one — and the response is appended, so `ask()` continues from there. Media referenced by the messages is re-read from its file path, so a saved conversation containing images or audio can be replayed. Available for all bindings.
+- `Chat.complete(messages)` answers a whole conversation passed as a list of messages, for when you would rather hand over the conversation than let the `Chat` remember it. The list becomes the chat history and the response is appended, so `ask()` continues from there. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept. Media referenced by the messages is re-read from its file path, so a saved conversation containing images or audio can be replayed. Available for all bindings.
+- Message content can now be a list of typed parts, interleaving text with images and audio in a single message — the shape the OpenAI and Anthropic libraries use, so a multimodal conversation can be handed to `complete()` directly. Parts are `text`, `image` and `audio`; a plain string stays valid wherever content is accepted. Available for all bindings.
+
+### Changed
+
+- **Breaking:** a message's media is now part of its content instead of a separate `assets` list, and the `Asset` type is gone. Where you passed `{"role": "user", "content": "...", "assets": [...]}`, pass a content list of parts instead. The media file path now lives on the part it belongs to, so the ordering of text and media within a message is explicit rather than implied. Affects all bindings.
+- **Breaking:** the system prompt is no longer stored as the first chat message; it is a setting on the `Chat`, as in the Anthropic and Gemini SDKs. `get_chat_history()` therefore never returns a system message, and `complete()` no longer clears the system prompt when the list you pass has none. Media in a system message is now rejected, since no chat template supports it. Affects all bindings.
 
 ## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20
 

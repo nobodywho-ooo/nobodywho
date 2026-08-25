@@ -53,8 +53,7 @@ Similarly, if you want to edit what messages are in the context, you can use `se
 ```python continuation
 chat.set_chat_history([{
    "role": "user",
-   "content": "What is water?",
-   "assets": []
+   "content": "What is water?"
 }])
 ```
 
@@ -85,15 +84,19 @@ print(chat.get_chat_history())  # the message about the color, plus the reply
 print(chat.ask("What is my favorite color?").completed())  # continues from there
 ```
 
-The list is used exactly as given, which includes the system message. If you pass one, it becomes the chat's system prompt; if you don't, the chat is left without one:
+A system message at the front sets the chat's system prompt. If you leave it out, the prompt already on the chat is kept:
 
 ```python continuation
 chat = Chat("./model.gguf", system_prompt="You are a helpful assistant.")
 chat.complete([{"role": "user", "content": "Hello!"}]).completed()
-print(chat.get_system_prompt())  # None — the list had no system message
-```
+print(chat.get_system_prompt())  # "You are a helpful assistant." — kept
 
-So if you want to keep a system prompt across `complete()` calls, include it in every list you pass.
+chat.complete([
+   {"role": "system", "content": "You are a pirate."},
+   {"role": "user", "content": "Hello!"},
+]).completed()
+print(chat.get_system_prompt())  # "You are a pirate." — replaced
+```
 
 The list has to describe a conversation the model can answer, so it must not be empty, it must end in a user or tool message, and only the first message may be a system message. Anything else raises a `ValueError`:
 

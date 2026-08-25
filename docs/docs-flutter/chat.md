@@ -70,7 +70,7 @@ Similarly, if you want to edit what messages are in the context, you can use `se
 
 ```dart continuation
 await chat.setChatHistory([
-  nobodywho.Message.user(content: "What is water?")
+  nobodywho.userMessage("What is water?")
 ]);
 ```
 
@@ -80,17 +80,17 @@ If you would rather pass the whole conversation on every call than let the `Chat
 
 ```dart continuation
 final completion = await chat.complete([
-  nobodywho.Message.system(content: "You are a helpful assistant."),
-  nobodywho.Message.user(content: "Who was the first person to walk on the moon?"),
-  nobodywho.Message.assistant(content: "Neil Armstrong."),
-  nobodywho.Message.user(content: "Which year did he do it?"),
+  nobodywho.systemMessage("You are a helpful assistant."),
+  nobodywho.userMessage("Who was the first person to walk on the moon?"),
+  nobodywho.assistantMessage("Neil Armstrong."),
+  nobodywho.userMessage("Which year did he do it?"),
 ]).completed();
 print(completion);
 ```
 
 You get back the same `TokenStream` as from `ask()`, so you can also `await for` over it.
 
-The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. It is used exactly as given, including the system message: pass one and it becomes the chat's system prompt, leave it out and the chat is left without one.
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept.
 
 The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
 

@@ -524,7 +524,7 @@ impl NobodyWhoPrompt {
         if let Some(ref v) = self.json_value {
             tokenizer::Prompt::from_json(v.clone())
         } else {
-            tokenizer::Prompt::new(self.parts.clone())
+            tokenizer::Prompt::parts(self.parts.clone())
         }
     }
 }
@@ -572,7 +572,7 @@ impl NobodyWhoPrompt {
     #[func]
     /// Appends a text segment to this prompt.
     fn add_text(&mut self, text: String) {
-        self.parts.push(tokenizer::PromptPart::Text(text));
+        self.parts.push(tokenizer::PromptPart::text(text));
     }
 
     #[func]
@@ -582,8 +582,7 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.parts
-            .push(tokenizer::PromptPart::Image(globalized.into()));
+        self.parts.push(tokenizer::PromptPart::image(globalized));
     }
 
     #[func]
@@ -593,8 +592,7 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.parts
-            .push(tokenizer::PromptPart::Audio(globalized.into()));
+        self.parts.push(tokenizer::PromptPart::audio(globalized));
     }
 
     #[func]
@@ -3069,31 +3067,11 @@ fn messages_to_dictionaries(messages: &[Message]) -> Array<VarDictionary> {
         .map(|msg| {
             let json_value = serde_json::to_value(msg).unwrap_or_default();
             if let serde_json::Value::Object(obj) = json_value {
+                // json_to_godot recurses, so nested structures — tool_calls, and
+                // content parts, which are objects inside an array — come through
+                // at any depth.
                 obj.into_iter()
-                    .map(|(k, v)| {
-                        let variant = match v {
-                            serde_json::Value::String(s) => Variant::from(s),
-                            serde_json::Value::Array(arr) => {
-                                // Convert arrays (like tool_calls) to proper Godot format
-                                let godot_array: Array<Variant> = arr
-                                    .into_iter()
-                                    .map(|item| match item {
-                                        serde_json::Value::Object(obj) => {
-                                            let mut dict = VarDictionary::new();
-                                            for (key, val) in obj {
-                                                dict.set(key, json_to_godot(&val));
-                                            }
-                                            Variant::from(dict)
-                                        }
-                                        _ => json_to_godot(&item),
-                                    })
-                                    .collect();
-                                Variant::from(godot_array)
-                            }
-                            _ => json_to_godot(&v),
-                        };
-                        (GString::from(k.as_str()), variant)
-                    })
+                    .map(|(k, v)| (GString::from(k.as_str()), json_to_godot(&v)))
                     .collect()
             } else {
                 VarDictionary::new()

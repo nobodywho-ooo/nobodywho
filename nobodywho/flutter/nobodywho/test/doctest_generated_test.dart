@@ -96,13 +96,13 @@ void main() {
       final msgs = await chat.getChatHistory();
       print(msgs[0].content); // "Is water wet?"
       await chat.setChatHistory([
-        nobodywho.Message.user(content: "What is water?")
+        nobodywho.userMessage("What is water?")
       ]);
       final completion = await chat.complete([
-        nobodywho.Message.system(content: "You are a helpful assistant."),
-        nobodywho.Message.user(content: "Who was the first person to walk on the moon?"),
-        nobodywho.Message.assistant(content: "Neil Armstrong."),
-        nobodywho.Message.user(content: "Which year did he do it?"),
+        nobodywho.systemMessage("You are a helpful assistant."),
+        nobodywho.userMessage("Who was the first person to walk on the moon?"),
+        nobodywho.assistantMessage("Neil Armstrong."),
+        nobodywho.userMessage("Which year did he do it?"),
       ]).completed();
       print(completion);
     });

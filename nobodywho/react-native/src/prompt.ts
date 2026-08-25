@@ -1,32 +1,32 @@
-import { PromptPart } from "../generated/ts/nobodywho";
+import { ContentPart } from "../generated/ts/nobodywho";
 
 /** A text part of a multimodal prompt. */
 class TextPart {
   /** @internal */
-  readonly _inner: PromptPart;
+  readonly _inner: ContentPart;
 
   constructor(content: string) {
-    this._inner = new PromptPart.Text({ content });
+    this._inner = new ContentPart.Text({ text: content });
   }
 }
 
 /** An image part of a multimodal prompt. */
 class ImagePart {
   /** @internal */
-  readonly _inner: PromptPart;
+  readonly _inner: ContentPart;
 
   constructor(path: string) {
-    this._inner = new PromptPart.Image({ path });
+    this._inner = new ContentPart.Image({ path });
   }
 }
 
 /** An audio part of a multimodal prompt. */
 class AudioPart {
   /** @internal */
-  readonly _inner: PromptPart;
+  readonly _inner: ContentPart;
 
   constructor(path: string) {
-    this._inner = new PromptPart.Audio({ path });
+    this._inner = new ContentPart.Audio({ path });
   }
 }
 
@@ -53,7 +53,7 @@ type Part = TextPart | ImagePart | AudioPart;
  */
 export class Prompt {
   /** @internal */
-  readonly _parts: PromptPart[] | null;
+  readonly _parts: ContentPart[] | null;
   /** @internal */
   readonly _jsonString: string | null;
 

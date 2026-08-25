@@ -1,8 +1,6 @@
-use core::fmt;
-use std::fmt::Formatter;
-use std::path::{Path, PathBuf};
+use std::ffi::CString;
+use std::path::Path;
 use std::rc::Rc;
-use std::{ffi::CString, fmt::Display};
 
 use ahash::AHasher;
 use llama_cpp_2::{
@@ -16,95 +14,14 @@ use llama_cpp_2::{
 use std::hash::{Hash, Hasher};
 use tracing::{info, warn};
 
+use crate::content::{ContentPart, MessageContent};
 use crate::{errors::MultimodalError, errors::TokenizationError};
 
-#[derive(Clone, Debug)]
-pub enum Prompt {
-    Parts(Vec<PromptPart>),
-    Json(serde_json::Value),
-}
-
-impl Display for Prompt {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Prompt::Json(v) => write!(f, "{v}"),
-            Prompt::Parts(parts) => {
-                let marker = llama_cpp_2::mtmd::mtmd_default_marker();
-                let result = parts
-                    .iter()
-                    .map(|part| match part {
-                        PromptPart::Text(text) => text.clone(),
-                        PromptPart::Image(_) | PromptPart::Audio(_) => marker.to_string(),
-                    })
-                    .collect::<Vec<String>>()
-                    .join("");
-                write!(f, "{result}")
-            }
-        }
-    }
-}
-
-impl Default for Prompt {
-    fn default() -> Self {
-        Prompt::Parts(vec![])
-    }
-}
-
-impl Prompt {
-    pub fn new(ps: impl IntoIterator<Item = PromptPart>) -> Self {
-        Prompt::parts(ps)
-    }
-
-    pub fn parts(parts: impl IntoIterator<Item = PromptPart>) -> Self {
-        Prompt::Parts(Prompt::merge_adjecent_texts(parts))
-    }
-
-    pub fn from_json(value: serde_json::Value) -> Self {
-        Prompt::Json(value)
-    }
-
-    pub fn extract_asset_paths(&self) -> Vec<&Path> {
-        let Prompt::Parts(parts) = self else {
-            return vec![];
-        };
-        parts
-            .iter()
-            .filter_map(|part| match part {
-                PromptPart::Image(path) | PromptPart::Audio(path) => Some(path.as_path()),
-                PromptPart::Text(_) => None,
-            })
-            .collect()
-    }
-
-    pub(crate) fn extract_media_assets(&self) -> Vec<&PromptPart> {
-        let Prompt::Parts(parts) = self else {
-            return vec![];
-        };
-        parts
-            .iter()
-            .filter(|part| !matches!(part, PromptPart::Text(_)))
-            .collect()
-    }
-
-    fn merge_adjecent_texts(parts: impl IntoIterator<Item = PromptPart>) -> Vec<PromptPart> {
-        parts.into_iter().fold(vec![], |mut acc, part| {
-            match (&mut acc.last_mut(), &part) {
-                (Some(PromptPart::Text(last)), PromptPart::Text(next)) => {
-                    last.push_str(next);
-                }
-                _ => acc.push(part),
-            }
-            acc
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum PromptPart {
-    Text(String),
-    Image(PathBuf),
-    Audio(PathBuf),
-}
+/// A prompt is just message content that has not been attached to a message
+/// yet — the same interleaving of text and media, with the same flattening to
+/// mtmd markers.
+pub type Prompt = MessageContent;
+pub type PromptPart = ContentPart;
 
 pub trait Promptable {
     fn to_prompt(&self) -> Prompt;
@@ -112,7 +29,7 @@ pub trait Promptable {
 
 impl Promptable for String {
     fn to_prompt(&self) -> Prompt {
-        Prompt::parts([PromptPart::Text(self.clone())])
+        Prompt::text(self.clone())
     }
 }
 
@@ -124,19 +41,7 @@ impl Promptable for Prompt {
 
 impl Promptable for &str {
     fn to_prompt(&self) -> Prompt {
-        Prompt::parts([PromptPart::Text(self.to_string())])
-    }
-}
-
-impl From<String> for Prompt {
-    fn from(s: String) -> Self {
-        Prompt::parts([PromptPart::Text(s)])
-    }
-}
-
-impl From<&str> for Prompt {
-    fn from(s: &str) -> Self {
-        Prompt::parts([PromptPart::Text(s.to_string())])
+        Prompt::text(*self)
     }
 }
 

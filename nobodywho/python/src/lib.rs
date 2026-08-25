@@ -2915,22 +2915,22 @@ impl Prompt {
             let part = part.bind(py);
 
             if let Ok(text_part) = part.extract::<Bound<Text>>() {
-                core_parts.push(nobodywho::tokenizer::PromptPart::Text(
+                core_parts.push(nobodywho::tokenizer::PromptPart::text(
                     text_part.borrow().text.clone(),
                 ));
                 continue;
             }
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
-                core_parts.push(nobodywho::tokenizer::PromptPart::Image(
-                    image_part.borrow().path.clone().into(),
+                core_parts.push(nobodywho::tokenizer::PromptPart::image(
+                    image_part.borrow().path.clone(),
                 ));
                 continue;
             }
 
             if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
-                core_parts.push(nobodywho::tokenizer::PromptPart::Audio(
-                    audio_part.borrow().path.clone().into(),
+                core_parts.push(nobodywho::tokenizer::PromptPart::audio(
+                    audio_part.borrow().path.clone(),
                 ));
                 continue;
             }
@@ -2941,7 +2941,7 @@ impl Prompt {
         }
 
         Ok(Self {
-            prompt: nobodywho::tokenizer::Prompt::new(core_parts),
+            prompt: nobodywho::tokenizer::Prompt::parts(core_parts),
         })
     }
 

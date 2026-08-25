@@ -66,7 +66,7 @@ Or set the history directly:
 
 ```kotlin
 chat.setChatHistory(listOf(
-    Message.User(content = "What is water?")
+    Message.User("What is water?")
 ))
 ```
 
@@ -76,16 +76,16 @@ If you would rather pass the whole conversation on every call than let the `Chat
 
 ```kotlin
 val response = chat.complete(listOf(
-    Message.System(content = "You are a helpful assistant."),
-    Message.User(content = "Who was the first person to walk on the moon?"),
-    Message.Assistant(content = "Neil Armstrong."),
-    Message.User(content = "Which year did he do it?")
+    Message.System("You are a helpful assistant."),
+    Message.User("Who was the first person to walk on the moon?"),
+    Message.Assistant("Neil Armstrong."),
+    Message.User("Which year did he do it?")
 )).completed()
 ```
 
 You get back the same `TokenStream` as from `ask()`.
 
-The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. It is used exactly as given, including the system message: pass one and it becomes the chat's system prompt, leave it out and the chat is left without one.
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept.
 
 The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
 

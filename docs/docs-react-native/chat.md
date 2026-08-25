@@ -92,7 +92,7 @@ const response = await chat.complete([
 
 You get back the same `TokenStream` as from `ask()`, so you can also `for await` over it.
 
-The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. It is used exactly as given, including the system message: pass one and it becomes the chat's system prompt, leave it out and the chat is left without one.
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept.
 
 The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
 

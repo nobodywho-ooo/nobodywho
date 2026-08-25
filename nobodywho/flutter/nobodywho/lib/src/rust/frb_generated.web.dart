@@ -20,9 +20,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
     required super.portManager,
   });
 
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_AssetPtr => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset;
-
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_CompletionErrorPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError;
@@ -111,12 +108,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
-
-  @protected
-  Asset
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    dynamic raw,
-  );
 
   @protected
   CompletionError
@@ -355,12 +346,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Map<int, double> dco_decode_Map_i_32_f_32_None(dynamic raw);
 
   @protected
-  Asset
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    dynamic raw,
-  );
-
-  @protected
   CompletionError
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     dynamic raw,
@@ -520,6 +505,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
+  MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
+
+  @protected
   MtpConfig dco_decode_box_autoadd_mtp_config(dynamic raw);
 
   @protected
@@ -533,6 +521,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   ChatStats dco_decode_chat_stats(dynamic raw);
+
+  @protected
+  ContentPart dco_decode_content_part(dynamic raw);
 
   @protected
   double dco_decode_f_32(dynamic raw);
@@ -553,12 +544,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   PlatformInt64 dco_decode_isize(dynamic raw);
 
   @protected
-  List<Asset>
-  dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    dynamic raw,
-  );
-
-  @protected
   List<RustTool>
   dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
     dynamic raw,
@@ -572,6 +557,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<ContentPart> dco_decode_list_content_part(dynamic raw);
 
   @protected
   List<Float32List> dco_decode_list_list_prim_f_32_strict(dynamic raw);
@@ -601,9 +589,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
-  List<PromptPart> dco_decode_list_prompt_part(dynamic raw);
-
-  @protected
   List<(int, double)> dco_decode_list_record_i_32_f_32(dynamic raw);
 
   @protected
@@ -620,6 +605,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   Message dco_decode_message(dynamic raw);
+
+  @protected
+  MessageContent dco_decode_message_content(dynamic raw);
 
   @protected
   MtpConfig dco_decode_mtp_config(dynamic raw);
@@ -664,9 +652,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  PromptPart dco_decode_prompt_part(dynamic raw);
-
-  @protected
   (int, double) dco_decode_record_i_32_f_32(dynamic raw);
 
   @protected
@@ -703,12 +688,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
-
-  @protected
-  Asset
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    SseDeserializer deserializer,
-  );
 
   @protected
   CompletionError
@@ -943,12 +922,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Map<int, double> sse_decode_Map_i_32_f_32_None(SseDeserializer deserializer);
 
   @protected
-  Asset
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   CompletionError
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     SseDeserializer deserializer,
@@ -1110,6 +1083,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
+  MessageContent sse_decode_box_autoadd_message_content(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MtpConfig sse_decode_box_autoadd_mtp_config(SseDeserializer deserializer);
 
   @protected
@@ -1123,6 +1101,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   ChatStats sse_decode_chat_stats(SseDeserializer deserializer);
+
+  @protected
+  ContentPart sse_decode_content_part(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_32(SseDeserializer deserializer);
@@ -1143,12 +1124,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
 
   @protected
-  List<Asset>
-  sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   List<RustTool>
   sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
     SseDeserializer deserializer,
@@ -1162,6 +1137,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<ContentPart> sse_decode_list_content_part(SseDeserializer deserializer);
 
   @protected
   List<Float32List> sse_decode_list_list_prim_f_32_strict(
@@ -1195,9 +1173,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
-  List<PromptPart> sse_decode_list_prompt_part(SseDeserializer deserializer);
-
-  @protected
   List<(int, double)> sse_decode_list_record_i_32_f_32(
     SseDeserializer deserializer,
   );
@@ -1224,6 +1199,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   Message sse_decode_message(SseDeserializer deserializer);
+
+  @protected
+  MessageContent sse_decode_message_content(SseDeserializer deserializer);
 
   @protected
   MtpConfig sse_decode_mtp_config(SseDeserializer deserializer);
@@ -1270,9 +1248,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  PromptPart sse_decode_prompt_part(SseDeserializer deserializer);
-
-  @protected
   (int, double) sse_decode_record_i_32_f_32(SseDeserializer deserializer);
 
   @protected
@@ -1312,13 +1287,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    Asset self,
     SseSerializer serializer,
   );
 
@@ -1609,13 +1577,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    Asset self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     CompletionError self,
     SseSerializer serializer,
@@ -1800,6 +1761,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_message_content(
+    MessageContent self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_mtp_config(
     MtpConfig self,
     SseSerializer serializer,
@@ -1816,6 +1783,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_chat_stats(ChatStats self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_content_part(ContentPart self, SseSerializer serializer);
 
   @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
@@ -1837,13 +1807,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void
-  sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    List<Asset> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
     List<RustTool> self,
     SseSerializer serializer,
@@ -1858,6 +1821,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_content_part(
+    List<ContentPart> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_list_prim_f_32_strict(
@@ -1911,12 +1880,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
-  void sse_encode_list_prompt_part(
-    List<PromptPart> self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_list_record_i_32_f_32(
     List<(int, double)> self,
     SseSerializer serializer,
@@ -1948,6 +1911,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_message(Message self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_message_content(
+    MessageContent self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_mtp_config(MtpConfig self, SseSerializer serializer);
@@ -1995,9 +1964,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
     List<ToolCall>? self,
     SseSerializer serializer,
   );
-
-  @protected
-  void sse_encode_prompt_part(PromptPart self, SseSerializer serializer);
 
   @protected
   void sse_encode_record_i_32_f_32(
@@ -2055,22 +2021,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
 class NobodyWhoWire implements BaseWire {
   NobodyWhoWire.fromExternalLibrary(ExternalLibrary lib);
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-        ptr,
-      );
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    int ptr,
-  ) => wasmModule
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-        ptr,
-      );
 
   void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
@@ -2431,16 +2381,6 @@ external NobodyWhoWasmModule get wasmModule;
 @JS()
 @anonymous
 extension type NobodyWhoWasmModule._(JSObject _) implements JSObject {
-  external void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    int ptr,
-  );
-
-  external void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    int ptr,
-  );
-
   external void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     int ptr,

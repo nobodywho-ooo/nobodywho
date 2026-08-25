@@ -1043,6 +1043,16 @@ pub enum InvalidHistoryError {
         help("Move the system message to the front of the list, or remove it")
     )]
     MisplacedSystemMessage { index: usize },
+
+    #[error("System message contains media")]
+    #[diagnostic(
+        code(nobodywho::media_in_system_message),
+        help(
+            "No chat template supports images or audio in the system prompt. Move the media \
+             to a user message."
+        )
+    )]
+    MediaInSystemMessage,
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

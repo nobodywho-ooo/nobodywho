@@ -2,7 +2,7 @@ package ai.nobodywho
 
 import org.json.JSONArray
 import org.json.JSONObject
-import uniffi.nobodywho.PromptPart
+import uniffi.nobodywho.ContentPart
 
 /**
  * A multimodal prompt composed of text, image, and audio parts.
@@ -20,17 +20,17 @@ import uniffi.nobodywho.PromptPart
  * ```
  */
 class Prompt private constructor(
-    internal val parts: List<PromptPart>?,
+    internal val parts: List<ContentPart>?,
     internal val jsonString: String?,
 ) {
     constructor(vararg parts: Part) : this(parts.map { it.inner }, null)
 
-    class Part internal constructor(internal val inner: PromptPart)
+    class Part internal constructor(internal val inner: ContentPart)
 
     companion object {
-        fun Text(content: String) = Part(PromptPart.Text(content))
-        fun Image(path: String) = Part(PromptPart.Image(path))
-        fun Audio(path: String) = Part(PromptPart.Audio(path))
+        fun Text(content: String) = Part(ContentPart.Text(content))
+        fun Image(path: String) = Part(ContentPart.Image(path))
+        fun Audio(path: String) = Part(ContentPart.Audio(path))
 
         /** Create a prompt from any JSON-serializable value (Map, List, String, etc.). */
         fun fromJson(data: Any): Prompt = Prompt(null, toJson(data).toString())

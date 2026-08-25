@@ -150,3 +150,48 @@ def test_audio_transcription_and_image_ingestion(multimodal_chat):
     assert "hey" in response.lower() and (
         "dog" in response.lower() or "retriever" in response.lower()
     )
+
+
+def test_complete_with_content_parts(multimodal_chat):
+    """Content parts interleave text and media in a single user message."""
+    response = multimodal_chat.complete(
+        [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "What animal is in this image?"},
+                    {
+                        "type": "image",
+                        "path": os.path.join(os.path.dirname(__file__), "img/dog.png"),
+                    },
+                    {"type": "text", "text": "Answer in one word."},
+                ],
+            }
+        ]
+    ).completed()
+    assert "dog" in response.lower()
+
+    # The parts survive the round trip out of the history.
+    content = multimodal_chat.get_chat_history()[0]["content"]
+    assert [part["type"] for part in content] == ["text", "image", "text"]
+    assert content[1]["path"] == os.path.join(os.path.dirname(__file__), "img/dog.png")
+
+
+def test_complete_rejects_media_in_system_message(multimodal_chat):
+    with pytest.raises(ValueError):
+        multimodal_chat.complete(
+            [
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "image",
+                            "path": os.path.join(
+                                os.path.dirname(__file__), "img/dog.png"
+                            ),
+                        }
+                    ],
+                },
+                {"role": "user", "content": "Hello"},
+            ]
+        )

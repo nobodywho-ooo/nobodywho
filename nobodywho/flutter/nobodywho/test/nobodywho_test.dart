@@ -212,15 +212,9 @@ void main() {
 
     test('Complete replaces the history and ask continues it', () async {
       final messages = [
-        nobodywho.Message.user(
-          content: "Who was the first person to walk on the moon?",
-          assets: [],
-        ),
-        nobodywho.Message.assistant(content: "Neil Armstrong."),
-        nobodywho.Message.user(
-          content: "Which year did he do it? Answer with only the year.",
-          assets: [],
-        ),
+        nobodywho.userMessage("Who was the first person to walk on the moon?"),
+        nobodywho.assistantMessage("Neil Armstrong."),
+        nobodywho.userMessage("Which year did he do it? Answer with only the year."),
       ];
 
       final response = await chat!.complete(messages).completed();
@@ -241,8 +235,8 @@ void main() {
     test('Complete rejects a history ending in an assistant message', () async {
       expect(
         () => chat!.complete([
-          nobodywho.Message.user(content: "Was the cat a tabby?", assets: []),
-          nobodywho.Message.assistant(content: "Aye, "),
+          nobodywho.userMessage("Was the cat a tabby?"),
+          nobodywho.assistantMessage("Aye, "),
         ]),
         throwsA(anything),
       );
@@ -538,7 +532,7 @@ void main() {
       expect(toolCalls.length, greaterThanOrEqualTo(1));
       expect(toolCalls[0].name, equals('run_python'));
       expect(toolResponses.length, greaterThanOrEqualTo(1));
-      expect(toolResponses[0].content.toLowerCase(), allOf(contains('hello'),contains("world")));
+      expect(toolResponses[0].content.toString().toLowerCase(), allOf(contains('hello'),contains("world")));
     });
 
     test('Encoder.fromPath creates encoder and encodes text', () async {
@@ -604,24 +598,16 @@ void main() {
 
   group('Message struct tests', () {
     test('Message.user constructor creates correct instance', () {
-      final msg = nobodywho.Message.user(
-        content: 'Hello, world!',
-      );
+      final msg = nobodywho.userMessage('Hello, world!');
 
       expect(msg, isA<nobodywho.Message_User>());
-      expect((msg as nobodywho.Message_User).content, equals('Hello, world!'));
+      expect((msg as nobodywho.Message_User).content, equals(nobodywho.textContent('Hello, world!')));
     });
 
     test('Message constructors for different roles', () {
-      final userMsg = nobodywho.Message.user(
-        content: 'User message',
-      );
-      final assistantMsg = nobodywho.Message.assistant(
-        content: 'Assistant message',
-      );
-      final systemMsg = nobodywho.Message.system(
-        content: 'System message',
-      );
+      final userMsg = nobodywho.userMessage('User message');
+      final assistantMsg = nobodywho.assistantMessage('Assistant message');
+      final systemMsg = nobodywho.systemMessage('System message');
 
       expect(userMsg, isA<nobodywho.Message_User>());
       expect(assistantMsg, isA<nobodywho.Message_Assistant>());
@@ -629,36 +615,27 @@ void main() {
     });
 
     test('Message.assistant with empty content', () {
-      final msg = nobodywho.Message.assistant(
-        content: '',
-      );
+      final msg = nobodywho.assistantMessage('');
 
-      expect((msg as nobodywho.Message_Assistant).content, equals(''));
+      expect((msg as nobodywho.Message_Assistant).content, equals(nobodywho.textContent('')));
     });
 
     test('Message.user with multiline content', () {
       final content = 'Line 1\nLine 2\nLine 3';
-      final msg = nobodywho.Message.user(
-        content: content,
-      );
+      final msg = nobodywho.userMessage(content);
 
-      expect((msg as nobodywho.Message_User).content, equals(content));
+      expect((msg as nobodywho.Message_User).content, equals(nobodywho.textContent(content)));
     });
 
     test('Message.user with special characters', () {
       final content = 'Hello! 🎉 Special chars: <>&"\'';
-      final msg = nobodywho.Message.user(
-        content: content,
-      );
+      final msg = nobodywho.userMessage(content);
 
-      expect((msg as nobodywho.Message_User).content, equals(content));
+      expect((msg as nobodywho.Message_User).content, equals(nobodywho.textContent(content)));
     });
 
     test('Message.tool constructor creates correct instance', () {
-      final msg = nobodywho.Message.tool(
-        name: 'calculator',
-        content: '42',
-      );
+      final msg = nobodywho.toolMessage('calculator', '42');
 
       expect(msg, isA<nobodywho.Message_Tool>());
       expect((msg as nobodywho.Message_Tool).name, equals('calculator'));
@@ -667,22 +644,14 @@ void main() {
 
     test('Message.tool with JSON content', () {
       final jsonContent = '{"result": 42, "status": "success"}';
-      final msg = nobodywho.Message.tool(
-        name: 'api_call',
-        content: jsonContent,
-      );
+      final msg = nobodywho.toolMessage('api_call', jsonContent);
 
-      expect((msg as nobodywho.Message_Tool).content, equals(jsonContent));
+      expect((msg as nobodywho.Message_Tool).content, equals(nobodywho.textContent(jsonContent)));
     });
 
     test('Message variants are distinguishable', () {
-      final textMsg = nobodywho.Message.user(
-        content: 'Hello',
-      );
-      final toolRespMsg = nobodywho.Message.tool(
-        name: 'test_tool',
-        content: 'result',
-      );
+      final textMsg = nobodywho.userMessage('Hello');
+      final toolRespMsg = nobodywho.toolMessage('test_tool', 'result');
 
       expect(textMsg, isA<nobodywho.Message_User>());
       expect(textMsg, isNot(isA<nobodywho.Message_Tool>()));
@@ -691,40 +660,26 @@ void main() {
     });
 
     test('Message equality works correctly', () {
-      final msg1 = nobodywho.Message.user(
-        content: 'Hello',
-      );
-      final msg2 = nobodywho.Message.user(
-        content: 'Hello',
-      );
-      final msg3 = nobodywho.Message.user(
-        content: 'Different',
-      );
+      final msg1 = nobodywho.userMessage('Hello');
+      final msg2 = nobodywho.userMessage('Hello');
+      final msg3 = nobodywho.userMessage('Different');
 
       expect(msg1, equals(msg2));
       expect(msg1, isNot(equals(msg3)));
     });
 
     test('Message hashCode is consistent', () {
-      final msg1 = nobodywho.Message.user(
-        content: 'Hello',
-      );
-      final msg2 = nobodywho.Message.user(
-        content: 'Hello',
-      );
+      final msg1 = nobodywho.userMessage('Hello');
+      final msg2 = nobodywho.userMessage('Hello');
 
       expect(msg1.hashCode, equals(msg2.hashCode));
     });
 
     test('Message can be used in collections', () {
       final messages = <nobodywho.Message>[
-        nobodywho.Message.system(
-          content: 'You are helpful',
-        ),
-        nobodywho.Message.user(content: 'Hi'),
-        nobodywho.Message.assistant(
-          content: 'Hello!',
-        ),
+        nobodywho.systemMessage('You are helpful'),
+        nobodywho.userMessage('Hi'),
+        nobodywho.assistantMessage('Hello!'),
       ];
 
       expect(messages.length, equals(3));
@@ -734,24 +689,19 @@ void main() {
 
     test('Message copyWith works for Message_User', () {
       final original =
-          nobodywho.Message.user(
-                content: 'Original',
-              )
+          nobodywho.userMessage('Original')
               as nobodywho.Message_User;
 
-      final modified = original.copyWith(content: 'Modified');
+      final modified = original.copyWith(content: nobodywho.textContent('Modified'));
 
       expect(modified, isA<nobodywho.Message_User>());
-      expect(modified.content, equals('Modified'));
-      expect(original.content, equals('Original')); // Original unchanged
+      expect(modified.content, equals(nobodywho.textContent('Modified')));
+      expect(original.content, equals(nobodywho.textContent('Original'))); // Original unchanged
     });
 
     test('Message copyWith works for Message_Tool', () {
       final original =
-          nobodywho.Message.tool(
-                name: 'original_tool',
-                content: 'result',
-              )
+          nobodywho.toolMessage('original_tool', 'result')
               as nobodywho.Message_Tool;
 
       final modified = original.copyWith(name: 'new_tool');

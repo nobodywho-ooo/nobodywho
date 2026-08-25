@@ -9,7 +9,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `dart_function_type_to_json_schema`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -81,9 +81,6 @@ RustTool newPythonTool({
   maxMemoryBytes: maxMemoryBytes,
   maxRecursionDepth: maxRecursionDepth,
 );
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< Asset>>
-abstract class Asset implements RustOpaqueInterface {}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
@@ -217,7 +214,7 @@ abstract class RustChat implements RustOpaqueInterface {
   ///
   /// Args:
   ///     parts: List of PromptPart (text or image) making up the prompt
-  RustTokenStream askWithPrompt({required List<PromptPart> parts});
+  RustTokenStream askWithPrompt({required List<ContentPart> parts});
 
   /// Answer a full list of messages, replacing the chat history.
   ///
@@ -358,7 +355,7 @@ abstract class RustChat implements RustOpaqueInterface {
 
   Future<List<int?>> tokenize({required String message});
 
-  Future<List<int?>> tokenizeWithPrompt({required List<PromptPart> parts});
+  Future<List<int?>> tokenizeWithPrompt({required List<ContentPart> parts});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustSpeechToText>>
@@ -780,20 +777,44 @@ class ChatStats {
 }
 
 @freezed
+sealed class ContentPart with _$ContentPart {
+  const ContentPart._();
+
+  const factory ContentPart.text({required String text}) = ContentPart_Text;
+  const factory ContentPart.image({required String path}) = ContentPart_Image;
+  const factory ContentPart.audio({required String path}) = ContentPart_Audio;
+}
+
+@freezed
 sealed class Message with _$Message {
   const Message._();
 
-  const factory Message.user({
-    required String content,
-    @Default(const []) List<Asset> assets,
-  }) = Message_User;
+  const factory Message.user({required MessageContent content}) = Message_User;
   const factory Message.assistant({
-    required String content,
+    required MessageContent content,
     List<ToolCall>? toolCalls,
   }) = Message_Assistant;
-  const factory Message.system({required String content}) = Message_System;
-  const factory Message.tool({required String name, required String content}) =
-      Message_Tool;
+  const factory Message.system({required MessageContent content}) =
+      Message_System;
+  const factory Message.tool({
+    required String name,
+    required MessageContent content,
+  }) = Message_Tool;
+}
+
+@freezed
+sealed class MessageContent with _$MessageContent {
+  const MessageContent._();
+
+  const factory MessageContent.text({required String text}) =
+      MessageContent_Text;
+  const factory MessageContent.parts({required List<ContentPart> parts}) =
+      MessageContent_Parts;
+
+  /// JSON-encoded. Chat templates written for structured content receive it
+  /// as a real list or map rather than as a string.
+  const factory MessageContent.json({required String json}) =
+      MessageContent_Json;
 }
 
 /// Tuning for MTP speculative decoding. Pass one as the `mtp` argument to a
@@ -818,15 +839,6 @@ class MtpConfig {
           runtimeType == other.runtimeType &&
           kMax == other.kMax &&
           pMin == other.pMin;
-}
-
-@freezed
-sealed class PromptPart with _$PromptPart {
-  const PromptPart._();
-
-  const factory PromptPart.text({required String content}) = PromptPart_Text;
-  const factory PromptPart.image({required String path}) = PromptPart_Image;
-  const factory PromptPart.audio({required String path}) = PromptPart_Audio;
 }
 
 /// `push` always returns one of these: `Speech`/`Silence` for the confirmed

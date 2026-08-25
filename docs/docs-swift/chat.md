@@ -115,7 +115,7 @@ Similarly, if you want to edit what messages are in the context, you can use `se
 
 ```swift
 try await chat.setChatHistory([
-    .message(role: .user, content: "What is water?", assets: [])
+    .user("What is water?")
 ])
 ```
 
@@ -125,16 +125,16 @@ If you would rather pass the whole conversation on every call than let the `Chat
 
 ```swift
 let response = try await chat.complete([
-    .system(content: "You are a helpful assistant."),
-    .user(content: "Who was the first person to walk on the moon?", assets: []),
-    .assistant(content: "Neil Armstrong.", toolCalls: nil),
-    .user(content: "Which year did he do it?", assets: []),
+    .system("You are a helpful assistant."),
+    .user("Who was the first person to walk on the moon?"),
+    .assistant("Neil Armstrong."),
+    .user("Which year did he do it?"),
 ]).completed()
 ```
 
 You get back the same `TokenStream` as from `ask()`, so you can also `for try await token in ...` over it.
 
-The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. It is used exactly as given, including the system message: pass one and it becomes the chat's system prompt, leave it out and the chat is left without one.
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept.
 
 The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
 

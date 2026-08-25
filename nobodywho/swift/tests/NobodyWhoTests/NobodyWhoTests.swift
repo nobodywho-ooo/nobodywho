@@ -108,9 +108,9 @@ final class NobodyWhoTests: XCTestCase {
         let chat = try Chat(model: model, systemPrompt: "Reply with one word only.", templateVariables: noThinking)
 
         let messages: [Message] = [
-            .user(content: "Who was the first person to walk on the moon?", assets: []),
-            .assistant(content: "Neil Armstrong.", toolCalls: nil),
-            .user(content: "Which year did he do it? Answer with only the year.", assets: []),
+            .user("Who was the first person to walk on the moon?"),
+            .assistant("Neil Armstrong."),
+            .user("Which year did he do it? Answer with only the year."),
         ]
         let response = try await chat.complete(messages).completed()
         XCTAssertTrue(response.contains("1969"), "Model did not read the supplied history: \(response)")
@@ -122,8 +122,8 @@ final class NobodyWhoTests: XCTestCase {
         // An invalid conversation is rejected at the call site
         XCTAssertThrowsError(
             try chat.complete([
-                .user(content: "Hi", assets: []),
-                .assistant(content: "Aye, ", toolCalls: nil),
+                .user("Hi"),
+                .assistant("Aye, "),
             ])
         )
     }

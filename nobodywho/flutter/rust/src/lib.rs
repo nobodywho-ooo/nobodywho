@@ -1,5 +1,4 @@
 use flutter_rust_bridge::DartFnFuture;
-use nobodywho::chat::Asset;
 use std::collections::HashMap;
 use std::sync::Arc;
 // ^ in general I've only done fully-qualified imports, but these things need to be imported to
@@ -10,42 +9,129 @@ mod parse;
 
 pub use nobodywho::tool_calling::ToolCall;
 
+/// One piece of a message: a run of text, or a media file at this position.
+/// The core type's bitmap id is worker-local, so it is not mirrored — media is
+/// re-registered from the path whenever content is handed back in.
+pub enum ContentPart {
+    Text { text: String },
+    Image { path: String },
+    Audio { path: String },
+}
+
+/// The content of a message: plain text, a list of parts, or raw JSON passed
+/// straight through to the chat template.
+#[flutter_rust_bridge::frb]
+pub enum MessageContent {
+    Text {
+        text: String,
+    },
+    Parts {
+        parts: Vec<ContentPart>,
+    },
+    /// JSON-encoded. Chat templates written for structured content receive it
+    /// as a real list or map rather than as a string.
+    Json {
+        json: String,
+    },
+}
+
 #[flutter_rust_bridge::frb]
 pub enum Message {
     User {
-        content: String,
-        #[frb(default = "const []")]
-        assets: Vec<nobodywho::chat::Asset>,
+        content: MessageContent,
     },
     Assistant {
-        content: String,
+        content: MessageContent,
         tool_calls: Option<Vec<ToolCall>>,
     },
     System {
-        content: String,
+        content: MessageContent,
     },
     Tool {
         name: String,
-        content: String,
+        content: MessageContent,
     },
+}
+
+impl From<nobodywho::chat::ContentPart> for ContentPart {
+    fn from(part: nobodywho::chat::ContentPart) -> Self {
+        use nobodywho::chat::ContentPart as Core;
+        match part {
+            Core::Text { text } => ContentPart::Text { text },
+            Core::Image { path, .. } => ContentPart::Image {
+                path: path.to_string_lossy().to_string(),
+            },
+            Core::Audio { path, .. } => ContentPart::Audio {
+                path: path.to_string_lossy().to_string(),
+            },
+        }
+    }
+}
+
+impl From<ContentPart> for nobodywho::chat::ContentPart {
+    fn from(part: ContentPart) -> Self {
+        use nobodywho::chat::ContentPart as Core;
+        match part {
+            ContentPart::Text { text } => Core::text(text),
+            ContentPart::Image { path } => Core::image(path),
+            ContentPart::Audio { path } => Core::audio(path),
+        }
+    }
+}
+
+impl From<nobodywho::chat::MessageContent> for MessageContent {
+    fn from(content: nobodywho::chat::MessageContent) -> Self {
+        use nobodywho::chat::MessageContent as Core;
+        match content {
+            Core::Text(text) => MessageContent::Text { text },
+            Core::Parts(parts) => MessageContent::Parts {
+                parts: parts.into_iter().map(Into::into).collect(),
+            },
+            Core::Json(value) => MessageContent::Json {
+                json: value.to_string(),
+            },
+        }
+    }
+}
+
+impl From<MessageContent> for nobodywho::chat::MessageContent {
+    fn from(content: MessageContent) -> Self {
+        use nobodywho::chat::MessageContent as Core;
+        match content {
+            MessageContent::Text { text } => Core::Text(text),
+            MessageContent::Parts { parts } => {
+                Core::parts(parts.into_iter().map(Into::into).collect::<Vec<_>>())
+            }
+            // frb has no fallible conversion here; invalid JSON becomes text
+            // rather than panicking on the way in.
+            MessageContent::Json { json } => match serde_json::from_str(&json) {
+                Ok(value) => Core::Json(value),
+                Err(_) => Core::Text(json),
+            },
+        }
+    }
 }
 
 impl From<nobodywho::chat::Message> for Message {
     fn from(msg: nobodywho::chat::Message) -> Self {
         match msg {
-            nobodywho::chat::Message::User { content, assets } => Message::User {
-                content: content.to_string(),
-                assets,
+            nobodywho::chat::Message::User { content } => Message::User {
+                content: content.into(),
             },
             nobodywho::chat::Message::Assistant {
                 content,
                 tool_calls,
             } => Message::Assistant {
-                content,
+                content: content.into(),
                 tool_calls,
             },
-            nobodywho::chat::Message::System { content } => Message::System { content },
-            nobodywho::chat::Message::Tool { name, content } => Message::Tool { name, content },
+            nobodywho::chat::Message::System { content } => Message::System {
+                content: content.into(),
+            },
+            nobodywho::chat::Message::Tool { name, content } => Message::Tool {
+                name,
+                content: content.into(),
+            },
         }
     }
 }
@@ -53,30 +139,30 @@ impl From<nobodywho::chat::Message> for Message {
 impl From<Message> for nobodywho::chat::Message {
     fn from(msg: Message) -> Self {
         match msg {
-            Message::User { content, assets } => nobodywho::chat::Message::User {
-                content: nobodywho::chat::MessageContent::Text(content),
-                assets,
+            Message::User { content } => nobodywho::chat::Message::User {
+                content: content.into(),
             },
             Message::Assistant {
                 content,
                 tool_calls,
             } => nobodywho::chat::Message::Assistant {
-                content,
+                content: content.into(),
                 tool_calls,
             },
-            Message::System { content } => nobodywho::chat::Message::System { content },
-            Message::Tool { name, content } => nobodywho::chat::Message::Tool { name, content },
+            Message::System { content } => nobodywho::chat::Message::System {
+                content: content.into(),
+            },
+            Message::Tool { name, content } => nobodywho::chat::Message::Tool {
+                name,
+                content: content.into(),
+            },
         }
     }
 }
 
-/// A part of a multimodal prompt. Use [`PromptPart::Text`] for text,
-/// [`PromptPart::Image`] for images, and [`PromptPart::Audio`] for audio clips.
-pub enum PromptPart {
-    Text { content: String },
-    Image { path: String },
-    Audio { path: String },
-}
+/// A part of a multimodal prompt. Alias of [`ContentPart`], kept for the
+/// prompt-building API.
+pub type PromptPart = ContentPart;
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -511,11 +597,9 @@ impl RustChat {
     ///     parts: List of PromptPart (text or image) making up the prompt
     #[flutter_rust_bridge::frb(sync)]
     pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> RustTokenStream {
-        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
-            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
-            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
-            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
-        }));
+        let prompt = nobodywho::tokenizer::Prompt::parts(
+            parts.into_iter().map(Into::into).collect::<Vec<_>>(),
+        );
 
         RustTokenStream {
             stream: self.chat.ask(prompt),
@@ -643,11 +727,9 @@ impl RustChat {
         &self,
         parts: Vec<PromptPart>,
     ) -> Result<Vec<Option<i32>>, nobodywho::errors::TokenizeError> {
-        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
-            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
-            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
-            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
-        }));
+        let prompt = nobodywho::tokenizer::Prompt::parts(
+            parts.into_iter().map(Into::into).collect::<Vec<_>>(),
+        );
         self.chat.tokenize(prompt).await
     }
 

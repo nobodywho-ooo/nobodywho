@@ -160,9 +160,9 @@ for message in messages:
 
 # Set a custom context (useful for templates or saved states)
 var task_context = [
-    {"role": "user", "content": "Analyze the following data:", "assets": []},
-    {"role": "assistant", "content": "I'm ready to analyze data. Please provide it.", "assets": []},
-    {"role": "user", "content": "Here's the data: " + data_to_analyze, "assets": []}
+    {"role": "user", "content": "Analyze the following data:"},
+    {"role": "assistant", "content": "I'm ready to analyze data. Please provide it."},
+    {"role": "user", "content": "Here's the data: " + data_to_analyze}
 ]
 await set_chat_history(task_context)
 ```
@@ -175,9 +175,9 @@ one:
 
 ```gdscript
 complete([
-    {"role": "user", "content": "Who was the first person to walk on the moon?", "assets": []},
-    {"role": "assistant", "content": "Neil Armstrong.", "assets": []},
-    {"role": "user", "content": "Which year did he do it?", "assets": []}
+    {"role": "user", "content": "Who was the first person to walk on the moon?"},
+    {"role": "assistant", "content": "Neil Armstrong."},
+    {"role": "user", "content": "Which year did he do it?"}
 ])
 var response = await response_finished
 ```
@@ -187,8 +187,8 @@ The response arrives on the `response_updated` / `response_finished` signals, ex
 
 The array **becomes** the chat history, replacing whatever was there, and the response is
 added to it — so the next `ask()` continues that same conversation. It is used exactly as
-given, including the system message: pass one and it becomes the chat's system prompt,
-leave it out and the chat is left without one.
+given, except that a system message at the front sets the chat's system prompt; leave
+it out and the prompt already on the chat is kept.
 
 The array must not be empty, must end in a user or tool message, and may only have a
 system message first. Anything else emits `worker_failed` instead of generating.

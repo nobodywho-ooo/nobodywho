@@ -31,8 +31,8 @@ func test_chat_history():
 	
 	# Set up a simple chat history
 	var messages = [
-		{"role": "user", "content": "What is 2 + 2?", "assets": []},
-		{"role": "assistant", "content": "2 + 2 equals 4.", "assets": []}
+		{"role": "user", "content": "What is 2 + 2?"},
+		{"role": "assistant", "content": "2 + 2 equals 4."}
 	]
 	
 	await set_chat_history(messages)
@@ -60,9 +60,9 @@ func test_complete():
 
 	# The array is the whole conversation, and it replaces whatever was there
 	complete([
-		{"role": "user", "content": "Who was the first person to walk on the moon?", "assets": []},
-		{"role": "assistant", "content": "Neil Armstrong.", "assets": []},
-		{"role": "user", "content": "Which year did he do it? Answer with only the year.", "assets": []}
+		{"role": "user", "content": "Who was the first person to walk on the moon?"},
+		{"role": "assistant", "content": "Neil Armstrong."},
+		{"role": "user", "content": "Which year did he do it? Answer with only the year."}
 	])
 	var response = await response_finished
 	print("✨ Got completion: " + response)
