@@ -94,22 +94,19 @@ impl From<nobodywho::chat::MessageContent> for MessageContent {
     }
 }
 
-impl From<MessageContent> for nobodywho::chat::MessageContent {
-    fn from(content: MessageContent) -> Self {
-        use nobodywho::chat::MessageContent as Core;
-        match content {
-            MessageContent::Text { text } => Core::Text(text),
-            MessageContent::Parts { parts } => {
-                Core::parts(parts.into_iter().map(Into::into).collect::<Vec<_>>())
-            }
-            // frb has no fallible conversion here; invalid JSON becomes text
-            // rather than panicking on the way in.
-            MessageContent::Json { json } => match serde_json::from_str(&json) {
-                Ok(value) => Core::Json(value),
-                Err(_) => Core::Text(json),
-            },
+/// Fallible, unlike the other direction: the `Json` variant carries an encoded
+/// string that may not parse.
+fn content_to_core(content: MessageContent) -> Result<nobodywho::chat::MessageContent, String> {
+    use nobodywho::chat::MessageContent as Core;
+    Ok(match content {
+        MessageContent::Text { text } => Core::Text(text),
+        MessageContent::Parts { parts } => {
+            Core::parts(parts.into_iter().map(Into::into).collect::<Vec<_>>())
         }
-    }
+        MessageContent::Json { json } => Core::Json(
+            serde_json::from_str(&json).map_err(|e| format!("Invalid content JSON: {e}"))?,
+        ),
+    })
 }
 
 impl From<nobodywho::chat::Message> for Message {
@@ -136,28 +133,26 @@ impl From<nobodywho::chat::Message> for Message {
     }
 }
 
-impl From<Message> for nobodywho::chat::Message {
-    fn from(msg: Message) -> Self {
-        match msg {
-            Message::User { content } => nobodywho::chat::Message::User {
-                content: content.into(),
-            },
-            Message::Assistant {
-                content,
-                tool_calls,
-            } => nobodywho::chat::Message::Assistant {
-                content: content.into(),
-                tool_calls,
-            },
-            Message::System { content } => nobodywho::chat::Message::System {
-                content: content.into(),
-            },
-            Message::Tool { name, content } => nobodywho::chat::Message::Tool {
-                name,
-                content: content.into(),
-            },
-        }
-    }
+fn message_to_core(msg: Message) -> Result<nobodywho::chat::Message, String> {
+    Ok(match msg {
+        Message::User { content } => nobodywho::chat::Message::User {
+            content: content_to_core(content)?,
+        },
+        Message::Assistant {
+            content,
+            tool_calls,
+        } => nobodywho::chat::Message::Assistant {
+            content: content_to_core(content)?,
+            tool_calls,
+        },
+        Message::System { content } => nobodywho::chat::Message::System {
+            content: content_to_core(content)?,
+        },
+        Message::Tool { name, content } => nobodywho::chat::Message::Tool {
+            name,
+            content: content_to_core(content)?,
+        },
+    })
 }
 
 /// A part of a multimodal prompt. Alias of [`ContentPart`], kept for the
@@ -623,20 +618,20 @@ impl RustChat {
     /// Answer a full list of messages, replacing the chat history.
     ///
     /// The list is the whole conversation, used as given: it must be non-empty, end
-    /// in a user or tool message, and carry a system message only first. A list
-    /// without a system message leaves the chat with no system prompt. The response
-    /// is appended, and the next `ask` continues from there.
+    /// in a user or tool message, and carry a system message only first. That system
+    /// message sets the chat's system prompt; leave it out and the prompt already on
+    /// the chat is kept. The response is appended, and the next `ask` continues from
+    /// there.
     #[flutter_rust_bridge::frb(sync)]
-    pub fn complete(
-        &self,
-        messages: Vec<Message>,
-    ) -> Result<RustTokenStream, nobodywho::errors::InvalidHistoryError> {
-        let stream = self.chat.complete(
-            messages
-                .into_iter()
-                .map(nobodywho::chat::Message::from)
-                .collect(),
-        )?;
+    pub fn complete(&self, messages: Vec<Message>) -> Result<RustTokenStream, String> {
+        let messages = messages
+            .into_iter()
+            .map(message_to_core)
+            .collect::<Result<Vec<_>, String>>()?;
+        let stream = self
+            .chat
+            .complete(messages)
+            .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(RustTokenStream { stream })
     }
 
@@ -647,18 +642,15 @@ impl RustChat {
             .map(|msgs| msgs.into_iter().map(Message::from).collect())
     }
 
-    pub async fn set_chat_history(
-        &self,
-        messages: Vec<Message>,
-    ) -> Result<(), nobodywho::errors::SetterError> {
+    pub async fn set_chat_history(&self, messages: Vec<Message>) -> Result<(), String> {
+        let messages = messages
+            .into_iter()
+            .map(message_to_core)
+            .collect::<Result<Vec<_>, String>>()?;
         self.chat
-            .set_chat_history(
-                messages
-                    .into_iter()
-                    .map(nobodywho::chat::Message::from)
-                    .collect(),
-            )
+            .set_chat_history(messages)
             .await
+            .map_err(|e| e.to_string())
     }
 
     pub async fn set_sampler_config(

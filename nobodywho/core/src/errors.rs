@@ -473,6 +473,9 @@ pub enum WorkerError {
 pub enum SetterError {
     #[error("Worker terminated before processing setter: {0}")]
     SetterError(String),
+
+    #[error(transparent)]
+    InvalidHistory(#[from] InvalidHistoryError),
 }
 
 #[derive(Debug, thiserror::Error)]

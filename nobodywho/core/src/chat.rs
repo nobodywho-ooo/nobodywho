@@ -187,13 +187,19 @@ pub fn validate_completion_messages(messages: &[Message]) -> Result<(), InvalidH
         return Err(InvalidHistoryError::MisplacedSystemMessage { index: index + 1 });
     }
 
-    // The system prompt is stored as plain text, so media in it would flatten to
-    // a marker with no bitmap behind it and fail deep inside tokenization.
-    if messages[0].is_system() && !messages[0].content_ref().media_parts().is_empty() {
-        return Err(InvalidHistoryError::MediaInSystemMessage);
-    }
+    validate_system_message_media(messages)
+}
 
-    Ok(())
+/// A leading system message is hoisted into the system prompt, which is stored
+/// as plain text — media in it would flatten to a marker with no bitmap behind
+/// it and fail deep inside tokenization.
+pub fn validate_system_message_media(messages: &[Message]) -> Result<(), InvalidHistoryError> {
+    match messages.first() {
+        Some(first) if first.is_system() && !first.content_ref().media_parts().is_empty() => {
+            Err(InvalidHistoryError::MediaInSystemMessage)
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Tuning for MTP speculative decoding.
@@ -637,10 +643,13 @@ impl ChatHandle {
     }
 
     /// Set the chat history (lower-level API).
+    ///
+    /// A leading system message becomes the chat's system prompt.
     pub fn set_chat_history(
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
+        validate_system_message_media(&messages)?;
         self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
             messages,
             output_tx,
@@ -1004,10 +1013,13 @@ impl ChatHandleAsync {
     }
 
     /// Set the chat history (lower-level API).
+    ///
+    /// A leading system message becomes the chat's system prompt.
     pub async fn set_chat_history(
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
+        validate_system_message_media(&messages)?;
         self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
             messages,
             output_tx,
@@ -2114,7 +2126,8 @@ impl<'a> Chat<'a> {
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
-    /// the freshly registered bitmaps.
+    /// the freshly registered bitmaps. Covers every role but system, whose
+    /// content is flattened to plain text by `hoist_system_message`.
     ///
     /// A bitmap id identifies a bitmap within one worker, so a message that came
     /// from another session — a saved conversation, say — carries ids this worker
@@ -2127,10 +2140,10 @@ impl<'a> Chat<'a> {
     /// which is the same path any replaced history takes.
     fn reload_media(&mut self, messages: &mut [Message]) -> Result<(), MultimodalError> {
         for message in messages {
-            let Message::User { content } = message else {
+            if message.is_system() {
                 continue;
-            };
-            self.register_media(content)?;
+            }
+            self.register_media(message.content_mut())?;
         }
         Ok(())
     }
@@ -3576,6 +3589,43 @@ mod tests {
         ));
     }
 
+    /// `set_chat_history` hoists a leading system message the same way, so it
+    /// rejects media there too — and leaves the worker alive to say so.
+    #[test]
+    fn test_set_chat_history_rejects_media_in_system_message() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(512)
+            .build()
+            .expect("chat build failed in test");
+
+        let err = chat
+            .set_chat_history(vec![
+                Message::new_system(vec![
+                    ContentPart::text("Describe like this:"),
+                    ContentPart::image("example.png"),
+                ]),
+                user("Hi"),
+            ])
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            crate::errors::SetterError::InvalidHistory(InvalidHistoryError::MediaInSystemMessage)
+        ));
+
+        // A mid-list system message stays tolerated: it is not hoisted, so it
+        // never becomes the plain-text system prompt.
+        chat.set_chat_history(vec![
+            user("Hi"),
+            Message::new_system("Be terse.".to_string()),
+            user("Again"),
+        ])
+        .expect("a mid-list system message should still be accepted");
+
+        // The worker survived both, so the history round-trips.
+        assert_eq!(chat.get_chat_history().unwrap().len(), 3);
+    }
+
     /// The wire format the API promises: a user message whose content is a list
     /// of parts, with an image interleaved between two runs of text.
     #[test]
@@ -3749,6 +3799,63 @@ mod tests {
             1,
             "the reloaded bitmap should be registered"
         );
+
+        Ok(())
+    }
+
+    /// Media is not a user-only thing — a tool can answer with a screenshot.
+    /// An unregistered part would flatten to a marker with no bitmap behind it.
+    #[test]
+    fn test_reload_media_covers_every_non_system_role() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let (Ok(vision_path), Ok(mmproj_path)) = (
+            std::env::var("TEST_VISION_MODEL"),
+            std::env::var("TEST_MMPROJ_MODEL"),
+        ) else {
+            eprintln!(
+                "skipping test_reload_media_covers_every_non_system_role: \
+                 set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
+            );
+            return Ok(());
+        };
+
+        let model = Arc::new(llm::get_model(
+            &vision_path,
+            true,
+            Some(&mmproj_path),
+            None,
+            None,
+        )?);
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 4096,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let screenshot =
+            || MessageContent::parts([ContentPart::text("Here it is:"), ContentPart::image(image)]);
+        let mut messages = vec![
+            user("Take a screenshot."),
+            Message::new_tool("screenshot".to_string(), screenshot()),
+        ];
+
+        worker.reload_media(&mut messages)?;
+
+        for message in &messages {
+            for part in message.content_ref().media_parts() {
+                assert!(
+                    part.id()
+                        .is_some_and(|id| worker.context.bitmaps.contains_key(id)),
+                    "media on a {} message was not registered: {part:?}",
+                    message.role(),
+                );
+            }
+        }
+        assert_eq!(worker.context.bitmaps.len(), 1);
 
         Ok(())
     }

@@ -616,9 +616,10 @@ public protocol RustChatProtocol: AnyObject, Sendable {
      * history.
      *
      * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. A list
-     * without a system message leaves the chat with no system prompt. The response
-     * is appended, and the next `ask` continues from there.
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
      */
     func complete(messages: [Message]) throws  -> RustTokenStream
     
@@ -829,9 +830,10 @@ open func askWithPrompt(parts: [ContentPart]) -> RustTokenStream  {
      * history.
      *
      * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. A list
-     * without a system message leaves the chat with no system prompt. The response
-     * is appended, and the next `ask` continues from there.
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
      */
 open func complete(messages: [Message])throws  -> RustTokenStream  {
     return try  FfiConverterTypeRustTokenStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
@@ -5316,7 +5318,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 42877) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 45268) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {

@@ -870,9 +870,10 @@ impl NobodyWhoChat {
     /// Answers a full array of messages, which replaces the chat history.
     ///
     /// The array is the whole conversation, used as given: it must be non-empty, end
-    /// in a user or tool message, and carry a system message only first. An array
-    /// without a system message leaves the chat with no system prompt. The response
-    /// is appended, so the next `ask` continues that conversation.
+    /// in a user or tool message, and carry a system message only first. That system
+    /// message sets the chat's system prompt; leave it out and the prompt already on
+    /// the chat is kept. The response is appended, so the next `ask` continues that
+    /// conversation.
     ///
     /// Each element is a Dictionary with a "role" and a "content", the same shape
     /// `get_chat_history` returns. The response arrives on the `response_updated` /

@@ -1283,7 +1283,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 42877.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 45268.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722.toShort()) {
@@ -2048,9 +2048,10 @@ public interface RustChatInterface {
      * history.
      *
      * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. A list
-     * without a system message leaves the chat with no system prompt. The response
-     * is appended, and the next `ask` continues from there.
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
      */
     fun `complete`(`messages`: List<Message>): RustTokenStream
     
@@ -2318,9 +2319,10 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      * history.
      *
      * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. A list
-     * without a system message leaves the chat with no system prompt. The response
-     * is appended, and the next `ask` continues from there.
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
      */
     @Throws(NobodyWhoException::class)override fun `complete`(`messages`: List<Message>): RustTokenStream {
             return FfiConverterTypeRustTokenStream.lift(

@@ -1740,9 +1740,10 @@ export interface RustChatInterface {
      * history.
      *
      * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. A list
-     * without a system message leaves the chat with no system prompt. The response
-     * is appended, and the next `ask` continues from there.
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
      */
     complete(messages: Array<Message>)  /*throws*/: RustTokenStreamInterface;
     /**
@@ -1915,9 +1916,10 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
      * history.
      *
      * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. A list
-     * without a system message leaves the chat with no system prompt. The response
-     * is appended, and the next `ask` continues from there.
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
      */
  complete(messages: Array<Message>): RustTokenStreamInterface /*throws*/ {
     return FfiConverterTypeRustTokenStream.lift(
@@ -4802,7 +4804,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !== 46807) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() !== 42877) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() !== 45268) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_complete");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() !== 12722) {

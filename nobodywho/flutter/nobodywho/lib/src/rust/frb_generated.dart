@@ -566,15 +566,6 @@ abstract class NobodyWhoApi extends BaseApi {
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_GetterErrorPtr;
 
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_InvalidHistoryError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_InvalidHistoryError;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_InvalidHistoryErrorPtr;
-
   RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Model;
 
   RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Model;
@@ -1219,8 +1210,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatCompleteConstMeta,
         argValues: [that, messages],
@@ -1753,8 +1743,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetChatHistoryConstMeta,
         argValues: [that, messages],
@@ -4224,14 +4213,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGetterError;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_InvalidHistoryError => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_InvalidHistoryError => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_Model => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel;
 
@@ -4411,15 +4392,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return GetterErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  InvalidHistoryError
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return InvalidHistoryErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4791,15 +4763,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return GetterErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  InvalidHistoryError
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return InvalidHistoryErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -5520,18 +5483,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  InvalidHistoryError
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return InvalidHistoryErrorImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   Model
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     SseDeserializer deserializer,
@@ -5978,18 +5929,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return GetterErrorImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  InvalidHistoryError
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return InvalidHistoryErrorImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -6914,19 +6853,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError(
-    InvalidHistoryError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as InvalidHistoryErrorImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerModel(
     Model self,
     SseSerializer serializer,
@@ -7453,19 +7379,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as GetterErrorImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvalidHistoryError(
-    InvalidHistoryError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as InvalidHistoryErrorImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -8475,35 +8388,6 @@ class GetterErrorImpl extends RustOpaque implements GetterError {
 }
 
 @sealed
-class InvalidHistoryErrorImpl extends RustOpaque
-    implements InvalidHistoryError {
-  // Not to be used by end users
-  InvalidHistoryErrorImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  InvalidHistoryErrorImpl.frbInternalSseDecode(
-    BigInt ptr,
-    int externalSizeOnNative,
-  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount: NobodyWho
-        .instance
-        .api
-        .rust_arc_increment_strong_count_InvalidHistoryError,
-    rustArcDecrementStrongCount: NobodyWho
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_InvalidHistoryError,
-    rustArcDecrementStrongCountPtr: NobodyWho
-        .instance
-        .api
-        .rust_arc_decrement_strong_count_InvalidHistoryErrorPtr,
-  );
-}
-
-@sealed
 class ModelImpl extends RustOpaque implements Model {
   // Not to be used by end users
   ModelImpl.frbInternalDcoDecode(List<dynamic> wire)
@@ -8580,9 +8464,10 @@ class RustChatImpl extends RustOpaque implements RustChat {
   /// Answer a full list of messages, replacing the chat history.
   ///
   /// The list is the whole conversation, used as given: it must be non-empty, end
-  /// in a user or tool message, and carry a system message only first. A list
-  /// without a system message leaves the chat with no system prompt. The response
-  /// is appended, and the next `ask` continues from there.
+  /// in a user or tool message, and carry a system message only first. That system
+  /// message sets the chat's system prompt; leave it out and the prompt already on
+  /// the chat is kept. The response is appended, and the next `ask` continues from
+  /// there.
   RustTokenStream complete({required List<Message> messages}) => NobodyWho
       .instance
       .api

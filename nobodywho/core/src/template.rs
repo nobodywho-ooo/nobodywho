@@ -98,9 +98,10 @@ impl ChatTemplate {
     /// template flattened to text, with an mtmd marker holding each media
     /// part's position, even though they stay structured everywhere else.
     ///
-    /// Raw JSON content is deliberately left alone: handing the template a real
-    /// list or map is the whole point of that variant.
-    fn flatten_parts_for_template(messages: &[Message]) -> Vec<Message> {
+    /// Raw JSON content stays structured — handing the template a real list or
+    /// map is the whole point of that variant — but its `raw` envelope is
+    /// stripped, since the template never reads the content back.
+    fn messages_for_template(messages: &[Message]) -> Vec<serde_json::Value> {
         messages
             .iter()
             .map(|message| {
@@ -109,7 +110,13 @@ impl ChatTemplate {
                 if matches!(content, MessageContent::Parts(_)) {
                     *content = MessageContent::Text(content.to_string());
                 }
-                message
+
+                let mut value =
+                    serde_json::to_value(&message).expect("Message is always JSON-serializable");
+                if let Some(content) = value.get_mut("content") {
+                    crate::content::strip_raw_wrapper(content);
+                }
+                value
             })
             .collect()
     }
@@ -127,7 +134,7 @@ impl ChatTemplate {
 
         // Build context with all template variables merged in
         // We build a Vec of (key, value) pairs and then create the context from it
-        let renderable = Self::flatten_parts_for_template(messages);
+        let renderable = Self::messages_for_template(messages);
 
         let mut context_pairs: Vec<(String, Value)> = vec![
             ("messages".to_string(), Value::from_serialize(&renderable)),
@@ -584,5 +591,48 @@ mod tests {
             rendered2,
             "<bos><|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\nHello<|im_end|>\n"
         );
+    }
+
+    /// A template written for structured turns iterates `content` itself, so raw
+    /// JSON has to arrive as a real list — never inside its `raw` envelope.
+    #[test]
+    fn test_render_json_content_reaches_template_unwrapped() {
+        let template = "{% for message in messages %}\
+             {% for part in message['content'] %}[{{ part['type'] }}:{{ part['text'] }}]\
+             {% endfor %}{% endfor %}";
+        let ctx = ChatTemplateContext {
+            template_variables: HashMap::default(),
+            tools: None,
+        };
+        let chat_template = ChatTemplate::new(template, "<bos>", "<eos>").unwrap();
+
+        // Part-shaped, so serializing it for the history needs the `raw` wrapper.
+        let content = MessageContent::from_json(serde_json::json!([
+            {"type": "text", "text": "one"},
+            {"type": "text", "text": "two"},
+        ]));
+
+        let rendered = chat_template
+            .render_unhandled(&[Message::User { content }], &ctx)
+            .unwrap();
+        assert_eq!(rendered, "[text:one][text:two]");
+    }
+
+    /// An empty JSON array is part-shaped too, so it also gets wrapped on the
+    /// way out — and must still render as an empty list.
+    #[test]
+    fn test_render_empty_json_content_reaches_template_unwrapped() {
+        let template = "{% for message in messages %}{{ message['content'] | length }}{% endfor %}";
+        let ctx = ChatTemplateContext {
+            template_variables: HashMap::default(),
+            tools: None,
+        };
+        let chat_template = ChatTemplate::new(template, "<bos>", "<eos>").unwrap();
+
+        let content = MessageContent::from_json(serde_json::json!([]));
+        let rendered = chat_template
+            .render_unhandled(&[Message::User { content }], &ctx)
+            .unwrap();
+        assert_eq!(rendered, "0");
     }
 }

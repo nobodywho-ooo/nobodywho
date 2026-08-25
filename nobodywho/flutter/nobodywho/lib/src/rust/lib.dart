@@ -8,8 +8,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `dart_function_type_to_json_schema`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `content_to_core`, `dart_function_type_to_json_schema`, `message_to_core`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -165,9 +165,6 @@ abstract class EncoderWorkerError implements RustOpaqueInterface {}
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
 abstract class GetterError implements RustOpaqueInterface {}
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< InvalidHistoryError>>
-abstract class InvalidHistoryError implements RustOpaqueInterface {}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
   static Future<Model> load({
@@ -219,9 +216,10 @@ abstract class RustChat implements RustOpaqueInterface {
   /// Answer a full list of messages, replacing the chat history.
   ///
   /// The list is the whole conversation, used as given: it must be non-empty, end
-  /// in a user or tool message, and carry a system message only first. A list
-  /// without a system message leaves the chat with no system prompt. The response
-  /// is appended, and the next `ask` continues from there.
+  /// in a user or tool message, and carry a system message only first. That system
+  /// message sets the chat's system prompt; leave it out and the prompt already on
+  /// the chat is kept. The response is appended, and the next `ask` continues from
+  /// there.
   RustTokenStream complete({required List<Message> messages});
 
   /// Create chat directly from a model path. This is async as it loads a model

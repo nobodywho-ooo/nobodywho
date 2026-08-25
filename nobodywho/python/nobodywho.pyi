@@ -89,9 +89,9 @@ class Chat:
         """
         Answer a full list of messages, replacing the chat history.
 
-        The list is the entire conversation, used exactly as given — including whether or
-        not it starts with a system message, so passing a list without one leaves the chat
-        with no system prompt. The response is added to the history, and the next `ask()`
+        The list is the entire conversation, used exactly as given. A system message at
+        the front sets the chat's system prompt; leave it out and the prompt already on
+        the chat is kept. The response is added to the history, and the next `ask()`
         continues from there.
 
         Args:
@@ -344,9 +344,9 @@ class ChatAsync:
         """
         Answer a full list of messages, replacing the chat history.
 
-        The list is the entire conversation, used exactly as given — including whether or
-        not it starts with a system message, so passing a list without one leaves the chat
-        with no system prompt. The response is added to the history, and the next `ask()`
+        The list is the entire conversation, used exactly as given. A system message at
+        the front sets the chat's system prompt; leave it out and the prompt already on
+        the chat is kept. The response is added to the history, and the next `ask()`
         continues from there.
 
         Args:

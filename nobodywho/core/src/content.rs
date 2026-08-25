@@ -222,6 +222,18 @@ fn is_raw_wrapper(fields: &serde_json::Map<String, Value>) -> bool {
         && fields.get("type").and_then(Value::as_str) == Some(RAW_TAG)
 }
 
+/// Unwrap a `{"type": "raw", "value": V}` envelope in place. The envelope only
+/// exists so history reads back unchanged; a template must see `V` itself.
+pub(crate) fn strip_raw_wrapper(value: &mut Value) {
+    let Value::Object(fields) = value else {
+        return;
+    };
+    if !is_raw_wrapper(fields) {
+        return;
+    }
+    *value = fields["value"].take();
+}
+
 /// True when writing the value plainly would not read back as the same thing —
 /// an array of part-shaped objects, or a value that is itself a `raw` wrapper.
 fn needs_raw_wrapper(value: &Value) -> bool {
@@ -352,6 +364,22 @@ mod tests {
         assert!(matches!(content, MessageContent::Json(ref v) if *v == inner));
         // It must come back wrapped, or it would read as parts next time.
         assert_eq!(serde_json::to_value(&content).unwrap(), wrapped);
+    }
+
+    #[test]
+    fn strip_raw_wrapper_undoes_the_envelope() {
+        let inner = json!([{"type": "text", "text": "not ours"}]);
+        let mut value = serde_json::to_value(MessageContent::Json(inner.clone())).unwrap();
+        assert_ne!(value, inner, "this content should serialize wrapped");
+
+        strip_raw_wrapper(&mut value);
+        assert_eq!(value, inner);
+
+        // Anything that is not an envelope is left alone.
+        let mut plain = json!({"type": "document", "title": "Returns"});
+        let untouched = plain.clone();
+        strip_raw_wrapper(&mut plain);
+        assert_eq!(plain, untouched);
     }
 
     #[test]

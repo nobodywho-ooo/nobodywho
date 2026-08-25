@@ -80,9 +80,9 @@ class Chat(
      * Answer a full list of messages, replacing the chat history.
      *
      * The list is the whole conversation, used as given: it must be non-empty, end in a user or
-     * tool message, and carry a system message only first. A list without a system message leaves
-     * the chat with no system prompt. The response is appended, and the next `ask` continues from
-     * there.
+     * tool message, and carry a system message only first. That system message sets the chat's
+     * system prompt; leave it out and the prompt already on the chat is kept. The response is
+     * appended, and the next `ask` continues from there.
      */
     fun complete(messages: List<Message>) = TokenStream(inner.complete(messages.map { Message.toUniFFI(it) }))
 

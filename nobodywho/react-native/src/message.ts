@@ -15,7 +15,8 @@ export type ContentPart =
   | { type: "audio"; path: string };
 
 /**
- * Message content: either plain text, or interleaved text and media.
+ * Message content: plain text, interleaved text and media, or a raw JSON value
+ * handed straight to the chat template.
  *
  * @example
  * ```typescript
@@ -25,7 +26,7 @@ export type ContentPart =
  * ];
  * ```
  */
-export type Content = string | ContentPart[];
+export type Content = string | ContentPart[] | { type: "json"; json: string };
 
 /**
  * A chat message. The variant determines the message type:
@@ -36,7 +37,8 @@ export type Content = string | ContentPart[];
  * - **System message:** `{ role: "system", content }`
  * - **Tool response:** `{ role: "tool", name, content }`
  *
- * `content` is a string, or a list of parts for multimodal input.
+ * `content` is a string, a list of parts for multimodal input, or a
+ * `{ type: "json", json }` wrapper for raw template passthrough.
  *
  * @example
  * ```typescript
@@ -86,9 +88,7 @@ export function contentFromInternal(content: InternalMessageContent): Content {
   } else if (content.tag === MessageContent_Tags.Parts) {
     return content.inner.parts.map(partFromInternal);
   } else {
-    // Raw JSON passthrough has no typed representation here; hand back the
-    // encoded form so it survives a round trip.
-    return content.inner.json;
+    return { type: "json", json: content.inner.json };
   }
 }
 
@@ -97,9 +97,12 @@ export function contentToInternal(content: Content): InternalMessageContent {
   if (typeof content === "string") {
     return new InternalMessageContent.Text({ text: content });
   }
-  return new InternalMessageContent.Parts({
-    parts: content.map(partToInternal),
-  });
+  if (Array.isArray(content)) {
+    return new InternalMessageContent.Parts({
+      parts: content.map(partToInternal),
+    });
+  }
+  return new InternalMessageContent.Json({ json: content.json });
 }
 
 /** @internal Convert internal Message to Message */
