@@ -41,7 +41,6 @@ data class NativeArtifact(
     val taskPrefix: String,
     val artifactId: String,
     val mainLibrary: String,
-    val includeCxxRuntime: Boolean,
 )
 
 val nativeArtifacts = listOf(
@@ -49,13 +48,11 @@ val nativeArtifacts = listOf(
         taskPrefix = "flutter",
         artifactId = "nobodywho-flutter-android",
         mainLibrary = "libnobodywho_flutter.so",
-        includeCxxRuntime = true,
     ),
     NativeArtifact(
         taskPrefix = "uniffi",
         artifactId = "nobodywho-uniffi-android",
         mainLibrary = "libnobodywho_uniffi.so",
-        includeCxxRuntime = false,
     ),
 )
 
@@ -78,10 +75,8 @@ fun validateNativeLibraries(artifact: NativeArtifact, jniRoot: File) {
         val abiDir = jniRoot.resolve(abi)
         require(abiDir.isDirectory) { "Missing $abiDir" }
 
-        val required = commonLibraries + artifact.mainLibrary + buildList {
-            if (artifact.includeCxxRuntime) add("libc++_shared.so")
-            if (abi == "x86_64") add("libonnxruntime.so")
-        }
+        val required = commonLibraries + artifact.mainLibrary + "libc++_shared.so" +
+            if (abi == "x86_64") listOf("libonnxruntime.so") else emptyList()
         required.forEach { library ->
             require(abiDir.resolve(library).isFile) {
                 "${artifact.artifactId} is missing $abi/$library"
@@ -92,12 +87,6 @@ fun validateNativeLibraries(artifact: NativeArtifact, jniRoot: File) {
             it.name.startsWith("libggml-cpu") && it.extension == "so"
         }) {
             "${artifact.artifactId} has no CPU backend for $abi"
-        }
-
-        if (!artifact.includeCxxRuntime) {
-            require(!abiDir.resolve("libc++_shared.so").exists()) {
-                "${artifact.artifactId} must use the consumer's libc++_shared.so"
-            }
         }
     }
 }

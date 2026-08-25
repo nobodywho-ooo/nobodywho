@@ -217,12 +217,6 @@ jobs:
           source-dir: artifacts/uniffi
           jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/x86_64
 
-      - name: "Remove libc++_shared.so from UniFFI AAR (consumer supplies it)"
-        run: |
-          set -euo pipefail
-          rm nobodywho/android/build/uniffi/jniLibs/arm64-v8a/libc++_shared.so
-          rm nobodywho/android/build/uniffi/jniLibs/x86_64/libc++_shared.so
-
       - name: "Install Android NDK"
         uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -433,16 +427,6 @@ jobs:
 
       - name: "List artifacts"
         run: ls -la artifacts/
-
-      # Kotlin supplies the process-wide C++ runtime. NobodyWho itself comes
-      # from the shared ai.nobodywho:nobodywho-uniffi-android dependency.
-      - name: "Setup Android C++ runtime"
-        run: |
-          mkdir -p nobodywho/kotlin/android/build/jniLibs/{arm64-v8a,x86_64}
-          cp -L artifacts/nobodywho-runtime-aarch64-linux-android/libc++_shared.so \
-            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
-          cp -L artifacts/nobodywho-runtime-x86_64-linux-android/libc++_shared.so \
-            nobodywho/kotlin/android/build/jniLibs/x86_64/
 
       # Place desktop native libs for JVM JAR (JNA layout)
       - name: "Setup JVM native libs"

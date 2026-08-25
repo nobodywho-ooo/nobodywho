@@ -24,13 +24,13 @@ kotlin/
 
 The Kotlin wrapper code is identical across platforms. What differs is how the native library (`libnobodywho_uniffi`) is supplied:
 
-- **Android** depends on the shared multi-ABI `nobodywho-uniffi-android` AAR, packages `libc++_shared.so`, and uses the AAR variant of JNA (`jna:5.14.0@aar`).
+- **Android** depends on the complete multi-ABI `nobodywho-uniffi-android` AAR, which supplies the native entry point and matching `libc++_shared.so`, and uses the AAR variant of JNA (`jna:5.14.0@aar`).
 - **Desktop JVM** needs native libs for all platforms in `src/main/resources/` following JNA's naming convention (`linux-x86-64/`, `darwin-aarch64/`, `win32-x86-64/`), inside a regular JAR with JNA as a normal JAR dependency.
 
 A single module can't produce both an AAR and a JAR, so we split into three:
 
 - **`:common`** (published as `nobodywho-core`) — contains all Kotlin code. Pure JVM, no Android dependency. This is where compilation and tests happen.
-- **`:android`** — empty shell that depends on `:common` and the shared native AAR, applies the Android Gradle plugin, and packages the C++ runtime.
+- **`:android`** — empty shell that depends on `:common` and the complete native AAR and applies the Android Gradle plugin.
 - **`:jvm`** — empty shell that depends on `:common`, packages a JAR with desktop native libs in JNA layout.
 
 ## Published artifacts
@@ -40,7 +40,7 @@ Three artifacts are published to Maven Central:
 | Artifact | Type | Contains |
 |---|---|---|
 | `ai.nobodywho:nobodywho-core` | JAR | Kotlin wrappers + generated UniFFI bindings (~100KB) |
-| `ai.nobodywho:nobodywho-android` | AAR | Kotlin facade + C++ runtime; depends on `nobodywho-core` and `nobodywho-uniffi-android` |
+| `ai.nobodywho:nobodywho-android` | AAR | Android facade; depends on `nobodywho-core` and the complete `nobodywho-uniffi-android` runtime AAR |
 | `ai.nobodywho:nobodywho` | JAR | Desktop native libs (Linux, macOS, Windows), depends on `nobodywho-core` |
 
 The Android-native release separately publishes

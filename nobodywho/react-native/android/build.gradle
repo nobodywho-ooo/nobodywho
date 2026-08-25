@@ -20,11 +20,13 @@ def reactNativeArchitectures() {
   def value = rootProject.getProperties().get("reactNativeArchitectures")
   def supported = ["arm64-v8a", "x86_64"]
   def requested = value ? value.split(",").collect { it.trim() } : supported
-  def selected = requested.findAll { supported.contains(it) }
-  if (selected.isEmpty()) {
-    throw new GradleException("NobodyWho supports these Android ABIs: ${supported.join(', ')}")
+  def unsupported = requested.findAll { !supported.contains(it) }
+  if (!unsupported.isEmpty()) {
+    throw new GradleException(
+      "NobodyWho supports these Android ABIs: ${supported.join(', ')} (unsupported: ${unsupported.join(', ')})"
+    )
   }
-  return selected
+  return requested
 }
 
 def isNewArchitectureEnabled() {
@@ -56,6 +58,11 @@ def supportsNamespace() {
 }
 
 def nobodywhoAbis = reactNativeArchitectures()
+// Older React Native/AGP combinations still run on JDK 11, while current
+// React Native configures Java 17. Match the running build without requiring
+// bytecode newer than either environment supports.
+def jvmTargetVersion = JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17) ?
+  JavaVersion.VERSION_17 : JavaVersion.VERSION_11
 
 // Gradle owns native artifact resolution and caching. We extract the AAR only
 // because this module's CMake build must link its JSI bridge against UniFFI.
@@ -82,6 +89,8 @@ def nativeAarTrees = nativeAar.incoming.files.elements.map { files ->
 def extractNobodywhoNativeAar = tasks.register("extractNobodywhoNativeAar", Sync) {
   from(nativeAarTrees) {
     include nobodywhoAbis.collect { "jni/${it}/*.so" }
+    // React Native packages the process-wide C++ runtime itself.
+    exclude "jni/**/libc++_shared.so"
   }
   into nativeRoot
 }
@@ -107,7 +116,7 @@ def verifyNobodywhoNativeAar = tasks.register("verifyNobodywhoNativeAar") {
         throw new GradleException("Incomplete NobodyWho native AAR for ${abi}")
       }
       if (new File(abiDir, "libc++_shared.so").exists()) {
-        throw new GradleException("The UniFFI AAR must use React Native's libc++_shared.so")
+        throw new GradleException("React Native must use its own libc++_shared.so")
       }
     }
   }
@@ -173,12 +182,12 @@ android {
   }
 
   compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
+    sourceCompatibility jvmTargetVersion
+    targetCompatibility jvmTargetVersion
   }
 
   kotlinOptions {
-    jvmTarget = "17"
+    jvmTarget = jvmTargetVersion.toString()
   }
 
   sourceSets {

@@ -6,14 +6,15 @@ prebuilt Rust libraries into two Maven AARs:
 - `ai.nobodywho:nobodywho-flutter-android`
 - `ai.nobodywho:nobodywho-uniffi-android`
 
-Both contain `arm64-v8a` and `x86_64`. Android selects the matching directory
-when it builds or installs an app; none of the bindings detect an ABI or search
-for native-library paths at runtime.
+Both contain `arm64-v8a` and `x86_64`, including the matching
+`libc++_shared.so`. Android selects the matching directory when it builds or
+installs an app; none of the bindings detect an ABI or search for native-library
+paths at runtime.
 
 There are two artifacts because Flutter and UniFFI have different entry-point
-libraries. The Flutter AAR also owns `libc++_shared.so`. The UniFFI AAR omits
-it: React Native already supplies the process-wide C++ runtime, while the
-Kotlin wrapper adds the matching runtime to its own AAR.
+libraries. Kotlin consumes the complete UniFFI AAR. React Native extracts the
+same AAR but omits its `libc++_shared.so`, because React Native supplies the
+process-wide C++ runtime itself.
 
 ## Versions and releases
 

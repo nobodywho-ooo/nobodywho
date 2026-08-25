@@ -113,5 +113,6 @@ export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobody
 ./nobodywho/kotlin/gradlew -p nobodywho/kotlin :android:assembleDebug
 ```
 
-The Kotlin AAR packages only `libc++_shared.so` itself. NobodyWho's entry point
-and runtime libraries remain in the shared native AAR dependency.
+The shared native AAR contains NobodyWho's entry point, runtime libraries, and
+the matching `libc++_shared.so`, so the local override has the same runtime
+contents as the published dependency.
