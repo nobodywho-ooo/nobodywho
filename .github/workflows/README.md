@@ -27,7 +27,7 @@
 | `device` | on-device tests on real phones (Firebase Test Lab) | — | nightly on main; release tag (that binding only) |
 | `release` | publish PyPI / pub.dev / npm / Maven / Swift | — | release tag |
 
-Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`react_native`; `android/**` → `flutter`/`kotlin`/`react_native`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci`, or they're caught by the post-merge full run on `main`.
+Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swift`/`kotlin`/`react_native`; `android/**` and the Android-specific Cargo/CMake build controls → `flutter`/`kotlin`/`react_native`. Otherwise a bucket runs only on its own path. `Cargo.lock` and `.github/workflows/**` do **not** auto-trigger full CI — use `full-ci`, or they're caught by the post-merge full run on `main`.
 
 ## Triggers
 

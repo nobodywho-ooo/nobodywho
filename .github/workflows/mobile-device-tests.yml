@@ -178,13 +178,11 @@ jobs:
         run: |
           set -euo pipefail
           JNI=nobodywho/android/build/uniffi/jniLibs/arm64-v8a
-          mkdir -p "$JNI" nobodywho/kotlin/android/build/jniLibs/arm64-v8a
+          mkdir -p "$JNI"
           cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
             "$JNI/"
           cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
             "$JNI/"
-          mv "$JNI/libc++_shared.so" \
-            nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -559,8 +557,8 @@ jobs:
         with:
           packages: "platform-tools platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358"
 
-      # React Native supplies libc++_shared.so itself; the source UniFFI AAR
-      # contains the entry point, common llama libraries, and CPU backends.
+      # The source AAR has the same complete contents as the published AAR.
+      # React Native's Gradle module excludes libc++_shared.so when extracting it.
       - name: "Build source UniFFI AAR"
         run: |
           set -euo pipefail
@@ -570,7 +568,6 @@ jobs:
             "$JNI/"
           cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
             "$JNI/"
-          rm "$JNI/libc++_shared.so"
           ./nobodywho/kotlin/gradlew -p nobodywho/android \
             uniffiAar -Pversion=0.0.0-device -PnobodywhoAbis=arm64-v8a
           echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-device.aar" \

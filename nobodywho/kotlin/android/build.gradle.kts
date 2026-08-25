@@ -37,11 +37,9 @@ android {
 
     sourceSets {
         getByName("main") {
-            // The Kotlin artifact owns the process-wide C++ runtime.
-            jniLibs.srcDirs(
-                layout.buildDirectory.dir("jniLibs"),
-                localNativeRoot.map { it.dir("jni") },
-            )
+            // A local override is unpacked here. Normal builds consume the same
+            // libraries, including libc++_shared.so, from the Maven AAR.
+            jniLibs.srcDir(localNativeRoot.map { it.dir("jni") })
         }
     }
 }

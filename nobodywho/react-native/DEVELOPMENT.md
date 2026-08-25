@@ -173,8 +173,9 @@ export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobody
 ```
 
 Gradle extracts the AAR once; CMake links against its UniFFI entry point and
-the same directory is packaged as `jniLibs`. React Native supplies
-`libc++_shared.so`, so the shared UniFFI AAR deliberately excludes it.
+the same directory is packaged as `jniLibs`. The AAR contains its matching
+`libc++_shared.so`, but the React Native Gradle module excludes that file while
+extracting because React Native supplies the process-wide runtime itself.
 
 For iOS:
 ```bash
