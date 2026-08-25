@@ -5,12 +5,12 @@ use crate::huggingface::{download_gguf, parse_model_path};
 #[cfg(test)]
 use crate::inference::acquire_inference_lock;
 use crate::inference::{BatchCapacity, EngineContext, InferenceEngine};
+use crate::llama_backend::backend as llama_backend;
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
-use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
@@ -18,7 +18,7 @@ use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeParams};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info, info_span, warn};
 
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
@@ -33,80 +33,6 @@ pub(crate) struct GlobalInferenceLockToken;
 lazy_static! {
     pub(crate) static ref GLOBAL_INFERENCE_LOCK: Mutex<GlobalInferenceLockToken> =
         Mutex::new(GlobalInferenceLockToken);
-}
-
-static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
-    #[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-    load_best_backend();
-    LlamaBackend::init().expect("Failed to initialize llama backend")
-});
-
-#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-fn load_best_backend() {
-    let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
-    let found = unsafe { libc::dladdr(load_best_backend as *const libc::c_void, &mut info) };
-    assert!(
-        found != 0 && !info.dli_fname.is_null(),
-        "failed to locate own shared library"
-    );
-    let own_path = unsafe { std::ffi::CStr::from_ptr(info.dli_fname) }
-        .to_str()
-        .expect("shared library path is not valid UTF-8");
-    let dir = std::path::Path::new(own_path)
-        .parent()
-        .expect("shared library path has no parent directory");
-
-    // Android can dlopen an exact `base.apk!/lib/<abi>/libfoo.so` path, but its
-    // filesystem APIs cannot enumerate that pseudo-directory. Score the exact
-    // backend filenames embedded by build.rs and register the best match.
-    let (backend_path, backend_path_c, score) = env!("NOBODYWHO_ANDROID_CPU_BACKENDS")
-        .split(':')
-        .filter_map(|filename| {
-            let path = dir.join(filename);
-            let path_c = std::ffi::CString::new(path.to_str().expect("backend path is not UTF-8"))
-                .expect("backend path contains a null byte");
-            score_backend(&path_c).map(|score| {
-                info!(backend = %path.display(), score, "scored GGML CPU backend");
-                (path, path_c, score)
-            })
-        })
-        .max_by_key(|(_, _, score)| *score)
-        .expect("none of the packaged GGML CPU backends could be opened");
-
-    let backend = unsafe { llama_cpp_sys_2::ggml_backend_load(backend_path_c.as_ptr()) };
-    assert!(
-        !backend.is_null(),
-        "failed to register GGML CPU backend {}",
-        backend_path.display()
-    );
-    info!(backend = %backend_path.display(), score, "loaded GGML CPU backend");
-}
-
-#[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-fn score_backend(path: &std::ffi::CStr) -> Option<i32> {
-    let handle = unsafe { libc::dlopen(path.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
-    if handle.is_null() {
-        let error = unsafe { libc::dlerror() };
-        let error = if error.is_null() {
-            "unknown error".into()
-        } else {
-            unsafe { std::ffi::CStr::from_ptr(error) }
-                .to_string_lossy()
-                .into_owned()
-        };
-        debug!(backend = %path.to_string_lossy(), %error, "failed to open GGML CPU backend");
-        return None;
-    }
-
-    let symbol = unsafe { libc::dlsym(handle, c"ggml_backend_score".as_ptr()) };
-    let score = if symbol.is_null() {
-        None
-    } else {
-        let score_fn: unsafe extern "C" fn() -> i32 = unsafe { std::mem::transmute(symbol) };
-        Some(unsafe { score_fn() })
-    };
-    unsafe { libc::dlclose(handle) };
-    score
 }
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
@@ -147,8 +73,10 @@ impl Model {
 }
 
 pub fn has_gpu_backend() -> bool {
-    #[cfg(all(feature = "android-dynamic-backends", target_os = "android"))]
-    LazyLock::force(&LLAMA_BACKEND);
+    if let Err(error) = llama_backend() {
+        error!(%error, "Failed to initialize llama backend");
+        return false;
+    }
 
     #[cfg(any(
         all(target_os = "ios", target_arch = "aarch64", target_abi = "sim"),
@@ -203,6 +131,7 @@ pub fn get_model(
         ));
     }
 
+    let backend = llama_backend()?;
     let use_gpu = use_gpu_if_available && has_gpu_backend();
     let model_path = model_selection::resolve_model_path(model_path, use_gpu)?;
     let model_progress = progress
@@ -244,23 +173,21 @@ pub fn get_model(
     let load_span = info_span!("model_load", path = %real_model_path.display());
     let _guard = load_span.enter();
 
-    let language_model =
-        LlamaModel::load_from_file(&LLAMA_BACKEND, &real_model_path, &model_params).map_err(
-            |e| {
-                if e.to_string().contains("null result") {
-                    return LoadModelError::ModelLoadFailed {
-                        path: real_model_path.display().to_string(),
-                    };
-                }
-                let error_msg = format!(
-                    "Bad model path: {} - Llama.cpp error: {}",
-                    real_model_path.display(),
-                    e
-                );
-                error!(error = %error_msg, "Failed to load model");
-                LoadModelError::InvalidModel(error_msg)
-            },
-        )?;
+    let language_model = LlamaModel::load_from_file(backend, &real_model_path, &model_params)
+        .map_err(|e| {
+            if e.to_string().contains("null result") {
+                return LoadModelError::ModelLoadFailed {
+                    path: real_model_path.display().to_string(),
+                };
+            }
+            let error_msg = format!(
+                "Bad model path: {} - Llama.cpp error: {}",
+                real_model_path.display(),
+                e
+            );
+            error!(error = %error_msg, "Failed to load model");
+            LoadModelError::InvalidModel(error_msg)
+        })?;
 
     info!("Model loaded successfully");
     let projection_model = real_mmproj_path
@@ -272,7 +199,7 @@ pub fn get_model(
         .as_ref()
         .map(|path| {
             info!(path = %path.display(), "Loading MTP draft model");
-            LlamaModel::load_from_file(&LLAMA_BACKEND, path, &model_params).map_err(|e| {
+            LlamaModel::load_from_file(backend, path, &model_params).map_err(|e| {
                 let error_msg = format!(
                     "Failed to load MTP draft model at {}: {}",
                     path.display(),
@@ -402,6 +329,7 @@ where
         extra: T,
     ) -> Result<Worker<'a, T>, InitWorkerError> {
         info!("Initializing worker");
+        let backend = llama_backend()?;
 
         let projection_model = model.projection_model.as_ref();
 
@@ -451,9 +379,7 @@ where
             .with_pooling_type(pooling_type)
             .with_kv_unified(n_seq_max > 1);
 
-        let ctx = model
-            .language_model
-            .new_context(&LLAMA_BACKEND, ctx_params)?;
+        let ctx = model.language_model.new_context(backend, ctx_params)?;
         let n_batch = planned_n_ctx as usize;
 
         // The batch limit is sequence IDs per token; each embedding token belongs to one sequence.
@@ -473,11 +399,8 @@ where
                         .with_n_threads_batch(n_threads)
                         .with_context_type(LlamaContextType::Mtp)
                         .with_n_rs_seq(0);
-                    let draft_ctx = draft_model.new_context_with_ctx_other(
-                        &LLAMA_BACKEND,
-                        draft_params,
-                        &ctx,
-                    )?;
+                    let draft_ctx =
+                        draft_model.new_context_with_ctx_other(backend, draft_params, &ctx)?;
                     let spec_params = MtpSpeculativeParams {
                         n_max: mtp_config.k_max as i32,
                         n_min: 0,
@@ -529,7 +452,7 @@ where
 ///
 /// When dropped: sets the optional stop flag, closes the message channel (causing the
 /// worker's `recv()` to return `Err`), then joins the thread. This ordering guarantees
-/// the worker has fully exited before any statics (e.g. `LLAMA_BACKEND`) are destroyed.
+/// the worker has fully exited before the global llama backend is destroyed.
 pub(crate) struct WorkerGuard<T> {
     pub(crate) msg_tx: Option<std::sync::mpsc::Sender<T>>,
     join_handle: Option<std::thread::JoinHandle<()>>,

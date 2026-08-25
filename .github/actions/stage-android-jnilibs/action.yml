@@ -4,9 +4,6 @@ description: >
   nobodywho-runtime-<target> dir of common libs + CPU backends) into a
   jniLibs/<abi>-shaped directory, ready for Gradle's AAR packaging.
 
-  Does not handle libc++_shared.so ownership (kept vs. moved vs. removed
-  differs per caller) — that stays as a small follow-up step in the workflow.
-
 inputs:
   integration:
     description: "Entry-point binding: uniffi or flutter"

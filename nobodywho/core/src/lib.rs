@@ -16,6 +16,7 @@ pub mod errors;
 mod host_memory;
 pub mod huggingface;
 pub mod inference;
+mod llama_backend;
 pub mod llm;
 pub mod memory;
 mod model_selection;

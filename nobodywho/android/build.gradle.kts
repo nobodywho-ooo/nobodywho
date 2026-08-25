@@ -59,11 +59,9 @@ val nativeArtifacts = listOf(
     ),
 )
 
-fun String.capitalized() = replaceFirstChar { it.uppercase() }
-
 val sourceArchive by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
-    from("README.md", "version.txt")
+    from("README.md")
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
 }
@@ -75,58 +73,52 @@ val documentationArchive by tasks.registering(Jar::class) {
     isReproducibleFileOrder = true
 }
 
-val validationTasks = nativeArtifacts.associateWith { artifact ->
-    tasks.register("validate${artifact.taskPrefix.capitalized()}NativeLibraries") {
-        val jniRoot = layout.buildDirectory.dir("${artifact.taskPrefix}/jniLibs")
-        inputs.dir(jniRoot)
+fun validateNativeLibraries(artifact: NativeArtifact, jniRoot: File) {
+    supportedAbis.forEach { abi ->
+        val abiDir = jniRoot.resolve(abi)
+        require(abiDir.isDirectory) { "Missing $abiDir" }
 
-        doLast {
-            supportedAbis.forEach { abi ->
-                val abiDir = jniRoot.get().dir(abi).asFile
-                require(abiDir.isDirectory) { "Missing $abiDir" }
+        val required = commonLibraries + artifact.mainLibrary + buildList {
+            if (artifact.includeCxxRuntime) add("libc++_shared.so")
+            if (abi == "x86_64") add("libonnxruntime.so")
+        }
+        required.forEach { library ->
+            require(abiDir.resolve(library).isFile) {
+                "${artifact.artifactId} is missing $abi/$library"
+            }
+        }
 
-                val required = buildList {
-                    add(artifact.mainLibrary)
-                    addAll(commonLibraries)
-                    if (artifact.includeCxxRuntime) add("libc++_shared.so")
-                    if (abi == "x86_64") add("libonnxruntime.so")
-                }
-                required.forEach { library ->
-                    require(abiDir.resolve(library).isFile) {
-                        "${artifact.artifactId} is missing $abi/$library"
-                    }
-                }
+        require(abiDir.listFiles().orEmpty().any {
+            it.name.startsWith("libggml-cpu") && it.extension == "so"
+        }) {
+            "${artifact.artifactId} has no CPU backend for $abi"
+        }
 
-                require(abiDir.listFiles().orEmpty().any {
-                    it.name.startsWith("libggml-cpu") && it.extension == "so"
-                }) {
-                    "${artifact.artifactId} has no CPU backend for $abi"
-                }
-
-                if (!artifact.includeCxxRuntime) {
-                    require(!abiDir.resolve("libc++_shared.so").exists()) {
-                        "${artifact.artifactId} must use the consumer's libc++_shared.so"
-                    }
-                }
+        if (!artifact.includeCxxRuntime) {
+            require(!abiDir.resolve("libc++_shared.so").exists()) {
+                "${artifact.artifactId} must use the consumer's libc++_shared.so"
             }
         }
     }
 }
 
 val aarTasks = nativeArtifacts.associateWith { artifact ->
+    val jniRoot = layout.buildDirectory.dir("${artifact.taskPrefix}/jniLibs")
     tasks.register<Zip>("${artifact.taskPrefix}Aar") {
-        dependsOn(validationTasks.getValue(artifact))
         archiveFileName.set("${artifact.artifactId}-${project.version}.aar")
         destinationDirectory.set(layout.buildDirectory.dir("outputs"))
         duplicatesStrategy = DuplicatesStrategy.FAIL
         isPreserveFileTimestamps = false
         isReproducibleFileOrder = true
 
+        doFirst {
+            validateNativeLibraries(artifact, jniRoot.get().asFile)
+        }
         from("${artifact.taskPrefix}/AndroidManifest.xml") {
             rename { "AndroidManifest.xml" }
         }
         into("jni") {
-            from(layout.buildDirectory.dir("${artifact.taskPrefix}/jniLibs"))
+            from(jniRoot)
             include(supportedAbis.map { "$it/**" })
         }
     }
@@ -137,7 +129,7 @@ tasks.assemble {
 }
 
 tasks.check {
-    dependsOn(validationTasks.values)
+    dependsOn(aarTasks.values)
 }
 
 publishing {
@@ -183,7 +175,10 @@ extensions.configure<SigningExtension> {
     val signingKey = providers.environmentVariable("SIGNING_KEY").orNull
     val signingPassword = providers.environmentVariable("SIGNING_PASSWORD").orNull
     if (signingKey != null) {
-        useInMemoryPgpKeys(signingKey, signingPassword.orEmpty())
+        requireNotNull(signingPassword) {
+            "SIGNING_PASSWORD must be set when SIGNING_KEY is set"
+        }
+        useInMemoryPgpKeys(signingKey, signingPassword)
         sign(extensions.getByType<org.gradle.api.publish.PublishingExtension>().publications)
     }
 }
