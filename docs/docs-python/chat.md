@@ -58,6 +58,57 @@ chat.set_chat_history([{
 }])
 ```
 
+## Chat completion
+
+If you are used to other LLM libraries, you may prefer passing the whole conversation on every call instead of letting the `Chat` object remember it. That is what `Chat.complete()` is for:
+
+```python
+from nobodywho import Chat, TokenStream
+chat = Chat("./model.gguf")
+response: TokenStream = chat.complete([
+   {"role": "system", "content": "You are a helpful assistant."},
+   {"role": "user", "content": "Who was the first person to walk on the moon?"},
+   {"role": "assistant", "content": "Neil Armstrong."},
+   {"role": "user", "content": "Which year did he do it?"},
+])
+print(response.completed())
+```
+
+You get back the same `TokenStream` as from `ask()`, so you can iterate it for tokens or call `completed()` for the whole answer.
+
+The list you pass **becomes** the chat history, replacing whatever was there. The response is added to it, so `ask()` continues that same conversation:
+
+```python continuation
+chat.complete([{"role": "user", "content": "My favorite color is teal."}]).completed()
+
+print(chat.get_chat_history())  # the message about the color, plus the reply
+print(chat.ask("What is my favorite color?").completed())  # continues from there
+```
+
+The list is used exactly as given, which includes the system message. If you pass one, it becomes the chat's system prompt; if you don't, the chat is left without one:
+
+```python continuation
+chat = Chat("./model.gguf", system_prompt="You are a helpful assistant.")
+chat.complete([{"role": "user", "content": "Hello!"}]).completed()
+print(chat.get_system_prompt())  # None — the list had no system message
+```
+
+So if you want to keep a system prompt across `complete()` calls, include it in every list you pass.
+
+The list has to describe a conversation the model can answer, so it must not be empty, it must end in a user or tool message, and only the first message may be a system message. Anything else raises a `ValueError`:
+
+```python continuation
+try:
+   chat.complete([
+      {"role": "user", "content": "Was the cat a tabby?"},
+      {"role": "assistant", "content": "Aye, "},  # nothing left to answer
+   ])
+except ValueError as e:
+   print(e)
+```
+
+Use `ask()` to add a single turn to the conversation the `Chat` is already holding, and `complete()` to hand it a conversation of your own. Both leave the chat ready for the other.
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.

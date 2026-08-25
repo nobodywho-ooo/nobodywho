@@ -64,3 +64,24 @@ chat.ask(prompt).completed() # It's a dog and a penguin!
 
 That should be it! Beware though, that consuming images and audio can quickly drain the context,
 and larger context sizes may be needed for smooth usage.
+
+## Media in a saved conversation
+
+`get_chat_history()` records the file path of every image and audio clip alongside the message
+it belongs to, so a conversation containing media can be saved and replayed later:
+
+```python notest
+import json
+
+# save it, maybe to a save file
+history = json.dumps(chat.get_chat_history())
+
+# ... later, in a new process ...
+chat.complete(json.loads(history) + [
+    {"role": "user", "content": "What colour was the dog?"}
+])
+```
+
+`complete()` re-reads each file, so the model sees the images and audio again rather than a
+conversation with holes in it. The files therefore have to still be where they were — if one
+cannot be read, `complete()` fails instead of quietly answering without it.

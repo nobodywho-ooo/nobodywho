@@ -6,6 +6,7 @@ func run_test():
 
 	assert(await test_say())
 	assert(await test_chat_history())
+	assert(await test_complete())
 	assert(await test_stop_generation())
 	assert(await test_tool_call())
 	assert(await test_tool_call_underscores())
@@ -51,6 +52,35 @@ func test_chat_history():
 	assert("2 + 2" in resp)
 	return true 
 	
+
+func test_complete():
+	# Reset to clean state
+	reset_context()
+	self.allow_thinking = false
+
+	# The array is the whole conversation, and it replaces whatever was there
+	complete([
+		{"role": "user", "content": "Who was the first person to walk on the moon?", "assets": []},
+		{"role": "assistant", "content": "Neil Armstrong.", "assets": []},
+		{"role": "user", "content": "Which year did he do it? Answer with only the year.", "assets": []}
+	])
+	var response = await response_finished
+	print("✨ Got completion: " + response)
+	assert("1969" in response, "Model did not read the supplied history")
+
+	# The supplied messages plus the reply are now the history
+	var history = await get_chat_history()
+	print("✨ History after complete: " + str(history))
+	assert(history.size() == 4, "History should be the 3 supplied messages plus the reply")
+	assert(history[3]["role"] == "assistant", "Last message should be the reply")
+
+	# ...so ask() continues that conversation
+	ask("Who are we talking about? Answer with only the name.")
+	var resp = await response_finished
+	print("✨ Got response: " + resp)
+	assert("Armstrong" in resp)
+	return true
+
 
 func current_temperature(location: String, zipCode: int, inDenmark: bool) -> String:
 	if location.to_lower() == "copenhagen":

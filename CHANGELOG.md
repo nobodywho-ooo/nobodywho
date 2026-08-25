@@ -8,6 +8,10 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Added
+
+- `Chat.complete(messages)` answers a whole conversation passed as a list of messages, for when you would rather hand over the conversation than let the `Chat` remember it. The list becomes the chat history — including its system message, or lack of one — and the response is appended, so `ask()` continues from there. Media referenced by the messages is re-read from its file path, so a saved conversation containing images or audio can be replayed. Available for all bindings.
+
 ## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20
 
 ### Added

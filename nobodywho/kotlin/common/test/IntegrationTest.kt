@@ -98,6 +98,38 @@ class IntegrationTest {
     }
 
     @Test
+    fun testComplete() = runBlocking {
+        val modelPath = requireEnv("TEST_MODEL")
+        val model = Model.load(modelPath)
+        val chat = Chat(
+            model = model,
+            systemPrompt = "Reply with one word only.",
+            templateVariables = mapOf("enable_thinking" to false)
+        )
+
+        val messages = listOf(
+            Message.User("Who was the first person to walk on the moon?"),
+            Message.Assistant("Neil Armstrong."),
+            Message.User("Which year did he do it? Answer with only the year.")
+        )
+        val response = chat.complete(messages).completed()
+        assertTrue("Model did not read the supplied history: $response", response.contains("1969"))
+
+        // The supplied messages replace the history, with the reply appended
+        val history = chat.getChatHistory()
+        assertEquals(messages.size + 1, history.size)
+        assertTrue("Last message should be the reply", history.last() is Message.Assistant)
+
+        // An invalid conversation is rejected at the call site
+        try {
+            chat.complete(listOf(Message.User("Hi"), Message.Assistant("Aye, ")))
+            fail("Expected a trailing assistant message to be rejected")
+        } catch (e: uniffi.nobodywho.NobodyWhoException) {
+            // expected
+        }
+    }
+
+    @Test
     fun testTokenize() = runBlocking {
         val modelPath = requireEnv("TEST_MODEL")
         val model = Model.load(modelPath)

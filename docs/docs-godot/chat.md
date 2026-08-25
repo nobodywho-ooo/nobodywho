@@ -167,6 +167,32 @@ var task_context = [
 await set_chat_history(task_context)
 ```
 
+### Answering a Whole Conversation at Once
+
+`complete()` takes the conversation as an array and answers it, instead of appending one
+message the way `ask()` does. Useful for replaying a saved conversation, or for rewinding
+one:
+
+```gdscript
+complete([
+    {"role": "user", "content": "Who was the first person to walk on the moon?", "assets": []},
+    {"role": "assistant", "content": "Neil Armstrong.", "assets": []},
+    {"role": "user", "content": "Which year did he do it?", "assets": []}
+])
+var response = await response_finished
+```
+
+The response arrives on the `response_updated` / `response_finished` signals, exactly like
+`ask()`.
+
+The array **becomes** the chat history, replacing whatever was there, and the response is
+added to it — so the next `ask()` continues that same conversation. It is used exactly as
+given, including the system message: pass one and it becomes the chat's system prompt,
+leave it out and the chat is left without one.
+
+The array must not be empty, must end in a user or tool message, and may only have a
+system message first. Anything else emits `worker_failed` instead of generating.
+
 ### Structured Output & Sampling
 
 You can control how the model picks tokens and constrain its output format. See the [Sampling](sampling.md) guide for sampler presets (temperature, JSON, grammar constraints) and the [Structured Output](structured-output.md) guide for a full GBNF grammar tutorial.

@@ -1425,6 +1425,40 @@ impl Chat {
         }
     }
 
+    /// Answer a full list of messages, replacing the chat history.
+    ///
+    /// The list is the entire conversation, used exactly as given — including whether or
+    /// not it starts with a system message, so passing a list without one leaves the chat
+    /// with no system prompt. The response is added to the history, and the next `ask()`
+    /// continues from there.
+    ///
+    /// Args:
+    ///     messages: List of message dicts, each with a 'role' ('system', 'user',
+    ///               'assistant' or 'tool') and a 'content'. A 'tool' message also
+    ///               needs the 'name' of the tool it answers. Must not be empty, must
+    ///               end in a user or tool message, and may only have a system message
+    ///               first.
+    ///
+    /// Returns:
+    ///     A TokenStream that yields tokens as they are generated
+    ///
+    /// Raises:
+    ///     ValueError: If the message format or the conversation shape is invalid
+    #[pyo3(signature = (messages: "list[dict]") -> "TokenStream")]
+    pub fn complete(&self, messages: Bound<'_, PyAny>) -> PyResult<TokenStream> {
+        let messages = pythonize::depythonize(&messages)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        let stream = self
+            .handle()
+            .complete(messages)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
+
+        Ok(TokenStream {
+            inner: SyncStreamInner::Chat(stream),
+        })
+    }
+
     /// Reset the conversation with a new system prompt and tools. Clears all chat history.
     ///
     /// Args:
@@ -1855,6 +1889,40 @@ impl ChatAsync {
         TokenStreamAsync {
             inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Chat(stream))),
         }
+    }
+
+    /// Answer a full list of messages, replacing the chat history.
+    ///
+    /// The list is the entire conversation, used exactly as given — including whether or
+    /// not it starts with a system message, so passing a list without one leaves the chat
+    /// with no system prompt. The response is added to the history, and the next `ask()`
+    /// continues from there.
+    ///
+    /// Args:
+    ///     messages: List of message dicts, each with a 'role' ('system', 'user',
+    ///               'assistant' or 'tool') and a 'content'. A 'tool' message also
+    ///               needs the 'name' of the tool it answers. Must not be empty, must
+    ///               end in a user or tool message, and may only have a system message
+    ///               first.
+    ///
+    /// Returns:
+    ///     A TokenStreamAsync that yields tokens as they are generated
+    ///
+    /// Raises:
+    ///     ValueError: If the message format or the conversation shape is invalid
+    #[pyo3(signature = (messages: "list[dict]") -> "TokenStreamAsync")]
+    pub fn complete(&self, messages: Bound<'_, PyAny>) -> PyResult<TokenStreamAsync> {
+        let messages = pythonize::depythonize(&messages)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        let stream = self
+            .handle()
+            .complete(messages)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
+
+        Ok(TokenStreamAsync {
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Chat(stream))),
+        })
     }
 
     /// Reset the conversation with a new system prompt and tools. Clears all chat history.

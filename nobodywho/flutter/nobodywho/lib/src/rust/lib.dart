@@ -168,6 +168,9 @@ abstract class EncoderWorkerError implements RustOpaqueInterface {}
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< GetterError>>
 abstract class GetterError implements RustOpaqueInterface {}
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< InvalidHistoryError>>
+abstract class InvalidHistoryError implements RustOpaqueInterface {}
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Model>>
 abstract class Model implements RustOpaqueInterface {
   static Future<Model> load({
@@ -215,6 +218,14 @@ abstract class RustChat implements RustOpaqueInterface {
   /// Args:
   ///     parts: List of PromptPart (text or image) making up the prompt
   RustTokenStream askWithPrompt({required List<PromptPart> parts});
+
+  /// Answer a full list of messages, replacing the chat history.
+  ///
+  /// The list is the whole conversation, used as given: it must be non-empty, end
+  /// in a user or tool message, and carry a system message only first. A list
+  /// without a system message leaves the chat with no system prompt. The response
+  /// is appended, and the next `ask` continues from there.
+  RustTokenStream complete({required List<Message> messages});
 
   /// Create chat directly from a model path. This is async as it loads a model
   ///

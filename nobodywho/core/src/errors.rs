@@ -1014,6 +1014,51 @@ pub enum SayError {
     GenerateResponse(#[from] GenerateResponseError),
 }
 
+/// A message list handed to `complete` does not describe a conversation the
+/// model can answer. Checked before anything is sent to the worker, so callers
+/// see this at the call site rather than partway through a stream.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+pub enum InvalidHistoryError {
+    #[error("Cannot complete an empty message list")]
+    #[diagnostic(
+        code(nobodywho::empty_history),
+        help("Pass at least one message, ending in a user or tool message")
+    )]
+    Empty,
+
+    #[error("Message list must end in a user or tool message, but ends in {role}")]
+    #[diagnostic(
+        code(nobodywho::history_does_not_end_in_user_or_tool),
+        help(
+            "The model replies to the last message, so it has to be one that asks for a \
+             reply. Append the user message you want answered, or drop the trailing {role} \
+             message."
+        )
+    )]
+    DoesNotEndInUserOrTool { role: &'static str },
+
+    #[error("System message at index {index}: only the first message may be a system message")]
+    #[diagnostic(
+        code(nobodywho::misplaced_system_message),
+        help("Move the system message to the front of the list, or remove it")
+    )]
+    MisplacedSystemMessage { index: usize },
+}
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+pub enum CompleteError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    InvalidHistory(#[from] InvalidHistoryError),
+
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
+
+    #[error("Error creating completion: {0}")]
+    #[diagnostic(transparent)]
+    Say(#[from] SayError),
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MultimodalError {
     #[error("Failed to load image from '{path}': {error}")]
