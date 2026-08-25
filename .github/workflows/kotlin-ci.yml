@@ -82,14 +82,13 @@ jobs:
           jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/x86_64
 
       - name: "Move libc++_shared.so into Kotlin's own jniLibs"
-        # The UniFFI AAR omits libc++_shared.so on purpose (see android/README.md):
-        # the Kotlin wrapper ships its own copy instead of relying on the AAR's.
+        # The UniFFI AAR omits libc++_shared.so on purpose (see android/README.md)
         run: |
           set -euo pipefail
-          for abi in arm64-v8a x86_64; do
-            kotlin_dir="nobodywho/kotlin/android/build/jniLibs/$abi"
-            mkdir -p "$kotlin_dir"
-            mv "nobodywho/android/build/uniffi/jniLibs/$abi/libc++_shared.so" "$kotlin_dir/"
+          for ABI in arm64-v8a x86_64; do
+            KOTLIN_DIR="nobodywho/kotlin/android/build/jniLibs/$ABI"
+            mkdir -p "$KOTLIN_DIR"
+            mv "nobodywho/android/build/uniffi/jniLibs/$ABI/libc++_shared.so" "$KOTLIN_DIR/"
           done
 
       - name: "Build local multi-ABI UniFFI AAR"
