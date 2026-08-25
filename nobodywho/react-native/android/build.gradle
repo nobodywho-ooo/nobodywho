@@ -20,13 +20,15 @@ def reactNativeArchitectures() {
   def value = rootProject.getProperties().get("reactNativeArchitectures")
   def supported = ["arm64-v8a", "x86_64"]
   def requested = value ? value.split(",").collect { it.trim() } : supported
-  def unsupported = requested.findAll { !supported.contains(it) }
-  if (!unsupported.isEmpty()) {
+  // React Native templates request all four standard ABIs by default. Build
+  // the supported intersection so consumers do not need to edit that default.
+  def selected = requested.findAll { supported.contains(it) }
+  if (selected.isEmpty()) {
     throw new GradleException(
-      "NobodyWho supports these Android ABIs: ${supported.join(', ')} (unsupported: ${unsupported.join(', ')})"
+      "NobodyWho supports these Android ABIs: ${supported.join(', ')} (requested: ${requested.join(', ')})"
     )
   }
-  return requested
+  return selected
 }
 
 def isNewArchitectureEnabled() {

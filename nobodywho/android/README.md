@@ -30,6 +30,20 @@ doesn't force every wrapper to adopt it immediately.
 A tag such as `nobodywho-android-v2.5.0` builds both AARs, attaches them to one
 GitHub release, and publishes them to Maven Central.
 
+### Required release order
+
+The native release must be available from Maven Central before releasing any
+binding that pins it. For version `2.5.0`:
+
+1. Push `nobodywho-android-v2.5.0`.
+2. Wait until both `nobodywho-flutter-android:2.5.0` and
+   `nobodywho-uniffi-android:2.5.0` resolve from Maven Central.
+3. Only then push the Flutter, Kotlin, or React Native release tags that use
+   that native version.
+
+Before step 2 completes, source builds must use the local AAR overrides below;
+dependency resolution without an override is expected to fail.
+
 ## Local builds
 
 CI fills these ignored staging directories with Cargo's Android outputs:
