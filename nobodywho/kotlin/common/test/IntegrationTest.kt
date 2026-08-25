@@ -94,7 +94,7 @@ class IntegrationTest {
         val history = chat.getChatHistory()
         val toolResponse = history.firstOrNull { it is Message.Tool }
         assertNotNull("Expected a tool response in chat history", toolResponse)
-        assertEquals("pong", (toolResponse as Message.Tool).content)
+        assertEquals("pong", (toolResponse as Message.Tool).content.text)
     }
 
     @Test
@@ -216,6 +216,6 @@ class IntegrationTest {
         val history = chat.getChatHistory()
         val toolResponse = history.firstOrNull { it is Message.Tool }
         assertNotNull("Suspend tool should have been called", toolResponse)
-        assertEquals("slow async pong", (toolResponse as Message.Tool).content)
+        assertEquals("slow async pong", (toolResponse as Message.Tool).content.text)
     }
 }

@@ -251,7 +251,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
-      expect(toolCall.content, contains("This function has no args!"));
+      expect(toolCall.content.text, contains("This function has no args!"));
     });
 
     test('Tool calling for doubles', () async {
@@ -261,7 +261,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
-      expect(toolCall.content, contains("30"));
+      expect(toolCall.content.text, contains("30"));
     });
 
     test('Tool calling with 2 layer nested list arguments', () async {
@@ -273,7 +273,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
-      expect(toolCall.content, contains("[12, 15, 18]"));
+      expect(toolCall.content.text, contains("[12, 15, 18]"));
     });
 
     test('Tool calling with 3 layer nested list arguments', () async {
@@ -285,7 +285,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
-      expect(toolCall.content, contains("[[118.0, 87.0], [327.0, 223.0]]"));
+      expect(toolCall.content.text, contains("[[118.0, 87.0], [327.0, 223.0]]"));
     });
 
     test('Tool calling for maps', () async {
@@ -297,7 +297,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
-      expect(toolCall.content, contains("BingBongBingBongBingBong"));
+      expect(toolCall.content.text, contains("BingBongBingBongBingBong"));
     });
 
     test('Tool calling for sets', () async {
@@ -309,7 +309,7 @@ void main() {
       final history = await chat!.getChatHistory();
       final toolCall = history.firstWhere((m) => m is nobodywho.Message_Tool);
 
-      expect(toolCall.content, contains("{12, 4, 7}"));
+      expect(toolCall.content.text, contains("{12, 4, 7}"));
     });
 
     test('Get chat history', () async {
@@ -369,7 +369,7 @@ void main() {
 
       // Check the tool response
       expect(toolRespMessage.name, equals('sparklify'));
-      expect(toolRespMessage.content, contains('✨test✨'));
+      expect(toolRespMessage.content.text, contains('✨test✨'));
     });
 
     test('Tools work with custom sampler', () async {
@@ -532,7 +532,10 @@ void main() {
       expect(toolCalls.length, greaterThanOrEqualTo(1));
       expect(toolCalls[0].name, equals('run_python'));
       expect(toolResponses.length, greaterThanOrEqualTo(1));
-      expect(toolResponses[0].content.toString().toLowerCase(), allOf(contains('hello'),contains("world")));
+      expect(
+        toolResponses[0].content.text.toLowerCase(),
+        allOf(contains('hello'), contains("world")),
+      );
     });
 
     test('Encoder.fromPath creates encoder and encodes text', () async {
@@ -639,7 +642,7 @@ void main() {
 
       expect(msg, isA<nobodywho.Message_Tool>());
       expect((msg as nobodywho.Message_Tool).name, equals('calculator'));
-      expect(msg.content, equals('42'));
+      expect(msg.content, equals(nobodywho.textContent('42')));
     });
 
     test('Message.tool with JSON content', () {
@@ -708,7 +711,7 @@ void main() {
 
       expect(modified, isA<nobodywho.Message_Tool>());
       expect(modified.name, equals('new_tool'));
-      expect(modified.content, equals('result'));
+      expect(modified.content, equals(nobodywho.textContent('result')));
       expect(original.name, equals('original_tool')); // Original unchanged
     });
   });

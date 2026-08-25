@@ -21,6 +21,22 @@ fun MessageContent(vararg parts: ContentPart): MessageContent =
     uniffi.nobodywho.MessageContent.Parts(parts.toList())
 
 /**
+ * This content as text.
+ *
+ * Media parts are left out, so for content that interleaves text and media this
+ * is only the text around it — match on the content itself when the media
+ * matters.
+ */
+val MessageContent.text: String
+    get() = when (this) {
+        is uniffi.nobodywho.MessageContent.Text -> text
+        is uniffi.nobodywho.MessageContent.Json -> json
+        is uniffi.nobodywho.MessageContent.Parts ->
+            parts.filterIsInstance<uniffi.nobodywho.ContentPart.Text>()
+                .joinToString("") { it.text }
+    }
+
+/**
  * A message in the chat history.
  *
  * - [User] — a user message, whose content may interleave text and media

@@ -106,6 +106,22 @@ nobodywho.Message systemMessage(String text) =>
 nobodywho.Message toolMessage(String name, String text) =>
     nobodywho.Message.tool(name: name, content: textContent(text));
 
+extension MessageContentText on nobodywho.MessageContent {
+  /// This content as text.
+  ///
+  /// Media parts are left out, so for content that interleaves text and media
+  /// this is only the text around it — switch on the content itself when the
+  /// media matters.
+  String get text => switch (this) {
+    nobodywho.MessageContent_Text(:final text) => text,
+    nobodywho.MessageContent_Json(:final json) => json,
+    nobodywho.MessageContent_Parts(:final parts) => parts
+        .whereType<nobodywho.ContentPart_Text>()
+        .map((part) => part.text)
+        .join(),
+  };
+}
+
 /// Converts JSON-decoded data to properly typed Dart values based on a JSON schema.
 /// Handles primitives, nested Lists (up to 3 levels), Sets, and Maps.
 /// Uses explicit casts at every level to ensure proper Dart types.

@@ -36,6 +36,26 @@ extension Message {
     }
 }
 
+extension MessageContent {
+    /// This content as text.
+    ///
+    /// Media parts are left out, so for content that interleaves text and media
+    /// this is only the text around it — switch on the content itself when the
+    /// media matters.
+    public var text: String {
+        switch self {
+        case .text(let text):
+            return text
+        case .json(let json):
+            return json
+        case .parts(let parts):
+            return parts.compactMap {
+                if case .text(let text) = $0 { return text } else { return nil }
+            }.joined()
+        }
+    }
+}
+
 /// Compute cosine similarity between two embedding vectors.
 public func cosineSimilarity(a: [Float], b: [Float]) -> Float {
     return NobodyWhoGenerated.cosineSimilarity(a: a, b: b)
