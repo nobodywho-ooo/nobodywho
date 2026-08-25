@@ -223,13 +223,19 @@ jobs:
           rm nobodywho/android/build/uniffi/jniLibs/arm64-v8a/libc++_shared.so
           rm nobodywho/android/build/uniffi/jniLibs/x86_64/libc++_shared.so
 
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
       - name: "Strip release libraries"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils
+          LLVM_STRIP="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           find nobodywho/android/build/flutter/jniLibs \
                nobodywho/android/build/uniffi/jniLibs \
-            -type f -name '*.so' -exec strip --strip-unneeded {} +
+            -type f -name '*.so' -exec "$LLVM_STRIP" --strip-unneeded {} +
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5

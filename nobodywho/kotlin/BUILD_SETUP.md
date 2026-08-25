@@ -141,7 +141,7 @@ The version is set once in the root `build.gradle.kts`:
 
 ```kotlin
 allprojects {
-    version = providers.gradleProperty("version").getOrElse("2.2.0")
+    version = providers.gradleProperty("version").getOrElse("3.0.0")
 }
 ```
 
