@@ -202,6 +202,21 @@ pub fn validate_system_message_media(messages: &[Message]) -> Result<(), Invalid
     }
 }
 
+/// Turns kept at the end of the history during a context shift; the first turn
+/// is always kept too.
+const PRESERVED_RECENT_TURNS: usize = 2;
+
+/// Indices of the user messages, i.e. the start of each conversational turn.
+/// Anything before the first index is a prefix that a context shift never touches.
+fn user_message_indices(messages: &[Message]) -> Vec<usize> {
+    messages
+        .iter()
+        .enumerate()
+        .filter(|(_, message)| message.is_user())
+        .map(|(index, _)| index)
+        .collect()
+}
+
 /// Tuning for MTP speculative decoding.
 ///
 /// Attaching one to a chat (via [`ChatBuilder::with_mtp`] or
@@ -1774,90 +1789,52 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
+    /// Drop whole turns from the middle of the history until the render fits
+    /// `n_ctx / 2`. A turn starts at a user message and runs until just before
+    /// the next one; the first turn, the last [`PRESERVED_RECENT_TURNS`] turns,
+    /// and any messages preceding the first user message are always kept.
+    ///
+    /// With three or fewer turns there is nothing deletable, so the history
+    /// comes back as-is even if it is still too large.
     fn context_shift(&mut self) -> Result<(), ShiftError> {
         info!("Context shift happens!");
         let target_token_size = (self.engine.ctx.n_ctx() / 2) as usize;
         let mut messages = self.messages.clone();
 
-        // Find indices to preserve. The system prompt is not in `messages`, so
-        // there is nothing to skip past and nothing to accidentally delete.
-        let first_user_message_index = self
-            .find_next_user_message(&messages, 0)
-            .ok_or(ShiftError::NoUserMessages)?;
-        let first_deletable_index = self
-            .find_next_user_message(&messages, first_user_message_index + 1)
-            .ok_or(ShiftError::TooFewMessages)?;
-        let mut last_deletable_index = self
-            .find_start_of_last_n_user_messages(&messages, 2)
-            .ok_or(ShiftError::TooFewMessages)?
-            - 1;
-
-        // Two is the smallest number of messages we can delete as we need to preserve the message structure.
-        // There might be a better start guess here.
-        let mut messages_to_delete = 2;
+        match user_message_indices(&self.messages).len() {
+            0 => return Err(ShiftError::NoUserMessages),
+            1 => return Err(ShiftError::TooFewMessages),
+            _ => {}
+        }
 
         // Delete messages until context is small enough or only essential messages are left.
         // Double the number of messages to delete each iteration. This is a simple and kind of stupid solution, as it might overshoot by a lot.
         // Plenty of optimization options here.
+        let mut turns_to_delete = 1;
 
         loop {
-            // No non-essential messages left to delete or the new context has reached desired size.
-            if first_deletable_index > last_deletable_index {
+            let turn_starts = user_message_indices(&messages);
+            // Everything between the first turn and the preserved recent ones.
+            // Zero means there is nothing left this may take.
+            let deletable = turn_starts
+                .len()
+                .saturating_sub(PRESERVED_RECENT_TURNS + 1);
+            if deletable == 0 {
+                break;
+            }
+            if self.render_as_chunks(&messages, false)?.n_tokens() <= target_token_size {
                 break;
             }
 
-            let chunks = self.render_as_chunks(&messages, false)?;
-            if chunks.n_tokens() <= target_token_size {
-                break;
-            }
-
-            let target_delete_index = min(
-                first_deletable_index + messages_to_delete - 1,
-                last_deletable_index,
-            );
-
-            // Find the first user message after target delete index and choose the message before.
-            // This is to ensure that resulting chat history still follows the user then assistant format
-            let delete_index = min(
-                self.find_next_user_message(&messages, target_delete_index + 1)
-                    .ok_or(ShiftError::InternalError(
-                        "Could not find user message supposed to be there".into(),
-                    ))?
-                    - 1,
-                last_deletable_index,
-            ); // should never fail
-            messages.drain(first_deletable_index..=delete_index);
-            messages_to_delete *= 2;
-
-            let messages_deleted = delete_index - first_deletable_index + 1;
-
-            last_deletable_index -= messages_deleted;
+            // 1 <= n <= turn_starts.len() - 3, so the drain is never empty and
+            // never reaches the preserved turns.
+            let n = min(turns_to_delete, deletable);
+            messages.drain(turn_starts[1]..turn_starts[1 + n]);
+            turns_to_delete = turns_to_delete.saturating_mul(2);
         }
 
         self.messages = messages;
         Ok(())
-    }
-
-    fn find_next_user_message(&self, messages: &[Message], start_index: usize) -> Option<usize> {
-        messages[start_index..]
-            .iter()
-            .position(|msg| msg.is_user())
-            .map(|pos| pos + start_index)
-    }
-
-    fn find_start_of_last_n_user_messages(&self, messages: &[Message], n: usize) -> Option<usize> {
-        let user_indices: Vec<usize> = messages
-            .iter()
-            .enumerate()
-            .filter(|(_, msg)| msg.is_user())
-            .map(|(idx, _)| idx)
-            .collect();
-
-        if user_indices.len() >= n {
-            Some(user_indices[user_indices.len() - n])
-        } else {
-            None
-        }
     }
 
     // ---------- IMPORTANT ----------
@@ -2376,12 +2353,6 @@ mod tests {
             let prev_msg = &messages[i - 1];
             let curr_msg = &messages[i];
 
-            // Skip system message
-            if prev_msg.is_system() {
-                assert!(curr_msg.is_user(), "After system should come user");
-                continue;
-            }
-
             // User should be followed by assistant
             if prev_msg.is_user() {
                 assert!(
@@ -2880,14 +2851,16 @@ mod tests {
         let messages_after = worker.messages.clone();
 
         // Verify essential messages are preserved:
-        // 1. System prompt survives — it is a setting, not a message the
-        //    shift could delete.
+        // 1. The system prompt is a setting rather than a message, so the shift
+        //    cannot delete it — but it must still reach a render of the
+        //    shortened history.
+        let rendered = worker.chat_template.render(
+            &worker.with_system_prompt(&worker.messages),
+            &ChatTemplateContext::new(worker.template_variables.clone(), None),
+        )?;
         assert!(
-            worker
-                .system_prompt
-                .as_deref()
-                .is_some_and(|prompt| prompt.contains("helpful assistant")),
-            "System prompt should be preserved"
+            rendered.contains("helpful assistant"),
+            "System prompt should still be rendered after a shift: {rendered}"
         );
 
         // 2. Should have first user message
@@ -2987,6 +2960,127 @@ mod tests {
         Ok(())
     }
 
+    /// A shift keeps the first turn and the last [`PRESERVED_RECENT_TURNS`], so
+    /// below that many turns it has nothing it may delete and must leave the
+    /// history alone however oversized it is.
+    ///
+    /// Both boundaries used to be broken. Two turns is `[user, assistant, user]`,
+    /// where computing the last deletable index underflowed once the system
+    /// prompt was no longer there to keep that index off zero. Three turns is the
+    /// exact cutoff, where an off-by-one does not panic but spins: nothing is
+    /// deletable, so the drain is empty and the history never shrinks.
+    #[test]
+    fn test_context_shift_below_deletable_threshold_is_a_noop(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+
+        for turn_count in [2, PRESERVED_RECENT_TURNS + 1] {
+            let mut worker = Chat::new_chat_worker(
+                &model,
+                ChatConfig {
+                    n_ctx: 512,
+                    ..Default::default()
+                },
+                Arc::new(AtomicBool::new(false)),
+            )?;
+            let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+
+            // An opening turn far too large for the context, then filler turns.
+            worker.add_user_message("padding ".repeat(target_size));
+            for turn in 1..turn_count {
+                worker.add_assistant_message(format!("answer {turn}"));
+                worker.add_user_message(format!("question {turn}"));
+            }
+
+            assert_eq!(user_message_indices(&worker.messages).len(), turn_count);
+            assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
+
+            let before = serde_json::to_value(&worker.messages)?;
+            worker.context_shift()?;
+            assert_eq!(
+                serde_json::to_value(&worker.messages)?,
+                before,
+                "{turn_count} turns is below the deletable threshold, \
+                 so the shift must leave the history alone"
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_error_cases() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 512,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        assert!(matches!(
+            worker.context_shift(),
+            Err(ShiftError::NoUserMessages)
+        ));
+
+        worker.add_user_message("only".to_string());
+        assert!(matches!(
+            worker.context_shift(),
+            Err(ShiftError::TooFewMessages)
+        ));
+
+        Ok(())
+    }
+
+    /// `complete()` can hand over a history that does not start with a user
+    /// message. That prefix, and the first turn, both survive the shift.
+    #[test]
+    fn test_context_shift_preserves_prefix_before_first_user_message(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 512,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+
+        worker.add_assistant_message("prefix".to_string());
+        for (user, assistant) in [
+            ("first".to_string(), "first".to_string()),
+            ("padding ".repeat(target_size), "large".to_string()),
+            ("keep".to_string(), "keep".to_string()),
+            ("recent".to_string(), "recent".to_string()),
+        ] {
+            worker.add_user_message(user);
+            worker.add_assistant_message(assistant);
+        }
+        worker.add_user_message("final".to_string());
+
+        worker.context_shift()?;
+
+        assert!(
+            matches!(&worker.messages[0], Message::Assistant { content, .. }
+                if content.to_string() == "prefix"),
+            "the prefix before the first user message should survive: {:?}",
+            worker.messages[0]
+        );
+        assert!(
+            matches!(&worker.messages[1], Message::User { content, .. }
+                if content.to_string() == "first"),
+            "the first turn should survive: {:?}",
+            worker.messages[1]
+        );
+        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() <= target_size);
+
+        Ok(())
+    }
+
     #[test]
     fn test_context_shift_with_tool_calls() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
@@ -3043,25 +3137,21 @@ mod tests {
         let messages_after = worker.messages.clone();
 
         // Verify essential messages are preserved:
-        // 1. System prompt survives — it is a setting, not a message the
-        //    shift could delete.
-        assert!(worker.system_prompt.is_some());
-
-        // 2. Should have first user message
+        // 1. Should have first user message
         let first_user_idx = messages_after.iter().position(|m| m.is_user());
         assert!(
             first_user_idx.is_some(),
             "First user message should be preserved"
         );
 
-        // 3. Count remaining user messages - should have at least 3 (first + last 2)
+        // 2. Count remaining user messages - should have at least 3 (first + last 2)
         let user_count = messages_after.iter().filter(|m| m.is_user()).count();
         assert!(
             user_count >= 3,
             "Should preserve first user message and last 2 user messages"
         );
 
-        // 4. Verify the last user message is there
+        // 3. Verify the last user message is there
         let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
         if let Some(Message::User { content, .. }) = last_user {
@@ -3071,7 +3161,7 @@ mod tests {
             );
         }
 
-        // 5. Verify token count is within target
+        // 4. Verify token count is within target
         let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
 
         let target_size = (n_ctx / 2) as usize;
@@ -3082,13 +3172,13 @@ mod tests {
             target_size
         );
 
-        // 6. Fewer messages after shift
+        // 5. Fewer messages after shift
         assert!(
             messages_after.len() < messages_before,
             "Should have fewer messages after shift"
         );
 
-        // 7. Check that message structure is still valid
+        // 6. Check that message structure is still valid
         assert_valid_message_structure(&messages_after);
 
         println!("Messages before shift: {}", messages_before);
@@ -3154,18 +3244,14 @@ mod tests {
         );
 
         // Verify essential messages are preserved
-        // 1. System prompt survives — it is a setting, not a message the
-        //    shift could delete.
-        assert!(worker.system_prompt.is_some());
-
-        // 2. Should have first user message
+        // 1. Should have first user message
         let first_user_idx = messages_after.iter().position(|m| m.is_user());
         assert!(
             first_user_idx.is_some(),
             "First user message should be preserved"
         );
 
-        // 3. Verify the last user message is there (the one that triggered the shift)
+        // 2. Verify the last user message is there (the one that triggered the shift)
         let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
         if let Some(Message::User { content, .. }) = last_user {
@@ -3175,7 +3261,7 @@ mod tests {
             );
         }
 
-        // 4. Message structure should still be valid
+        // 3. Message structure should still be valid
         assert_valid_message_structure(&messages_after);
 
         Ok(())
@@ -3235,18 +3321,14 @@ mod tests {
         );
 
         // Verify essential messages are preserved
-        // 1. System prompt survives — it is a setting, not a message the
-        //    shift could delete.
-        assert!(worker.system_prompt.is_some());
-
-        // 2. Should have first user message
+        // 1. Should have first user message
         let first_user_idx = messages_after.iter().position(|m| m.is_user());
         assert!(
             first_user_idx.is_some(),
             "First user message should be preserved"
         );
 
-        // 3. Verify the last user message is there (the one that triggered the shift)
+        // 2. Verify the last user message is there (the one that triggered the shift)
         let last_user = messages_after.iter().rev().find(|m| m.is_user());
 
         if let Some(Message::User { content, .. }) = last_user {
@@ -3256,7 +3338,7 @@ mod tests {
             );
         }
 
-        // 4. Message structure should still be valid
+        // 3. Message structure should still be valid
         assert_valid_message_structure(&messages_after);
 
         Ok(())

@@ -1146,9 +1146,6 @@ pub enum ShiftError {
     )]
     TooFewMessages,
 
-    #[error("Context shift failed: internal error: {0}")]
-    InternalError(String),
-
     #[error("Could not tokenize template render {0}")]
     StringToToken(#[from] llama_cpp_2::StringToTokenError),
 
