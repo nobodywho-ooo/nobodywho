@@ -17,6 +17,34 @@
 
 import NobodyWhoGenerated
 
+/// Settings to apply before a `complete` turn. `nil` keeps what the chat has; a
+/// set value stays set, like a leading system message.
+public struct Options {
+    public var sampler: SamplerConfig?
+    /// Replaces the chat's template variables wholesale.
+    public var templateVariables: [String: Bool]?
+    /// Re-selects the chat template, so the turn re-prefills from near token zero.
+    public var tools: [Tool]?
+
+    public init(
+        sampler: SamplerConfig? = nil,
+        templateVariables: [String: Bool]? = nil,
+        tools: [Tool]? = nil
+    ) {
+        self.sampler = sampler
+        self.templateVariables = templateVariables
+        self.tools = tools
+    }
+
+    func toGenerated() -> NobodyWhoGenerated.Options {
+        NobodyWhoGenerated.Options(
+            sampler: sampler,
+            templateVariables: templateVariables,
+            tools: tools?.map { $0.inner }
+        )
+    }
+}
+
 /// Shorthands for the common case of text-only content.
 extension Message {
     public static func user(_ text: String) -> Message {

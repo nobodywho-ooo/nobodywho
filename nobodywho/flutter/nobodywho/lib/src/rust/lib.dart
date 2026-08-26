@@ -220,7 +220,15 @@ abstract class RustChat implements RustOpaqueInterface {
   /// message sets the chat's system prompt; leave it out and the prompt already on
   /// the chat is kept. The response is appended, and the next `ask` continues from
   /// there.
-  RustTokenStream complete({required List<Message> messages});
+  ///
+  /// The trailing arguments follow the same rule for the chat's other settings:
+  /// what you pass stays set, what you leave out is kept.
+  RustTokenStream complete({
+    required List<Message> messages,
+    SamplerConfig? sampler = null,
+    Map<String, bool>? templateVariables = null,
+    List<RustTool>? tools = null,
+  });
 
   /// Create chat directly from a model path. This is async as it loads a model
   ///

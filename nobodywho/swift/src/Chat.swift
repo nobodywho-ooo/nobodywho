@@ -96,8 +96,10 @@ public class Chat {
     /// message sets the chat's system prompt; leave it out and the prompt already on
     /// the chat is kept. The response is appended, and the next `ask` continues from
     /// there.
-    public func complete(_ messages: [Message]) throws -> TokenStream {
-        return TokenStream(try inner.complete(messages: messages))
+    ///
+    /// `options` follows the same rule for the chat's other settings.
+    public func complete(_ messages: [Message], options: Options = Options()) throws -> TokenStream {
+        return TokenStream(try inner.complete(messages: messages, options: options.toGenerated()))
     }
 
     /// Stop the current generation.

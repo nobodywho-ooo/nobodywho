@@ -150,6 +150,9 @@ abstract class NobodyWhoApi extends BaseApi {
   RustTokenStream crateRustChatComplete({
     required RustChat that,
     required List<Message> messages,
+    SamplerConfig? sampler = null,
+    Map<String, bool>? templateVariables = null,
+    List<RustTool>? tools = null,
   });
 
   Future<RustChat> crateRustChatFromPath({
@@ -1195,6 +1198,9 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   RustTokenStream crateRustChatComplete({
     required RustChat that,
     required List<Message> messages,
+    SamplerConfig? sampler = null,
+    Map<String, bool>? templateVariables = null,
+    List<RustTool>? tools = null,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1205,6 +1211,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_list_message(messages, serializer);
+          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            sampler,
+            serializer,
+          );
+          sse_encode_opt_Map_String_bool_None(templateVariables, serializer);
+          sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+            tools,
+            serializer,
+          );
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
@@ -1213,7 +1228,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatCompleteConstMeta,
-        argValues: [that, messages],
+        argValues: [that, messages, sampler, templateVariables, tools],
         apiImpl: this,
       ),
     );
@@ -1221,7 +1236,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   TaskConstMeta get kCrateRustChatCompleteConstMeta => const TaskConstMeta(
     debugName: "RustChat_complete",
-    argNames: ["that", "messages"],
+    argNames: ["that", "messages", "sampler", "templateVariables", "tools"],
   );
 
   @override
@@ -5236,6 +5251,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  Map<String, bool>? dco_decode_opt_Map_String_bool_None(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_Map_String_bool_None(raw);
+  }
+
+  @protected
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
@@ -5300,6 +5321,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   BigInt? dco_decode_opt_box_autoadd_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_usize(raw);
+  }
+
+  @protected
+  List<RustTool>?
+  dco_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+            raw,
+          );
   }
 
   @protected
@@ -6550,6 +6584,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  Map<String, bool>? sse_decode_opt_Map_String_bool_None(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_Map_String_bool_None(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   String? sse_decode_opt_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -6661,6 +6708,22 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_usize(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  List<RustTool>?
+  sse_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+        deserializer,
+      ));
     } else {
       return null;
     }
@@ -8005,6 +8068,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_Map_String_bool_None(
+    Map<String, bool>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_Map_String_bool_None(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -8114,6 +8190,23 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_usize(self, serializer);
+    }
+  }
+
+  @protected
+  void
+  sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    List<RustTool>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+        self,
+        serializer,
+      );
     }
   }
 
@@ -8468,10 +8561,21 @@ class RustChatImpl extends RustOpaque implements RustChat {
   /// message sets the chat's system prompt; leave it out and the prompt already on
   /// the chat is kept. The response is appended, and the next `ask` continues from
   /// there.
-  RustTokenStream complete({required List<Message> messages}) => NobodyWho
-      .instance
-      .api
-      .crateRustChatComplete(that: this, messages: messages);
+  ///
+  /// The trailing arguments follow the same rule for the chat's other settings:
+  /// what you pass stays set, what you leave out is kept.
+  RustTokenStream complete({
+    required List<Message> messages,
+    SamplerConfig? sampler = null,
+    Map<String, bool>? templateVariables = null,
+    List<RustTool>? tools = null,
+  }) => NobodyWho.instance.api.crateRustChatComplete(
+    that: this,
+    messages: messages,
+    sampler: sampler,
+    templateVariables: templateVariables,
+    tools: tools,
+  );
 
   Future<List<Message>> getChatHistory() =>
       NobodyWho.instance.api.crateRustChatGetChatHistory(that: this);

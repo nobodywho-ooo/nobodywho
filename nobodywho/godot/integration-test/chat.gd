@@ -79,6 +79,19 @@ func test_complete():
 	var resp = await response_finished
 	print("✨ Got response: " + resp)
 	assert("Armstrong" in resp)
+
+	# Options stick: what they set stays set, what they omit is kept
+	var opts = NobodyWhoChatOptions.new()
+	opts.set_template_variables({"enable_thinking": true})
+	complete_with_options([{"role": "user", "content": "Say hi."}], opts)
+	await response_finished
+	var vars = await get_template_variables()
+	assert(vars["enable_thinking"] == true, "Options did not set the template variable")
+
+	complete([{"role": "user", "content": "Say hi again."}])
+	await response_finished
+	var still = await get_template_variables()
+	assert(still["enable_thinking"] == true, "complete() without options should keep them")
 	return true
 
 

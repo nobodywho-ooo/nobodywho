@@ -57,6 +57,7 @@ export async function downloadModel(opts: {
 // Wrapper classes
 export { Model } from "./model";
 export { Chat } from "./chat";
+export type { Options } from "./chat";
 export { SpeechToText } from "./speech_to_text";
 export { VoiceActivityDetection } from "./vad";
 export { Encoder } from "./encoder";

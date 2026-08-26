@@ -242,6 +242,18 @@ void main() {
       );
     });
 
+    test('Complete options stick', () async {
+      await chat!.complete(
+        [nobodywho.userMessage("Say hi.")],
+        templateVariables: {"enable_thinking": true},
+      ).completed();
+      expect(await chat!.getTemplateVariables(), {"enable_thinking": true});
+
+      // ...and a call without them keeps what was set
+      await chat!.complete([nobodywho.userMessage("Say hi again.")]).completed();
+      expect(await chat!.getTemplateVariables(), {"enable_thinking": true});
+    });
+
     test('Tool calling with no arguments test', () async {
       await chat!
           .ask(

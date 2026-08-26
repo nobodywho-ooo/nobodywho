@@ -747,6 +747,79 @@ const FfiConverterTypeMtpConfig = (() => {
 
 
 /**
+ * Settings to apply before a `complete` turn. An unset field keeps what the
+ * chat has; a set one stays set, like a leading system message.
+ */
+export type Options = {
+    sampler: SamplerConfigInterface | undefined,
+    /**
+     * Replaces the chat's template variables wholesale.
+     */
+    templateVariables: Map<string, boolean> | undefined,
+    /**
+     * Re-selects the chat template, so the turn re-prefills from near token
+     * zero. An empty list removes the tools.
+     */
+    tools: Array<RustToolInterface> | undefined
+}
+
+/**
+ * Generated factory for {@link Options} record objects.
+ */
+export const Options = (() => {
+    const defaults = () => ({sampler: undefined,templateVariables: undefined,tools: undefined
+    });
+    const create = (() => {
+        return uniffiCreateRecord<Options, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link Options}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link Options}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<Options>,
+
+    });
+})();
+
+const FfiConverterTypeOptions = (() => {
+    type TypeName = Options;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                sampler: FfiConverterOptionalTypeSamplerConfig.read(from), 
+                templateVariables: FfiConverterOptionalMapStringBool.read(from), 
+                tools: FfiConverterOptionalArrayTypeRustTool.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterOptionalTypeSamplerConfig.write(value.sampler, into);
+            FfiConverterOptionalMapStringBool.write(value.templateVariables, into);
+            FfiConverterOptionalArrayTypeRustTool.write(value.tools, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterOptionalTypeSamplerConfig.allocationSize(value.sampler) + 
+            FfiConverterOptionalMapStringBool.allocationSize(value.templateVariables) + 
+            FfiConverterOptionalArrayTypeRustTool.allocationSize(value.tools);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 export type PendingToolCall = {
@@ -1744,8 +1817,10 @@ export interface RustChatInterface {
      * message sets the chat's system prompt; leave it out and the prompt already on
      * the chat is kept. The response is appended, and the next `ask` continues from
      * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
      */
-    complete(messages: Array<Message>)  /*throws*/: RustTokenStreamInterface;
+    complete(messages: Array<Message>, options: Options)  /*throws*/: RustTokenStreamInterface;
     /**
      * Get the current chat history as a list of messages.
      */
@@ -1920,14 +1995,17 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
      * message sets the chat's system prompt; leave it out and the prompt already on
      * the chat is kept. The response is appended, and the next `ask` continues from
      * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
      */
- complete(messages: Array<Message>): RustTokenStreamInterface /*throws*/ {
+ complete(messages: Array<Message>, options: Options): RustTokenStreamInterface /*throws*/ {
     return FfiConverterTypeRustTokenStream.lift(
         uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError),
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_complete(uniffiTypeRustChatObjectFactory.clonePointer(this), 
         FfiConverterArrayTypeMessage.lower(messages),
+        FfiConverterTypeOptions.lower(options),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4804,7 +4882,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() !== 46807) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() !== 45268) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() !== 37833) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_complete");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() !== 12722) {
@@ -5017,6 +5095,7 @@ export default Object.freeze({
     FfiConverterTypeMessageContent,
     FfiConverterTypeMtpConfig,
     FfiConverterTypeNobodyWhoError,
+    FfiConverterTypeOptions,
     FfiConverterTypePendingToolCall,
     FfiConverterTypeRustChat,
     FfiConverterTypeRustCrossEncoder,

@@ -83,8 +83,11 @@ class Chat(
      * tool message, and carry a system message only first. That system message sets the chat's
      * system prompt; leave it out and the prompt already on the chat is kept. The response is
      * appended, and the next `ask` continues from there.
+     *
+     * [options] follows the same rule for the chat's other settings.
      */
-    fun complete(messages: List<Message>) = TokenStream(inner.complete(messages.map { Message.toUniFFI(it) }))
+    fun complete(messages: List<Message>, options: Options = Options()) =
+        TokenStream(inner.complete(messages.map { Message.toUniFFI(it) }, options.toUniFFI()))
 
     fun stopGeneration() = inner.stopGeneration()
     suspend fun resetContext(systemPrompt: String? = null, tools: List<Tool>? = null) =

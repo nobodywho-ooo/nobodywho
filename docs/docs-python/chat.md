@@ -112,6 +112,29 @@ except ValueError as e:
 
 Use `ask()` to add a single turn to the conversation the `Chat` is already holding, and `complete()` to hand it a conversation of your own. Both leave the chat ready for the other.
 
+### Per-turn settings
+
+`complete()` also takes the chat's other settings as keyword arguments — `sampler`, `template_variables` and `tools`. They follow the same rule as the system message: what you pass stays set, what you leave out is kept.
+
+```python continuation
+from nobodywho import SamplerPresets
+
+chat.complete(
+   [{"role": "user", "content": "Name one fruit."}],
+   sampler=SamplerPresets.greedy(),
+   template_variables={"enable_thinking": False},
+).completed()
+
+# Both are now the chat's settings, so the next call need not repeat them
+print(chat.get_template_variables())  # {'enable_thinking': False}
+chat.complete([{"role": "user", "content": "Name another."}]).completed()
+print(chat.get_template_variables())  # {'enable_thinking': False} — still
+```
+
+Pass all three and the call no longer depends on what the chat is currently holding, which is what you want if you are driving it entirely through `complete()`.
+
+Changing `tools` re-selects the chat template and rewrites the system-prompt region, so that turn re-prefills from near token zero. It is the one option with a real cost attached — set it when it changes, not on every call.
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.

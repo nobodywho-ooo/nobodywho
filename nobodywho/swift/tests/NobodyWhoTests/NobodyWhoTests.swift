@@ -126,6 +126,20 @@ final class NobodyWhoTests: XCTestCase {
                 .assistant("Aye, "),
             ])
         )
+
+        // Options stick: what they set stays set, what they omit is kept
+        _ = try await chat.complete(
+            [.user("Say hi.")],
+            options: Options(templateVariables: ["enable_thinking": true])
+        ).completed()
+        let after = try await chat.getTemplateVariables()
+        XCTAssertEqual(after, ["enable_thinking": true])
+
+        _ = try await chat.complete([.user("Say hi again.")]).completed()
+        let unchanged = try await chat.getTemplateVariables()
+        XCTAssertEqual(
+            unchanged, ["enable_thinking": true],
+            "An empty Options should leave the template variables alone")
     }
 
     // MARK: - Tokenize

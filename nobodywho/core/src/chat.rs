@@ -217,6 +217,45 @@ fn user_message_indices(messages: &[Message]) -> Vec<usize> {
         .collect()
 }
 
+/// Settings to apply before a [`complete`](ChatHandle::complete) turn.
+///
+/// `None` keeps what the chat has; `Some(v)` sets it and leaves it set, like a
+/// leading system message sets the system prompt. Fill every field and the turn
+/// stops depending on the chat's current state.
+#[derive(Clone, Debug, Default)]
+pub struct Options {
+    pub sampler: Option<SamplerConfig>,
+    /// Replaces the chat's template variables wholesale.
+    pub template_variables: Option<std::collections::HashMap<String, bool>>,
+    /// Re-selects the chat template, so the turn re-prefills from near token
+    /// zero. `Some(vec![])` removes the tools.
+    pub tools: Option<Vec<Tool>>,
+}
+
+impl Options {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_sampler(mut self, sampler: SamplerConfig) -> Self {
+        self.sampler = Some(sampler);
+        self
+    }
+
+    pub fn with_template_variables(
+        mut self,
+        variables: std::collections::HashMap<String, bool>,
+    ) -> Self {
+        self.template_variables = Some(variables);
+        self
+    }
+
+    pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
+        self.tools = Some(tools);
+        self
+    }
+}
+
 /// Tuning for MTP speculative decoding.
 ///
 /// Attaching one to a chat (via [`ChatBuilder::with_mtp`] or
@@ -488,11 +527,13 @@ impl ChatHandle {
     pub fn complete_channel(
         &self,
         messages: Vec<Message>,
+        options: Options,
     ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
         validate_completion_messages(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Complete {
             messages,
+            options,
             output_tx,
         });
         Ok(output_rx)
@@ -506,21 +547,32 @@ impl ChatHandle {
     /// prompt the chat already had. The response is appended, and a following
     /// `ask` continues from there.
     ///
+    /// [`Options`] follows the same rule for the chat's other settings.
+    ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::{ChatHandle, Message};
+    /// # use nobodywho::chat::{ChatHandle, Message, Options};
     /// # fn example(chat: &ChatHandle) -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut stream = chat.complete(vec![
-    ///     Message::new_system("You are terse.".to_string()),
-    ///     Message::new_user("Who first walked on the moon?".to_string()),
-    /// ])?;
+    /// let mut stream = chat.complete(
+    ///     vec![
+    ///         Message::new_system("You are terse.".to_string()),
+    ///         Message::new_user("Who first walked on the moon?".to_string()),
+    ///     ],
+    ///     Options::new().with_template_variables(
+    ///         [("enable_thinking".to_string(), false)].into(),
+    ///     ),
+    /// )?;
     /// println!("{}", stream.completed()?);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn complete(&self, messages: Vec<Message>) -> Result<TokenStream, InvalidHistoryError> {
+    pub fn complete(
+        &self,
+        messages: Vec<Message>,
+        options: Options,
+    ) -> Result<TokenStream, InvalidHistoryError> {
         Ok(TokenStream::new(forward_write_output(
-            self.complete_channel(messages)?,
+            self.complete_channel(messages, options)?,
         )))
     }
 
@@ -846,11 +898,13 @@ impl ChatHandleAsync {
     pub fn complete_channel(
         &self,
         messages: Vec<Message>,
+        options: Options,
     ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
         validate_completion_messages(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Complete {
             messages,
+            options,
             output_tx,
         });
         Ok(output_rx)
@@ -864,13 +918,16 @@ impl ChatHandleAsync {
     /// prompt the chat already had. The response is appended, and a following
     /// `ask` continues from there.
     ///
+    /// [`Options`] follows the same rule for the chat's other settings.
+    ///
     /// # Example
     /// ```
-    /// # use nobodywho::chat::{ChatHandleAsync, Message};
+    /// # use nobodywho::chat::{ChatHandleAsync, Message, Options};
     /// # async fn example(chat: &ChatHandleAsync) -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut stream = chat.complete(vec![
-    ///     Message::new_user("Who first walked on the moon?".to_string()),
-    /// ])?;
+    /// let mut stream = chat.complete(
+    ///     vec![Message::new_user("Who first walked on the moon?".to_string())],
+    ///     Options::new(),
+    /// )?;
     /// println!("{}", stream.completed().await?);
     /// # Ok(())
     /// # }
@@ -878,9 +935,10 @@ impl ChatHandleAsync {
     pub fn complete(
         &self,
         messages: Vec<Message>,
+        options: Options,
     ) -> Result<TokenStreamAsync, InvalidHistoryError> {
         Ok(TokenStreamAsync::new(forward_write_output(
-            self.complete_channel(messages)?,
+            self.complete_channel(messages, options)?,
         )))
     }
 
@@ -1200,6 +1258,7 @@ enum ChatMsg {
     },
     Complete {
         messages: Vec<Message>,
+        options: Options,
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
     },
     ResetChat {
@@ -1343,6 +1402,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
         }
         ChatMsg::Complete {
             messages,
+            options,
             output_tx,
         } => {
             let should_stop = Arc::clone(&worker_state.should_stop);
@@ -1352,7 +1412,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };
-            if let Err(e) = worker_state.complete(messages, callback) {
+            if let Err(e) = worker_state.complete(messages, options, callback) {
                 let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
             }
         }
@@ -1816,9 +1876,7 @@ impl<'a> Chat<'a> {
             let turn_starts = user_message_indices(&messages);
             // Everything between the first turn and the preserved recent ones.
             // Zero means there is nothing left this may take.
-            let deletable = turn_starts
-                .len()
-                .saturating_sub(PRESERVED_RECENT_TURNS + 1);
+            let deletable = turn_starts.len().saturating_sub(PRESERVED_RECENT_TURNS + 1);
             if deletable == 0 {
                 break;
             }
@@ -2076,12 +2134,14 @@ impl<'a> Chat<'a> {
     /// Answer a full message list, which replaces the chat history.
     ///
     /// A leading system message sets the system prompt; without one the current
-    /// system prompt is kept. The rest of `messages` becomes the history, and
-    /// the turn's output is appended as usual, so a following [`ask`](Self::ask)
-    /// continues that conversation.
+    /// system prompt is kept. `options` follows the same rule for the settings
+    /// it carries. The rest of `messages` becomes the history, and the turn's
+    /// output is appended as usual, so a following [`ask`](Self::ask) continues
+    /// that conversation.
     pub fn complete<F>(
         &mut self,
         mut messages: Vec<Message>,
+        options: Options,
         respond: F,
     ) -> Result<&mut Self, CompleteError>
     where
@@ -2094,12 +2154,32 @@ impl<'a> Chat<'a> {
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
         self.reload_media(&mut messages)?;
+        self.apply_options(options)
+            .map_err(|e| CompleteError::Options(e.to_string()))?;
 
         self.hoist_system_message(&mut messages);
         self.messages = messages;
         self.run_turn(respond)?;
 
         Ok(self)
+    }
+
+    /// Apply a turn's [`Options`]. A failure partway leaves the earlier settings
+    /// applied, exactly as calling the setters in sequence would.
+    fn apply_options(&mut self, options: Options) -> Result<(), ChatWorkerError> {
+        if let Some(sampler) = options.sampler {
+            self.set_sampler_config(sampler)?;
+        }
+        // After the sampler, so the tool sampler is rebuilt from the new config.
+        // Both setters call `build_tool_sampler`, so setting both builds the
+        // grammar twice — wasteful, not wrong. Deferred to a follow-up PR.
+        if let Some(tools) = options.tools {
+            self.set_tools(tools)?;
+        }
+        if let Some(variables) = options.template_variables {
+            self.set_template_variables(variables)?;
+        }
+        Ok(())
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -2301,6 +2381,11 @@ impl<'a> Chat<'a> {
         self.system_prompt = Some(system_prompt);
     }
 
+    /// DEFERRED to a follow-up PR: media is not re-registered here, so a history
+    /// from another worker keeps bitmap ids this one never issued and its media
+    /// drops out of the render. The fix needs a fallible reply channel on
+    /// `ChatMsg::SetChatHistory` — `process_worker_msg` propagates setter errors
+    /// with `?`, killing the worker — which `set_tools` and `reset_chat` need too.
     pub fn set_chat_history(&mut self, mut messages: Vec<Message>) -> Result<(), ContextSyncError> {
         self.hoist_system_message(&mut messages);
         self.messages = messages;
@@ -3501,7 +3586,7 @@ mod tests {
             user("Which year did he do it? Answer with only the year."),
         ];
         let resp = chat
-            .complete(messages.clone())
+            .complete(messages.clone(), Options::new())
             .unwrap()
             .completed()
             .unwrap();
@@ -3521,6 +3606,53 @@ mod tests {
         assert_eq!(history[messages.len()].content(), resp);
     }
 
+    /// Options follow the system-prompt rule: what they set stays set, what they
+    /// leave out is kept — so a later `complete` need not repeat them.
+    #[test]
+    fn test_complete_options_stick() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(2048)
+            .with_template_variable("enable_thinking".to_string(), true)
+            .build()
+            .expect("chat build failed in test");
+
+        let greedy = SamplerConfig::new(vec![], crate::sampler::SampleStep::Greedy, 1234);
+        chat.complete(
+            vec![user("Say hi.")],
+            Options::new()
+                .with_sampler(greedy.clone())
+                .with_template_variables([("enable_thinking".to_string(), false)].into()),
+        )
+        .unwrap()
+        .completed()
+        .unwrap();
+
+        // Observable through the ordinary getters, like any other setter.
+        assert_eq!(
+            chat.get_template_variables().unwrap(),
+            [("enable_thinking".to_string(), false)].into()
+        );
+        let after_first = chat.get_sampler_config().unwrap();
+
+        // A turn that carries no options changes neither of them.
+        chat.complete(vec![user("Say hi again.")], Options::new())
+            .unwrap()
+            .completed()
+            .unwrap();
+        assert_eq!(
+            chat.get_template_variables().unwrap(),
+            [("enable_thinking".to_string(), false)].into(),
+            "an empty Options should leave the template variables alone"
+        );
+        assert_eq!(
+            serde_json::to_value(chat.get_sampler_config().unwrap()).unwrap(),
+            serde_json::to_value(&after_first).unwrap(),
+            "an empty Options should leave the sampler alone"
+        );
+    }
+
     /// A system message in the list becomes the chat's system prompt; a list
     /// without one keeps the prompt the chat already had.
     #[test]
@@ -3538,10 +3670,13 @@ mod tests {
         assert!(dog.to_lowercase().contains("woof"), "{dog}");
 
         let cat = chat
-            .complete(vec![
-                Message::new_system("You are a cat. End all responses with meow.".to_string()),
-                user("Hello!"),
-            ])
+            .complete(
+                vec![
+                    Message::new_system("You are a cat. End all responses with meow.".to_string()),
+                    user("Hello!"),
+                ],
+                Options::new(),
+            )
             .unwrap()
             .completed()
             .unwrap();
@@ -3555,7 +3690,7 @@ mod tests {
         assert!(cat_again.to_lowercase().contains("meow"), "{cat_again}");
 
         let still_cat = chat
-            .complete(vec![user("Hello!")])
+            .complete(vec![user("Hello!")], Options::new())
             .unwrap()
             .completed()
             .unwrap();
@@ -3581,11 +3716,14 @@ mod tests {
             .completed()
             .unwrap();
 
-        chat.complete(vec![
-            user("Who was the first person to walk on the moon?"),
-            assistant("Neil Armstrong."),
-            user("Which year did he do it? Answer with only the year."),
-        ])
+        chat.complete(
+            vec![
+                user("Who was the first person to walk on the moon?"),
+                assistant("Neil Armstrong."),
+                user("Which year did he do it? Answer with only the year."),
+            ],
+            Options::new(),
+        )
         .unwrap()
         .completed()
         .unwrap();
@@ -3616,7 +3754,10 @@ mod tests {
             .expect("chat build failed in test");
 
         let resp = chat
-            .complete(vec![user("What is the temperature in Copenhagen?")])
+            .complete(
+                vec![user("What is the temperature in Copenhagen?")],
+                Options::new(),
+            )
             .unwrap()
             .completed()
             .unwrap();
@@ -3639,34 +3780,40 @@ mod tests {
             .expect("chat build failed in test");
 
         assert!(matches!(
-            chat.complete(vec![]),
+            chat.complete(vec![], Options::new()),
             Err(InvalidHistoryError::Empty)
         ));
 
         assert!(matches!(
-            chat.complete(vec![user("Hi"), assistant("Aye, ")]),
+            chat.complete(vec![user("Hi"), assistant("Aye, ")], Options::new()),
             Err(InvalidHistoryError::DoesNotEndInUserOrTool { role: "assistant" })
         ));
 
         assert!(matches!(
-            chat.complete(vec![
-                user("Hi"),
-                Message::new_system("Be terse.".to_string()),
-                user("Again"),
-            ]),
+            chat.complete(
+                vec![
+                    user("Hi"),
+                    Message::new_system("Be terse.".to_string()),
+                    user("Again"),
+                ],
+                Options::new()
+            ),
             Err(InvalidHistoryError::MisplacedSystemMessage { index: 1 })
         ));
 
         // The system prompt is stored as text, so media in it would flatten to a
         // marker with no bitmap behind it.
         assert!(matches!(
-            chat.complete(vec![
-                Message::new_system(vec![
-                    ContentPart::text("Describe like this:"),
-                    ContentPart::image("example.png"),
-                ]),
-                user("Hi"),
-            ]),
+            chat.complete(
+                vec![
+                    Message::new_system(vec![
+                        ContentPart::text("Describe like this:"),
+                        ContentPart::image("example.png"),
+                    ]),
+                    user("Hi"),
+                ],
+                Options::new()
+            ),
             Err(InvalidHistoryError::MediaInSystemMessage)
         ));
     }
@@ -3751,7 +3898,7 @@ mod tests {
         }]))?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(messages, move |out| {
+        worker.complete(messages, Options::new(), move |out| {
             if let llm::WriteOutput::Done(resp) = out {
                 sender.send(resp).unwrap();
             }
@@ -3844,7 +3991,7 @@ mod tests {
         // path and all, which is what a saved conversation stores.
         let stored = worker.get_chat_history()[0].clone();
 
-        worker.complete(vec![user("Say the word 'banana'.")], |_| {})?;
+        worker.complete(vec![user("Say the word 'banana'.")], Options::new(), |_| {})?;
         assert_eq!(
             worker.context.bitmaps.len(),
             0,
@@ -3863,7 +4010,7 @@ mod tests {
         let replayed = Message::User { content };
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(vec![replayed], move |out| {
+        worker.complete(vec![replayed], Options::new(), move |out| {
             if let llm::WriteOutput::Done(resp) = out {
                 sender.send(resp).unwrap();
             }
@@ -3953,7 +4100,10 @@ mod tests {
             .expect("chat build_async failed in test");
 
         let resp = chat
-            .complete(vec![user("What is the capital of Denmark?")])?
+            .complete(
+                vec![user("What is the capital of Denmark?")],
+                Options::new(),
+            )?
             .completed()
             .await?;
 

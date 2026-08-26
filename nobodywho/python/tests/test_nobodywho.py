@@ -406,6 +406,26 @@ def test_complete_replaces_history(chat):
     assert chat.get_system_prompt() == "You are a helpful assistant."
 
 
+def test_complete_options_stick(chat):
+    """What the keyword arguments set stays set; what they omit is kept."""
+    chat.complete(
+        [{"role": "user", "content": "Say hi."}],
+        sampler=nobodywho.SamplerPresets.greedy(),
+        template_variables={"enable_thinking": False},
+    ).completed()
+    assert chat.get_template_variables() == {"enable_thinking": False}
+    after_first = chat.get_sampler_config().to_json()
+
+    chat.complete([{"role": "user", "content": "Say hi again."}]).completed()
+    assert chat.get_template_variables() == {"enable_thinking": False}
+    assert chat.get_sampler_config().to_json() == after_first
+
+
+def test_complete_options_are_keyword_only(chat):
+    with pytest.raises(TypeError):
+        chat.complete([{"role": "user", "content": "Hi"}], None)
+
+
 def test_complete_without_system_message_keeps_it(chat):
     assert chat.get_system_prompt() == "You are a helpful assistant"
 

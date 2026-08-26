@@ -1067,6 +1067,11 @@ pub enum CompleteError {
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
+    /// Rendered rather than typed: the underlying `ChatWorkerError` is
+    /// crate-private, and nothing branches on this.
+    #[error("Could not apply the turn's options: {0}")]
+    Options(String),
+
     #[error("Error creating completion: {0}")]
     #[diagnostic(transparent)]
     Say(#[from] SayError),

@@ -94,6 +94,25 @@ The list you pass **becomes** the chat history, replacing whatever was there, an
 
 The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
 
+### Per-turn settings
+
+`complete()` also takes the chat's other settings as named arguments — `sampler`, `templateVariables` and `tools`. They follow the same rule as the system message: what you pass stays set, what you leave out is kept.
+
+```dart continuation
+await chat.complete(
+  [nobodywho.userMessage("Name one fruit.")],
+  sampler: nobodywho.SamplerPresets.greedy(),
+  templateVariables: {"enable_thinking": false},
+).completed();
+
+// Both are now the chat's settings, so the next call need not repeat them
+await chat.complete([nobodywho.userMessage("Name another.")]).completed();
+```
+
+Pass all three and the call no longer depends on what the chat is currently holding — useful if you drive it entirely through `complete()`.
+
+Changing `tools` re-selects the chat template and rewrites the system-prompt region, so that turn re-prefills from near token zero. Set it when it changes, not on every call.
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.

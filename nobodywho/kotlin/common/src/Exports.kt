@@ -9,6 +9,21 @@ typealias VoiceActivityDetectionEvent = uniffi.nobodywho.VoiceActivityDetectionE
 typealias ContentPart = uniffi.nobodywho.ContentPart
 typealias MessageContent = uniffi.nobodywho.MessageContent
 
+/**
+ * Settings to apply before a `complete` turn. Null keeps what the chat has; a set
+ * value stays set, like a leading system message.
+ */
+data class Options(
+    val sampler: SamplerConfig? = null,
+    /** Replaces the chat's template variables wholesale. */
+    val templateVariables: Map<String, Boolean>? = null,
+    /** Re-selects the chat template, so the turn re-prefills from near token zero. */
+    val tools: List<Tool>? = null,
+) {
+    internal fun toUniFFI(): uniffi.nobodywho.Options =
+        uniffi.nobodywho.Options(sampler, templateVariables, tools?.map { it.inner })
+}
+
 // Fully qualified on the right-hand side: these functions share the name of the
 // type, so an unqualified `MessageContent` here resolves to the function.
 

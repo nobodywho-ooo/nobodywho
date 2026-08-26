@@ -105,16 +105,24 @@ void main() {
         nobodywho.userMessage("Which year did he do it?"),
       ]).completed();
       print(completion);
+      await chat.complete(
+        [nobodywho.userMessage("Name one fruit.")],
+        sampler: nobodywho.SamplerPresets.greedy(),
+        templateVariables: {"enable_thinking": false},
+      ).completed();
+      
+      // Both are now the chat's settings, so the next call need not repeat them
+      await chat.complete([nobodywho.userMessage("Name another.")]).completed();
     });
 
-    test('chat.md:104', () async {
+    test('chat.md:123', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:120', () async {
+    test('chat.md:139', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
@@ -124,22 +132,22 @@ void main() {
       print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
     });
 
-    test('chat.md:156', () async {
+    test('chat.md:175', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         threadCount: 4
       );
     });
 
-    test('chat.md:186', () async {
+    test('chat.md:205', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:190', () async {
+    test('chat.md:209', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:216', () async {
+    test('chat.md:235', () async {
       if (Platform.environment['TEST_MTP_MODEL'] == null) return;
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./gemma-4-e2b.gguf",
@@ -148,7 +156,7 @@ void main() {
       );
     });
 
-    test('chat.md:238', () async {
+    test('chat.md:257', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -167,7 +175,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:290', () async {
+    test('chat.md:309', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",

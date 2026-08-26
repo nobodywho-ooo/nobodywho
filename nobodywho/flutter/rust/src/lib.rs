@@ -622,15 +622,29 @@ impl RustChat {
     /// message sets the chat's system prompt; leave it out and the prompt already on
     /// the chat is kept. The response is appended, and the next `ask` continues from
     /// there.
+    ///
+    /// The trailing arguments follow the same rule for the chat's other settings:
+    /// what you pass stays set, what you leave out is kept.
     #[flutter_rust_bridge::frb(sync)]
-    pub fn complete(&self, messages: Vec<Message>) -> Result<RustTokenStream, String> {
+    pub fn complete(
+        &self,
+        messages: Vec<Message>,
+        #[frb(default = "null")] sampler: Option<SamplerConfig>,
+        #[frb(default = "null")] template_variables: Option<HashMap<String, bool>>,
+        #[frb(default = "null")] tools: Option<Vec<RustTool>>,
+    ) -> Result<RustTokenStream, String> {
         let messages = messages
             .into_iter()
             .map(message_to_core)
             .collect::<Result<Vec<_>, String>>()?;
+        let options = nobodywho::chat::Options {
+            sampler: sampler.map(|s| s.sampler_config),
+            template_variables,
+            tools: tools.map(|tools| tools.into_iter().map(|t| t.tool).collect()),
+        };
         let stream = self
             .chat
-            .complete(messages)
+            .complete(messages, options)
             .map_err(|e| nobodywho::render_miette(&e))?;
         Ok(RustTokenStream { stream })
     }

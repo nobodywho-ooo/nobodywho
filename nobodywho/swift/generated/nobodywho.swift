@@ -620,8 +620,10 @@ public protocol RustChatProtocol: AnyObject, Sendable {
      * message sets the chat's system prompt; leave it out and the prompt already on
      * the chat is kept. The response is appended, and the next `ask` continues from
      * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
      */
-    func complete(messages: [Message]) throws  -> RustTokenStream
+    func complete(messages: [Message], options: Options) throws  -> RustTokenStream
     
     /**
      * Get the current chat history as a list of messages.
@@ -834,12 +836,15 @@ open func askWithPrompt(parts: [ContentPart]) -> RustTokenStream  {
      * message sets the chat's system prompt; leave it out and the prompt already on
      * the chat is kept. The response is appended, and the next `ask` continues from
      * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
      */
-open func complete(messages: [Message])throws  -> RustTokenStream  {
+open func complete(messages: [Message], options: Options)throws  -> RustTokenStream  {
     return try  FfiConverterTypeRustTokenStream_lift(try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
             self.uniffiCloneHandle(),
-        FfiConverterSequenceTypeMessage.lower(messages),$0
+        FfiConverterSequenceTypeMessage.lower(messages),
+        FfiConverterTypeOptions_lower(options),$0
     )
 })
 }
@@ -3443,6 +3448,80 @@ public func FfiConverterTypeMtpConfig_lower(_ value: MtpConfig) -> RustBuffer {
 
 
 /**
+ * Settings to apply before a `complete` turn. An unset field keeps what the
+ * chat has; a set one stays set, like a leading system message.
+ */
+public struct Options {
+    public var sampler: SamplerConfig?
+    /**
+     * Replaces the chat's template variables wholesale.
+     */
+    public var templateVariables: [String: Bool]?
+    /**
+     * Re-selects the chat template, so the turn re-prefills from near token
+     * zero. An empty list removes the tools.
+     */
+    public var tools: [RustTool]?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(sampler: SamplerConfig? = nil, 
+        /**
+         * Replaces the chat's template variables wholesale.
+         */templateVariables: [String: Bool]? = nil, 
+        /**
+         * Re-selects the chat template, so the turn re-prefills from near token
+         * zero. An empty list removes the tools.
+         */tools: [RustTool]? = nil) {
+        self.sampler = sampler
+        self.templateVariables = templateVariables
+        self.tools = tools
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension Options: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Options {
+        return
+            try Options(
+                sampler: FfiConverterOptionTypeSamplerConfig.read(from: &buf), 
+                templateVariables: FfiConverterOptionDictionaryStringBool.read(from: &buf), 
+                tools: FfiConverterOptionSequenceTypeRustTool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Options, into buf: inout [UInt8]) {
+        FfiConverterOptionTypeSamplerConfig.write(value.sampler, into: &buf)
+        FfiConverterOptionDictionaryStringBool.write(value.templateVariables, into: &buf)
+        FfiConverterOptionSequenceTypeRustTool.write(value.tools, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOptions_lift(_ buf: RustBuffer) throws -> Options {
+    return try FfiConverterTypeOptions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOptions_lower(_ value: Options) -> RustBuffer {
+    return FfiConverterTypeOptions.lower(value)
+}
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 public struct PendingToolCall: Equatable, Hashable {
@@ -5318,7 +5397,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 45268) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 37833) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {

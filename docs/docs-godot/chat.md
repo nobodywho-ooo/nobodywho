@@ -193,6 +193,33 @@ it out and the prompt already on the chat is kept.
 The array must not be empty, must end in a user or tool message, and may only have a
 system message first. Anything else emits `worker_failed` instead of generating.
 
+### Per-turn settings
+
+`complete_with_options()` takes a `NobodyWhoChatOptions` carrying the chat's other
+settings. It follows the same rule as the system message: what it sets stays set,
+what it leaves out is kept.
+
+```gdscript
+var opts = NobodyWhoChatOptions.new()
+opts.set_sampler(NobodyWhoSamplerBuilder.new().temperature(0.3).dist())
+opts.set_template_variables({"enable_thinking": false})
+
+complete_with_options([
+    {"role": "user", "content": "Name one fruit."}
+], opts)
+await response_finished
+
+# Both are now the chat's settings, so the next call need not repeat them
+complete([{"role": "user", "content": "Name another."}])
+await response_finished
+```
+
+There are two methods because GDExtension cannot give an object parameter a default
+value — use `complete()` when you have no settings to change.
+
+Tools are not part of the options: in Godot you register them on the chat node with
+`add_tool()`, so there is no tool value to pass here.
+
 ### Structured Output & Sampling
 
 You can control how the model picks tokens and constrain its output format. See the [Sampling](sampling.md) guide for sampler presets (temperature, JSON, grammar constraints) and the [Structured Output](structured-output.md) guide for a full GBNF grammar tutorial.

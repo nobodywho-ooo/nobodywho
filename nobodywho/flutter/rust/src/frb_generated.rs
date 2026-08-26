@@ -737,6 +737,10 @@ fn wire__crate__RustChat_complete_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>,
             >>::sse_decode(&mut deserializer);
             let api_messages = <Vec<crate::Message>>::sse_decode(&mut deserializer);
+            let api_sampler = <Option<SamplerConfig>>::sse_decode(&mut deserializer);
+            let api_template_variables =
+                <Option<std::collections::HashMap<String, bool>>>::sse_decode(&mut deserializer);
+            let api_tools = <Option<Vec<RustTool>>>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, String>((move || {
                 let mut api_that_guard = None;
@@ -753,7 +757,13 @@ fn wire__crate__RustChat_complete_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = crate::RustChat::complete(&*api_that_guard, api_messages)?;
+                let output_ok = crate::RustChat::complete(
+                    &*api_that_guard,
+                    api_messages,
+                    api_sampler,
+                    api_template_variables,
+                    api_tools,
+                )?;
                 Ok(output_ok)
             })())
         },
@@ -5547,6 +5557,19 @@ impl SseDecode for crate::MtpConfig {
     }
 }
 
+impl SseDecode for Option<std::collections::HashMap<String, bool>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<std::collections::HashMap<String, bool>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -5651,6 +5674,17 @@ impl SseDecode for Option<usize> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<usize>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<RustTool>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<RustTool>>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -7115,6 +7149,16 @@ impl SseEncode for crate::MtpConfig {
     }
 }
 
+impl SseEncode for Option<std::collections::HashMap<String, bool>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <std::collections::HashMap<String, bool>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -7211,6 +7255,16 @@ impl SseEncode for Option<usize> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <usize>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<Vec<RustTool>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<RustTool>>::sse_encode(value, serializer);
         }
     }
 }

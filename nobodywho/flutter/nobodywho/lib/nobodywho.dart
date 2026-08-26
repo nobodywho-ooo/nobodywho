@@ -732,15 +732,28 @@ class Chat {
   /// the chat is kept. The response is appended, and the next `ask` continues from
   /// there.
   ///
+  /// The named arguments follow the same rule for the chat's other settings:
+  /// what you pass stays set, what you leave out is kept.
+  ///
   /// ```dart
   /// chat.complete([
   ///   userMessage("Who first walked on the moon?"),
   ///   assistantMessage("Neil Armstrong."),
   ///   userMessage("Which year?"),
-  /// ])
+  /// ], templateVariables: {"enable_thinking": false})
   /// ```
-  TokenStream complete(List<nobodywho.Message> messages) {
-    return TokenStream._(_chat.complete(messages: messages));
+  TokenStream complete(
+    List<nobodywho.Message> messages, {
+    nobodywho.SamplerConfig? sampler,
+    Map<String, bool>? templateVariables,
+    List<Tool>? tools,
+  }) {
+    return TokenStream._(_chat.complete(
+      messages: messages,
+      sampler: sampler,
+      templateVariables: templateVariables,
+      tools: tools?.map((t) => t._internalTool).toList(),
+    ));
   }
 
   /// Get the chat history.

@@ -127,6 +127,20 @@ class IntegrationTest {
         } catch (e: uniffi.nobodywho.NobodyWhoException) {
             // expected
         }
+
+        // Options stick: what they set stays set, what they omit is kept
+        chat.complete(
+            listOf(Message.User("Say hi.")),
+            Options(templateVariables = mapOf("enable_thinking" to true))
+        ).completed()
+        assertEquals(mapOf("enable_thinking" to true), chat.getTemplateVariables())
+
+        chat.complete(listOf(Message.User("Say hi again."))).completed()
+        assertEquals(
+            "An empty Options should leave the template variables alone",
+            mapOf("enable_thinking" to true),
+            chat.getTemplateVariables()
+        )
     }
 
     @Test

@@ -891,7 +891,7 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`pt
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_rustchat_complete(`ptr`: Long,`messages`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_complete(`ptr`: Long,`messages`: RustBuffer.ByValue,`options`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(`ptr`: Long,
 ): Long
@@ -1283,7 +1283,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 45268.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 37833.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722.toShort()) {
@@ -2052,8 +2052,10 @@ public interface RustChatInterface {
      * message sets the chat's system prompt; leave it out and the prompt already on
      * the chat is kept. The response is appended, and the next `ask` continues from
      * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
      */
-    fun `complete`(`messages`: List<Message>): RustTokenStream
+    fun `complete`(`messages`: List<Message>, `options`: Options): RustTokenStream
     
     /**
      * Get the current chat history as a list of messages.
@@ -2323,14 +2325,16 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      * message sets the chat's system prompt; leave it out and the prompt already on
      * the chat is kept. The response is appended, and the next `ask` continues from
      * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
      */
-    @Throws(NobodyWhoException::class)override fun `complete`(`messages`: List<Message>): RustTokenStream {
+    @Throws(NobodyWhoException::class)override fun `complete`(`messages`: List<Message>, `options`: Options): RustTokenStream {
             return FfiConverterTypeRustTokenStream.lift(
     callWithHandle {
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
         it,
-        FfiConverterSequenceTypeMessage.lower(`messages`),_status)
+        FfiConverterSequenceTypeMessage.lower(`messages`),FfiConverterTypeOptions.lower(`options`),_status)
 }
     }
     )
@@ -6538,6 +6542,68 @@ public object FfiConverterTypeMtpConfig: FfiConverterRustBuffer<MtpConfig> {
     override fun write(value: MtpConfig, buf: ByteBuffer) {
             FfiConverterUInt.write(value.`kMax`, buf)
             FfiConverterFloat.write(value.`pMin`, buf)
+    }
+}
+
+
+
+/**
+ * Settings to apply before a `complete` turn. An unset field keeps what the
+ * chat has; a set one stays set, like a leading system message.
+ */
+data class Options (
+    var `sampler`: SamplerConfig? = null 
+    , 
+    /**
+     * Replaces the chat's template variables wholesale.
+     */
+    var `templateVariables`: Map<kotlin.String, kotlin.Boolean>? = null 
+    , 
+    /**
+     * Re-selects the chat template, so the turn re-prefills from near token
+     * zero. An empty list removes the tools.
+     */
+    var `tools`: List<RustTool>? = null 
+    
+): Disposable{
+    
+
+    
+    @Suppress("UNNECESSARY_SAFE_CALL") // codegen is much simpler if we unconditionally emit safe calls here
+    override fun destroy() {
+        
+    Disposable.destroy(
+        this.`sampler`,
+        this.`templateVariables`,
+        this.`tools`
+    )
+    }
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeOptions: FfiConverterRustBuffer<Options> {
+    override fun read(buf: ByteBuffer): Options {
+        return Options(
+            FfiConverterOptionalTypeSamplerConfig.read(buf),
+            FfiConverterOptionalMapStringBoolean.read(buf),
+            FfiConverterOptionalSequenceTypeRustTool.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Options) = (
+            FfiConverterOptionalTypeSamplerConfig.allocationSize(value.`sampler`) +
+            FfiConverterOptionalMapStringBoolean.allocationSize(value.`templateVariables`) +
+            FfiConverterOptionalSequenceTypeRustTool.allocationSize(value.`tools`)
+    )
+
+    override fun write(value: Options, buf: ByteBuffer) {
+            FfiConverterOptionalTypeSamplerConfig.write(value.`sampler`, buf)
+            FfiConverterOptionalMapStringBoolean.write(value.`templateVariables`, buf)
+            FfiConverterOptionalSequenceTypeRustTool.write(value.`tools`, buf)
     }
 }
 

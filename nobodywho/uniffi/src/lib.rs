@@ -220,6 +220,33 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Nobod
     }
 }
 
+// ---------- Options ----------
+
+/// Settings to apply before a `complete` turn. An unset field keeps what the
+/// chat has; a set one stays set, like a leading system message.
+#[derive(uniffi::Record, Default)]
+pub struct Options {
+    #[uniffi(default = None)]
+    pub sampler: Option<Arc<SamplerConfig>>,
+    /// Replaces the chat's template variables wholesale.
+    #[uniffi(default = None)]
+    pub template_variables: Option<HashMap<String, bool>>,
+    /// Re-selects the chat template, so the turn re-prefills from near token
+    /// zero. An empty list removes the tools.
+    #[uniffi(default = None)]
+    pub tools: Option<Vec<Arc<RustTool>>>,
+}
+
+fn uniffi_options_to_core(options: Options) -> nobodywho::chat::Options {
+    nobodywho::chat::Options {
+        sampler: options.sampler.map(|s| s.inner.clone()),
+        template_variables: options.template_variables,
+        tools: options
+            .tools
+            .map(|tools| tools.iter().map(|t| t.inner.clone()).collect()),
+    }
+}
+
 // ---------- RustModel ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `Model`).
 
@@ -462,12 +489,18 @@ impl RustChat {
     /// message sets the chat's system prompt; leave it out and the prompt already on
     /// the chat is kept. The response is appended, and the next `ask` continues from
     /// there.
-    pub fn complete(&self, messages: Vec<Message>) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
+    ///
+    /// `options` follows the same rule for the chat's other settings.
+    pub fn complete(
+        &self,
+        messages: Vec<Message>,
+        options: Options,
+    ) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
         let core_messages: Result<Vec<_>, NobodyWhoError> =
             messages.iter().map(uniffi_message_to_core).collect();
         let stream = self
             .inner
-            .complete(core_messages?)
+            .complete(core_messages?, uniffi_options_to_core(options))
             .map_err(|e| NobodyWhoError::Error {
                 message: nobodywho::render_miette(&e),
             })?;

@@ -878,7 +878,28 @@ impl NobodyWhoChat {
     /// Each element is a Dictionary with a "role" and a "content", the same shape
     /// `get_chat_history` returns. The response arrives on the `response_updated` /
     /// `response_finished` signals, exactly like `ask`.
+    ///
+    /// See `complete_with_options` to change the chat's settings for the turn.
     fn complete(&mut self, messages: Array<Variant>) {
+        self.complete_impl(messages, nobodywho::chat::Options::default());
+    }
+
+    #[func]
+    /// `complete()` plus a `NobodyWhoChatOptions`. Like the system message, what
+    /// the options set stays set and what they leave out is kept.
+    ///
+    /// Separate from `complete()` because gdext cannot give an object parameter a
+    /// default value.
+    fn complete_with_options(
+        &mut self,
+        messages: Array<Variant>,
+        options: Gd<NobodyWhoChatOptions>,
+    ) {
+        let core_options = options.bind().to_core();
+        self.complete_impl(messages, core_options);
+    }
+
+    fn complete_impl(&mut self, messages: Array<Variant>, options: nobodywho::chat::Options) {
         let messages = match dictionaries_to_messages(messages) {
             Ok(messages) => messages,
             Err(e) => {
@@ -891,7 +912,7 @@ impl NobodyWhoChat {
 
         self.spawn_generation(move |chat_handle| {
             chat_handle
-                .complete_channel(messages)
+                .complete_channel(messages, options)
                 .map_err(|e| GString::from(&nobodywho::render_miette(&e)))
         });
     }
@@ -1792,6 +1813,75 @@ pub struct NobodyWhoSamplerConfig {
 
 #[godot_api]
 impl NobodyWhoSamplerConfig {}
+
+/// Settings to apply before a `NobodyWhoChat.complete()` turn. An unset field
+/// keeps what the chat already has. Tools are not here — Godot registers those
+/// on the chat node with `add_tool()`.
+///
+/// ```gdscript
+/// var opts = NobodyWhoChatOptions.new()
+/// opts.set_sampler(NobodyWhoSamplerBuilder.new().temperature(0.3).dist())
+/// opts.set_template_variables({"enable_thinking": false})
+/// chat.complete(messages, opts)
+/// ```
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+pub struct NobodyWhoChatOptions {
+    sampler: Option<Gd<NobodyWhoSamplerConfig>>,
+    template_variables: Option<Dictionary>,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl IRefCounted for NobodyWhoChatOptions {
+    fn init(base: Base<RefCounted>) -> Self {
+        Self {
+            sampler: None,
+            template_variables: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoChatOptions {
+    #[func]
+    /// Use this sampler from this turn on.
+    fn set_sampler(&mut self, config: Gd<NobodyWhoSamplerConfig>) {
+        self.sampler = Some(config);
+    }
+
+    #[func]
+    /// Replace the chat's template variables entirely. Values must be booleans.
+    fn set_template_variables(&mut self, variables: Dictionary) {
+        self.template_variables = Some(variables);
+    }
+}
+
+impl NobodyWhoChatOptions {
+    /// Non-boolean entries are warned about and dropped, not fatal.
+    fn to_core(&self) -> nobodywho::chat::Options {
+        let template_variables = self.template_variables.as_ref().map(|dict| {
+            dict.iter_shared()
+                .filter_map(|(key, value)| match value.try_to::<bool>() {
+                    Ok(flag) => Some((key.to_string(), flag)),
+                    Err(_) => {
+                        godot_warn!(
+                            "Template variable {key} is not a boolean, ignoring it: {value:?}"
+                        );
+                        None
+                    }
+                })
+                .collect()
+        });
+
+        nobodywho::chat::Options {
+            sampler: self.sampler.as_ref().map(|s| s.bind().inner.clone()),
+            template_variables,
+            tools: None,
+        }
+    }
+}
 
 /// Builder for custom sampler chains.
 ///

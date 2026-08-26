@@ -138,6 +138,27 @@ The list you pass **becomes** the chat history, replacing whatever was there, an
 
 The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
 
+### Per-turn settings
+
+`complete()` takes an optional `Options` carrying the chat's other settings. It follows the same rule as the system message: what it sets stays set, what it leaves out is kept.
+
+```swift
+_ = try await chat.complete(
+    [.user("Name one fruit.")],
+    options: Options(
+        sampler: SamplerPresets.greedy(),
+        templateVariables: ["enable_thinking": false]
+    )
+).completed()
+
+// Both are now the chat's settings, so the next call need not repeat them
+_ = try await chat.complete([.user("Name another.")]).completed()
+```
+
+Fill in all three fields and the call no longer depends on what the chat is currently holding — useful if you drive it entirely through `complete()`.
+
+Changing `tools` re-selects the chat template and rewrites the system-prompt region, so that turn re-prefills from near token zero. Set it when it changes, not on every call.
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.

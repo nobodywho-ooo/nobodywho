@@ -307,7 +307,7 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(uint64_t ptr
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_COMPLETE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_COMPLETE
-uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_complete(uint64_t ptr, RustBuffer messages, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_complete(uint64_t ptr, RustBuffer messages, RustBuffer options, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_GET_CHAT_HISTORY
