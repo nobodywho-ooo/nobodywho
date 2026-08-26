@@ -8,6 +8,9 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Added
+- Simple checkpointing for hybrid models like Qwen3.5. This will reduce how often the chat needs to redecode the entire history for hybrid models. Available for all bindings.
+
 ## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20
 
 ### Added

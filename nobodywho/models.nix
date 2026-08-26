@@ -5,6 +5,15 @@
     url = "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf";
     sha256 = "sha256-Fopf1gkSVBieJZR2TbHGbdaymE8AkfkqhvOIvd0dm7I=";
   };
+  # Recurrent / hybrid-recurrent model used to verify the checkpoint restore
+  # path in `test_checkpoint_restore_fires_on_recurrent_model`. The tiny
+  # Qwen3.5 variant is small enough to keep in CI while still exhibiting the
+  # Gated Delta Networks that break naive partial `clear_kv_cache_seq`.
+  TEST_RECURRENT_MODEL = fetchurl {
+    name = "Qwen_Qwen3.5-2B-Q4_K_M-vendor-sampling.gguf";
+    url = "https://huggingface.co/NobodyWho/Qwen_Qwen3.5-2B-GGUF/resolve/main/Qwen_Qwen3.5-2B-Q4_K_M-vendor-sampling.gguf";
+    sha256 = "sha256-3iqa3kOoguEsomShdal7XEHL1tyA09AyhB4OhKjGS5s=";
+  };
   TEST_EMBEDDINGS_MODEL = fetchurl {
     name = "bge-small-en-v1.5-q8_0.gguf";
     url = "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";

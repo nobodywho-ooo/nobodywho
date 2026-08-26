@@ -96,10 +96,14 @@ impl ChatTemplate {
         &self,
         messages: &[Message],
         ctx: &ChatTemplateContext,
+        add_generation_prompt: bool,
     ) -> Result<String, minijinja::Error> {
-        let add_generation_prompt = messages
-            .last()
-            .is_some_and(|msg| matches!(msg, Message::User { .. } | Message::Tool { .. }));
+        // Only add the generation prompt when the caller allows it and the last
+        // message is a user/tool turn (i.e. the model should produce the next turn).
+        let add_generation_prompt = add_generation_prompt
+            && messages
+                .last()
+                .is_some_and(|msg| matches!(msg, Message::User { .. } | Message::Tool { .. }));
 
         let template = self.get_template()?;
 
@@ -171,8 +175,9 @@ impl ChatTemplate {
         &self,
         messages: &[Message],
         ctx: &ChatTemplateContext,
+        add_generation_prompt: bool,
     ) -> Result<String, minijinja::Error> {
-        let rendered_template = self.render_unhandled(messages, ctx);
+        let rendered_template = self.render_unhandled(messages, ctx, add_generation_prompt);
         let result = match rendered_template {
             Ok(rendered) => Ok(rendered),
             Err(err) => match err.kind() {
@@ -185,6 +190,7 @@ impl ChatTemplate {
                     self.render_unhandled(
                         &self.concat_system_and_first_user_messages(messages)?,
                         ctx,
+                        add_generation_prompt,
                     )
                 }
                 minijinja::ErrorKind::InvalidOperation
@@ -199,6 +205,7 @@ impl ChatTemplate {
                     self.render_unhandled(
                         &self.concat_system_and_first_user_messages(messages)?,
                         ctx,
+                        add_generation_prompt,
                     )
                 }
                 _ => {
@@ -307,14 +314,14 @@ mod tests {
 
         // Test 1: Single user message
         let mut messages = vec![Message::new_user("Hello, world!".into())];
-        let rendered = chat_template.render(&messages, &ctx).unwrap();
+        let rendered = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response
         messages.push(Message::new_assistant("Hi there! How can I help?".into()));
-        let rendered2 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered2 = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected2 = "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nHi there! How can I help?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n";
         assert_eq!(rendered2, expected2);
@@ -324,7 +331,7 @@ mod tests {
         messages.push(Message::new_assistant(
             "I don't have access to weather data.".into(),
         ));
-        let rendered3 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered3 = chat_template.render(&messages, &ctx, true).unwrap();
 
         assert!(rendered3.starts_with(
             "<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\nHello, world!<|eot_id|>"
@@ -340,7 +347,7 @@ mod tests {
             Message::new_system("You are a helpful assistant.".into()),
             Message::new_user("Hi".into()),
         ];
-        let rendered4 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered4 = chat_template.render(&messages, &ctx, true).unwrap();
 
         println!("{:?}", rendered4);
 
@@ -368,7 +375,7 @@ mod tests {
 
         // Test 1: Single user message
         let mut messages = vec![Message::new_user("Hello, world!".into())];
-        let rendered = chat_template.render(&messages, &ctx).unwrap();
+        let rendered = chat_template.render(&messages, &ctx, true).unwrap();
 
         // render_string sets add_generation_prompt to true for user messages, so <｜Assistant｜> is added
         let expected = "<|bos|><｜User｜>Hello, world!<｜Assistant｜>";
@@ -376,7 +383,7 @@ mod tests {
 
         // Test 2: Add assistant response
         messages.push(Message::new_assistant("Hi there! How can I help?".into()));
-        let rendered2 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered2 = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected2 = "<|bos|><｜User｜>Hello, world!<｜Assistant｜>Hi there! How can I help?<｜end▁of▁sentence｜>";
         assert_eq!(rendered2, expected2);
@@ -386,7 +393,7 @@ mod tests {
         messages.push(Message::new_assistant(
             "<think>The user is asking for help</think>I'd be happy to assist you!".into(),
         ));
-        let rendered3 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered3 = chat_template.render(&messages, &ctx, true).unwrap();
 
         // The thinking block should be stripped out, only the content after </think> should remain
         assert!(
@@ -400,7 +407,7 @@ mod tests {
             Message::new_system("You are a helpful assistant.".into()),
             Message::new_user("Hi".into()),
         ];
-        let rendered4 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered4 = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected4 =
             "<|bos|>You are a helpful assistant.<｜User｜>Hi<｜Assistant｜>".to_string();
@@ -412,7 +419,7 @@ mod tests {
             Message::new_assistant("4".into()),
             Message::new_user("Thanks!".into()),
         ];
-        let rendered5 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered5 = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected5 =
             "<|bos|><｜User｜>What's 2+2?<｜Assistant｜>4<｜end▁of▁sentence｜><｜User｜>Thanks!<｜Assistant｜>";
@@ -420,7 +427,7 @@ mod tests {
 
         // Test 6: Empty messages (no generation prompt by default)
         let messages: Vec<Message> = vec![];
-        let rendered6 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered6 = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected6 = "<|bos|>";
         assert_eq!(rendered6, expected6);
@@ -444,14 +451,14 @@ mod tests {
 
         // Test 1: Single user message
         let mut messages = vec![Message::new_user("Hi, robot!".into())];
-        let rendered = chat_template.render(&messages, &ctx).unwrap();
+        let rendered = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected = "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n";
         assert_eq!(rendered, expected);
 
         // Test 2: Add assistant response with thinking
         messages.push(Message::new_assistant("<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\nThe answer is 42!".into()));
-        let rendered2 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered2 = chat_template.render(&messages, &ctx, true).unwrap();
 
         // The thinking block should be included in the output for Qwen3
         let expected2 = "<|im_start|>user\nHi, robot!<|im_end|>\n<|im_start|>assistant\n<think>\nHm... That's a tough cookie. I think the answer is probably 42.\nCould it be something else?\nNah... It's 42!\n</think>\n\nThe answer is 42!<|im_end|>\n";
@@ -462,7 +469,7 @@ mod tests {
             Message::new_system("You are a helpful assistant.".into()),
             Message::new_user("Hello".into()),
         ];
-        let rendered3 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered3 = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected3 = "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n";
         assert_eq!(rendered3, expected3);
@@ -473,7 +480,7 @@ mod tests {
             Message::new_assistant("4".into()),
             Message::new_user("Thanks!".into()),
         ];
-        let rendered4 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered4 = chat_template.render(&messages, &ctx, true).unwrap();
 
         let expected4 = "<|im_start|>user\nWhat's 2+2?<|im_end|>\n<|im_start|>assistant\n4<|im_end|>\n<|im_start|>user\nThanks!<|im_end|>\n<|im_start|>assistant\n";
         assert_eq!(rendered4, expected4);
@@ -483,7 +490,7 @@ mod tests {
             Message::new_user("Hello".into()),
             Message::new_assistant("Hi there!".into()),
         ];
-        let rendered5 = chat_template.render(&messages, &ctx).unwrap();
+        let rendered5 = chat_template.render(&messages, &ctx, true).unwrap();
 
         // The template now includes empty thinking blocks for assistant messages
         let expected5 = "<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi there!<|im_end|>\n";
@@ -539,7 +546,7 @@ mod tests {
 
         // Pending user turn -> generation prompt appended.
         let rendered = chat_template
-            .render(&[Message::new_user("Hi".into())], &ctx)
+            .render(&[Message::new_user("Hi".into())], &ctx, true)
             .unwrap();
         assert_eq!(
             rendered,
@@ -554,6 +561,7 @@ mod tests {
                     Message::new_assistant("Hello".into()),
                 ],
                 &ctx,
+                false,
             )
             .unwrap();
         assert_eq!(
