@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "ggml-runtime",
+    "ggml-supertonic",
+    "ggml-mimir",
+]
+resolver = "2"
