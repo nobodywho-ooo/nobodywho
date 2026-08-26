@@ -19,7 +19,7 @@ No need to mess around with docker containers, GPU servers, API keys, etc. We ma
 
 ## Code documentation
 
-If you are already familiar with the basics of LLMs we suggest you go straight to the documentation of your selected integration.
+If you already know the basics of LLMs, jump to the docs for your favorite language:
 
 <div style={{display: 'flex', flexWrap: 'wrap', gap: '0.5rem', margin: '1.25rem 0', justifyContent: 'center'}}>
   <Link to="/python/" className="button button--secondary button--sm">Python</Link>
@@ -29,6 +29,12 @@ If you are already familiar with the basics of LLMs we suggest you go straight t
   <Link to="/flutter/" className="button button--secondary button--sm">Flutter</Link>
   <Link to="/godot/" className="button button--secondary button--sm">Godot</Link>
 </div>
+
+Or install the skill so your AI coding agent knows everything about NobodyWho:
+
+```bash
+npx skills add https://github.com/nobodywho-ooo/nobodywho --skill nobodywho
+```
 
 ## Basic LLM concepts
 
