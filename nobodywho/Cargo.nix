@@ -4214,9 +4214,9 @@ rec {
       };
       "flutter_rust_bridge" = rec {
         crateName = "flutter_rust_bridge";
-        version = "2.12.0";
+        version = "2.13.0";
         edition = "2021";
-        sha256 = "19g4m906d6xjis9qc5hf27zg51x4bpskdksqbdxm39p8m99li250";
+        sha256 = "0kxk68z61p5z5a43nba9a9i1zi1aib2vxpwwnagxxiwgbg8p7a94";
         dependencies = [
           {
             name = "allo-isolate";
@@ -4295,6 +4295,11 @@ rec {
             optional = true;
           }
           {
+            name = "serde_json";
+            packageId = "serde_json";
+            optional = true;
+          }
+          {
             name = "threadpool";
             packageId = "threadpool";
             optional = true;
@@ -4356,19 +4361,20 @@ rec {
           "log" = [ "dep:log" ];
           "portable-atomic" = [ "dep:portable-atomic" ];
           "rust-async" = [ "dep:tokio" "dep:futures" "dep:wasm-bindgen-futures" ];
+          "serde_json" = [ "dep:serde_json" ];
           "thread-pool" = [ "dep:threadpool" ];
           "user-utils" = [ "dep:android_logger" "dep:oslog" ];
           "uuid" = [ "dep:uuid" "allo-isolate/uuid" ];
           "wasm-start" = [ "console_error_panic_hook" ];
         };
-        resolvedDefaultFeatures = [ "anyhow" "console_error_panic_hook" "dart-opaque" "default" "log" "portable-atomic" "rust-async" "thread-pool" "user-utils" "wasm-start" ];
+        resolvedDefaultFeatures = [ "anyhow" "console_error_panic_hook" "dart-opaque" "default" "log" "portable-atomic" "rust-async" "serde_json" "thread-pool" "user-utils" "wasm-start" ];
       };
       "flutter_rust_bridge_codegen" = rec {
         crateName = "flutter_rust_bridge_codegen";
-        version = "2.12.0";
+        version = "2.13.0";
         edition = "2021";
         crateBin = [];
-        sha256 = "034li0qzq983mnn5s5qkjgxgzg6f9czd4z6n5349vnmsay0kx0hk";
+        sha256 = "0jxyvga7g8ay48ah58hg5nwdzrbfsfnk5sg1a7v5jpwzgxbqw6kh";
         libName = "lib_flutter_rust_bridge_codegen";
         dependencies = [
           {
@@ -4480,6 +4486,10 @@ rec {
             packageId = "regex";
           }
           {
+            name = "semver";
+            packageId = "semver";
+          }
+          {
             name = "serde";
             packageId = "serde";
             features = [ "derive" ];
@@ -4533,9 +4543,9 @@ rec {
       };
       "flutter_rust_bridge_macros" = rec {
         crateName = "flutter_rust_bridge_macros";
-        version = "2.12.0";
+        version = "2.13.0";
         edition = "2021";
-        sha256 = "06wyy26kmk8gnzicwq2lgdrlwqhs7w17ymdaqpccw47p6lpy6p3b";
+        sha256 = "0f5jhyh7qi0v9nj3rm0fyyybx1s63i1gfc2vqp8xl1v148nyq7lh";
         procMacro = true;
         dependencies = [
           {
@@ -10048,6 +10058,7 @@ rec {
           {
             name = "flutter_rust_bridge";
             packageId = "flutter_rust_bridge";
+            features = [ "serde_json" ];
           }
           {
             name = "futures";
