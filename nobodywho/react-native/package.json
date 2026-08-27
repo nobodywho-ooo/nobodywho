@@ -12,6 +12,7 @@
   "bugs": "https://github.com/nobodywho-ooo/nobodywho/issues",
   "keywords": [
     "react-native",
+    "expo",
     "ai",
     "llm",
     "local-ai",
@@ -26,6 +27,8 @@
     "cpp/",
     "ios/",
     "android/",
+    "app.plugin.js",
+    "plugin/",
     "Nobodywho.podspec",
     "ubrn.config.yaml",
     "!android/build",
@@ -49,6 +52,7 @@
     "uniffi-bindgen-react-native": "0.30.0-1"
   },
   "devDependencies": {
+    "@expo/config-plugins": "^57.0.9",
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.9"

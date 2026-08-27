@@ -42,13 +42,13 @@
 
 ## Platforms
 
-We support Kotlin, Swift, Python, Flutter, React Native and Godot.
+We support Kotlin, Swift, Python, Flutter, React Native, Expo and Godot.
 
 | Platform | Installation | Documentation |
 |----------|-------------|---------------|
 | **Kotlin** | [Maven Central](#kotlin) | [docs.nobodywho.ooo/kotlin](https://docs.nobodywho.ooo/kotlin/) |
 | **Swift** | [SPM](#swift) | [docs.nobodywho.ooo/swift](https://docs.nobodywho.ooo/swift/) |
-| **React Native** | [npm](#react-native) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
+| **React Native/Expo** | [npm](#react-native) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
 | **Flutter** | [pub.dev](#flutter) | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [pypi](#python) | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
 | **Godot** | [AssetLib](#godot) | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/) |
@@ -105,7 +105,7 @@ https://github.com/nobodywho-ooo/nobodywho-swift.git
 
 ---
 
-### React Native
+### React Native / Expo
 
 ```typescript
 import { Chat } from "react-native-nobodywho";
@@ -124,7 +124,7 @@ Install via npm:
 npm install react-native-nobodywho
 ```
 
-[React Native documentation](https://docs.nobodywho.ooo/react-native/) - [npm](https://www.npmjs.com/package/react-native-nobodywho) - [starter example app](https://github.com/nobodywho-ooo/react-native-starter-example)
+[React Native documentation](https://docs.nobodywho.ooo/react-native/) - [npm](https://www.npmjs.com/package/react-native-nobodywho) - [React Native starter example app](https://github.com/nobodywho-ooo/react-native-starter-example)
 
 ---
 

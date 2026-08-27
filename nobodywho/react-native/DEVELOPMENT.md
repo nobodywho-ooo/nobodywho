@@ -18,6 +18,10 @@ react-native/
 ├── jest.config.js               # Jest test configuration
 ├── Nobodywho.podspec            # CocoaPods spec (iOS) — customized, do not regenerate
 │
+├── app.plugin.js                # Expo config plugin entry (createRunOncePlugin wrapper)
+├── plugin/
+│   └── properties.js            # Pure value-resolution helpers for the Expo config plugin
+│
 ├── src/                         # Hand-written TypeScript wrappers
 │   ├── wrapper.ts               # Public entry point — re-exports public API, runs native init
 │   ├── chat.ts                  # Chat wrapper (fromPath, destroy, etc.)
@@ -243,6 +247,36 @@ If you regenerate the turbo-module glue, these get overwritten with defaults. Al
 This is deliberate. In release mode Metro's `inlineRequires` defers lazy re-exports until first use of one of their named exports, and the public API (`Model`, `Chat`, `downloadModel`, …) doesn't touch any symbol that lives only in `index.tsx`. Routing install through `wrapper.ts` (the package main) guarantees it runs before any FFI call — otherwise consumers would crash with `Cannot read property 'ubrn_…' of undefined` in release-mode builds.
 
 `index.tsx` continues to regenerate from ubrn templates; treat it as dormant. Both `installRustCrate()` and `initialize()` are idempotent on the native side (verified against `uniffi_core::UniffiForeignPointerCell::set` and the C++ `registerModule` impl), so a stray deep import of `index.tsx` won't cause duplicate-registration bugs.
+
+## Expo config plugin
+
+`react-native-nobodywho` is a plain React Native TurboModule package, so Expo
+autolinking already discovers and links it during `expo prebuild`. The config
+plugin (`app.plugin.js`) only fills in the native build settings autolinking
+does *not* manage:
+
+- **Android** `minSdkVersion` — defaults to **31**. The x86_64 emulator needs
+  API 31+ because the Rust runtime uses ELF thread-local storage introduced on
+  that ABI in Android 12. Real arm64 devices work with any minSdk, so consumers
+  can lower it with `android.minSdkVersion` (accepting no x86_64-emulator support).
+- **iOS** deployment target — ensured to be at least **15** (the version the
+  shipped xcframework / Swift package targets). Modern Expo already defaults to
+  15.1, so by default the plugin leaves it untouched and never *lowers* a newer
+  Expo default; it only raises a sub-15 target or applies an explicit override.
+- **New Architecture** — left alone unless `newArchEnabled` is passed.
+
+Consumers add it to `app.json` under `expo.plugins`, optionally with props:
+
+```json
+["react-native-nobodywho", { "android": { "minSdkVersion": 24 }, "ios": { "deploymentTarget": "16.0" } }]
+```
+
+The value-resolution logic lives in `plugin/properties.js` (pure, no
+`@expo/config-plugins` import) and is unit-tested in `__tests__/plugin.test.ts`
+without the Expo mod machinery. `app.plugin.js` wires those helpers into
+`withGradleProperties` / `withPodfileProperties` and wraps everything in
+`createRunOncePlugin`. `@expo/config-plugins` is a devDependency only — at
+prebuild time the plugin resolves it from the consumer's `expo` install.
 
 ## Known issues
 
