@@ -117,8 +117,14 @@ fn core_part_to_uniffi(part: &nobodywho::chat::ContentPart) -> ContentPart {
 
 fn core_content_to_uniffi(content: &nobodywho::chat::MessageContent) -> MessageContent {
     use nobodywho::chat::MessageContent as Core;
+    // This mirror keeps `Text` as its own variant, so a lone text part maps
+    // back to it.
+    if let Some(text) = content.as_text() {
+        return MessageContent::Text {
+            text: text.to_string(),
+        };
+    }
     match content {
-        Core::Text(text) => MessageContent::Text { text: text.clone() },
         Core::Parts(parts) => MessageContent::Parts {
             parts: parts.iter().map(core_part_to_uniffi).collect(),
         },
@@ -171,7 +177,7 @@ fn uniffi_content_to_core(
 ) -> Result<nobodywho::chat::MessageContent, NobodyWhoError> {
     use nobodywho::chat::MessageContent as Core;
     Ok(match content {
-        MessageContent::Text { text } => Core::Text(text.clone()),
+        MessageContent::Text { text } => Core::text(text.clone()),
         MessageContent::Parts { parts } => {
             Core::parts(parts.iter().map(uniffi_part_to_core).collect::<Vec<_>>())
         }

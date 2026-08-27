@@ -63,3 +63,30 @@ println(response) // It's a dog!
 
 That should be it! Beware though, that consuming images and audio can quickly drain the context,
 and larger context sizes may be needed for smooth usage.
+
+## Media in a message list
+
+`Prompt` is for `ask()`. When you pass a whole conversation to `complete()`, the same interleaving
+is expressed as a list of content parts — the shape the OpenAI and Anthropic libraries use:
+
+```kotlin
+chat.complete(listOf(
+    Message.User(
+        ContentPart.Text("Tell me what you see in the image."),
+        ContentPart.Image("./dog.png"),
+        ContentPart.Text("Answer in one word."),
+    )
+)).completed()
+```
+
+Parts are `ContentPart.Text`, `ContentPart.Image` and `ContentPart.Audio`. The order is the order
+the model sees them in. A plain string stays valid wherever content is accepted
+(`Message.User("hello")`), so text-only messages need no change.
+
+## Media in a saved conversation
+
+`getChatHistory()` records the file path of every image and audio clip in the content part it
+belongs to, so a conversation containing media can be saved and replayed later. `complete()`
+re-reads each file, so the model sees the images and audio again rather than a conversation with
+holes in it. The files therefore have to still be where they were — if one cannot be read,
+`complete()` throws instead of quietly answering without it.

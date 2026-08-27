@@ -187,13 +187,8 @@ pub fn validate_completion_messages(messages: &[Message]) -> Result<(), InvalidH
         return Err(InvalidHistoryError::MisplacedSystemMessage { index: index + 1 });
     }
 
-    validate_system_message_media(messages)
-}
-
-/// A leading system message is hoisted into the system prompt, which is stored
-/// as plain text — media in it would flatten to a marker with no bitmap behind
-/// it and fail deep inside tokenization.
-pub fn validate_system_message_media(messages: &[Message]) -> Result<(), InvalidHistoryError> {
+    // A leading system message becomes the plain-text system prompt, so media
+    // in it has nowhere to go.
     match messages.first() {
         Some(first) if first.is_system() && !first.content_ref().media_parts().is_empty() => {
             Err(InvalidHistoryError::MediaInSystemMessage)
@@ -603,13 +598,25 @@ impl ChatHandle {
 
     /// Reset the chat conversation history.
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
-            messages: vec![],
+        self.send_chat_history_blocking(vec![], "reset_history")
+    }
+
+    /// Like [`set_and_wait_blocking`](Self::set_and_wait_blocking), but the
+    /// worker can answer with an error.
+    fn send_chat_history_blocking(
+        &self,
+        messages: Vec<Message>,
+        label: &str,
+    ) -> Result<(), crate::errors::SetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::SetChatHistory {
+            messages,
             output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "reset_history".into(),
-        ))
+        });
+        output_rx
+            .blocking_recv()
+            .ok_or_else(|| crate::errors::SetterError::SetterError(label.into()))??;
+        Ok(())
     }
 
     /// Update the available tools for the model to use.
@@ -716,14 +723,7 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        validate_system_message_media(&messages)?;
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetChatHistory {
-            messages,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_chat_history".into(),
-        ))
+        self.send_chat_history_blocking(messages, "set_chat_history")
     }
     /// Get the sampler config
     pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
@@ -971,14 +971,26 @@ impl ChatHandleAsync {
 
     /// Reset the chat conversation history.
     pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
-            messages: vec![],
+        self.send_chat_history_async(vec![], "reset_history").await
+    }
+
+    /// Like [`set_and_wait_async`](Self::set_and_wait_async), but the worker
+    /// can answer with an error.
+    async fn send_chat_history_async(
+        &self,
+        messages: Vec<Message>,
+        label: &str,
+    ) -> Result<(), crate::errors::SetterError> {
+        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
+        self.guard.send(ChatMsg::SetChatHistory {
+            messages,
             output_tx,
-        })
-        .await
-        .ok_or(crate::errors::SetterError::SetterError(
-            "reset_history".into(),
-        ))
+        });
+        output_rx
+            .recv()
+            .await
+            .ok_or_else(|| crate::errors::SetterError::SetterError(label.into()))??;
+        Ok(())
     }
 
     /// Update the available tools for the model to use.
@@ -1092,15 +1104,8 @@ impl ChatHandleAsync {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        validate_system_message_media(&messages)?;
-        self.set_and_wait_async(|output_tx| ChatMsg::SetChatHistory {
-            messages,
-            output_tx,
-        })
-        .await
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_chat_history".into(),
-        ))
+        self.send_chat_history_async(messages, "set_chat_history")
+            .await
     }
 
     /// Get the sampler config.
@@ -1305,7 +1310,7 @@ enum ChatMsg {
     },
     SetChatHistory {
         messages: Vec<Message>,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: tokio::sync::mpsc::Sender<Result<(), ContextSyncError>>,
     },
     GetStats {
         output_tx: tokio::sync::mpsc::Sender<ChatStats>,
@@ -1480,8 +1485,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             messages,
             output_tx,
         } => {
-            worker_state.set_chat_history(messages)?;
-            let _ = output_tx.blocking_send(());
+            let _ = output_tx.blocking_send(worker_state.set_chat_history(messages));
         }
         ChatMsg::GetSamplerConfig { output_tx } => {
             let sampler_config = worker_state.get_sampler_config();
@@ -2182,7 +2186,7 @@ impl<'a> Chat<'a> {
         self.apply_options(options)
             .map_err(|e| CompleteError::Options(e.to_string()))?;
 
-        self.hoist_system_message(&mut messages);
+        self.hoist_system_message(&mut messages)?;
         self.messages = messages;
         self.run_turn(respond)?;
 
@@ -2225,8 +2229,10 @@ impl<'a> Chat<'a> {
     /// context unreferenced until the next `garbage_collect_bitmaps` clears them,
     /// which is the same path any replaced history takes.
     fn reload_media(&mut self, messages: &mut [Message]) -> Result<(), MultimodalError> {
-        for message in messages {
-            if message.is_system() {
+        for (index, message) in messages.iter_mut().enumerate() {
+            // Only a leading system message is legal, and it is about to become
+            // the plain-text system prompt, so it cannot hold media.
+            if index == 0 && message.is_system() {
                 continue;
             }
             self.register_media(message.content_mut())?;
@@ -2399,24 +2405,35 @@ impl<'a> Chat<'a> {
     }
 
     /// Take a leading system message out of `messages` and make it the system
-    /// prompt, so that an OpenAI-shaped array can be passed in as-is. A system
-    /// message anywhere else is rejected by `validate_completion_messages`.
-    fn hoist_system_message(&mut self, messages: &mut Vec<Message>) {
-        let system_prompt = match messages.first() {
-            Some(Message::System { content }) => content.to_string(),
-            _ => return,
+    /// prompt, so that an OpenAI-shaped array can be passed in as-is.
+    ///
+    /// Fails if a system message appears anywhere else, since only the leading
+    /// one has somewhere to go, or if it carries media, since the prompt is
+    /// stored as plain text.
+    fn hoist_system_message(
+        &mut self,
+        messages: &mut Vec<Message>,
+    ) -> Result<(), InvalidHistoryError> {
+        if let Some(index) = messages.iter().skip(1).position(Message::is_system) {
+            return Err(InvalidHistoryError::MisplacedSystemMessage { index: index + 1 });
+        }
+        let Some(Message::System { content }) = messages.first() else {
+            return Ok(());
         };
+        if !content.media_parts().is_empty() {
+            return Err(InvalidHistoryError::MediaInSystemMessage);
+        }
+        self.system_prompt = Some(content.to_string());
         messages.remove(0);
-        self.system_prompt = Some(system_prompt);
+        Ok(())
     }
 
-    /// DEFERRED to a follow-up PR: media is not re-registered here, so a history
-    /// from another worker keeps bitmap ids this one never issued and its media
-    /// drops out of the render. The fix needs a fallible reply channel on
-    /// `ChatMsg::SetChatHistory` — `process_worker_msg` propagates setter errors
-    /// with `?`, killing the worker — which `set_tools` and `reset_chat` need too.
+    /// Media is re-registered from the part paths, since bitmap ids issued by
+    /// another worker mean nothing here. Nothing is committed unless both that
+    /// and the hoist succeed.
     pub fn set_chat_history(&mut self, mut messages: Vec<Message>) -> Result<(), ContextSyncError> {
-        self.hoist_system_message(&mut messages);
+        self.reload_media(&mut messages)?;
+        self.hoist_system_message(&mut messages)?;
         self.messages = messages;
 
         // We used to call sync_context_with_render here but this can
@@ -3847,10 +3864,11 @@ mod tests {
         ));
     }
 
-    /// `set_chat_history` hoists a leading system message the same way, so it
-    /// rejects media there too — and leaves the worker alive to say so.
+    /// `set_chat_history` hoists a leading system message the same way
+    /// `complete` does, so it rejects the same histories — and leaves the
+    /// worker alive to say so.
     #[test]
-    fn test_set_chat_history_rejects_media_in_system_message() {
+    fn test_set_chat_history_rejects_invalid_history() {
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(512)
@@ -3866,22 +3884,115 @@ mod tests {
                 user("Hi"),
             ])
             .unwrap_err();
-        assert!(matches!(
-            err,
-            crate::errors::SetterError::InvalidHistory(InvalidHistoryError::MediaInSystemMessage)
-        ));
+        assert!(
+            matches!(
+                err,
+                crate::errors::SetterError::ContextSync(ContextSyncError::InvalidHistory(
+                    InvalidHistoryError::MediaInSystemMessage
+                ))
+            ),
+            "{err:?}"
+        );
 
-        // A mid-list system message stays tolerated: it is not hoisted, so it
-        // never becomes the plain-text system prompt.
+        // A mid-list system message is rejected here just as `complete` rejects
+        // it: only the leading one has anywhere to go.
+        let err = chat
+            .set_chat_history(vec![
+                user("Hi"),
+                Message::new_system("Be terse.".to_string()),
+                user("Again"),
+            ])
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                crate::errors::SetterError::ContextSync(ContextSyncError::InvalidHistory(
+                    InvalidHistoryError::MisplacedSystemMessage { index: 1 }
+                ))
+            ),
+            "{err:?}"
+        );
+
+        // The worker survived both, so a valid history still goes through.
         chat.set_chat_history(vec![
-            user("Hi"),
             Message::new_system("Be terse.".to_string()),
-            user("Again"),
+            user("Hi"),
         ])
-        .expect("a mid-list system message should still be accepted");
+        .expect("a leading system message is fine");
+        assert_eq!(chat.get_chat_history().unwrap().len(), 1);
 
-        // The worker survived both, so the history round-trips.
-        assert_eq!(chat.get_chat_history().unwrap().len(), 3);
+        // An unreadable media file is reported, not fatal.
+        let err = chat
+            .set_chat_history(vec![Message::new_user(vec![
+                ContentPart::text("What is this?"),
+                ContentPart::image("/nonexistent/nope.png"),
+            ])])
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                crate::errors::SetterError::ContextSync(ContextSyncError::Multimodal(_))
+            ),
+            "{err:?}"
+        );
+        assert_eq!(
+            chat.get_chat_history().unwrap().len(),
+            1,
+            "a failed set_chat_history should leave the history alone"
+        );
+    }
+
+    /// Bitmap ids issued by another worker mean nothing here, so the media has
+    /// to be re-registered from the part paths.
+    #[test]
+    fn test_set_chat_history_reloads_media() -> Result<(), Box<dyn std::error::Error>> {
+        test_utils::init_test_tracing();
+        let (Ok(vision_path), Ok(mmproj_path)) = (
+            std::env::var("TEST_VISION_MODEL"),
+            std::env::var("TEST_MMPROJ_MODEL"),
+        ) else {
+            eprintln!(
+                "skipping test_set_chat_history_reloads_media: \
+                 set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
+            );
+            return Ok(());
+        };
+
+        let model = Arc::new(llm::get_model(
+            &vision_path,
+            true,
+            Some(&mmproj_path),
+            None,
+            None,
+        )?);
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 4096,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+
+        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let mut content = MessageContent::parts([
+            ContentPart::text("What is in this image?"),
+            ContentPart::image(image),
+        ]);
+        for part in content.media_parts_mut() {
+            part.set_id("id-from-another-session".to_string());
+        }
+
+        worker.set_chat_history(vec![Message::User { content }])?;
+
+        let history = worker.get_chat_history();
+        let registered = history[0].content_ref().media_parts()[0]
+            .id()
+            .expect("the part should carry a freshly registered id");
+        assert_ne!(registered, "id-from-another-session");
+        assert!(worker.context.bitmaps.contains_key(registered));
+
+        Ok(())
     }
 
     /// The wire format the API promises: a user message whose content is a list

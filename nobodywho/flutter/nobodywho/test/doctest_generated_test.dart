@@ -507,6 +507,13 @@ void main() {
         nobodywho.ImagePart("./dog.png"),
         nobodywho.AudioPart("./sound.mp3"),
       ])).completed(); // It's a dog and a penguin!
+      await chat.complete([
+        nobodywho.Message.user(content: nobodywho.partsContent([
+          nobodywho.TextPart("Tell me what you see in the image."),
+          nobodywho.ImagePart("./dog.png"),
+          nobodywho.TextPart("Answer in one word."),
+        ])),
+      ]).completed();
     });
 
   });

@@ -82,8 +82,14 @@ impl From<ContentPart> for nobodywho::chat::ContentPart {
 impl From<nobodywho::chat::MessageContent> for MessageContent {
     fn from(content: nobodywho::chat::MessageContent) -> Self {
         use nobodywho::chat::MessageContent as Core;
+        // This mirror keeps `Text` as its own variant, so a lone text part maps
+        // back to it.
+        if let Some(text) = content.as_text() {
+            return MessageContent::Text {
+                text: text.to_string(),
+            };
+        }
         match content {
-            Core::Text(text) => MessageContent::Text { text },
             Core::Parts(parts) => MessageContent::Parts {
                 parts: parts.into_iter().map(Into::into).collect(),
             },
@@ -99,7 +105,7 @@ impl From<nobodywho::chat::MessageContent> for MessageContent {
 fn content_to_core(content: MessageContent) -> Result<nobodywho::chat::MessageContent, String> {
     use nobodywho::chat::MessageContent as Core;
     Ok(match content {
-        MessageContent::Text { text } => Core::Text(text),
+        MessageContent::Text { text } => Core::text(text),
         MessageContent::Parts { parts } => {
             Core::parts(parts.into_iter().map(Into::into).collect::<Vec<_>>())
         }

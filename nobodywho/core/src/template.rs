@@ -108,7 +108,7 @@ impl ChatTemplate {
                 let mut message = message.clone();
                 let content = message.content_mut();
                 if matches!(content, MessageContent::Parts(_)) {
-                    *content = MessageContent::Text(content.to_string());
+                    *content = MessageContent::text(content.to_string());
                 }
 
                 let mut value =
@@ -180,7 +180,8 @@ impl ChatTemplate {
                     MessageContent::Parts(parts) => {
                         MessageContent::parts([prefix].into_iter().chain(parts.iter().cloned()))
                     }
-                    other => MessageContent::parts([prefix, ContentPart::text(other.to_string())]),
+                    // Raw JSON has no position to prepend into, so it flattens.
+                    json => MessageContent::parts([prefix, ContentPart::text(json.to_string())]),
                 };
                 let new_first_message = Message::User { content };
                 let new_messages = vec![new_first_message]
@@ -616,6 +617,30 @@ mod tests {
             .render_unhandled(&[Message::User { content }], &ctx)
             .unwrap();
         assert_eq!(rendered, "[text:one][text:two]");
+    }
+
+    /// A translation turn whose parts carry custom fields. It is `type`-tagged,
+    /// so it needs the `raw` wrapper on the way out, and must still reach the
+    /// template as a list.
+    #[test]
+    fn test_render_json_content_with_custom_part_fields() {
+        let template = "{% for message in messages %}\
+             {% for part in message['content'] %}{{ part['source_lang'] }}->{{ part['target_lang'] }}\
+             {% endfor %}{% endfor %}";
+        let ctx = ChatTemplateContext {
+            template_variables: HashMap::default(),
+            tools: None,
+        };
+        let chat_template = ChatTemplate::new(template, "<bos>", "<eos>").unwrap();
+
+        let content = MessageContent::from_json(serde_json::json!([
+            {"type": "text", "source_lang": "en", "target_lang": "fr"},
+        ]));
+
+        let rendered = chat_template
+            .render_unhandled(&[Message::User { content }], &ctx)
+            .unwrap();
+        assert_eq!(rendered, "en->fr");
     }
 
     /// An empty JSON array is part-shaped too, so it also gets wrapped on the

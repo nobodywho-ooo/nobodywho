@@ -19,8 +19,8 @@ const RAW_TAG: &str = "raw";
 /// position.
 ///
 /// `id` is the bitmap a worker registered for the file. It is worker-local, so
-/// content that came from elsewhere — a saved conversation, say — carries an id
-/// this worker knows nothing about and must be re-registered from the path.
+/// content from elsewhere carries an id this worker does not know, and has to
+/// be re-registered from the path.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum ContentPart {
@@ -89,38 +89,47 @@ impl ContentPart {
 
 /// The content of a message.
 ///
-/// The variants are told apart by shape, so an OpenAI-style message array can be
-/// passed in directly while chat templates that expect a structured `content`
-/// keep working:
+/// Content is read by shape, so an OpenAI-style message array can be passed in
+/// as-is:
 ///
 /// | JSON | variant |
 /// |---|---|
-/// | `"hello"` | [`Text`](Self::Text) |
+/// | `"hello"` | [`Parts`](Self::Parts), one text part |
 /// | `[{"type": "text", …}, {"type": "image", …}]` | [`Parts`](Self::Parts) |
+/// | `[]` | [`Parts`](Self::Parts), empty |
 /// | `{"type": "raw", "value": V}` | [`Json`](Self::Json), holding `V` |
 /// | anything else | [`Json`](Self::Json) |
 ///
-/// `text`, `image` and `audio` are reserved. An array carrying none of them —
-/// say `[{"type": "document", …}]`, for a model finetuned on structured turns —
-/// reaches the chat template as a real list. Mixing the two, or using a reserved
-/// tag with fields that do not parse, is an error rather than a silent
-/// fallthrough, so a typo surfaces instead of being rendered as literal JSON.
+/// `text`, `image` and `audio` are reserved. A non-empty array carrying none of
+/// them — say `[{"type": "document", …}]`, for a model finetuned on structured
+/// turns — reaches the chat template as a real list. Mixing the two, or using a
+/// reserved tag with fields that do not parse, is an error, so a typo surfaces
+/// instead of being rendered as literal JSON.
 ///
-/// Serialization is transparent, *except* that a [`Json`](Self::Json) which
-/// would read back as something else is wrapped in `{"type": "raw", …}`.
-/// Tagging only when necessary leaves the wire format unchanged for payloads
-/// that do not collide, while guaranteeing content survives a round trip out of
-/// the history and back in.
+/// Serialization is transparent except where a value would read back as
+/// something else: a lone text part is written as a bare string, and a
+/// colliding [`Json`](Self::Json) is wrapped in `{"type": "raw", …}`. Content
+/// therefore survives a round trip through the chat history unchanged.
 #[derive(Clone, Debug)]
 pub enum MessageContent {
-    Text(String),
     Parts(Vec<ContentPart>),
     Json(Value),
 }
 
 impl MessageContent {
     pub fn text(text: impl Into<String>) -> Self {
-        Self::Text(text.into())
+        Self::Parts(vec![ContentPart::text(text)])
+    }
+
+    /// The text, if this content is a single text part.
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Self::Parts(parts) => match parts.as_slice() {
+                [ContentPart::Text { text }] => Some(text),
+                _ => None,
+            },
+            Self::Json(_) => None,
+        }
     }
 
     /// Build content from parts, merging adjacent text runs.
@@ -137,14 +146,14 @@ impl MessageContent {
     pub fn media_parts(&self) -> Vec<&ContentPart> {
         match self {
             Self::Parts(parts) => parts.iter().filter(|part| part.is_media()).collect(),
-            Self::Text(_) | Self::Json(_) => vec![],
+            Self::Json(_) => vec![],
         }
     }
 
     pub fn media_parts_mut(&mut self) -> Vec<&mut ContentPart> {
         match self {
             Self::Parts(parts) => parts.iter_mut().filter(|part| part.is_media()).collect(),
-            Self::Text(_) | Self::Json(_) => vec![],
+            Self::Json(_) => vec![],
         }
     }
 
@@ -156,10 +165,10 @@ impl MessageContent {
     }
 
     /// Kept separate from [`Deserialize`] so [`Serialize`] can use it to decide
-    /// whether a value needs the `raw` wrapper to survive the round trip.
+    /// whether a value needs the `raw` wrapper.
     fn from_value(value: Value) -> Result<Self, String> {
         match value {
-            Value::String(text) => Ok(Self::Text(text)),
+            Value::String(text) => Ok(Self::text(text)),
             Value::Array(items) => match sniff_parts(&items)? {
                 Some(parts) => Ok(Self::Parts(parts)),
                 None => Ok(Self::Json(Value::Array(items))),
@@ -222,8 +231,8 @@ fn is_raw_wrapper(fields: &serde_json::Map<String, Value>) -> bool {
         && fields.get("type").and_then(Value::as_str) == Some(RAW_TAG)
 }
 
-/// Unwrap a `{"type": "raw", "value": V}` envelope in place. The envelope only
-/// exists so history reads back unchanged; a template must see `V` itself.
+/// Unwrap a `{"type": "raw", "value": V}` envelope in place, leaving `V`.
+/// Templates read the value, not the envelope around it.
 pub(crate) fn strip_raw_wrapper(value: &mut Value) {
     let Value::Object(fields) = value else {
         return;
@@ -245,8 +254,11 @@ fn needs_raw_wrapper(value: &Value) -> bool {
 
 impl Serialize for MessageContent {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        // A lone text part writes back as the bare-string shorthand.
+        if let Some(text) = self.as_text() {
+            return text.serialize(s);
+        }
         match self {
-            Self::Text(text) => text.serialize(s),
             Self::Parts(parts) => parts.serialize(s),
             Self::Json(value) if needs_raw_wrapper(value) => {
                 serde_json::json!({ "type": RAW_TAG, "value": value }).serialize(s)
@@ -267,7 +279,6 @@ impl<'de> Deserialize<'de> for MessageContent {
 impl fmt::Display for MessageContent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Text(text) => write!(f, "{text}"),
             Self::Json(value) => write!(f, "{value}"),
             Self::Parts(parts) => {
                 let marker = llama_cpp_2::mtmd::mtmd_default_marker();
@@ -291,13 +302,13 @@ impl Default for MessageContent {
 
 impl From<String> for MessageContent {
     fn from(text: String) -> Self {
-        Self::Text(text)
+        Self::text(text)
     }
 }
 
 impl From<&str> for MessageContent {
     fn from(text: &str) -> Self {
-        Self::Text(text.to_string())
+        Self::text(text)
     }
 }
 
@@ -317,8 +328,54 @@ mod tests {
     }
 
     #[test]
-    fn plain_string_is_text() {
-        assert!(matches!(parse(json!("hello")).unwrap(), MessageContent::Text(t) if t == "hello"));
+    fn plain_string_is_a_single_text_part() {
+        let content = parse(json!("hello")).unwrap();
+        assert_eq!(content.as_text(), Some("hello"));
+        let MessageContent::Parts(parts) = content else {
+            panic!("expected parts");
+        };
+        assert_eq!(parts, vec![ContentPart::text("hello")]);
+    }
+
+    /// Every shape must serialize back to what it was read from.
+    #[test]
+    fn every_shape_round_trips_byte_identically() {
+        for value in [
+            json!("hi"),
+            // Assistant messages carrying tool calls have empty content.
+            json!(""),
+            json!([]),
+            json!([{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]),
+            json!([{"type": "text", "text": "look"}, {"type": "image", "path": "cat.png"}]),
+            json!([{"type": "document", "title": "Returns"}]),
+            json!({"type": "document", "title": "Returns"}),
+        ] {
+            let content = parse(value.clone()).unwrap();
+            assert_eq!(
+                serde_json::to_value(&content).unwrap(),
+                value,
+                "{value} did not survive the round trip"
+            );
+        }
+    }
+
+    #[test]
+    fn only_a_lone_text_part_serializes_as_a_bare_string() {
+        assert_eq!(
+            serde_json::to_value(MessageContent::text("hi")).unwrap(),
+            json!("hi")
+        );
+        // Two text parts stay an array.
+        let two = MessageContent::Parts(vec![ContentPart::text("a"), ContentPart::text("b")]);
+        assert_eq!(
+            serde_json::to_value(&two).unwrap(),
+            json!([{"type": "text", "text": "a"}, {"type": "text", "text": "b"}])
+        );
+        // Empty content is an empty array, not an empty string.
+        assert_eq!(
+            serde_json::to_value(MessageContent::default()).unwrap(),
+            json!([])
+        );
     }
 
     #[test]

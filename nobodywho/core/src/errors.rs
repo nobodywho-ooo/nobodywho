@@ -476,6 +476,9 @@ pub enum SetterError {
 
     #[error(transparent)]
     InvalidHistory(#[from] InvalidHistoryError),
+
+    #[error(transparent)]
+    ContextSync(#[from] ContextSyncError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1182,6 +1185,12 @@ pub enum ContextSyncError {
 
     #[error("Error tokenizing chunks: {0}")]
     Tokenize(#[from] TokenizationError),
+
+    #[error("Multimodal error: {0}")]
+    Multimodal(#[from] MultimodalError),
+
+    #[error(transparent)]
+    InvalidHistory(#[from] InvalidHistoryError),
 
     #[error("Error shifting context: {0}")]
     #[diagnostic(transparent)]
