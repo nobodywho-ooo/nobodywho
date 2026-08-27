@@ -1550,6 +1550,12 @@ impl ChatContext {
         Ok(bitmap_ids)
     }
 
+    /// Whether this worker has the bitmap an id names. Ids are worker-local, so
+    /// content from elsewhere carries ids this answers `false` for.
+    fn has_bitmap(&self, id: &str) -> bool {
+        self.bitmaps.contains_key(id)
+    }
+
     pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
         // Garbage collection for the bitmaps.
         let referenced_bitmaps: HashSet<String> = messages
@@ -2038,6 +2044,11 @@ impl<'a> Chat<'a> {
     /// Load each media part's file, register its bitmap and write the bitmap id
     /// back into the part.
     ///
+    /// A part already pointing at a registered bitmap is left alone: a bitmap id
+    /// is a hash of the bitmap's contents, so an id this worker knows can only
+    /// mean that bitmap. Re-handing a conversation to `complete` therefore costs
+    /// nothing per image already in the context, rather than a decode per turn.
+    ///
     /// The nth media part pairs with the nth `<__media__>` marker in the
     /// flattened text, which holds by construction: both come from the same
     /// list of parts, in the same order.
@@ -2045,18 +2056,32 @@ impl<'a> Chat<'a> {
         let bitmaps = content
             .media_parts()
             .into_iter()
-            .map(|part| match part {
-                ContentPart::Image { path, .. } => self.engine.load_image(path),
-                ContentPart::Audio { path, .. } => self.engine.load_audio(path),
-                ContentPart::Text { .. } => unreachable!("media_parts filters out text"),
+            .map(|part| {
+                if part.id().is_some_and(|id| self.context.has_bitmap(id)) {
+                    return Ok(None);
+                }
+                match part {
+                    ContentPart::Image { path, .. } => self.engine.load_image(path).map(Some),
+                    ContentPart::Audio { path, .. } => self.engine.load_audio(path).map(Some),
+                    ContentPart::Text { .. } => unreachable!("media_parts filters out text"),
+                }
             })
-            .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
+            .collect::<Result<Vec<Option<MtmdBitmap>>, MultimodalError>>()?;
 
         debug!("Detected bitmaps: {:?}", bitmaps);
 
-        let bitmap_ids = self.context.add_bitmaps(bitmaps)?;
-        for (part, id) in content.media_parts_mut().into_iter().zip(bitmap_ids) {
-            part.set_id(id);
+        // Keep the position of each loaded bitmap, so its new id lands on the
+        // part it came from and the parts we skipped keep the id they had.
+        let (positions, loaded): (Vec<usize>, Vec<MtmdBitmap>) = bitmaps
+            .into_iter()
+            .enumerate()
+            .filter_map(|(position, bitmap)| bitmap.map(|bitmap| (position, bitmap)))
+            .unzip();
+
+        let bitmap_ids = self.context.add_bitmaps(loaded)?;
+        let mut parts = content.media_parts_mut();
+        for (position, id) in positions.into_iter().zip(bitmap_ids) {
+            parts[position].set_id(id);
         }
         Ok(())
     }
@@ -2190,6 +2215,10 @@ impl<'a> Chat<'a> {
     /// from another session — a saved conversation, say — carries ids this worker
     /// knows nothing about. The path is the part that keeps its meaning, so the
     /// bitmap is loaded from it again and the part is pointed at the new id.
+    ///
+    /// Media already registered here is not re-read — see [`register_media`](Self::register_media).
+    /// Handing the same conversation back therefore does not re-decode its
+    /// images, at the cost of not noticing a file that changed on disk since.
     ///
     /// Runs before the history is replaced, so an unreadable file leaves the
     /// conversation as it was. Bitmaps registered before that point stay in the
@@ -3990,6 +4019,17 @@ mod tests {
         // Keep the message the image arrived in: its content holds the image part,
         // path and all, which is what a saved conversation stores.
         let stored = worker.get_chat_history()[0].clone();
+
+        // Handing it back while its bitmap is still registered is a no-op: the id
+        // is a content hash, so there is nothing to re-read.
+        let mut unchanged = stored.clone();
+        worker.register_media(unchanged.content_mut())?;
+        assert_eq!(
+            serde_json::to_value(&unchanged)?,
+            serde_json::to_value(&stored)?,
+            "an already-registered part should keep its id rather than be reloaded"
+        );
+        assert_eq!(worker.context.bitmaps.len(), 1);
 
         worker.complete(vec![user("Say the word 'banana'.")], Options::new(), |_| {})?;
         assert_eq!(

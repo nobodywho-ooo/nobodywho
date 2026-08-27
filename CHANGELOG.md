@@ -18,6 +18,8 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 - **Breaking:** a message's media is now part of its content instead of a separate `assets` list, and the `Asset` type is gone. Where you passed `{"role": "user", "content": "...", "assets": [...]}`, pass a content list of parts instead. The media file path now lives on the part it belongs to, so the ordering of text and media within a message is explicit rather than implied. Affects all bindings.
 - **Breaking:** the system prompt is no longer stored as the first chat message; it is a setting on the `Chat`, as in the Anthropic and Gemini SDKs. `get_chat_history()` therefore never returns a system message, and `complete()` no longer clears the system prompt when the list you pass has none. Media in a system message is now rejected, since no chat template supports it. Affects all bindings.
+- **Breaking:** `PromptPart` is now `ContentPart`, since one type now describes both a prompt and a message's content, and its text variant's field is `text` rather than `content`. Only Swift is affected: it re-exports the type directly, so `[PromptPart]` becomes `[ContentPart]` and `.text(content:)` becomes `.text(text:)`. Flutter, Kotlin and React Native build prompts through their own part types, which are unchanged.
+- **Breaking:** the error Flutter's `setChatHistory` throws is no longer a `SetterError`; catch it as a plain exception rather than by type. The history validation it now performs is the same on every binding — see the system prompt entry above.
 
 ## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20
 

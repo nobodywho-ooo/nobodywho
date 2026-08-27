@@ -895,19 +895,17 @@ impl NobodyWhoChat {
         messages: Array<Variant>,
         options: Gd<NobodyWhoChatOptions>,
     ) {
-        let core_options = options.bind().to_core();
+        let core_options = match options.bind().to_core() {
+            Ok(options) => options,
+            Err(e) => return self.drop_generation(&e),
+        };
         self.complete_impl(messages, core_options);
     }
 
     fn complete_impl(&mut self, messages: Array<Variant>, options: nobodywho::chat::Options) {
         let messages = match dictionaries_to_messages(messages) {
             Ok(messages) => messages,
-            Err(e) => {
-                let errmsg = GString::from(&e);
-                godot_error!("Generation dropped: {}", errmsg);
-                self.signals().worker_failed().emit(&errmsg);
-                return;
-            }
+            Err(e) => return self.drop_generation(&e),
         };
 
         self.spawn_generation(move |chat_handle| {
@@ -915,6 +913,14 @@ impl NobodyWhoChat {
                 .complete_channel(messages, options)
                 .map_err(|e| GString::from(&nobodywho::render_miette(&e)))
         });
+    }
+
+    /// Report that a generation never started: log it and emit `worker_failed`,
+    /// the same way a generation that dies mid-flight is reported.
+    fn drop_generation(&mut self, error: &str) {
+        let errmsg = GString::from(error);
+        godot_error!("Generation dropped: {}", errmsg);
+        self.signals().worker_failed().emit(&errmsg);
     }
 
     /// Run a generation on a background task and emit its tokens as signals,
@@ -932,11 +938,7 @@ impl NobodyWhoChat {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             match self.snapshot_worker_config() {
                 Ok(c) => Some(c),
-                Err(e) => {
-                    godot_error!("Generation dropped: {}", e);
-                    self.signals().worker_failed().emit(&e);
-                    return;
-                }
+                Err(e) => return self.drop_generation(&e.to_string()),
             }
         } else {
             None
@@ -1852,34 +1854,38 @@ impl NobodyWhoChatOptions {
     }
 
     #[func]
-    /// Replace the chat's template variables entirely. Values must be booleans.
+    /// Replace the chat's template variables entirely. Values must be booleans —
+    /// anything else fails the turn with `worker_failed` rather than being ignored.
     fn set_template_variables(&mut self, variables: Dictionary) {
         self.template_variables = Some(variables);
     }
 }
 
 impl NobodyWhoChatOptions {
-    /// Non-boolean entries are warned about and dropped, not fatal.
-    fn to_core(&self) -> nobodywho::chat::Options {
-        let template_variables = self.template_variables.as_ref().map(|dict| {
-            dict.iter_shared()
-                .filter_map(|(key, value)| match value.try_to::<bool>() {
-                    Ok(flag) => Some((key.to_string(), flag)),
-                    Err(_) => {
-                        godot_warn!(
-                            "Template variable {key} is not a boolean, ignoring it: {value:?}"
-                        );
-                        None
-                    }
-                })
-                .collect()
-        });
+    /// A non-boolean entry is an error rather than a dropped one: silently
+    /// leaving the variable unset would run the turn on the template's default,
+    /// which is usually the opposite of what was asked for.
+    fn to_core(&self) -> Result<nobodywho::chat::Options, String> {
+        let template_variables = self
+            .template_variables
+            .as_ref()
+            .map(|dict| {
+                dict.iter_shared()
+                    .map(|(key, value)| {
+                        let flag = value.try_to::<bool>().map_err(|_| {
+                            format!("Template variable {key} is not a boolean: {value:?}")
+                        })?;
+                        Ok((key.to_string(), flag))
+                    })
+                    .collect::<Result<_, String>>()
+            })
+            .transpose()?;
 
-        nobodywho::chat::Options {
+        Ok(nobodywho::chat::Options {
             sampler: self.sampler.as_ref().map(|s| s.bind().inner.clone()),
             template_variables,
             tools: None,
-        }
+        })
     }
 }
 
