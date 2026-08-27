@@ -1100,6 +1100,58 @@ impl NobodyWhoChat {
     }
 
     #[func]
+    /// The chat's current template variables, as a Dictionary of bools. Returns a
+    /// Signal, so use `var vars = await chat.get_template_variables()`.
+    fn get_template_variables(&mut self) -> Variant {
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to get template variables, but no worker is running. Returning nil."
+                );
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "get_template_variables_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let Ok(variables) = chat_handle.get_template_variables().await else {
+                error!("Chat worker died while waiting for get_template_variables.");
+                emit_node.emit_signal(&signal_name_copy, &[]);
+                return;
+            };
+
+            let mut dict = VarDictionary::new();
+            for (key, value) in variables {
+                let _ = dict.insert(key, value);
+            }
+
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("Failed getting template variables: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[Variant::from(dict)]);
+        });
+
+        // returns signal, so that you can `var vars = await get_template_variables()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
     fn get_stats(&mut self) -> Variant {
         let chat_handle = match self.chat_handle.as_ref() {
             Some(handle) => handle.clone(),

@@ -357,7 +357,9 @@ jobs:
               wait "${download_pids[0]}"
               download_pids=("${download_pids[@]:1}")
             fi
-            curl -L --fail --progress-bar "$1" -o "$2" &
+            # --retry-all-errors and -C - so a mid-transfer HTTP/2 stream reset
+            # from the HF CDN resumes instead of failing the whole step.
+            curl -L --fail --progress-bar --retry 5 --retry-delay 5 --retry-all-errors -C - "$1" -o "$2" &
             download_pids+=("$!")
           }
           mkdir -p models/whisper-base/onnx
