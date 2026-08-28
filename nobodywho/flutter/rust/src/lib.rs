@@ -1821,26 +1821,123 @@ impl SamplerPresets {
     }
 }
 
+// https://cjycode.com/flutter_rust_bridge/guides/how-to/logging
+// Logs path: `tracing` -> `log` -> Dart logging.
+flutter_rust_bridge::enable_frb_rust_to_dart_logging!(
+    max_level = if cfg!(debug_assertions) {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    },
+    // Not registering a default output is probably the better choice for
+    // a library like ours. This allows the user to customize the logging
+    // in their application.
+    setup_dart_logging_output = false
+);
+
+// Extra stuff to work around:
+// https://github.com/fzyzcjy/flutter_rust_bridge/issues/3402
+//
+// Remove once flutter_rust_bridge v2.14.0 is out.
+#[cfg(broken_logging)]
+#[derive(Clone, Debug)]
+pub struct FrbLogRecord {
+    pub level: String,
+    pub message: String,
+    pub target: String,
+    pub module_path: Option<String>,
+    pub file: Option<String>,
+    pub line: Option<u32>,
+}
+
+#[cfg(broken_logging)]
+type FrbLogSink = crate::frb_generated::StreamSink<FrbLogRecord>;
+
+#[cfg(broken_logging)]
+struct FrbDartLogger {
+    sink: std::sync::RwLock<Option<std::sync::Arc<FrbLogSink>>>,
+}
+
+#[cfg(broken_logging)]
+impl log::Log for FrbDartLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        unimplemented!()
+    }
+
+    fn log(&self, record: &log::Record) {
+        unimplemented!()
+    }
+
+    fn flush(&self) {
+        unimplemented!()
+    }
+}
+
+#[cfg(broken_logging)]
+impl FrbDartLogger {
+    fn load_sink(&self) -> Option<std::sync::Arc<FrbLogSink>> {
+        unimplemented!()
+    }
+
+    fn swap_sink(&self, sink: Option<FrbLogSink>) {
+        unimplemented!()
+    }
+}
+
+#[cfg(broken_logging)]
+#[doc(hidden)]
+#[flutter_rust_bridge::frb(init_dart_code = r#"
+                kFrbDartLogging.init(
+                    rustLogStream: frbInternalInitLogger(maxLevel: frbInternalLoggingMaxLevel()),
+                    mapRecord: (record) => FrbLogRecordData(
+                    level: record.level,
+                    message: record.message,
+                    target: record.target,
+                    modulePath: record.modulePath,
+                    file: record.file,
+                    line: record.line,
+                    ),
+                    setupDefaultOutput: frbInternalLoggingSetupDartLoggingOutput(),
+                    disposeRustLogger: frbInternalDisposeLogger,
+                );
+"#)]
+pub fn frb_internal_init_logger(
+    sink: crate::frb_generated::StreamSink<FrbLogRecord>,
+    max_level: String,
+) {
+    unimplemented!()
+}
+
+#[cfg(broken_logging)]
+#[doc(hidden)]
+#[flutter_rust_bridge::frb(sync)]
+pub fn frb_internal_dispose_logger() {
+    unimplemented!()
+}
+
+#[cfg(broken_logging)]
+#[doc(hidden)]
+#[flutter_rust_bridge::frb(sync)]
+pub fn frb_internal_logging_max_level() -> String {
+    unimplemented!()
+}
+
+#[cfg(broken_logging)]
+#[doc(hidden)]
+#[flutter_rust_bridge::frb(sync)]
+pub fn frb_internal_logging_setup_dart_logging_output() -> bool {
+    unimplemented!()
+}
+
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     // send llamacpp logs into tracing
     nobodywho::send_llamacpp_logs_to_tracing();
 
-    // send logs to the appropriate places for android, ios and wasm
-    flutter_rust_bridge::setup_default_user_utils();
+    // NOTE: Do not set up a `tracing-subscriber`, that will conflict with
+    // `enable_frb_rust_to_dart_logging!` above!
 
-    let log_level = if cfg!(debug_assertions) {
-        tracing::Level::DEBUG
-    } else {
-        tracing::Level::INFO
-    };
-
-    tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-        .try_init()
-        .ok();
+    flutter_rust_bridge::setup_backtrace();
 }
 
 #[cfg(test)]

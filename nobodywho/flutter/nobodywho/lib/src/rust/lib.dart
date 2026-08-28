@@ -9,8 +9,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `content_to_core`, `dart_function_type_to_json_schema`, `message_to_core`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `content_to_core`, `dart_function_type_to_json_schema`, `load_sink`, `message_to_core`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `swap_sink`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FrbDartLogger`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `enabled`, `flush`, `from`, `from`, `from`, `from`, `from`, `from`, `log`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -77,6 +78,18 @@ RustTool newPythonTool({
   maxMemoryBytes: maxMemoryBytes,
   maxRecursionDepth: maxRecursionDepth,
 );
+
+Stream<FrbLogRecord> frbInternalInitLogger({required String maxLevel}) =>
+    NobodyWho.instance.api.crateFrbInternalInitLogger(maxLevel: maxLevel);
+
+void frbInternalDisposeLogger() =>
+    NobodyWho.instance.api.crateFrbInternalDisposeLogger();
+
+String frbInternalLoggingMaxLevel() =>
+    NobodyWho.instance.api.crateFrbInternalLoggingMaxLevel();
+
+bool frbInternalLoggingSetupDartLoggingOutput() =>
+    NobodyWho.instance.api.crateFrbInternalLoggingSetupDartLoggingOutput();
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< CompletionError>>
 abstract class CompletionError implements RustOpaqueInterface {}
@@ -785,6 +798,45 @@ sealed class ContentPart with _$ContentPart {
   const factory ContentPart.text({required String text}) = ContentPart_Text;
   const factory ContentPart.image({required String path}) = ContentPart_Image;
   const factory ContentPart.audio({required String path}) = ContentPart_Audio;
+}
+
+class FrbLogRecord {
+  final String level;
+  final String message;
+  final String target;
+  final String? modulePath;
+  final String? file;
+  final int? line;
+
+  const FrbLogRecord({
+    required this.level,
+    required this.message,
+    required this.target,
+    this.modulePath,
+    this.file,
+    this.line,
+  });
+
+  @override
+  int get hashCode =>
+      level.hashCode ^
+      message.hashCode ^
+      target.hashCode ^
+      modulePath.hashCode ^
+      file.hashCode ^
+      line.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FrbLogRecord &&
+          runtimeType == other.runtimeType &&
+          level == other.level &&
+          message == other.message &&
+          target == other.target &&
+          modulePath == other.modulePath &&
+          file == other.file &&
+          line == other.line;
 }
 
 @freezed
