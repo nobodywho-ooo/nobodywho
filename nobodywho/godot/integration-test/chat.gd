@@ -6,6 +6,7 @@ func run_test():
 
 	assert(await test_say())
 	assert(await test_chat_history())
+	assert(await test_complete())
 	assert(await test_stop_generation())
 	assert(await test_tool_call())
 	assert(await test_tool_call_underscores())
@@ -30,8 +31,8 @@ func test_chat_history():
 	
 	# Set up a simple chat history
 	var messages = [
-		{"role": "user", "content": "What is 2 + 2?", "assets": []},
-		{"role": "assistant", "content": "2 + 2 equals 4.", "assets": []}
+		{"role": "user", "content": "What is 2 + 2?"},
+		{"role": "assistant", "content": "2 + 2 equals 4."}
 	]
 	
 	await set_chat_history(messages)
@@ -51,6 +52,48 @@ func test_chat_history():
 	assert("2 + 2" in resp)
 	return true 
 	
+
+func test_complete():
+	# Reset to clean state
+	reset_context()
+	self.allow_thinking = false
+
+	# The array is the whole conversation, and it replaces whatever was there
+	complete([
+		{"role": "user", "content": "Who was the first person to walk on the moon?"},
+		{"role": "assistant", "content": "Neil Armstrong."},
+		{"role": "user", "content": "Which year did he do it? Answer with only the year."}
+	])
+	var response = await response_finished
+	print("✨ Got completion: " + response)
+	assert("1969" in response, "Model did not read the supplied history")
+
+	# The supplied messages plus the reply are now the history
+	var history = await get_chat_history()
+	print("✨ History after complete: " + str(history))
+	assert(history.size() == 4, "History should be the 3 supplied messages plus the reply")
+	assert(history[3]["role"] == "assistant", "Last message should be the reply")
+
+	# ...so ask() continues that conversation
+	ask("Who are we talking about? Answer with only the name.")
+	var resp = await response_finished
+	print("✨ Got response: " + resp)
+	assert("Armstrong" in resp)
+
+	# Options stick: what they set stays set, what they omit is kept
+	var opts = NobodyWhoChatOptions.new()
+	opts.set_template_variables({"enable_thinking": true})
+	complete_with_options([{"role": "user", "content": "Say hi."}], opts)
+	await response_finished
+	var vars = await get_template_variables()
+	assert(vars["enable_thinking"] == true, "Options did not set the template variable")
+
+	complete([{"role": "user", "content": "Say hi again."}])
+	await response_finished
+	var still = await get_template_variables()
+	assert(still["enable_thinking"] == true, "complete() without options should keep them")
+	return true
+
 
 func current_temperature(location: String, zipCode: int, inDenmark: bool) -> String:
 	if location.to_lower() == "copenhagen":

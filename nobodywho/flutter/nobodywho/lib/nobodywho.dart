@@ -14,7 +14,6 @@ export 'src/rust/lib.dart'
         RustVoiceActivityDetection, // Users should use VoiceActivityDetection
         newToolImpl, // Internal helper
         toolCallArgumentsJson, // Internal helper
-        PromptPart, // Users should use the hand-written PromptPart sealed class
         noopOnDownloadProgress, // Internal default for onDownloadProgress parameters
         SamplerPresets; // Users should use the hand-written SamplerPresets wrapper
 export 'src/rust/frb_generated.dart' show NobodyWho;
@@ -74,12 +73,53 @@ class Prompt {
   factory Prompt.fromJson(dynamic data) => Prompt._json(jsonEncode(data));
 }
 
-List<nobodywho.PromptPart> _convertPromptParts(List<PromptPart> parts) {
+List<nobodywho.ContentPart> _convertPromptParts(List<PromptPart> parts) {
   return parts.map((p) => switch (p) {
-    TextPart(:final text) => nobodywho.PromptPart.text(content: text),
-    ImagePart(:final path) => nobodywho.PromptPart.image(path: path),
-    AudioPart(:final path) => nobodywho.PromptPart.audio(path: path),
+    TextPart(:final text) => nobodywho.ContentPart.text(text: text),
+    ImagePart(:final path) => nobodywho.ContentPart.image(path: path),
+    AudioPart(:final path) => nobodywho.ContentPart.audio(path: path),
   }).toList();
+}
+
+/// Text-only message content. Dart has no implicit conversion from `String`,
+/// so these keep the common case short.
+nobodywho.MessageContent textContent(String text) =>
+    nobodywho.MessageContent.text(text: text);
+
+/// Message content interleaving text and media.
+nobodywho.MessageContent partsContent(List<PromptPart> parts) =>
+    nobodywho.MessageContent.parts(parts: _convertPromptParts(parts));
+
+/// A text-only user message.
+nobodywho.Message userMessage(String text) =>
+    nobodywho.Message.user(content: textContent(text));
+
+/// A text-only assistant message.
+nobodywho.Message assistantMessage(String text, {List<nobodywho.ToolCall>? toolCalls}) =>
+    nobodywho.Message.assistant(content: textContent(text), toolCalls: toolCalls);
+
+/// A text-only system message.
+nobodywho.Message systemMessage(String text) =>
+    nobodywho.Message.system(content: textContent(text));
+
+/// A tool-response message.
+nobodywho.Message toolMessage(String name, String text) =>
+    nobodywho.Message.tool(name: name, content: textContent(text));
+
+extension MessageContentText on nobodywho.MessageContent {
+  /// This content as text.
+  ///
+  /// Media parts are left out, so for content that interleaves text and media
+  /// this is only the text around it — switch on the content itself when the
+  /// media matters.
+  String get text => switch (this) {
+    nobodywho.MessageContent_Text(:final text) => text,
+    nobodywho.MessageContent_Json(:final json) => json,
+    nobodywho.MessageContent_Parts(:final parts) => parts
+        .whereType<nobodywho.ContentPart_Text>()
+        .map((part) => part.text)
+        .join(),
+  };
 }
 
 /// Converts JSON-decoded data to properly typed Dart values based on a JSON schema.
@@ -683,6 +723,38 @@ class Chat {
     );
   }
 
+
+  /// Answer a full list of messages, replacing the chat history.
+  ///
+  /// The list is the whole conversation, used as given: it must be non-empty, end
+  /// in a user or tool message, and carry a system message only first. That system
+  /// message sets the chat's system prompt; leave it out and the prompt already on
+  /// the chat is kept. The response is appended, and the next `ask` continues from
+  /// there.
+  ///
+  /// The named arguments follow the same rule for the chat's other settings:
+  /// what you pass stays set, what you leave out is kept.
+  ///
+  /// ```dart
+  /// chat.complete([
+  ///   userMessage("Who first walked on the moon?"),
+  ///   assistantMessage("Neil Armstrong."),
+  ///   userMessage("Which year?"),
+  /// ], templateVariables: {"enable_thinking": false})
+  /// ```
+  TokenStream complete(
+    List<nobodywho.Message> messages, {
+    nobodywho.SamplerConfig? sampler,
+    Map<String, bool>? templateVariables,
+    List<Tool>? tools,
+  }) {
+    return TokenStream._(_chat.complete(
+      messages: messages,
+      sampler: sampler,
+      templateVariables: templateVariables,
+      tools: tools?.map((t) => t._internalTool).toList(),
+    ));
+  }
 
   /// Get the chat history.
   Future<List<nobodywho.Message>> getChatHistory() => _chat.getChatHistory();

@@ -53,10 +53,87 @@ Similarly, if you want to edit what messages are in the context, you can use `se
 ```python continuation
 chat.set_chat_history([{
    "role": "user",
-   "content": "What is water?",
-   "assets": []
+   "content": "What is water?"
 }])
 ```
+
+## Chat completion
+
+If you are used to other LLM libraries, you may prefer passing the whole conversation on every call instead of letting the `Chat` object remember it. That is what `Chat.complete()` is for:
+
+```python
+from nobodywho import Chat, TokenStream
+chat = Chat("./model.gguf")
+response: TokenStream = chat.complete([
+   {"role": "system", "content": "You are a helpful assistant."},
+   {"role": "user", "content": "Who was the first person to walk on the moon?"},
+   {"role": "assistant", "content": "Neil Armstrong."},
+   {"role": "user", "content": "Which year did he do it?"},
+])
+print(response.completed())
+```
+
+You get back the same `TokenStream` as from `ask()`, so you can iterate it for tokens or call `completed()` for the whole answer.
+
+The list you pass **becomes** the chat history, replacing whatever was there. The response is added to it, so `ask()` continues that same conversation:
+
+```python continuation
+chat.complete([{"role": "user", "content": "My favorite color is teal."}]).completed()
+
+print(chat.get_chat_history())  # the message about the color, plus the reply
+print(chat.ask("What is my favorite color?").completed())  # continues from there
+```
+
+A system message at the front sets the chat's system prompt. If you leave it out, the prompt already on the chat is kept:
+
+```python continuation
+chat = Chat("./model.gguf", system_prompt="You are a helpful assistant.")
+chat.complete([{"role": "user", "content": "Hello!"}]).completed()
+print(chat.get_system_prompt())  # "You are a helpful assistant." — kept
+
+chat.complete([
+   {"role": "system", "content": "You are a pirate."},
+   {"role": "user", "content": "Hello!"},
+]).completed()
+print(chat.get_system_prompt())  # "You are a pirate." — replaced
+```
+
+The list has to describe a conversation the model can answer, so it must not be empty, it must end in a user or tool message, and only the first message may be a system message. Anything else raises a `ValueError`:
+
+```python continuation
+try:
+   chat.complete([
+      {"role": "user", "content": "Was the cat a tabby?"},
+      {"role": "assistant", "content": "Aye, "},  # nothing left to answer
+   ])
+except ValueError as e:
+   print(e)
+```
+
+Use `ask()` to add a single turn to the conversation the `Chat` is already holding, and `complete()` to hand it a conversation of your own. Both leave the chat ready for the other.
+
+### Per-turn settings
+
+`complete()` also takes the chat's other settings as keyword arguments — `sampler`, `template_variables` and `tools`. They follow the same rule as the system message: what you pass stays set, what you leave out is kept.
+
+```python continuation
+from nobodywho import SamplerPresets
+
+chat.complete(
+   [{"role": "user", "content": "Name one fruit."}],
+   sampler=SamplerPresets.greedy(),
+   template_variables={"enable_thinking": False},
+).completed()
+
+# Both are now the chat's settings, so the next call need not repeat them
+print(chat.get_template_variables())  # {'enable_thinking': False}
+chat.complete([{"role": "user", "content": "Name another."}]).completed()
+print(chat.get_template_variables())  # {'enable_thinking': False} — still
+```
+
+Pass all three and the call no longer depends on what the chat is currently holding, which is what you want if you are driving it entirely through `complete()`.
+
+Changing `tools` re-selects the chat template and rewrites the system-prompt region, so that turn re-prefills from near token zero. It is the one option with a real cost attached — set it when it changes, not on every call.
 
 ## System prompt
 

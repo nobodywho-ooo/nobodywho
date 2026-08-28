@@ -99,6 +99,49 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertTrue(called)
     }
 
+    // MARK: - Complete
+
+    func testComplete() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        let noThinking = ["enable_thinking": false]
+        let chat = try Chat(model: model, systemPrompt: "Reply with one word only.", templateVariables: noThinking)
+
+        let messages: [Message] = [
+            .user("Who was the first person to walk on the moon?"),
+            .assistant("Neil Armstrong."),
+            .user("Which year did he do it? Answer with only the year."),
+        ]
+        let response = try await chat.complete(messages).completed()
+        XCTAssertTrue(response.contains("1969"), "Model did not read the supplied history: \(response)")
+
+        // The supplied messages replace the history, with the reply appended
+        let history = try await chat.getChatHistory()
+        XCTAssertEqual(history.count, messages.count + 1)
+
+        // An invalid conversation is rejected at the call site
+        XCTAssertThrowsError(
+            try chat.complete([
+                .user("Hi"),
+                .assistant("Aye, "),
+            ])
+        )
+
+        // Options stick: what they set stays set, what they omit is kept
+        _ = try await chat.complete(
+            [.user("Say hi.")],
+            options: Options(templateVariables: ["enable_thinking": true])
+        ).completed()
+        let after = try await chat.getTemplateVariables()
+        XCTAssertEqual(after, ["enable_thinking": true])
+
+        _ = try await chat.complete([.user("Say hi again.")]).completed()
+        let unchanged = try await chat.getTemplateVariables()
+        XCTAssertEqual(
+            unchanged, ["enable_thinking": true],
+            "An empty Options should leave the template variables alone")
+    }
+
     // MARK: - Tokenize
 
     func testTokenize() async throws {

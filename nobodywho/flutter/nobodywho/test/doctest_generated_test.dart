@@ -96,18 +96,33 @@ void main() {
       final msgs = await chat.getChatHistory();
       print(msgs[0].content); // "Is water wet?"
       await chat.setChatHistory([
-        nobodywho.Message.user(content: "What is water?")
+        nobodywho.userMessage("What is water?")
       ]);
+      final completion = await chat.complete([
+        nobodywho.systemMessage("You are a helpful assistant."),
+        nobodywho.userMessage("Who was the first person to walk on the moon?"),
+        nobodywho.assistantMessage("Neil Armstrong."),
+        nobodywho.userMessage("Which year did he do it?"),
+      ]).completed();
+      print(completion);
+      await chat.complete(
+        [nobodywho.userMessage("Name one fruit.")],
+        sampler: nobodywho.SamplerPresets.greedy(),
+        templateVariables: {"enable_thinking": false},
+      ).completed();
+      
+      // Both are now the chat's settings, so the next call need not repeat them
+      await chat.complete([nobodywho.userMessage("Name another.")]).completed();
     });
 
-    test('chat.md:84', () async {
+    test('chat.md:123', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:100', () async {
+    test('chat.md:139', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
@@ -117,22 +132,22 @@ void main() {
       print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
     });
 
-    test('chat.md:136', () async {
+    test('chat.md:175', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         threadCount: 4
       );
     });
 
-    test('chat.md:166', () async {
+    test('chat.md:205', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:170', () async {
+    test('chat.md:209', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:196', () async {
+    test('chat.md:235', () async {
       if (Platform.environment['TEST_MTP_MODEL'] == null) return;
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./gemma-4-e2b.gguf",
@@ -141,7 +156,7 @@ void main() {
       );
     });
 
-    test('chat.md:218', () async {
+    test('chat.md:257', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -160,7 +175,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:270', () async {
+    test('chat.md:309', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
@@ -492,6 +507,13 @@ void main() {
         nobodywho.ImagePart("./dog.png"),
         nobodywho.AudioPart("./sound.mp3"),
       ])).completed(); // It's a dog and a penguin!
+      await chat.complete([
+        nobodywho.Message.user(content: nobodywho.partsContent([
+          nobodywho.TextPart("Tell me what you see in the image."),
+          nobodywho.ImagePart("./dog.png"),
+          nobodywho.TextPart("Answer in one word."),
+        ])),
+      ]).completed();
     });
 
   });

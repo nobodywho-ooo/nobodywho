@@ -8,6 +8,19 @@ use nobodywho::render_miette;
 
 mod parse;
 
+/// `None` keeps whatever the chat already has.
+fn py_completion_options(
+    sampler: Option<SamplerConfig>,
+    template_variables: Option<HashMap<String, bool>>,
+    tools: Option<Vec<Tool>>,
+) -> nobodywho::chat::Options {
+    nobodywho::chat::Options {
+        sampler: sampler.map(|s| s.sampler_config),
+        template_variables,
+        tools: tools.map(|tools| tools.into_iter().map(|t| t.tool).collect()),
+    }
+}
+
 /// Gate for forwarding tracing events to Python's logging module.
 /// Set to `true` after pyo3_log is installed, set to `false` via an `atexit`
 /// handler before `Py_FinalizeEx` runs. This prevents worker threads from
@@ -1425,6 +1438,55 @@ impl Chat {
         }
     }
 
+    /// Answer a full list of messages, replacing the chat history.
+    ///
+    /// The list is the entire conversation, used exactly as given. A system message at
+    /// the front sets the chat's system prompt; leave it out and the prompt already on
+    /// the chat is kept. The response is added to the history, and the next `ask()`
+    /// continues from there.
+    ///
+    /// The keyword arguments follow the same rule for the chat's other settings.
+    ///
+    /// Args:
+    ///     messages: List of message dicts, each with a 'role' ('system', 'user',
+    ///               'assistant' or 'tool') and a 'content'. A 'tool' message also
+    ///               needs the 'name' of the tool it answers. Must not be empty, must
+    ///               end in a user or tool message, and may only have a system message
+    ///               first.
+    ///     sampler: SamplerConfig to use from this turn on.
+    ///     template_variables: Replaces the chat's template variables entirely.
+    ///     tools: Tools to use from this turn on. Re-selects the chat template, so
+    ///            the turn re-prefills from near token zero. [] removes the tools.
+    ///
+    /// Returns:
+    ///     A TokenStream that yields tokens as they are generated
+    ///
+    /// Raises:
+    ///     ValueError: If the message format or the conversation shape is invalid
+    #[pyo3(signature = (messages: "list[dict]", *, sampler: "SamplerConfig | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None) -> "TokenStream")]
+    pub fn complete(
+        &self,
+        messages: Bound<'_, PyAny>,
+        sampler: Option<SamplerConfig>,
+        template_variables: Option<std::collections::HashMap<String, bool>>,
+        tools: Option<Vec<Tool>>,
+    ) -> PyResult<TokenStream> {
+        let messages = pythonize::depythonize(&messages)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        let stream = self
+            .handle()
+            .complete(
+                messages,
+                py_completion_options(sampler, template_variables, tools),
+            )
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
+
+        Ok(TokenStream {
+            inner: SyncStreamInner::Chat(stream),
+        })
+    }
+
     /// Reset the conversation with a new system prompt and tools. Clears all chat history.
     ///
     /// Args:
@@ -1855,6 +1917,55 @@ impl ChatAsync {
         TokenStreamAsync {
             inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Chat(stream))),
         }
+    }
+
+    /// Answer a full list of messages, replacing the chat history.
+    ///
+    /// The list is the entire conversation, used exactly as given. A system message at
+    /// the front sets the chat's system prompt; leave it out and the prompt already on
+    /// the chat is kept. The response is added to the history, and the next `ask()`
+    /// continues from there.
+    ///
+    /// The keyword arguments follow the same rule for the chat's other settings.
+    ///
+    /// Args:
+    ///     messages: List of message dicts, each with a 'role' ('system', 'user',
+    ///               'assistant' or 'tool') and a 'content'. A 'tool' message also
+    ///               needs the 'name' of the tool it answers. Must not be empty, must
+    ///               end in a user or tool message, and may only have a system message
+    ///               first.
+    ///     sampler: SamplerConfig to use from this turn on.
+    ///     template_variables: Replaces the chat's template variables entirely.
+    ///     tools: Tools to use from this turn on. Re-selects the chat template, so
+    ///            the turn re-prefills from near token zero. [] removes the tools.
+    ///
+    /// Returns:
+    ///     A TokenStreamAsync that yields tokens as they are generated
+    ///
+    /// Raises:
+    ///     ValueError: If the message format or the conversation shape is invalid
+    #[pyo3(signature = (messages: "list[dict]", *, sampler: "SamplerConfig | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None) -> "TokenStreamAsync")]
+    pub fn complete(
+        &self,
+        messages: Bound<'_, PyAny>,
+        sampler: Option<SamplerConfig>,
+        template_variables: Option<std::collections::HashMap<String, bool>>,
+        tools: Option<Vec<Tool>>,
+    ) -> PyResult<TokenStreamAsync> {
+        let messages = pythonize::depythonize(&messages)
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+
+        let stream = self
+            .handle()
+            .complete(
+                messages,
+                py_completion_options(sampler, template_variables, tools),
+            )
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(render_miette(&e)))?;
+
+        Ok(TokenStreamAsync {
+            inner: std::sync::Arc::new(tokio::sync::Mutex::new(AsyncStreamInner::Chat(stream))),
+        })
     }
 
     /// Reset the conversation with a new system prompt and tools. Clears all chat history.
@@ -2847,22 +2958,22 @@ impl Prompt {
             let part = part.bind(py);
 
             if let Ok(text_part) = part.extract::<Bound<Text>>() {
-                core_parts.push(nobodywho::tokenizer::PromptPart::Text(
+                core_parts.push(nobodywho::tokenizer::PromptPart::text(
                     text_part.borrow().text.clone(),
                 ));
                 continue;
             }
 
             if let Ok(image_part) = part.extract::<Bound<Image>>() {
-                core_parts.push(nobodywho::tokenizer::PromptPart::Image(
-                    image_part.borrow().path.clone().into(),
+                core_parts.push(nobodywho::tokenizer::PromptPart::image(
+                    image_part.borrow().path.clone(),
                 ));
                 continue;
             }
 
             if let Ok(audio_part) = part.extract::<Bound<Audio>>() {
-                core_parts.push(nobodywho::tokenizer::PromptPart::Audio(
-                    audio_part.borrow().path.clone().into(),
+                core_parts.push(nobodywho::tokenizer::PromptPart::audio(
+                    audio_part.borrow().path.clone(),
                 ));
                 continue;
             }
@@ -2873,7 +2984,7 @@ impl Prompt {
         }
 
         Ok(Self {
-            prompt: nobodywho::tokenizer::Prompt::new(core_parts),
+            prompt: nobodywho::tokenizer::Prompt::parts(core_parts),
         })
     }
 

@@ -70,9 +70,48 @@ Similarly, if you want to edit what messages are in the context, you can use `se
 
 ```dart continuation
 await chat.setChatHistory([
-  nobodywho.Message.user(content: "What is water?")
+  nobodywho.userMessage("What is water?")
 ]);
 ```
+
+## Chat completion
+
+If you would rather pass the whole conversation on every call than let the `Chat` remember it, use `complete()`:
+
+```dart continuation
+final completion = await chat.complete([
+  nobodywho.systemMessage("You are a helpful assistant."),
+  nobodywho.userMessage("Who was the first person to walk on the moon?"),
+  nobodywho.assistantMessage("Neil Armstrong."),
+  nobodywho.userMessage("Which year did he do it?"),
+]).completed();
+print(completion);
+```
+
+You get back the same `TokenStream` as from `ask()`, so you can also `await for` over it.
+
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept.
+
+The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
+
+### Per-turn settings
+
+`complete()` also takes the chat's other settings as named arguments — `sampler`, `templateVariables` and `tools`. They follow the same rule as the system message: what you pass stays set, what you leave out is kept.
+
+```dart continuation
+await chat.complete(
+  [nobodywho.userMessage("Name one fruit.")],
+  sampler: nobodywho.SamplerPresets.greedy(),
+  templateVariables: {"enable_thinking": false},
+).completed();
+
+// Both are now the chat's settings, so the next call need not repeat them
+await chat.complete([nobodywho.userMessage("Name another.")]).completed();
+```
+
+Pass all three and the call no longer depends on what the chat is currently holding — useful if you drive it entirely through `complete()`.
+
+Changing `tools` re-selects the chat template and rewrites the system-prompt region, so that turn re-prefills from near token zero. Set it when it changes, not on every call.
 
 ## System prompt
 

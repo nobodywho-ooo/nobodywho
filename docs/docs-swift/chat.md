@@ -115,9 +115,49 @@ Similarly, if you want to edit what messages are in the context, you can use `se
 
 ```swift
 try await chat.setChatHistory([
-    .message(role: .user, content: "What is water?", assets: [])
+    .user("What is water?")
 ])
 ```
+
+## Chat completion
+
+If you would rather pass the whole conversation on every call than let the `Chat` remember it, use `complete()`:
+
+```swift
+let response = try await chat.complete([
+    .system("You are a helpful assistant."),
+    .user("Who was the first person to walk on the moon?"),
+    .assistant("Neil Armstrong."),
+    .user("Which year did he do it?"),
+]).completed()
+```
+
+You get back the same `TokenStream` as from `ask()`, so you can also `for try await token in ...` over it.
+
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept.
+
+The list must not be empty, must end in a user or tool message, and may only have a system message first. Anything else throws.
+
+### Per-turn settings
+
+`complete()` takes an optional `Options` carrying the chat's other settings. It follows the same rule as the system message: what it sets stays set, what it leaves out is kept.
+
+```swift
+_ = try await chat.complete(
+    [.user("Name one fruit.")],
+    options: Options(
+        sampler: SamplerPresets.greedy(),
+        templateVariables: ["enable_thinking": false]
+    )
+).completed()
+
+// Both are now the chat's settings, so the next call need not repeat them
+_ = try await chat.complete([.user("Name another.")]).completed()
+```
+
+Fill in all three fields and the call no longer depends on what the chat is currently holding — useful if you drive it entirely through `complete()`.
+
+Changing `tools` re-selects the chat template and rewrites the system-prompt region, so that turn re-prefills from near token zero. Set it when it changes, not on every call.
 
 ## System prompt
 

@@ -727,6 +727,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_complete(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json(
@@ -888,6 +890,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(`ptr`: Long,`json`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(`ptr`: Long,`parts`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_complete(`ptr`: Long,`messages`: RustBuffer.ByValue,`options`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(`ptr`: Long,
 ): Long
@@ -1276,7 +1280,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt() != 63877.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 65089.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 37833.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722.toShort()) {
@@ -1324,7 +1331,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize() != 52520.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() != 60528.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_tokenize_with_prompt() != 15286.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank() != 55500.toShort()) {
@@ -2031,10 +2038,24 @@ public interface RustChatInterface {
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
+     * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
      */
-    fun `askWithPrompt`(`parts`: List<PromptPart>): RustTokenStream
+    fun `askWithPrompt`(`parts`: List<ContentPart>): RustTokenStream
+    
+    /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
+     */
+    fun `complete`(`messages`: List<Message>, `options`: Options): RustTokenStream
     
     /**
      * Get the current chat history as a list of messages.
@@ -2117,7 +2138,7 @@ public interface RustChatInterface {
      * Tokenize a multimodal prompt and return the token IDs.
      * Text tokens produce an integer ID; image/audio embedding slots produce null.
      */
-    suspend fun `tokenizeWithPrompt`(`parts`: List<PromptPart>): List<kotlin.Int?>
+    suspend fun `tokenizeWithPrompt`(`parts`: List<ContentPart>): List<kotlin.Int?>
     
     companion object
 }
@@ -2279,15 +2300,41 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
     /**
      * Send a multimodal prompt (text + images/audio) and get a token stream.
      *
-     * `parts` is an ordered list of `PromptPart` items.
+     * `parts` is an ordered list of `ContentPart` items.
      * Image and audio parts should contain a local file-system path.
-     */override fun `askWithPrompt`(`parts`: List<PromptPart>): RustTokenStream {
+     */override fun `askWithPrompt`(`parts`: List<ContentPart>): RustTokenStream {
             return FfiConverterTypeRustTokenStream.lift(
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
         it,
-        FfiConverterSequenceTypePromptPart.lower(`parts`),_status)
+        FfiConverterSequenceTypeContentPart.lower(`parts`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Answer a full list of messages and get a token stream, replacing the chat
+     * history.
+     *
+     * The list is the whole conversation, used as given: it must be non-empty, end
+     * in a user or tool message, and carry a system message only first. That system
+     * message sets the chat's system prompt; leave it out and the prompt already on
+     * the chat is kept. The response is appended, and the next `ask` continues from
+     * there.
+     *
+     * `options` follows the same rule for the chat's other settings.
+     */
+    @Throws(NobodyWhoException::class)override fun `complete`(`messages`: List<Message>, `options`: Options): RustTokenStream {
+            return FfiConverterTypeRustTokenStream.lift(
+    callWithHandle {
+    uniffiRustCallWithError(NobodyWhoException) { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+        it,
+        FfiConverterSequenceTypeMessage.lower(`messages`),FfiConverterTypeOptions.lower(`options`),_status)
 }
     }
     )
@@ -2661,12 +2708,12 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      */
     @Throws(NobodyWhoException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-    override suspend fun `tokenizeWithPrompt`(`parts`: List<PromptPart>) : List<kotlin.Int?> {
+    override suspend fun `tokenizeWithPrompt`(`parts`: List<ContentPart>) : List<kotlin.Int?> {
         return uniffiRustCallAsync(
         callWithHandle { uniffiHandle ->
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_tokenize_with_prompt(
                 uniffiHandle,
-                FfiConverterSequenceTypePromptPart.lower(`parts`),
+                FfiConverterSequenceTypeContentPart.lower(`parts`),
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_rust_buffer(future, callback, continuation) },
@@ -6375,42 +6422,6 @@ public object FfiConverterTypeSamplerConfig: FfiConverter<SamplerConfig, Long> {
 
 
 
-data class Asset (
-    var `id`: kotlin.String
-    , 
-    var `path`: kotlin.String
-    
-){
-    
-
-    
-    companion object
-}
-
-/**
- * @suppress
- */
-public object FfiConverterTypeAsset: FfiConverterRustBuffer<Asset> {
-    override fun read(buf: ByteBuffer): Asset {
-        return Asset(
-            FfiConverterString.read(buf),
-            FfiConverterString.read(buf),
-        )
-    }
-
-    override fun allocationSize(value: Asset) = (
-            FfiConverterString.allocationSize(value.`id`) +
-            FfiConverterString.allocationSize(value.`path`)
-    )
-
-    override fun write(value: Asset, buf: ByteBuffer) {
-            FfiConverterString.write(value.`id`, buf)
-            FfiConverterString.write(value.`path`, buf)
-    }
-}
-
-
-
 /**
  * A cached `.gguf` model and its on-disk size.
  */
@@ -6537,6 +6548,68 @@ public object FfiConverterTypeMtpConfig: FfiConverterRustBuffer<MtpConfig> {
 
 
 /**
+ * Settings to apply before a `complete` turn. An unset field keeps what the
+ * chat has; a set one stays set, like a leading system message.
+ */
+data class Options (
+    var `sampler`: SamplerConfig? = null 
+    , 
+    /**
+     * Replaces the chat's template variables wholesale.
+     */
+    var `templateVariables`: Map<kotlin.String, kotlin.Boolean>? = null 
+    , 
+    /**
+     * Re-selects the chat template, so the turn re-prefills from near token
+     * zero. An empty list removes the tools.
+     */
+    var `tools`: List<RustTool>? = null 
+    
+): Disposable{
+    
+
+    
+    @Suppress("UNNECESSARY_SAFE_CALL") // codegen is much simpler if we unconditionally emit safe calls here
+    override fun destroy() {
+        
+    Disposable.destroy(
+        this.`sampler`,
+        this.`templateVariables`,
+        this.`tools`
+    )
+    }
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeOptions: FfiConverterRustBuffer<Options> {
+    override fun read(buf: ByteBuffer): Options {
+        return Options(
+            FfiConverterOptionalTypeSamplerConfig.read(buf),
+            FfiConverterOptionalMapStringBoolean.read(buf),
+            FfiConverterOptionalSequenceTypeRustTool.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Options) = (
+            FfiConverterOptionalTypeSamplerConfig.allocationSize(value.`sampler`) +
+            FfiConverterOptionalMapStringBoolean.allocationSize(value.`templateVariables`) +
+            FfiConverterOptionalSequenceTypeRustTool.allocationSize(value.`tools`)
+    )
+
+    override fun write(value: Options, buf: ByteBuffer) {
+            FfiConverterOptionalTypeSamplerConfig.write(value.`sampler`, buf)
+            FfiConverterOptionalMapStringBoolean.write(value.`templateVariables`, buf)
+            FfiConverterOptionalSequenceTypeRustTool.write(value.`tools`, buf)
+    }
+}
+
+
+
+/**
  * A pending tool call waiting for resolution from the language binding.
  */
 data class PendingToolCall (
@@ -6650,11 +6723,117 @@ public object FfiConverterTypeToolParameter: FfiConverterRustBuffer<ToolParamete
 
 
 
+/**
+ * One piece of a message: a run of text, or a media file at this position.
+ * The core type's bitmap id is worker-local, so it is not mirrored — media is
+ * re-registered from the path whenever content is handed back in.
+ */
+sealed class ContentPart {
+    
+    data class Text(
+        val `text`: kotlin.String) : ContentPart()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class Image(
+        val `path`: kotlin.String) : ContentPart()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class Audio(
+        val `path`: kotlin.String) : ContentPart()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeContentPart : FfiConverterRustBuffer<ContentPart>{
+    override fun read(buf: ByteBuffer): ContentPart {
+        return when(buf.getInt()) {
+            1 -> ContentPart.Text(
+                FfiConverterString.read(buf),
+                )
+            2 -> ContentPart.Image(
+                FfiConverterString.read(buf),
+                )
+            3 -> ContentPart.Audio(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: ContentPart) = when(value) {
+        is ContentPart.Text -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`text`)
+            )
+        }
+        is ContentPart.Image -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`path`)
+            )
+        }
+        is ContentPart.Audio -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`path`)
+            )
+        }
+    }
+
+    override fun write(value: ContentPart, buf: ByteBuffer) {
+        when(value) {
+            is ContentPart.Text -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.`text`, buf)
+                Unit
+            }
+            is ContentPart.Image -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.`path`, buf)
+                Unit
+            }
+            is ContentPart.Audio -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.`path`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
 sealed class Message {
     
     data class User(
-        val `content`: kotlin.String, 
-        val `assets`: List<Asset>) : Message()
+        val `content`: MessageContent) : Message()
         
     {
         
@@ -6663,7 +6842,7 @@ sealed class Message {
     }
     
     data class Assistant(
-        val `content`: kotlin.String, 
+        val `content`: MessageContent, 
         val `toolCalls`: List<ToolCall>?) : Message()
         
     {
@@ -6673,7 +6852,7 @@ sealed class Message {
     }
     
     data class System(
-        val `content`: kotlin.String) : Message()
+        val `content`: MessageContent) : Message()
         
     {
         
@@ -6683,7 +6862,7 @@ sealed class Message {
     
     data class Tool(
         val `name`: kotlin.String, 
-        val `content`: kotlin.String) : Message()
+        val `content`: MessageContent) : Message()
         
     {
         
@@ -6703,19 +6882,18 @@ public object FfiConverterTypeMessage : FfiConverterRustBuffer<Message>{
     override fun read(buf: ByteBuffer): Message {
         return when(buf.getInt()) {
             1 -> Message.User(
-                FfiConverterString.read(buf),
-                FfiConverterSequenceTypeAsset.read(buf),
+                FfiConverterTypeMessageContent.read(buf),
                 )
             2 -> Message.Assistant(
-                FfiConverterString.read(buf),
+                FfiConverterTypeMessageContent.read(buf),
                 FfiConverterOptionalSequenceTypeToolCall.read(buf),
                 )
             3 -> Message.System(
-                FfiConverterString.read(buf),
+                FfiConverterTypeMessageContent.read(buf),
                 )
             4 -> Message.Tool(
                 FfiConverterString.read(buf),
-                FfiConverterString.read(buf),
+                FfiConverterTypeMessageContent.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -6726,15 +6904,14 @@ public object FfiConverterTypeMessage : FfiConverterRustBuffer<Message>{
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterString.allocationSize(value.`content`)
-                + FfiConverterSequenceTypeAsset.allocationSize(value.`assets`)
+                + FfiConverterTypeMessageContent.allocationSize(value.`content`)
             )
         }
         is Message.Assistant -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterString.allocationSize(value.`content`)
+                + FfiConverterTypeMessageContent.allocationSize(value.`content`)
                 + FfiConverterOptionalSequenceTypeToolCall.allocationSize(value.`toolCalls`)
             )
         }
@@ -6742,7 +6919,7 @@ public object FfiConverterTypeMessage : FfiConverterRustBuffer<Message>{
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
-                + FfiConverterString.allocationSize(value.`content`)
+                + FfiConverterTypeMessageContent.allocationSize(value.`content`)
             )
         }
         is Message.Tool -> {
@@ -6750,7 +6927,7 @@ public object FfiConverterTypeMessage : FfiConverterRustBuffer<Message>{
             (
                 4UL
                 + FfiConverterString.allocationSize(value.`name`)
-                + FfiConverterString.allocationSize(value.`content`)
+                + FfiConverterTypeMessageContent.allocationSize(value.`content`)
             )
         }
     }
@@ -6759,25 +6936,130 @@ public object FfiConverterTypeMessage : FfiConverterRustBuffer<Message>{
         when(value) {
             is Message.User -> {
                 buf.putInt(1)
-                FfiConverterString.write(value.`content`, buf)
-                FfiConverterSequenceTypeAsset.write(value.`assets`, buf)
+                FfiConverterTypeMessageContent.write(value.`content`, buf)
                 Unit
             }
             is Message.Assistant -> {
                 buf.putInt(2)
-                FfiConverterString.write(value.`content`, buf)
+                FfiConverterTypeMessageContent.write(value.`content`, buf)
                 FfiConverterOptionalSequenceTypeToolCall.write(value.`toolCalls`, buf)
                 Unit
             }
             is Message.System -> {
                 buf.putInt(3)
-                FfiConverterString.write(value.`content`, buf)
+                FfiConverterTypeMessageContent.write(value.`content`, buf)
                 Unit
             }
             is Message.Tool -> {
                 buf.putInt(4)
                 FfiConverterString.write(value.`name`, buf)
-                FfiConverterString.write(value.`content`, buf)
+                FfiConverterTypeMessageContent.write(value.`content`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
+sealed class MessageContent {
+    
+    data class Text(
+        val `text`: kotlin.String) : MessageContent()
+        
+    {
+        
+
+        companion object
+    }
+    
+    data class Parts(
+        val `parts`: List<ContentPart>) : MessageContent()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * JSON-encoded. Chat templates written for structured content receive it
+     * as a real list or map rather than as a string.
+     */
+    data class Json(
+        val `json`: kotlin.String) : MessageContent()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeMessageContent : FfiConverterRustBuffer<MessageContent>{
+    override fun read(buf: ByteBuffer): MessageContent {
+        return when(buf.getInt()) {
+            1 -> MessageContent.Text(
+                FfiConverterString.read(buf),
+                )
+            2 -> MessageContent.Parts(
+                FfiConverterSequenceTypeContentPart.read(buf),
+                )
+            3 -> MessageContent.Json(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: MessageContent) = when(value) {
+        is MessageContent.Text -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`text`)
+            )
+        }
+        is MessageContent.Parts -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterSequenceTypeContentPart.allocationSize(value.`parts`)
+            )
+        }
+        is MessageContent.Json -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`json`)
+            )
+        }
+    }
+
+    override fun write(value: MessageContent, buf: ByteBuffer) {
+        when(value) {
+            is MessageContent.Text -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.`text`, buf)
+                Unit
+            }
+            is MessageContent.Parts -> {
+                buf.putInt(2)
+                FfiConverterSequenceTypeContentPart.write(value.`parts`, buf)
+                Unit
+            }
+            is MessageContent.Json -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.`json`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -6827,111 +7109,6 @@ public object FfiConverterTypeNobodyWhoError : FfiConverterRustBuffer<NobodyWhoE
     }
 
 }
-
-
-
-/**
- * A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
- */
-sealed class PromptPart {
-    
-    data class Text(
-        val `content`: kotlin.String) : PromptPart()
-        
-    {
-        
-
-        companion object
-    }
-    
-    data class Image(
-        val `path`: kotlin.String) : PromptPart()
-        
-    {
-        
-
-        companion object
-    }
-    
-    data class Audio(
-        val `path`: kotlin.String) : PromptPart()
-        
-    {
-        
-
-        companion object
-    }
-    
-
-    
-    companion object
-}
-
-/**
- * @suppress
- */
-public object FfiConverterTypePromptPart : FfiConverterRustBuffer<PromptPart>{
-    override fun read(buf: ByteBuffer): PromptPart {
-        return when(buf.getInt()) {
-            1 -> PromptPart.Text(
-                FfiConverterString.read(buf),
-                )
-            2 -> PromptPart.Image(
-                FfiConverterString.read(buf),
-                )
-            3 -> PromptPart.Audio(
-                FfiConverterString.read(buf),
-                )
-            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
-        }
-    }
-
-    override fun allocationSize(value: PromptPart) = when(value) {
-        is PromptPart.Text -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`content`)
-            )
-        }
-        is PromptPart.Image -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`path`)
-            )
-        }
-        is PromptPart.Audio -> {
-            // Add the size for the Int that specifies the variant plus the size needed for all fields
-            (
-                4UL
-                + FfiConverterString.allocationSize(value.`path`)
-            )
-        }
-    }
-
-    override fun write(value: PromptPart, buf: ByteBuffer) {
-        when(value) {
-            is PromptPart.Text -> {
-                buf.putInt(1)
-                FfiConverterString.write(value.`content`, buf)
-                Unit
-            }
-            is PromptPart.Image -> {
-                buf.putInt(2)
-                FfiConverterString.write(value.`path`, buf)
-                Unit
-            }
-            is PromptPart.Audio -> {
-                buf.putInt(3)
-                FfiConverterString.write(value.`path`, buf)
-                Unit
-            }
-        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
-    }
-}
-
-
 
 
 
@@ -7605,34 +7782,6 @@ public object FfiConverterSequenceTypeRustTool: FfiConverterRustBuffer<List<Rust
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeAsset: FfiConverterRustBuffer<List<Asset>> {
-    override fun read(buf: ByteBuffer): List<Asset> {
-        val len = buf.getInt()
-        return List<Asset>(len) {
-            FfiConverterTypeAsset.read(buf)
-        }
-    }
-
-    override fun allocationSize(value: List<Asset>): ULong {
-        val sizeForLength = 4UL
-        val sizeForItems = value.map { FfiConverterTypeAsset.allocationSize(it) }.sum()
-        return sizeForLength + sizeForItems
-    }
-
-    override fun write(value: List<Asset>, buf: ByteBuffer) {
-        buf.putInt(value.size)
-        value.iterator().forEach {
-            FfiConverterTypeAsset.write(it, buf)
-        }
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
 public object FfiConverterSequenceTypeCachedModel: FfiConverterRustBuffer<List<CachedModel>> {
     override fun read(buf: ByteBuffer): List<CachedModel> {
         val len = buf.getInt()
@@ -7717,6 +7866,34 @@ public object FfiConverterSequenceTypeToolParameter: FfiConverterRustBuffer<List
 /**
  * @suppress
  */
+public object FfiConverterSequenceTypeContentPart: FfiConverterRustBuffer<List<ContentPart>> {
+    override fun read(buf: ByteBuffer): List<ContentPart> {
+        val len = buf.getInt()
+        return List<ContentPart>(len) {
+            FfiConverterTypeContentPart.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ContentPart>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeContentPart.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ContentPart>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeContentPart.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceTypeMessage: FfiConverterRustBuffer<List<Message>> {
     override fun read(buf: ByteBuffer): List<Message> {
         val len = buf.getInt()
@@ -7735,34 +7912,6 @@ public object FfiConverterSequenceTypeMessage: FfiConverterRustBuffer<List<Messa
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeMessage.write(it, buf)
-        }
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
-public object FfiConverterSequenceTypePromptPart: FfiConverterRustBuffer<List<PromptPart>> {
-    override fun read(buf: ByteBuffer): List<PromptPart> {
-        val len = buf.getInt()
-        return List<PromptPart>(len) {
-            FfiConverterTypePromptPart.read(buf)
-        }
-    }
-
-    override fun allocationSize(value: List<PromptPart>): ULong {
-        val sizeForLength = 4UL
-        val sizeForItems = value.map { FfiConverterTypePromptPart.allocationSize(it) }.sum()
-        return sizeForLength + sizeForItems
-    }
-
-    override fun write(value: List<PromptPart>, buf: ByteBuffer) {
-        buf.putInt(value.size)
-        value.iterator().forEach {
-            FfiConverterTypePromptPart.write(it, buf)
         }
     }
 }

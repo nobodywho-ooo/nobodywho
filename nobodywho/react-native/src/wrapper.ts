@@ -4,7 +4,7 @@
  * This is the public entry point. It re-exports the public API:
  * - Wrapper classes: Model, Chat, Encoder, CrossEncoder, TextToSpeech, Tool, TokenStream, Prompt
  * - Direct re-exports: SamplerBuilder, SamplerConfig
- * - Types: Message, Asset, ToolCall
+ * - Types: Message, Content, ContentPart, ToolCall
  * - Utilities: SamplerPresets, cosineSimilarity, downloadModel
  *
  * This file is NOT generated — it is safe to edit.
@@ -57,6 +57,7 @@ export async function downloadModel(opts: {
 // Wrapper classes
 export { Model } from "./model";
 export { Chat } from "./chat";
+export type { Options } from "./chat";
 export { SpeechToText } from "./speech_to_text";
 export { VoiceActivityDetection } from "./vad";
 export { Encoder } from "./encoder";
@@ -67,7 +68,7 @@ export { Tool } from "./tool";
 export { TokenStream } from "./streaming";
 
 // Message types
-export type { Message } from "./message";
+export type { Message, Content, ContentPart } from "./message";
 
 // Re-export types that don't need wrapping.
 //
@@ -81,7 +82,6 @@ export {
 } from "../generated/ts/nobodywho";
 
 export type {
-  Asset,
   ToolCall,
   CachedModel,
   ChatStats,

@@ -128,6 +128,9 @@ uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(
     /*handle*/ uint64_t ptr, RustBuffer json, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
     /*handle*/ uint64_t ptr, RustBuffer parts, RustCallStatus *uniffi_out_err);
+/*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+    /*handle*/ uint64_t ptr, RustBuffer messages, RustBuffer options,
+    RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history(
     /*handle*/ uint64_t ptr);
 /*handle*/ uint64_t
@@ -540,6 +543,7 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_json_prompt();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_complete();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustchat_get_sampler_config_json();
@@ -2842,6 +2846,18 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_complete"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_complete"),
+          3,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_get_chat_history"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -4875,6 +4891,19 @@ NativeNobodywho::NativeNobodywho(
             ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt(
                 rt, thisVal, args, count);
       });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_"
         "history"] = jsi::Function::createFromHostFunction(
       rt,
@@ -6182,6 +6211,24 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(
       uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
                                                         args[0]),
       uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker,
+                                                         value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustchat_complete(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]),
+      uniffi::nobodywho::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]),
       &status);
   uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
       rt, callInvoker, status, args[count - 1]);
@@ -8493,6 +8540,14 @@ jsi::Value NativeNobodywho::
         size_t count) {
   auto value =
       uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustchat_complete(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustchat_complete();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }

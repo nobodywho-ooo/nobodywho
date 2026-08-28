@@ -524,7 +524,7 @@ impl NobodyWhoPrompt {
         if let Some(ref v) = self.json_value {
             tokenizer::Prompt::from_json(v.clone())
         } else {
-            tokenizer::Prompt::new(self.parts.clone())
+            tokenizer::Prompt::parts(self.parts.clone())
         }
     }
 }
@@ -572,7 +572,7 @@ impl NobodyWhoPrompt {
     #[func]
     /// Appends a text segment to this prompt.
     fn add_text(&mut self, text: String) {
-        self.parts.push(tokenizer::PromptPart::Text(text));
+        self.parts.push(tokenizer::PromptPart::text(text));
     }
 
     #[func]
@@ -582,8 +582,7 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.parts
-            .push(tokenizer::PromptPart::Image(globalized.into()));
+        self.parts.push(tokenizer::PromptPart::image(globalized));
     }
 
     #[func]
@@ -593,8 +592,7 @@ impl NobodyWhoPrompt {
         let globalized: String = project_settings
             .globalize_path(&GString::from(path.as_str()))
             .into();
-        self.parts
-            .push(tokenizer::PromptPart::Audio(globalized.into()));
+        self.parts.push(tokenizer::PromptPart::audio(globalized));
     }
 
     #[func]
@@ -686,6 +684,9 @@ struct NobodyWhoChat {
     signal_counter: AtomicU64,
     base: Base<Node>,
 }
+
+/// Where a generation's tokens arrive, before they are emitted as signals.
+type GenerationChannel = tokio::sync::mpsc::UnboundedReceiver<nobodywho::llm::WriteOutput>;
 
 #[godot_api]
 impl INode for NobodyWhoChat {
@@ -862,16 +863,82 @@ impl NobodyWhoChat {
             return;
         };
 
+        self.spawn_generation(move |chat_handle| Ok(chat_handle.ask_channel(prompt)));
+    }
+
+    #[func]
+    /// Answers a full array of messages, which replaces the chat history.
+    ///
+    /// The array is the whole conversation, used as given: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only first. That system
+    /// message sets the chat's system prompt; leave it out and the prompt already on
+    /// the chat is kept. The response is appended, so the next `ask` continues that
+    /// conversation.
+    ///
+    /// Each element is a Dictionary with a "role" and a "content", the same shape
+    /// `get_chat_history` returns. The response arrives on the `response_updated` /
+    /// `response_finished` signals, exactly like `ask`.
+    ///
+    /// See `complete_with_options` to change the chat's settings for the turn.
+    fn complete(&mut self, messages: Array<Variant>) {
+        self.complete_impl(messages, nobodywho::chat::Options::default());
+    }
+
+    #[func]
+    /// `complete()` plus a `NobodyWhoChatOptions`. Like the system message, what
+    /// the options set stays set and what they leave out is kept.
+    ///
+    /// Separate from `complete()` because gdext cannot give an object parameter a
+    /// default value.
+    fn complete_with_options(
+        &mut self,
+        messages: Array<Variant>,
+        options: Gd<NobodyWhoChatOptions>,
+    ) {
+        let core_options = match options.bind().to_core() {
+            Ok(options) => options,
+            Err(e) => return self.drop_generation(&e),
+        };
+        self.complete_impl(messages, core_options);
+    }
+
+    fn complete_impl(&mut self, messages: Array<Variant>, options: nobodywho::chat::Options) {
+        let messages = match dictionaries_to_messages(messages) {
+            Ok(messages) => messages,
+            Err(e) => return self.drop_generation(&e),
+        };
+
+        self.spawn_generation(move |chat_handle| {
+            chat_handle
+                .complete_channel(messages, options)
+                .map_err(|e| GString::from(&nobodywho::render_miette(&e)))
+        });
+    }
+
+    /// Report that a generation never started: log it and emit `worker_failed`,
+    /// the same way a generation that dies mid-flight is reported.
+    fn drop_generation(&mut self, error: &str) {
+        let errmsg = GString::from(error);
+        godot_error!("Generation dropped: {}", errmsg);
+        self.signals().worker_failed().emit(&errmsg);
+    }
+
+    /// Run a generation on a background task and emit its tokens as signals,
+    /// starting the worker first if it is not running yet.
+    ///
+    /// `start` opens the generation channel once the handle is ready — the only part
+    /// the generating functions differ in.
+    fn spawn_generation<F>(&mut self, start: F)
+    where
+        F: FnOnce(&nobodywho::chat::ChatHandleAsync) -> Result<GenerationChannel, GString>
+            + 'static,
+    {
         let existing_handle = self.chat_handle.clone();
         let load_config = if existing_handle.is_none() {
             godot_warn!("Worker was not started yet, starting now... You may want to call `start_worker()` ahead of time to avoid waiting.");
             match self.snapshot_worker_config() {
                 Ok(c) => Some(c),
-                Err(e) => {
-                    godot_error!("ask() dropped: {}", e);
-                    self.signals().worker_failed().emit(&e);
-                    return;
-                }
+                Err(e) => return self.drop_generation(&e.to_string()),
             }
         } else {
             None
@@ -887,14 +954,21 @@ impl NobodyWhoChat {
                     match Self::load_and_store_worker(me, config).await {
                         Ok(h) => h,
                         Err(e) => {
-                            godot_error!("ask() dropped: {}", e);
+                            godot_error!("Generation dropped: {}", e);
                             emit_node.signals().worker_failed().emit(&e);
                             return;
                         }
                     }
                 }
             };
-            let mut generation_channel = chat_handle.ask_channel(prompt);
+            let mut generation_channel = match start(&chat_handle) {
+                Ok(channel) => channel,
+                Err(e) => {
+                    godot_error!("Generation dropped: {}", e);
+                    emit_node.signals().worker_failed().emit(&e);
+                    return;
+                }
+            };
             while let Some(out) = generation_channel.recv().await {
                 match out {
                     nobodywho::llm::WriteOutput::Token(tok) => emit_node
@@ -1019,6 +1093,58 @@ impl NobodyWhoChat {
         });
 
         // returns signal, so that you can `var msgs = await get_chat_history()`
+        Variant::from(godot::builtin::Signal::from_object_signal(
+            &self.base_mut(),
+            &signal_name,
+        ))
+    }
+
+    #[func]
+    /// The chat's current template variables, as a Dictionary of bools. Returns a
+    /// Signal, so use `var vars = await chat.get_template_variables()`.
+    fn get_template_variables(&mut self) -> Variant {
+        let chat_handle = match self.chat_handle.as_ref() {
+            Some(handle) => handle.clone(),
+            None => {
+                godot_error!(
+                    "Attempted to get template variables, but no worker is running. Returning nil."
+                );
+                return Variant::nil();
+            }
+        };
+
+        let signal_name = format!(
+            "get_template_variables_{}",
+            self.signal_counter.fetch_add(1, Ordering::Relaxed)
+        );
+        self.base_mut().add_user_signal(&signal_name);
+
+        let mut emit_node = self.to_gd();
+        let signal_name_copy = signal_name.clone();
+        godot::task::spawn(async move {
+            let Ok(variables) = chat_handle.get_template_variables().await else {
+                error!("Chat worker died while waiting for get_template_variables.");
+                emit_node.emit_signal(&signal_name_copy, &[]);
+                return;
+            };
+
+            let mut dict = VarDictionary::new();
+            for (key, value) in variables {
+                let _ = dict.insert(key, value);
+            }
+
+            match wait_for_chat_signal_connect(&emit_node, &signal_name_copy).await {
+                Ok(()) => (),
+                Err(e) => {
+                    godot_error!("Failed getting template variables: {}", e);
+                    return;
+                }
+            }
+
+            emit_node.emit_signal(&signal_name_copy, &[Variant::from(dict)]);
+        });
+
+        // returns signal, so that you can `var vars = await get_template_variables()`
         Variant::from(godot::builtin::Signal::from_object_signal(
             &self.base_mut(),
             &signal_name,
@@ -1741,6 +1867,79 @@ pub struct NobodyWhoSamplerConfig {
 
 #[godot_api]
 impl NobodyWhoSamplerConfig {}
+
+/// Settings to apply before a `NobodyWhoChat.complete()` turn. An unset field
+/// keeps what the chat already has. Tools are not here — Godot registers those
+/// on the chat node with `add_tool()`.
+///
+/// ```gdscript
+/// var opts = NobodyWhoChatOptions.new()
+/// opts.set_sampler(NobodyWhoSamplerBuilder.new().temperature(0.3).dist())
+/// opts.set_template_variables({"enable_thinking": false})
+/// chat.complete(messages, opts)
+/// ```
+#[derive(GodotClass)]
+#[class(base=RefCounted)]
+pub struct NobodyWhoChatOptions {
+    sampler: Option<Gd<NobodyWhoSamplerConfig>>,
+    template_variables: Option<Dictionary>,
+    base: Base<RefCounted>,
+}
+
+#[godot_api]
+impl IRefCounted for NobodyWhoChatOptions {
+    fn init(base: Base<RefCounted>) -> Self {
+        Self {
+            sampler: None,
+            template_variables: None,
+            base,
+        }
+    }
+}
+
+#[godot_api]
+impl NobodyWhoChatOptions {
+    #[func]
+    /// Use this sampler from this turn on.
+    fn set_sampler(&mut self, config: Gd<NobodyWhoSamplerConfig>) {
+        self.sampler = Some(config);
+    }
+
+    #[func]
+    /// Replace the chat's template variables entirely. Values must be booleans —
+    /// anything else fails the turn with `worker_failed` rather than being ignored.
+    fn set_template_variables(&mut self, variables: Dictionary) {
+        self.template_variables = Some(variables);
+    }
+}
+
+impl NobodyWhoChatOptions {
+    /// A non-boolean entry is an error rather than a dropped one: silently
+    /// leaving the variable unset would run the turn on the template's default,
+    /// which is usually the opposite of what was asked for.
+    fn to_core(&self) -> Result<nobodywho::chat::Options, String> {
+        let template_variables = self
+            .template_variables
+            .as_ref()
+            .map(|dict| {
+                dict.iter_shared()
+                    .map(|(key, value)| {
+                        let flag = value.try_to::<bool>().map_err(|_| {
+                            format!("Template variable {key} is not a boolean: {value:?}")
+                        })?;
+                        Ok((key.to_string(), flag))
+                    })
+                    .collect::<Result<_, String>>()
+            })
+            .transpose()?;
+
+        Ok(nobodywho::chat::Options {
+            sampler: self.sampler.as_ref().map(|s| s.bind().inner.clone()),
+            template_variables,
+            tools: None,
+        })
+    }
+}
 
 /// Builder for custom sampler chains.
 ///
@@ -3017,31 +3216,11 @@ fn messages_to_dictionaries(messages: &[Message]) -> Array<VarDictionary> {
         .map(|msg| {
             let json_value = serde_json::to_value(msg).unwrap_or_default();
             if let serde_json::Value::Object(obj) = json_value {
+                // json_to_godot recurses, so nested structures — tool_calls, and
+                // content parts, which are objects inside an array — come through
+                // at any depth.
                 obj.into_iter()
-                    .map(|(k, v)| {
-                        let variant = match v {
-                            serde_json::Value::String(s) => Variant::from(s),
-                            serde_json::Value::Array(arr) => {
-                                // Convert arrays (like tool_calls) to proper Godot format
-                                let godot_array: Array<Variant> = arr
-                                    .into_iter()
-                                    .map(|item| match item {
-                                        serde_json::Value::Object(obj) => {
-                                            let mut dict = VarDictionary::new();
-                                            for (key, val) in obj {
-                                                dict.set(key, json_to_godot(&val));
-                                            }
-                                            Variant::from(dict)
-                                        }
-                                        _ => json_to_godot(&item),
-                                    })
-                                    .collect();
-                                Variant::from(godot_array)
-                            }
-                            _ => json_to_godot(&v),
-                        };
-                        (GString::from(k.as_str()), variant)
-                    })
+                    .map(|(k, v)| (GString::from(k.as_str()), json_to_godot(&v)))
                     .collect()
             } else {
                 VarDictionary::new()

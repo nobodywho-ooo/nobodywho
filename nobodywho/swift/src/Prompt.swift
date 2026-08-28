@@ -15,10 +15,10 @@ import NobodyWhoGenerated
 /// let stream = chat.ask(jsonPrompt)
 /// ```
 public class Prompt {
-    let parts: [NobodyWhoGenerated.PromptPart]?
+    let parts: [NobodyWhoGenerated.ContentPart]?
     let jsonString: String?
 
-    public init(_ parts: [NobodyWhoGenerated.PromptPart]) {
+    public init(_ parts: [NobodyWhoGenerated.ContentPart]) {
         self.parts = parts
         self.jsonString = nil
     }
@@ -29,17 +29,17 @@ public class Prompt {
     }
 
     /// Create a text part.
-    public static func text(_ content: String) -> NobodyWhoGenerated.PromptPart {
-        return .text(content: content)
+    public static func text(_ content: String) -> NobodyWhoGenerated.ContentPart {
+        return .text(text: content)
     }
 
     /// Create an image part from a file path.
-    public static func image(_ path: String) -> NobodyWhoGenerated.PromptPart {
+    public static func image(_ path: String) -> NobodyWhoGenerated.ContentPart {
         return .image(path: path)
     }
 
     /// Create an audio part from a file path.
-    public static func audio(_ path: String) -> NobodyWhoGenerated.PromptPart {
+    public static func audio(_ path: String) -> NobodyWhoGenerated.ContentPart {
         return .audio(path: path)
     }
 

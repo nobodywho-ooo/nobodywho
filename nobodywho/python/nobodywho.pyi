@@ -85,6 +85,42 @@ class Chat:
         Returns:
             A TokenStream that yields tokens as they are generated
         """
+    def complete(
+        self,
+        /,
+        messages: "list[dict]",
+        *,
+        sampler: "SamplerConfig | None" = None,
+        template_variables: "dict[str, bool] | None" = None,
+        tools: "list[Tool] | None" = None,
+    ) -> "TokenStream":
+        """
+        Answer a full list of messages, replacing the chat history.
+
+        The list is the entire conversation, used exactly as given. A system message at
+        the front sets the chat's system prompt; leave it out and the prompt already on
+        the chat is kept. The response is added to the history, and the next `ask()`
+        continues from there.
+
+        The keyword arguments follow the same rule for the chat's other settings.
+
+        Args:
+            messages: List of message dicts, each with a 'role' ('system', 'user',
+                      'assistant' or 'tool') and a 'content'. A 'tool' message also
+                      needs the 'name' of the tool it answers. Must not be empty, must
+                      end in a user or tool message, and may only have a system message
+                      first.
+            sampler: SamplerConfig to use from this turn on.
+            template_variables: Replaces the chat's template variables entirely.
+            tools: Tools to use from this turn on. Re-selects the chat template, so
+                   the turn re-prefills from near token zero. [] removes the tools.
+
+        Returns:
+            A TokenStream that yields tokens as they are generated
+
+        Raises:
+            ValueError: If the message format or the conversation shape is invalid
+        """
     def get_chat_history(self, /) -> "list[dict]":
         """
         Get the current chat history as a list of message dictionaries.
@@ -317,6 +353,42 @@ class ChatAsync:
 
         Returns:
             A TokenStreamAsync that yields tokens as they are generated
+        """
+    def complete(
+        self,
+        /,
+        messages: "list[dict]",
+        *,
+        sampler: "SamplerConfig | None" = None,
+        template_variables: "dict[str, bool] | None" = None,
+        tools: "list[Tool] | None" = None,
+    ) -> "TokenStreamAsync":
+        """
+        Answer a full list of messages, replacing the chat history.
+
+        The list is the entire conversation, used exactly as given. A system message at
+        the front sets the chat's system prompt; leave it out and the prompt already on
+        the chat is kept. The response is added to the history, and the next `ask()`
+        continues from there.
+
+        The keyword arguments follow the same rule for the chat's other settings.
+
+        Args:
+            messages: List of message dicts, each with a 'role' ('system', 'user',
+                      'assistant' or 'tool') and a 'content'. A 'tool' message also
+                      needs the 'name' of the tool it answers. Must not be empty, must
+                      end in a user or tool message, and may only have a system message
+                      first.
+            sampler: SamplerConfig to use from this turn on.
+            template_variables: Replaces the chat's template variables entirely.
+            tools: Tools to use from this turn on. Re-selects the chat template, so
+                   the turn re-prefills from near token zero. [] removes the tools.
+
+        Returns:
+            A TokenStreamAsync that yields tokens as they are generated
+
+        Raises:
+            ValueError: If the message format or the conversation shape is invalid
         """
     async def get_chat_history(self, /) -> "list[dict]":
         """

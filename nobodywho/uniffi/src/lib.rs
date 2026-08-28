@@ -41,25 +41,34 @@ impl From<String> for NobodyWhoError {
     }
 }
 
-// ---------- Prompt types ----------
+// ---------- Content types ----------
+// Mirror types for core ContentPart/MessageContent/Message/ToolCall.
+// Needed because core types contain PathBuf and serde_json::Value
+// which UniFFI doesn't support natively.
 
-/// A part of a multimodal prompt.  Mirrors the core `PromptPart` enum.
+/// One piece of a message: a run of text, or a media file at this position.
+/// The core type's bitmap id is worker-local, so it is not mirrored — media is
+/// re-registered from the path whenever content is handed back in.
 #[derive(uniffi::Enum, Clone)]
-pub enum PromptPart {
-    Text { content: String },
+pub enum ContentPart {
+    Text { text: String },
     Image { path: String },
     Audio { path: String },
 }
 
-// ---------- Message types ----------
-// Mirror types for core Message/Asset/ToolCall.
-// Needed because core types contain PathBuf and serde_json::Value
-// which UniFFI doesn't support natively.
-
-#[derive(uniffi::Record, Clone)]
-pub struct Asset {
-    pub id: String,
-    pub path: String,
+#[derive(uniffi::Enum, Clone)]
+pub enum MessageContent {
+    Text {
+        text: String,
+    },
+    Parts {
+        parts: Vec<ContentPart>,
+    },
+    /// JSON-encoded. Chat templates written for structured content receive it
+    /// as a real list or map rather than as a string.
+    Json {
+        json: String,
+    },
 }
 
 #[derive(uniffi::Record, Clone)]
@@ -78,39 +87,63 @@ pub struct ToolCall {
 #[derive(uniffi::Enum, Clone)]
 pub enum Message {
     User {
-        content: String,
-        assets: Vec<Asset>,
+        content: MessageContent,
     },
     Assistant {
-        content: String,
+        content: MessageContent,
         tool_calls: Option<Vec<ToolCall>>,
     },
     System {
-        content: String,
+        content: MessageContent,
     },
     Tool {
         name: String,
-        content: String,
+        content: MessageContent,
     },
+}
+
+fn core_part_to_uniffi(part: &nobodywho::chat::ContentPart) -> ContentPart {
+    use nobodywho::chat::ContentPart as Core;
+    match part {
+        Core::Text { text } => ContentPart::Text { text: text.clone() },
+        Core::Image { path, .. } => ContentPart::Image {
+            path: path.to_string_lossy().to_string(),
+        },
+        Core::Audio { path, .. } => ContentPart::Audio {
+            path: path.to_string_lossy().to_string(),
+        },
+    }
+}
+
+fn core_content_to_uniffi(content: &nobodywho::chat::MessageContent) -> MessageContent {
+    use nobodywho::chat::MessageContent as Core;
+    // This mirror keeps `Text` as its own variant, so a lone text part maps
+    // back to it.
+    if let Some(text) = content.as_text() {
+        return MessageContent::Text {
+            text: text.to_string(),
+        };
+    }
+    match content {
+        Core::Parts(parts) => MessageContent::Parts {
+            parts: parts.iter().map(core_part_to_uniffi).collect(),
+        },
+        Core::Json(value) => MessageContent::Json {
+            json: value.to_string(),
+        },
+    }
 }
 
 fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
     match m {
-        nobodywho::chat::Message::User { content, assets } => Message::User {
-            content: content.to_string(),
-            assets: assets
-                .iter()
-                .map(|a| Asset {
-                    id: a.id.clone(),
-                    path: a.path.to_string_lossy().to_string(),
-                })
-                .collect(),
+        nobodywho::chat::Message::User { content } => Message::User {
+            content: core_content_to_uniffi(content),
         },
         nobodywho::chat::Message::Assistant {
             content,
             tool_calls,
         } => Message::Assistant {
-            content: content.clone(),
+            content: core_content_to_uniffi(content),
             tool_calls: tool_calls.as_ref().map(|tcs| {
                 tcs.iter()
                     .map(|tc| ToolCall {
@@ -121,26 +154,43 @@ fn core_message_to_uniffi(m: &nobodywho::chat::Message) -> Message {
             }),
         },
         nobodywho::chat::Message::System { content } => Message::System {
-            content: content.clone(),
+            content: core_content_to_uniffi(content),
         },
         nobodywho::chat::Message::Tool { name, content } => Message::Tool {
             name: name.clone(),
-            content: content.clone(),
+            content: core_content_to_uniffi(content),
         },
     }
 }
 
+fn uniffi_part_to_core(part: &ContentPart) -> nobodywho::chat::ContentPart {
+    use nobodywho::chat::ContentPart as Core;
+    match part {
+        ContentPart::Text { text } => Core::text(text.clone()),
+        ContentPart::Image { path } => Core::image(PathBuf::from(path)),
+        ContentPart::Audio { path } => Core::audio(PathBuf::from(path)),
+    }
+}
+
+fn uniffi_content_to_core(
+    content: &MessageContent,
+) -> Result<nobodywho::chat::MessageContent, NobodyWhoError> {
+    use nobodywho::chat::MessageContent as Core;
+    Ok(match content {
+        MessageContent::Text { text } => Core::text(text.clone()),
+        MessageContent::Parts { parts } => {
+            Core::parts(parts.iter().map(uniffi_part_to_core).collect::<Vec<_>>())
+        }
+        MessageContent::Json { json } => Core::Json(
+            serde_json::from_str(json).map_err(|e| format!("Invalid content JSON: {e}"))?,
+        ),
+    })
+}
+
 fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, NobodyWhoError> {
     match m {
-        Message::User { content, assets } => Ok(nobodywho::chat::Message::User {
-            content: nobodywho::chat::MessageContent::Text(content.clone()),
-            assets: assets
-                .iter()
-                .map(|a| nobodywho::chat::Asset {
-                    id: a.id.clone(),
-                    path: PathBuf::from(&a.path),
-                })
-                .collect(),
+        Message::User { content } => Ok(nobodywho::chat::Message::User {
+            content: uniffi_content_to_core(content)?,
         }),
         Message::Assistant {
             content,
@@ -162,17 +212,44 @@ fn uniffi_message_to_core(m: &Message) -> Result<nobodywho::chat::Message, Nobod
                 })
                 .transpose()?;
             Ok(nobodywho::chat::Message::Assistant {
-                content: content.clone(),
+                content: uniffi_content_to_core(content)?,
                 tool_calls: tcs,
             })
         }
         Message::System { content } => Ok(nobodywho::chat::Message::System {
-            content: content.clone(),
+            content: uniffi_content_to_core(content)?,
         }),
         Message::Tool { name, content } => Ok(nobodywho::chat::Message::Tool {
             name: name.clone(),
-            content: content.clone(),
+            content: uniffi_content_to_core(content)?,
         }),
+    }
+}
+
+// ---------- Options ----------
+
+/// Settings to apply before a `complete` turn. An unset field keeps what the
+/// chat has; a set one stays set, like a leading system message.
+#[derive(uniffi::Record, Default)]
+pub struct Options {
+    #[uniffi(default = None)]
+    pub sampler: Option<Arc<SamplerConfig>>,
+    /// Replaces the chat's template variables wholesale.
+    #[uniffi(default = None)]
+    pub template_variables: Option<HashMap<String, bool>>,
+    /// Re-selects the chat template, so the turn re-prefills from near token
+    /// zero. An empty list removes the tools.
+    #[uniffi(default = None)]
+    pub tools: Option<Vec<Arc<RustTool>>>,
+}
+
+fn uniffi_options_to_core(options: Options) -> nobodywho::chat::Options {
+    nobodywho::chat::Options {
+        sampler: options.sampler.map(|s| s.inner.clone()),
+        template_variables: options.template_variables,
+        tools: options
+            .tools
+            .map(|tools| tools.iter().map(|t| t.inner.clone()).collect()),
     }
 }
 
@@ -381,14 +458,12 @@ impl RustChat {
 
     /// Send a multimodal prompt (text + images/audio) and get a token stream.
     ///
-    /// `parts` is an ordered list of `PromptPart` items.
+    /// `parts` is an ordered list of `ContentPart` items.
     /// Image and audio parts should contain a local file-system path.
-    pub fn ask_with_prompt(&self, parts: Vec<PromptPart>) -> Arc<RustTokenStream> {
-        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
-            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
-            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
-            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
-        }));
+    pub fn ask_with_prompt(&self, parts: Vec<ContentPart>) -> Arc<RustTokenStream> {
+        let prompt = nobodywho::tokenizer::Prompt::parts(
+            parts.iter().map(uniffi_part_to_core).collect::<Vec<_>>(),
+        );
         Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
         })
@@ -409,6 +484,34 @@ impl RustChat {
         let prompt = nobodywho::tokenizer::Prompt::from_json(value);
         Ok(Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(prompt)),
+        }))
+    }
+
+    /// Answer a full list of messages and get a token stream, replacing the chat
+    /// history.
+    ///
+    /// The list is the whole conversation, used as given: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only first. That system
+    /// message sets the chat's system prompt; leave it out and the prompt already on
+    /// the chat is kept. The response is appended, and the next `ask` continues from
+    /// there.
+    ///
+    /// `options` follows the same rule for the chat's other settings.
+    pub fn complete(
+        &self,
+        messages: Vec<Message>,
+        options: Options,
+    ) -> Result<Arc<RustTokenStream>, NobodyWhoError> {
+        let core_messages: Result<Vec<_>, NobodyWhoError> =
+            messages.iter().map(uniffi_message_to_core).collect();
+        let stream = self
+            .inner
+            .complete(core_messages?, uniffi_options_to_core(options))
+            .map_err(|e| NobodyWhoError::Error {
+                message: nobodywho::render_miette(&e),
+            })?;
+        Ok(Arc::new(RustTokenStream {
+            inner: tokio::sync::Mutex::new(stream),
         }))
     }
 
@@ -494,13 +597,11 @@ impl RustChat {
     /// Text tokens produce an integer ID; image/audio embedding slots produce null.
     pub async fn tokenize_with_prompt(
         &self,
-        parts: Vec<PromptPart>,
+        parts: Vec<ContentPart>,
     ) -> Result<Vec<Option<i32>>, NobodyWhoError> {
-        let prompt = nobodywho::tokenizer::Prompt::new(parts.into_iter().map(|part| match part {
-            PromptPart::Text { content } => nobodywho::tokenizer::PromptPart::Text(content),
-            PromptPart::Image { path } => nobodywho::tokenizer::PromptPart::Image(path.into()),
-            PromptPart::Audio { path } => nobodywho::tokenizer::PromptPart::Audio(path.into()),
-        }));
+        let prompt = nobodywho::tokenizer::Prompt::parts(
+            parts.iter().map(uniffi_part_to_core).collect::<Vec<_>>(),
+        );
         self.inner
             .tokenize(prompt)
             .await

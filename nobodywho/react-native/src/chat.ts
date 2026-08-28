@@ -11,6 +11,18 @@ import type { Prompt } from "./prompt";
 import type { Tool } from "./tool";
 
 /**
+ * Settings to apply before a `complete` turn. An omitted field keeps what the
+ * chat has; a set one stays set, like a leading system message.
+ */
+export type Options = {
+  sampler?: SamplerConfig;
+  /** Replaces the chat's template variables wholesale. */
+  templateVariables?: Record<string, boolean>;
+  /** Re-selects the chat template, so the turn re-prefills from near token zero. */
+  tools?: Tool[];
+};
+
+/**
  * A chat session for local LLM inference.
  *
  * Wraps the internal RustChat with an ergonomic API that uses
@@ -105,6 +117,29 @@ export class Chat {
       return new TokenStream(this._inner.askWithJsonPrompt(message._jsonString!));
     }
     return new TokenStream(this._inner.askWithPrompt(message._parts!));
+  }
+
+  /**
+   * Answer a full list of messages, replacing the chat history.
+   *
+   * The list is the whole conversation, used as given: it must be non-empty, end
+   * in a user or tool message, and carry a system message only first. That system
+   * message sets the chat's system prompt; leave it out and the prompt already on
+   * the chat is kept. The response is appended, and the next `ask` continues from
+   * there.
+   *
+   * `options` follows the same rule for the chat's other settings.
+   */
+  complete(messages: Message[], options: Options = {}): TokenStream {
+    return new TokenStream(
+      this._inner.complete(messages.map(toInternal), {
+        sampler: options.sampler,
+        templateVariables: options.templateVariables
+          ? new Map(Object.entries(options.templateVariables))
+          : undefined,
+        tools: options.tools?.map((t) => t._inner),
+      }),
+    );
   }
 
   /** Stop the current generation. */

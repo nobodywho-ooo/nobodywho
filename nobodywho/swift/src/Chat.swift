@@ -89,6 +89,19 @@ public class Chat {
         return TokenStream(inner.askWithPrompt(parts: prompt.parts!))
     }
 
+    /// Answer a full list of messages, replacing the chat history.
+    ///
+    /// The list is the whole conversation, used as given: it must be non-empty, end
+    /// in a user or tool message, and carry a system message only first. That system
+    /// message sets the chat's system prompt; leave it out and the prompt already on
+    /// the chat is kept. The response is appended, and the next `ask` continues from
+    /// there.
+    ///
+    /// `options` follows the same rule for the chat's other settings.
+    public func complete(_ messages: [Message], options: Options = Options()) throws -> TokenStream {
+        return TokenStream(try inner.complete(messages: messages, options: options.toGenerated()))
+    }
+
     /// Stop the current generation.
     public func stopGeneration() {
         inner.stopGeneration()

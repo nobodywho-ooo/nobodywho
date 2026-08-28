@@ -65,3 +65,32 @@ func _ready():
 
 That should be it! Beware though, that consuming images and audio can quickly drain the context,
 and larger context sizes may be needed for smooth usage.
+
+## Media in a message list
+
+`NobodyWhoPrompt` is for `ask()`. When you pass a whole conversation to `complete()`, the same
+interleaving is expressed as a list of content parts — the shape the OpenAI and Anthropic libraries
+use:
+
+```gdscript
+complete([
+    {"role": "user", "content": [
+        {"type": "text",  "text": "Tell me what you see in the image."},
+        {"type": "image", "path": "./dog.png"},
+        {"type": "text",  "text": "Answer in one word."},
+    ]},
+])
+var response = await response_finished
+```
+
+Parts are `{"type": "text", "text": ...}`, `{"type": "image", "path": ...}` and
+`{"type": "audio", "path": ...}`. The order is the order the model sees them in. A plain String
+stays valid wherever a content list is accepted, so text-only messages need no change.
+
+## Media in a saved conversation
+
+`get_chat_history()` records the file path of every image and audio clip in the content part it
+belongs to, so a conversation containing media can be saved and replayed later. `complete()`
+re-reads each file, so the model sees the images and audio again rather than a conversation with
+holes in it. The files therefore have to still be where they were — if one cannot be read,
+`complete()` emits `worker_failed` instead of quietly answering without it.

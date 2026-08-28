@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1686357352;
+  int get rustContentHash => -979766137;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -144,7 +144,15 @@ abstract class NobodyWhoApi extends BaseApi {
 
   RustTokenStream crateRustChatAskWithPrompt({
     required RustChat that,
-    required List<PromptPart> parts,
+    required List<ContentPart> parts,
+  });
+
+  RustTokenStream crateRustChatComplete({
+    required RustChat that,
+    required List<Message> messages,
+    SamplerConfig? sampler = null,
+    Map<String, bool>? templateVariables = null,
+    List<RustTool>? tools = null,
   });
 
   Future<RustChat> crateRustChatFromPath({
@@ -243,7 +251,7 @@ abstract class NobodyWhoApi extends BaseApi {
 
   Future<List<int?>> crateRustChatTokenizeWithPrompt({
     required RustChat that,
-    required List<PromptPart> parts,
+    required List<ContentPart> parts,
   });
 
   Future<String> crateRustSpeechToTextStreamCompleted({
@@ -511,12 +519,6 @@ abstract class NobodyWhoApi extends BaseApi {
   });
 
   String crateToolCallArgumentsJson({required ToolCall toolCall});
-
-  RustArcIncrementStrongCountFnType get rust_arc_increment_strong_count_Asset;
-
-  RustArcDecrementStrongCountFnType get rust_arc_decrement_strong_count_Asset;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_AssetPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CompletionError;
@@ -1162,7 +1164,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   RustTokenStream crateRustChatAskWithPrompt({
     required RustChat that,
-    required List<PromptPart> parts,
+    required List<ContentPart> parts,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -1172,7 +1174,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_list_prompt_part(parts, serializer);
+          sse_encode_list_content_part(parts, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
         },
         codec: SseCodec(
@@ -1190,6 +1192,51 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   TaskConstMeta get kCrateRustChatAskWithPromptConstMeta => const TaskConstMeta(
     debugName: "RustChat_ask_with_prompt",
     argNames: ["that", "parts"],
+  );
+
+  @override
+  RustTokenStream crateRustChatComplete({
+    required RustChat that,
+    required List<Message> messages,
+    SamplerConfig? sampler = null,
+    Map<String, bool>? templateVariables = null,
+    List<RustTool>? tools = null,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustChat(
+            that,
+            serializer,
+          );
+          sse_encode_list_message(messages, serializer);
+          sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerConfig(
+            sampler,
+            serializer,
+          );
+          sse_encode_opt_Map_String_bool_None(templateVariables, serializer);
+          sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+            tools,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTokenStream,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateRustChatCompleteConstMeta,
+        argValues: [that, messages, sampler, templateVariables, tools],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateRustChatCompleteConstMeta => const TaskConstMeta(
+    debugName: "RustChat_complete",
+    argNames: ["that", "messages", "sampler", "templateVariables", "tools"],
   );
 
   @override
@@ -1238,7 +1285,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 15,
             port: port_,
           );
         },
@@ -1300,7 +1347,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 16,
             port: port_,
           );
         },
@@ -1337,7 +1384,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -1373,7 +1420,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 18,
             port: port_,
           );
         },
@@ -1405,7 +1452,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 19,
             port: port_,
           );
         },
@@ -1442,7 +1489,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 20,
             port: port_,
           );
         },
@@ -1477,7 +1524,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1533,7 +1580,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_opt_box_autoadd_mtp_config(mtp, serializer);
           sse_encode_opt_box_autoadd_u_32(threadCount, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -1594,7 +1641,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1628,7 +1675,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1666,7 +1713,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1705,14 +1752,13 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 26,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetChatHistoryConstMeta,
         argValues: [that, messages],
@@ -1747,7 +1793,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1786,7 +1832,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1827,7 +1873,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1866,7 +1912,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1908,7 +1954,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1939,7 +1985,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1975,7 +2021,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1999,7 +2045,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   @override
   Future<List<int?>> crateRustChatTokenizeWithPrompt({
     required RustChat that,
-    required List<PromptPart> parts,
+    required List<ContentPart> parts,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2009,11 +2055,11 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          sse_encode_list_prompt_part(parts, serializer);
+          sse_encode_list_content_part(parts, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 34,
             port: port_,
           );
         },
@@ -2050,7 +2096,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 35,
             port: port_,
           );
         },
@@ -2089,7 +2135,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 35,
+              funcId: 36,
               port: port_,
             );
           },
@@ -2127,7 +2173,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 37,
             port: port_,
           );
         },
@@ -2164,7 +2210,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 38,
             port: port_,
           );
         },
@@ -2199,7 +2245,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_String(path, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2235,7 +2281,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_list_prim_i_16_loose(samples, serializer);
           sse_encode_u_32(sampleRate, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2270,7 +2316,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 41,
             port: port_,
           );
         },
@@ -2308,7 +2354,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 41,
+              funcId: 42,
               port: port_,
             );
           },
@@ -2345,7 +2391,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 43,
             port: port_,
           );
         },
@@ -2376,7 +2422,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2406,7 +2452,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_i_16_strict,
@@ -2447,7 +2493,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 46,
             port: port_,
           );
         },
@@ -2497,7 +2543,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_list_prim_i_16_loose(chunk, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_voice_activity_detection_event,
@@ -2530,7 +2576,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_list_prim_i_16_loose(samples, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_list_prim_i_16_strict,
@@ -2559,7 +2605,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2598,7 +2644,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_i_32(allowedLength, serializer);
           sse_encode_i_32(penaltyLastN, serializer);
           sse_encode_list_String(seqBreakers, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2649,7 +2695,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(temperature, serializer);
           sse_encode_f_32(delta, serializer);
           sse_encode_f_32(exponent, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2687,7 +2733,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(grammar, serializer);
           sse_encode_opt_String(triggerOn, serializer);
           sse_encode_String(root, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2716,7 +2762,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2749,7 +2795,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_Map_i_32_f_32_None(biases, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2785,7 +2831,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(minP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2822,7 +2868,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
           sse_encode_i_32(m, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2858,7 +2904,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(tau, serializer);
           sse_encode_f_32(eta, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2884,7 +2930,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2921,7 +2967,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(penaltyRepeat, serializer);
           sse_encode_f_32(penaltyFreq, serializer);
           sse_encode_f_32(penaltyPresent, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -2967,7 +3013,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_u_32(seed, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3000,7 +3046,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3034,7 +3080,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3067,7 +3113,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_f_32(n, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3103,7 +3149,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(topP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3138,7 +3184,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           );
           sse_encode_f_32(typP, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3176,7 +3222,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_f_32(xtcProbability, serializer);
           sse_encode_f_32(xtcThreshold, serializer);
           sse_encode_u_32(minKeep, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3202,7 +3248,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(jsonStr, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3231,7 +3277,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3258,7 +3304,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(grammar, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3287,7 +3333,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(schema, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3316,7 +3362,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(pattern, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3342,7 +3388,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3368,7 +3414,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3392,7 +3438,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(grammar, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3417,7 +3463,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 74)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3440,7 +3486,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 75)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3464,7 +3510,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(temperature, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 76)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3491,7 +3537,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_32(topK, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 78)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3517,7 +3563,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_32(topP, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 78)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3568,7 +3614,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 79,
+            funcId: 80,
             port: port_,
           );
         },
@@ -3630,7 +3676,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 80,
+            funcId: 81,
             port: port_,
           );
         },
@@ -3661,7 +3707,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3691,7 +3737,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 82)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3727,7 +3773,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             arguments,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 83)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 84)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3760,7 +3806,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             serializer,
           );
           sse_encode_String(name, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 84)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -3790,7 +3836,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_f_32_loose(a, serializer);
           sse_encode_list_prim_f_32_loose(b, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 85)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 86)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_32,
@@ -3826,7 +3872,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 87,
             port: port_,
           );
         },
@@ -3852,7 +3898,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 87)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 88)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_record_string_usize,
@@ -3877,7 +3923,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 88,
+            funcId: 89,
             port: port_,
           );
         },
@@ -3902,7 +3948,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_box_autoadd_usize(maxCommands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3934,7 +3980,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_u_64(maxDurationSecs, serializer);
           sse_encode_opt_box_autoadd_usize(maxMemoryBytes, serializer);
           sse_encode_opt_box_autoadd_usize(maxRecursionDepth, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3973,7 +4019,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
           sse_encode_Map_String_String_None(parameterDescriptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -4015,7 +4061,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(downloaded, serializer);
           sse_encode_i_64(total, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -4044,7 +4090,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
             toolCall,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 94)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -4132,14 +4178,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       );
     };
   }
-
-  RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_Asset => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_Asset => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CompletionError => wire
@@ -4313,15 +4351,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AnyhowException(raw as String);
-  }
-
-  @protected
-  Asset
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return AssetImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4696,15 +4725,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  Asset
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return AssetImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
   CompletionError
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     dynamic raw,
@@ -4953,6 +4973,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  MessageContent dco_decode_box_autoadd_message_content(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_message_content(raw);
+  }
+
+  @protected
   MtpConfig dco_decode_box_autoadd_mtp_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_mtp_config(raw);
@@ -4986,6 +5012,21 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       contextSize: dco_decode_u_32(arr[0]),
       contextUsed: dco_decode_u_32(arr[1]),
     );
+  }
+
+  @protected
+  ContentPart dco_decode_content_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return ContentPart_Text(text: dco_decode_String(raw[1]));
+      case 1:
+        return ContentPart_Image(path: dco_decode_String(raw[1]));
+      case 2:
+        return ContentPart_Audio(path: dco_decode_String(raw[1]));
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -5025,19 +5066,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  List<Asset>
-  dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>)
-        .map(
-          dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset,
-        )
-        .toList();
-  }
-
-  @protected
   List<RustTool>
   dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
     dynamic raw,
@@ -5067,6 +5095,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<ContentPart> dco_decode_list_content_part(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_content_part).toList();
   }
 
   @protected
@@ -5128,12 +5162,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  List<PromptPart> dco_decode_list_prompt_part(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_prompt_part).toList();
-  }
-
-  @protected
   List<(int, double)> dco_decode_list_record_i_32_f_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_record_i_32_f_32).toList();
@@ -5169,27 +5197,42 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     switch (raw[0]) {
       case 0:
         return Message_User(
-          content: dco_decode_String(raw[1]),
-          assets:
-              dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-                raw[2],
-              ),
+          content: dco_decode_box_autoadd_message_content(raw[1]),
         );
       case 1:
         return Message_Assistant(
-          content: dco_decode_String(raw[1]),
+          content: dco_decode_box_autoadd_message_content(raw[1]),
           toolCalls:
               dco_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
                 raw[2],
               ),
         );
       case 2:
-        return Message_System(content: dco_decode_String(raw[1]));
+        return Message_System(
+          content: dco_decode_box_autoadd_message_content(raw[1]),
+        );
       case 3:
         return Message_Tool(
           name: dco_decode_String(raw[1]),
-          content: dco_decode_String(raw[2]),
+          content: dco_decode_box_autoadd_message_content(raw[2]),
         );
+      default:
+        throw Exception("unreachable");
+    }
+  }
+
+  @protected
+  MessageContent dco_decode_message_content(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return MessageContent_Text(text: dco_decode_String(raw[1]));
+      case 1:
+        return MessageContent_Parts(
+          parts: dco_decode_list_content_part(raw[1]),
+        );
+      case 2:
+        return MessageContent_Json(json: dco_decode_String(raw[1]));
       default:
         throw Exception("unreachable");
     }
@@ -5205,6 +5248,12 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       kMax: dco_decode_u_32(arr[0]),
       pMin: dco_decode_f_32(arr[1]),
     );
+  }
+
+  @protected
+  Map<String, bool>? dco_decode_opt_Map_String_bool_None(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_Map_String_bool_None(raw);
   }
 
   @protected
@@ -5275,6 +5324,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  List<RustTool>?
+  dco_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null
+        ? null
+        : dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+            raw,
+          );
+  }
+
+  @protected
   List<ToolCall>?
   dco_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     dynamic raw,
@@ -5285,21 +5347,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         : dco_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
             raw,
           );
-  }
-
-  @protected
-  PromptPart dco_decode_prompt_part(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    switch (raw[0]) {
-      case 0:
-        return PromptPart_Text(content: dco_decode_String(raw[1]));
-      case 1:
-        return PromptPart_Image(path: dco_decode_String(raw[1]));
-      case 2:
-        return PromptPart_Audio(path: dco_decode_String(raw[1]));
-      default:
-        throw Exception("unreachable");
-    }
   }
 
   @protected
@@ -5395,18 +5442,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
     return AnyhowException(inner);
-  }
-
-  @protected
-  Asset
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return AssetImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
   }
 
   @protected
@@ -5862,18 +5897,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  Asset
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return AssetImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   CompletionError
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     SseDeserializer deserializer,
@@ -6182,6 +6205,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  MessageContent sse_decode_box_autoadd_message_content(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_message_content(deserializer));
+  }
+
+  @protected
   MtpConfig sse_decode_box_autoadd_mtp_config(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_mtp_config(deserializer));
@@ -6214,6 +6245,26 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       contextSize: var_contextSize,
       contextUsed: var_contextUsed,
     );
+  }
+
+  @protected
+  ContentPart sse_decode_content_part(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_text = sse_decode_String(deserializer);
+        return ContentPart_Text(text: var_text);
+      case 1:
+        var var_path = sse_decode_String(deserializer);
+        return ContentPart_Image(path: var_path);
+      case 2:
+        var var_path = sse_decode_String(deserializer);
+        return ContentPart_Audio(path: var_path);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -6250,25 +6301,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
-  }
-
-  @protected
-  List<Asset>
-  sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <Asset>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(
-        sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-          deserializer,
-        ),
-      );
-    }
-    return ans_;
   }
 
   @protected
@@ -6317,6 +6349,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     var ans_ = <String>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ContentPart> sse_decode_list_content_part(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ContentPart>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_content_part(deserializer));
     }
     return ans_;
   }
@@ -6411,18 +6455,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  List<PromptPart> sse_decode_list_prompt_part(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <PromptPart>[];
-    for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_prompt_part(deserializer));
-    }
-    return ans_;
-  }
-
-  @protected
   List<(int, double)> sse_decode_list_record_i_32_f_32(
     SseDeserializer deserializer,
   ) {
@@ -6499,14 +6531,10 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        var var_content = sse_decode_String(deserializer);
-        var var_assets =
-            sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-              deserializer,
-            );
-        return Message_User(content: var_content, assets: var_assets);
+        var var_content = sse_decode_box_autoadd_message_content(deserializer);
+        return Message_User(content: var_content);
       case 1:
-        var var_content = sse_decode_String(deserializer);
+        var var_content = sse_decode_box_autoadd_message_content(deserializer);
         var var_toolCalls =
             sse_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
               deserializer,
@@ -6516,12 +6544,32 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           toolCalls: var_toolCalls,
         );
       case 2:
-        var var_content = sse_decode_String(deserializer);
+        var var_content = sse_decode_box_autoadd_message_content(deserializer);
         return Message_System(content: var_content);
       case 3:
         var var_name = sse_decode_String(deserializer);
-        var var_content = sse_decode_String(deserializer);
+        var var_content = sse_decode_box_autoadd_message_content(deserializer);
         return Message_Tool(name: var_name, content: var_content);
+      default:
+        throw UnimplementedError('');
+    }
+  }
+
+  @protected
+  MessageContent sse_decode_message_content(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        var var_text = sse_decode_String(deserializer);
+        return MessageContent_Text(text: var_text);
+      case 1:
+        var var_parts = sse_decode_list_content_part(deserializer);
+        return MessageContent_Parts(parts: var_parts);
+      case 2:
+        var var_json = sse_decode_String(deserializer);
+        return MessageContent_Json(json: var_json);
       default:
         throw UnimplementedError('');
     }
@@ -6533,6 +6581,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     var var_kMax = sse_decode_u_32(deserializer);
     var var_pMin = sse_decode_f_32(deserializer);
     return MtpConfig(kMax: var_kMax, pMin: var_pMin);
+  }
+
+  @protected
+  Map<String, bool>? sse_decode_opt_Map_String_bool_None(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_Map_String_bool_None(deserializer));
+    } else {
+      return null;
+    }
   }
 
   @protected
@@ -6653,6 +6714,22 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  List<RustTool>?
+  sse_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+        deserializer,
+      ));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   List<ToolCall>?
   sse_decode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     SseDeserializer deserializer,
@@ -6665,26 +6742,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       ));
     } else {
       return null;
-    }
-  }
-
-  @protected
-  PromptPart sse_decode_prompt_part(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var tag_ = sse_decode_i_32(deserializer);
-    switch (tag_) {
-      case 0:
-        var var_content = sse_decode_String(deserializer);
-        return PromptPart_Text(content: var_content);
-      case 1:
-        var var_path = sse_decode_String(deserializer);
-        return PromptPart_Image(path: var_path);
-      case 2:
-        var var_path = sse_decode_String(deserializer);
-        return PromptPart_Audio(path: var_path);
-      default:
-        throw UnimplementedError('');
     }
   }
 
@@ -6777,19 +6834,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.message, serializer);
-  }
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    Asset self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as AssetImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
   }
 
   @protected
@@ -7326,19 +7370,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    Asset self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as AssetImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCompletionError(
     CompletionError self,
     SseSerializer serializer,
@@ -7677,6 +7708,15 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_message_content(
+    MessageContent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_message_content(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_mtp_config(
     MtpConfig self,
     SseSerializer serializer,
@@ -7708,6 +7748,22 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.contextSize, serializer);
     sse_encode_u_32(self.contextUsed, serializer);
+  }
+
+  @protected
+  void sse_encode_content_part(ContentPart self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case ContentPart_Text(text: final text):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(text, serializer);
+      case ContentPart_Image(path: final path):
+        sse_encode_i_32(1, serializer);
+        sse_encode_String(path, serializer);
+      case ContentPart_Audio(path: final path):
+        sse_encode_i_32(2, serializer);
+        sse_encode_String(path, serializer);
+    }
   }
 
   @protected
@@ -7748,22 +7804,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-    List<Asset> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-        item,
-        serializer,
-      );
-    }
-  }
-
-  @protected
-  void
   sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
     List<RustTool> self,
     SseSerializer serializer,
@@ -7800,6 +7840,18 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_content_part(
+    List<ContentPart> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_content_part(item, serializer);
     }
   }
 
@@ -7903,18 +7955,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  void sse_encode_list_prompt_part(
-    List<PromptPart> self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    for (final item in self) {
-      sse_encode_prompt_part(item, serializer);
-    }
-  }
-
-  @protected
   void sse_encode_list_record_i_32_f_32(
     List<(int, double)> self,
     SseSerializer serializer,
@@ -7978,30 +8018,45 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   void sse_encode_message(Message self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case Message_User(content: final content, assets: final assets):
+      case Message_User(content: final content):
         sse_encode_i_32(0, serializer);
-        sse_encode_String(content, serializer);
-        sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAsset(
-          assets,
-          serializer,
-        );
+        sse_encode_box_autoadd_message_content(content, serializer);
       case Message_Assistant(
         content: final content,
         toolCalls: final toolCalls,
       ):
         sse_encode_i_32(1, serializer);
-        sse_encode_String(content, serializer);
+        sse_encode_box_autoadd_message_content(content, serializer);
         sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
           toolCalls,
           serializer,
         );
       case Message_System(content: final content):
         sse_encode_i_32(2, serializer);
-        sse_encode_String(content, serializer);
+        sse_encode_box_autoadd_message_content(content, serializer);
       case Message_Tool(name: final name, content: final content):
         sse_encode_i_32(3, serializer);
         sse_encode_String(name, serializer);
-        sse_encode_String(content, serializer);
+        sse_encode_box_autoadd_message_content(content, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_message_content(
+    MessageContent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case MessageContent_Text(text: final text):
+        sse_encode_i_32(0, serializer);
+        sse_encode_String(text, serializer);
+      case MessageContent_Parts(parts: final parts):
+        sse_encode_i_32(1, serializer);
+        sse_encode_list_content_part(parts, serializer);
+      case MessageContent_Json(json: final json):
+        sse_encode_i_32(2, serializer);
+        sse_encode_String(json, serializer);
     }
   }
 
@@ -8010,6 +8065,19 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.kMax, serializer);
     sse_encode_f_32(self.pMin, serializer);
+  }
+
+  @protected
+  void sse_encode_opt_Map_String_bool_None(
+    Map<String, bool>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_Map_String_bool_None(self, serializer);
+    }
   }
 
   @protected
@@ -8127,6 +8195,23 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
+  sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+    List<RustTool>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRustTool(
+        self,
+        serializer,
+      );
+    }
+  }
+
+  @protected
+  void
   sse_encode_opt_list_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerToolCall(
     List<ToolCall>? self,
     SseSerializer serializer,
@@ -8139,22 +8224,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         self,
         serializer,
       );
-    }
-  }
-
-  @protected
-  void sse_encode_prompt_part(PromptPart self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    switch (self) {
-      case PromptPart_Text(content: final content):
-        sse_encode_i_32(0, serializer);
-        sse_encode_String(content, serializer);
-      case PromptPart_Image(path: final path):
-        sse_encode_i_32(1, serializer);
-        sse_encode_String(path, serializer);
-      case PromptPart_Audio(path: final path):
-        sse_encode_i_32(2, serializer);
-        sse_encode_String(path, serializer);
     }
   }
 
@@ -8245,26 +8314,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
   }
-}
-
-@sealed
-class AssetImpl extends RustOpaque implements Asset {
-  // Not to be used by end users
-  AssetImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  AssetImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        NobodyWho.instance.api.rust_arc_increment_strong_count_Asset,
-    rustArcDecrementStrongCount:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_Asset,
-    rustArcDecrementStrongCountPtr:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_AssetPtr,
-  );
 }
 
 @sealed
@@ -8500,10 +8549,33 @@ class RustChatImpl extends RustOpaque implements RustChat {
   ///
   /// Args:
   ///     parts: List of PromptPart (text or image) making up the prompt
-  RustTokenStream askWithPrompt({required List<PromptPart> parts}) => NobodyWho
+  RustTokenStream askWithPrompt({required List<ContentPart> parts}) => NobodyWho
       .instance
       .api
       .crateRustChatAskWithPrompt(that: this, parts: parts);
+
+  /// Answer a full list of messages, replacing the chat history.
+  ///
+  /// The list is the whole conversation, used as given: it must be non-empty, end
+  /// in a user or tool message, and carry a system message only first. That system
+  /// message sets the chat's system prompt; leave it out and the prompt already on
+  /// the chat is kept. The response is appended, and the next `ask` continues from
+  /// there.
+  ///
+  /// The trailing arguments follow the same rule for the chat's other settings:
+  /// what you pass stays set, what you leave out is kept.
+  RustTokenStream complete({
+    required List<Message> messages,
+    SamplerConfig? sampler = null,
+    Map<String, bool>? templateVariables = null,
+    List<RustTool>? tools = null,
+  }) => NobodyWho.instance.api.crateRustChatComplete(
+    that: this,
+    messages: messages,
+    sampler: sampler,
+    templateVariables: templateVariables,
+    tools: tools,
+  );
 
   Future<List<Message>> getChatHistory() =>
       NobodyWho.instance.api.crateRustChatGetChatHistory(that: this);
@@ -8583,7 +8655,7 @@ class RustChatImpl extends RustOpaque implements RustChat {
       .api
       .crateRustChatTokenize(that: this, message: message);
 
-  Future<List<int?>> tokenizeWithPrompt({required List<PromptPart> parts}) =>
+  Future<List<int?>> tokenizeWithPrompt({required List<ContentPart> parts}) =>
       NobodyWho.instance.api.crateRustChatTokenizeWithPrompt(
         that: this,
         parts: parts,

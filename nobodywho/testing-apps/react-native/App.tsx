@@ -68,6 +68,20 @@ async function runChecks(): Promise<void> {
   if (toolMessage.content !== 'pong') {
     throw new Error(`tool returned "${toolMessage.content}", expected "pong"`);
   }
+
+  // Completion options stick, and are kept by a call that omits them
+  await chat
+    .complete([{role: 'user', content: 'Say hi.'}], {
+      templateVariables: {enable_thinking: true},
+    })
+    .completed();
+  if ((await chat.getTemplateVariables()).enable_thinking !== true) {
+    throw new Error('complete() options did not set the template variable');
+  }
+  await chat.complete([{role: 'user', content: 'Say hi again.'}]).completed();
+  if ((await chat.getTemplateVariables()).enable_thinking !== true) {
+    throw new Error('complete() without options should keep them');
+  }
 }
 
 export default function App(): React.JSX.Element {
