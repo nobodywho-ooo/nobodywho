@@ -453,9 +453,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   MtpConfig dco_decode_box_autoadd_mtp_config(dynamic raw);
 
   @protected
-  ToolCall dco_decode_box_autoadd_tool_call(dynamic raw);
-
-  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -995,9 +992,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   MtpConfig sse_decode_box_autoadd_mtp_config(SseDeserializer deserializer);
-
-  @protected
-  ToolCall sse_decode_box_autoadd_tool_call(SseDeserializer deserializer);
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
@@ -1633,12 +1627,6 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   @protected
   void sse_encode_box_autoadd_mtp_config(
     MtpConfig self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_tool_call(
-    ToolCall self,
     SseSerializer serializer,
   );
 

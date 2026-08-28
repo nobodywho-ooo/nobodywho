@@ -355,19 +355,11 @@ void main() {
       expect(toolCall.name, equals('sparklify'));
 
       // The arguments should contain the text parameter
-      // Note: arguments is a serde_json::Value, we need to check it's not null
       expect(toolCall.arguments, isNotNull);
-
-      // Test the argumentsJson getter - should return valid JSON string
-      final argsJson = toolCall.argumentsJson;
-      expect(argsJson, isA<String>());
-      expect(argsJson, contains('text'));
-
-      // Test the argumentsMap getter - should return parsed Map
-      final argsMap = toolCall.argumentsMap;
-      expect(argsMap, isA<Map<String, dynamic>>());
-      expect(argsMap.containsKey('text'), isTrue);
-      expect(argsMap['text'], equals('test'));
+      expect(toolCall.arguments, isA<Map<String, dynamic>>());
+      final args = toolCall.arguments as Map<String, dynamic>;
+      expect(args.containsKey('text'), isTrue);
+      expect(args['text'], equals('test'));
 
       // Find the tool response message
       final toolRespMessage =
