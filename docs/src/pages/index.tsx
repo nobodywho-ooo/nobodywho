@@ -1,7 +1,10 @@
 import React from 'react';
+import CodeBlock from '@theme/CodeBlock';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+
+const skillInstallCommand = 'npx skills add https://github.com/nobodywho-ooo/nobodywho --skill nobodywho';
 
 const sdks = [
   {
@@ -49,31 +52,17 @@ function SDKCard({name, description, install, link}: {
   link: string;
 }) {
   return (
-    <Link
-      to={link}
-      className="sdk-card"
-      style={{
-        display: 'block',
-        padding: '1.75rem',
-        borderRadius: '12px',
-        border: '1px solid var(--ifm-toc-border-color)',
-        backgroundColor: 'var(--ifm-background-surface-color)',
-        textDecoration: 'none',
-        color: 'inherit',
-        transition: 'border-color 0.2s, transform 0.15s',
-      }}
-    >
-      <h3 style={{margin: '0 0 0.5rem', fontSize: '1.2rem', fontWeight: 600}}>{name}</h3>
-      <p style={{margin: '0 0 0.75rem', color: 'var(--ifm-font-color-secondary)', fontSize: '0.9rem', lineHeight: 1.5}}>
-        {description}
-      </p>
-      <code style={{fontSize: '0.8rem', color: 'var(--ifm-font-color-secondary)'}}>{install}</code>
+    <Link to={link} className="home-card sdk-card">
+      <h3>{name}</h3>
+      <p>{description}</p>
+      <code>{install}</code>
     </Link>
   );
 }
 
 export default function Home(): React.JSX.Element {
   const {siteConfig} = useDocusaurusContext();
+
   return (
     <Layout title="Home" description={siteConfig.tagline}>
       <main style={{maxWidth: '860px', margin: '0 auto', padding: '5rem 1.5rem 4rem'}}>
@@ -116,45 +105,38 @@ export default function Home(): React.JSX.Element {
           </p>
         </div>
 
-        {/* Basics — first section */}
-        <div style={{
-          marginBottom: '4rem',
-          padding: '2rem',
-          borderRadius: '12px',
-          border: '1px solid var(--ifm-toc-border-color)',
-          backgroundColor: 'var(--ifm-background-surface-color)',
-        }}>
-          <h2 style={{fontSize: '1.3rem', fontWeight: 600, marginTop: 0, marginBottom: '0.75rem'}}>
-            New to local LLMs?
-          </h2>
-          <p style={{
-            color: 'var(--ifm-font-color-secondary)',
-            marginBottom: '1.25rem',
-            lineHeight: 1.7,
-          }}>
-            Start here if you are new to running language models locally. These
-            guides cover the core concepts — what models are, how to pick
-            one, and how quantization works.
-          </p>
-          <div style={{display: 'flex', gap: '0.75rem', flexWrap: 'wrap'}}>
-            <Link to="/docs/llm-basics" className="button button--secondary">
-              LLM Basics
-            </Link>
-            <Link to="/docs/model-selection" className="button button--secondary">
-              Model Selection
-            </Link>
+        <h2 className="home-section-heading">Get started</h2>
+        <div className="get-started-grid">
+          <div className="home-card start-card">
+            <h3>New to local LLMs?</h3>
+            <p>
+              Start here if you are new to running language models locally. These
+              guides cover the core concepts — what models are, how to pick
+              one, and how quantization works.
+            </p>
+            <div className="start-card-actions">
+              <Link to="/docs/llm-basics" className="button button--secondary">
+                LLM Basics
+              </Link>
+              <Link to="/docs/model-selection" className="button button--secondary">
+                Model Selection
+              </Link>
+            </div>
+          </div>
+
+          <div className="home-card start-card">
+            <h3>Using an AI coding agent?</h3>
+            <p>
+              Install the NobodyWho skill so your agent can look up the current APIs and documentation.
+            </p>
+            <div className="skill-install-command">
+              <CodeBlock language="bash">{skillInstallCommand}</CodeBlock>
+            </div>
           </div>
         </div>
 
-        {/* SDK cards */}
-        <h2 style={{fontSize: '1.4rem', fontWeight: 600, marginBottom: '1.25rem'}}>
-          Choose your binding
-        </h2>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-          gap: '1rem',
-        }}>
+        <h2 className="home-section-heading">Choose your binding</h2>
+        <div className="sdk-grid">
           {sdks.map((sdk) => (
             <SDKCard key={sdk.name} {...sdk} />
           ))}
@@ -162,10 +144,110 @@ export default function Home(): React.JSX.Element {
       </main>
 
       <style>{`
+        .home-section-heading {
+          margin-bottom: 1.25rem;
+          font-size: 1.4rem;
+          font-weight: 600;
+        }
+
+        .get-started-grid {
+          display: grid;
+          gap: 1rem;
+          margin-bottom: 4rem;
+        }
+
+        .home-card {
+          min-width: 0;
+          padding: 1.75rem;
+          border: 1px solid var(--ifm-toc-border-color);
+          border-radius: 12px;
+          background: var(--ifm-background-surface-color);
+        }
+
+        .home-card h3 {
+          font-size: 1.2rem;
+          font-weight: 600;
+        }
+
+        .home-card p {
+          color: var(--ifm-font-color-secondary);
+        }
+
+        .start-card {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .start-card h3 {
+          margin: 0 0 0.75rem;
+        }
+
+        .start-card p {
+          margin-bottom: 1.25rem;
+          line-height: 1.7;
+        }
+
+        .start-card-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem;
+          margin-top: auto;
+        }
+
+        .sdk-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          gap: 1rem;
+        }
+
+        .sdk-card {
+          display: block;
+          color: inherit;
+          text-decoration: none;
+          transition: border-color 0.2s, transform 0.15s;
+        }
+
+        .sdk-card h3 {
+          margin: 0 0 0.5rem;
+        }
+
+        .sdk-card p {
+          margin: 0 0 0.75rem;
+          font-size: 0.9rem;
+          line-height: 1.5;
+        }
+
+        .sdk-card code {
+          color: var(--ifm-font-color-secondary);
+          font-size: 0.8rem;
+        }
+
         .sdk-card:hover {
           border-color: var(--ifm-color-primary) !important;
           transform: translateY(-2px);
         }
+
+        .skill-install-command {
+          min-width: 0;
+          margin-top: auto;
+        }
+
+        .skill-install-command pre {
+          margin: 0;
+          padding-right: 3.25rem;
+        }
+
+        .skill-install-command button[aria-label='Toggle word wrap'] {
+          display: none;
+        }
+
+        .skill-install-command button[aria-label='Copy code to clipboard'] {
+          border: 1px solid var(--ifm-toc-border-color);
+          border-radius: 6px;
+          background: var(--ifm-background-surface-color);
+          opacity: 1;
+        }
+
       `}</style>
     </Layout>
   );
