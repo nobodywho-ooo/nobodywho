@@ -3078,12 +3078,12 @@ dependencies = [
  "flutter_rust_bridge",
  "flutter_rust_bridge_codegen",
  "futures",
+ "log",
  "nobodywho",
  "nom 8.0.0",
  "regex",
  "serde_json",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

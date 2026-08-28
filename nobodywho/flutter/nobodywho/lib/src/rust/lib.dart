@@ -10,7 +10,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `content_to_core`, `dart_function_type_to_json_schema`, `message_to_core`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `sse_encode`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart

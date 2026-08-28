@@ -1784,26 +1784,37 @@ impl SamplerPresets {
     }
 }
 
+// https://cjycode.com/flutter_rust_bridge/guides/how-to/logging
+// Logs path: `tracing` -> `log` -> Dart logging.
+flutter_rust_bridge::enable_frb_rust_to_dart_logging!(
+    max_level = if cfg!(debug_assertions) {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    },
+    // Not registering a default output is probably the better choice for
+    // a library like ours. This allows the user to customize the logging
+    // in their application.
+    setup_dart_logging_output = false
+);
+
+// FIXME(madsmtm): Remove the need for this?
+// https://github.com/fzyzcjy/flutter_rust_bridge/issues/3402
+impl frb_generated::SseEncode for FrbLogRecord {
+    fn sse_encode(self, _serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        unimplemented!("serializing FrbLogRecord should not be needed")
+    }
+}
+
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     // send llamacpp logs into tracing
     nobodywho::send_llamacpp_logs_to_tracing();
 
-    // send logs to the appropriate places for android, ios and wasm
-    flutter_rust_bridge::setup_default_user_utils();
+    // NOTE: Do not set up a `tracing-subscriber`, that will conflict with
+    // `enable_frb_rust_to_dart_logging!` above!
 
-    let log_level = if cfg!(debug_assertions) {
-        tracing::Level::DEBUG
-    } else {
-        tracing::Level::INFO
-    };
-
-    tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-        .try_init()
-        .ok();
+    flutter_rust_bridge::setup_backtrace();
 }
 
 #[cfg(test)]

@@ -22,6 +22,9 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Breaking:** the error Flutter's `setChatHistory` throws is no longer a `SetterError`; catch it as a plain exception rather than by type. The history validation it now performs is the same on every binding — see the system prompt entry above.
 - **Breaking:** raw JSON content now round-trips through a `{"type": "raw", "value": …}` wrapper. `text`, `image` and `audio` are reserved tags: a content array whose entries all carry one of them is read as content parts, while a non-empty array carrying none of them reaches the chat template as a real list — which is what `from_json()` is for, on models finetuned on structured turns. Since both shapes are arrays of `type`-tagged objects, raw content that happens to look like parts would otherwise be read back as parts, so `get_chat_history()` returns it wrapped; the wrapper is accepted on the way in and stripped before the template sees it. Mixing part tags with other tags in one array, or using a reserved tag with fields that do not parse, is now an error instead of being passed through untouched. Affects all bindings.
 
+### Fixed
+- **Flutter:** Logs are now forwarded to Dart's logging package.
+
 ### Removed
 - **Flutter:** Removed `ToolCallExtension` and `ToolCall.argumentsJson` as `ToolCall` is no longer opaque.
 
