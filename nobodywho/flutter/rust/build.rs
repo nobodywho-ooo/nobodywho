@@ -9,6 +9,7 @@ fn main() {
         println!("cargo:rustc-link-lib=c++");
     }
 
+    println!("cargo:rerun-if-env-changed=NOBODYWHO_SKIP_CODEGEN");
     if std::env::var("NOBODYWHO_SKIP_CODEGEN").as_deref() == Ok("1") {
         println!(
             "cargo:warning=Skipping codegen due to NOBODYWHO_SKIP_CODEGEN=1 environment variable"
