@@ -469,16 +469,29 @@ pub enum WorkerError {
     GILPoison, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
 
-#[derive(Debug, thiserror::Error)]
+/// A setter's failure. Every variant but the first is the worker rejecting the
+/// value; the setter leaves the chat as it was, and the worker keeps running.
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum SetterError {
     #[error("Worker terminated before processing setter: {0}")]
     SetterError(String),
 
     #[error(transparent)]
+    #[diagnostic(transparent)]
     InvalidHistory(#[from] InvalidHistoryError),
 
     #[error(transparent)]
+    #[diagnostic(transparent)]
     ContextSync(#[from] ContextSyncError),
+
+    #[error("Failed setting up tool calling: {0}")]
+    ToolCallingSetup(#[from] ToolCallingSetupError),
+
+    #[error("Init template error: {0}")]
+    SelectTemplate(#[from] SelectTemplateError),
+
+    #[error("Invalid sampler configuration: {0}")]
+    Sampler(#[from] SamplerError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -881,6 +894,9 @@ pub(crate) enum ChatWorkerError {
 
     #[error("Failed setting up tool calling: {0}")]
     ToolCallingSetup(#[from] ToolCallingSetupError),
+
+    #[error(transparent)]
+    Setter(#[from] SetterError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

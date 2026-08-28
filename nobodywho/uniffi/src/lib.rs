@@ -41,6 +41,14 @@ impl From<String> for NobodyWhoError {
     }
 }
 
+/// A setter the worker rejected. Rendered with the diagnostic help text, the
+/// way generation errors are.
+fn setter_err(e: nobodywho::errors::SetterError) -> NobodyWhoError {
+    NobodyWhoError::Error {
+        message: nobodywho::render_miette(&e),
+    }
+}
+
 // ---------- Content types ----------
 // Mirror types for core ContentPart/MessageContent/Message/ToolCall.
 // Needed because core types contain PathBuf and serde_json::Value
@@ -534,19 +542,12 @@ impl RustChat {
         self.inner
             .reset_chat(system_prompt, core_tools)
             .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+            .map_err(setter_err)
     }
 
     /// Reset the chat history, keeping the system prompt and tools.
     pub async fn reset_history(&self) -> Result<(), NobodyWhoError> {
-        self.inner
-            .reset_history()
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+        self.inner.reset_history().await.map_err(setter_err)
     }
 
     /// Get the current chat history as a list of messages.
@@ -568,9 +569,7 @@ impl RustChat {
         self.inner
             .set_chat_history(core_messages?)
             .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+            .map_err(setter_err)
     }
 
     /// Get the current system prompt.
@@ -618,21 +617,14 @@ impl RustChat {
         self.inner
             .set_system_prompt(system_prompt)
             .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+            .map_err(setter_err)
     }
 
     /// Set the tools available to the model.
     pub async fn set_tools(&self, tools: Vec<Arc<RustTool>>) -> Result<(), NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> =
             tools.into_iter().map(|t| t.inner.clone()).collect();
-        self.inner
-            .set_tools(core_tools)
-            .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+        self.inner.set_tools(core_tools).await.map_err(setter_err)
     }
 
     /// Set a template variable.
@@ -644,9 +636,7 @@ impl RustChat {
         self.inner
             .set_template_variable(name, value)
             .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+            .map_err(setter_err)
     }
 
     /// Get all template variables.
@@ -664,9 +654,7 @@ impl RustChat {
         self.inner
             .set_sampler_config(sampler.inner.clone())
             .await
-            .map_err(|e| NobodyWhoError::Error {
-                message: e.to_string(),
-            })
+            .map_err(setter_err)
     }
 
     /// Get context usage statistics.

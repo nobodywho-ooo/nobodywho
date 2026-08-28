@@ -923,6 +923,19 @@ impl NobodyWhoChat {
         self.signals().worker_failed().emit(&errmsg);
     }
 
+    /// Report a value the worker rejected. Setters run on a background task, so
+    /// this takes the node rather than `&mut self`. The chat is left as it was
+    /// and keeps working, so this is reported like a dropped generation rather
+    /// than as a dead worker.
+    fn report_setter_error(node: &mut Gd<Self>, setter: &str, error: &errors::SetterError) {
+        let errmsg = GString::from(&format!(
+            "{setter} failed: {}",
+            nobodywho::render_miette(error)
+        ));
+        godot_error!("{}", errmsg);
+        node.signals().worker_failed().emit(&errmsg);
+    }
+
     /// Run a generation on a background task and emit its tokens as signals,
     /// starting the worker first if it is not running yet.
     ///
@@ -1014,13 +1027,11 @@ impl NobodyWhoChat {
 
         let system_prompt = self.system_prompt.to_string();
         let tools = self.tools.clone();
+        let mut emit_node = self.to_gd();
 
         godot::task::spawn(async move {
-            match chat_handle.reset_chat(Some(system_prompt), tools).await {
-                Ok(()) => (),
-                Err(errmsg) => {
-                    godot_error!("Error: {}", errmsg.to_string());
-                }
+            if let Err(e) = chat_handle.reset_chat(Some(system_prompt), tools).await {
+                Self::report_setter_error(&mut emit_node, "reset_context", &e);
             }
         });
     }
@@ -1038,12 +1049,13 @@ impl NobodyWhoChat {
         // if worker is running, also inform that
         if let Some(chat_handle) = self.chat_handle.as_ref() {
             let handle_clone = chat_handle.clone();
+            let mut emit_node = self.to_gd();
             godot::task::spawn(async move {
                 let result = handle_clone
                     .set_template_variable("enable_thinking".to_string(), allow_thinking)
                     .await;
-                if let Err(msg) = result {
-                    godot_warn!("Error setting allow_thinking: {}", msg);
+                if let Err(e) = result {
+                    Self::report_setter_error(&mut emit_node, "set_allow_thinking", &e);
                 }
             });
         }
@@ -1358,7 +1370,7 @@ impl NobodyWhoChat {
                 godot_error!("Failed setting chat history: {}", e);
             };
             if let Err(e) = chat_handle.set_chat_history(msg_vec).await {
-                godot_error!("Failed setting chat history: {}", e);
+                Self::report_setter_error(&mut emit_node, "set_chat_history", &e);
             }
 
             emit_node.emit_signal(&signal_name_copy, &[]);
@@ -1606,10 +1618,11 @@ impl NobodyWhoChat {
         };
 
         let new_tools = self.tools.clone();
+        let mut emit_node = self.to_gd();
 
         godot::task::spawn(async move {
-            if let Err(err) = chat_handle.set_tools(new_tools).await {
-                godot_error!("Error: {}", err.to_string());
+            if let Err(e) = chat_handle.set_tools(new_tools).await {
+                Self::report_setter_error(&mut emit_node, "remove_tool", &e);
             }
         });
     }
@@ -1636,9 +1649,10 @@ impl NobodyWhoChat {
         };
 
         let new_tools = self.tools.clone();
+        let mut emit_node = self.to_gd();
         godot::task::spawn(async move {
-            if let Err(err) = chat_handle.set_tools(new_tools).await {
-                godot_error!("Error: {}", err.to_string());
+            if let Err(e) = chat_handle.set_tools(new_tools).await {
+                Self::report_setter_error(&mut emit_node, "remove_python_tool", &e);
             }
         });
     }
@@ -1693,9 +1707,10 @@ impl NobodyWhoChat {
         };
 
         let new_tools = self.tools.clone();
+        let mut emit_node = self.to_gd();
         godot::task::spawn(async move {
-            if let Err(err) = chat_handle.set_tools(new_tools).await {
-                godot_error!("Error: {}", err.to_string());
+            if let Err(e) = chat_handle.set_tools(new_tools).await {
+                Self::report_setter_error(&mut emit_node, "remove_bash_tool", &e);
             }
         });
     }
@@ -1738,8 +1753,11 @@ impl NobodyWhoChat {
         }
 
         let chat_handle = self.chat_handle.as_ref().unwrap().clone();
+        let mut emit_node = self.to_gd();
         let _ = godot::task::spawn(async move {
-            let _ = chat_handle.set_sampler_config(sampler).await;
+            if let Err(e) = chat_handle.set_sampler_config(sampler).await {
+                Self::report_setter_error(&mut emit_node, "set_sampler_config", &e);
+            }
         });
     }
 
