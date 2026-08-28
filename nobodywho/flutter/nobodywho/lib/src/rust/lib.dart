@@ -22,11 +22,6 @@ void noopOnDownloadProgress(PlatformInt64 downloaded, PlatformInt64 total) =>
       total: total,
     );
 
-/// Helper function to convert ToolCall arguments to a JSON string.
-/// This is needed because serde_json::Value becomes an opaque type in Dart.
-String toolCallArgumentsJson({required ToolCall toolCall}) =>
-    NobodyWho.instance.api.crateToolCallArgumentsJson(toolCall: toolCall);
-
 /// Download a model from a remote URL or HuggingFace path and return the local file path.
 ///
 /// Use this when you need custom headers, e.g. for gated models that require authentication.

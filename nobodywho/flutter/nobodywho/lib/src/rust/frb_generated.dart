@@ -67,7 +67,7 @@ class NobodyWho
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 708236461;
+  int get rustContentHash => 1316874429;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -503,8 +503,6 @@ abstract class NobodyWhoApi extends BaseApi {
     required PlatformInt64 downloaded,
     required PlatformInt64 total,
   });
-
-  String crateToolCallArgumentsJson({required ToolCall toolCall});
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_CompletionError;
@@ -3908,31 +3906,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         argNames: ["downloaded", "total"],
       );
 
-  @override
-  String crateToolCallArgumentsJson({required ToolCall toolCall}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_tool_call(toolCall, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_String,
-        ),
-        constMeta: kCrateToolCallArgumentsJsonConstMeta,
-        argValues: [toolCall],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateToolCallArgumentsJsonConstMeta => const TaskConstMeta(
-    debugName: "tool_call_arguments_json",
-    argNames: ["toolCall"],
-  );
-
   Future<void> Function(int, dynamic)
   encode_DartFn_Inputs_String_Output_String_AnyhowException(
     FutureOr<String> Function(String) raw,
@@ -4717,12 +4690,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   MtpConfig dco_decode_box_autoadd_mtp_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_mtp_config(raw);
-  }
-
-  @protected
-  ToolCall dco_decode_box_autoadd_tool_call(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_tool_call(raw);
   }
 
   @protected
@@ -5863,12 +5830,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   MtpConfig sse_decode_box_autoadd_mtp_config(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_mtp_config(deserializer));
-  }
-
-  @protected
-  ToolCall sse_decode_box_autoadd_tool_call(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_tool_call(deserializer));
   }
 
   @protected
@@ -7271,15 +7232,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_mtp_config(self, serializer);
-  }
-
-  @protected
-  void sse_encode_box_autoadd_tool_call(
-    ToolCall self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_tool_call(self, serializer);
   }
 
   @protected

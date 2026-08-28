@@ -13,7 +13,6 @@ export 'src/rust/lib.dart'
         RustSpeechToTextStream, // Users should use SpeechToTextStream
         RustVoiceActivityDetection, // Users should use VoiceActivityDetection
         newToolImpl, // Internal helper
-        toolCallArgumentsJson, // Internal helper
         noopOnDownloadProgress, // Internal default for onDownloadProgress parameters
         SamplerPresets; // Users should use the hand-written SamplerPresets wrapper
 export 'src/rust/frb_generated.dart' show NobodyWho;
@@ -444,21 +443,6 @@ dynamic jsonConversion(Map<String, dynamic> schema, dynamic json) {
 }
 
 
-
-
-/// Extension to provide convenient access to ToolCall arguments.
-/// The underlying `arguments` field is an opaque serde_json::Value,
-/// so we provide these helper methods to access it as JSON string or Map.
-extension ToolCallExtension on nobodywho.ToolCall {
-  /// Get the arguments as a JSON string
-  String get argumentsJson => nobodywho.toolCallArgumentsJson(toolCall: this);
-
-  /// Get the arguments as a parsed Map
-  Map<String, dynamic> get argumentsMap =>
-      json.decode(nobodywho.toolCallArgumentsJson(toolCall: this))
-          as Map<String, dynamic>;
-}
-
 // Wrapper for the RustTool class. We wrap RustTool so the API for constructing a tool
 // is simply passing the arguments to a constructor.
 class Tool {
@@ -798,7 +782,7 @@ class Chat {
   /// Set the available tools.
   Future<void> setTools(List<Tool> tools) =>
       _chat.setTools(tools: tools.map((t) => t._internalTool).toList());
-  
+
   Future<void> setTemplateVariable(String name, bool value) =>
       _chat.setTemplateVariable(name: name, value: value);
 
