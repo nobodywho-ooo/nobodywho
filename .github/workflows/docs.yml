@@ -17,25 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
         with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: docs/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ./docs
-        run: npm ci
+          version: 1.10.18
 
       - name: Build documentation
         working-directory: ./docs
-        run: npm run build
+        run: quarto render
 
       - name: Deploy to cloudflare pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./docs/build/ --project-name=nobodywho-docs
+          command: pages deploy ./docs/_site/ --project-name=nobodywho-docs
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

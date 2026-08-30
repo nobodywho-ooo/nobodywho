@@ -1,9 +1,8 @@
 import os
 from pathlib import Path
 
-# Don't collect the docusaurus build output — it's generated and may lag behind
-# the real source under docs-*/.
-collect_ignore_glob = ["site/*", "site/**/*"]
+# Don't collect Quarto's generated site.
+collect_ignore_glob = ["_site/*", "_site/**/*"]
 
 MODEL_SYMLINK = Path("./model.gguf")
 EMBEDDING_SYMLINK = Path("./embedding-model.gguf")

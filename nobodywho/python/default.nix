@@ -49,8 +49,7 @@ python3Packages.buildPythonPackage {
     cp -r ${../../docs} docs
     mkdir -p nobodywho/python/tests
     ln -s ../../../tests/img nobodywho/python/tests/img
-    # docs/pyproject.toml exists (for the mkdocs site) and confuses pytest into using
-    # /build/docs as rootdir instead of /build. A setup.cfg at the build root anchors
+    # A setup.cfg at the build root anchors
     # the rootdir here and sets python_files without needing a space-containing flag
     # (pytestFlags is still word-split by nixpkgs when elements contain spaces).
     cat > setup.cfg <<'EOF'

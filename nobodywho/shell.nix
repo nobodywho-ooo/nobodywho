@@ -37,10 +37,8 @@ pkgs.mkShell {
     pkgs.jdk17
     pkgs.gradle
 
-    # for mkdocs
-    pkgs.python3Packages.mkdocs
-    pkgs.python3Packages.regex
-    pkgs.python3Packages.mkdocs-material
+    # for documentation
+    pkgs.quarto
 
     # flutter
     pkgs.flutter

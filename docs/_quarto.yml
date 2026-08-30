@@ -1,0 +1,323 @@
+project:
+  type: website
+  output-dir: _site
+  post-render:
+    - scripts/generate_llms.py
+  render:
+    - index.qmd
+    - docs/*.md
+    - kotlin/**/*.md
+    - python/**/*.md
+    - swift/**/*.md
+    - react-native/**/*.md
+    - flutter/**/*.md
+    - godot/**/*.md
+  resources:
+    - .nojekyll
+    - img
+    - versions.json
+    - version-switcher.js
+
+website:
+  title: NobodyWho
+  description: Local LLM inference for Kotlin, Python, Swift, React Native, Flutter, and Godot
+  site-url: https://docs.nobodywho.ooo
+  favicon: img/favicon.ico
+  bread-crumbs: true
+  page-navigation: true
+  search:
+    location: navbar
+    type: overlay
+  navbar:
+    logo: img/icon.svg
+    logo-alt: NobodyWho
+    collapse-below: lg
+    left:
+      - text: Basics
+        menu:
+          - text: Welcome
+            href: index.qmd
+          - text: Overview
+            href: docs/index.md
+          - text: LLM basics
+            href: docs/llm-basics.md
+          - text: Model selection
+            href: docs/model-selection.md
+      - text: Kotlin
+        href: kotlin/index.md
+      - text: Python
+        href: python/index.md
+      - text: Swift
+        href: swift/index.md
+      - text: React Native
+        href: react-native/index.md
+      - text: Flutter
+        href: flutter/index.md
+      - text: Godot
+        href: godot/install.md
+    tools:
+      - icon: github
+        href: https://github.com/nobodywho-ooo/nobodywho
+        aria-label: GitHub repository
+      - icon: discord
+        href: https://discord.gg/qhaMc2qCYB
+        aria-label: Discord server
+  sidebar:
+    - id: basics
+      title: Basics
+      style: docked
+      contents:
+        - text: Welcome
+          href: index.qmd
+        - docs/index.md
+        - docs/llm-basics.md
+        - docs/model-selection.md
+    - id: kotlin
+      title: Kotlin 2.0.0
+      style: docked
+      contents:
+        - kotlin/index.md
+        - kotlin/chat.md
+        - kotlin/tool-calling.md
+        - kotlin/vision.md
+        - kotlin/sampling.md
+        - kotlin/embeddings-and-rag.md
+        - kotlin/downloading-models.md
+    - id: kotlin-main
+      title: Kotlin main
+      style: docked
+      contents:
+        - kotlin/main/index.md
+        - kotlin/main/chat.md
+        - kotlin/main/tool-calling.md
+        - kotlin/main/vision.md
+        - kotlin/main/sampling.md
+        - kotlin/main/embeddings-and-rag.md
+        - kotlin/main/downloading-models.md
+    - id: kotlin-1.1.0
+      title: Kotlin 1.1.0
+      style: docked
+      contents:
+        - kotlin/1.1.0/index.md
+        - kotlin/1.1.0/chat.md
+        - kotlin/1.1.0/tool-calling.md
+        - kotlin/1.1.0/vision.md
+        - kotlin/1.1.0/sampling.md
+        - kotlin/1.1.0/embeddings-and-rag.md
+        - kotlin/1.1.0/downloading-models.md
+    - id: kotlin-1.0.0
+      title: Kotlin 1.0.0
+      style: docked
+      contents:
+        - kotlin/1.0.0/index.md
+        - kotlin/1.0.0/chat.md
+        - kotlin/1.0.0/tool-calling.md
+        - kotlin/1.0.0/vision.md
+        - kotlin/1.0.0/sampling.md
+        - kotlin/1.0.0/embeddings-and-rag.md
+        - kotlin/1.0.0/downloading-models.md
+    - id: python
+      title: Python 1.5.0
+      style: docked
+      contents:
+        - python/index.md
+        - python/downloading-models.md
+        - python/chat.md
+        - python/tool-calling.md
+        - python/vision.md
+        - python/sampling.md
+        - python/streaming-and-async-api.md
+        - python/embeddings-and-rag.md
+        - python/logging-and-troubleshooting.md
+    - id: python-main
+      title: Python main
+      style: docked
+      contents:
+        - python/main/index.md
+        - python/main/downloading-models.md
+        - python/main/chat.md
+        - python/main/tool-calling.md
+        - python/main/vision.md
+        - python/main/sampling.md
+        - python/main/streaming-and-async-api.md
+        - python/main/embeddings-and-rag.md
+        - python/main/logging-and-troubleshooting.md
+    - id: python-1.4.0
+      title: Python 1.4.0
+      style: docked
+      contents:
+        - python/1.4.0/index.md
+        - python/1.4.0/chat.md
+        - python/1.4.0/tool-calling.md
+        - python/1.4.0/vision.md
+        - python/1.4.0/sampling.md
+        - python/1.4.0/streaming-and-async-api.md
+        - python/1.4.0/embeddings-and-rag.md
+        - python/1.4.0/logging-and-troubleshooting.md
+    - id: swift
+      title: Swift 2.1.0
+      style: docked
+      contents:
+        - swift/index.md
+        - swift/downloading-models.md
+        - swift/chat.md
+        - swift/tool-calling.md
+        - swift/vision.md
+        - swift/sampling.md
+        - swift/embeddings-and-rag.md
+    - id: swift-main
+      title: Swift main
+      style: docked
+      contents:
+        - swift/main/index.md
+        - swift/main/downloading-models.md
+        - swift/main/chat.md
+        - swift/main/tool-calling.md
+        - swift/main/vision.md
+        - swift/main/sampling.md
+        - swift/main/embeddings-and-rag.md
+    - id: swift-2.0.1
+      title: Swift 2.0.1
+      style: docked
+      contents:
+        - swift/2.0.1/index.md
+        - swift/2.0.1/chat.md
+        - swift/2.0.1/tool-calling.md
+        - swift/2.0.1/vision.md
+        - swift/2.0.1/sampling.md
+        - swift/2.0.1/embeddings-and-rag.md
+    - id: react-native
+      title: React Native 2.3.0
+      style: docked
+      contents:
+        - react-native/index.md
+        - react-native/downloading-models.md
+        - react-native/chat.md
+        - react-native/tool-calling.md
+        - react-native/vision.md
+        - react-native/sampling.md
+        - react-native/embeddings-and-rag.md
+    - id: react-native-main
+      title: React Native main
+      style: docked
+      contents:
+        - react-native/main/index.md
+        - react-native/main/downloading-models.md
+        - react-native/main/chat.md
+        - react-native/main/tool-calling.md
+        - react-native/main/vision.md
+        - react-native/main/sampling.md
+        - react-native/main/embeddings-and-rag.md
+    - id: react-native-2.2.0
+      title: React Native 2.2.0
+      style: docked
+      contents:
+        - react-native/2.2.0/index.md
+        - react-native/2.2.0/chat.md
+        - react-native/2.2.0/tool-calling.md
+        - react-native/2.2.0/vision.md
+        - react-native/2.2.0/sampling.md
+        - react-native/2.2.0/embeddings-and-rag.md
+    - id: flutter
+      title: Flutter 2.3.0
+      style: docked
+      contents:
+        - flutter/index.md
+        - flutter/downloading-models.md
+        - flutter/chat.md
+        - flutter/tool-calling.md
+        - flutter/vision.md
+        - flutter/sampling.md
+        - flutter/embeddings-and-rag.md
+    - id: flutter-main
+      title: Flutter main
+      style: docked
+      contents:
+        - flutter/main/index.md
+        - flutter/main/downloading-models.md
+        - flutter/main/chat.md
+        - flutter/main/tool-calling.md
+        - flutter/main/vision.md
+        - flutter/main/sampling.md
+        - flutter/main/embeddings-and-rag.md
+    - id: flutter-2.2.0
+      title: Flutter 2.2.0
+      style: docked
+      contents:
+        - flutter/2.2.0/index.md
+        - flutter/2.2.0/chat.md
+        - flutter/2.2.0/tool-calling.md
+        - flutter/2.2.0/vision.md
+        - flutter/2.2.0/sampling.md
+        - flutter/2.2.0/embeddings-and-rag.md
+    - id: godot
+      title: Godot 9.4.0
+      style: docked
+      contents:
+        - godot/install.md
+        - godot/getting-started.md
+        - godot/downloading-models.md
+        - godot/chat.md
+        - godot/structured-output.md
+        - godot/tool-calling.md
+        - godot/vision.md
+        - godot/sampling.md
+        - godot/embeddings-and-rag.md
+        - godot/faq.md
+    - id: godot-main
+      title: Godot main
+      style: docked
+      contents:
+        - godot/main/install.md
+        - godot/main/getting-started.md
+        - godot/main/downloading-models.md
+        - godot/main/chat.md
+        - godot/main/structured-output.md
+        - godot/main/tool-calling.md
+        - godot/main/vision.md
+        - godot/main/sampling.md
+        - godot/main/embeddings-and-rag.md
+        - godot/main/faq.md
+    - id: godot-9.3.0
+      title: Godot 9.3.0
+      style: docked
+      contents:
+        - godot/9.3.0/install.md
+        - godot/9.3.0/getting-started.md
+        - godot/9.3.0/chat.md
+        - godot/9.3.0/structured-output.md
+        - godot/9.3.0/tool-calling.md
+        - godot/9.3.0/vision.md
+        - godot/9.3.0/sampling.md
+        - godot/9.3.0/embeddings-and-rag.md
+        - godot/9.3.0/faq.md
+  page-footer:
+    left: "[NobodyWho.ai](https://www.nobodywho.ai/)"
+    right: "[EUPL-1.2](https://github.com/nobodywho-ooo/nobodywho/blob/main/LICENSE) | [llms.txt](/llms.txt) | [llms-full.txt](/llms-full.txt)"
+
+format:
+  html:
+    theme: [cosmo, theme.scss]
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    toc-expand: 1
+    lightbox: true
+    code-copy: true
+    code-overflow: wrap
+    code-annotations: select
+    fig-width: 8
+    fig-height: 4
+    link-external-newwindow: true
+    include-in-header:
+      - text: |
+          <link rel="alternate" type="text/markdown" title="LLM-readable docs index" href="/llms.txt">
+          <link rel="alternate" type="text/markdown" title="LLM-readable full docs" href="/llms-full.txt">
+          <script defer data-domain="docs.nobodywho.ooo" src="https://plausible.io/js/pa-AqBGVqlDgFry_9WZW3j-D.js"></script>
+          <script>window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)};plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init();</script>
+    include-after-body:
+      - copy-page.html
+      - version-switcher.html
+
+execute:
+  enabled: false

@@ -1,0 +1,39 @@
+---
+title: NobodyWho
+subtitle: Run open-weight language models directly inside your software
+---
+
+## Welcome
+
+NobodyWho is a lightweight, open-source inference engine for running language models inside your software. It works offline, does not need additional infrastructure, and provides native APIs for Kotlin, Python, Swift, React Native, Flutter, and Godot.
+
+Core features include:
+
+::: welcome-bullets
+- Local inference powered by [llama.cpp](https://github.com/ggml-org/llama.cpp).
+- Token streaming, tool calling, structured output, vision, and embeddings.
+- GPU acceleration across supported desktop and mobile platforms.
+- No model server, API key, or Docker requirement.
+- Native integration with application code instead of a separate inference service.
+:::
+
+## Getting Started
+
+Choose the binding for your application:
+
+- [Kotlin](kotlin/index.md) for Android and JVM applications.
+- [Python](python/index.md) for synchronous and asynchronous Python applications.
+- [Swift](swift/index.md) for macOS and iOS applications.
+- [React Native](react-native/index.md) for Android and iOS applications.
+- [Flutter](flutter/index.md) for mobile and desktop applications.
+- [Godot](godot/install.md) for Godot 4 projects.
+
+Each binding guide covers installation, model downloads, chat, sampling, tool calling, vision, and embeddings where supported.
+
+## New to local language models?
+
+Read [LLM basics](docs/llm-basics.md) for an introduction to models, quantization, context, and the main terms used throughout this documentation. The [model selection guide](docs/model-selection.md) explains how to choose a model for your application and hardware.
+
+## LLM Assistance
+
+Use [llms.txt](llms.txt) as a compact documentation index, or provide [llms-full.txt](llms-full.txt) when an assistant needs all current documentation in one file. The **Copy page** button at the top of each article copies a Markdown version of that page.

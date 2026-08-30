@@ -133,5 +133,5 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup instructions.
 - [`README.md`](README.md) - User-facing documentation
 
 ## Documentation
-Documentation is built with Docusaurus and lives in the `docs/` folder. It is deployed to docs.nobodywho.ooo via Cloudflare Pages (see `.github/workflows/docs.yml`).
+Documentation is built with Quarto and lives in the `docs/` folder. It is deployed to docs.nobodywho.ooo via Cloudflare Pages (see `.github/workflows/docs.yml`).
 

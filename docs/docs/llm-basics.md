@@ -1,7 +1,7 @@
 ---
 title: LLM Basics
 description: Essential concepts for working with language models in NobodyWho
-sidebar_position: 2
+order: 2
 ---
 
 Our goal with NobodyWho is to make it easy to run local LLMs. For this reason we have made it possible to use NobodyWho with minimal knowledge of how LLM works. However you still need to know some basic concepts, so for these we provide some brief explanations. The concepts covered are tokens, context, samplers and tools. 

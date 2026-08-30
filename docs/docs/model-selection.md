@@ -1,7 +1,7 @@
 ---
 title: Model Selection
 description: NobodyWho is a lightweight, open-source AI engine for local LLM inference. Simple, privacy oriented with no infrastructure needed.
-sidebar_position: 7
+order: 7
 ---
 
 Choosing the right language model can make or break your project. In general you want to go as small as possible while still having the capabilities you need for your application.
@@ -31,7 +31,7 @@ NobodyWho can download models directly from Hugging Face. Instead of downloading
 huggingface:owner/repo/filename.gguf
 ```
 
-The model is downloaded once and cached locally — no internet connection is needed after the first load. `hf:` is also accepted as a shorthand.
+The model is downloaded once and cached locally, no internet connection is needed after the first load. `hf:` is also accepted as a shorthand.
 
 You can also pass a full `https://` URL to download a model from any host.
 
@@ -56,7 +56,7 @@ Here's what each part means:
 - `Q4` the quantization level, i.e. the number of bits used per parameter.
 - `K_M` details about the quantization technique. `S` is faster but less precise, `L` is slower but more precise, and `M` is a middle ground. You don't need to worry too much about this for now.
 
-For chatting, you'll need an instruction-tuned GGUF file that includes a Jinja2 chat template in its metadata. This describes the vast majority of GGUF files available, so if you're unsure, just try it — NobodyWho will give you a descriptive error message if something isn't right.
+For chatting, you'll need an instruction-tuned GGUF file that includes a Jinja2 chat template in its metadata. This describes the vast majority of GGUF files available, so if you're unsure, just try it, NobodyWho will give you a descriptive error message if something isn't right.
 
 For embeddings or cross-encoding, you'll need models specifically designed for those tasks, they are typically named accordingly. Although note that cross-encoding models are sometimes referred to as "reranking" models.
 
