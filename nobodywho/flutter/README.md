@@ -91,5 +91,5 @@ For local native-AAR testing, build the shared Android package documented in
 [`../android/README.md`](../android/README.md), then set:
 
 ```bash
-export NOBODYWHO_FLUTTER_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-2.5.0.aar"
+export NOBODYWHO_FLUTTER_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-0.0.0-local.aar"
 ```
