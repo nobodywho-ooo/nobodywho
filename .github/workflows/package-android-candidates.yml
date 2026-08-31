@@ -1,0 +1,173 @@
+name: "Package Android release candidates"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download Flutter Android build artifacts"
+        uses: actions/download-artifact@v5
+        with:
+          pattern: nobodywho-flutter-*-linux-android-release
+          merge-multiple: true
+          path: ./artifacts/flutter
+
+      - name: "Download UniFFI Android build artifacts"
+        uses: actions/download-artifact@v5
+        with:
+          pattern: nobodywho-uniffi-*-linux-android-release
+          merge-multiple: true
+          path: ./artifacts/uniffi
+
+      - name: "Set candidate version"
+        run: |
+          set -euo pipefail
+          VERSION=0.0.0-candidate
+          if [[ "$GITHUB_REF_NAME" == nobodywho-android-v* ]]; then
+            VERSION=${GITHUB_REF_NAME#nobodywho-android-v}
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: "Stage Flutter jniLibs (arm64-v8a)"
+        uses: ./.github/actions/stage-android-jnilibs
+        with:
+          integration: flutter
+          target: aarch64-linux-android
+          source-dir: artifacts/flutter
+          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/arm64-v8a
+
+      - name: "Stage Flutter jniLibs (x86_64)"
+        uses: ./.github/actions/stage-android-jnilibs
+        with:
+          integration: flutter
+          target: x86_64-linux-android
+          source-dir: artifacts/flutter
+          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/x86_64
+
+      - name: "Stage UniFFI jniLibs (arm64-v8a)"
+        uses: ./.github/actions/stage-android-jnilibs
+        with:
+          integration: uniffi
+          target: aarch64-linux-android
+          source-dir: artifacts/uniffi
+          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/arm64-v8a
+
+      - name: "Stage UniFFI jniLibs (x86_64)"
+        uses: ./.github/actions/stage-android-jnilibs
+        with:
+          integration: uniffi
+          target: x86_64-linux-android
+          source-dir: artifacts/uniffi
+          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/x86_64
+
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      - name: "Strip release libraries"
+        run: |
+          set -euo pipefail
+          LLVM_STRIP="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          find nobodywho/android/build/flutter/jniLibs \
+               nobodywho/android/build/uniffi/jniLibs \
+            -type f -name '*.so' -exec "$LLVM_STRIP" --strip-unneeded {} +
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Build native AAR candidates"
+        run: |
+          set -euo pipefail
+          ./nobodywho/kotlin/gradlew -p nobodywho/android \
+            check assemble \
+            generatePomFileForFlutterPublication \
+            generatePomFileForUniffiPublication \
+            -Pversion=${{ env.VERSION }}
+
+      - name: "Validate packaged AARs"
+        env:
+          LLVM_READELF: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
+        run: |
+          set -euo pipefail
+          mkdir -p android-candidates
+
+          validate_aar() {
+            local integration="$1"
+            local entrypoint="$2"
+            local aar="nobodywho/android/build/outputs/nobodywho-${integration}-android-${VERSION}.aar"
+            local unpacked="$RUNNER_TEMP/nobodywho-${integration}-aar"
+
+            test -f "$aar"
+            unzip -tq "$aar"
+            rm -rf "$unpacked"
+            mkdir -p "$unpacked"
+            unzip -q "$aar" -d "$unpacked"
+
+            for abi in arm64-v8a x86_64; do
+              local abi_dir="$unpacked/jni/$abi"
+              test -d "$abi_dir"
+
+              for library in \
+                libggml-base.so libggml.so libllama-common.so libllama.so \
+                libc++_shared.so "$entrypoint"; do
+                test -f "$abi_dir/$library"
+              done
+              if [[ "$abi" == x86_64 ]]; then
+                test -f "$abi_dir/libonnxruntime.so"
+              fi
+
+              compgen -G "$abi_dir/libggml-cpu*.so" >/dev/null
+
+              for library in "$abi_dir"/*.so; do
+                if [[ "$abi" == arm64-v8a ]]; then
+                  "$LLVM_READELF" -h "$library" | grep -q 'Machine:.*AArch64'
+                else
+                  "$LLVM_READELF" -h "$library" | grep -q 'Machine:.*X86-64'
+                fi
+
+                while read -r needed; do
+                  case "$needed" in
+                    libc.so|libm.so|libdl.so|liblog.so|libandroid.so|libz.so|\
+                    libvulkan.so|libEGL.so|libGLESv1_CM.so|libGLESv2.so|libGLESv3.so|\
+                    libjnigraphics.so|libmediandk.so|libaaudio.so|libOpenSLES.so|\
+                    libnativewindow.so)
+                      ;;
+                    *)
+                      if [[ ! -f "$abi_dir/$needed" ]]; then
+                        echo "::error::$integration/$abi/$(basename "$library") needs unpackaged $needed"
+                        exit 1
+                      fi
+                      ;;
+                  esac
+                done < <("$LLVM_READELF" -d "$library" | sed -n 's/.*Shared library: \[\(.*\)\].*/\1/p')
+              done
+            done
+
+            cp "$aar" android-candidates/
+            cp "nobodywho/android/build/publications/${integration}/pom-default.xml" \
+              "android-candidates/nobodywho-${integration}-android-${VERSION}.pom"
+          }
+
+          validate_aar flutter libnobodywho_flutter.so
+          validate_aar uniffi libnobodywho_uniffi.so
+
+      - name: "Upload exact Android candidates"
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho-android-candidate-aars
+          path: android-candidates/
+          if-no-files-found: error
+          retention-days: 14

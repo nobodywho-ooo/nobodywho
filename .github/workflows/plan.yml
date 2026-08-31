@@ -42,6 +42,10 @@ on:
         value: ${{ jobs.plan.outputs.run_regen }}
       run_release:
         value: ${{ jobs.plan.outputs.run_release }}
+      run_android_candidates:
+        value: ${{ jobs.plan.outputs.run_android_candidates }}
+      device_uses_android_candidates:
+        value: ${{ jobs.plan.outputs.device_uses_android_candidates }}
       device_jobs:
         # Selector for mobile-device-tests.yml (e.g. "kotlin-source", "all");
         # empty means none.
@@ -68,6 +72,8 @@ jobs:
       run_docs:           ${{ steps.decide.outputs.run_docs }}
       run_regen:          ${{ steps.decide.outputs.run_regen }}
       run_release:        ${{ steps.decide.outputs.run_release }}
+      run_android_candidates: ${{ steps.decide.outputs.run_android_candidates }}
+      device_uses_android_candidates: ${{ steps.decide.outputs.device_uses_android_candidates }}
       device_jobs:        ${{ steps.decide.outputs.device_jobs }}
       is_full:            ${{ steps.decide.outputs.is_full }}
     steps:
@@ -335,6 +341,27 @@ jobs:
             fi
           fi
 
+          # Source tests normally exercise the native candidate from this run.
+          # A binding release is different: its package must resolve the native
+          # Maven version it actually declares, otherwise a stale or missing pin
+          # can be hidden by placing the branch AAR under that coordinate.
+          device_uses_android_candidates=false
+          if [[ "$device_jobs" == "all" || "$device_jobs" == "source" || ",$device_jobs," == *"-source,"* ]]; then
+            case "$REF" in
+              refs/tags/nobodywho-kotlin-v*|refs/tags/nobodywho-flutter-v*|refs/tags/nobodywho-react-native-v*) ;;
+              *) device_uses_android_candidates=true ;;
+            esac
+          fi
+
+          # Package native Android candidates whenever the Android-native
+          # surface is receiving full binding coverage, or whenever a source
+          # device test explicitly needs an exact candidate AAR.
+          run_android_candidates=false
+          if [[ "$run_flutter" == "true" && "$run_kotlin" == "true" && "$run_react_native" == "true" ]] || \
+             [[ "$device_jobs" == "all" || "$device_jobs" == "source" || ",$device_jobs," == *"-source,"* ]]; then
+            run_android_candidates=true
+          fi
+
           # ---- emit --------------------------------------------------------
           {
             echo "run_rust_core=$run_rust_core"
@@ -349,6 +376,8 @@ jobs:
             echo "run_docs=$run_docs"
             echo "run_regen=$run_regen"
             echo "run_release=$run_release"
+            echo "run_android_candidates=$run_android_candidates"
+            echo "device_uses_android_candidates=$device_uses_android_candidates"
             echo "device_jobs=$device_jobs"
             echo "is_full=$everything"
           } >> "$GITHUB_OUTPUT"
@@ -373,5 +402,7 @@ jobs:
             echo "| regen | $run_regen |"
             echo "| docs | $run_docs |"
             echo "| release | $run_release |"
+            echo "| Android candidates | $run_android_candidates |"
+            echo "| device tests use Android candidates | $device_uses_android_candidates |"
             echo "| device tests | ${device_jobs:-none} |"
           } >> "$GITHUB_STEP_SUMMARY"

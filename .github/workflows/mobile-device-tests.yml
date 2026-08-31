@@ -7,8 +7,12 @@ name: "Mobile Device Tests"
 # notification layer.
 #
 # Every binding gets two jobs:
-#   <binding>-source     builds against the bindings in this repo, so unreleased
-#                        changes get device coverage before they ship.
+#   <binding>-source     first creates the binding's local release candidate,
+#                        then installs that candidate in the device app. Normal
+#                        source runs resolve this run's native AAR from a local
+#                        Maven directory. Binding release tags instead resolve
+#                        the native version declared by the candidate package.
+#                        Nothing is uploaded to a package registry.
 #   <binding>-released   builds against the published package, exactly as a
 #                        consumer does. A failure here means what we already
 #                        shipped is broken, and the fix belongs in the library —
@@ -66,6 +70,14 @@ on:
       test_timeout:
         type: string
         default: "30m"
+      candidate_aars_prebuilt:
+        description: "The caller already uploaded nobodywho-android-candidate-aars"
+        type: boolean
+        default: false
+      native_dependency_mode:
+        description: "candidate uses this run's AAR; released resolves the binding's declared Maven version"
+        type: string
+        default: candidate
     secrets:
       GCP_PROJECT_ID:
         required: true
@@ -90,14 +102,24 @@ jobs:
       flutter_released: ${{ steps.pick.outputs.flutter_released }}
       react_native_source: ${{ steps.pick.outputs.react_native_source }}
       react_native_released: ${{ steps.pick.outputs.react_native_released }}
+      use_native_candidates: ${{ steps.pick.outputs.use_native_candidates }}
     steps:
       - id: pick
         env:
           # Empty on a schedule event, where everything should run.
           SELECTION: ${{ inputs.jobs || 'all' }}
+          NATIVE_DEPENDENCY_MODE: ${{ inputs.native_dependency_mode || 'candidate' }}
         run: |
           set -euo pipefail
           sel="${SELECTION:-all}"
+          case "$NATIVE_DEPENDENCY_MODE" in
+            candidate) use_native_candidates=true ;;
+            released) use_native_candidates=false ;;
+            *)
+              echo "::error::unknown native dependency mode '$NATIVE_DEPENDENCY_MODE'; expected candidate or released"
+              exit 1
+              ;;
+          esac
           # $1 = job name, $2 = group. Whole-token match, so selecting
           # "kotlin-source" never also selects "kotlin-released".
           want() {
@@ -114,75 +136,79 @@ jobs:
             echo "flutter_released=$(want flutter-released released)"
             echo "react_native_source=$(want react-native-source source)"
             echo "react_native_released=$(want react-native-released released)"
+            echo "use_native_candidates=$use_native_candidates"
           } >> "$GITHUB_OUTPUT"
+
+  # A direct schedule/workflow_dispatch has no parent build job. Build and
+  # package the same candidates here; callers such as build-and-test.yml set
+  # candidate_aars_prebuilt after doing these jobs themselves.
+  build-source-native-candidates:
+    needs: select
+    if: >-
+      !inputs.candidate_aars_prebuilt &&
+      needs.select.outputs.use_native_candidates == 'true' &&
+      (
+        needs.select.outputs.kotlin_source == 'true' ||
+        needs.select.outputs.flutter_source == 'true' ||
+        needs.select.outputs.react_native_source == 'true'
+      )
+    uses: ./.github/workflows/build.yml
+    with:
+      android_native: true
+
+  package-source-native-candidates:
+    needs: [select, build-source-native-candidates]
+    if: >-
+      always() &&
+      !inputs.candidate_aars_prebuilt &&
+      needs.select.outputs.use_native_candidates == 'true' &&
+      (
+        needs.select.outputs.kotlin_source == 'true' ||
+        needs.select.outputs.flutter_source == 'true' ||
+        needs.select.outputs.react_native_source == 'true'
+      ) &&
+      needs.build-source-native-candidates.result == 'success'
+    uses: ./.github/workflows/package-android-candidates.yml
 
   # ---------------------------------------------------------------- Kotlin ---
   kotlin-source:
-    needs: select
-    if: needs.select.outputs.kotlin_source == 'true'
+    needs: [select, package-source-native-candidates]
+    if: >-
+      always() &&
+      needs.select.outputs.kotlin_source == 'true' &&
+      (
+        needs.select.outputs.use_native_candidates != 'true' ||
+        inputs.candidate_aars_prebuilt ||
+        needs.package-source-native-candidates.result == 'success'
+      )
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
-      - name: "Cache Cargo Home"
-        # Same key shape as build.yml's cargo-build-android (uniffi / aarch64),
-        # so this shares the warm cache produced by regular CI runs.
-        uses: WarpBuilds/cache@v1
+      - name: "Download tested Android candidates"
+        if: needs.select.outputs.use_native_candidates == 'true'
+        uses: actions/download-artifact@v5
         with:
-          path: |
-            ~/.cargo
-            nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+          name: nobodywho-android-candidate-aars
+          path: ./android-candidates
 
-      - name: "Setup rust toolchain"
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . "$HOME/.cargo/env"
-          rustup update stable
-          rustup default stable
-          rustup target add aarch64-linux-android
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install distro dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
-
-      - name: "Install Android NDK"
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
+      # The packaged Kotlin binding keeps its normal Maven dependency. This
+      # action makes the tested AAR available at that coordinate only inside
+      # the runner; it does not set the binding's native-AAR file override.
+      - name: "Stage UniFFI candidate for Maven resolution"
+        if: needs.select.outputs.use_native_candidates == 'true'
+        uses: ./.github/actions/stage-android-candidate-repository
         with:
-          ndk-version: r28
-          add-to-path: false
+          integration: uniffi
+          candidates-path: android-candidates
+          version-source: nobodywho/kotlin/android/build.gradle.kts
 
-      # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
-      # a device run needs just the arm64-v8a native runtime.
-      - name: "Build uniffi .so (aarch64-linux-android)"
-        working-directory: ./nobodywho
-        run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
-        env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
-          # Keep in sync with build.yml. The dynamic CPU backends use the
-          # libc++_shared.so emitted into nobodywho-runtime.
-          ORT_CXX_STDLIB: "c++_static"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
-          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
-          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-
-      - name: "Stage arm64 UniFFI runtime"
+      - name: "Prepare the Kotlin candidate repository"
         run: |
-          set -euo pipefail
-          JNI=nobodywho/android/build/uniffi/jniLibs/arm64-v8a
-          mkdir -p "$JNI"
-          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-            "$JNI/"
-          cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
-            "$JNI/"
+          REPOSITORY="$RUNNER_TEMP/nobodywho-candidate-maven"
+          mkdir -p "$REPOSITORY"
+          echo "NOBODYWHO_CANDIDATE_MAVEN_REPO=$REPOSITORY" >> "$GITHUB_ENV"
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -195,16 +221,6 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
 
-      # Build the same AAR shape that Maven Central serves. The local override
-      # keeps the source binding from resolving the last released native AAR.
-      - name: "Build source UniFFI AAR"
-        run: |
-          set -euo pipefail
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            uniffiAar -Pversion=0.0.0-device -PnobodywhoAbis=arm64-v8a
-          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-device.aar" \
-            >> "$GITHUB_ENV"
-
       - name: "Cache Gradle"
         uses: WarpBuilds/cache@v1
         with:
@@ -215,10 +231,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-devicetest-
 
-      # Standalone build; consumes :android from ../../kotlin via includeBuild.
-      - name: "Assemble app + androidTest APKs"
+      - name: "Stage the Kotlin release candidate"
+        id: kotlin-candidate
+        working-directory: ./nobodywho/kotlin
+        run: |
+          set -euo pipefail
+          VERSION="0.0.0-candidate.${GITHUB_RUN_ID}"
+          if [[ "$GITHUB_REF_NAME" == nobodywho-kotlin-v* ]]; then
+            VERSION=${GITHUB_REF_NAME#nobodywho-kotlin-v}
+          fi
+
+          # These are the same MavenPublication artifacts and generated POMs
+          # used by the release. Candidate is a file:// repository under
+          # RUNNER_TEMP, so this cannot publish outside the current runner.
+          ./gradlew \
+            :nobodywho-core:publishReleasePublicationToCandidateRepository \
+            :android:publishReleasePublicationToCandidateRepository \
+            -Pversion="$VERSION" \
+            -PcandidateRepository="$NOBODYWHO_CANDIDATE_MAVEN_REPO"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Supplying a version disables the composite build. The app therefore
+      # consumes the staged AAR, JAR, and POMs exactly like a Maven consumer.
+      - name: "Assemble app + androidTest APKs from the candidate"
         working-directory: ./nobodywho/testing-apps/kotlin
-        run: ./gradlew assembleDebug assembleDebugAndroidTest
+        run: |
+          ./gradlew assembleDebug assembleDebugAndroidTest \
+            -PnobodywhoVersion=${{ steps.kotlin-candidate.outputs.version }} \
+            -PnobodywhoRepository="$NOBODYWHO_CANDIDATE_MAVEN_REPO"
 
       - name: "Locate APKs"
         id: apks
@@ -311,63 +351,40 @@ jobs:
 
   # --------------------------------------------------------------- Flutter ---
   flutter-source:
-    needs: select
-    if: needs.select.outputs.flutter_source == 'true'
+    needs: [select, package-source-native-candidates]
+    if: >-
+      always() &&
+      needs.select.outputs.flutter_source == 'true' &&
+      (
+        needs.select.outputs.use_native_candidates != 'true' ||
+        inputs.candidate_aars_prebuilt ||
+        needs.package-source-native-candidates.result == 'success'
+      )
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
-      - name: "Cache Cargo Home"
-        uses: WarpBuilds/cache@v1
+      - name: "Download tested Android candidates"
+        if: needs.select.outputs.use_native_candidates == 'true'
+        uses: actions/download-artifact@v5
         with:
-          path: |
-            ~/.cargo
-            nobodywho/target
-          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-
+          name: nobodywho-android-candidate-aars
+          path: ./android-candidates
 
-      - name: "Setup rust toolchain"
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . "$HOME/.cargo/env"
-          rustup update stable
-          rustup default stable
-          rustup target add aarch64-linux-android
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: "Stage Flutter native candidate for Maven resolution"
+        if: needs.select.outputs.use_native_candidates == 'true'
+        uses: ./.github/actions/stage-android-candidate-repository
+        with:
+          integration: flutter
+          candidates-path: android-candidates
+          version-source: nobodywho/flutter/nobodywho/android/build.gradle.kts
 
-      - name: "Install distro dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
-
-      # nobodywho-flutter's build.rs runs flutter_rust_bridge codegen, so the
-      # Dart toolchain has to exist before the cargo build below.
       - name: "Setup Flutter SDK"
         uses: flutter-actions/setup-flutter@v4
         with:
           channel: stable
           version: 3.35.5
-
-      - name: "Install Android NDK"
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r28
-          add-to-path: false
-
-      - name: "Build flutter .so (aarch64-linux-android)"
-        working-directory: ./nobodywho
-        run: cargo build -p nobodywho-flutter --target aarch64-linux-android --release --locked
-        env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
-          ORT_CXX_STDLIB: "c++_static"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
-          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
-          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -380,31 +397,38 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
 
-      # Feed the source plugin the same multi-library AAR shape that its Maven
-      # dependency supplies to real consumers.
-      - name: "Build source Flutter AAR"
+      - name: "Stage and validate the Flutter release candidate"
         run: |
           set -euo pipefail
-          JNI=nobodywho/android/build/flutter/jniLibs/arm64-v8a
-          mkdir -p "$JNI"
-          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_flutter.so \
-            "$JNI/"
-          cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
-            "$JNI/"
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            flutterAar -Pversion=0.0.0-device -PnobodywhoAbis=arm64-v8a
-          echo "NOBODYWHO_FLUTTER_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-0.0.0-device.aar" \
-            >> "$GITHUB_ENV"
+          SOURCE="$RUNNER_TEMP/nobodywho-flutter-source"
+          ARCHIVE="$RUNNER_TEMP/nobodywho-flutter.tar.gz"
+          CANDIDATE="$RUNNER_TEMP/nobodywho-flutter-candidate"
+          mkdir -p "$SOURCE" "$CANDIDATE"
 
-      # pub's standard local-override mechanism — the committed pubspec keeps
-      # depending on the published package, as a consumer's would.
-      - name: "Point the app at the bindings in this repo"
+          # --to-archive is pub's own non-uploading path: it applies the same
+          # ignore rules, builds the same tar.gz, and runs the same validation
+          # as publish, but writes the upload body to a local file.
+          git archive HEAD:nobodywho/flutter/nobodywho | tar -x -C "$SOURCE"
+          (
+            cd "$SOURCE"
+            flutter pub publish --to-archive="$ARCHIVE"
+          )
+
+          # Pub consumers receive this archive extracted in their package
+          # cache. Use that extracted shape as the app's local dependency.
+          tar -xzf "$ARCHIVE" -C "$CANDIDATE"
+          test -f "$CANDIDATE/pubspec.yaml"
+          echo "NOBODYWHO_FLUTTER_CANDIDATE=$CANDIDATE" >> "$GITHUB_ENV"
+
+      # Pub supports local candidates as directories. This points at the
+      # extracted distributor archive rather than the repository working tree.
+      - name: "Install the Flutter release candidate"
         working-directory: ./nobodywho/testing-apps/flutter
         run: |
-          cat > pubspec_overrides.yaml <<'EOF'
+          cat > pubspec_overrides.yaml <<EOF
           dependency_overrides:
             nobodywho:
-              path: ../../flutter/nobodywho
+              path: $NOBODYWHO_FLUTTER_CANDIDATE
           EOF
           flutter pub get
 
@@ -487,55 +511,34 @@ jobs:
 
   # ---------------------------------------------------------- React Native ---
   react-native-source:
-    needs: select
-    if: needs.select.outputs.react_native_source == 'true'
+    needs: [select, package-source-native-candidates]
+    if: >-
+      always() &&
+      needs.select.outputs.react_native_source == 'true' &&
+      (
+        needs.select.outputs.use_native_candidates != 'true' ||
+        inputs.candidate_aars_prebuilt ||
+        needs.package-source-native-candidates.result == 'success'
+      )
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
-      - name: "Cache Cargo Home"
-        uses: WarpBuilds/cache@v1
+      - name: "Download tested Android candidates"
+        if: needs.select.outputs.use_native_candidates == 'true'
+        uses: actions/download-artifact@v5
         with:
-          path: |
-            ~/.cargo
-            nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+          name: nobodywho-android-candidate-aars
+          path: ./android-candidates
 
-      - name: "Setup rust toolchain"
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          . "$HOME/.cargo/env"
-          rustup update stable
-          rustup default stable
-          rustup target add aarch64-linux-android
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: "Install distro dependencies"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev cmake libshaderc-dev libvulkan-dev glslc gcc-multilib
-
-      - name: "Install Android NDK"
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
+      - name: "Stage UniFFI candidate for Maven resolution"
+        if: needs.select.outputs.use_native_candidates == 'true'
+        uses: ./.github/actions/stage-android-candidate-repository
         with:
-          ndk-version: r28
-          add-to-path: false
-
-      - name: "Build uniffi .so (aarch64-linux-android)"
-        working-directory: ./nobodywho
-        run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
-        env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
-          ORT_CXX_STDLIB: "c++_static"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
-          CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          CC_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang"
-          CXX_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++"
-          AR_aarch64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          integration: uniffi
+          candidates-path: android-candidates
+          version-source: nobodywho/react-native/android/build.gradle
 
       # The React Native template declares engines.node >= 22.11.0.
       - uses: actions/setup-node@v4
@@ -557,22 +560,6 @@ jobs:
         with:
           packages: "platform-tools platforms;android-36 build-tools;35.0.0 ndk;28.2.13676358"
 
-      # The source AAR has the same complete contents as the published AAR.
-      # React Native's Gradle module excludes libc++_shared.so when extracting it.
-      - name: "Build source UniFFI AAR"
-        run: |
-          set -euo pipefail
-          JNI=nobodywho/android/build/uniffi/jniLibs/arm64-v8a
-          mkdir -p "$JNI"
-          cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-            "$JNI/"
-          cp -L nobodywho/target/aarch64-linux-android/release/nobodywho-runtime/* \
-            "$JNI/"
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            uniffiAar -Pversion=0.0.0-device -PnobodywhoAbis=arm64-v8a
-          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-device.aar" \
-            >> "$GITHUB_ENV"
-
       - name: "Cache Gradle"
         uses: WarpBuilds/cache@v1
         with:
@@ -583,23 +570,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-rn-
 
-      # Point the app at the in-repo binding. NOBODYWHO_UNIFFI_ANDROID_AAR from
-      # the source-AAR step keeps its native dependency on this branch too.
-      # Building the binding from source compiles its C++, which resolves
-      # headers from its own dependency (uniffi-bindgen-react-native) relative
-      # to the binding directory — so the binding needs its node_modules too.
-      # Consumers never hit this: npm installs the published package's
-      # dependencies into their own tree.
-      - name: "Install the binding's dependencies"
+      # npm publish creates this same tarball before uploading it. Packing it
+      # locally exercises the package's files allowlist and lifecycle scripts
+      # without contacting the registry's publication endpoint.
+      - name: "Pack the React Native release candidate"
         working-directory: ./nobodywho/react-native
-        run: npm ci
+        run: |
+          set -euo pipefail
+          DESTINATION="$RUNNER_TEMP/nobodywho-react-native-candidate"
+          mkdir -p "$DESTINATION"
+          npm pack --pack-destination "$DESTINATION"
+          mapfile -t PACKAGES < <(find "$DESTINATION" -maxdepth 1 -type f -name '*.tgz' -print)
+          if [[ ${#PACKAGES[@]} -ne 1 ]]; then
+            echo "::error::expected exactly one React Native candidate tarball"
+            exit 1
+          fi
+          echo "NOBODYWHO_REACT_NATIVE_CANDIDATE=${PACKAGES[0]}" >> "$GITHUB_ENV"
 
-      - name: "Point the app at the bindings in this repo"
+      - name: "Install the React Native release candidate"
         working-directory: ./nobodywho/testing-apps/react-native
         run: |
           set -euo pipefail
-          # Installs the dependency tree and links the in-repo binding in one go.
-          npm install ../../react-native
+          npm install "$NOBODYWHO_REACT_NATIVE_CANDIDATE"
 
       - name: "Build app + androidTest APKs"
         working-directory: ./nobodywho/testing-apps/react-native/android

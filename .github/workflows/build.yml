@@ -17,6 +17,10 @@ on:
       run_react_native:
         type: boolean
         default: false
+      android_native:
+        description: "Build both Flutter and UniFFI Android native release candidates only"
+        type: boolean
+        default: false
       apple_extended:
         type: boolean
         default: false
@@ -26,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       integrations: ${{ steps.gen.outputs.integrations }}
+      android_integrations: ${{ steps.gen.outputs.android_integrations }}
       macos_matrix: ${{ steps.gen.outputs.macos_matrix }}
     steps:
       - id: gen
@@ -40,6 +45,21 @@ jobs:
           fi
           IFS=,
           echo "integrations=[${ints[*]}]" >> "$GITHUB_OUTPUT"
+          unset IFS
+
+          android_ints=()
+          [[ "${{ inputs.run_godot }}" == "true" ]] && android_ints+=('"godot"') || true
+          if [[ "${{ inputs.run_flutter }}" == "true" ]] || [[ "${{ inputs.android_native }}" == "true" ]]; then
+            android_ints+=('"flutter"')
+          fi
+          if [[ "${{ inputs.run_swift }}"        == "true" ]] || \
+             [[ "${{ inputs.run_kotlin }}"       == "true" ]] || \
+             [[ "${{ inputs.run_react_native }}" == "true" ]] || \
+             [[ "${{ inputs.android_native }}"   == "true" ]]; then
+            android_ints+=('"uniffi"')
+          fi
+          IFS=,
+          echo "android_integrations=[${android_ints[*]}]" >> "$GITHUB_OUTPUT"
           unset IFS
 
           combos=()
@@ -533,7 +553,7 @@ jobs:
 
   cargo-build-android:
     needs: matrix-gen
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_react_native
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_react_native || inputs.android_native
     runs-on: warp-ubuntu-latest-x64-4x
     strategy:
       fail-fast: false
@@ -541,7 +561,7 @@ jobs:
         target:
           - "aarch64-linux-android"
           - "x86_64-linux-android"
-        integration: ${{ fromJSON(needs.matrix-gen.outputs.integrations) }}
+        integration: ${{ fromJSON(needs.matrix-gen.outputs.android_integrations) }}
     steps:
       - uses: actions/checkout@v5
 
@@ -611,9 +631,8 @@ jobs:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
           # ort-sys hardcodes `-lc++_shared` on Android, which undoes the
           # static C++ runtime that llama-cpp-rs's `android-static-stdcxx`
-          # already gives us. Linking it statically too leaves the .so needing
-          # only liblog/libdl/libm/libc, so no companion libc++_shared.so has to
-          # be shipped and consumers need no NDK to build against us.
+          # already gives the entry-point library. The dynamic CPU backends
+          # still use the libc++_shared.so placed in nobodywho-runtime.
           ORT_CXX_STDLIB: "c++_static"
           # aarch64 (arm64-v8a)
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
