@@ -66,8 +66,10 @@ impl EncoderAsync {
         texts: Vec<String>,
     ) -> Result<Vec<Vec<f32>>, EncoderWorkerError> {
         let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        self.guard
-            .send(EncoderMsg::EncodeBatch(texts, embedding_tx));
+        self.guard.send(EncoderMsg::EncodeBatch {
+            texts,
+            output_tx: embedding_tx,
+        });
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
             "Could not encode the texts. Worker never responded.".into(),
         ))?
@@ -75,16 +77,16 @@ impl EncoderAsync {
 }
 
 enum EncoderMsg {
-    EncodeBatch(
-        Vec<String>,
-        tokio::sync::mpsc::Sender<Result<Vec<Vec<f32>>, EncoderWorkerError>>,
-    ),
+    EncodeBatch {
+        texts: Vec<String>,
+        output_tx: tokio::sync::mpsc::Sender<Result<Vec<Vec<f32>>, EncoderWorkerError>>,
+    },
 }
 
 /// Handle one message, reporting success or failure on its reply channel.
 fn process_worker_msg(worker_state: &mut Worker<'_, EncoderWorker>, msg: EncoderMsg) {
     match msg {
-        EncoderMsg::EncodeBatch(texts, respond) => {
+        EncoderMsg::EncodeBatch { texts, output_tx } => {
             let pooling = worker_state.extra.pooling;
             let embeddings = worker_state
                 .engine
@@ -100,7 +102,7 @@ fn process_worker_msg(worker_state: &mut Worker<'_, EncoderWorker>, msg: Encoder
                     BatchedReadError::Read(error) => EncoderWorkerError::Read(error),
                     BatchedReadError::Output(error) => EncoderWorkerError::Embeddings(error),
                 });
-            let _ = respond.blocking_send(embeddings);
+            let _ = output_tx.blocking_send(embeddings);
         }
     }
 }

@@ -70,8 +70,11 @@ impl CrossEncoderAsync {
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let (scores_tx, mut scores_rx) = tokio::sync::mpsc::channel(1);
-        self.guard
-            .send(CrossEncoderMsg::Rank(query, documents, scores_tx));
+        self.guard.send(CrossEncoderMsg::Rank {
+            query,
+            documents,
+            output_tx: scores_tx,
+        });
         scores_rx
             .recv()
             .await
@@ -102,20 +105,24 @@ impl CrossEncoderAsync {
 }
 
 enum CrossEncoderMsg {
-    Rank(
-        String,
-        Vec<String>,
-        tokio::sync::mpsc::Sender<Result<Vec<f32>, CrossEncoderWorkerError>>,
-    ),
+    Rank {
+        query: String,
+        documents: Vec<String>,
+        output_tx: tokio::sync::mpsc::Sender<Result<Vec<f32>, CrossEncoderWorkerError>>,
+    },
 }
 
 /// Handle one message, reporting success or failure on its reply channel.
 fn process_worker_msg(worker_state: &mut Worker<'_, CrossEncoderWorker>, msg: CrossEncoderMsg) {
     match msg {
-        CrossEncoderMsg::Rank(query, documents, respond) => {
+        CrossEncoderMsg::Rank {
+            query,
+            documents,
+            output_tx,
+        } => {
             let scores = worker_state.rank(query, documents);
 
-            let _ = respond.blocking_send(scores);
+            let _ = output_tx.blocking_send(scores);
         }
     }
 }
