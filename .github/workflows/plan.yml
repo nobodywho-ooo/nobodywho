@@ -353,14 +353,10 @@ jobs:
             esac
           fi
 
-          # Package native Android candidates whenever the Android-native
-          # surface is receiving full binding coverage, or whenever a source
-          # device test explicitly needs an exact candidate AAR.
-          run_android_candidates=false
-          if [[ "$run_flutter" == "true" && "$run_kotlin" == "true" && "$run_react_native" == "true" ]] || \
-             [[ "$device_jobs" == "all" || "$device_jobs" == "source" || ",$device_jobs," == *"-source,"* ]]; then
-            run_android_candidates=true
-          fi
+          # Package native Android candidates only when the selected device
+          # tests will consume them. Scheduled/direct mobile runs build their
+          # own candidates inside mobile-device-tests.yml.
+          run_android_candidates="$device_uses_android_candidates"
 
           # ---- emit --------------------------------------------------------
           {
