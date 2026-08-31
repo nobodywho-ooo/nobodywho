@@ -45,9 +45,7 @@ impl EncoderAsync {
             };
 
             while let Ok(msg) = msg_rx.recv() {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!(error=%e, "Encoder Worker crashed");
-                }
+                process_worker_msg(&mut worker_state, msg);
             }
         });
 
@@ -68,24 +66,27 @@ impl EncoderAsync {
         texts: Vec<String>,
     ) -> Result<Vec<Vec<f32>>, EncoderWorkerError> {
         let (embedding_tx, mut embedding_rx) = tokio::sync::mpsc::channel(1);
-        self.guard
-            .send(EncoderMsg::EncodeBatch(texts, embedding_tx));
+        self.guard.send(EncoderMsg::EncodeBatch {
+            texts,
+            output_tx: embedding_tx,
+        });
         embedding_rx.recv().await.ok_or(EncoderWorkerError::Encode(
             "Could not encode the texts. Worker never responded.".into(),
-        ))
+        ))?
     }
 }
 
 enum EncoderMsg {
-    EncodeBatch(Vec<String>, tokio::sync::mpsc::Sender<Vec<Vec<f32>>>),
+    EncodeBatch {
+        texts: Vec<String>,
+        output_tx: tokio::sync::mpsc::Sender<Result<Vec<Vec<f32>>, EncoderWorkerError>>,
+    },
 }
 
-fn process_worker_msg(
-    worker_state: &mut Worker<'_, EncoderWorker>,
-    msg: EncoderMsg,
-) -> Result<(), EncoderWorkerError> {
+/// Handle one message, reporting success or failure on its reply channel.
+fn process_worker_msg(worker_state: &mut Worker<'_, EncoderWorker>, msg: EncoderMsg) {
     match msg {
-        EncoderMsg::EncodeBatch(texts, respond) => {
+        EncoderMsg::EncodeBatch { texts, output_tx } => {
             let pooling = worker_state.extra.pooling;
             let embeddings = worker_state
                 .engine
@@ -100,12 +101,10 @@ fn process_worker_msg(
                 .map_err(|error| match error {
                     BatchedReadError::Read(error) => EncoderWorkerError::Read(error),
                     BatchedReadError::Output(error) => EncoderWorkerError::Embeddings(error),
-                })?;
-            let _ = respond.blocking_send(embeddings);
+                });
+            let _ = output_tx.blocking_send(embeddings);
         }
     }
-
-    Ok(())
 }
 
 struct EncoderWorker {
@@ -295,5 +294,25 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_oversized_input_keeps_encoder_alive() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_embeddings_model();
+        let encoder = Encoder::new(model, 64);
+
+        let err = encoder.encode("word ".repeat(500)).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EncoderWorkerError::Read(crate::errors::ReadError::InputExceedsContext { .. })
+            ),
+            "the read error should reach the caller, got {err:?}"
+        );
+
+        encoder
+            .encode("Copenhagen is the capital of Denmark.".to_string())
+            .expect("worker still answers");
     }
 }
