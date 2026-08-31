@@ -109,7 +109,7 @@ from Maven Central. For local native changes, build the shared AAR as described
 in [`../android/README.md`](../android/README.md), then override the dependency:
 
 ```bash
-export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-2.5.0.aar"
+export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
 ./nobodywho/kotlin/gradlew -p nobodywho/kotlin :android:assembleDebug
 ```
 

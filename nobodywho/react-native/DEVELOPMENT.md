@@ -169,7 +169,7 @@ described in [`../android/README.md`](../android/README.md). Then point the
 React Native build at it:
 
 ```bash
-export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-2.5.0.aar"
+export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
 ```
 
 Gradle extracts the AAR once; CMake links against its UniFFI entry point and
