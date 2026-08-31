@@ -474,7 +474,7 @@ pub enum WorkerError {
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum SetterError {
     #[error("Worker terminated before processing setter: {0}")]
-    SetterError(String),
+    WorkerTerminated(String),
 
     #[error(transparent)]
     #[diagnostic(transparent)]

@@ -20,6 +20,9 @@ pub mod tokenizer;
 pub mod tool_calling;
 pub mod voice_activity_detection;
 
+/// Re-exported so bindings can name `Diagnostic` without depending on miette directly.
+pub use miette;
+
 /// Render a miette diagnostic to a plain-text string, including any `help` text,
 /// error codes, and related errors. Falls back to `to_string()` if rendering fails.
 ///

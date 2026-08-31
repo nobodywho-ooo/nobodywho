@@ -585,7 +585,7 @@ impl ChatHandle {
         // block until processed
         output_rx
             .blocking_recv()
-            .ok_or_else(|| crate::errors::SetterError::SetterError(label.into()))?
+            .ok_or_else(|| crate::errors::SetterError::WorkerTerminated(label.into()))?
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -961,7 +961,7 @@ impl ChatHandleAsync {
         output_rx
             .recv()
             .await
-            .ok_or_else(|| crate::errors::SetterError::SetterError(label.into()))?
+            .ok_or_else(|| crate::errors::SetterError::WorkerTerminated(label.into()))?
     }
 
     /// Reset the chat conversation with a new system prompt and tools.

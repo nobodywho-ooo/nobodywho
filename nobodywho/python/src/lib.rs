@@ -8,9 +8,8 @@ use nobodywho::render_miette;
 
 mod parse;
 
-/// A setter the worker rejected. Rendered with the diagnostic help text, the
-/// way generation errors are.
-fn setter_err(e: nobodywho::errors::SetterError) -> PyErr {
+/// Any core error as a `RuntimeError`, rendered with its diagnostic help text.
+fn err(e: impl nobodywho::miette::Diagnostic) -> PyErr {
     pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e))
 }
 
@@ -138,9 +137,7 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(
-                &err,
-            ))),
+            Err(e) => Err(err(e)),
         }
     }
 
@@ -212,9 +209,7 @@ impl Model {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
             }),
-            Err(err) => Err(pyo3::exceptions::PyRuntimeError::new_err(render_miette(
-                &err,
-            ))),
+            Err(e) => Err(err(e)),
         }
     }
 
@@ -249,7 +244,7 @@ impl<'py> ModelOrPath<'py> {
                     ))
                 })?;
                 nobodywho::llm::get_model(path_str, true, None, None, None)
-                    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+                    .map_err(err)
                     .map(Arc::new)
             }
         }
@@ -820,26 +815,20 @@ impl TextToSpeech {
             temperature,
             huggingface_token,
         )?;
-        let tts = nobodywho::text_to_speech::TextToSpeech::with_device(config, device)
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        let tts =
+            nobodywho::text_to_speech::TextToSpeech::with_device(config, device).map_err(err)?;
         Ok(Self { tts })
     }
 
     /// Synthesize text and return WAV bytes.
     pub fn synthesize(&self, text: String, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
-        let bytes = py
-            .detach(|| self.tts.synthesize(text))
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        let bytes = py.detach(|| self.tts.synthesize(text)).map_err(err)?;
         Ok(pyo3::types::PyBytes::new(py, &bytes).unbind())
     }
 
     /// Synthesize text asynchronously and return WAV bytes.
     pub async fn synthesize_async(&self, text: String) -> PyResult<Py<pyo3::types::PyBytes>> {
-        let bytes = self
-            .tts
-            .synthesize_async(text)
-            .await
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        let bytes = self.tts.synthesize_async(text).await.map_err(err)?;
         Python::attach(|py| Ok(pyo3::types::PyBytes::new(py, &bytes).unbind()))
     }
 }
@@ -1415,8 +1404,7 @@ impl Chat {
             }
             builder.build()
         });
-        let chat_handle = build_result
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        let chat_handle = build_result.map_err(err)?;
 
         Ok(Self {
             chat_handle: Some(chat_handle),
@@ -1510,7 +1498,7 @@ impl Chat {
         py.detach(|| {
             self.handle()
                 .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
-                .map_err(setter_err)
+                .map_err(err)
         })
     }
 
@@ -1519,7 +1507,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If reset fails
     pub fn reset_history(&self, py: Python) -> PyResult<()> {
-        py.detach(|| self.handle().reset_history().map_err(setter_err))
+        py.detach(|| self.handle().reset_history().map_err(err))
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
@@ -1561,7 +1549,7 @@ impl Chat {
         py.detach(|| {
             self.handle()
                 .set_template_variable(name, value)
-                .map_err(setter_err)
+                .map_err(err)
         })
     }
 
@@ -1577,11 +1565,7 @@ impl Chat {
         variables: std::collections::HashMap<String, bool>,
         py: Python,
     ) -> PyResult<()> {
-        py.detach(|| {
-            self.handle()
-                .set_template_variables(variables)
-                .map_err(setter_err)
-        })
+        py.detach(|| self.handle().set_template_variables(variables).map_err(err))
     }
 
     /// Get all template variables.
@@ -1638,7 +1622,7 @@ impl Chat {
         let msgs = pythonize::depythonize(&msgs)
             .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
 
-        py.detach(|| self.handle().set_chat_history(msgs).map_err(setter_err))
+        py.detach(|| self.handle().set_chat_history(msgs).map_err(err))
     }
 
     /// Stop the current text generation immediately.
@@ -1660,7 +1644,7 @@ impl Chat {
         py.detach(|| {
             self.handle()
                 .set_tools(tools.into_iter().map(|t| t.tool).collect())
-                .map_err(setter_err)
+                .map_err(err)
         })
     }
 
@@ -1672,11 +1656,7 @@ impl Chat {
     /// Raises:
     ///     RuntimeError: If the system prompt cannot be changed
     pub fn set_system_prompt(&self, system_prompt: Option<String>, py: Python) -> PyResult<()> {
-        py.detach(|| {
-            self.handle()
-                .set_system_prompt(system_prompt)
-                .map_err(setter_err)
-        })
+        py.detach(|| self.handle().set_system_prompt(system_prompt).map_err(err))
     }
 
     /// Update the sampler configuration without resetting chat history.
@@ -1690,7 +1670,7 @@ impl Chat {
         py.detach(|| {
             self.handle()
                 .set_sampler_config(sampler.sampler_config)
-                .map_err(setter_err)
+                .map_err(err)
         })
     }
 
@@ -1889,8 +1869,7 @@ impl ChatAsync {
             }
             builder.build_async()
         });
-        let chat_handle = build_result
-            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))?;
+        let chat_handle = build_result.map_err(err)?;
         Ok(Self {
             chat_handle: Some(chat_handle),
         })
@@ -1978,7 +1957,7 @@ impl ChatAsync {
         self.handle()
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
-            .map_err(setter_err)
+            .map_err(err)
     }
 
     /// Clear the chat history while keeping the system prompt and tools unchanged.
@@ -1986,7 +1965,7 @@ impl ChatAsync {
     /// Raises:
     ///     RuntimeError: If reset fails
     pub async fn reset_history(&self) -> PyResult<()> {
-        self.handle().reset_history().await.map_err(setter_err)
+        self.handle().reset_history().await.map_err(err)
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
@@ -2029,7 +2008,7 @@ impl ChatAsync {
         self.handle()
             .set_template_variable(name, value)
             .await
-            .map_err(setter_err)
+            .map_err(err)
     }
 
     /// Set all template variables, replacing any existing ones.
@@ -2046,7 +2025,7 @@ impl ChatAsync {
         self.handle()
             .set_template_variables(variables)
             .await
-            .map_err(setter_err)
+            .map_err(err)
     }
 
     /// Get all template variables.
@@ -2106,10 +2085,7 @@ impl ChatAsync {
                 .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))
         })?;
 
-        self.handle()
-            .set_chat_history(msgs)
-            .await
-            .map_err(setter_err)
+        self.handle().set_chat_history(msgs).await.map_err(err)
     }
 
     /// Stop the current text generation immediately.
@@ -2131,7 +2107,7 @@ impl ChatAsync {
         self.handle()
             .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .await
-            .map_err(setter_err)
+            .map_err(err)
     }
 
     /// Update the system prompt without resetting chat history.
@@ -2145,7 +2121,7 @@ impl ChatAsync {
         self.handle()
             .set_system_prompt(system_prompt)
             .await
-            .map_err(setter_err)
+            .map_err(err)
     }
 
     /// Update the sampler configuration without resetting chat history.
@@ -2159,7 +2135,7 @@ impl ChatAsync {
         self.handle()
             .set_sampler_config(sampler.sampler_config)
             .await
-            .map_err(setter_err)
+            .map_err(err)
     }
 
     /// Get the current sampler configuration.
@@ -2309,8 +2285,7 @@ fn download_model(
     })?;
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
     let progress = resolve_on_download_progress(on_download_progress)?;
-    nobodywho::llm::download_model(path_str, headers_vec, progress)
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(render_miette(&e)))
+    nobodywho::llm::download_model(path_str, headers_vec, progress).map_err(err)
 }
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
