@@ -26,6 +26,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Fixed
 
 - A chat setter the worker rejects no longer kills the chat. Passing an invalid sampler config, or tools to a model with no tool-call template, ended the worker thread: the setter reported only "worker terminated", the real reason went to the log, and every later call on that chat — including `ask()` — failed the same way. The reason now reaches the caller and the chat keeps working, with the rejected value not applied. `set_chat_history` was fixed this way in the chat-completion change above; this covers `set_sampler_config`, `set_tools` and `reset_chat` too. Available for all bindings.
+- An input the encoder or cross-encoder rejects no longer kills it. Encoding or ranking text longer than the context window ended the worker thread, so the call reported only that the worker never responded, and every later `encode()` or `rank()` on that instance failed the same way. The reason — including the "input is too large for the context window" hint naming the token count and `n_ctx` — now reaches the caller, and the encoder stays usable for the next input. Available for all bindings.
 
 ## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20
 

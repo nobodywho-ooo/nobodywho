@@ -55,9 +55,7 @@ impl CrossEncoderAsync {
             };
 
             while let Ok(msg) = msg_rx.recv() {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!(error=%e, "Cross-encoder worker crashed");
-                }
+                process_worker_msg(&mut worker_state, msg);
             }
         });
 
@@ -77,7 +75,7 @@ impl CrossEncoderAsync {
         scores_rx
             .recv()
             .await
-            .ok_or(CrossEncoderWorkerError::NoResponse)
+            .ok_or(CrossEncoderWorkerError::NoResponse)?
     }
 
     pub async fn rank_and_sort(
@@ -104,22 +102,22 @@ impl CrossEncoderAsync {
 }
 
 enum CrossEncoderMsg {
-    Rank(String, Vec<String>, tokio::sync::mpsc::Sender<Vec<f32>>),
+    Rank(
+        String,
+        Vec<String>,
+        tokio::sync::mpsc::Sender<Result<Vec<f32>, CrossEncoderWorkerError>>,
+    ),
 }
 
-fn process_worker_msg(
-    worker_state: &mut Worker<'_, CrossEncoderWorker>,
-    msg: CrossEncoderMsg,
-) -> Result<(), CrossEncoderWorkerError> {
+/// Handle one message, reporting success or failure on its reply channel.
+fn process_worker_msg(worker_state: &mut Worker<'_, CrossEncoderWorker>, msg: CrossEncoderMsg) {
     match msg {
         CrossEncoderMsg::Rank(query, documents, respond) => {
-            let scores = worker_state.rank(query, documents)?;
+            let scores = worker_state.rank(query, documents);
 
             let _ = respond.blocking_send(scores);
         }
     }
-
-    Ok(())
 }
 
 struct CrossEncoderWorker {}
@@ -367,5 +365,30 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_oversized_input_keeps_crossencoder_alive() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_crossencoder_model();
+        let crossencoder = CrossEncoder::new(model, 64);
+
+        let err = crossencoder
+            .rank("query".to_string(), vec!["word ".repeat(500)])
+            .unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CrossEncoderWorkerError::Read(crate::errors::ReadError::InputExceedsContext { .. })
+            ),
+            "the read error should reach the caller, got {err:?}"
+        );
+
+        crossencoder
+            .rank(
+                "What is the capital of France?".to_string(),
+                vec!["Paris is the capital of France.".to_string()],
+            )
+            .expect("worker still answers");
     }
 }
