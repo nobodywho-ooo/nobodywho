@@ -670,16 +670,14 @@ impl RustChat {
         self.chat
             .set_chat_history(messages)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn set_sampler_config(
-        &self,
-        sampler_config: SamplerConfig,
-    ) -> Result<(), nobodywho::errors::SetterError> {
+    pub async fn set_sampler_config(&self, sampler_config: SamplerConfig) -> Result<(), String> {
         self.chat
             .set_sampler_config(sampler_config.sampler_config)
             .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn get_sampler_config(
@@ -695,31 +693,33 @@ impl RustChat {
         &self,
         system_prompt: Option<String>,
         tools: Vec<RustTool>,
-    ) -> Result<(), nobodywho::errors::SetterError> {
+    ) -> Result<(), String> {
         self.chat
             .reset_chat(system_prompt, tools.into_iter().map(|t| t.tool).collect())
             .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn reset_history(&self) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat.reset_history().await
+    pub async fn reset_history(&self) -> Result<(), String> {
+        self.chat
+            .reset_history()
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
     #[deprecated(note = "Use setTemplateVariable(\"enable_thinking\", value) instead")]
-    pub async fn set_allow_thinking(
-        &self,
-        allow_thinking: bool,
-    ) -> Result<(), nobodywho::errors::SetterError> {
+    pub async fn set_allow_thinking(&self, allow_thinking: bool) -> Result<(), String> {
         self.chat
             .set_template_variable("enable_thinking".to_string(), allow_thinking)
             .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn set_system_prompt(
-        &self,
-        system_prompt: Option<String>,
-    ) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat.set_system_prompt(system_prompt).await
+    pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> Result<(), String> {
+        self.chat
+            .set_system_prompt(system_prompt)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn get_system_prompt(
@@ -759,28 +759,28 @@ impl RustChat {
         self.chat.mtp_acceptance_rate().await
     }
 
-    pub async fn set_tools(
-        &self,
-        tools: Vec<RustTool>,
-    ) -> Result<(), nobodywho::errors::SetterError> {
+    pub async fn set_tools(&self, tools: Vec<RustTool>) -> Result<(), String> {
         self.chat
             .set_tools(tools.into_iter().map(|t| t.tool).collect())
             .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
-    pub async fn set_template_variable(
-        &self,
-        name: String,
-        value: bool,
-    ) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat.set_template_variable(name, value).await
+    pub async fn set_template_variable(&self, name: String, value: bool) -> Result<(), String> {
+        self.chat
+            .set_template_variable(name, value)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn set_template_variables(
         &self,
         variables: HashMap<String, bool>,
-    ) -> Result<(), nobodywho::errors::SetterError> {
-        self.chat.set_template_variables(variables).await
+    ) -> Result<(), String> {
+        self.chat
+            .set_template_variables(variables)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
     }
 
     pub async fn get_template_variables(

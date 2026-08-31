@@ -655,14 +655,6 @@ abstract class NobodyWhoApi extends BaseApi {
   get rust_arc_decrement_strong_count_SamplerPresetsPtr;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_SetterError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_SetterError;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_SetterErrorPtr;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TextToSpeech;
 
   RustArcDecrementStrongCountFnType
@@ -1647,8 +1639,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatResetContextConstMeta,
         argValues: [that, systemPrompt, tools],
@@ -1681,8 +1672,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatResetHistoryConstMeta,
         argValues: [that],
@@ -1719,8 +1709,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetAllowThinkingConstMeta,
         argValues: [that, allowThinking],
@@ -1799,8 +1788,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetSamplerConfigConstMeta,
         argValues: [that, samplerConfig],
@@ -1838,8 +1826,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetSystemPromptConstMeta,
         argValues: [that, systemPrompt],
@@ -1879,8 +1866,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetTemplateVariableConstMeta,
         argValues: [that, name, value],
@@ -1918,8 +1904,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetTemplateVariablesConstMeta,
         argValues: [that, variables],
@@ -1960,8 +1945,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError,
+          decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateRustChatSetToolsConstMeta,
         argValues: [that, tools],
@@ -4308,14 +4292,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSamplerPresets;
 
   RustArcIncrementStrongCountFnType
-  get rust_arc_increment_strong_count_SetterError => wire
-      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError;
-
-  RustArcDecrementStrongCountFnType
-  get rust_arc_decrement_strong_count_SetterError => wire
-      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError;
-
-  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_TextToSpeech => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech;
 
@@ -4501,15 +4477,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return SamplerPresetsImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  SetterError
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return SetterErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4872,15 +4839,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return SamplerPresetsImpl.frbInternalDcoDecode(raw as List<dynamic>);
-  }
-
-  @protected
-  SetterError
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return SetterErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -5637,18 +5595,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
-  SetterError
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return SetterErrorImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
   TextToSpeech
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
     SseDeserializer deserializer,
@@ -6083,18 +6029,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return SamplerPresetsImpl.frbInternalSseDecode(
-      sse_decode_usize(deserializer),
-      sse_decode_i_32(deserializer),
-    );
-  }
-
-  @protected
-  SetterError
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return SetterErrorImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -7046,19 +6980,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
 
   @protected
   void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
-    SetterError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as SetterErrorImpl).frbInternalSseEncode(move: true),
-      serializer,
-    );
-  }
-
-  @protected
-  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerTextToSpeech(
     TextToSpeech self,
     SseSerializer serializer,
@@ -7572,19 +7493,6 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as SamplerPresetsImpl).frbInternalSseEncode(move: null),
-      serializer,
-    );
-  }
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSetterError(
-    SetterError self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_usize(
-      (self as SetterErrorImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -9133,26 +9041,6 @@ class SamplerPresetsImpl extends RustOpaque implements SamplerPresets {
         .instance
         .api
         .rust_arc_decrement_strong_count_SamplerPresetsPtr,
-  );
-}
-
-@sealed
-class SetterErrorImpl extends RustOpaque implements SetterError {
-  // Not to be used by end users
-  SetterErrorImpl.frbInternalDcoDecode(List<dynamic> wire)
-    : super.frbInternalDcoDecode(wire, _kStaticData);
-
-  // Not to be used by end users
-  SetterErrorImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
-    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
-
-  static final _kStaticData = RustArcStaticData(
-    rustArcIncrementStrongCount:
-        NobodyWho.instance.api.rust_arc_increment_strong_count_SetterError,
-    rustArcDecrementStrongCount:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_SetterError,
-    rustArcDecrementStrongCountPtr:
-        NobodyWho.instance.api.rust_arc_decrement_strong_count_SetterErrorPtr,
   );
 }
 

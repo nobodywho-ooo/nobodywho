@@ -26,8 +26,8 @@
 pub use crate::content::{ContentPart, MessageContent};
 use crate::errors::{
     ChatWorkerError, CompleteError, ContextSyncError, GenerateResponseError, InitWorkerError,
-    InvalidHistoryError, MultimodalError, RenderError, SayError, ShiftError, TokenizeError,
-    ToolCallingSetupError, WrappedResponseError,
+    InvalidHistoryError, MultimodalError, RenderError, SayError, SetterError, ShiftError,
+    TokenizeError, ToolCallingSetupError, WrappedResponseError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
@@ -478,9 +478,7 @@ impl ChatHandle {
             };
 
             while let Ok(msg) = msg_rx.recv() {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!("Worker crashed: {e}");
-                }
+                process_worker_msg(&mut worker_state, msg);
             }
         });
 
@@ -571,15 +569,23 @@ impl ChatHandle {
         )))
     }
 
-    fn set_and_wait_blocking<F>(&self, make_msg: F) -> Option<()>
+    /// Send a setter message and block until the worker answers. The outer error
+    /// is the worker being gone, the inner one is the worker rejecting the value.
+    fn set_and_wait_blocking<F>(
+        &self,
+        make_msg: F,
+        label: &str,
+    ) -> Result<(), crate::errors::SetterError>
     where
-        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+        F: FnOnce(SetterReply) -> ChatMsg,
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
         self.guard.send(msg);
         // block until processed
-        output_rx.blocking_recv()
+        output_rx
+            .blocking_recv()
+            .ok_or_else(|| crate::errors::SetterError::WorkerTerminated(label.into()))?
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -588,41 +594,33 @@ impl ChatHandle {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::ResetChat {
-            system_prompt,
-            tools,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError("reset_chat".into()))
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::ResetChat {
+                system_prompt,
+                tools,
+                output_tx,
+            },
+            "reset_chat",
+        )
     }
 
     /// Reset the chat conversation history.
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.send_chat_history_blocking(vec![], "reset_history")
-    }
-
-    /// Like [`set_and_wait_blocking`](Self::set_and_wait_blocking), but the
-    /// worker can answer with an error.
-    fn send_chat_history_blocking(
-        &self,
-        messages: Vec<Message>,
-        label: &str,
-    ) -> Result<(), crate::errors::SetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::SetChatHistory {
-            messages,
-            output_tx,
-        });
-        output_rx
-            .blocking_recv()
-            .ok_or_else(|| crate::errors::SetterError::SetterError(label.into()))??;
-        Ok(())
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetChatHistory {
+                messages: vec![],
+                output_tx,
+            },
+            "reset_history",
+        )
     }
 
     /// Update the available tools for the model to use.
     pub fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTools { tools, output_tx })
-            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetTools { tools, output_tx },
+            "set_tools",
+        )
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
@@ -631,13 +629,13 @@ impl ChatHandle {
         &self,
         allow_thinking: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetThinking {
-            allow_thinking,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_allow_thinking".into(),
-        ))
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetThinking {
+                allow_thinking,
+                output_tx,
+            },
+            "set_allow_thinking",
+        )
     }
 
     /// Set a single template variable.
@@ -646,14 +644,14 @@ impl ChatHandle {
         name: String,
         value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariable {
-            name,
-            value,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_template_variable".into(),
-        ))
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetTemplateVariable {
+                name,
+                value,
+                output_tx,
+            },
+            "set_template_variable",
+        )
     }
 
     /// Set all template variables, replacing any existing ones.
@@ -661,13 +659,13 @@ impl ChatHandle {
         &self,
         variables: std::collections::HashMap<String, bool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetTemplateVariables {
-            variables,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_template_variables".into(),
-        ))
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetTemplateVariables {
+                variables,
+                output_tx,
+            },
+            "set_template_variables",
+        )
     }
 
     /// Get all template variables.
@@ -688,13 +686,13 @@ impl ChatHandle {
         &self,
         sampler_config: SamplerConfig,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSamplerConfig {
-            sampler_config,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_sampler_config".into(),
-        ))
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetSamplerConfig {
+                sampler_config,
+                output_tx,
+            },
+            "set_sampler_config",
+        )
     }
 
     /// Stop the current generation if one is in progress.
@@ -723,7 +721,13 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.send_chat_history_blocking(messages, "set_chat_history")
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetChatHistory {
+                messages,
+                output_tx,
+            },
+            "set_chat_history",
+        )
     }
     /// Get the sampler config
     pub fn get_sampler_config(&self) -> Result<SamplerConfig, crate::errors::GetterError> {
@@ -789,13 +793,13 @@ impl ChatHandle {
         &self,
         system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_blocking(|output_tx| ChatMsg::SetSystemPrompt {
-            system_prompt,
-            output_tx,
-        })
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_system_prompt".into(),
-        ))
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetSystemPrompt {
+                system_prompt,
+                output_tx,
+            },
+            "set_system_prompt",
+        )
     }
 
     /// Get the system prompt
@@ -854,9 +858,7 @@ impl ChatHandleAsync {
             };
 
             while let Ok(msg) = msg_rx.recv() {
-                if let Err(e) = process_worker_msg(&mut worker_state, msg) {
-                    return error!("Worker crashed: {e}");
-                }
+                process_worker_msg(&mut worker_state, msg);
             }
         });
 
@@ -942,16 +944,24 @@ impl ChatHandleAsync {
         )))
     }
 
-    // internal helper function for async setters
-    async fn set_and_wait_async<F>(&self, make_msg: F) -> Option<()>
+    /// Send a setter message and wait for the worker's answer. The outer error
+    /// is the worker being gone, the inner one is the worker rejecting the value.
+    async fn set_and_wait_async<F>(
+        &self,
+        make_msg: F,
+        label: &str,
+    ) -> Result<(), crate::errors::SetterError>
     where
-        F: FnOnce(tokio::sync::mpsc::Sender<()>) -> ChatMsg,
+        F: FnOnce(SetterReply) -> ChatMsg,
     {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
         let msg = make_msg(output_tx);
         self.guard.send(msg);
         // wait until processed
-        output_rx.recv().await
+        output_rx
+            .recv()
+            .await
+            .ok_or_else(|| crate::errors::SetterError::WorkerTerminated(label.into()))?
     }
 
     /// Reset the chat conversation with a new system prompt and tools.
@@ -960,44 +970,36 @@ impl ChatHandleAsync {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::ResetChat {
-            system_prompt,
-            tools,
-            output_tx,
-        })
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::ResetChat {
+                system_prompt,
+                tools,
+                output_tx,
+            },
+            "reset_chat",
+        )
         .await
-        .ok_or(crate::errors::SetterError::SetterError("reset_chat".into()))
     }
 
     /// Reset the chat conversation history.
     pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
-        self.send_chat_history_async(vec![], "reset_history").await
-    }
-
-    /// Like [`set_and_wait_async`](Self::set_and_wait_async), but the worker
-    /// can answer with an error.
-    async fn send_chat_history_async(
-        &self,
-        messages: Vec<Message>,
-        label: &str,
-    ) -> Result<(), crate::errors::SetterError> {
-        let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
-        self.guard.send(ChatMsg::SetChatHistory {
-            messages,
-            output_tx,
-        });
-        output_rx
-            .recv()
-            .await
-            .ok_or_else(|| crate::errors::SetterError::SetterError(label.into()))??;
-        Ok(())
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetChatHistory {
+                messages: vec![],
+                output_tx,
+            },
+            "reset_history",
+        )
+        .await
     }
 
     /// Update the available tools for the model to use.
     pub async fn set_tools(&self, tools: Vec<Tool>) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetTools { tools, output_tx })
-            .await
-            .ok_or(crate::errors::SetterError::SetterError("set_tools".into()))
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetTools { tools, output_tx },
+            "set_tools",
+        )
+        .await
     }
 
     /// DEPRECATED: Use set_template_variable("enable_thinking", value) instead.
@@ -1006,14 +1008,14 @@ impl ChatHandleAsync {
         &self,
         allow_thinking: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetThinking {
-            allow_thinking,
-            output_tx,
-        })
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetThinking {
+                allow_thinking,
+                output_tx,
+            },
+            "set_allow_thinking",
+        )
         .await
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_allow_thinking".into(),
-        ))
     }
 
     /// Set a single template variable.
@@ -1022,15 +1024,15 @@ impl ChatHandleAsync {
         name: String,
         value: bool,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariable {
-            name,
-            value,
-            output_tx,
-        })
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetTemplateVariable {
+                name,
+                value,
+                output_tx,
+            },
+            "set_template_variable",
+        )
         .await
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_template_variable".into(),
-        ))
     }
 
     /// Set all template variables, replacing any existing ones.
@@ -1038,14 +1040,14 @@ impl ChatHandleAsync {
         &self,
         variables: std::collections::HashMap<String, bool>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetTemplateVariables {
-            variables,
-            output_tx,
-        })
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetTemplateVariables {
+                variables,
+                output_tx,
+            },
+            "set_template_variables",
+        )
         .await
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_template_variables".into(),
-        ))
     }
 
     /// Get all template variables.
@@ -1067,14 +1069,14 @@ impl ChatHandleAsync {
         &self,
         sampler_config: SamplerConfig,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetSamplerConfig {
-            sampler_config,
-            output_tx,
-        })
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetSamplerConfig {
+                sampler_config,
+                output_tx,
+            },
+            "set_sampler_config",
+        )
         .await
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_sampler_config".into(),
-        ))
     }
 
     /// Stop the current generation if one is in progress.
@@ -1104,8 +1106,14 @@ impl ChatHandleAsync {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.send_chat_history_async(messages, "set_chat_history")
-            .await
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetChatHistory {
+                messages,
+                output_tx,
+            },
+            "set_chat_history",
+        )
+        .await
     }
 
     /// Get the sampler config.
@@ -1175,14 +1183,14 @@ impl ChatHandleAsync {
         &self,
         system_prompt: Option<String>,
     ) -> Result<(), crate::errors::SetterError> {
-        self.set_and_wait_async(|output_tx| ChatMsg::SetSystemPrompt {
-            system_prompt,
-            output_tx,
-        })
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetSystemPrompt {
+                system_prompt,
+                output_tx,
+            },
+            "set_system_prompt",
+        )
         .await
-        .ok_or(crate::errors::SetterError::SetterError(
-            "set_system_prompt".into(),
-        ))
     }
 
     /// Get the system prompt
@@ -1256,6 +1264,10 @@ pub struct ChatStats {
     pub context_used: u32,
 }
 
+/// Every setter answers with a result, so a rejected value is reported to the
+/// caller instead of ending the worker. See [`process_worker_msg`].
+type SetterReply = tokio::sync::mpsc::Sender<Result<(), SetterError>>;
+
 enum ChatMsg {
     Ask {
         prompt: Prompt,
@@ -1269,38 +1281,38 @@ enum ChatMsg {
     ResetChat {
         system_prompt: Option<String>,
         tools: Vec<Tool>,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: SetterReply,
     },
     SetTools {
         tools: Vec<Tool>,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: SetterReply,
     },
     SetSystemPrompt {
         system_prompt: Option<String>,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: SetterReply,
     },
     GetSystemPrompt {
         output_tx: tokio::sync::mpsc::Sender<Option<String>>,
     },
     SetThinking {
         allow_thinking: bool,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: SetterReply,
     },
     SetTemplateVariable {
         name: String,
         value: bool,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: SetterReply,
     },
     SetTemplateVariables {
         variables: std::collections::HashMap<String, bool>,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: SetterReply,
     },
     GetTemplateVariables {
         output_tx: tokio::sync::mpsc::Sender<std::collections::HashMap<String, bool>>,
     },
     SetSamplerConfig {
         sampler_config: SamplerConfig,
-        output_tx: tokio::sync::mpsc::Sender<()>,
+        output_tx: SetterReply,
     },
     GetChatHistory {
         output_tx: tokio::sync::mpsc::Sender<Vec<Message>>,
@@ -1310,7 +1322,7 @@ enum ChatMsg {
     },
     SetChatHistory {
         messages: Vec<Message>,
-        output_tx: tokio::sync::mpsc::Sender<Result<(), ContextSyncError>>,
+        output_tx: SetterReply,
     },
     GetStats {
         output_tx: tokio::sync::mpsc::Sender<ChatStats>,
@@ -1387,7 +1399,10 @@ impl std::fmt::Debug for ChatMsg {
     }
 }
 
-fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), ChatWorkerError> {
+/// Handle one message. Nothing here propagates: a failure is answered on the
+/// message's own reply channel, so no argument a caller passes can end the
+/// worker thread.
+fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
     info!(?msg, "Worker processing:");
     match msg {
         ChatMsg::Ask { prompt, output_tx } => {
@@ -1426,19 +1441,17 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             tools,
             output_tx,
         } => {
-            worker_state.reset_chat(system_prompt, tools)?;
-            let _ = output_tx.blocking_send(());
+            let _ = output_tx.blocking_send(worker_state.reset_chat(system_prompt, tools));
         }
         ChatMsg::SetTools { tools, output_tx } => {
-            worker_state.set_tools(tools)?;
-            let _ = output_tx.blocking_send(());
+            let _ = output_tx.blocking_send(worker_state.set_tools(tools));
         }
         ChatMsg::SetSystemPrompt {
             system_prompt,
             output_tx,
         } => {
-            worker_state.set_system_prompt(system_prompt)?;
-            let _ = output_tx.blocking_send(());
+            worker_state.set_system_prompt(system_prompt);
+            let _ = output_tx.blocking_send(Ok(()));
         }
         ChatMsg::GetSystemPrompt { output_tx } => {
             let system_prompt = worker_state.get_system_prompt();
@@ -1448,23 +1461,23 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             allow_thinking,
             output_tx,
         } => {
-            worker_state.set_template_variable("enable_thinking".to_string(), allow_thinking)?;
-            let _ = output_tx.blocking_send(());
+            worker_state.set_template_variable("enable_thinking".to_string(), allow_thinking);
+            let _ = output_tx.blocking_send(Ok(()));
         }
         ChatMsg::SetTemplateVariable {
             name,
             value,
             output_tx,
         } => {
-            worker_state.set_template_variable(name, value)?;
-            let _ = output_tx.blocking_send(());
+            worker_state.set_template_variable(name, value);
+            let _ = output_tx.blocking_send(Ok(()));
         }
         ChatMsg::SetTemplateVariables {
             variables,
             output_tx,
         } => {
-            worker_state.set_template_variables(variables)?;
-            let _ = output_tx.blocking_send(());
+            worker_state.set_template_variables(variables);
+            let _ = output_tx.blocking_send(Ok(()));
         }
         ChatMsg::GetTemplateVariables { output_tx } => {
             let vars = worker_state.get_template_variables();
@@ -1474,8 +1487,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             sampler_config,
             output_tx,
         } => {
-            worker_state.set_sampler_config(sampler_config)?;
-            let _ = output_tx.blocking_send(());
+            let _ = output_tx.blocking_send(worker_state.set_sampler_config(sampler_config));
         }
         ChatMsg::GetChatHistory { output_tx } => {
             let msgs = worker_state.get_chat_history();
@@ -1485,7 +1497,11 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             messages,
             output_tx,
         } => {
-            let _ = output_tx.blocking_send(worker_state.set_chat_history(messages));
+            let _ = output_tx.blocking_send(
+                worker_state
+                    .set_chat_history(messages)
+                    .map_err(SetterError::from),
+            );
         }
         ChatMsg::GetSamplerConfig { output_tx } => {
             let sampler_config = worker_state.get_sampler_config();
@@ -1511,9 +1527,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) -> Result<(), C
             let result = worker_state.tokenize(prompt);
             let _ = output_tx.blocking_send(result);
         }
-    };
-
-    Ok(())
+    }
 }
 
 // TOOLS TYPE STUFF
@@ -2206,7 +2220,7 @@ impl<'a> Chat<'a> {
             self.set_tools(tools)?;
         }
         if let Some(variables) = options.template_variables {
-            self.set_template_variables(variables)?;
+            self.set_template_variables(variables);
         }
         Ok(())
     }
@@ -2317,7 +2331,7 @@ impl<'a> Chat<'a> {
         &mut self,
         system_prompt: Option<String>,
         tools: Vec<Tool>,
-    ) -> Result<(), ChatWorkerError> {
+    ) -> Result<(), SetterError> {
         // Run fallible functions before committing to state.
         let tool_sampler = build_tool_sampler(
             self.engine.ctx.model,
@@ -2336,22 +2350,13 @@ impl<'a> Chat<'a> {
     }
 
     /// Set a single template variable.
-    pub fn set_template_variable(
-        &mut self,
-        name: String,
-        value: bool,
-    ) -> Result<(), ChatWorkerError> {
+    pub fn set_template_variable(&mut self, name: String, value: bool) {
         self.template_variables.insert(name, value);
-        Ok(())
     }
 
     /// Set all template variables, replacing any existing ones.
-    pub fn set_template_variables(
-        &mut self,
-        variables: std::collections::HashMap<String, bool>,
-    ) -> Result<(), ChatWorkerError> {
+    pub fn set_template_variables(&mut self, variables: std::collections::HashMap<String, bool>) {
         self.template_variables = variables;
-        Ok(())
     }
 
     /// Get all template variables.
@@ -2359,10 +2364,7 @@ impl<'a> Chat<'a> {
         self.template_variables.clone()
     }
 
-    pub fn set_sampler_config(
-        &mut self,
-        sampler_config: SamplerConfig,
-    ) -> Result<(), ChatWorkerError> {
+    pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) -> Result<(), SetterError> {
         // Run fallible functions before committing to state.
         let base_sampler = sampler_config.build_sampler(self.engine.ctx.model)?;
         let tool_sampler = build_tool_sampler(
@@ -2377,19 +2379,15 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    pub fn set_system_prompt(
-        &mut self,
-        system_prompt: Option<String>,
-    ) -> Result<(), ContextSyncError> {
+    pub fn set_system_prompt(&mut self, system_prompt: Option<String>) {
         self.system_prompt = system_prompt;
-        Ok(())
     }
 
     pub fn get_system_prompt(&self) -> Option<String> {
         self.system_prompt.clone()
     }
 
-    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), ChatWorkerError> {
+    pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetterError> {
         // Run fallible functions before committing to state.
         let tool_sampler = build_tool_sampler(
             self.engine.ctx.model,
@@ -3940,6 +3938,44 @@ mod tests {
             1,
             "a failed set_chat_history should leave the history alone"
         );
+    }
+
+    /// A setter the worker rejects reports the reason and leaves the chat usable.
+    /// Before, the error propagated out of `process_worker_msg` and ended the
+    /// worker thread, so every later call saw only "worker terminated".
+    #[test]
+    fn test_rejected_setter_keeps_worker_alive() {
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(512)
+            .build()
+            .expect("chat build failed in test");
+
+        let before = chat.get_sampler_config().expect("worker should answer");
+
+        let err = chat
+            .set_sampler_config(SamplerPresets::constrain_with_json_schema(
+                "this is not a json schema".to_string(),
+            ))
+            .unwrap_err();
+        assert!(
+            matches!(err, SetterError::Sampler(_)),
+            "the sampler error should reach the caller, got {err:?}"
+        );
+
+        // The worker survived, and the rejected config was not committed.
+        assert_eq!(
+            format!("{:?}", chat.get_sampler_config().expect("worker is alive")),
+            format!("{before:?}"),
+            "a failed set_sampler_config should leave the sampler alone"
+        );
+
+        // A valid config still goes through, and generation still works.
+        chat.set_sampler_config(SamplerPresets::greedy())
+            .expect("a valid sampler config is fine");
+        chat.ask("Say hi")
+            .completed()
+            .expect("worker still answers");
     }
 
     /// Bitmap ids issued by another worker mean nothing here, so the media has

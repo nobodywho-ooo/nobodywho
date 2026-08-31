@@ -698,9 +698,6 @@ abstract class SamplerPresets implements RustOpaqueInterface {
       NobodyWho.instance.api.crateSamplerPresetsTopP(topP: topP);
 }
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner< SetterError>>
-abstract class SetterError implements RustOpaqueInterface {}
-
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<TextToSpeech>>
 abstract class TextToSpeech implements RustOpaqueInterface {
   /// Create a TextToSpeech synthesizer.
