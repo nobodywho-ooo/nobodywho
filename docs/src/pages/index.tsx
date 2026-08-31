@@ -26,6 +26,12 @@ const sdks = [
     link: '/react-native/',
   },
   {
+    name: 'Expo',
+    description: 'Drop-in module for Expo on Android and iOS.',
+    install: 'npx expo install react-native-nobodywho',
+    link: '/react-native/',
+  },
+  {
     name: 'Flutter',
     description: 'Cross-platform plugin for Flutter on mobile and desktop.',
     install: 'flutter pub add nobodywho',

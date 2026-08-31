@@ -31,7 +31,7 @@ const config: Config = {
   clientModules: ['./src/github-stars.js'],
 
   title: 'NobodyWho',
-  tagline: 'Local-first LLM inference for Kotlin, Swift, Python, Godot, Flutter, and React Native',
+  tagline: 'Local-first LLM inference for Kotlin, Swift, Python, Flutter, React Native, Expo and Godot',
   favicon: 'img/favicon.ico',
 
   url: 'https://docs.nobodywho.ooo',
@@ -188,7 +188,7 @@ const config: Config = {
         {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/'},
         {to: '/python/', label: 'Python', position: 'left', activeBaseRegex: '/python/'},
         {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/'},
-        {to: '/react-native/', label: 'React Native', position: 'left', activeBaseRegex: '/react-native/'},
+        {to: '/react-native/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/react-native/'},
         {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/'},
         {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
         // Right side
