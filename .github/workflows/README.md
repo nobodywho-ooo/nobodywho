@@ -96,6 +96,22 @@ because device tests are skipped for bindings that have none — a Swift or Pyth
 releases normally, while a `nobodywho-kotlin-v*` tag cannot publish unless its
 `kotlin-source` device job passed on real hardware.
 
+Android source-device tests consume `nobodywho-android-candidate-aars`, which is
+built once from `build.yml`'s arm64-v8a and x86_64 artifacts. The candidate workflow
+stages, strips, and validates both native AARs and their generated POMs. It stores
+the candidates as one workflow artifact, and the Android-native release publishes
+those exact files without rebuilding them in `release.yml`.
+
+The source-device jobs do not link binding source directories into the test apps.
+They first create the same distributor shape as a release: a runner-local Maven
+repository containing the Kotlin AAR/JAR/POM publications, pub's generated Flutter
+`.tar.gz`, or npm's generated React Native `.tgz`. The app installs that candidate
+and is then tested on Firebase hardware. The native AARs are also resolved through
+their normal Maven dependency coordinates. On a binding release tag, the local
+native candidate is deliberately not staged: the candidate binding must resolve the
+native Maven version it actually declares. All candidate repositories and archives
+exist only inside the runner; these jobs have no registry credentials or upload step.
+
 ## Workflow files
 
 ```
@@ -104,6 +120,7 @@ build-and-test.yml  Entry point: calls plan and gates children.
 linting.yml         Always-on rustfmt + clippy.
 regen-checks.yml    Bindings regen-drift checks (gated by run_regen).
 build.yml           Per-platform cargo builds; matrix-gen computes integration + macOS matrix.
+package-android-candidates.yml  Stages, strips, and validates the two multi-ABI native AARs and POMs.
 test.yml            nix flake check (run_rust_core) + flutter tests (run_flutter) + always-on doctest-drift.
 python-ci.yml       Static checks always; wheels/tests by run_python; model matrix by run_python_models.
 swift-ci.yml        Swift tests. kotlin-ci.yml  Kotlin/Android tests. (both gated upstream)

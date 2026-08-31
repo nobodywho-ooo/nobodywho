@@ -4,10 +4,22 @@ allprojects {
     version = providers.gradleProperty("version").getOrElse("3.0.0")
 }
 
+// Device tests stage release publications in a runner-local Maven directory.
+// This uses the normal MavenPublication artifacts and POMs, but never contacts
+// Maven Central or any other remote repository.
+val candidateRepository = providers.gradleProperty("candidateRepository")
+
 // Shared POM metadata and signing for publishable subprojects
 subprojects {
     afterEvaluate {
         extensions.findByType<PublishingExtension>()?.apply {
+            candidateRepository.orNull?.let { repositoryPath ->
+                repositories.maven {
+                    name = "Candidate"
+                    url = uri(repositoryPath)
+                }
+            }
+
             publications.withType<MavenPublication>().configureEach {
                 pom {
                     name.set("NobodyWho")

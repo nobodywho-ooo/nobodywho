@@ -165,19 +165,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: "Download Flutter Android artifacts"
+      - name: "Download tested Android candidate AARs"
         uses: actions/download-artifact@v5
         with:
-          pattern: nobodywho-flutter-*-linux-android-release
-          merge-multiple: true
-          path: ./artifacts/flutter
-
-      - name: "Download UniFFI Android artifacts"
-        uses: actions/download-artifact@v5
-        with:
-          pattern: nobodywho-uniffi-*-linux-android-release
-          merge-multiple: true
-          path: ./artifacts/uniffi
+          name: nobodywho-android-candidate-aars
+          path: ./android-candidates
 
       - name: "Set native version"
         run: |
@@ -185,67 +177,24 @@ jobs:
           VERSION=${GITHUB_REF_NAME#nobodywho-android-v}
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: "Stage Flutter jniLibs (arm64-v8a)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: flutter
-          target: aarch64-linux-android
-          source-dir: artifacts/flutter
-          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/arm64-v8a
-
-      - name: "Stage Flutter jniLibs (x86_64)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: flutter
-          target: x86_64-linux-android
-          source-dir: artifacts/flutter
-          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/x86_64
-
-      - name: "Stage UniFFI jniLibs (arm64-v8a)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: aarch64-linux-android
-          source-dir: artifacts/uniffi
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/arm64-v8a
-
-      - name: "Stage UniFFI jniLibs (x86_64)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: x86_64-linux-android
-          source-dir: artifacts/uniffi
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/x86_64
-
-      - name: "Install Android NDK"
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r28
-          add-to-path: false
-
-      - name: "Strip release libraries"
-        run: |
-          LLVM_STRIP="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-          find nobodywho/android/build/flutter/jniLibs \
-               nobodywho/android/build/uniffi/jniLibs \
-            -type f -name '*.so' -exec "$LLVM_STRIP" --strip-unneeded {} +
-
       - name: "Setup JDK"
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
 
-      - name: "Build and validate AARs"
+      - name: "Verify candidates before GitHub release"
         run: |
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            check assemble -Pversion=${{ env.VERSION }}
+          set -euo pipefail
+          test -f "android-candidates/nobodywho-flutter-android-${{ env.VERSION }}.aar"
+          test -f "android-candidates/nobodywho-uniffi-android-${{ env.VERSION }}.aar"
 
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
-          files: nobodywho/android/build/outputs/*.aar
+          files: |
+            android-candidates/nobodywho-flutter-android-${{ env.VERSION }}.aar
+            android-candidates/nobodywho-uniffi-android-${{ env.VERSION }}.aar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -257,7 +206,9 @@ jobs:
           SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
         run: |
           ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            publishAggregationToCentralPortal -Pversion=${{ env.VERSION }}
+            publishAggregationToCentralPortal \
+            -Pversion=${{ env.VERSION }} \
+            -PnobodywhoPrebuiltAarDir="$PWD/android-candidates"
 
   create-github-release-flutter:
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')

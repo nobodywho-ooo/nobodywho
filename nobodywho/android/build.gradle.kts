@@ -55,6 +55,9 @@ val nativeArtifacts = listOf(
         mainLibrary = "libnobodywho_uniffi.so",
     ),
 )
+val prebuiltAarDirectory = providers.gradleProperty("nobodywhoPrebuiltAarDir")
+    .orNull
+    ?.let(::file)
 
 val sourceArchive by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
@@ -126,8 +129,18 @@ publishing {
         nativeArtifacts.forEach { artifact ->
             register<MavenPublication>(artifact.taskPrefix) {
                 artifactId = artifact.artifactId
-                artifact(aarTasks.getValue(artifact)) {
-                    extension = "aar"
+                val prebuiltAar = prebuiltAarDirectory?.resolve(
+                    "${artifact.artifactId}-${project.version}.aar",
+                )
+                if (prebuiltAar == null) {
+                    artifact(aarTasks.getValue(artifact)) {
+                        extension = "aar"
+                    }
+                } else {
+                    require(prebuiltAar.isFile) { "Missing prebuilt AAR: $prebuiltAar" }
+                    artifact(prebuiltAar) {
+                        extension = "aar"
+                    }
                 }
                 artifact(sourceArchive)
                 artifact(documentationArchive)
