@@ -114,6 +114,7 @@ impl Model {
                 })
             })
             .transpose()?;
+
         let draft_str = draft_model_path
             .as_ref()
             .map(|p| {
