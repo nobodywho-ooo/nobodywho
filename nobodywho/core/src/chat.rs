@@ -2371,14 +2371,14 @@ impl<'a> Chat<'a> {
     }
 
     pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) -> Result<(), SetterError> {
-        self.apply_settings(Some(sampler_config), None)
+        self.apply_sampler_and_tools(Some(sampler_config), None)
     }
 
     /// Apply a turn's [`Options`]. The sampler and tools are applied together, so
     /// setting both builds the tool grammar once, and a failure in either leaves
     /// both alone. Template variables cannot fail.
     fn apply_options(&mut self, options: Options) -> Result<(), ChatWorkerError> {
-        self.apply_settings(options.sampler, options.tools)?;
+        self.apply_sampler_and_tools(options.sampler, options.tools)?;
         if let Some(variables) = options.template_variables {
             self.set_template_variables(variables);
         }
@@ -2390,7 +2390,7 @@ impl<'a> Chat<'a> {
     /// The tool sampler chain embeds the config's shift steps, so it has to be
     /// rebuilt when either changes — but only once, even when both do. All-or-
     /// nothing: nothing is committed unless every build succeeds.
-    fn apply_settings(
+    fn apply_sampler_and_tools(
         &mut self,
         sampler_config: Option<SamplerConfig>,
         tools: Option<Vec<Tool>>,
@@ -2447,7 +2447,7 @@ impl<'a> Chat<'a> {
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetterError> {
-        self.apply_settings(None, Some(tools))
+        self.apply_sampler_and_tools(None, Some(tools))
     }
 
     /// Take a leading system message out of `messages` and make it the system
@@ -2898,7 +2898,7 @@ mod tests {
         for i in 0..3 {
             let start = std::time::Instant::now();
             worker
-                .apply_settings(Some(SamplerPresets::greedy()), Some(vec![test_tool()]))
+                .apply_sampler_and_tools(Some(SamplerPresets::greedy()), Some(vec![test_tool()]))
                 .expect("applying settings");
             eprintln!(
                 "[bench] sampler+tools {}: {} ms",
