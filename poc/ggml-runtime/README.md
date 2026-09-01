@@ -1,6 +1,6 @@
 # Shared GGML runtime
 
-An internal crate shared by the standalone Supertonic and Gemma 4 POCs. It wraps the raw GGML API from the same pinned `llama-cpp-sys-2` revision used by NobodyWho.
+An internal crate shared by the standalone Supertonic and Gemma 4 POCs. It wraps the raw GGML API exposed by the direct bindings in `../ggml-sys`.
 
 It provides:
 

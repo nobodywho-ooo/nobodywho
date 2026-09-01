@@ -1,0 +1,11 @@
+[package]
+name = "ggml-sys"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+links = "ggml"
+build = "build.rs"
+
+[build-dependencies]
+bindgen = "0.72"
+cmake = "0.1"

@@ -1,6 +1,6 @@
 # GGML Gemma 4 E2B POC
 
-A standalone Rust text-generation engine for [Gemma 4 E2B](https://huggingface.co/google/gemma-4-E2B-it) using the raw GGML API exposed by `llama-cpp-sys-2`. It loads the Q4_K_M GGUF directly and runs on CPU or Apple Metal without llama.cpp's model API.
+A standalone Rust text-generation engine for [Gemma 4 E2B](https://huggingface.co/google/gemma-4-E2B-it) using direct GGML bindings. It loads the Q4_K_M GGUF directly and runs on CPU or Apple Metal without llama.cpp's model API.
 
 The implementation covers the E2B text decoder:
 
@@ -38,7 +38,7 @@ cargo run --release -- \
   --max-tokens 8
 ```
 
-Metal is available only on macOS. CPU is supported on other targets built by `llama-cpp-sys-2`.
+Metal is available only on macOS. The direct GGML build uses the CPU backend on other targets.
 
 ## Validation
 

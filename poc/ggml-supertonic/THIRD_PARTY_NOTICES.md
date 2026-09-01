@@ -4,11 +4,11 @@
 
 The Supertonic graph formulas and GGUF metadata handling in this POC were adapted from the Supertonic implementation in [audio.cpp](https://github.com/0xShug0/audio.cpp), copyright 2026 ShugoAI LLC, licensed under the Apache License 2.0.
 
-The implementation was ported to Rust, reduced to CPU and Metal, and changed to execute through `llama-cpp-sys-2`. The Apache License 2.0 text is included at `LICENSES/Apache-2.0.txt`.
+The implementation was ported to Rust, reduced to CPU and Metal, and changed to execute through direct GGML bindings. The Apache License 2.0 text is included at `LICENSES/Apache-2.0.txt`.
 
-## llama.cpp and llama-cpp-rs
+## GGML
 
-`llama-cpp-sys-2` is consumed from [utilityai/llama-cpp-rs](https://github.com/utilityai/llama-cpp-rs) at revision `bed81ad4ab1a6c904b11d425608e50f976d8ea62`. It builds and links GGML from llama.cpp. Their respective license and bundled third-party notices apply.
+The shared runtime builds [GGML](https://github.com/ggml-org/ggml) directly at commit `d4716378882593333721eb33f153144b6885caf2`. GGML is licensed under the MIT License. Its license is included in the `../ggml-sys/ggml` submodule.
 
 ## Supertonic 3
 

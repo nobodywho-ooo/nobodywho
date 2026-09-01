@@ -1,6 +1,6 @@
 # GGML Supertonic POC
 
-A standalone Rust inference engine for Supertonic 3 using the raw GGML API exposed by `llama-cpp-sys-2`. It supports CPU and Apple Metal and does not use ONNX Runtime.
+A standalone Rust inference engine for Supertonic 3 using direct GGML bindings. It supports CPU and Apple Metal and does not use ONNX Runtime.
 
 The POC implements the complete batch-one synthesis path:
 
@@ -57,6 +57,6 @@ It does not yet provide graph caching, long-text chunking, streaming, quantized 
 
 ## Implementation notes
 
-The shared `../ggml-runtime` crate pins the same `llama-cpp-sys-2` revision used by NobodyWho. It provides raw GGML backend buffers, tensor graphs, graph allocation, and execution for this POC and the Gemma 4 POC. The audio.cpp GGUF package stores logical names and exact tensor shapes in `audiocpp.*` metadata, which the loader resolves before uploading weights.
+The shared `../ggml-runtime` crate uses the pinned GGML source in `../ggml-sys`. It provides raw GGML backend buffers, tensor graphs, graph allocation, and execution for this POC and the Gemma 4 POC. The audio.cpp GGUF package stores logical names and exact tensor shapes in `audiocpp.*` metadata, which the loader resolves before uploading weights.
 
 The graph formulas were ported from audio.cpp's Apache-2.0 Supertonic implementation and checked against NobodyWho’s ONNX implementation. Pass `--debug-dir PATH` to save stage tensors as JSON for numerical comparisons. See `THIRD_PARTY_NOTICES.md`.

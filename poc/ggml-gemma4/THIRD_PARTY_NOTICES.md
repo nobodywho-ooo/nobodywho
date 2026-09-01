@@ -8,11 +8,13 @@ The Q4_K_M GGUF is downloaded from [unsloth/gemma-4-E2B-it-GGUF](https://hugging
 
 Gemma 4 is licensed under the Apache License 2.0. The downloaded assets are ignored by Git and are not included in this repository. The license text is included at `LICENSES/Apache-2.0.txt`.
 
-## llama.cpp and llama-cpp-rs
+## llama.cpp
 
-The Gemma 4 graph follows the Apache-2.0 llama.cpp implementation bundled with `llama-cpp-sys-2`.
+The Gemma 4 graph follows the Apache-2.0 [llama.cpp](https://github.com/ggml-org/llama.cpp) implementation at commit `5f55650a78f92aff4d48d671423e888fac0469ff`.
 
-The shared runtime consumes `llama-cpp-sys-2` from [utilityai/llama-cpp-rs](https://github.com/utilityai/llama-cpp-rs) at revision `bed81ad4ab1a6c904b11d425608e50f976d8ea62`. It builds and links GGML from llama.cpp. Their respective licenses and bundled third-party notices apply.
+## GGML
+
+The shared runtime builds [GGML](https://github.com/ggml-org/ggml) directly at commit `d4716378882593333721eb33f153144b6885caf2`. GGML is licensed under the MIT License. Its license is included in the `../ggml-sys/ggml` submodule.
 
 ## Rust dependencies
 

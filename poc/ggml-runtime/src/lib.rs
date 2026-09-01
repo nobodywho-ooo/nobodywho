@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context as _, Result};
-use llama_cpp_sys_2 as sys;
+use ggml_sys as sys;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::io::{Read, Seek, SeekFrom};
