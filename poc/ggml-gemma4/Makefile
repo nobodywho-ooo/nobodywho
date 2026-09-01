@@ -1,8 +1,8 @@
 .PHONY: help model build run run-cpu clean
 
-MODEL_DIR ?= models/DFM-Mimir
+MODEL_DIR ?= models/gemma-4-E2B-it
 PROMPT ?= Explain why the sky is blue in one sentence.
-MAX_TOKENS ?= 32
+MAX_TOKENS ?= 8
 
 help:
 	@echo 'make model | build | run | run-cpu | clean'
@@ -20,4 +20,4 @@ run-cpu: build
 	cargo run --release -- --model-dir "$(MODEL_DIR)" --backend cpu --prompt "$(PROMPT)" --max-tokens "$(MAX_TOKENS)"
 
 clean:
-	cargo clean --package ggml-mimir-poc
+	cargo clean --package ggml-gemma4-poc

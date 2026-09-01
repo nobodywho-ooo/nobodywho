@@ -1,7 +1,5 @@
 use anyhow::{anyhow, bail, Context as _, Result};
 use llama_cpp_sys_2 as sys;
-use memmap2::MmapOptions;
-use safetensors::{tensor::Dtype, SafeTensors};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::io::{Read, Seek, SeekFrom};
@@ -214,68 +212,6 @@ pub struct Weights {
 }
 
 impl Weights {
-    pub fn load_safetensors(path: &Path, backend: &Backend) -> Result<Self> {
-        let model_file = std::fs::File::open(path)?;
-        let model_data = unsafe { MmapOptions::new().map(&model_file)? };
-        let source = SafeTensors::deserialize(&model_data)?;
-        let names = source.names();
-        let metadata_bytes = 64 * 1024 * 1024 + names.len() * 1024;
-        let context = Context::new(metadata_bytes, true)?;
-        let mut tensors = HashMap::with_capacity(names.len());
-        let mut uploads = Vec::with_capacity(names.len());
-
-        for name in names {
-            let source_tensor = source.tensor(name)?;
-            let dimensions = source_tensor
-                .shape()
-                .iter()
-                .map(|dimension| i64::try_from(*dimension).context("tensor dimension exceeds i64"))
-                .collect::<Result<Vec<_>>>()?;
-            let shape = Shape::new(&dimensions)?;
-            let kind = match source_tensor.dtype() {
-                Dtype::BF16 => sys::GGML_TYPE_BF16,
-                Dtype::F16 => sys::GGML_TYPE_F16,
-                Dtype::F32 => sys::GGML_TYPE_F32,
-                Dtype::I32 => sys::GGML_TYPE_I32,
-                dtype => bail!("unsupported safetensors dtype {dtype:?} for {name}"),
-            };
-            let destination = context.tensor(shape, kind)?;
-            let destination_name = CString::new(name)?;
-            unsafe { sys::ggml_set_name(destination.raw, destination_name.as_ptr()) };
-            let destination_bytes = unsafe { sys::ggml_nbytes(destination.raw) };
-            if destination_bytes != source_tensor.data().len() {
-                bail!(
-                    "safetensors tensor {name} has {} bytes, expected {destination_bytes}",
-                    source_tensor.data().len()
-                );
-            }
-            uploads.push((destination, source_tensor.data()));
-            tensors.insert(name.to_owned(), destination);
-        }
-
-        let buffer = unsafe { sys::ggml_backend_alloc_ctx_tensors(context.raw, backend.raw()) };
-        if buffer.is_null() {
-            bail!("failed to allocate backend weight buffer");
-        }
-        for (destination, data) in uploads {
-            unsafe {
-                sys::ggml_backend_tensor_set(
-                    destination.raw,
-                    data.as_ptr().cast::<c_void>(),
-                    0,
-                    data.len(),
-                )
-            };
-        }
-        backend.synchronize();
-
-        Ok(Self {
-            _context: context,
-            buffer,
-            tensors,
-        })
-    }
-
     pub fn load(path: &Path, backend: &Backend) -> Result<Self> {
         let path_string = CString::new(path.to_string_lossy().as_bytes())?;
         let mut source_context = ptr::null_mut();
@@ -861,6 +797,9 @@ impl GraphBuilder {
     }
     pub fn gelu(&self, value: Tensor) -> Result<Tensor> {
         self.unary(value, sys::ggml_gelu_erf)
+    }
+    pub fn gelu_tanh(&self, value: Tensor) -> Result<Tensor> {
+        self.unary(value, sys::ggml_gelu)
     }
     pub fn softplus(&self, value: Tensor) -> Result<Tensor> {
         self.unary(value, sys::ggml_softplus)

@@ -1,5 +1,5 @@
 [package]
-name = "ggml-mimir-poc"
+name = "ggml-gemma4-poc"
 version = "0.1.0"
 edition = "2021"
 

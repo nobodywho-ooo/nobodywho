@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use serde::Deserialize;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tokenizers::Tokenizer;
 
@@ -8,7 +9,7 @@ mod model;
 
 #[derive(Debug, Parser)]
 struct Args {
-    #[arg(long, default_value = "models/DFM-Mimir")]
+    #[arg(long, default_value = "models/gemma-4-E2B-it")]
     model_dir: PathBuf,
     #[arg(long)]
     prompt: String,
@@ -22,6 +23,11 @@ struct Args {
     logits_output: Option<PathBuf>,
 }
 
+#[derive(Deserialize)]
+struct GenerationConfig {
+    eos_token_id: Vec<u32>,
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     if args.prompt.trim().is_empty() || args.max_tokens == 0 {
@@ -29,16 +35,19 @@ fn main() -> Result<()> {
     }
     let tokenizer = Tokenizer::from_file(args.model_dir.join("tokenizer.json"))
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let generation: GenerationConfig = serde_json::from_reader(std::fs::File::open(
+        args.model_dir.join("generation_config.json"),
+    )?)?;
     let rendered = format!("<bos><|turn>user\n{}<turn|>\n<|turn>model\n", args.prompt);
     let encoding = tokenizer
         .encode(rendered, false)
         .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let mut token_ids = encoding.get_ids().to_vec();
-    let prefix_length = token_ids.len();
-    println!("Encoded prompt into {prefix_length} tokens");
+    let prompt_length = token_ids.len();
+    println!("Encoded prompt into {prompt_length} tokens");
 
     let model = model::Model::load(&args.model_dir, &args.backend, args.threads)?;
-    let available_tokens = model.max_context().saturating_sub(prefix_length);
+    let available_tokens = model.max_context().saturating_sub(prompt_length);
     if available_tokens == 0 {
         bail!("prompt fills the model's context window");
     }
@@ -50,7 +59,7 @@ fn main() -> Result<()> {
     let mut generated = Vec::with_capacity(generation_limit);
     for index in 0..generation_limit {
         let token_started = Instant::now();
-        let logits = model.logits(&token_ids, prefix_length)?;
+        let logits = model.logits(&token_ids)?;
         if let Some(path) = &args.logits_output {
             write_f32(path, &logits)?;
         }
@@ -71,7 +80,7 @@ fn main() -> Result<()> {
             token_started.elapsed().as_secs_f32(),
             text
         );
-        if token == model.eos_token_id() {
+        if generation.eos_token_id.contains(&token) {
             break;
         }
     }
@@ -87,7 +96,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn write_f32(path: &PathBuf, values: &[f32]) -> Result<()> {
+fn write_f32(path: &Path, values: &[f32]) -> Result<()> {
     let bytes = unsafe {
         std::slice::from_raw_parts(values.as_ptr().cast::<u8>(), std::mem::size_of_val(values))
     };
