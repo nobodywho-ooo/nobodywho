@@ -33,6 +33,7 @@ use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
 use crate::sampler::read_sampler_from_metadata;
+use crate::sampler::GrammarFactory;
 use crate::sampler::SamplerConfig;
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks};
@@ -1612,8 +1613,12 @@ impl ChatContext {
 /// field doc), along with the begin-token sequence that triggers the switch to
 /// it. `Ok(None)` if `tools` is empty. `Err(DetectionFailed)` if tools are
 /// requested but no format was ever detected for this model.
+///
+/// `grammar_factory` carries the llguidance state between calls: the ~400ms init
+/// is paid on the first build and every later one only compiles the grammar.
 fn build_tool_sampler(
     model: &llama_cpp_2::model::LlamaModel,
+    grammar_factory: &mut Option<GrammarFactory>,
     tools: &[Tool],
     sampler_config: &SamplerConfig,
     tool_format: Option<&ToolFormat>,
@@ -1627,12 +1632,26 @@ fn build_tool_sampler(
     let lark = tool_format.to_lark(tools, Some(model))?;
     debug!(grammar = %lark, "Generated tool calling grammar (Lark)");
 
-    // ~400ms llguidance init cost, paid here once instead of per activation.
+    // A chat's slice set never changes in practice (`tool_format` is detected once
+    // and `slice_regexes` is a constant per format), so this builds at most once.
     let slices = tool_format.slice_regexes();
-    let tool_sampler = sampler_config.build_sampler_with_grammar(model, &lark, slices)?;
+    let rebuilt = GrammarFactory::build_if_stale(grammar_factory.as_ref(), model, slices)?;
+    let factory = rebuilt
+        .as_ref()
+        .or(grammar_factory.as_ref())
+        .expect("`build_if_stale` returns None only when the held factory serves us");
+
+    let grammar_step = factory.grammar_step("lark", &lark)?;
+    let tool_sampler =
+        sampler_config.build_sampler_with_prepended_step(model, Some(grammar_step))?;
 
     let begin_tokens =
         model.str_to_token(tool_format.begin_token(), llama_cpp_2::model::AddBos::Never)?;
+
+    // Every fallible function has run, so the rebuilt factory can be committed.
+    if rebuilt.is_some() {
+        *grammar_factory = rebuilt;
+    }
 
     Ok(Some((tool_sampler, begin_tokens)))
 }
@@ -1744,6 +1763,7 @@ struct Chat<'a> {
     should_stop: Arc<AtomicBool>,
     tool_format: Option<ToolFormat>,
     sampler: ChatSampler,
+    grammar_factory: Option<GrammarFactory>,
     sampler_config: SamplerConfig,
     messages: Vec<Message>,
     system_prompt: Option<String>,
@@ -1793,8 +1813,10 @@ impl<'a> Chat<'a> {
             Err(e) => return Err(InitWorkerError::ToolCallingSetup(e.into())),
         };
 
+        let mut grammar_factory = None;
         let tool_sampler = build_tool_sampler(
             &model.language_model,
+            &mut grammar_factory,
             &config.tools,
             &sampler_config,
             tool_format.as_ref(),
@@ -1810,6 +1832,7 @@ impl<'a> Chat<'a> {
             should_stop,
             tool_format,
             sampler: ChatSampler::new(base_sampler, tool_sampler),
+            grammar_factory,
             sampler_config,
             messages: vec![],
             system_prompt: config.system_prompt,
@@ -2207,24 +2230,6 @@ impl<'a> Chat<'a> {
         Ok(self)
     }
 
-    /// Apply a turn's [`Options`]. A failure partway leaves the earlier settings
-    /// applied, exactly as calling the setters in sequence would.
-    fn apply_options(&mut self, options: Options) -> Result<(), ChatWorkerError> {
-        if let Some(sampler) = options.sampler {
-            self.set_sampler_config(sampler)?;
-        }
-        // After the sampler, so the tool sampler is rebuilt from the new config.
-        // Both setters call `build_tool_sampler`, so setting both builds the
-        // grammar twice — wasteful, not wrong. Deferred to a follow-up PR.
-        if let Some(tools) = options.tools {
-            self.set_tools(tools)?;
-        }
-        if let Some(variables) = options.template_variables {
-            self.set_template_variables(variables);
-        }
-        Ok(())
-    }
-
     /// Re-read the media files referenced by `messages` and relink the parts to
     /// the freshly registered bitmaps. Covers every role but system, whose
     /// content is flattened to plain text by `hoist_system_message`.
@@ -2335,6 +2340,7 @@ impl<'a> Chat<'a> {
         // Run fallible functions before committing to state.
         let tool_sampler = build_tool_sampler(
             self.engine.ctx.model,
+            &mut self.grammar_factory,
             &tools,
             &self.sampler_config,
             self.tool_format.as_ref(),
@@ -2365,17 +2371,70 @@ impl<'a> Chat<'a> {
     }
 
     pub fn set_sampler_config(&mut self, sampler_config: SamplerConfig) -> Result<(), SetterError> {
+        self.apply_settings(Some(sampler_config), None)
+    }
+
+    /// Apply a turn's [`Options`]. The sampler and tools are applied together, so
+    /// setting both builds the tool grammar once, and a failure in either leaves
+    /// both alone. Template variables cannot fail.
+    fn apply_options(&mut self, options: Options) -> Result<(), ChatWorkerError> {
+        self.apply_settings(options.sampler, options.tools)?;
+        if let Some(variables) = options.template_variables {
+            self.set_template_variables(variables);
+        }
+        Ok(())
+    }
+
+    /// Apply a new sampler config and/or tool set, building each sampler once.
+    ///
+    /// The tool sampler chain embeds the config's shift steps, so it has to be
+    /// rebuilt when either changes — but only once, even when both do. All-or-
+    /// nothing: nothing is committed unless every build succeeds.
+    fn apply_settings(
+        &mut self,
+        sampler_config: Option<SamplerConfig>,
+        tools: Option<Vec<Tool>>,
+    ) -> Result<(), SetterError> {
+        if sampler_config.is_none() && tools.is_none() {
+            return Ok(());
+        }
+
+        let model = self.engine.ctx.model;
+        let config = sampler_config.as_ref().unwrap_or(&self.sampler_config);
+        let effective_tools = tools.as_deref().unwrap_or(&self.tools);
+
         // Run fallible functions before committing to state.
-        let base_sampler = sampler_config.build_sampler(self.engine.ctx.model)?;
+        let base_sampler = match &sampler_config {
+            Some(config) => Some(config.build_sampler(model)?),
+            None => None,
+        };
         let tool_sampler = build_tool_sampler(
-            self.engine.ctx.model,
-            &self.tools,
-            &sampler_config,
+            model,
+            &mut self.grammar_factory,
+            effective_tools,
+            config,
             self.tool_format.as_ref(),
         )?;
-        self.sampler_config = sampler_config;
-        self.sampler.set_base(base_sampler);
+        // Only a tool change re-selects the template; doing it on a sampler
+        // change would alter the render and force a re-prefill.
+        let chat_template = match &tools {
+            Some(tools) => Some(select_template(model, !tools.is_empty())?),
+            None => None,
+        };
+
+        if let Some(config) = sampler_config {
+            self.sampler_config = config;
+        }
+        if let Some(base_sampler) = base_sampler {
+            self.sampler.set_base(base_sampler);
+        }
         self.sampler.set_tool(tool_sampler);
+        if let Some(tools) = tools {
+            self.tools = tools;
+        }
+        if let Some(chat_template) = chat_template {
+            self.chat_template = chat_template;
+        }
         Ok(())
     }
 
@@ -2388,18 +2447,7 @@ impl<'a> Chat<'a> {
     }
 
     pub fn set_tools(&mut self, tools: Vec<Tool>) -> Result<(), SetterError> {
-        // Run fallible functions before committing to state.
-        let tool_sampler = build_tool_sampler(
-            self.engine.ctx.model,
-            &tools,
-            &self.sampler_config,
-            self.tool_format.as_ref(),
-        )?;
-        let chat_template = select_template(self.engine.ctx.model, !tools.is_empty())?;
-        self.sampler.set_tool(tool_sampler);
-        self.tools = tools;
-        self.chat_template = chat_template;
-        Ok(())
+        self.apply_settings(None, Some(tools))
     }
 
     /// Take a leading system message out of `messages` and make it the system
@@ -2820,6 +2868,92 @@ mod tests {
                 turn_start.elapsed().as_millis()
             );
         }
+    }
+
+    /// Time the setters that rebuild the tool grammar. The held `GrammarFactory`
+    /// means only the first build pays the llguidance init; the rest are just
+    /// `create_parser`.
+    #[test]
+    #[ignore = "manual perf benchmark — run with `cargo test bench_tool_grammar_rebuild -- --ignored --nocapture`"]
+    fn bench_tool_grammar_rebuild() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+
+        let setup_start = std::time::Instant::now();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 512,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+        eprintln!(
+            "[bench] worker setup: {} ms",
+            setup_start.elapsed().as_millis()
+        );
+
+        for i in 0..3 {
+            let start = std::time::Instant::now();
+            worker
+                .apply_settings(Some(SamplerPresets::greedy()), Some(vec![test_tool()]))
+                .expect("applying settings");
+            eprintln!(
+                "[bench] sampler+tools {}: {} ms",
+                i + 1,
+                start.elapsed().as_millis()
+            );
+        }
+    }
+
+    /// Changing the sampler config rebuilds the tool sampler from the held
+    /// `GrammarFactory`. A grammar compiled off a reused factory has to still
+    /// drive a real tool call, so exercise one on each side of the change.
+    #[test]
+    fn tool_calling_survives_a_sampler_config_change() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 4096,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+
+        let ask = |worker: &mut Chat, prompt: &str| {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            worker
+                .ask(prompt.into(), move |x| {
+                    if let llm::WriteOutput::Done(resp) = x {
+                        sender.send(resp).unwrap();
+                    }
+                })
+                .expect("generation failed");
+            receiver.recv().unwrap()
+        };
+
+        let before = ask(&mut worker, "What is the temperature in Copenhagen?");
+        assert!(
+            before.contains("13.37"),
+            "the tool was not called before the config change: {before}"
+        );
+
+        // Rebuilds the tool sampler, reusing the factory built at construction.
+        worker
+            .set_sampler_config(SamplerPresets::greedy())
+            .expect("setting a sampler config");
+
+        let after = ask(&mut worker, "And what is the temperature in Beijing?");
+        assert!(
+            after.contains("42.69"),
+            "the tool was not called after the config change: {after}"
+        );
     }
 
     #[test]
@@ -3812,6 +3946,51 @@ mod tests {
         assert!(
             history.iter().any(Message::has_tool_calls) && history.iter().any(Message::is_tool),
             "the tool exchange should be part of the history: {history:?}"
+        );
+    }
+
+    /// `apply_options` applies the sampler and the tools together, so a tool set
+    /// that cannot produce a grammar leaves the sampler config alone too.
+    #[test]
+    fn apply_options_is_atomic_on_failure() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let chat = ChatBuilder::new(model)
+            .with_context_size(512)
+            .build()
+            .expect("chat build failed in test");
+
+        let before = chat.get_sampler_config().expect("worker should answer");
+
+        // An unresolvable `$ref`: the lark is generated fine and then fails to
+        // compile, after the base sampler was already built. (A bogus `type` or a
+        // broken regex would not do — tool schemas are compiled leniently.)
+        let bad_tool = Tool {
+            name: "bad".into(),
+            description: "a tool whose schema cannot compile".into(),
+            json_schema: serde_json::json!({"$ref": "#/definitions/nope"}),
+            function: Arc::new(|_| String::new()),
+        };
+
+        // The history is valid, so the rejection comes back through the stream.
+        let err = chat
+            .complete(
+                vec![user("Say hi.")],
+                Options::new()
+                    .with_sampler(SamplerPresets::greedy())
+                    .with_tools(vec![bad_tool]),
+            )
+            .expect("the history itself is fine")
+            .completed()
+            .expect_err("an uncompilable tool schema should be rejected");
+        eprintln!("rejected as expected: {err}");
+
+        // The sampler config is the observable half: it is applied first, so
+        // before the coalescing it survived a later tool failure.
+        assert_eq!(
+            serde_json::to_value(chat.get_sampler_config().expect("worker is alive")).unwrap(),
+            serde_json::to_value(&before).unwrap(),
+            "a failed Options should leave the sampler config alone"
         );
     }
 
