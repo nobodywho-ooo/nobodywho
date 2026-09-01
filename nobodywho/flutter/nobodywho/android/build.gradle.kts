@@ -8,6 +8,7 @@
 // 4. Download from GitHub releases
 
 import java.io.ByteArrayOutputStream
+import java.io.File
 import org.gradle.process.ExecOperations
 import org.gradle.kotlin.dsl.support.serviceOf
 
@@ -36,6 +37,14 @@ val targetAbis = (findProperty("target-platform") as String?)
     ?.filter { it in supportedAbis }
     ?.takeIf { it.isNotEmpty() }
     ?: supportedAbis
+
+// `dart` is not guaranteed to be on PATH (notably on Windows), so derive it from the
+// Flutter SDK root that Flutter exposes via FLUTTER_ROOT during builds, mirroring
+// windows/CMakeLists.txt, and fall back to `dart` on PATH otherwise.
+val ext = if (System.getProperty("os.name").contains("Windows")) ".exe" else ""
+val dartExecutable: String = System.getenv("FLUTTER_ROOT")
+    ?.let { root -> File(root, "bin/cache/dart-sdk/bin/dart$ext").path }
+    ?: "dart$ext"
 
 android {
     namespace = "ooo.nobodywho.nobodywho"
@@ -95,7 +104,7 @@ val resolveNativeLibraries by tasks.registering {
 
             val execResult = execOperations.exec {
                 commandLine(
-                    "dart", "run", "${toolDir}/resolve_binary.dart",
+                    dartExecutable, "run", "${toolDir}/resolve_binary.dart",
                     "--platform=android",
                     "--arch=$abi",
                     "--build-type=release",
