@@ -172,7 +172,7 @@ jobs:
 
           # Emit one p_* per filter, mirroring the names the decide step reads.
           contains '^nobodywho/core/'        && out core         true || out core         false
-          if contains '^nobodywho/(android/|\.cargo/config\.toml$|core/build\.rs$|core/cmake/llama-build-overrides\.cmake$)'; then
+          if contains '^nobodywho/(android/|\.cargo/config\.toml$|core/(Cargo\.toml|build\.rs|cmake/llama-build-overrides\.cmake|src/(errors|lib|llama_backend)\.rs)$)'; then
             out android true
           else
             out android false

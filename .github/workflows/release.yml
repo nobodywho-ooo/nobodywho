@@ -369,11 +369,28 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: "Download all uniffi release artifacts"
+      - name: "Download Linux x86_64 UniFFI release artifact"
         uses: actions/download-artifact@v5
         with:
-          pattern: nobodywho-uniffi-*-release
-          merge-multiple: true
+          name: nobodywho-uniffi-x86_64-unknown-linux-gnu-release
+          path: ./artifacts
+
+      - name: "Download Linux ARM64 UniFFI release artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-aarch64-unknown-linux-gnu-release
+          path: ./artifacts
+
+      - name: "Download macOS ARM64 UniFFI release artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-aarch64-apple-darwin-release
+          path: ./artifacts
+
+      - name: "Download Windows x86_64 UniFFI release artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-uniffi-x86_64-pc-windows-msvc-release
           path: ./artifacts
 
       - name: "List artifacts"
