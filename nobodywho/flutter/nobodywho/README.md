@@ -2,7 +2,7 @@
 
 NobodyWho is a Flutter library for running large language models locally and offline on iOS, Android, macOS, Linux, and Windows.
 
-Free to use in commercial projects under the EUPL-1.2 license — no API key required. Support text, vision, embeddings, RAG & function calling.
+Free to use in commercial projects under the EUPL-1.2 license — no API key required. Support text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — Flutter & other frameworks documentation
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
@@ -249,3 +249,75 @@ final response = await chat.askWithPrompt(nobodywho.Prompt([
 You can pass multiple images and audio parts and interleave text between them. If the model performs poorly, try reordering the text and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
 
 See the [Vision & Hearing documentation](https://docs.nobodywho.ooo/flutter/vision/) for model recommendations and advanced tips.
+
+---
+
+## Speech to Text
+
+Transcribe spoken audio into text using Whisper models in ONNX format:
+
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+// ... after NobodyWho.init().
+final stt = await nobodywho.SpeechToText.load(source: 'hf://onnx-community/whisper-base');
+
+final text = await stt.transcribeFile('recording.mp3').completed();
+print(text);
+```
+
+You can also transcribe raw PCM buffers with `transcribePcm`, and stream the transcription token by token.
+
+See the [Speech to Text documentation](https://docs.nobodywho.ooo/flutter/speech-to-text/) for more.
+
+---
+
+## Text to Speech
+
+Generate natural-sounding speech from text, ready to save as a WAV file or play back in your app:
+
+```dart
+import 'dart:io';
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+// ... after NobodyWho.init().
+final tts = await nobodywho.TextToSpeech.load(
+  source: 'hf://NobodyWho/Kokoro-82M', // Hugging Face repo or local folder.
+  voice: 'bf_emma', // Voice to use from the model.
+  language: 'en-gb', // Language code for the input text.
+);
+
+final wav = await tts.synthesize(text: 'Hello from NobodyWho!');
+await File('out.wav').writeAsBytes(wav);
+```
+
+NobodyWho supports the Kokoro, Pocket TTS, and Supertonic speech synthesis architectures.
+
+See the [Text to Speech documentation](https://docs.nobodywho.ooo/flutter/text-to-speech/) for more.
+
+---
+
+## Voice Activity Detection
+
+Detect speech automatically in an audio stream, so you know when to stop listening to the microphone and start transcribing:
+
+```dart
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
+
+// ... after NobodyWho.init().
+final vad = await nobodywho.VoiceActivityDetection.load(
+  sampleRate: 16000,
+  source: 'hf://onnx-community/silero-vad',
+);
+
+while (true) {
+  final chunk = readMic();
+  if (vad.push(chunk) == nobodywho.VoiceActivityDetectionEvent.speechEnded) break;
+}
+
+final speech = vad.finish(); // buffered speech, ready to pass to SpeechToText
+```
+
+You can also segment speech out of an existing recording with `segment()`.
+
+See the [Voice Activity Detection documentation](https://docs.nobodywho.ooo/flutter/voice-activity-detection/) for more.

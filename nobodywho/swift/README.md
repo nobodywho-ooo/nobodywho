@@ -180,6 +180,55 @@ let chat = try await Chat.fromPath(
 // SamplerPresets.constrainWithGrammar("...")        — constrain to a Lark or GBNF grammar
 ```
 
+### Speech to Text
+
+Transcribe spoken audio into text using Whisper models in ONNX format:
+
+```swift
+let stt = try await SpeechToText.load(source: "hf://onnx-community/whisper-base")
+
+let text = try await stt.transcribeFile(path: "recording.mp3").completed()
+```
+
+You can also transcribe raw PCM buffers with `transcribePcm`, and stream the transcription token by token.
+
+### Text to Speech
+
+Generate natural-sounding speech from text, ready to save as a WAV file or play back in your app:
+
+```swift
+let tts = try await TextToSpeech.load(
+    source: "hf://NobodyWho/Kokoro-82M",
+    voice: "bf_emma",
+    language: "en-gb"
+)
+
+let wav = try await tts.synthesize("Hello from NobodyWho!")
+try wav.write(to: URL(fileURLWithPath: "out.wav"))
+```
+
+NobodyWho supports the Kokoro, Pocket TTS, and Supertonic speech synthesis architectures.
+
+### Voice Activity Detection
+
+Detect speech automatically in an audio stream, so you know when to stop listening to the microphone and start transcribing:
+
+```swift
+let vad = try await VoiceActivityDetection.load(sampleRate: 16000, source: "hf://onnx-community/silero-vad")
+let stt = try await SpeechToText.load(source: "hf://onnx-community/whisper-base")
+
+while let chunk = readMic() {
+    if try vad.push(chunk: chunk) == .speechEnded {
+        break
+    }
+}
+
+let speech = vad.finish()
+let transcription = try await stt.transcribePcm(samples: speech, sampleRate: 16000).completed()
+```
+
+You can also segment speech out of an existing recording with `segment`.
+
 ## Documentation
 
 Full documentation is available at [docs.nobodywho.ooo](https://docs.nobodywho.ooo).

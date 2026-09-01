@@ -1,6 +1,6 @@
 ---
 title: Text to Speech
-description: Generate WAV audio from text with NobodyWho in React Native.
+description: Generate WAV audio from text with NobodyWho in React Native & Expo.
 sidebar_position: 6
 ---
 

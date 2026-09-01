@@ -1,6 +1,6 @@
 ---
 title: Downloading models
-description: How NobodyWho downloads, caches, and inspects GGUF models in React Native
+description: How NobodyWho downloads, caches, and inspects GGUF models in React Native & Expo
 sidebar_position: 1
 ---
 
@@ -18,7 +18,7 @@ The `modelPath` option to `Chat.fromPath` and `downloadModel` accepts:
 
 The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs.
 
-## Android permissions
+## Android permissions (React Native only)
 
 Loading a model from `hf://` or `https://` needs network access. The React Native app template already declares the internet permission in `android/app/src/main/AndroidManifest.xml`:
 

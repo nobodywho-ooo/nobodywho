@@ -9,6 +9,10 @@ NobodyWho is a lightweight, open-source inference engine that makes it simple to
 - **Run locally, offline, for free** - No API keys or cloud services required
 - **Fast, simple tool calling** - Just pass normal Python functions
 - **Reliable tool execution** - Automatically derives grammar from function signatures
+- **Speech-to-text** - Transcribe spoken audio into text with Whisper models
+- **Text-to-speech** - Generate natural-sounding speech from text
+- **Voice activity detection** - Detect speech in an audio stream to know when to start and stop listening
+- **Vision & embeddings** - Multimodal image input, plus embeddings and reranking for semantic search and RAG
 - **Infinite conversations** - Conversation-aware preemptive context shifting prevents mid-conversation crashes
 - **GPU accelerated** - Vulkan-powered inference for maximum performance
 - **Thousands of compatible models** - Works with any LLM in GGUF format
