@@ -48,7 +48,7 @@ We support Kotlin, Swift, Python, Flutter, React Native, Expo and Godot.
 |----------|-------------|---------------|
 | **Kotlin** | [Maven Central](#kotlin) | [docs.nobodywho.ooo/kotlin](https://docs.nobodywho.ooo/kotlin/) |
 | **Swift** | [SPM](#swift) | [docs.nobodywho.ooo/swift](https://docs.nobodywho.ooo/swift/) |
-| **React Native / Expo** | [npm](#react-native) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
+| **React Native / Expo** | [npm](#react-native--expo) | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
 | **Flutter** | [pub.dev](#flutter) | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [pypi](#python) | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
 | **Godot** | [AssetLib](#godot) | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/) |
