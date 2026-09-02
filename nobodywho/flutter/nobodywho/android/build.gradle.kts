@@ -10,9 +10,12 @@ plugins {
 group = "ooo.nobodywho.nobodywho"
 version = "1.0"
 
-// Pinned independently of this plugin's own version — bump deliberately to adopt
-// a newer nobodywho-android-vX.Y.Z release.
-val nobodywhoNativeVersion = "2.5.0"
+val nobodywhoVersion = file("../pubspec.yaml").useLines { lines ->
+    lines.map(String::trim)
+        .first { it.startsWith("version:") }
+        .substringAfter("version:")
+        .trim()
+}
 val localNativeAar = providers.gradleProperty("nobodywhoFlutterNativeAar").orNull
     ?: System.getenv("NOBODYWHO_FLUTTER_ANDROID_AAR")
 val localNativeRoot = layout.buildDirectory.dir("localNativeAar")
@@ -55,7 +58,7 @@ android {
 
 dependencies {
     if (localNativeAar == null) {
-        implementation("ai.nobodywho:nobodywho-flutter-android:$nobodywhoNativeVersion")
+        implementation("ai.nobodywho:nobodywho-flutter-android:$nobodywhoVersion")
     }
 }
 

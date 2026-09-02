@@ -1,18 +1,18 @@
 name: "Mobile Device Tests"
 
 # Runs each binding's on-device test suite on real phones via Firebase Test Lab.
-# Triggers: nightly on `main`, a workflow_dispatch for any single job, or a call
-# from build-and-test.yml (release gating and /<binding>-device-<mode>-ci PR
-# comments). A failed test = a red run; there is intentionally no extra
-# notification layer.
+# Only called from build-and-test.yml, which also builds and packages the
+# Android candidates these jobs consume: nightly schedule, release gating,
+# /<binding>-device-<mode>-ci PR comments, or a workflow_dispatch of
+# build-and-test with `buckets: device_<binding>_<source|released>`.
+# A failed test = a red run.
 #
 # Every binding gets two jobs:
 #   <binding>-source     first creates the binding's local release candidate,
 #                        then installs that candidate in the device app. Normal
-#                        source runs resolve this run's native AAR from a local
-#                        Maven directory. Binding release tags instead resolve
-#                        the native version declared by the candidate package.
-#                        Nothing is uploaded to a package registry.
+#                        source runs resolve this run's binding-owned Android
+#                        candidate from a local Maven directory. Nothing is
+#                        uploaded to a package registry.
 #   <binding>-released   builds against the published package, exactly as a
 #                        consumer does. A failure here means what we already
 #                        shipped is broken, and the fix belongs in the library —
@@ -22,42 +22,6 @@ name: "Mobile Device Tests"
 # Auth is keyless via Workload Identity Federation. Requires three repo secrets:
 #   GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT, GCP_WORKLOAD_IDENTITY_PROVIDER
 on:
-  # Nightly. GitHub only runs scheduled workflows on the default branch, so this
-  # is the canonical "does main still work on real hardware" run.
-  schedule:
-    - cron: "0 4 * * *"
-
-  workflow_dispatch:
-    inputs:
-      jobs:
-        description: "Which device-test job(s) to run"
-        type: choice
-        default: all
-        options:
-          - all
-          - source        # every binding, built from this repo
-          - released      # every binding, from its published package
-          - kotlin-source
-          - kotlin-released
-          - flutter-source
-          - flutter-released
-          - react-native-source
-          - react-native-released
-      device:
-        description: "Which device(s) to run on"
-        type: choice
-        default: both
-        options:
-          - both
-          - pixel8-mali
-          - s24ultra-adreno
-      test_timeout:
-        description: "Per-device test timeout (e.g. 30m)"
-        type: string
-        default: "30m"
-
-  # Called from build-and-test.yml, so a release can be gated on its binding's
-  # device job and so /<binding>-device-ci comments can reach these jobs.
   workflow_call:
     inputs:
       jobs:
@@ -70,14 +34,6 @@ on:
       test_timeout:
         type: string
         default: "30m"
-      candidate_aars_prebuilt:
-        description: "The caller already uploaded nobodywho-android-candidate-aars"
-        type: boolean
-        default: false
-      native_dependency_mode:
-        description: "candidate uses this run's AAR; released resolves the binding's declared Maven version"
-        type: string
-        default: candidate
     secrets:
       GCP_PROJECT_ID:
         required: true
@@ -102,24 +58,13 @@ jobs:
       flutter_released: ${{ steps.pick.outputs.flutter_released }}
       react_native_source: ${{ steps.pick.outputs.react_native_source }}
       react_native_released: ${{ steps.pick.outputs.react_native_released }}
-      use_native_candidates: ${{ steps.pick.outputs.use_native_candidates }}
     steps:
       - id: pick
         env:
-          # Empty on a schedule event, where everything should run.
           SELECTION: ${{ inputs.jobs || 'all' }}
-          NATIVE_DEPENDENCY_MODE: ${{ inputs.native_dependency_mode || 'candidate' }}
         run: |
           set -euo pipefail
           sel="${SELECTION:-all}"
-          case "$NATIVE_DEPENDENCY_MODE" in
-            candidate) use_native_candidates=true ;;
-            released) use_native_candidates=false ;;
-            *)
-              echo "::error::unknown native dependency mode '$NATIVE_DEPENDENCY_MODE'; expected candidate or released"
-              exit 1
-              ;;
-          esac
           # $1 = job name, $2 = group. Whole-token match, so selecting
           # "kotlin-source" never also selects "kotlin-released".
           want() {
@@ -136,82 +81,27 @@ jobs:
             echo "flutter_released=$(want flutter-released released)"
             echo "react_native_source=$(want react-native-source source)"
             echo "react_native_released=$(want react-native-released released)"
-            echo "use_native_candidates=$use_native_candidates"
           } >> "$GITHUB_OUTPUT"
-
-  # A direct schedule/workflow_dispatch has no parent build job. Build and
-  # package the same candidates here; callers such as build-and-test.yml set
-  # candidate_aars_prebuilt after doing these jobs themselves.
-  build-source-native-candidates:
-    needs: select
-    if: >-
-      !inputs.candidate_aars_prebuilt &&
-      needs.select.outputs.use_native_candidates == 'true' &&
-      (
-        needs.select.outputs.kotlin_source == 'true' ||
-        needs.select.outputs.flutter_source == 'true' ||
-        needs.select.outputs.react_native_source == 'true'
-      )
-    uses: ./.github/workflows/build.yml
-    with:
-      android_native: true
-
-  package-source-native-candidates:
-    needs: [select, build-source-native-candidates]
-    if: >-
-      always() &&
-      !inputs.candidate_aars_prebuilt &&
-      needs.select.outputs.use_native_candidates == 'true' &&
-      (
-        needs.select.outputs.kotlin_source == 'true' ||
-        needs.select.outputs.flutter_source == 'true' ||
-        needs.select.outputs.react_native_source == 'true'
-      ) &&
-      needs.build-source-native-candidates.result == 'success'
-    uses: ./.github/workflows/package-android-candidates.yml
 
   # ---------------------------------------------------------------- Kotlin ---
   kotlin-source:
-    needs: [select, package-source-native-candidates]
-    if: >-
-      always() &&
-      needs.select.outputs.kotlin_source == 'true' &&
-      (
-        needs.select.outputs.use_native_candidates != 'true' ||
-        inputs.candidate_aars_prebuilt ||
-        needs.package-source-native-candidates.result == 'success'
-      )
+    needs: select
+    if: needs.select.outputs.kotlin_source == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
       - name: "Download tested Android candidates"
-        if: needs.select.outputs.use_native_candidates == 'true'
         uses: actions/download-artifact@v5
         with:
-          name: nobodywho-android-candidate-aars
+          name: nobodywho-android-binding-candidates
           path: ./android-candidates
 
-      # The packaged Kotlin binding keeps its normal Maven dependency. This
-      # action makes the tested AAR available at that coordinate only inside
-      # the runner; it does not set the binding's native-AAR file override.
-      - name: "Stage UniFFI candidate for Maven resolution"
-        if: needs.select.outputs.use_native_candidates == 'true'
-        uses: ./.github/actions/stage-android-candidate-repository
-        with:
-          integration: uniffi
-          candidates-path: android-candidates
-          version-source: nobodywho/kotlin/android/build.gradle.kts
-
-      # In released-native mode the staging action above is skipped, but the
-      # Kotlin binding candidate still needs a runner-local publication target.
-      - name: "Prepare the Kotlin candidate repository"
-        if: needs.select.outputs.use_native_candidates != 'true'
+      - name: "Use the isolated candidate repository"
         run: |
-          REPOSITORY="$RUNNER_TEMP/nobodywho-candidate-maven"
-          mkdir -p "$REPOSITORY"
-          echo "NOBODYWHO_CANDIDATE_MAVEN_REPO=$REPOSITORY" >> "$GITHUB_ENV"
+          echo "NOBODYWHO_CANDIDATE_MAVEN_REPO=$PWD/android-candidates/maven" >> "$GITHUB_ENV"
+          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/android-candidates/nobodywho-uniffi-android-0.0.0-local.aar" >> "$GITHUB_ENV"
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -244,9 +134,9 @@ jobs:
             VERSION=${GITHUB_REF_NAME#nobodywho-kotlin-v}
           fi
 
-          # These are the same MavenPublication artifacts and generated POMs
-          # used by the release. Candidate is a file:// repository under
-          # RUNNER_TEMP, so this cannot publish outside the current runner.
+          # The same MavenPublication artifacts and POMs the release publishes,
+          # built from the same UniFFI native input, written to a file:// repo
+          # under the runner's workspace. Nothing leaves the runner.
           ./gradlew \
             :nobodywho-core:publishReleasePublicationToCandidateRepository \
             :android:publishReleasePublicationToCandidateRepository \
@@ -254,8 +144,8 @@ jobs:
             -PcandidateRepository="$NOBODYWHO_CANDIDATE_MAVEN_REPO"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # Supplying a version disables the composite build. The app therefore
-      # consumes the staged AAR, JAR, and POMs exactly like a Maven consumer.
+      # Supplying a version disables the composite build. The app consumes the
+      # staged AAR and POMs through normal Maven resolution.
       - name: "Assemble app + androidTest APKs from the candidate"
         working-directory: ./nobodywho/testing-apps/kotlin
         run: |
@@ -354,34 +244,21 @@ jobs:
 
   # --------------------------------------------------------------- Flutter ---
   flutter-source:
-    needs: [select, package-source-native-candidates]
-    if: >-
-      always() &&
-      needs.select.outputs.flutter_source == 'true' &&
-      (
-        needs.select.outputs.use_native_candidates != 'true' ||
-        inputs.candidate_aars_prebuilt ||
-        needs.package-source-native-candidates.result == 'success'
-      )
+    needs: select
+    if: needs.select.outputs.flutter_source == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
       - name: "Download tested Android candidates"
-        if: needs.select.outputs.use_native_candidates == 'true'
         uses: actions/download-artifact@v5
         with:
-          name: nobodywho-android-candidate-aars
+          name: nobodywho-android-binding-candidates
           path: ./android-candidates
 
-      - name: "Stage Flutter native candidate for Maven resolution"
-        if: needs.select.outputs.use_native_candidates == 'true'
-        uses: ./.github/actions/stage-android-candidate-repository
-        with:
-          integration: flutter
-          candidates-path: android-candidates
-          version-source: nobodywho/flutter/nobodywho/android/build.gradle.kts
+      - name: "Use the isolated candidate repository"
+        run: echo "NOBODYWHO_CANDIDATE_MAVEN_REPO=$PWD/android-candidates/maven" >> "$GITHUB_ENV"
 
       - name: "Setup Flutter SDK"
         uses: flutter-actions/setup-flutter@v4
@@ -514,34 +391,21 @@ jobs:
 
   # ---------------------------------------------------------- React Native ---
   react-native-source:
-    needs: [select, package-source-native-candidates]
-    if: >-
-      always() &&
-      needs.select.outputs.react_native_source == 'true' &&
-      (
-        needs.select.outputs.use_native_candidates != 'true' ||
-        inputs.candidate_aars_prebuilt ||
-        needs.package-source-native-candidates.result == 'success'
-      )
+    needs: select
+    if: needs.select.outputs.react_native_source == 'true'
     runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
       - name: "Download tested Android candidates"
-        if: needs.select.outputs.use_native_candidates == 'true'
         uses: actions/download-artifact@v5
         with:
-          name: nobodywho-android-candidate-aars
+          name: nobodywho-android-binding-candidates
           path: ./android-candidates
 
-      - name: "Stage UniFFI candidate for Maven resolution"
-        if: needs.select.outputs.use_native_candidates == 'true'
-        uses: ./.github/actions/stage-android-candidate-repository
-        with:
-          integration: uniffi
-          candidates-path: android-candidates
-          version-source: nobodywho/react-native/android/build.gradle
+      - name: "Use the isolated candidate repository"
+        run: echo "NOBODYWHO_CANDIDATE_MAVEN_REPO=$PWD/android-candidates/maven" >> "$GITHUB_ENV"
 
       # The React Native template declares engines.node >= 22.11.0.
       - uses: actions/setup-node@v4

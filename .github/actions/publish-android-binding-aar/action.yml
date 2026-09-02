@@ -1,0 +1,85 @@
+name: "Publish an Android binding AAR"
+description: >
+  Publishes one device-tested AAR to Maven Central, skips the upload when that
+  version already exists (Central versions are immutable, so a re-run after a
+  successful publish must not fail), and waits until normal consumer resolution
+  can see it before the wrapper package is published.
+
+inputs:
+  binding:
+    description: "Android packaging binding: flutter or react-native"
+    required: true
+  artifact-id:
+    description: "Maven artifact ID"
+    required: true
+  version:
+    description: "Binding and Maven version"
+    required: true
+  candidates-path:
+    description: "Downloaded Android candidates directory"
+    default: "android-candidates"
+
+runs:
+  using: composite
+  steps:
+    - name: "Check whether this version is already on Maven Central"
+      id: check
+      shell: bash
+      env:
+        ARTIFACT_ID: ${{ inputs.artifact-id }}
+        VERSION: ${{ inputs.version }}
+        CANDIDATES_PATH: ${{ inputs.candidates-path }}
+      run: |
+        set -euo pipefail
+        AAR="$(realpath "$CANDIDATES_PATH")/$ARTIFACT_ID-$VERSION.aar"
+        test -f "$AAR"
+
+        URL="https://repo1.maven.org/maven2/ai/nobodywho/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.aar"
+        HTTP_STATUS=$(curl --silent --show-error --location --head \
+          --write-out '%{http_code}' --output /dev/null "$URL")
+        case "$HTTP_STATUS" in
+          200) SHOULD_PUBLISH=false; echo "$ARTIFACT_ID:$VERSION is already published" ;;
+          404) SHOULD_PUBLISH=true ;;
+          *)
+            echo "::error::Maven Central returned HTTP $HTTP_STATUS for $ARTIFACT_ID:$VERSION"
+            exit 1
+            ;;
+        esac
+
+        {
+          echo "aar=$AAR"
+          echo "url=$URL"
+          echo "should-publish=$SHOULD_PUBLISH"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: "Publish exact AAR to Maven Central"
+      if: steps.check.outputs.should-publish == 'true'
+      shell: bash
+      env:
+        BINDING: ${{ inputs.binding }}
+        VERSION: ${{ inputs.version }}
+        AAR: ${{ steps.check.outputs.aar }}
+      run: |
+        set -euo pipefail
+        ./nobodywho/kotlin/gradlew -p nobodywho/android \
+          publishAggregationToCentralPortal \
+          -PnobodywhoBinding="$BINDING" \
+          -Pversion="$VERSION" \
+          -PnobodywhoPrebuiltAar="$AAR"
+
+    - name: "Wait for Maven Central consumer resolution"
+      shell: bash
+      env:
+        URL: ${{ steps.check.outputs.url }}
+      run: |
+        set -euo pipefail
+        # Central Portal to repo1 sync usually takes 10-30 minutes; allow an hour.
+        for attempt in $(seq 1 120); do
+          if curl --fail --silent --show-error --location --head "$URL" --output /dev/null; then
+            exit 0
+          fi
+          echo "Waiting for Maven Central sync ($attempt/120)"
+          sleep 30
+        done
+        echo "::error::candidate was published but is not resolvable from Maven Central"
+        exit 1

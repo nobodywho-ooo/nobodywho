@@ -1,4 +1,4 @@
-name: "Package Android release candidates"
+name: "Package Android binding candidates"
 
 on:
   workflow_call:
@@ -25,15 +25,6 @@ jobs:
           pattern: nobodywho-uniffi-*-linux-android-release
           merge-multiple: true
           path: ./artifacts/uniffi
-
-      - name: "Set candidate version"
-        run: |
-          set -euo pipefail
-          VERSION=0.0.0-candidate
-          if [[ "$GITHUB_REF_NAME" == nobodywho-android-v* ]]; then
-            VERSION=${GITHUB_REF_NAME#nobodywho-android-v}
-          fi
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: "Stage Flutter jniLibs (arm64-v8a)"
         uses: ./.github/actions/stage-android-jnilibs
@@ -88,29 +79,73 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: "Build native AAR candidates"
+      - name: "Read binding versions"
         run: |
           set -euo pipefail
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            check assemble \
-            generatePomFileForFlutterPublication \
-            generatePomFileForUniffiPublication \
-            -Pversion=${{ env.VERSION }}
+          FLUTTER_VERSION=$(awk '$1 == "version:" { print $2; exit }' nobodywho/flutter/nobodywho/pubspec.yaml)
+          REACT_NATIVE_VERSION=$(jq -r .version nobodywho/react-native/package.json)
+          for version in "$FLUTTER_VERSION" "$REACT_NATIVE_VERSION"; do
+            if [[ -z "$version" || "$version" == "null" ]]; then
+              echo "::error::could not read all binding versions"
+              exit 1
+            fi
+          done
 
+          # On a binding release tag, fail here rather than after the paid
+          # device test if the committed version was not bumped to the tag.
+          # Kotlin takes its version from the tag itself (-Pversion).
+          case "$GITHUB_REF_NAME" in
+            nobodywho-flutter-v*)      EXPECTED="nobodywho-flutter-v$FLUTTER_VERSION" ;;
+            nobodywho-react-native-v*) EXPECTED="nobodywho-react-native-v$REACT_NATIVE_VERSION" ;;
+            *)                         EXPECTED="$GITHUB_REF_NAME" ;;
+          esac
+          if [[ "$GITHUB_REF_NAME" != "$EXPECTED" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the committed binding version ($EXPECTED)"
+            exit 1
+          fi
+          {
+            echo "FLUTTER_VERSION=$FLUTTER_VERSION"
+            echo "REACT_NATIVE_VERSION=$REACT_NATIVE_VERSION"
+          } >> "$GITHUB_ENV"
+
+      - name: "Build binding-owned Android candidates"
+        run: |
+          set -euo pipefail
+          CANDIDATES="$PWD/android-candidates"
+          mkdir -p "$CANDIDATES/maven"
+
+          # Flutter and React Native publish native AARs versioned with their
+          # wrapper package. Source device tests resolve them from the local
+          # Maven directory; the release publishes these exact files.
+          for spec in "flutter:$FLUTTER_VERSION" "react-native:$REACT_NATIVE_VERSION"; do
+            binding=${spec%%:*}
+            version=${spec#*:}
+            ./nobodywho/kotlin/gradlew -p nobodywho/android \
+              nativeAar publishNativePublicationToCandidateRepository \
+              -PnobodywhoBinding="$binding" \
+              -Pversion="$version" \
+              -PcandidateRepository="$CANDIDATES/maven"
+            cp "nobodywho/android/build/outputs/nobodywho-$binding-android-$version.aar" "$CANDIDATES/"
+          done
+
+          # Kotlin embeds these libraries into its own nobodywho-android AAR.
+          # The device test and the release both build that AAR from this file.
+          ./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar -PnobodywhoBinding=uniffi
+          cp nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar "$CANDIDATES/"
+
+      # Gradle's nativeAar task already checked that every required library is
+      # present. This step checks what Gradle cannot: the ELF machine type and
+      # that every non-system NEEDED library ships next to its consumer.
       - name: "Validate packaged AARs"
         env:
           LLVM_READELF: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
         run: |
           set -euo pipefail
-          mkdir -p android-candidates
 
           validate_aar() {
-            local integration="$1"
-            local entrypoint="$2"
-            local aar="nobodywho/android/build/outputs/nobodywho-${integration}-android-${VERSION}.aar"
-            local unpacked="$RUNNER_TEMP/nobodywho-${integration}-aar"
+            local aar="android-candidates/$1"
+            local unpacked="$RUNNER_TEMP/${1%.aar}"
 
-            test -f "$aar"
             unzip -tq "$aar"
             rm -rf "$unpacked"
             mkdir -p "$unpacked"
@@ -118,19 +153,6 @@ jobs:
 
             for abi in arm64-v8a x86_64; do
               local abi_dir="$unpacked/jni/$abi"
-              test -d "$abi_dir"
-
-              for library in \
-                libggml-base.so libggml.so libllama-common.so libllama.so \
-                libc++_shared.so "$entrypoint"; do
-                test -f "$abi_dir/$library"
-              done
-              if [[ "$abi" == x86_64 ]]; then
-                test -f "$abi_dir/libonnxruntime.so"
-              fi
-
-              compgen -G "$abi_dir/libggml-cpu*.so" >/dev/null
-
               for library in "$abi_dir"/*.so; do
                 if [[ "$abi" == arm64-v8a ]]; then
                   "$LLVM_READELF" -h "$library" | grep -q 'Machine:.*AArch64'
@@ -147,7 +169,7 @@ jobs:
                       ;;
                     *)
                       if [[ ! -f "$abi_dir/$needed" ]]; then
-                        echo "::error::$integration/$abi/$(basename "$library") needs unpackaged $needed"
+                        echo "::error::$1/$abi/$(basename "$library") needs unpackaged $needed"
                         exit 1
                       fi
                       ;;
@@ -155,19 +177,16 @@ jobs:
                 done < <("$LLVM_READELF" -d "$library" | sed -n 's/.*Shared library: \[\(.*\)\].*/\1/p')
               done
             done
-
-            cp "$aar" android-candidates/
-            cp "nobodywho/android/build/publications/${integration}/pom-default.xml" \
-              "android-candidates/nobodywho-${integration}-android-${VERSION}.pom"
           }
 
-          validate_aar flutter libnobodywho_flutter.so
-          validate_aar uniffi libnobodywho_uniffi.so
+          validate_aar "nobodywho-flutter-android-$FLUTTER_VERSION.aar"
+          validate_aar "nobodywho-react-native-android-$REACT_NATIVE_VERSION.aar"
+          validate_aar nobodywho-uniffi-android-0.0.0-local.aar
 
-      - name: "Upload exact Android candidates"
+      - name: "Upload exact Android binding candidates"
         uses: actions/upload-artifact@v5
         with:
-          name: nobodywho-android-candidate-aars
+          name: nobodywho-android-binding-candidates
           path: android-candidates/
           if-no-files-found: error
           retention-days: 14

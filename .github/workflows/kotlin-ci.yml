@@ -84,9 +84,9 @@ jobs:
       - name: "Build local multi-ABI UniFFI AAR"
         run: |
           set -euo pipefail
-          ./nobodywho/kotlin/gradlew -p nobodywho/android uniffiAar
-          AAR=$(ls nobodywho/android/build/outputs/nobodywho-uniffi-android-*.aar)
-          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/$AAR" >> "$GITHUB_ENV"
+          ./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
+            -PnobodywhoBinding=uniffi
+          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar" >> "$GITHUB_ENV"
 
       - name: "Compile Kotlin modules"
         working-directory: ./nobodywho/kotlin

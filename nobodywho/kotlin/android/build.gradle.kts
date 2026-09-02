@@ -5,13 +5,18 @@ plugins {
     signing
 }
 
-// Pinned independently of this module's own version — bump deliberately to adopt
-// a newer nobodywho-android-vX.Y.Z release.
-val nobodywhoNativeVersion = "2.5.0"
+// The published nobodywho-android AAR embeds the native libraries. Building it
+// requires the local UniFFI AAR produced by ../../android (see its README).
 val localNativeAar = providers.gradleProperty("nobodywhoNativeAar")
     .orElse(providers.environmentVariable("NOBODYWHO_UNIFFI_ANDROID_AAR"))
 val localNativeRoot = layout.buildDirectory.dir("localNativeAar")
 val extractLocalNativeAar by tasks.registering(Sync::class) {
+    doFirst {
+        require(localNativeAar.isPresent) {
+            "Building the Kotlin Android binding requires -PnobodywhoNativeAar=<path> " +
+                "or NOBODYWHO_UNIFFI_ANDROID_AAR. Published nobodywho-android AARs already contain these libraries."
+        }
+    }
     from({ localNativeAar.orNull?.let { zipTree(it) } ?: files() }) {
         include("jni/**/*.so")
     }
@@ -37,8 +42,6 @@ android {
 
     sourceSets {
         getByName("main") {
-            // A local override is unpacked here. Normal builds consume the same
-            // libraries, including libc++_shared.so, from the Maven AAR.
             jniLibs.srcDir(localNativeRoot.map { it.dir("jni") })
         }
     }
@@ -53,10 +56,6 @@ dependencies {
     implementation("net.java.dev.jna:jna:5.14.0@aar")
     // Android-specific coroutines dispatcher
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-
-    if (!localNativeAar.isPresent) {
-        implementation("ai.nobodywho:nobodywho-uniffi-android:$nobodywhoNativeVersion")
-    }
 }
 
 tasks.named("preBuild") {

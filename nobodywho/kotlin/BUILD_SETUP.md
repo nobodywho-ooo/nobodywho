@@ -24,13 +24,13 @@ kotlin/
 
 The Kotlin wrapper code is identical across platforms. What differs is how the native library (`libnobodywho_uniffi`) is supplied:
 
-- **Android** depends on the complete multi-ABI `nobodywho-uniffi-android` AAR, which supplies the native entry point and matching `libc++_shared.so`, and uses the AAR variant of JNA (`jna:5.14.0@aar`).
+- **Android** embeds the complete multi-ABI native runtime in `nobodywho-android` and uses the AAR variant of JNA (`jna:5.14.0@aar`).
 - **Desktop JVM** needs native libs for all platforms in `src/main/resources/` following JNA's naming convention (`linux-x86-64/`, `darwin-aarch64/`, `win32-x86-64/`), inside a regular JAR with JNA as a normal JAR dependency.
 
 A single module can't produce both an AAR and a JAR, so we split into three:
 
 - **`:common`** (published as `nobodywho-core`) — contains all Kotlin code. Pure JVM, no Android dependency. This is where compilation and tests happen.
-- **`:android`** — empty shell that depends on `:common` and the complete native AAR and applies the Android Gradle plugin.
+- **`:android`** — Android shell that depends on `:common`, embeds the complete native runtime, and applies the Android Gradle plugin.
 - **`:jvm`** — empty shell that depends on `:common`, packages a JAR with desktop native libs in JNA layout.
 
 ## Published artifacts
@@ -40,12 +40,12 @@ Three artifacts are published to Maven Central:
 | Artifact | Type | Contains |
 |---|---|---|
 | `ai.nobodywho:nobodywho-core` | JAR | Kotlin wrappers + generated UniFFI bindings (~100KB) |
-| `ai.nobodywho:nobodywho-android` | AAR | Android facade; depends on `nobodywho-core` and the complete `nobodywho-uniffi-android` runtime AAR |
+| `ai.nobodywho:nobodywho-android` | AAR | Android facade plus its complete native runtime; depends on `nobodywho-core` |
 | `ai.nobodywho:nobodywho` | JAR | Desktop native libs (Linux, macOS, Windows), depends on `nobodywho-core` |
 
-The Android-native release separately publishes
-`ai.nobodywho:nobodywho-uniffi-android`. Flutter and React Native use the same
-release pipeline, so native binaries are not copied into each wrapper package.
+Flutter and React Native publish their own binding-specific native AARs. The
+unpublished `nobodywho-uniffi-android` file is only a local/CI input used to
+construct the complete Kotlin AAR.
 
 Consumers add one dependency:
 
@@ -109,8 +109,9 @@ nmcpSettings {
 ```
 
 The Kotlin `publishAggregationToCentralPortal` task collects all three wrapper
-publications, signs them, and uploads them as one deployment. The shared native
-AAR is published by the Android-native release before a Kotlin version pins it.
+publications, signs them, and uploads them as one deployment. The Android
+publication is built from the same UniFFI native AAR that the release's device
+test used.
 
 POM metadata (name, description, license, developers, SCM) is configured once in the root `build.gradle.kts` and applied to all subprojects via `afterEvaluate`. Signing uses in-memory PGP keys from environment variables (`SIGNING_KEY`, `SIGNING_PASSWORD`).
 
@@ -125,11 +126,12 @@ POM metadata (name, description, license, developers, SCM) is configured once in
 
 ### Testing locally
 
-After staging the native AAR inputs, publish the native artifacts before the
-Kotlin wrappers (no credentials needed):
+After staging the native inputs described in [`../android/README.md`](../android/README.md),
+build the local UniFFI AAR and publish the Kotlin artifacts (no credentials needed):
 
 ```bash
-./gradlew -p ../android publishToMavenLocal
+./gradlew -p ../android nativeAar -PnobodywhoBinding=uniffi
+export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/../android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
 ./gradlew publishToMavenLocal
 ```
 
@@ -145,8 +147,6 @@ allprojects {
 }
 ```
 
-All three Kotlin artifacts share the same version. The CI release job passes
-`-Pversion=X.Y.Z` from the git tag; otherwise the root build uses its default
-version. The native AAR has its own version, set by the `nobodywho-android-vX.Y.Z`
-release tag; this project's `android/build.gradle.kts` pins the exact native
-version it depends on.
+All three Kotlin artifacts share the same version. The CI candidate and release
+jobs read that version from the root build, and the final
+`nobodywho-android` AAR includes the native libraries tested for that release.

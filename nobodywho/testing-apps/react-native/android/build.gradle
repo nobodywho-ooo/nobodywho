@@ -29,9 +29,15 @@ allprojects {
     repositories {
         def candidateRepository = System.getenv("NOBODYWHO_CANDIDATE_MAVEN_REPO")
         if (candidateRepository) {
-            // CI's installed npm candidate resolves its native AAR here. The
-            // directory exists only on the current Actions runner.
-            maven { url uri(candidateRepository) }
+            exclusiveContent {
+                forRepository {
+                    maven {
+                        name = "NobodyWhoCandidate"
+                        url uri(candidateRepository)
+                    }
+                }
+                filter { includeGroup "ai.nobodywho" }
+            }
         }
     }
 }
