@@ -1,6 +1,17 @@
 [workspace]
 members = [
     "core",
+    "server",
+    "godot",
+    "flutter/rust",
+    "python",
+    "grammar/gbnf",
+    "grammar/gbnf-macro",
+    "uniffi",
+]
+default-members = [
+    "core",
+    "server",
     "godot",
     "flutter/rust",
     "python",
