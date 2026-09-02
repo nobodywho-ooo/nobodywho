@@ -2415,11 +2415,14 @@ impl<'a> Chat<'a> {
             config,
             self.tool_format.as_ref(),
         )?;
-        // Only a tool change re-selects the template; doing it on a sampler
-        // change would alter the render and force a re-prefill.
+        // The template depends only on whether there are any tools, so it is
+        // re-selected only when that flips — never on a sampler change, which
+        // would alter the render and force a re-prefill.
         let chat_template = match &tools {
-            Some(tools) => Some(select_template(model, !tools.is_empty())?),
-            None => None,
+            Some(tools) if tools.is_empty() != self.tools.is_empty() => {
+                Some(select_template(model, !tools.is_empty())?)
+            }
+            _ => None,
         };
 
         if let Some(config) = sampler_config {
