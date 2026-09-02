@@ -70,7 +70,7 @@ impl NobodyWhoPrompt {
     fn create(parts: VarArray) -> Variant {
         match parse_parts(&parts) {
             Ok(core_parts) => Gd::from_init_fn(|base| Self {
-                inner: nobodywho::tokenizer::Prompt::new(core_parts),
+                inner: nobodywho::tokenizer::Prompt::parts(core_parts),
                 base,
             })
             .to_variant(),
@@ -134,13 +134,13 @@ fn parse_part(v: &Variant) -> Result<nobodywho::tokenizer::PromptPart, String> {
         .and_then(|x| x.try_to::<GString>().ok())
         .ok_or("part is missing a String \"value\" field")?;
     match ty.to_string().as_str() {
-        "text" => Ok(nobodywho::tokenizer::PromptPart::Text(value.to_string())),
-        "image" => Ok(nobodywho::tokenizer::PromptPart::Image(
-            resolve_godot_path(&value).into(),
-        )),
-        "audio" => Ok(nobodywho::tokenizer::PromptPart::Audio(
-            resolve_godot_path(&value).into(),
-        )),
+        "text" => Ok(nobodywho::tokenizer::PromptPart::text(value.to_string())),
+        "image" => Ok(nobodywho::tokenizer::PromptPart::image(resolve_godot_path(
+            &value,
+        ))),
+        "audio" => Ok(nobodywho::tokenizer::PromptPart::audio(resolve_godot_path(
+            &value,
+        ))),
         other => Err(format!("unknown part type \"{other}\"")),
     }
 }
