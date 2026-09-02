@@ -16,6 +16,29 @@ libraries. Kotlin consumes the complete UniFFI AAR. React Native extracts the
 same AAR but omits its `libc++_shared.so`, because React Native supplies the
 process-wide C++ runtime itself.
 
+## Shared C++ runtime conflicts
+
+The Flutter and Kotlin AARs must package their matching `libc++_shared.so`
+because the entry-point and dynamic backend libraries share one C++ runtime.
+If another dependency packages the same file, Android Gradle Plugin may stop at
+`mergeNativeLibs` with a duplicate-file error. Resolve that in the consuming
+application module:
+
+```kotlin
+android {
+    packaging {
+        jniLibs {
+            pickFirsts += "**/libc++_shared.so"
+        }
+    }
+}
+```
+
+`pickFirsts` selects one process-wide runtime; it does not make incompatible
+runtime versions compatible. Ensure the dependencies ship compatible NDK C++
+runtimes. React Native consumers do not need this rule because NobodyWho's
+React Native module excludes its copy before packaging.
+
 ## Versions and releases
 
 The native artifact version comes from the release tag
