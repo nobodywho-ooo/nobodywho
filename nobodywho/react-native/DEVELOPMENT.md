@@ -142,10 +142,9 @@ This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and gener
 
 ### Build native shared libraries for mobile targets
 
-Android consumes `ai.nobodywho:nobodywho-uniffi-android`, a prebuilt Maven AAR
-containing both supported ABIs. The pinned version is a `nobodywhoNativeVersion` constant in this module's
-`build.gradle`, so the React Native package version does not need to match the
-native version.
+Android consumes `ai.nobodywho:nobodywho-react-native-android`, a prebuilt
+Maven AAR containing both supported ABIs. Its version comes from this package's
+`package.json`, so the npm package and its native AAR are released together.
 
 For local development, use the nix android shell:
 
@@ -169,7 +168,7 @@ described in [`../android/README.md`](../android/README.md). Then point the
 React Native build at it:
 
 ```bash
-export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
+export NOBODYWHO_REACT_NATIVE_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-react-native-android-0.0.0-local.aar"
 ```
 
 Gradle extracts the AAR once; CMake links against its UniFFI entry point and
@@ -185,8 +184,8 @@ cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
 
 ### Release builds (CI)
 
-In CI, native `.so` files are cross-compiled and packaged separately from the npm release. At install time:
-- **Android:** Gradle resolves the pinned multi-ABI AAR from Maven Central
+In CI, native `.so` files are cross-compiled and packaged as part of the npm release. At install time:
+- **Android:** Gradle resolves the same-version multi-ABI AAR from Maven Central
 - **iOS:** `Nobodywho.podspec` downloads and extracts `NobodywhoFramework.xcframework.zip` from the same release
 
 This keeps the npm package small (code only, no binaries).

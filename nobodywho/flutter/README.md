@@ -75,8 +75,9 @@ Desktop and Apple build scripts resolve binaries using these strategies:
 3. check the versioned cache
 4. download the matching artifact from GitHub Releases
 
-Android does not use this resolver. Gradle resolves the pinned multi-ABI
-`ai.nobodywho:nobodywho-flutter-android` AAR from Maven Central.
+Android does not use this resolver. Gradle resolves the multi-ABI
+`ai.nobodywho:nobodywho-flutter-android` AAR whose version matches this
+Flutter package from Maven Central.
 If another Android dependency also packages `libc++_shared.so`, follow the
 [shared-runtime conflict instructions](../android/README.md#shared-c-runtime-conflicts).
 

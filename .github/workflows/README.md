@@ -38,7 +38,7 @@ Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swif
 | `/<bucket>-ci` comment(s) | exactly the named buckets (see PR comment commands below) |
 | tag `nobodywho-*` | everything + release (+ that binding's device tests, if it has any) |
 | push `main` | everything (post-merge full CI) + docs deploy |
-| nightly 04:00 UTC on `main` | all device tests (`mobile-device-tests.yml` schedule) |
+| nightly 04:00 UTC on `main` | all device tests (`build-and-test.yml` schedule) |
 | `[skip ci]` | nothing |
 
 Always-on floor (every event): lint + flutter doctest-drift. Concurrency: PR runs cancel on a new push; `main`/tags/dispatch run to completion.
@@ -96,21 +96,20 @@ because device tests are skipped for bindings that have none — a Swift or Pyth
 releases normally, while a `nobodywho-kotlin-v*` tag cannot publish unless its
 `kotlin-source` device job passed on real hardware.
 
-Android source-device tests consume `nobodywho-android-candidate-aars`, which is
-built once from `build.yml`'s arm64-v8a and x86_64 artifacts. The candidate workflow
-stages, strips, and validates both native AARs and their generated POMs. It stores
-the candidates as one workflow artifact, and the Android-native release publishes
-those exact files without rebuilding them in `release.yml`.
+Android source-device tests consume
+`nobodywho-android-binding-candidates`, built once from `build.yml`'s
+arm64-v8a and x86_64 artifacts. The candidate workflow stages, strips, and
+validates Flutter's and React Native's native AARs, each versioned by its owning
+binding, plus the UniFFI native AAR that Kotlin embeds into `nobodywho-android`.
 
 The source-device jobs do not link binding source directories into the test apps.
 They first create the same distributor shape as a release: a runner-local Maven
-repository containing the Kotlin AAR/JAR/POM publications, pub's generated Flutter
+repository containing the Kotlin AAR/POM publications, pub's generated Flutter
 `.tar.gz`, or npm's generated React Native `.tgz`. The app installs that candidate
-and is then tested on Firebase hardware. The native AARs are also resolved through
-their normal Maven dependency coordinates. On a binding release tag, the local
-native candidate is deliberately not staged: the candidate binding must resolve the
-native Maven version it actually declares. All candidate repositories and archives
-exist only inside the runner; these jobs have no registry credentials or upload step.
+and is then tested on Firebase hardware. The native AARs are resolved through
+their normal, same-version Maven coordinates in an isolated runner-local
+repository. A successful binding release publishes that exact tested AAR before
+publishing its wrapper package. Candidate jobs have no registry credentials.
 
 ## Workflow files
 
@@ -120,15 +119,16 @@ build-and-test.yml  Entry point: calls plan and gates children.
 linting.yml         Always-on rustfmt + clippy.
 regen-checks.yml    Bindings regen-drift checks (gated by run_regen).
 build.yml           Per-platform cargo builds; matrix-gen computes integration + macOS matrix.
-package-android-candidates.yml  Stages, strips, and validates the two multi-ABI native AARs and POMs.
+package-android-candidates.yml  Builds the three exact binding-owned Android candidates and local Maven repository.
 test.yml            nix flake check (run_rust_core) + flutter tests (run_flutter) + always-on doctest-drift.
 python-ci.yml       Static checks always; wheels/tests by run_python; model matrix by run_python_models.
 swift-ci.yml        Swift tests. kotlin-ci.yml  Kotlin/Android tests. (both gated upstream)
 docs.yml            Docusaurus deploy (main only).
 release.yml         Package publish (release tag).
 mobile-device-tests.yml  On-device tests on real phones via Firebase Test Lab.
-                    Nightly on main; callable from build-and-test (release gating);
-                    workflow_dispatch picks any single job. Six jobs:
+                    Only called from build-and-test (nightly, release gating,
+                    /device comments, or a dispatch with
+                    `buckets: device_<binding>_<mode>`). Six jobs:
                     <binding>-source (built from this repo) and
                     <binding>-released (from the published package).
                     Shared steps live in .github/actions/run-ftl.

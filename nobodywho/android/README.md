@@ -1,26 +1,28 @@
-# NobodyWho Android native artifacts
+# NobodyWho Android packaging
 
-This is the single Android-native distribution project. It packages the
-prebuilt Rust libraries into two Maven AARs:
+This Gradle project packages prebuilt Rust libraries for the three Android
+bindings. Each binding owns the Android artifact it releases:
 
-- `ai.nobodywho:nobodywho-flutter-android`
-- `ai.nobodywho:nobodywho-uniffi-android`
+- Flutter publishes `ai.nobodywho:nobodywho-flutter-android` with the version
+  from its `pubspec.yaml`.
+- React Native publishes `ai.nobodywho:nobodywho-react-native-android` with
+  the version from its `package.json`.
+- Kotlin publishes `ai.nobodywho:nobodywho-android`, containing its Kotlin
+  API and native libraries together.
 
-Both contain `arm64-v8a` and `x86_64`, including the matching
-`libc++_shared.so`. Android selects the matching directory when it builds or
-installs an app; none of the bindings detect an ABI or search for native-library
-paths at runtime.
+The packaging project also creates an unpublished
+`nobodywho-uniffi-android` AAR. It is the input from which the complete Kotlin
+AAR is built, locally and in CI.
 
-There are two artifacts because Flutter and UniFFI have different entry-point
-libraries. Kotlin consumes the complete UniFFI AAR. React Native extracts the
-same AAR but omits its `libc++_shared.so`, because React Native supplies the
-process-wide C++ runtime itself.
+Every artifact contains `arm64-v8a` and `x86_64`. Android selects the
+matching ABI when it builds an application; bindings do not search for native
+libraries at runtime.
 
 ## Shared C++ runtime conflicts
 
-The Flutter and Kotlin AARs must package their matching `libc++_shared.so`
-because the entry-point and dynamic backend libraries share one C++ runtime.
-If another dependency packages the same file, Android Gradle Plugin may stop at
+Flutter and Kotlin package their matching `libc++_shared.so` because the
+entry-point and dynamic backend libraries share one C++ runtime. If another
+dependency packages the same file, Android Gradle Plugin may stop at
 `mergeNativeLibs` with a duplicate-file error. Resolve that in the consuming
 application module:
 
@@ -35,60 +37,69 @@ android {
 ```
 
 `pickFirsts` selects one process-wide runtime; it does not make incompatible
-runtime versions compatible. Ensure the dependencies ship compatible NDK C++
-runtimes. React Native consumers do not need this rule because NobodyWho's
-React Native module excludes its copy before packaging.
+runtime versions compatible. React Native excludes NobodyWho's copy while
+extracting its native AAR because React Native supplies the process-wide C++
+runtime itself.
 
-## Versions and releases
+## Candidate and release flow
 
-The native artifact version comes from the release tag
-(`nobodywho-android-vX.Y.Z`) via `-Pversion=`; local/unstamped builds default
-to `0.0.0-local`. Flutter, React Native, and Kotlin each pin the native version
-they depend on as a `nobodywhoNativeVersion` constant next to their
-`ai.nobodywho:...` dependency declaration. This keeps wrapper releases
-independent: a Dart, JavaScript, or Kotlin-only change can reuse an existing
-native release without touching its pin, and cutting a new native release
-doesn't force every wrapper to adopt it immediately.
+`.github/workflows/package-android-candidates.yml` downloads the exact Android
+outputs from `build.yml`, stages both ABIs, strips and validates the native
+libraries, and builds the Flutter and React Native native AARs plus the UniFFI
+input for Kotlin. The two native AARs are also placed in an isolated Maven
+repository for source-device tests.
 
-A tag such as `nobodywho-android-v2.5.0` builds both AARs, attaches them to one
-GitHub release, and publishes them to Maven Central.
+On a Flutter or React Native release tag:
 
-### Required release order
+1. The release-shaped package and this run's native AAR run on Firebase
+   hardware.
+2. That same AAR file is published to Maven Central, unless that version
+   already exists there (Central versions are immutable, so a re-run of a
+   partially failed release does not stop here).
+3. CI waits until normal Maven resolution can see it.
+4. The pub or npm package is published.
 
-The native release must be available from Maven Central before releasing any
-binding that pins it. For version `2.5.0`:
+On a Kotlin release tag, the device test and the release both build
+`nobodywho-android` from this run's UniFFI AAR, then the Kotlin artifacts are
+published to Maven Central as before.
 
-1. Push `nobodywho-android-v2.5.0`.
-2. Wait until both `nobodywho-flutter-android:2.5.0` and
-   `nobodywho-uniffi-android:2.5.0` resolve from Maven Central.
-3. Only then push the Flutter, Kotlin, or React Native release tags that use
-   that native version.
-
-Before step 2 completes, source builds must use the local AAR overrides below;
-dependency resolution without an override is expected to fail.
+There is no separate Android version or Android release tag. Every Android
+artifact shares the version of its owning binding.
 
 ## Local builds
 
-CI fills these ignored staging directories with Cargo's Android outputs:
+Stage Cargo's Android outputs in these ignored directories:
 
 ```text
 build/flutter/jniLibs/<abi>/*.so
 build/uniffi/jniLibs/<abi>/*.so
 ```
 
-Once staged, build and validate both artifacts with the Kotlin Gradle wrapper:
+Then build whichever local input you need:
 
 ```bash
-./nobodywho/kotlin/gradlew -p nobodywho/android check assemble
+# Flutter
+./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
+  -PnobodywhoBinding=flutter
+
+# React Native
+./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
+  -PnobodywhoBinding=react-native
+
+# Kotlin source-build input
+./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
+  -PnobodywhoBinding=uniffi
 ```
 
-To test an unpublished AAR in a binding, point that binding at the local file:
+Local builds default to `0.0.0-local`. Point a binding source build at the
+corresponding file:
 
 ```bash
 export NOBODYWHO_FLUTTER_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-0.0.0-local.aar"
+export NOBODYWHO_REACT_NATIVE_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-react-native-android-0.0.0-local.aar"
 export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
 ```
 
-Normal consumer builds do not use these overrides. Gradle resolves the pinned
-Maven coordinate and handles downloading, caching, and packaging the correct
-ABI.
+Published Flutter and React Native packages resolve their same-version native
+AAR from Maven Central. Published Kotlin consumers need no second native
+dependency because the libraries are inside `nobodywho-android`.

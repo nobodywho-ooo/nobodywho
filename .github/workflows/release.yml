@@ -156,26 +156,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Publish both multi-ABI Android entry-point AARs from one native release.
-  create-android-native-release:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-android-v')
+  publish-flutter-android:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-v')
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v5
 
       - name: "Download tested Android candidate AARs"
         uses: actions/download-artifact@v5
         with:
-          name: nobodywho-android-candidate-aars
+          name: nobodywho-android-binding-candidates
           path: ./android-candidates
 
-      - name: "Set native version"
-        run: |
-          set -euo pipefail
-          VERSION=${GITHUB_REF_NAME#nobodywho-android-v}
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      # package-android-candidates already verified the tag matches pubspec.yaml.
+      - name: "Read Flutter version from the tag"
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#nobodywho-flutter-v}" >> "$GITHUB_OUTPUT"
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -183,35 +179,21 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: "Verify candidates before GitHub release"
-        run: |
-          set -euo pipefail
-          test -f "android-candidates/nobodywho-flutter-android-${{ env.VERSION }}.aar"
-          test -f "android-candidates/nobodywho-uniffi-android-${{ env.VERSION }}.aar"
-
-      - name: "Create GitHub Release"
-        uses: softprops/action-gh-release@v2
+      - name: "Publish the device-tested Flutter AAR"
+        uses: ./.github/actions/publish-android-binding-aar
         with:
-          files: |
-            android-candidates/nobodywho-flutter-android-${{ env.VERSION }}.aar
-            android-candidates/nobodywho-uniffi-android-${{ env.VERSION }}.aar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "Publish AARs to Maven Central"
+          binding: flutter
+          artifact-id: nobodywho-flutter-android
+          version: ${{ steps.version.outputs.version }}
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
-        run: |
-          ./nobodywho/kotlin/gradlew -p nobodywho/android \
-            publishAggregationToCentralPortal \
-            -Pversion=${{ env.VERSION }} \
-            -PnobodywhoPrebuiltAarDir="$PWD/android-candidates"
 
   create-github-release-flutter:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
+    needs: [publish-flutter-android]
+    if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-v')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write # Required to create github release
@@ -224,6 +206,12 @@ jobs:
           pattern: nobodywho-flutter-*
           merge-multiple: true
           path: ./nobodywho-flutter-release
+
+      - name: "Download tested Flutter Android AAR"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-android-binding-candidates
+          path: ./android-candidates
 
       - name: "List artifacts to include in release"
         run: ls -la ./nobodywho-flutter-release/
@@ -247,26 +235,70 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
-          files: ./nobodywho-flutter-release/*
+          files: |
+            ./nobodywho-flutter-release/*
+            ./android-candidates/nobodywho-flutter-android-*.aar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-flutter-to-pubdev:
     needs: [create-github-release-flutter]
-    if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
+    if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-v')
     permissions:
       id-token: write # Required for authentication using OIDC
     uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
     with:
       working-directory: nobodywho/flutter/nobodywho
 
-  # Create the iOS GitHub Release, then publish the Maven-backed npm package.
+  publish-react-native-android:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download tested Android candidate AARs"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-android-binding-candidates
+          path: ./android-candidates
+
+      # package-android-candidates already verified the tag matches package.json.
+      - name: "Read React Native version from the tag"
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#nobodywho-react-native-v}" >> "$GITHUB_OUTPUT"
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Publish the device-tested React Native AAR"
+        uses: ./.github/actions/publish-android-binding-aar
+        with:
+          binding: react-native
+          artifact-id: nobodywho-react-native-android
+          version: ${{ steps.version.outputs.version }}
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+
+  # Create the iOS/Android GitHub Release, then publish the npm package.
   create-github-release-react-native:
+    needs: [publish-react-native-android]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write
     steps:
+      - name: "Download tested React Native Android AAR"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-android-binding-candidates
+          path: ./nobodywho-react-native-release
+
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v5
         with:
@@ -276,7 +308,9 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
-          files: ./nobodywho-react-native-release/*
+          files: |
+            ./nobodywho-react-native-release/NobodywhoFramework.xcframework.zip
+            ./nobodywho-react-native-release/nobodywho-react-native-android-*.aar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -369,6 +403,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Provides the device-tested UniFFI native AAR that nobodywho-android embeds.
+      - name: "Download Android candidates"
+        uses: actions/download-artifact@v5
+        with:
+          name: nobodywho-android-binding-candidates
+          path: ./android-candidates
+
       - name: "Download Linux x86_64 UniFFI release artifact"
         uses: actions/download-artifact@v5
         with:
@@ -420,17 +461,15 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
 
-      # Set version from tag
-      - name: "Set version"
+      - name: "Set version from tag"
         run: |
-          VERSION=${GITHUB_REF_NAME#nobodywho-kotlin-v}
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=${GITHUB_REF_NAME#nobodywho-kotlin-v}" >> "$GITHUB_ENV"
+          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/android-candidates/nobodywho-uniffi-android-0.0.0-local.aar" >> "$GITHUB_ENV"
 
+      # Same native input and Kotlin sources as the kotlin-source device test.
       - name: "Build AAR and JAR"
         working-directory: ./nobodywho/kotlin
-        run: |
-          ./gradlew :android:assembleRelease :jvm:jar \
-            -Pversion=${{ env.VERSION }}
+        run: ./gradlew :android:assembleRelease :jvm:jar -Pversion=${{ env.VERSION }}
 
       - name: "Collect release artifacts"
         run: |

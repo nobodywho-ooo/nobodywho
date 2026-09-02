@@ -13,9 +13,18 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories {
         providers.gradleProperty("nobodywhoRepository").orNull?.let { repositoryPath ->
-            // Source device tests put release-shaped Maven artifacts here.
-            // It is a runner-local directory, never a package registry.
-            maven { url = uri(repositoryPath) }
+            // Keep NobodyWho resolution inside the candidate repository. If an
+            // expected artifact is missing, do not silently fall back to a
+            // previously published Maven Central version.
+            exclusiveContent {
+                forRepository {
+                    maven {
+                        name = "NobodyWhoCandidate"
+                        url = uri(repositoryPath)
+                    }
+                }
+                filter { includeGroup("ai.nobodywho") }
+            }
         }
         google()
         mavenCentral()

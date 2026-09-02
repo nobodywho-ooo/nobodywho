@@ -68,14 +68,15 @@ def jvmTargetVersion = JavaVersion.current().isCompatibleWith(JavaVersion.VERSIO
 
 // Gradle owns native artifact resolution and caching. We extract the AAR only
 // because this module's CMake build must link its JSI bridge against UniFFI.
-// Pinned independently of this module's own version — bump deliberately to adopt
-// a newer nobodywho-android-vX.Y.Z release.
-def nobodywhoNativeVersion = "2.5.0"
+// The native artifact is released together with this npm package and uses the
+// same version from package.json.
+def nobodywhoVersion = new groovy.json.JsonSlurper().parse(file("../package.json")).version
 def localNativeAar = rootProject.findProperty("Nobodywho_nativeAar") ?:
+  System.getenv("NOBODYWHO_REACT_NATIVE_ANDROID_AAR") ?:
   System.getenv("NOBODYWHO_UNIFFI_ANDROID_AAR")
 def nativeAarDependency = localNativeAar ?
   files(file(localNativeAar)) :
-  "ai.nobodywho:nobodywho-uniffi-android:${nobodywhoNativeVersion}"
+  "ai.nobodywho:nobodywho-react-native-android:${nobodywhoVersion}"
 
 def nativeAar = configurations.create("nobodywhoNativeAar") {
   canBeConsumed = false

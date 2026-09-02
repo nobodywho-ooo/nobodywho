@@ -1,5 +1,7 @@
 name: "Build and test"
 on:
+  schedule:
+    - cron: "0 4 * * *"
   push:
     branches: [main]
     tags: ['nobodywho-*']
@@ -101,30 +103,30 @@ jobs:
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-  # Package the exact multi-ABI, stripped AARs that source device tests consume.
-  # The native Android release later publishes these same files without rebuilding.
+  # Package the exact binding-owned, multi-ABI AARs that source device tests
+  # consume and binding releases later publish without rebuilding.
   package-android-candidates:
     needs: [plan, build]
     if: needs.plan.outputs.run_android_candidates == 'true'
     uses: ./.github/workflows/package-android-candidates.yml
 
   # On-device tests on real phones via Firebase Test Lab. plan.yml selects jobs
-  # here only for a release tag (the binding being released) or an explicit
-  # /<binding>-device-<source|released>-ci comment — never for an ordinary push.
+  # here only for the nightly schedule, a release tag (the binding being
+  # released), an explicit /<binding>-device-<source|released>-ci comment, or a
+  # workflow_dispatch with `buckets: device_<binding>_<mode>` — never for an
+  # ordinary push.
   mobile-device-tests:
     needs: [plan, package-android-candidates]
     if: >-
       always() &&
       needs.plan.outputs.device_jobs != '' &&
       (
-        needs.plan.outputs.device_uses_android_candidates != 'true' ||
+        needs.plan.outputs.run_android_candidates != 'true' ||
         needs.package-android-candidates.result == 'success'
       )
     uses: ./.github/workflows/mobile-device-tests.yml
     with:
       jobs: ${{ needs.plan.outputs.device_jobs }}
-      candidate_aars_prebuilt: ${{ needs.plan.outputs.device_uses_android_candidates == 'true' }}
-      native_dependency_mode: ${{ needs.plan.outputs.device_uses_android_candidates == 'true' && 'candidate' || 'released' }}
     secrets:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}

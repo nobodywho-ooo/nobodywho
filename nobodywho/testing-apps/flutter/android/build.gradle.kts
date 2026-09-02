@@ -1,9 +1,15 @@
 allprojects {
     repositories {
         System.getenv("NOBODYWHO_CANDIDATE_MAVEN_REPO")?.let { repositoryPath ->
-            // CI's extracted release candidate resolves its native AAR here.
-            // The directory exists only on the current Actions runner.
-            maven { url = uri(repositoryPath) }
+            exclusiveContent {
+                forRepository {
+                    maven {
+                        name = "NobodyWhoCandidate"
+                        url = uri(repositoryPath)
+                    }
+                }
+                filter { includeGroup("ai.nobodywho") }
+            }
         }
         google()
         mavenCentral()

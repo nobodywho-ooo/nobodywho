@@ -18,7 +18,7 @@ on:
         type: boolean
         default: false
       android_native:
-        description: "Build both Flutter and UniFFI Android native release candidates only"
+        description: "Build Flutter and UniFFI Android inputs for binding-owned release candidates"
         type: boolean
         default: false
       apple_extended:

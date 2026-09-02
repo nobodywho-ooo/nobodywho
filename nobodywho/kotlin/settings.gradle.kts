@@ -25,11 +25,6 @@ nmcpSettings {
 
 dependencyResolutionManagement {
     repositories {
-        System.getenv("NOBODYWHO_CANDIDATE_MAVEN_REPO")?.let { repositoryPath ->
-            // Source device tests resolve their runner-local native candidate
-            // through the same Maven coordinate used by the release POM.
-            maven { url = uri(repositoryPath) }
-        }
         google()
         mavenCentral()
     }
