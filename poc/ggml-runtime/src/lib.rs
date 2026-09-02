@@ -414,6 +414,55 @@ impl Drop for Weights {
     }
 }
 
+pub struct TensorStorage {
+    buffer: sys::ggml_backend_buffer_t,
+    tensors: Vec<Tensor>,
+    _context: Context,
+}
+
+impl TensorStorage {
+    pub fn f16(backend: &Backend, shapes: &[Vec<i64>]) -> Result<Self> {
+        Self::new(backend, shapes, sys::GGML_TYPE_F16)
+    }
+
+    fn new(backend: &Backend, shapes: &[Vec<i64>], kind: sys::ggml_type) -> Result<Self> {
+        if shapes.is_empty() {
+            bail!("tensor storage requires at least one tensor");
+        }
+        let context = Context::new(1024 * shapes.len(), true)?;
+        let tensors = shapes
+            .iter()
+            .map(|shape| context.tensor(Shape::new(shape)?, kind))
+            .collect::<Result<Vec<_>>>()?;
+        let buffer = unsafe { sys::ggml_backend_alloc_ctx_tensors(context.raw, backend.raw()) };
+        if buffer.is_null() {
+            bail!("failed to allocate tensor storage");
+        }
+        Ok(Self {
+            buffer,
+            tensors,
+            _context: context,
+        })
+    }
+
+    pub fn get(&self, index: usize) -> Result<Tensor> {
+        self.tensors
+            .get(index)
+            .copied()
+            .ok_or_else(|| anyhow!("tensor storage index {index} is out of range"))
+    }
+
+    pub fn clear(&self) {
+        unsafe { sys::ggml_backend_buffer_clear(self.buffer, 0) };
+    }
+}
+
+impl Drop for TensorStorage {
+    fn drop(&mut self) {
+        unsafe { sys::ggml_backend_buffer_free(self.buffer) };
+    }
+}
+
 pub struct GraphBuilder {
     context: Context,
     constants: std::cell::RefCell<Vec<(Tensor, Vec<u8>)>>,
@@ -446,6 +495,12 @@ impl GraphBuilder {
         Ok(tensor)
     }
 
+    pub fn input_f16(&self, shape: &[i64]) -> Result<Tensor> {
+        let tensor = self.tensor(shape, sys::GGML_TYPE_F16)?;
+        unsafe { sys::ggml_set_input(tensor.raw) };
+        Ok(tensor)
+    }
+
     pub fn input_i32(&self, shape: &[i64]) -> Result<Tensor> {
         let tensor = self.tensor(shape, sys::GGML_TYPE_I32)?;
         unsafe { sys::ggml_set_input(tensor.raw) };
@@ -454,6 +509,7 @@ impl GraphBuilder {
 
     pub fn constant_f32(&self, shape: &[i64], values: Vec<f32>) -> Result<Tensor> {
         let tensor = self.tensor(shape, sys::GGML_TYPE_F32)?;
+        unsafe { sys::ggml_set_input(tensor.raw) };
         if tensor.shape.elements() != values.len() {
             bail!("constant shape {:?} has {} values", shape, values.len());
         }
@@ -718,6 +774,17 @@ impl GraphBuilder {
         ) -> *mut sys::ggml_tensor,
     ) -> Result<Tensor> {
         let shape = self.broadcast_shape(left.shape, right.shape)?;
+        if left.shape == shape {
+            let left = self.contiguous(left)?;
+            let right = self.contiguous(right)?;
+            if unsafe { sys::ggml_can_repeat(right.raw, left.raw) } {
+                return self.wrap(
+                    unsafe { operation(self.context.raw, left.raw, right.raw) },
+                    shape,
+                    sys::GGML_TYPE_F32,
+                );
+            }
+        }
         let left = self.contiguous(self.broadcast(left, shape)?)?;
         let right = self.contiguous(self.broadcast(right, shape)?)?;
         self.wrap(
@@ -801,6 +868,19 @@ impl GraphBuilder {
     pub fn gelu_tanh(&self, value: Tensor) -> Result<Tensor> {
         self.unary(value, sys::ggml_gelu)
     }
+    pub fn geglu(&self, gate: Tensor, up: Tensor) -> Result<Tensor> {
+        if gate.shape != up.shape {
+            bail!("GEGLU input shape mismatch");
+        }
+        let gate = self.contiguous(gate)?;
+        let up = self.contiguous(up)?;
+        self.wrap(
+            unsafe { sys::ggml_geglu_split(self.context.raw, gate.raw, up.raw) },
+            gate.shape,
+            sys::GGML_TYPE_F32,
+        )
+    }
+
     pub fn softplus(&self, value: Tensor) -> Result<Tensor> {
         self.unary(value, sys::ggml_softplus)
     }
@@ -821,6 +901,111 @@ impl GraphBuilder {
             sys::GGML_TYPE_F32,
         )
     }
+
+    pub fn rope_neox(
+        &self,
+        value: Tensor,
+        positions: Tensor,
+        rotated_dimensions: usize,
+        theta: f32,
+        original_context: usize,
+        frequency_factors: Option<Tensor>,
+    ) -> Result<Tensor> {
+        let invalid_factors = frequency_factors.is_some_and(|factors| {
+            factors.shape.rank != 1
+                || factors.shape.at(0) != rotated_dimensions as i64 / 2
+                || factors.kind != sys::GGML_TYPE_F32
+        });
+        if value.shape.rank != 4
+            || positions.shape.rank != 1
+            || value.shape.at(1) != positions.shape.at(0)
+            || positions.kind != sys::GGML_TYPE_I32
+            || invalid_factors
+            || rotated_dimensions == 0
+            || rotated_dimensions > value.shape.last() as usize
+            || rotated_dimensions % 2 != 0
+        {
+            bail!("invalid NeoX RoPE inputs");
+        }
+        let value = self.contiguous(value)?;
+        let frequency_factors = frequency_factors.map_or(ptr::null_mut(), |tensor| tensor.raw);
+        self.wrap(
+            unsafe {
+                sys::ggml_rope_ext(
+                    self.context.raw,
+                    value.raw,
+                    positions.raw,
+                    frequency_factors,
+                    rotated_dimensions as i32,
+                    sys::GGML_ROPE_TYPE_NEOX as i32,
+                    original_context as i32,
+                    theta,
+                    1.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    0.0,
+                )
+            },
+            value.shape,
+            sys::GGML_TYPE_F32,
+        )
+    }
+
+    pub fn flash_attention(
+        &self,
+        query: Tensor,
+        key: Tensor,
+        value: Tensor,
+        mask: Tensor,
+        scale: f32,
+    ) -> Result<Tensor> {
+        if query.shape.rank != 4
+            || key.shape.rank != 4
+            || value.shape.rank != 4
+            || mask.shape.rank != 4
+            || query.kind != sys::GGML_TYPE_F32
+            || key.kind != sys::GGML_TYPE_F16
+            || value.kind != sys::GGML_TYPE_F16
+            || mask.kind != sys::GGML_TYPE_F16
+            || query.shape.at(0) != key.shape.at(0)
+            || key.shape.at(0) != value.shape.at(0)
+            || query.shape.last() != key.shape.last()
+            || key.shape.at(1) != value.shape.at(1)
+            || key.shape.at(2) != value.shape.at(2)
+            || query.shape.at(1) % key.shape.at(1) != 0
+            || query.shape.at(0) % mask.shape.at(0) != 0
+            || query.shape.at(1) % mask.shape.at(1) != 0
+            || mask.shape.at(2) != query.shape.at(2)
+            || mask.shape.last() != key.shape.at(2)
+        {
+            bail!("invalid flash-attention inputs");
+        }
+        let raw = unsafe {
+            sys::ggml_flash_attn_ext(
+                self.context.raw,
+                query.raw,
+                key.raw,
+                value.raw,
+                mask.raw,
+                scale,
+                0.0,
+                0.0,
+            )
+        };
+        unsafe { sys::ggml_flash_attn_ext_set_prec(raw, sys::GGML_PREC_F32) };
+        self.wrap(
+            raw,
+            Shape::new(&[
+                query.shape.at(0),
+                query.shape.at(2),
+                query.shape.at(1),
+                value.shape.last(),
+            ])?,
+            sys::GGML_TYPE_F32,
+        )
+    }
+
     pub fn cast_f32(&self, value: Tensor) -> Result<Tensor> {
         if value.kind == sys::GGML_TYPE_F32 {
             return Ok(value);
@@ -906,6 +1091,38 @@ impl GraphBuilder {
             Some(bias) => self.add(output, bias),
             None => Ok(output),
         }
+    }
+
+    pub fn set_rows(&self, destination: Tensor, source: Tensor, indices: Tensor) -> Result<Tensor> {
+        if destination.shape.rank != 4 || source.shape.rank != 4 {
+            bail!("set_rows requires rank-4 destination and source tensors");
+        }
+        if !matches!(destination.kind, sys::GGML_TYPE_F16 | sys::GGML_TYPE_F32)
+            || !matches!(source.kind, sys::GGML_TYPE_F16 | sys::GGML_TYPE_F32)
+            || indices.kind != sys::GGML_TYPE_I32
+        {
+            bail!("set_rows requires F16/F32 destination/source and I32 indices");
+        }
+        if indices.shape.rank != 1 {
+            bail!("set_rows indices must be one-dimensional");
+        }
+        if destination.shape.at(0) != source.shape.at(0)
+            || destination.shape.at(1) != source.shape.at(1)
+            || destination.shape.last() != source.shape.last()
+        {
+            bail!("set_rows destination/source shape mismatch");
+        }
+        if source.shape.at(2) != indices.shape.at(0) {
+            bail!("set_rows source sequence count differs from indices");
+        }
+        let source = self.contiguous(source)?;
+        self.wrap(
+            unsafe {
+                sys::ggml_set_rows(self.context.raw, destination.raw, source.raw, indices.raw)
+            },
+            destination.shape,
+            destination.kind,
+        )
     }
 
     pub fn embedding(&self, ids: Tensor, table: Tensor) -> Result<Tensor> {
@@ -1117,6 +1334,12 @@ impl Graph {
         })
     }
 
+    pub fn set_f16_bits(&self, tensor: Tensor, values: &[u16]) -> Result<()> {
+        self.set_bytes(tensor, unsafe {
+            std::slice::from_raw_parts(values.as_ptr().cast::<u8>(), std::mem::size_of_val(values))
+        })
+    }
+
     fn set_bytes(&self, tensor: Tensor, bytes: &[u8]) -> Result<()> {
         let expected = unsafe { sys::ggml_nbytes(tensor.raw) };
         if expected != bytes.len() {
@@ -1135,7 +1358,6 @@ impl Graph {
 
     pub fn compute(&self, backend: &Backend) -> Result<()> {
         let status = unsafe { sys::ggml_backend_graph_compute(backend.raw(), self.raw) };
-        backend.synchronize();
         if status != sys::GGML_STATUS_SUCCESS {
             bail!("GGML graph failed with status {status}");
         }

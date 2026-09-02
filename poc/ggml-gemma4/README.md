@@ -1,64 +1,85 @@
-# GGML Gemma 4 E2B POC
+# GGML Gemma 4 Metal benchmark
 
-A standalone Rust text-generation engine for [Gemma 4 E2B](https://huggingface.co/google/gemma-4-E2B-it) using direct GGML bindings. It loads the Q4_K_M GGUF directly and runs on CPU or Apple Metal without llama.cpp's model API.
+A standalone Gemma 4 E2B benchmark using direct GGML bindings, without llama.cpp's model API. It loads the Q4_K_M GGUF and runs fixed prompt-processing and token-generation workloads on Apple Metal.
 
-The implementation covers the E2B text decoder:
+The benchmark uses:
 
-- Q4_K_M GGUF weights and Hugging Face tokenization
-- Sliding and full causal attention
-- Shared key/value states
-- Per-layer token embeddings
-- Gemma 4 proportional RoPE
-- Double-width feed-forward layers
-- Greedy text generation
+- one reusable graph for prompt processing
+- one reusable single-token decode graph
+- device-resident F16 KV caches
+- fused Metal flash attention with native grouped-query attention by default
+- shared KV states for the final Gemma 4 layers
+- no tokenization, sampling, text decoding, or logits download in timed sections
+- a preflight greedy-token parity check against llama.cpp
+- separate `pp512` and `tg128` measurements by default
 
-## Run
+## Setup
 
-The model download is about 3.1 GB.
+Initialize the pinned GGML source:
+
+```sh
+git submodule update --init poc/ggml-sys/ggml
+```
+
+Install `hf`, `jq`, `pkg-config`, a C++ compiler, and llama.cpp with `llama-bench` and its development library. The script resolves both `libllama` and `llama-bench` from the same pkg-config installation. Then download the pinned model:
 
 ```sh
 cd poc/ggml-gemma4
 make model
-make run
 ```
 
-Use CPU explicitly:
+The model is about 3.1 GB and is stored in `models/gemma-4-E2B-it` at the repository root.
+
+## Verify inference
+
+Run greedy generation through both implementations and print their token IDs, decoded completions, total generation latency, and throughput:
 
 ```sh
-make run-cpu PROMPT='Explain why the sky is blue.' MAX_TOKENS=8
+./verify.sh
 ```
 
-Or use Cargo directly:
+The command completes `The capital of Denmark is`, stops at EOS, and checks exact token parity. It uses at most 32 generated tokens and flash attention by default. Override these with `PROMPT='The capital of Portugal is'`, `TOKENS=64`, or `FLASH_ATTN=off`. Timing includes prompt ingestion and generation. It excludes model loading, one warmup token, tokenization, and text decoding.
+
+The equivalent Make target is `make verify`.
+
+## Side-by-side benchmark
+
+```sh
+make benchmark
+```
+
+Run this on an otherwise idle Mac because other Metal workloads can materially affect both results. Before timing, the command greedily generates eight token IDs from the model's BOS token with both implementations and exits if they differ. This validation downloads logits but is outside all timed sections. Timed graph calls synchronize Metal before recording their duration.
+
+The command then compares the direct GGML implementation with `llama-bench` using the same:
+
+- Gemma 4 E2B Q4_K_M file
+- prompt and generation token counts
+- F16 KV cache
+- Metal offload
+- flash-attention setting, enabled by default
+- repetition count
+
+Override the workload with Make variables:
+
+```sh
+make benchmark PROMPT_TOKENS=256 GENERATION_TOKENS=64 GREEDY_TOKENS=8 REPETITIONS=3
+```
+
+Run only the direct GGML benchmark:
 
 ```sh
 cargo run --release -- \
-  --model-dir models/gemma-4-E2B-it \
-  --backend metal \
-  --prompt 'Explain why the sky is blue.' \
-  --max-tokens 8
+  --model-dir ../../models/gemma-4-E2B-it \
+  --prompt-tokens 512 \
+  --generation-tokens 128 \
+  --repetitions 5 \
+  --flash-attention
 ```
 
-Metal is available only on macOS. The direct GGML build uses the CPU backend on other targets.
+Pass `--json` for machine-readable throughput output. Set `FLASH_ATTN=off` for the matched non-flash baseline. Set `OUTPUT_DIR` when running `benchmark-metal.sh` to retain the throughput results, both greedy token sequences, and the llama.cpp validation log.
 
-## Validation
+## Scope
 
-For the prompt `Hi`, the first four greedy tokens match the pinned llama.cpp implementation exactly: `Hi! How can`.
+This benchmark supports only the pinned Gemma 4 E2B instruction-tuned Q4_K_M model on macOS Metal. It is not a chat or text-generation CLI. Production Gemma 4 support remains in NobodyWho through llama.cpp.
 
-## Scope and limitations
-
-This is an architecture POC, not a production LLM runtime.
-
-- Generation is greedy only.
-- There is no persistent KV cache. Every token recomputes the full sequence.
-- The prompt is rendered as one user turn without tools, system messages, images, or audio.
-- Sampling, batching, and streaming are not implemented.
-- Only the Gemma 4 E2B instruction-tuned Q4_K_M file is supported.
-- Short contexts are more practical despite the model's larger declared context window.
-
-Production Gemma 4 support remains in NobodyWho through llama.cpp. This POC exists to exercise the shared raw GGML runtime.
-
-## Shared runtime
-
-The generic GGML code lives in `../ggml-runtime` and is also used by the Supertonic POC. It owns backend initialization, tensor and shape handling, GGUF loading, graph construction, common operations, allocation, execution, and tensor transfers. Model architecture code remains inside each POC.
-
-See `THIRD_PARTY_NOTICES.md` for licenses and source references.
+The generic GGML code lives in `../ggml-runtime`. It owns backend initialization, tensor storage, GGUF loading, graph construction, allocation, execution, and transfers. The Gemma architecture and benchmark graphs remain in this crate.

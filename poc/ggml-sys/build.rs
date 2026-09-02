@@ -48,6 +48,7 @@ fn build_ggml(macos: bool) -> PathBuf {
         .define("GGML_CPU", "ON")
         .define("GGML_METAL", if macos { "ON" } else { "OFF" })
         .define("GGML_METAL_EMBED_LIBRARY", "ON")
+        .define("GGML_METAL_NDEBUG", if macos { "ON" } else { "OFF" })
         .define("GGML_NATIVE", "OFF")
         .define("GGML_OPENMP", "OFF")
         .profile("Release")

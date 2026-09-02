@@ -1,4 +1,5 @@
 *.gguf
+/models/
 *.vscode
 .cursor*
 .envrc

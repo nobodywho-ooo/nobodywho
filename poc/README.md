@@ -3,7 +3,7 @@
 This workspace contains two standalone inference prototypes and their shared GGML crates:
 
 - `ggml-supertonic`: Supertonic 3 text-to-speech on CPU and Metal
-- `ggml-gemma4`: Gemma 4 E2B text generation on CPU and Metal
+- `ggml-gemma4`: Gemma 4 E2B prompt and generation benchmarks on Metal
 - `ggml-runtime`: shared GGML backend, tensor, graph, and model-loading code
 - `ggml-sys`: direct bindings to the pinned GGML source
 
