@@ -90,9 +90,6 @@ You can activate it by running `nix develop '.#android'`.
 It is tested and works on x86_64-linux, and the github actions CI environment also tests that building the flutter example application inside this devshell works.
 I assume that it will also work on MacOS, with a few tweaks (e.g. setting the correct dynamic library extension, including a few macos "Frameworks" in the build env).
 
-For local native-AAR testing, build the shared Android package documented in
-[`../android/README.md`](../android/README.md), then set:
-
-```bash
-export NOBODYWHO_FLUTTER_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-0.0.0-local.aar"
-```
+For local native-AAR testing, build and publish the Android package to
+`~/.m2` as documented in [`../android/README.md`](../android/README.md); the
+plugin resolves it through Maven exactly like a released version.

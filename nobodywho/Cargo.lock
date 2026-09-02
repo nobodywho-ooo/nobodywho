@@ -3104,7 +3104,6 @@ version = "2.4.0"
 dependencies = [
  "ahash",
  "bashkit",
- "cc",
  "chrono",
  "dirs",
  "emojis",

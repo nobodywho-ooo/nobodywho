@@ -31,18 +31,6 @@ jobs:
           name: nobodywho-uniffi-x86_64-unknown-linux-gnu-release
           path: ./native-lib
 
-      - name: "Download uniffi Android ARM64 artifact"
-        uses: actions/download-artifact@v5
-        with:
-          name: nobodywho-uniffi-aarch64-linux-android-release
-          path: ./android-arm64
-
-      - name: "Download uniffi Android x86_64 artifact"
-        uses: actions/download-artifact@v5
-        with:
-          name: nobodywho-uniffi-x86_64-linux-android-release
-          path: ./android-x86_64
-
       - name: "Rename native lib for JNA"
         run: |
           cp ./native-lib/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
@@ -65,32 +53,11 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
 
-      - name: "Stage UniFFI jniLibs (arm64-v8a)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: aarch64-linux-android
-          source-dir: android-arm64
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/arm64-v8a
-
-      - name: "Stage UniFFI jniLibs (x86_64)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: x86_64-linux-android
-          source-dir: android-x86_64
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/x86_64
-
-      - name: "Build local multi-ABI UniFFI AAR"
-        run: |
-          set -euo pipefail
-          ./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
-            -PnobodywhoBinding=uniffi
-          echo "NOBODYWHO_UNIFFI_ANDROID_AAR=$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar" >> "$GITHUB_ENV"
-
+      # :android has no Kotlin sources; its AAR (which needs the native input)
+      # is built by the kotlin-source device test and the release.
       - name: "Compile Kotlin modules"
         working-directory: ./nobodywho/kotlin
-        run: ./gradlew :nobodywho-core:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
+        run: ./gradlew :nobodywho-core:compileKotlin :jvm:compileKotlin
 
       - name: "Download test model"
         run: |

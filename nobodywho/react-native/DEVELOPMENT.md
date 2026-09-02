@@ -163,13 +163,10 @@ nix develop .#android --command bash -c \
     cargo build -p nobodywho-uniffi --target x86_64-linux-android --release'
 ```
 
-Stage both builds in the shared Android packaging project and create the AAR as
-described in [`../android/README.md`](../android/README.md). Then point the
-React Native build at it:
-
-```bash
-export NOBODYWHO_REACT_NATIVE_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-react-native-android-0.0.0-local.aar"
-```
+Stage both builds in the shared Android packaging project and publish the
+`react-native` AAR to `~/.m2` under this package's version, as described in
+[`../android/README.md`](../android/README.md). The module resolves it through
+Maven exactly like a released version.
 
 Gradle extracts the AAR once; CMake links against its UniFFI entry point and
 the same directory is packaged as `jniLibs`. The AAR contains its matching

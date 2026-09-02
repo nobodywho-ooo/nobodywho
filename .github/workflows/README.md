@@ -98,8 +98,8 @@ releases normally, while a `nobodywho-kotlin-v*` tag cannot publish unless its
 
 Android source-device tests consume
 `nobodywho-android-binding-candidates`, built once from `build.yml`'s
-arm64-v8a and x86_64 artifacts. The candidate workflow stages, strips, and
-validates Flutter's and React Native's native AARs, each versioned by its owning
+arm64-v8a and x86_64 artifacts. The candidate workflow adds `libc++_shared.so`,
+strips, and validates Flutter's and React Native's native AARs, each versioned by its owning
 binding, plus the UniFFI native AAR that Kotlin embeds into `nobodywho-android`.
 
 The source-device jobs do not link binding source directories into the test apps.

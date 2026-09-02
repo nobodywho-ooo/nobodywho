@@ -10046,12 +10046,6 @@ rec {
             features = [ "Win32_System_SystemInformation" ];
           }
         ];
-        buildDependencies = [
-          {
-            name = "cc";
-            packageId = "cc";
-          }
-        ];
         features = {
           "android-dynamic-backends" = [ "dep:llama-cpp-sys-2" "llama-cpp-2/dynamic-backends" ];
           "android-static-stdcxx" = [ "llama-cpp-2/android-static-stdcxx" ];

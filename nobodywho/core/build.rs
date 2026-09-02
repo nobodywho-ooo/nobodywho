@@ -39,19 +39,6 @@ fn main() {
         "cargo:rustc-env=NOBODYWHO_ANDROID_CPU_BACKENDS={}",
         cpu_backend_names.join(":")
     );
-
-    let output = cc::Build::new()
-        .cpp(true)
-        .get_compiler()
-        .to_command()
-        .arg("--print-file-name=libc++_shared.so")
-        .output()
-        .expect("locating libc++_shared.so");
-    assert!(output.status.success(), "locating libc++_shared.so failed");
-
-    let path = PathBuf::from(String::from_utf8(output.stdout).unwrap().trim());
-    assert!(path.is_file(), "{} does not exist", path.display());
-    std::fs::copy(&path, runtime_dir.join("libc++_shared.so")).unwrap();
 }
 
 fn copy_shared_libraries(source: &Path, destination: &Path) -> Vec<String> {

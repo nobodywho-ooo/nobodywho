@@ -71,12 +71,7 @@ def jvmTargetVersion = JavaVersion.current().isCompatibleWith(JavaVersion.VERSIO
 // The native artifact is released together with this npm package and uses the
 // same version from package.json.
 def nobodywhoVersion = new groovy.json.JsonSlurper().parse(file("../package.json")).version
-def localNativeAar = rootProject.findProperty("Nobodywho_nativeAar") ?:
-  System.getenv("NOBODYWHO_REACT_NATIVE_ANDROID_AAR") ?:
-  System.getenv("NOBODYWHO_UNIFFI_ANDROID_AAR")
-def nativeAarDependency = localNativeAar ?
-  files(file(localNativeAar)) :
-  "ai.nobodywho:nobodywho-react-native-android:${nobodywhoVersion}"
+def nativeAarDependency = "ai.nobodywho:nobodywho-react-native-android:${nobodywhoVersion}"
 
 def nativeAar = configurations.create("nobodywhoNativeAar") {
   canBeConsumed = false

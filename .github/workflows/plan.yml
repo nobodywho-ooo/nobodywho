@@ -170,7 +170,7 @@ jobs:
           # Emit one p_* per filter, mirroring the names the decide step reads.
           contains '^nobodywho/core/'        && out core         true || out core         false
           if contains '^nobodywho/(android/|\.cargo/config\.toml$|core/(Cargo\.toml|build\.rs|cmake/llama-build-overrides\.cmake|src/(errors|lib|llama_backend)\.rs)$)' \
-             || contains '^\.github/(actions/(publish-android-binding-aar|stage-android-jnilibs)/|workflows/(mobile-device-tests|package-android-candidates)\.yml$)'; then
+             || contains '^\.github/(actions/publish-android-binding-aar/|workflows/(mobile-device-tests|package-android-candidates)\.yml$)'; then
             out android true
           else
             out android false
