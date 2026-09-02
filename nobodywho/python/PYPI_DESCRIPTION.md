@@ -33,7 +33,7 @@ pip install nobodywho
 
 ## Supported Model Format
 
-NobodyWho uses the **GGUF format**, a binary format optimized for fast loading and efficient LLM inference. A wide selection of GGUF models is available on [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending).
+NobodyWho uses the **GGUF format**, a binary format optimized for fast loading and efficient LLM inference. A wide selection of GGUF models is available on [Hugging Face](https://huggingface.co/models).
 
 You can also download a model without any extra dependencies by passing `huggingface:owner/repo/filename.gguf` where you'd normally pass the model path:
 
