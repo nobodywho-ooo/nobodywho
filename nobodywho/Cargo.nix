@@ -328,36 +328,7 @@ rec {
         ];
 
       };
-      "android_logger 0.14.1" = rec {
-        crateName = "android_logger";
-        version = "0.14.1";
-        edition = "2021";
-        sha256 = "09lqyhpzmqfhg0m4x92gdblx57q3wrk4f0dnwkra286pff77xc05";
-        authors = [
-          "The android_logger Developers"
-        ];
-        dependencies = [
-          {
-            name = "android_log-sys";
-            packageId = "android_log-sys";
-          }
-          {
-            name = "env_filter";
-            packageId = "env_filter";
-            usesDefaultFeatures = false;
-          }
-          {
-            name = "log";
-            packageId = "log";
-          }
-        ];
-        features = {
-          "default" = [ "regex" ];
-          "regex" = [ "env_filter/regex" ];
-        };
-        resolvedDefaultFeatures = [ "default" "regex" ];
-      };
-      "android_logger 0.15.1" = rec {
+      "android_logger" = rec {
         crateName = "android_logger";
         version = "0.15.1";
         edition = "2021";
@@ -372,7 +343,7 @@ rec {
           }
           {
             name = "env_filter";
-            packageId = "env_filter";
+            packageId = "env_filter 0.1.4";
             usesDefaultFeatures = false;
           }
           {
@@ -2349,6 +2320,33 @@ rec {
         ];
 
       };
+      "console_log" = rec {
+        crateName = "console_log";
+        version = "1.1.0";
+        edition = "2018";
+        sha256 = "1w8fdj8p5zbz7qwn3bmy07dcyzn110945m2lrxn3bf9p7vprr4c6";
+        authors = [
+          "Matthew Nicholson <matt@matt-land.com>"
+        ];
+        dependencies = [
+          {
+            name = "log";
+            packageId = "log";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "web-sys";
+            packageId = "web-sys";
+            usesDefaultFeatures = false;
+            features = [ "console" ];
+          }
+        ];
+        features = {
+          "color" = [ "wasm-bindgen" ];
+          "wasm-bindgen" = [ "dep:wasm-bindgen" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "convert_case" = rec {
         crateName = "convert_case";
         version = "0.5.0";
@@ -2768,6 +2766,80 @@ rec {
           "std" = [ "alloc" ];
         };
         resolvedDefaultFeatures = [ "alloc" "default" "std" ];
+      };
+      "defmt" = rec {
+        crateName = "defmt";
+        version = "1.1.1";
+        edition = "2021";
+        links = "defmt";
+        sha256 = "1lc8xlfj700xqjmvp7n9hhc1czgpaqkq960iqw6d5fwk9zz3p5g2";
+        authors = [
+          "The Knurling-rs developers"
+        ];
+        dependencies = [
+          {
+            name = "bitflags";
+            packageId = "bitflags 1.3.2";
+          }
+          {
+            name = "defmt-macros";
+            packageId = "defmt-macros";
+          }
+        ];
+        features = {
+          "unstable-test" = [ "defmt-macros/unstable-test" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" ];
+      };
+      "defmt-macros" = rec {
+        crateName = "defmt-macros";
+        version = "1.1.1";
+        edition = "2021";
+        sha256 = "1s2zkcbaj1l306ph1n1gsfm6vzc2sah4acl1qc6pw4x2ghpcgnds";
+        procMacro = true;
+        libName = "defmt_macros";
+        authors = [
+          "The Knurling-rs developers"
+        ];
+        dependencies = [
+          {
+            name = "defmt-parser";
+            packageId = "defmt-parser";
+          }
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.119";
+            features = [ "full" "extra-traits" ];
+          }
+        ];
+        features = {
+        };
+      };
+      "defmt-parser" = rec {
+        crateName = "defmt-parser";
+        version = "1.0.0";
+        edition = "2021";
+        sha256 = "0gpfky9sssil5qfaix5wxcwiqk7snszhl5gq3vcwkrxjncs07mhh";
+        libName = "defmt_parser";
+        authors = [
+          "The Knurling-rs developers"
+        ];
+        dependencies = [
+          {
+            name = "thiserror";
+            packageId = "thiserror 2.0.19";
+          }
+        ];
+        features = {
+        };
       };
       "delegate-attr" = rec {
         crateName = "delegate-attr";
@@ -3380,7 +3452,7 @@ rec {
         ];
 
       };
-      "env_filter" = rec {
+      "env_filter 0.1.4" = rec {
         crateName = "env_filter";
         version = "0.1.4";
         edition = "2021";
@@ -3404,6 +3476,79 @@ rec {
           "regex" = [ "dep:regex" ];
         };
         resolvedDefaultFeatures = [ "regex" ];
+      };
+      "env_filter 2.0.0" = rec {
+        crateName = "env_filter";
+        version = "2.0.0";
+        edition = "2021";
+        sha256 = "05s267np8pphhpxzrzl4j956gjj87f4ik6yas7l1x6kr0cd2f3ch";
+        dependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+          {
+            name = "regex";
+            packageId = "regex";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "perf" ];
+          }
+        ];
+        features = {
+          "default" = [ "std" "regex" ];
+          "regex" = [ "dep:regex" ];
+          "std" = [ "log/std" "regex?/std" ];
+        };
+        resolvedDefaultFeatures = [ "regex" "std" ];
+      };
+      "env_logger" = rec {
+        crateName = "env_logger";
+        version = "0.11.11";
+        edition = "2021";
+        sha256 = "1xnkbhnlwf45a6val2340bi7avi7fwgbm2g2kbf9g9vmgb91nryy";
+        dependencies = [
+          {
+            name = "anstream";
+            packageId = "anstream";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "wincon" ];
+          }
+          {
+            name = "anstyle";
+            packageId = "anstyle";
+            optional = true;
+          }
+          {
+            name = "env_filter";
+            packageId = "env_filter 2.0.0";
+            usesDefaultFeatures = false;
+            features = [ "std" ];
+          }
+          {
+            name = "jiff";
+            packageId = "jiff";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "std" ];
+          }
+          {
+            name = "log";
+            packageId = "log";
+            features = [ "std" ];
+          }
+        ];
+        features = {
+          "auto-color" = [ "color" "anstream/auto" ];
+          "color" = [ "dep:anstream" "dep:anstyle" ];
+          "default" = [ "auto-color" "humantime" "regex" ];
+          "humantime" = [ "dep:jiff" ];
+          "kv" = [ "log/kv" ];
+          "regex" = [ "env_filter/regex" ];
+          "unstable-kv" = [ "kv" ];
+        };
+        resolvedDefaultFeatures = [ "auto-color" "color" "default" "humantime" "regex" ];
       };
       "equivalent" = rec {
         crateName = "equivalent";
@@ -4081,7 +4226,7 @@ rec {
           }
           {
             name = "android_logger";
-            packageId = "android_logger 0.15.1";
+            packageId = "android_logger";
             optional = true;
             target = { target, features }: ("android" == target."os" or null);
           }
@@ -7631,6 +7776,145 @@ rec {
         };
         resolvedDefaultFeatures = [ "aho-corasick" "base64" "chrono" "default" "format" "libm" "log" "math" "regex" "regex-lite" "std" "time" "urlencoding" ];
       };
+      "jiff" = rec {
+        crateName = "jiff";
+        version = "0.2.35";
+        edition = "2021";
+        sha256 = "1k1d1n8k46192xz6ph8km43lcg68ql65phzmhm49mbq7pn1p32v6";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "defmt";
+            packageId = "defmt";
+            optional = true;
+          }
+          {
+            name = "jiff-core";
+            packageId = "jiff-core";
+            rename = "jcore";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "jiff-static";
+            packageId = "jiff-static";
+            optional = true;
+          }
+          {
+            name = "jiff-static";
+            packageId = "jiff-static";
+            target = { target, features }: false;
+          }
+          {
+            name = "log";
+            packageId = "log";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "portable-atomic";
+            packageId = "portable-atomic";
+            usesDefaultFeatures = false;
+            target = { target, features }: (!("ptr" == target."has_atomic" or null));
+          }
+          {
+            name = "portable-atomic-util";
+            packageId = "portable-atomic-util";
+            usesDefaultFeatures = false;
+            target = { target, features }: (!("ptr" == target."has_atomic" or null));
+          }
+          {
+            name = "serde_core";
+            packageId = "serde_core";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+        ];
+        devDependencies = [
+          {
+            name = "log";
+            packageId = "log";
+          }
+        ];
+        features = {
+          "alloc" = [ "jcore/alloc" "serde_core?/alloc" "portable-atomic-util/alloc" "defmt?/alloc" ];
+          "default" = [ "std" "tz-system" "tz-fat" "tzdb-bundle-platform" "tzdb-zoneinfo" "tzdb-concatenated" "perf-inline" ];
+          "defmt" = [ "dep:defmt" "jcore/defmt" ];
+          "js" = [ "dep:wasm-bindgen" "dep:js-sys" ];
+          "logging" = [ "dep:log" "jcore/logging" ];
+          "serde" = [ "dep:serde_core" ];
+          "static" = [ "static-tz" "jiff-static?/tzdb" ];
+          "static-tz" = [ "dep:jiff-static" ];
+          "std" = [ "alloc" "jcore/std" "log?/std" "serde_core?/std" ];
+          "tz-fat" = [ "jcore/tz-fat" "jiff-static?/tz-fat" ];
+          "tz-system" = [ "std" "dep:windows-link" ];
+          "tzdb-bundle-always" = [ "dep:jiff-tzdb" "alloc" ];
+          "tzdb-bundle-platform" = [ "dep:jiff-tzdb-platform" "alloc" ];
+          "tzdb-concatenated" = [ "std" ];
+          "tzdb-zoneinfo" = [ "std" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "std" ];
+      };
+      "jiff-core" = rec {
+        crateName = "jiff-core";
+        version = "0.1.0";
+        edition = "2021";
+        sha256 = "02axx56pkh2w4bw5rp94qlvcpwzd3n2w2025fnikvrgg762aiv3z";
+        libName = "jiff_core";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "defmt";
+            packageId = "defmt";
+            optional = true;
+          }
+        ];
+        features = {
+          "alloc" = [ "defmt?/alloc" ];
+          "default" = [ "std" "tz-fat" ];
+          "defmt" = [ "dep:defmt" ];
+          "logging" = [ "dep:log" ];
+          "std" = [ "alloc" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "default" "std" "tz-fat" ];
+      };
+      "jiff-static" = rec {
+        crateName = "jiff-static";
+        version = "0.2.35";
+        edition = "2021";
+        sha256 = "014jli8v46c8hzkndmvdfvq4la6a6y9icmnh3k735yqwlarxqs9s";
+        procMacro = true;
+        libName = "jiff_static";
+        authors = [
+          "Andrew Gallant <jamslam@gmail.com>"
+        ];
+        dependencies = [
+          {
+            name = "jiff-core";
+            packageId = "jiff-core";
+            rename = "jcore";
+          }
+          {
+            name = "proc-macro2";
+            packageId = "proc-macro2";
+          }
+          {
+            name = "quote";
+            packageId = "quote";
+          }
+          {
+            name = "syn";
+            packageId = "syn 2.0.119";
+          }
+        ];
+        features = {
+          "tzdb" = [ "dep:jiff-tzdb" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
+      };
       "jni" = rec {
         crateName = "jni";
         version = "0.22.4";
@@ -8453,9 +8737,9 @@ rec {
       };
       "log" = rec {
         crateName = "log";
-        version = "0.4.33";
+        version = "0.4.34";
         edition = "2021";
-        sha256 = "1bd9dmk22pxgnf0h0slba6rz99zb0a0b2mdhpk8p92bp26ycbvhc";
+        sha256 = "1ihkzn0m33ab79fcl4mkb04n5iwqzbxzyw7l7hazqkffaqzbvy7r";
         authors = [
           "The Rust Project Developers"
         ];
@@ -8469,11 +8753,12 @@ rec {
           "kv_unstable_sval" = [ "kv_sval" "kv_unstable" ];
           "serde" = [ "serde_core" ];
           "serde_core" = [ "dep:serde_core" ];
+          "std" = [ "alloc" ];
           "sval" = [ "dep:sval" ];
           "sval_ref" = [ "dep:sval_ref" ];
           "value-bag" = [ "dep:value-bag" ];
         };
-        resolvedDefaultFeatures = [ "std" ];
+        resolvedDefaultFeatures = [ "alloc" "std" ];
       };
       "lzma-rust2" = rec {
         crateName = "lzma-rust2";
@@ -8622,26 +8907,6 @@ rec {
           "serde" = [ "dep:serde" ];
         };
         resolvedDefaultFeatures = [ "default" ];
-      };
-      "matchers" = rec {
-        crateName = "matchers";
-        version = "0.2.0";
-        edition = "2018";
-        sha256 = "1sasssspdj2vwcwmbq3ra18d3qniapkimfcbr47zmx6750m5llni";
-        authors = [
-          "Eliza Weisman <eliza@buoyant.io>"
-        ];
-        dependencies = [
-          {
-            name = "regex-automata";
-            packageId = "regex-automata";
-            usesDefaultFeatures = false;
-            features = [ "syntax" "dfa-build" "dfa-search" ];
-          }
-        ];
-        features = {
-          "unicode" = [ "regex-automata/unicode" ];
-        };
       };
       "matrixmultiply" = rec {
         crateName = "matrixmultiply";
@@ -9955,7 +10220,18 @@ rec {
         dependencies = [
           {
             name = "android_logger";
-            packageId = "android_logger 0.14.1";
+            packageId = "android_logger";
+            target = { target, features }: ("android" == target."os" or null);
+          }
+          {
+            name = "console_log";
+            packageId = "console_log";
+            target = { target, features }: (builtins.elem "wasm" target."family");
+          }
+          {
+            name = "env_logger";
+            packageId = "env_logger";
+            target = { target, features }: (!(("android" == target."os" or null) || (("apple" == target."vendor" or null) && (!("macos" == target."os" or null))) || (builtins.elem "wasm" target."family")));
           }
           {
             name = "log";
@@ -9964,6 +10240,11 @@ rec {
           {
             name = "nobodywho";
             packageId = "nobodywho";
+          }
+          {
+            name = "oslog";
+            packageId = "oslog";
+            target = { target, features }: ("apple" == target."vendor" or null);
           }
           {
             name = "serde_json";
@@ -9981,15 +10262,7 @@ rec {
           {
             name = "tracing";
             packageId = "tracing";
-          }
-          {
-            name = "tracing-log";
-            packageId = "tracing-log";
-          }
-          {
-            name = "tracing-subscriber";
-            packageId = "tracing-subscriber";
-            features = [ "fmt" "env-filter" ];
+            features = [ "log" ];
           }
           {
             name = "uniffi";
@@ -17305,7 +17578,7 @@ rec {
           "lru" = [ "dep:lru" ];
           "std" = [ "log/std" ];
         };
-        resolvedDefaultFeatures = [ "default" "log-tracer" "std" ];
+        resolvedDefaultFeatures = [ "log-tracer" "std" ];
       };
       "tracing-subscriber" = rec {
         crateName = "tracing-subscriber";
@@ -17320,26 +17593,9 @@ rec {
         ];
         dependencies = [
           {
-            name = "matchers";
-            packageId = "matchers";
-            optional = true;
-          }
-          {
             name = "nu-ansi-term";
             packageId = "nu-ansi-term";
             optional = true;
-          }
-          {
-            name = "once_cell";
-            packageId = "once_cell";
-            optional = true;
-          }
-          {
-            name = "regex-automata";
-            packageId = "regex-automata";
-            optional = true;
-            usesDefaultFeatures = false;
-            features = [ "std" ];
           }
           {
             name = "sharded-slab";
@@ -17357,12 +17613,6 @@ rec {
             optional = true;
           }
           {
-            name = "tracing";
-            packageId = "tracing";
-            optional = true;
-            usesDefaultFeatures = false;
-          }
-          {
             name = "tracing-core";
             packageId = "tracing-core";
             usesDefaultFeatures = false;
@@ -17376,10 +17626,6 @@ rec {
           }
         ];
         devDependencies = [
-          {
-            name = "tracing";
-            packageId = "tracing";
-          }
           {
             name = "tracing-log";
             packageId = "tracing-log";
@@ -17412,7 +17658,7 @@ rec {
           "valuable-serde" = [ "dep:valuable-serde" ];
           "valuable_crate" = [ "dep:valuable_crate" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "ansi" "default" "env-filter" "fmt" "matchers" "nu-ansi-term" "once_cell" "registry" "sharded-slab" "smallvec" "std" "thread_local" "tracing" "tracing-log" ];
+        resolvedDefaultFeatures = [ "alloc" "ansi" "default" "fmt" "nu-ansi-term" "registry" "sharded-slab" "smallvec" "std" "thread_local" "tracing-log" ];
       };
       "transpose" = rec {
         crateName = "transpose";
@@ -19120,7 +19366,7 @@ rec {
           "default" = [ "std" ];
           "std" = [ "wasm-bindgen/std" "js-sys/std" ];
         };
-        resolvedDefaultFeatures = [ "AbortController" "AbortSignal" "Blob" "BlobPropertyBag" "BroadcastChannel" "DedicatedWorkerGlobalScope" "ErrorEvent" "Event" "EventTarget" "File" "FormData" "Headers" "MessageEvent" "MessagePort" "ReadableStream" "Request" "RequestCache" "RequestCredentials" "RequestInit" "RequestMode" "Response" "ServiceWorkerGlobalScope" "Url" "Window" "Worker" "WorkerGlobalScope" "default" "std" ];
+        resolvedDefaultFeatures = [ "AbortController" "AbortSignal" "Blob" "BlobPropertyBag" "BroadcastChannel" "DedicatedWorkerGlobalScope" "ErrorEvent" "Event" "EventTarget" "File" "FormData" "Headers" "MessageEvent" "MessagePort" "ReadableStream" "Request" "RequestCache" "RequestCredentials" "RequestInit" "RequestMode" "Response" "ServiceWorkerGlobalScope" "Url" "Window" "Worker" "WorkerGlobalScope" "console" "default" "std" ];
       };
       "web-time" = rec {
         crateName = "web-time";
@@ -19707,7 +19953,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_Threading" "Win32_System_WindowsProgramming" "default" ];
       };
       "windows-sys 0.52.0" = rec {
         crateName = "windows-sys";
@@ -21349,15 +21595,7 @@ rec {
                 )
                 crateConfigs;
               target = makeTarget pkgs.stdenv.hostPlatform;
-              # Build-time dependency graph (for proc-macros and build
-              # dependencies). When not cross-compiling it equals the host
-              # graph, so reuse `self`; otherwise build it for
-              # `pkgs.buildPackages`.
-              build =
-                if pkgs.stdenv.buildPlatform.config == pkgs.stdenv.hostPlatform.config then
-                  self
-                else
-                  mkBuiltByPackageIdByPkgs pkgs.buildPackages;
+              build = mkBuiltByPackageIdByPkgs pkgs.buildPackages;
             };
           in
           self;
@@ -21373,35 +21611,38 @@ rec {
             devDependencies = lib.optionals (runTests && packageId == rootPackageId) (
               crateConfig'.devDependencies or [ ]
             );
-            # Enabled (platform- and feature-filtered) dependency lists, reused
-            # for both derivation wiring and the crate renames below.
-            enabledDependencies = filterEnabledDependencies {
+            dependencies = dependencyDerivations {
               inherit features;
               inherit (self) target;
+              buildByPackageId =
+                depPackageId:
+                # proc_macro crates must be compiled for the build architecture
+                if crateConfigs.${depPackageId}.procMacro or false then
+                  self.build.crates.${depPackageId}
+                else
+                  self.crates.${depPackageId};
               dependencies = (crateConfig.dependencies or [ ]) ++ devDependencies;
             };
-            enabledBuildDependencies = filterEnabledDependencies {
+            buildDependencies = dependencyDerivations {
               inherit features;
               inherit (self.build) target;
+              buildByPackageId = depPackageId: self.build.crates.${depPackageId};
               dependencies = crateConfig.buildDependencies or [ ];
             };
-            dependencies = map
-              (
-                dependency:
-                # proc_macro crates must be compiled for the build architecture
-                if crateConfigs.${dependency.packageId}.procMacro or false then
-                  self.build.crates.${dependency.packageId}
-                else
-                  self.crates.${dependency.packageId}
-              )
-              enabledDependencies;
-            buildDependencies = map
-              (dependency: self.build.crates.${dependency.packageId})
-              enabledBuildDependencies;
-            # Order (build dependencies, then normal dependencies) feeds the
-            # crateRenames grouping below.
             dependenciesWithRenames =
-              lib.filter (d: d ? "rename") (enabledBuildDependencies ++ enabledDependencies);
+              let
+                buildDeps = filterEnabledDependencies {
+                  inherit features;
+                  inherit (self) target;
+                  dependencies = crateConfig.dependencies or [ ] ++ devDependencies;
+                };
+                hostDeps = filterEnabledDependencies {
+                  inherit features;
+                  inherit (self.build) target;
+                  dependencies = crateConfig.buildDependencies or [ ];
+                };
+              in
+              lib.filter (d: d ? "rename") (hostDeps ++ buildDeps);
             # Crate renames have the form:
             #
             # {
@@ -21573,17 +21814,6 @@ rec {
     corresponding feature sets are merged. Features in rust are additive.
   */
   mergePackageFeatures =
-    args: builtins.mapAttrs (_packageId: builtins.attrNames) (mergePackageFeaturesImpl args);
-
-  /*
-    Core of the feature-resolution fixpoint. The cache (`featuresByPackageId`)
-    maps each packageId to a feature *set* (an attrset `feature -> 1`) rather
-    than a sorted list, so the fold merges with `//` and detects convergence
-    with attrset equality instead of re-concatenating and re-sorting the
-    accumulated feature list on every step. `mergePackageFeatures` projects the
-    result back to canonical sorted lists.
-  */
-  mergePackageFeaturesImpl =
     { crateConfigs ? crates
     , packageId
     , rootPackageId ? packageId
@@ -21632,15 +21862,14 @@ rec {
               cache:
               { packageId, features }:
               let
-                cacheFeatures = cache.${packageId} or { };
-                # `features` is the (small) incoming list; merge it into the set.
-                combinedFeatures = cacheFeatures // listToSet features;
+                cacheFeatures = cache.${packageId} or [ ];
+                combinedFeatures = sortedUnique (cacheFeatures ++ features);
               in
-              if cache ? ${packageId} && cacheFeatures == combinedFeatures then
+              if cache ? ${packageId} && cache.${packageId} == combinedFeatures then
                 cache
               else
-                mergePackageFeaturesImpl {
-                  features = builtins.attrNames combinedFeatures;
+                mergePackageFeatures {
+                  features = combinedFeatures;
                   featuresByPackageId = cache;
                   inherit
                     crateConfigs
@@ -21653,8 +21882,8 @@ rec {
             );
         cacheWithSelf =
           let
-            cacheFeatures = featuresByPackageId.${packageId} or { };
-            combinedFeatures = cacheFeatures // listToSet enabledFeatures;
+            cacheFeatures = featuresByPackageId.${packageId} or [ ];
+            combinedFeatures = sortedUnique (cacheFeatures ++ enabledFeatures);
           in
           featuresByPackageId
           // {
@@ -21681,31 +21910,27 @@ rec {
       assert (builtins.isList features);
       assert (builtins.isAttrs target);
 
-      let
-        # Identical for every dep in this call; build the predicate arg once.
-        targetArgs = { inherit features target; };
-      in
       lib.filter
         (
           dep:
-          (dep.target or (features: true)) targetArgs
+          let
+            targetFunc = dep.target or (features: true);
+          in
+          targetFunc { inherit features target; }
           && (!(dep.optional or false) || builtins.any (doesFeatureEnableDependency dep) features)
         )
         dependencies;
 
   # Returns whether the given feature should enable the given dependency.
   doesFeatureEnableDependency =
-    dependency:
-    # Callers partially apply this once per dependency, then test every feature,
-    # so hoist the dep-invariant strings out of the per-feature comparison.
+    dependency: feature:
     let
       name = dependency.rename or dependency.name;
-      depName = "dep:" + name;
       prefix = "${name}/";
       len = builtins.stringLength prefix;
+      startsWithPrefix = builtins.substring 0 len feature == prefix;
     in
-    feature:
-    feature == name || feature == depName || builtins.substring 0 len feature == prefix;
+    feature == name || feature == "dep:" + name || startsWithPrefix;
 
   /*
     Returns the expanded features for the given inputFeatures by applying the
@@ -21719,24 +21944,29 @@ rec {
       assert (builtins.isAttrs featureMap);
       assert (builtins.isList inputFeatures);
       let
-        # Transitive closure of `inputFeatures` under `featureMap`. `seen`
-        # tracks already-expanded features so each is visited at most once;
-        # this also breaks feature cycles (issue #209).
         expandFeaturesNoCycle =
-          seen: features:
-          builtins.foldl'
-            (
-              acc: feature:
-              if acc ? ${feature} then
-                acc
-              else
-                expandFeaturesNoCycle (acc // { ${feature} = 1; }) (featureMap.${feature} or [ ])
-            )
-            seen
-            features;
-        seen = expandFeaturesNoCycle { } inputFeatures;
+          oldSeen: inputFeatures:
+          if inputFeatures != [ ] then
+            let
+              # The feature we're currently expanding.
+              feature = builtins.head inputFeatures;
+              # All the features we've seen/expanded so far, including the one
+              # we're currently processing.
+              seen = oldSeen // {
+                ${feature} = 1;
+              };
+              # Expand the feature but be careful to not re-introduce a feature
+              # that we've already seen: this can easily cause a cycle, see issue
+              # #209.
+              enables = builtins.filter (f: !(seen ? "${f}")) (featureMap."${feature}" or [ ]);
+            in
+            [ feature ] ++ (expandFeaturesNoCycle seen (builtins.tail inputFeatures ++ enables))
+          # No more features left, nothing to expand to.
+          else
+            [ ];
+        outFeatures = expandFeaturesNoCycle { } inputFeatures;
       in
-      sortedUnique (builtins.attrNames seen);
+      sortedUnique outFeatures;
 
   /*
     This function adds optional dependencies as features if they are enabled
@@ -21795,19 +22025,16 @@ rec {
       in
       defaultOrNil ++ explicitFeatures ++ additionalDependencyFeatures;
 
-  # Builds a feature set (attrset `feature -> 1`) from a list of feature names.
-  listToSet =
-    features:
-    builtins.listToAttrs (map (feature: { name = feature; value = 1; }) features);
-
   # Sorts and removes duplicates from a list of strings.
   sortedUnique =
     features:
       assert (builtins.isList features);
-      # attrNames returns keys in ascending string order, so the result is
-      # sorted and deduplicated. The feature-merge fixpoint relies on this
-      # canonical order to detect convergence.
-      builtins.attrNames (listToSet features);
+      assert (builtins.all builtins.isString features);
+      let
+        outFeaturesSet = lib.foldl (set: feature: set // { "${feature}" = 1; }) { } features;
+        outFeaturesUnique = builtins.attrNames outFeaturesSet;
+      in
+      builtins.sort (a: b: a < b) outFeaturesUnique;
 
   deprecationWarning =
     message: value:

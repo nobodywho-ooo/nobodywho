@@ -1,29 +1,73 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
+
+use tracing::{debug, error, info};
 
 uniffi::setup_scaffolding!("nobodywho");
 
-/// Initialize logging so tracing output goes to Android logcat.
-#[cfg(target_os = "android")]
-fn init_logging() {
-    use std::sync::Once;
+pub fn init_logging() {
+    let level = if cfg!(debug_assertions) {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    };
+
     static INIT: Once = Once::new();
+
+    // Configure a sensible global logger.
+    //
+    // This also captures `tracing` events because the `tracing/log` feature
+    // is enabled, and because we don't register a tracing subscriber.
+    //
+    // NOTE: Ideally, we'd probably want to make this use `tracing` instead,
+    // and set up a `tracing_log::LogTracer` for catching `log` events. But
+    // the ecosystem for Android and WASM logging crates is a bit immature, so
+    // we'd rather depend on more well-tested crates.
     INIT.call_once(|| {
-        // Set up android_logger so log crate macros go to logcat
-        android_logger::init_once(
-            android_logger::Config::default()
-                .with_max_level(log::LevelFilter::Debug)
-                .with_tag("nobodywho"),
-        );
-        // Bridge tracing → log crate → android_logger → logcat
-        tracing_log::LogTracer::init().ok();
-        log::info!("NobodyWho logging initialized");
+        nobodywho::send_llamacpp_logs_to_tracing();
+
+        // Android logs to `adb logcat`.
+        #[cfg(target_os = "android")]
+        {
+            let config = android_logger::Config::default()
+                .with_max_level(level)
+                .with_tag("nobodywho");
+            android_logger::init_once(config)
+        }
+
+        // iOS/tvOS/watchOS/visionOS logs to oslog (/usr/bin/log)
+        #[cfg(all(target_vendor = "apple", not(target_os = "macos")))]
+        {
+            oslog::OsLogger::new("nobodywho")
+                .level_filter(level)
+                .init()
+                .expect("log initialization must only happen once")
+        }
+
+        // Web platforms log to the console.
+        #[cfg(target_family = "wasm")]
+        {
+            console_log::init_with_level(level).expect("log initialization must only happen once")
+        }
+
+        // All other platforms log to stderr.
+        #[cfg(not(any(
+            target_os = "android",
+            all(target_vendor = "apple", not(target_os = "macos")),
+            target_family = "wasm"
+        )))]
+        {
+            env_logger::Builder::new()
+                .filter_level(level)
+                .parse_default_env()
+                .init()
+        }
+
+        // NOTE: Do not set up a `tracing-subscriber`, that will conflict with
+        // the above!
     });
 }
-
-#[cfg(not(target_os = "android"))]
-fn init_logging() {}
 
 // ---------- Error type ----------
 // UniFFI 0.30 requires a proper error type instead of bare String.
@@ -294,12 +338,9 @@ pub async fn load_model(
     on_download_progress: Option<Box<dyn RustDownloadProgressCallback>>,
 ) -> Result<Arc<RustModel>, NobodyWhoError> {
     init_logging();
-    log::info!(
+    info!(
         "load_model called: path={}, gpu={}, mmproj={:?}, draft={:?}",
-        model_path,
-        use_gpu,
-        projection_model_path,
-        draft_model_path,
+        model_path, use_gpu, projection_model_path, draft_model_path,
     );
 
     let progress = on_download_progress.map(wrap_progress);
@@ -313,11 +354,11 @@ pub async fn load_model(
     .await
     .map_err(|e| {
         let msg = nobodywho::render_miette(&e);
-        log::error!("{}", msg);
+        error!("{}", msg);
         NobodyWhoError::Error { message: msg }
     })?;
 
-    log::info!("load_model SUCCESS for {}", model_path);
+    info!("load_model SUCCESS for {}", model_path);
     Ok(Arc::new(RustModel {
         inner: Arc::new(model),
     }))
@@ -458,7 +499,7 @@ impl RustChat {
 
     /// Send a message and get a token stream for the response.
     pub fn ask(&self, message: String) -> Arc<RustTokenStream> {
-        log::info!("RustChat::ask called with message: {}", message);
+        info!("RustChat::ask called with message: {}", message);
         Arc::new(RustTokenStream {
             inner: tokio::sync::Mutex::new(self.inner.ask(message)),
         })
@@ -855,7 +896,7 @@ impl RustTokenStream {
     /// Get the next token. Returns None when generation is complete, or an error if generation failed.
     pub async fn next_token(&self) -> Result<Option<String>, NobodyWhoError> {
         let result = self.inner.lock().await.next_token().await;
-        log::debug!("next_token: {:?}", result);
+        debug!("next_token: {:?}", result);
         result.map_err(|e| NobodyWhoError::Error {
             message: nobodywho::render_miette(&e),
         })
