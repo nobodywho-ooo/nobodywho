@@ -621,6 +621,11 @@ jobs:
         # ORT_LIB_PATH/ORT_PREFER_DYNAMIC_LINK only set when ort-android step ran (x86_64);
         # exporting them empty on arm64 would put ort-sys into manual-link mode with no path.
         run: |
+          # Godot links llama.cpp and the C++ runtime statically. Flutter and
+          # UniFFI use dynamic llama.cpp libraries and ort-sys's c++_shared default.
+          if [ "${{ matrix.integration }}" = "godot" ]; then
+            export ORT_CXX_STDLIB=c++_static
+          fi
           if [ "${{ matrix.target }}" = "x86_64-linux-android" ]; then
             export ORT_LIB_PATH="${{ steps.ort-android.outputs.ort_dir }}"
             export ORT_PREFER_DYNAMIC_LINK=1
@@ -629,11 +634,6 @@ jobs:
         working-directory: ./nobodywho
         env:
           ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
-          # ort-sys hardcodes `-lc++_shared` on Android, which undoes the
-          # static C++ runtime that llama-cpp-rs's `android-static-stdcxx`
-          # already gives the entry-point library. The dynamic CPU backends
-          # still use the libc++_shared.so placed in nobodywho-runtime.
-          ORT_CXX_STDLIB: "c++_static"
           # aarch64 (arm64-v8a)
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"

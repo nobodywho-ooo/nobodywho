@@ -62,10 +62,13 @@ mod android {
                 continue;
             };
             info!(backend = %path.display(), score, "scored GGML CPU backend");
+            if score <= 0 {
+                continue;
+            }
 
             if best_backend
                 .as_ref()
-                .is_none_or(|(_, _, best_score)| score >= *best_score)
+                .is_none_or(|(_, _, best_score)| score > *best_score)
             {
                 best_backend = Some((path, path_c, score));
             }

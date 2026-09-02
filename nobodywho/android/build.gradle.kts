@@ -16,20 +16,7 @@ group = "ai.nobodywho"
 // Local/CI dev builds fall back to this — never a version other tooling depends on.
 version = providers.gradleProperty("version").getOrElse("0.0.0-local")
 
-val allSupportedAbis = listOf("arm64-v8a", "x86_64")
-// Real releases package every supported ABI. Physical-device source tests can
-// request only arm64-v8a so they do not have to build an unused x86_64 slice.
-val supportedAbis = providers.gradleProperty("nobodywhoAbis").orNull
-    ?.split(",")
-    ?.map { it.trim() }
-    ?.filter { it.isNotEmpty() }
-    ?.also { requested ->
-        require(requested.isNotEmpty()) { "nobodywhoAbis must not be empty" }
-        require(requested.all { it in allSupportedAbis }) {
-            "Unsupported nobodywhoAbis: ${requested - allSupportedAbis.toSet()}"
-        }
-    }
-    ?: allSupportedAbis
+val supportedAbis = listOf("arm64-v8a", "x86_64")
 val commonLibraries = listOf(
     "libggml-base.so",
     "libggml.so",

@@ -77,6 +77,8 @@ Desktop and Apple build scripts resolve binaries using these strategies:
 
 Android does not use this resolver. Gradle resolves the pinned multi-ABI
 `ai.nobodywho:nobodywho-flutter-android` AAR from Maven Central.
+If another Android dependency also packages `libc++_shared.so`, follow the
+[shared-runtime conflict instructions](../android/README.md#shared-c-runtime-conflicts).
 
 ## Building for Android
 

@@ -115,4 +115,6 @@ export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobody
 
 The shared native AAR contains NobodyWho's entry point, runtime libraries, and
 the matching `libc++_shared.so`, so the local override has the same runtime
-contents as the published dependency.
+contents as the published dependency. If another Android dependency packages
+the same runtime, follow the
+[shared-runtime conflict instructions](../android/README.md#shared-c-runtime-conflicts).

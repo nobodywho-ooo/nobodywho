@@ -204,7 +204,10 @@ jobs:
           candidates-path: android-candidates
           version-source: nobodywho/kotlin/android/build.gradle.kts
 
+      # In released-native mode the staging action above is skipped, but the
+      # Kotlin binding candidate still needs a runner-local publication target.
       - name: "Prepare the Kotlin candidate repository"
+        if: needs.select.outputs.use_native_candidates != 'true'
         run: |
           REPOSITORY="$RUNNER_TEMP/nobodywho-candidate-maven"
           mkdir -p "$REPOSITORY"
