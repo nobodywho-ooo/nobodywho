@@ -12,6 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Each artifact holds libnobodywho-<integration>-<target>-release.so,
+      # nobodywho-runtime-<target>/ (common libs + CPU backends) and, for
+      # x86_64, libonnxruntime.so. nobodywho/android's Gradle build reads this
+      # layout directly.
       - name: "Download Flutter Android build artifacts"
         uses: actions/download-artifact@v5
         with:
@@ -26,38 +30,6 @@ jobs:
           merge-multiple: true
           path: ./artifacts/uniffi
 
-      - name: "Stage Flutter jniLibs (arm64-v8a)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: flutter
-          target: aarch64-linux-android
-          source-dir: artifacts/flutter
-          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/arm64-v8a
-
-      - name: "Stage Flutter jniLibs (x86_64)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: flutter
-          target: x86_64-linux-android
-          source-dir: artifacts/flutter
-          jnilibs-dir: nobodywho/android/build/flutter/jniLibs/x86_64
-
-      - name: "Stage UniFFI jniLibs (arm64-v8a)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: aarch64-linux-android
-          source-dir: artifacts/uniffi
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/arm64-v8a
-
-      - name: "Stage UniFFI jniLibs (x86_64)"
-        uses: ./.github/actions/stage-android-jnilibs
-        with:
-          integration: uniffi
-          target: x86_64-linux-android
-          source-dir: artifacts/uniffi
-          jnilibs-dir: nobodywho/android/build/uniffi/jniLibs/x86_64
-
       - name: "Install Android NDK"
         uses: nttld/setup-ndk@v1
         id: setup-ndk
@@ -65,13 +37,19 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
-      - name: "Strip release libraries"
+      - name: "Add libc++_shared.so and strip release libraries"
         run: |
           set -euo pipefail
-          LLVM_STRIP="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-          find nobodywho/android/build/flutter/jniLibs \
-               nobodywho/android/build/uniffi/jniLibs \
-            -type f -name '*.so' -exec "$LLVM_STRIP" --strip-unneeded {} +
+          TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
+          # The entry point, libllama and the CPU backends share the NDK's C++
+          # runtime. build.yml compiles with this same NDK release.
+          for integration in flutter uniffi; do
+            for target in aarch64-linux-android x86_64-linux-android; do
+              cp "$TOOLCHAIN/sysroot/usr/lib/$target/libc++_shared.so" \
+                "artifacts/$integration/nobodywho-runtime-$target/"
+            done
+          done
+          find artifacts -type f -name '*.so' -exec "$TOOLCHAIN/bin/llvm-strip" --strip-unneeded {} +
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
@@ -117,12 +95,12 @@ jobs:
           # Flutter and React Native publish native AARs versioned with their
           # wrapper package. Source device tests resolve them from the local
           # Maven directory; the release publishes these exact files.
-          for spec in "flutter:$FLUTTER_VERSION" "react-native:$REACT_NATIVE_VERSION"; do
-            binding=${spec%%:*}
-            version=${spec#*:}
+          for spec in "flutter:flutter:$FLUTTER_VERSION" "react-native:uniffi:$REACT_NATIVE_VERSION"; do
+            IFS=: read -r binding integration version <<< "$spec"
             ./nobodywho/kotlin/gradlew -p nobodywho/android \
               nativeAar publishNativePublicationToCandidateRepository \
               -PnobodywhoBinding="$binding" \
+              -PnobodywhoInputDir="$PWD/artifacts/$integration" \
               -Pversion="$version" \
               -PcandidateRepository="$CANDIDATES/maven"
             cp "nobodywho/android/build/outputs/nobodywho-$binding-android-$version.aar" "$CANDIDATES/"
@@ -130,7 +108,9 @@ jobs:
 
           # Kotlin embeds these libraries into its own nobodywho-android AAR.
           # The device test and the release both build that AAR from this file.
-          ./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar -PnobodywhoBinding=uniffi
+          ./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
+            -PnobodywhoBinding=uniffi \
+            -PnobodywhoInputDir="$PWD/artifacts/uniffi"
           cp nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar "$CANDIDATES/"
 
       # Gradle's nativeAar task already checked that every required library is

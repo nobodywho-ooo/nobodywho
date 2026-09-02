@@ -44,8 +44,8 @@ runtime itself.
 ## Candidate and release flow
 
 `.github/workflows/package-android-candidates.yml` downloads the exact Android
-outputs from `build.yml`, stages both ABIs, strips and validates the native
-libraries, and builds the Flutter and React Native native AARs plus the UniFFI
+outputs from `build.yml`, adds the NDK's `libc++_shared.so`, strips and
+validates the native libraries, and builds the Flutter and React Native native AARs plus the UniFFI
 input for Kotlin. The two native AARs are also placed in an isolated Maven
 repository for source-device tests.
 
@@ -68,38 +68,48 @@ artifact shares the version of its owning binding.
 
 ## Local builds
 
-Stage Cargo's Android outputs in these ignored directories:
-
-```text
-build/flutter/jniLibs/<abi>/*.so
-build/uniffi/jniLibs/<abi>/*.so
-```
-
-Then build whichever local input you need:
+Place Cargo's Android outputs in `build/inputs/<integration>/` (ignored), in
+the layout `build.yml` uploads. `<integration>` is `flutter` or `uniffi`;
+`<target>` is `aarch64-linux-android` or `x86_64-linux-android`:
 
 ```bash
-# Flutter
-./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
-  -PnobodywhoBinding=flutter
-
-# React Native
-./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
-  -PnobodywhoBinding=react-native
-
-# Kotlin source-build input
-./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
-  -PnobodywhoBinding=uniffi
+INTEGRATION=uniffi   # or flutter
+TARGET=aarch64-linux-android
+NDK_LIBS="$ANDROID_NDK/toolchains/llvm/prebuilt/$(uname -s | tr A-Z a-z)-x86_64/sysroot/usr/lib"
+IN="nobodywho/android/build/inputs/$INTEGRATION"
+OUT="nobodywho/target/$TARGET/release"
+mkdir -p "$IN"
+cp "$OUT/libnobodywho_$INTEGRATION.so" "$IN/libnobodywho-$INTEGRATION-$TARGET-release.so"
+cp -R "$OUT/nobodywho-runtime" "$IN/nobodywho-runtime-$TARGET"
+cp "$NDK_LIBS/$TARGET/libc++_shared.so" "$IN/nobodywho-runtime-$TARGET/"
 ```
 
-Local builds default to `0.0.0-local`. Point a binding source build at the
-corresponding file:
+Repeat for the other target; the AAR always ships both ABIs. The x86_64 build
+also needs the `libonnxruntime.so` that `build.yml` fetches from Microsoft's
+ONNX Runtime AAR, placed at `$IN/libonnxruntime.so`.
+
+Then build the AAR you need (`-PnobodywhoInputDir=` overrides the input
+directory; local builds default to version `0.0.0-local`):
 
 ```bash
-export NOBODYWHO_FLUTTER_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-flutter-android-0.0.0-local.aar"
-export NOBODYWHO_REACT_NATIVE_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-react-native-android-0.0.0-local.aar"
+./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar -PnobodywhoBinding=flutter
+./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar -PnobodywhoBinding=react-native
+./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar -PnobodywhoBinding=uniffi
+```
+
+Flutter and React Native resolve their native AAR through Maven, so a local
+build is consumed the same way: publish it to `~/.m2` under the version the
+binding declares, then let the test app read that repository.
+
+```bash
+./nobodywho/kotlin/gradlew -p nobodywho/android publishToMavenLocal \
+  -PnobodywhoBinding=flutter -Pversion=<version from flutter/nobodywho/pubspec.yaml>
+export NOBODYWHO_CANDIDATE_MAVEN_REPO="$HOME/.m2/repository"
+```
+
+Any other app adds `mavenLocal()` to its repositories instead. Kotlin embeds
+the libraries, so its source build takes the UniFFI AAR file directly:
+
+```bash
 export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
 ```
-
-Published Flutter and React Native packages resolve their same-version native
-AAR from Maven Central. Published Kotlin consumers need no second native
-dependency because the libraries are inside `nobodywho-android`.

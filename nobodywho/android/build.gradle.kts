@@ -13,17 +13,21 @@ plugins {
 group = "ai.nobodywho"
 version = providers.gradleProperty("version").getOrElse("0.0.0-local")
 
-val supportedAbis = listOf("arm64-v8a", "x86_64")
+val abiTargets = mapOf(
+    "arm64-v8a" to "aarch64-linux-android",
+    "x86_64" to "x86_64-linux-android",
+)
 val commonLibraries = listOf(
     "libggml-base.so",
     "libggml.so",
     "libllama-common.so",
     "libllama.so",
+    "libc++_shared.so",
 )
 
 data class NativeArtifact(
     val binding: String,
-    val jniDirectory: String,
+    val integration: String,
     val artifactId: String,
     val mainLibrary: String,
 )
@@ -31,25 +35,50 @@ data class NativeArtifact(
 val nativeArtifact = when (val binding = providers.gradleProperty("nobodywhoBinding").getOrElse("uniffi")) {
     "flutter" -> NativeArtifact(
         binding = binding,
-        jniDirectory = "flutter",
+        integration = "flutter",
         artifactId = "nobodywho-flutter-android",
         mainLibrary = "libnobodywho_flutter.so",
     )
     "react-native" -> NativeArtifact(
         binding = binding,
-        jniDirectory = "uniffi",
+        integration = "uniffi",
         artifactId = "nobodywho-react-native-android",
         mainLibrary = "libnobodywho_uniffi.so",
     )
     "uniffi" -> NativeArtifact(
         binding = binding,
-        jniDirectory = "uniffi",
+        integration = "uniffi",
         artifactId = "nobodywho-uniffi-android",
         mainLibrary = "libnobodywho_uniffi.so",
     )
     else -> error("Unknown nobodywhoBinding '$binding'; expected flutter, react-native, or uniffi")
 }
+
+// Cargo's Android outputs in the layout build.yml uploads (see README):
+//   libnobodywho-<integration>-<target>-release.so
+//   nobodywho-runtime-<target>/*.so      common libs, CPU backends, libc++_shared.so
+//   libonnxruntime.so                    x86_64 only
+val inputDir = providers.gradleProperty("nobodywhoInputDir").map(::file)
+    .getOrElse(layout.buildDirectory.dir("inputs/${nativeArtifact.integration}").get().asFile)
 val prebuiltAar = providers.gradleProperty("nobodywhoPrebuiltAar").orNull?.let(::file)
+
+fun entryLibrary(target: String) = inputDir.resolve("libnobodywho-${nativeArtifact.integration}-$target-release.so")
+fun runtimeDir(target: String) = inputDir.resolve("nobodywho-runtime-$target")
+val onnxRuntime = inputDir.resolve("libonnxruntime.so")
+
+fun validateInputs() {
+    abiTargets.forEach { (abi, target) ->
+        require(entryLibrary(target).isFile) { "${nativeArtifact.artifactId}: missing ${entryLibrary(target)}" }
+        val runtime = runtimeDir(target)
+        commonLibraries.forEach { library ->
+            require(runtime.resolve(library).isFile) { "${nativeArtifact.artifactId}: missing $library in $runtime" }
+        }
+        require(runtime.listFiles().orEmpty().any { it.name.startsWith("libggml-cpu") && it.extension == "so" }) {
+            "${nativeArtifact.artifactId}: no GGML CPU backend for $abi in $runtime"
+        }
+    }
+    require(onnxRuntime.isFile) { "${nativeArtifact.artifactId}: missing $onnxRuntime (x86_64 links ONNX Runtime dynamically)" }
+}
 
 val sourceArchive by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
@@ -65,28 +94,6 @@ val documentationArchive by tasks.registering(Jar::class) {
     isReproducibleFileOrder = true
 }
 
-fun validateNativeLibraries(artifact: NativeArtifact, jniRoot: File) {
-    supportedAbis.forEach { abi ->
-        val abiDir = jniRoot.resolve(abi)
-        require(abiDir.isDirectory) { "Missing $abiDir" }
-
-        val required = commonLibraries + artifact.mainLibrary + "libc++_shared.so" +
-            if (abi == "x86_64") listOf("libonnxruntime.so") else emptyList()
-        required.forEach { library ->
-            require(abiDir.resolve(library).isFile) {
-                "${artifact.artifactId} is missing $abi/$library"
-            }
-        }
-
-        require(abiDir.listFiles().orEmpty().any {
-            it.name.startsWith("libggml-cpu") && it.extension == "so"
-        }) {
-            "${artifact.artifactId} has no CPU backend for $abi"
-        }
-    }
-}
-
-val jniRoot = layout.buildDirectory.dir("${nativeArtifact.jniDirectory}/jniLibs")
 val nativeAar by tasks.registering(Zip::class) {
     archiveFileName.set("${nativeArtifact.artifactId}-${project.version}.aar")
     destinationDirectory.set(layout.buildDirectory.dir("outputs"))
@@ -94,15 +101,16 @@ val nativeAar by tasks.registering(Zip::class) {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
 
-    doFirst {
-        validateNativeLibraries(nativeArtifact, jniRoot.get().asFile)
-    }
-    from("${nativeArtifact.jniDirectory}/AndroidManifest.xml") {
+    doFirst { validateInputs() }
+    from("${nativeArtifact.integration}/AndroidManifest.xml") {
         rename { "AndroidManifest.xml" }
     }
-    into("jni") {
-        from(jniRoot)
-        include(supportedAbis.map { "$it/**" })
+    abiTargets.forEach { (abi, target) ->
+        into("jni/$abi") {
+            from(entryLibrary(target)) { rename { nativeArtifact.mainLibrary } }
+            from(runtimeDir(target)) { include("*.so") }
+            if (abi == "x86_64") from(onnxRuntime)
+        }
     }
 }
 

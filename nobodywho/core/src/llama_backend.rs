@@ -30,19 +30,20 @@ mod android {
         let found =
             unsafe { libc::dladdr(load_best_cpu_backend as *const libc::c_void, &mut info) };
         if found == 0 || info.dli_fname.is_null() {
-            return Err(BackendInitError::LibraryNotFound);
+            return Err(BackendInitError::LocateLibrary {
+                reason: "dladdr found no containing library".into(),
+            });
         }
         let own_path = unsafe { CStr::from_ptr(info.dli_fname) }
             .to_str()
-            .map_err(|error| BackendInitError::InvalidLibraryPath {
+            .map_err(|error| BackendInitError::LocateLibrary {
                 reason: error.to_string(),
             })?;
-        let dir =
-            Path::new(own_path)
-                .parent()
-                .ok_or_else(|| BackendInitError::InvalidLibraryPath {
-                    reason: format!("{own_path} has no parent directory"),
-                })?;
+        let dir = Path::new(own_path)
+            .parent()
+            .ok_or_else(|| BackendInitError::LocateLibrary {
+                reason: format!("{own_path} has no parent directory"),
+            })?;
 
         // Android can dlopen an exact `base.apk!/lib/<abi>/libfoo.so` path, but its
         // filesystem APIs cannot enumerate that pseudo-directory.
@@ -51,11 +52,11 @@ mod android {
             let path = dir.join(filename);
             let path_str = path
                 .to_str()
-                .ok_or_else(|| BackendInitError::InvalidLibraryPath {
+                .ok_or_else(|| BackendInitError::LocateLibrary {
                     reason: format!("{} is not valid UTF-8", path.display()),
                 })?;
             let path_c =
-                CString::new(path_str).map_err(|error| BackendInitError::InvalidLibraryPath {
+                CString::new(path_str).map_err(|error| BackendInitError::LocateLibrary {
                     reason: error.to_string(),
                 })?;
             let Some(score) = score_backend(&path_c) else {

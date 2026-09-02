@@ -156,43 +156,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-flutter-android:
-    if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-v')
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: "Download tested Android candidate AARs"
-        uses: actions/download-artifact@v5
-        with:
-          name: nobodywho-android-binding-candidates
-          path: ./android-candidates
-
-      # package-android-candidates already verified the tag matches pubspec.yaml.
-      - name: "Read Flutter version from the tag"
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#nobodywho-flutter-v}" >> "$GITHUB_OUTPUT"
-
-      - name: "Setup JDK"
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: "Publish the device-tested Flutter AAR"
-        uses: ./.github/actions/publish-android-binding-aar
-        with:
-          binding: flutter
-          artifact-id: nobodywho-flutter-android
-          version: ${{ steps.version.outputs.version }}
-        env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
-          SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
-
+  # Publishes the device-tested Android AAR to Maven Central, then creates the
+  # GitHub Release. publish-flutter-to-pubdev runs only after both succeeded.
   create-github-release-flutter:
-    needs: [publish-flutter-android]
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-v')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
@@ -212,6 +178,29 @@ jobs:
         with:
           name: nobodywho-android-binding-candidates
           path: ./android-candidates
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # package-android-candidates already verified the tag matches pubspec.yaml.
+      - name: "Read Flutter version from the tag"
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#nobodywho-flutter-v}" >> "$GITHUB_OUTPUT"
+
+      - name: "Publish the device-tested Flutter AAR"
+        uses: ./.github/actions/publish-android-binding-aar
+        with:
+          binding: flutter
+          artifact-id: nobodywho-flutter-android
+          version: ${{ steps.version.outputs.version }}
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
 
       - name: "List artifacts to include in release"
         run: ls -la ./nobodywho-flutter-release/
@@ -250,28 +239,32 @@ jobs:
     with:
       working-directory: nobodywho/flutter/nobodywho
 
-  publish-react-native-android:
+  # Publishes the device-tested Android AAR to Maven Central, then creates the
+  # iOS/Android GitHub Release. The npm package is published only after both.
+  create-github-release-react-native:
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
-    runs-on: ubuntu-24.04
+    runs-on: warp-ubuntu-latest-x64-2x
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
 
-      - name: "Download tested Android candidate AARs"
+      - name: "Download tested React Native Android AAR"
         uses: actions/download-artifact@v5
         with:
           name: nobodywho-android-binding-candidates
           path: ./android-candidates
-
-      # package-android-candidates already verified the tag matches package.json.
-      - name: "Read React Native version from the tag"
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#nobodywho-react-native-v}" >> "$GITHUB_OUTPUT"
 
       - name: "Setup JDK"
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
+
+      # package-android-candidates already verified the tag matches package.json.
+      - name: "Read React Native version from the tag"
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#nobodywho-react-native-v}" >> "$GITHUB_OUTPUT"
 
       - name: "Publish the device-tested React Native AAR"
         uses: ./.github/actions/publish-android-binding-aar
@@ -285,20 +278,6 @@ jobs:
           SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
 
-  # Create the iOS/Android GitHub Release, then publish the npm package.
-  create-github-release-react-native:
-    needs: [publish-react-native-android]
-    if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
-    runs-on: warp-ubuntu-latest-x64-2x
-    permissions:
-      contents: write
-    steps:
-      - name: "Download tested React Native Android AAR"
-        uses: actions/download-artifact@v5
-        with:
-          name: nobodywho-android-binding-candidates
-          path: ./nobodywho-react-native-release
-
       - name: "Download iOS XCFramework"
         uses: actions/download-artifact@v5
         with:
@@ -310,7 +289,7 @@ jobs:
         with:
           files: |
             ./nobodywho-react-native-release/NobodywhoFramework.xcframework.zip
-            ./nobodywho-react-native-release/nobodywho-react-native-android-*.aar
+            ./android-candidates/nobodywho-react-native-android-*.aar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

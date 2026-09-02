@@ -47,13 +47,9 @@ pub enum MemoryError {
 
 #[derive(Clone, Debug, thiserror::Error, miette::Diagnostic)]
 pub enum BackendInitError {
-    #[error("Could not locate NobodyWho's native library")]
+    #[error("Could not locate NobodyWho's native library: {reason}")]
     #[diagnostic(code(nobodywho::backend_library_not_found))]
-    LibraryNotFound,
-
-    #[error("NobodyWho's native library path is invalid: {reason}")]
-    #[diagnostic(code(nobodywho::invalid_backend_library_path))]
-    InvalidLibraryPath { reason: String },
+    LocateLibrary { reason: String },
 
     #[error("None of the packaged GGML CPU backends could be loaded")]
     #[diagnostic(
