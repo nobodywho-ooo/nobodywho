@@ -945,6 +945,28 @@ impl ChatHandleAsync {
         )))
     }
 
+    /// Generate one assistant response and return tool calls to the caller.
+    ///
+    /// Unlike [`complete`](Self::complete), this never executes tool callbacks.
+    /// The caller can execute returned calls and submit the full conversation,
+    /// including the tool results, in a following request.
+    pub fn complete_with_external_tools(
+        &self,
+        messages: Vec<Message>,
+        options: Options,
+        max_tokens: Option<usize>,
+    ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
+        validate_completion_messages(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
+        self.guard.send(ChatMsg::CompleteWithExternalTools {
+            messages,
+            options,
+            max_tokens,
+            output_tx,
+        });
+        Ok(CompletionStreamAsync::new(output_rx))
+    }
+
     /// Send a setter message and wait for the worker's answer. The outer error
     /// is the worker being gone, the inner one is the worker rejecting the value.
     async fn set_and_wait_async<F>(
@@ -1229,6 +1251,61 @@ pub type TokenStream = crate::stream::TokenStream<crate::errors::CompletionError
 /// A stream of tokens from the model, async version.
 pub type TokenStreamAsync = crate::stream::TokenStreamAsync<crate::errors::CompletionError>;
 
+/// One assistant response from a chat completion.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssistantResponse {
+    pub content: String,
+    pub tool_calls: Vec<ToolCall>,
+}
+
+/// An item from [`ChatHandleAsync::complete_with_external_tools`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum CompletionChunk {
+    Token(String),
+    Done(AssistantResponse),
+}
+
+enum ExternalCompletionOutput {
+    Token(String),
+    Done(AssistantResponse),
+    Error(crate::errors::CompletionError),
+}
+
+/// An async completion stream that returns tool calls instead of executing them.
+pub struct CompletionStreamAsync {
+    rx: tokio::sync::mpsc::Receiver<ExternalCompletionOutput>,
+    done: bool,
+}
+
+impl CompletionStreamAsync {
+    fn new(rx: tokio::sync::mpsc::Receiver<ExternalCompletionOutput>) -> Self {
+        Self { rx, done: false }
+    }
+
+    pub async fn next(
+        &mut self,
+    ) -> Result<Option<CompletionChunk>, crate::errors::CompletionError> {
+        if self.done {
+            return Ok(None);
+        }
+        match self.rx.recv().await {
+            Some(ExternalCompletionOutput::Token(token)) => Ok(Some(CompletionChunk::Token(token))),
+            Some(ExternalCompletionOutput::Done(response)) => {
+                self.done = true;
+                Ok(Some(CompletionChunk::Done(response)))
+            }
+            Some(ExternalCompletionOutput::Error(error)) => {
+                self.done = true;
+                Err(error)
+            }
+            None => {
+                self.done = true;
+                Ok(None)
+            }
+        }
+    }
+}
+
 /// Convert a raw `WriteOutput` channel into a typed `StreamOutput<CompletionError>` channel.
 ///
 /// `ask_channel` intentionally stays as `WriteOutput` so the Godot binding
@@ -1278,6 +1355,12 @@ enum ChatMsg {
         messages: Vec<Message>,
         options: Options,
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
+    },
+    CompleteWithExternalTools {
+        messages: Vec<Message>,
+        options: Options,
+        max_tokens: Option<usize>,
+        output_tx: tokio::sync::mpsc::Sender<ExternalCompletionOutput>,
     },
     ResetChat {
         system_prompt: Option<String>,
@@ -1343,6 +1426,10 @@ impl std::fmt::Debug for ChatMsg {
             ChatMsg::Ask { prompt, .. } => f.debug_struct("Ask").field("text", prompt).finish(),
             ChatMsg::Complete { messages, .. } => f
                 .debug_struct("Complete")
+                .field("messages", &format!("[{} messages]", messages.len()))
+                .finish(),
+            ChatMsg::CompleteWithExternalTools { messages, .. } => f
+                .debug_struct("CompleteWithExternalTools")
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
             ChatMsg::ResetChat {
@@ -1435,6 +1522,41 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
             };
             if let Err(e) = worker_state.complete(messages, options, callback) {
                 let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
+            }
+        }
+        ChatMsg::CompleteWithExternalTools {
+            messages,
+            options,
+            max_tokens,
+            output_tx,
+        } => {
+            let should_stop = Arc::clone(&worker_state.should_stop);
+            let event_tx = output_tx.clone();
+            let callback = move |out| {
+                let result = match out {
+                    llm::WriteOutput::Token(token) => {
+                        event_tx.blocking_send(ExternalCompletionOutput::Token(token))
+                    }
+                    llm::WriteOutput::Done(_) => Ok(()),
+                    llm::WriteOutput::Error(error) => {
+                        event_tx.blocking_send(ExternalCompletionOutput::Error(
+                            crate::errors::CompletionError::WorkerError(error),
+                        ))
+                    }
+                };
+                if result.is_err() {
+                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            };
+            match worker_state.complete_once(messages, options, max_tokens, callback) {
+                Ok(response) => {
+                    let _ = output_tx.blocking_send(ExternalCompletionOutput::Done(response));
+                }
+                Err(error) => {
+                    let _ = output_tx.blocking_send(ExternalCompletionOutput::Error(
+                        crate::errors::CompletionError::WorkerError(Box::new(error)),
+                    ));
+                }
             }
         }
         ChatMsg::ResetChat {
@@ -1947,10 +2069,11 @@ impl<'a> Chat<'a> {
     // This is a safety meassure to prevent bugs from multiple
     // contexts with the same model. It might not be necessary
     // but assume it is.
-    pub fn generate_response_until_done<F>(
+    fn generate_response_until_done_with_limit<F>(
         &mut self,
         mut respond: F,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+        max_tokens: Option<usize>,
     ) -> Result<&mut Self, GenerateResponseError>
     where
         F: FnMut(WriteOutput),
@@ -1965,13 +2088,16 @@ impl<'a> Chat<'a> {
         let mut full_response: String = String::with_capacity(4096);
         let mut tokens_written_until_now = Vec::new();
         let mut new_tokens = Vec::new();
+        let mut generated_tokens = 0;
 
         self.sampler.reset();
 
         // init statefull decoder for split up tokens like emojis
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
-        while !self.should_stop() {
+        while !self.should_stop()
+            && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
+        {
             // Check if the context is full
             if self.engine.is_context_full() {
                 // pending should be preserved during context shift
@@ -1992,12 +2118,17 @@ impl<'a> Chat<'a> {
             // Sample next token(s), no need to use sampler.accept as sample already accepts the token.
             // using sampler.accept() will cause the sampler to crash when using grammar sampling.
             // https://github.com/utilityai/llama-cpp-rs/issues/604
-            self.engine
-                .sample_and_decode_next_tokens(&mut self.sampler, &mut new_tokens)?;
+            let remaining_tokens =
+                max_tokens.map(|max_tokens| max_tokens.saturating_sub(generated_tokens));
+            self.engine.sample_and_decode_next_tokens(
+                &mut self.sampler,
+                &mut new_tokens,
+                remaining_tokens,
+            )?;
 
             tokens_written_until_now.extend_from_slice(&new_tokens);
 
-            let mut hit_eog = false;
+            let mut should_finish = false;
             for &new_token in &new_tokens {
                 // Attempt to convert token(s) to bytes
                 let token_bytes = match self
@@ -2039,19 +2170,23 @@ impl<'a> Chat<'a> {
                 let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
                 trace!(?new_token, ?token_str, ?has_eog);
 
-                if !has_eog {
-                    full_response.push_str(&token_str);
-                    trace!(?token_str, "Sending out token:");
-                    respond(WriteOutput::Token(token_str));
+                if has_eog {
+                    should_finish = true;
+                    break;
                 }
 
-                if has_eog {
-                    hit_eog = true;
+                full_response.push_str(&token_str);
+                generated_tokens += 1;
+                trace!(?token_str, "Sending out token:");
+                respond(WriteOutput::Token(token_str));
+
+                if max_tokens.is_some_and(|max_tokens| generated_tokens >= max_tokens) {
+                    should_finish = true;
                     break;
                 }
             }
 
-            if hit_eog {
+            if should_finish {
                 break;
             }
         }
@@ -2077,7 +2212,7 @@ impl<'a> Chat<'a> {
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
-        self.run_turn(respond)?;
+        self.run_turn(respond, None, false)?;
 
         Ok(self)
     }
@@ -2127,32 +2262,46 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Generate one assistant turn from the current `messages`, running the tool
-    /// loop until the model stops calling tools.
+    /// Generate assistant output from the current messages.
     ///
-    /// Appends the tool-call, tool-response and assistant messages it produces,
-    /// and leaves `context.chunks` describing what ended up in the KV cache.
-    fn run_turn<F>(&mut self, respond: F) -> Result<(), SayError>
+    /// Tool callbacks run until the model stops calling tools unless
+    /// `skip_calling_tools` is set, in which case the first calls are returned.
+    fn run_turn<F>(
+        &mut self,
+        respond: F,
+        max_tokens: Option<usize>,
+        skip_calling_tools: bool,
+    ) -> Result<AssistantResponse, SayError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
         // The tool-call grammar is NOT pre-injected into the chain. Lark/
         // llguidance has no "trigger word" mechanism, so an always-on grammar
         // would block EOS when the model just wants to chat. Instead the
-        // grammar is added dynamically inside `generate_response_until_done`
+        // grammar is added dynamically inside `generate_response_until_done_with_limit`
         // the moment the begin token appears in the streamed output.
 
-        // get the finished response
-        let mut response: String =
-            self.wrapped_update_context_and_generate_response(respond.clone())?;
+        let mut response =
+            self.wrapped_update_context_and_generate_response(respond.clone(), max_tokens)?;
 
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
         if let Some(tool_format) = self.tool_format.clone() {
             while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
                 debug!(?tool_calls, "Got tool calls:");
-
                 self.add_tool_calls(tool_calls.clone());
+
+                if skip_calling_tools {
+                    let content = response
+                        .split_once(tool_format.begin_token())
+                        .map(|(content, _)| content.to_string())
+                        .unwrap_or_default();
+                    self.context.chunks = self.render_as_chunks(&self.messages, true)?;
+                    return Ok(AssistantResponse {
+                        content,
+                        tool_calls,
+                    });
+                }
 
                 for tool_call in tool_calls {
                     // find the tool
@@ -2182,7 +2331,8 @@ impl<'a> Chat<'a> {
                 }
 
                 // get the finished response
-                response = self.wrapped_update_context_and_generate_response(respond.clone())?;
+                response =
+                    self.wrapped_update_context_and_generate_response(respond.clone(), max_tokens)?;
             }
         } // Close if let Some(tool_format)
 
@@ -2190,11 +2340,13 @@ impl<'a> Chat<'a> {
             .tool_format
             .as_ref()
             .is_none_or(|fmt| !response.contains(fmt.begin_token())));
-        self.add_assistant_message(response);
-
+        self.add_assistant_message(response.clone());
         self.context.chunks = self.render_as_chunks(&self.messages, true)?;
 
-        Ok(())
+        Ok(AssistantResponse {
+            content: response,
+            tool_calls: Vec::new(),
+        })
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -2225,9 +2377,30 @@ impl<'a> Chat<'a> {
 
         self.hoist_system_message(&mut messages)?;
         self.messages = messages;
-        self.run_turn(respond)?;
+        self.run_turn(respond, None, false)?;
 
         Ok(self)
+    }
+
+    fn complete_once<F>(
+        &mut self,
+        mut messages: Vec<Message>,
+        options: Options,
+        max_tokens: Option<usize>,
+        respond: F,
+    ) -> Result<AssistantResponse, CompleteError>
+    where
+        F: Fn(llm::WriteOutput) + Clone,
+    {
+        validate_completion_messages(&messages)?;
+        self.should_stop
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+        self.reload_media(&mut messages)?;
+        self.apply_options(options)
+            .map_err(|error| CompleteError::Options(error.to_string()))?;
+        self.hoist_system_message(&mut messages)?;
+        self.messages = messages;
+        Ok(self.run_turn(respond, max_tokens, true)?)
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -2308,26 +2481,26 @@ impl<'a> Chat<'a> {
     fn wrapped_update_context_and_generate_response<F>(
         &mut self,
         respond: F,
+        max_tokens: Option<usize>,
     ) -> Result<String, WrappedResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
-        // Check how much of the current KVCache we can keep
         let inference_lock_token = acquire_inference_lock();
         self.sync_context_with_render(&inference_lock_token)?;
 
         let tool_call_begin_token = self
             .tool_format
             .as_ref()
-            .map(|fmt| fmt.begin_token().to_string());
-
-        // wrap the response callback to keep a copy of the completed response
-        // and to avoid emitting tool calls
+            .map(|format| format.begin_token().to_string());
         let (wrapped_respond, resp_receiver) =
-            crate::inference::wrap_respond(respond.clone(), tool_call_begin_token);
+            crate::inference::wrap_respond(respond, tool_call_begin_token);
 
-        // llm go brrr
-        self.generate_response_until_done(wrapped_respond, &inference_lock_token)?;
+        self.generate_response_until_done_with_limit(
+            wrapped_respond,
+            &inference_lock_token,
+            max_tokens,
+        )?;
 
         Ok(resp_receiver.recv()?)
     }
@@ -4456,6 +4629,36 @@ mod tests {
         assert_eq!(worker.context.bitmaps.len(), 1);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn external_completion_stream_ends_once() {
+        let (sender, receiver) = tokio::sync::mpsc::channel(2);
+        sender
+            .send(ExternalCompletionOutput::Token("hello".into()))
+            .await
+            .unwrap();
+        sender
+            .send(ExternalCompletionOutput::Done(AssistantResponse {
+                content: "hello".into(),
+                tool_calls: Vec::new(),
+            }))
+            .await
+            .unwrap();
+
+        let mut stream = CompletionStreamAsync::new(receiver);
+        assert_eq!(
+            stream.next().await.unwrap(),
+            Some(CompletionChunk::Token("hello".into()))
+        );
+        assert_eq!(
+            stream.next().await.unwrap(),
+            Some(CompletionChunk::Done(AssistantResponse {
+                content: "hello".into(),
+                tool_calls: Vec::new(),
+            }))
+        );
+        assert_eq!(stream.next().await.unwrap(), None);
     }
 
     #[tokio::test]

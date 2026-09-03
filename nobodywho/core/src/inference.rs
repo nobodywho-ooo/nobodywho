@@ -461,11 +461,14 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         sampler: &mut ChatSampler,
         output: &mut Vec<LlamaToken>,
+        max_output_tokens: Option<usize>,
     ) -> Result<(), DecodingError> {
         output.clear();
         match &self.ctx {
             EngineContext::Solo(_) => self.sample_and_decode_solo(sampler, output),
-            EngineContext::Speculative(_) => self.sample_and_decode_speculative(sampler, output),
+            EngineContext::Speculative(_) => {
+                self.sample_and_decode_speculative(sampler, output, max_output_tokens)
+            }
         }
     }
 
@@ -495,6 +498,7 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         sampler: &mut ChatSampler,
         output: &mut Vec<LlamaToken>,
+        max_output_tokens: Option<usize>,
     ) -> Result<(), DecodingError> {
         trace!("Applying sampler (MTP speculative, deferred)");
         let pending = match self.pending {
@@ -522,7 +526,10 @@ impl<'a> InferenceEngine<'a> {
         // Clamp drafts so the verify batch [pending, drafts...] stays
         // within the context window:
         let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
-        drafts.truncate(room);
+        let output_room = max_output_tokens
+            .map(|max_output_tokens| max_output_tokens.saturating_sub(1))
+            .unwrap_or(usize::MAX);
+        drafts.truncate(room.min(output_room));
         let k_max = drafts.len();
 
         if k_max == 0 {
