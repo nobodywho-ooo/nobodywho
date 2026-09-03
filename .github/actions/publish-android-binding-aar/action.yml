@@ -69,11 +69,9 @@ runs:
           -Pversion="$VERSION" \
           -PnobodywhoPrebuiltAar="$AAR"
 
-    # Best-effort only: Central Portal to repo1 sync usually takes 10-30
-    # minutes, occasionally longer. Warning instead of blocking keeps the
-    # release pipeline from idling on an external SLA; the wrapper package is
-    # published right after this regardless of the outcome.
+    # after publishing it can take some time until the new version resolves
     - name: "Warn if Maven Central sync is unusually slow"
+      if: steps.check.outputs.should-publish == 'true'
       shell: bash
       env:
         URL: ${{ steps.check.outputs.url }}
