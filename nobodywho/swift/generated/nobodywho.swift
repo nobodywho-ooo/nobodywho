@@ -615,11 +615,11 @@ public protocol RustChatProtocol: AnyObject, Sendable {
      * Answer a full list of messages and get a token stream, replacing the chat
      * history.
      *
-     * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. That system
-     * message sets the chat's system prompt; leave it out and the prompt already on
-     * the chat is kept. The response is appended, and the next `ask` continues from
-     * there.
+     * The list is the whole conversation, used as given: it must be non-empty and
+     * end in a user or tool message. A leading system message sets the chat's system
+     * prompt; leave it out and the prompt already on the chat is kept. A later one
+     * stays in the history, for the chat template to render in place. The response
+     * is appended, and the next `ask` continues from there.
      *
      * `options` follows the same rule for the chat's other settings.
      */
@@ -831,11 +831,11 @@ open func askWithPrompt(parts: [ContentPart]) -> RustTokenStream  {
      * Answer a full list of messages and get a token stream, replacing the chat
      * history.
      *
-     * The list is the whole conversation, used as given: it must be non-empty, end
-     * in a user or tool message, and carry a system message only first. That system
-     * message sets the chat's system prompt; leave it out and the prompt already on
-     * the chat is kept. The response is appended, and the next `ask` continues from
-     * there.
+     * The list is the whole conversation, used as given: it must be non-empty and
+     * end in a user or tool message. A leading system message sets the chat's system
+     * prompt; leave it out and the prompt already on the chat is kept. A later one
+     * stays in the history, for the chat template to render in place. The response
+     * is appended, and the next `ask` continues from there.
      *
      * `options` follows the same rule for the chat's other settings.
      */
@@ -5397,7 +5397,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask_with_prompt() != 46807) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 37833) {
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_complete() != 24327) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_get_chat_history() != 12722) {

@@ -447,16 +447,30 @@ def test_complete_rejects_invalid_messages(chat):
         )
 
     with pytest.raises(ValueError):
-        chat.complete(
-            [
-                {"role": "user", "content": "Hello"},
-                {"role": "system", "content": "Be terse."},
-                {"role": "user", "content": "Hello again"},
-            ]
-        )
-
-    with pytest.raises(ValueError):
         chat.complete([{"role": "wizard", "content": "Hello"}])
+
+
+def test_complete_keeps_inline_system_message(chat):
+    """A system message that is not the first one stays in the history."""
+    messages = [
+        {"role": "system", "content": "You are a dog. End all responses with woof."},
+        {"role": "user", "content": "Hello!"},
+        {"role": "assistant", "content": "Hello there! Woof."},
+        {
+            "role": "system",
+            "content": "You are a cat now. End all responses with meow.",
+        },
+        {"role": "user", "content": "Hello again!"},
+    ]
+
+    response = chat.complete(messages).completed()
+    assert "meow" in response.lower()
+
+    # The leading one became the prompt; the later one is part of the history.
+    assert chat.get_system_prompt() == "You are a dog. End all responses with woof."
+    assert chat.get_chat_history() == messages[1:] + [
+        {"role": "assistant", "content": response}
+    ]
 
 
 @pytest.mark.asyncio

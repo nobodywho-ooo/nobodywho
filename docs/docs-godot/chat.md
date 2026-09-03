@@ -85,7 +85,7 @@ context_length = 8192
 
 **Trade-off:** Longer context = more memory usage. The general rule of thumb is to start with the default or less and only increase if you need the LLM to remember more. You can check the maximum context size the model was trained with using `model_node.max_ctx()` — setting `context_length` above this value has no benefit.
 
-**Context-shifting:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages - including the system message.
+**Context-shifting:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages. The system prompt and any system message in the history are kept.
 
 To inspect how much of the context is currently in use, call `get_stats()`:
 
@@ -190,8 +190,12 @@ added to it — so the next `ask()` continues that same conversation. It is used
 given, except that a system message at the front sets the chat's system prompt; leave
 it out and the prompt already on the chat is kept.
 
-The array must not be empty, must end in a user or tool message, and may only have a
-system message first. Anything else emits `worker_failed` instead of generating.
+A system message further in stays in the history, for the chat template to render in
+place. Templates without a system role — Gemma 2, Mistral v0.3 — fail instead, since only
+a leading one can be folded into the first user message.
+
+The array must not be empty and must end in a user or tool message. Anything else emits
+`worker_failed` instead of generating.
 
 ### Per-turn settings
 
