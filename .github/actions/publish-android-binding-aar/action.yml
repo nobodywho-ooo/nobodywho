@@ -1,9 +1,11 @@
 name: "Publish an Android binding AAR"
 description: >
-  Publishes one device-tested AAR to Maven Central, skips the upload when that
-  version already exists (Central versions are immutable, so a re-run after a
-  successful publish must not fail), and waits until normal consumer resolution
-  can see it before the wrapper package is published.
+  Publishes one device-tested AAR to Maven Central and skips the upload when
+  that version already exists (Central versions are immutable, so a re-run
+  after a successful publish must not fail). Does not block on Central Portal's
+  sync to repo1: the caller's wrapper-package publish (pub/npm) proceeds right
+  away, at the cost of a narrow window where a consumer building against the
+  brand-new version sees the native AAR 404 until sync catches up.
 
 inputs:
   binding:
@@ -67,19 +69,15 @@ runs:
           -Pversion="$VERSION" \
           -PnobodywhoPrebuiltAar="$AAR"
 
-    - name: "Wait for Maven Central consumer resolution"
+    # Best-effort only: Central Portal to repo1 sync usually takes 10-30
+    # minutes, occasionally longer. Warning instead of blocking keeps the
+    # release pipeline from idling on an external SLA; the wrapper package is
+    # published right after this regardless of the outcome.
+    - name: "Warn if Maven Central sync is unusually slow"
       shell: bash
       env:
         URL: ${{ steps.check.outputs.url }}
       run: |
-        set -euo pipefail
-        # Central Portal to repo1 sync usually takes 10-30 minutes; allow an hour.
-        for attempt in $(seq 1 120); do
-          if curl --fail --silent --show-error --location --head "$URL" --output /dev/null; then
-            exit 0
-          fi
-          echo "Waiting for Maven Central sync ($attempt/120)"
-          sleep 30
-        done
-        echo "::error::candidate was published but is not resolvable from Maven Central"
-        exit 1
+        if ! curl --fail --silent --show-error --location --head "$URL" --output /dev/null; then
+          echo "::warning::$URL is not yet resolvable from Maven Central. Consumers building against this version in the next few minutes may see the native AAR fail to resolve until Central Portal's sync to repo1 completes."
+        fi
