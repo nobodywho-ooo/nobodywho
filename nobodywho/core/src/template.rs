@@ -165,58 +165,55 @@ impl ChatTemplate {
     /// given a chat history where the first two messages are from system and user
     /// return a history where the first message is from user, and contains the system prompt as well.
     /// (this is what llama.cpp does for the gemma template too)
-    fn concat_system_and_first_user_messages(
-        &self,
-        messages: &[Message],
-    ) -> Result<Vec<Message>, minijinja::Error> {
+    /// `None` when it does not start that way, leaving nothing to fold.
+    fn concat_system_and_first_user_messages(&self, messages: &[Message]) -> Option<Vec<Message>> {
+        let [Message::System {
+            content: system_content,
+        }, Message::User {
+            content: user_content,
+        }, rest @ ..] = messages
+        else {
+            return None;
+        };
         warn!("System role not supported by this chat template. Concatenating first user message and system prompt.");
-        match messages {
-            [Message::System {
-                content: system_content,
-            }, Message::User {
-                content: user_content,
-            }, rest @ ..] => {
-                // Prepend the system prompt as a text part rather than
-                // stringifying the whole content, so any media in the first user
-                // message keeps its position.
-                let prefix = ContentPart::text(format!("{system_content}\n\n"));
-                let content = match user_content {
-                    MessageContent::Parts(parts) => {
-                        MessageContent::parts([prefix].into_iter().chain(parts.iter().cloned()))
-                    }
-                    // Raw JSON has no position to prepend into, so it flattens.
-                    json => MessageContent::parts([prefix, ContentPart::text(json.to_string())]),
-                };
-                let new_first_message = Message::User { content };
-                let new_messages = vec![new_first_message]
-                    .into_iter()
-                    .chain(rest.iter().cloned())
-                    .collect();
-                Ok(new_messages)
+        // Prepend the system prompt as a text part rather than stringifying the
+        // whole content, so any media in the first user message keeps its position.
+        let prefix = ContentPart::text(format!("{system_content}\n\n"));
+        let content = match user_content {
+            MessageContent::Parts(parts) => {
+                MessageContent::parts([prefix].into_iter().chain(parts.iter().cloned()))
             }
-            _ => {
-                // HACK: this should probably be a custom error, and not a minijinja error
-                //       but this was quick and easy rn, and we "abuse" the minijinja errors for
-                //       `raise_exception` anyway...
-                Err(minijinja::Error::new(
-                    minijinja::ErrorKind::InvalidOperation,
-                    "Cannot replace system prompt unless the first two messages are from system and user roles."
-                ))
-            }
-        }
+            // Raw JSON has no position to prepend into, so it flattens.
+            json => MessageContent::parts([prefix, ContentPart::text(json.to_string())]),
+        };
+        Some(
+            std::iter::once(Message::User { content })
+                .chain(rest.iter().cloned())
+                .collect(),
+        )
     }
 
     /// retry a render where the system message is concatenated with the first
     /// user message. Any more system messages cannot be rendered and error.
+    /// `original` is the failure that triggered the retry, returned when there is
+    /// no leading system message and the template therefore failed over
+    /// something else.
     fn render_without_system_role(
         &self,
         messages: &[Message],
         ctx: &ChatTemplateContext,
+        original: minijinja::Error,
     ) -> Result<String, RenderError> {
         if messages.iter().skip(1).any(Message::is_system) {
             return Err(RenderError::InlineSystemMessageUnsupported);
         }
-        Ok(self.render_unhandled(&self.concat_system_and_first_user_messages(messages)?, ctx)?)
+        let Some(folded) = self.concat_system_and_first_user_messages(messages) else {
+            // Nothing to fold, so this was not about the system role at all —
+            // consecutive user messages, say. The template's own error is the
+            // one worth reporting.
+            return Err(original.into());
+        };
+        Ok(self.render_unhandled(&folded, ctx)?)
     }
 
     pub fn render(
@@ -234,7 +231,7 @@ impl ChatTemplate {
                     debug!("Concatenating first user messages. System role not supported");
                     // this is the error message we get when rendering the gemma2 template
                     // concat the first two messages and try again
-                    self.render_without_system_role(messages, ctx)
+                    self.render_without_system_role(messages, ctx, err)
                 }
                 minijinja::ErrorKind::InvalidOperation
                     if err
@@ -248,7 +245,7 @@ impl ChatTemplate {
                     // v0.3 "After the optional system message, conversation roles
                     // must alternate ...".
                     debug!("Concatenating first user messages. Conversation roles must alternate");
-                    self.render_without_system_role(messages, ctx)
+                    self.render_without_system_role(messages, ctx, err)
                 }
                 _ => {
                     debug!(error = %err, "Template render failed with InvalidOperation:");
@@ -615,6 +612,40 @@ mod tests {
         assert!(
             matches!(err, RenderError::InlineSystemMessageUnsupported),
             "{err:?}"
+        );
+    }
+
+    /// The alternation fallback fires on the error text alone, but a template
+    /// raises that for any non-alternating history — two user messages in a row,
+    /// which a chat history may legally hold. There is no system message to fold
+    /// there, so the template's own error is what comes back.
+    #[test]
+    fn test_alternation_error_without_system_message_is_not_rewritten() {
+        // Mistral v0.3 style: raises unless the roles strictly alternate.
+        let template = "{% for message in messages %}\
+             {% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}\
+             {{ raise_exception('After the optional system message, conversation roles must alternate user/assistant/user/assistant/...') }}\
+             {% endif %}{{ message['role'] }}: {{ message['content'] }}\n{% endfor %}";
+        let chat_template = ChatTemplate::new(template, "", "").expect("template should compile");
+        let ctx = ChatTemplateContext {
+            template_variables: HashMap::default(),
+            tools: None,
+        };
+
+        let err = chat_template
+            .render(
+                &[Message::new_user("Hi"), Message::new_user("Still there?")],
+                &ctx,
+            )
+            .unwrap_err();
+        let message = err.to_string();
+        assert!(
+            message.contains("roles must alternate"),
+            "the template's own error should survive: {message}"
+        );
+        assert!(
+            !message.contains("Cannot replace system prompt"),
+            "the fallback should not have been attempted: {message}"
         );
     }
 
