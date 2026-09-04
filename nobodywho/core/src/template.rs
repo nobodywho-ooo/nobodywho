@@ -237,13 +237,16 @@ impl ChatTemplate {
                     self.render_without_system_role(messages, ctx)
                 }
                 minijinja::ErrorKind::InvalidOperation
-                    if err.to_string().contains(
-                        "Conversation roles must alternate user/assistant/user/assistant/...",
-                    ) =>
+                    if err
+                        .to_string()
+                        .to_lowercase()
+                        .contains("roles must alternate user/assistant") =>
                 {
-                    // this is the error we get when rendering the mistral 7b v0.3 template,
-                    // which, like gemma2, does not support the system role
-                    // concat the first two messages and try again
+                    // this is the error we get when rendering the mistral templates,
+                    // which, like gemma2, do not support the system role. Matched
+                    // loosely: v0.1 raises "Conversation roles must alternate ...",
+                    // v0.3 "After the optional system message, conversation roles
+                    // must alternate ...".
                     debug!("Concatenating first user messages. Conversation roles must alternate");
                     self.render_without_system_role(messages, ctx)
                 }

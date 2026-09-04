@@ -136,7 +136,7 @@ You get back the same `TokenStream` as from `ask()`, so you can also `for try aw
 
 The list you pass **becomes** the chat history, replacing whatever was there, and the response is added to it — so `ask()` continues that same conversation. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept.
 
-A system message further in stays in the history, for the chat template to render in place. Templates without a system role — Gemma 2, Mistral v0.3 — throw instead, since only a leading one can be folded into the first user message.
+A system message further in stays in the history, for the chat template to render in place. Templates without a system role throw instead, since only a leading one can be folded into the first user message.
 
 The list must not be empty and must end in a user or tool message. Anything else throws.
 
