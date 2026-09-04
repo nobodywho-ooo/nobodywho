@@ -1,6 +1,6 @@
 ---
 title: Speech to Text
-description: Transcribe spoken audio to text with NobodyWho in React Native.
+description: Transcribe spoken audio to text with NobodyWho in React Native & Expo.
 sidebar_position: 5
 ---
 

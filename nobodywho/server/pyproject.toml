@@ -1,0 +1,16 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "nobodywho-server"
+version = "0.1.0"
+description = "OpenAI-compatible server for NobodyWho"
+requires-python = ">=3.10"
+license = { text = "EUPL-1.2" }
+
+[project.urls]
+Repository = "https://github.com/nobodywho-ooo/nobodywho"
+
+[tool.maturin]
+bindings = "bin"

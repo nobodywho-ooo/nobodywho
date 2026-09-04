@@ -15,7 +15,7 @@ enable real-time streaming of tokens, create embeddings, or synthesize speech, N
 
 All of this is enabled by [Llama.cpp](https://github.com/ggml-org/llama.cpp), while having nice, simple API.
 
-No need to mess around with docker containers, GPU servers, API keys, etc. We make it easy to run local models in Kotlin, Swift, Python, React Native, Flutter and Godot!
+No need to mess around with docker containers, GPU servers, API keys, etc. We make it easy to run local models in Kotlin, Swift, Python, Flutter, React Native, Expo and Godot!
 
 ## Code documentation
 
@@ -25,7 +25,7 @@ If you already know the basics of LLMs, jump to the docs for your favorite langu
   <Link to="/python/" className="button button--secondary button--sm">Python</Link>
   <Link to="/kotlin/" className="button button--secondary button--sm">Kotlin</Link>
   <Link to="/swift/" className="button button--secondary button--sm">Swift</Link>
-  <Link to="/react-native/" className="button button--secondary button--sm">React Native</Link>
+  <Link to="/react-native/" className="button button--secondary button--sm">React Native/Expo</Link>
   <Link to="/flutter/" className="button button--secondary button--sm">Flutter</Link>
   <Link to="/godot/" className="button button--secondary button--sm">Godot</Link>
 </div>

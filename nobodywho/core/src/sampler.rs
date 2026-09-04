@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::logit_bias::LlamaLogitBias;
 use llama_cpp_2::{model::LlamaModel, token::LlamaToken};
+use llguidance::toktrie::{InferenceCapabilities, TokEnv};
+use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -146,31 +148,24 @@ impl SamplerConfig {
         self.build_sampler_with_prepended_step(model, None)
     }
 
-    /// Builds a sampler chain with a `LarkWithSlices` grammar step prepended.
-    /// `slices` are vocabulary hint regexes llguidance uses as bitmask
-    /// shortcuts instead of a full vocab walk (see [`llguidance_sampler`]).
-    pub fn build_sampler_with_grammar(
+    /// Builds a sampler chain, optionally with an already-built grammar step
+    /// prepended. The caller owns that step so it can reuse a [`GrammarFactory`]
+    /// across rebuilds instead of recompiling the grammar here.
+    pub(crate) fn build_sampler_with_prepended_step(
         &self,
         model: &LlamaModel,
-        lark: &str,
-        slices: Vec<String>,
-    ) -> Result<LlamaSampler, SamplerError> {
-        self.build_sampler_with_prepended_step(
-            model,
-            Some(ShiftStep::LarkWithSlices(lark.to_string(), slices)),
-        )
-    }
-
-    fn build_sampler_with_prepended_step(
-        &self,
-        model: &LlamaModel,
-        extra_step: Option<ShiftStep>,
+        extra_step: Option<LlamaSampler>,
     ) -> Result<LlamaSampler, SamplerError> {
         // Grammar step goes first, so it constrains before anything else runs.
         let mut shift_steps = extra_step
             .into_iter()
-            .chain(self.steps.iter().cloned())
-            .map(|step| self.build_step(model, step))
+            .map(Ok)
+            .chain(
+                self.steps
+                    .iter()
+                    .cloned()
+                    .map(|step| self.build_step(model, step)),
+            )
             .collect::<Result<Vec<_>, SamplerError>>()?;
 
         let final_sampler = match self.sample_step.clone() {
@@ -267,6 +262,9 @@ impl SamplerConfig {
                     .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
                 llguidance_sampler(model, "lark", &lark, &[])
             }
+            // Reachable only via serde or direct construction: the tool path used
+            // to be the sole caller and now builds its own step. NOB-140 is to
+            // give it a `SamplerPresets` constructor like its siblings above.
             ShiftStep::LarkWithSlices(lark, slices) => {
                 llguidance_sampler(model, "lark", &lark, &slices)
             }
@@ -310,26 +308,76 @@ impl SamplerConfig {
     }
 }
 
+/// Reusable llguidance state for one model and slice set. The tokenizer env and
+/// the slicer are functions of the vocabulary, not the grammar, so holding them
+/// turns a grammar rebuild into `create_parser` (~5ms instead of ~400ms).
+pub(crate) struct GrammarFactory {
+    tok_env: TokEnv,
+    slices: Vec<String>,
+    factory: ParserFactory,
+}
+
+impl GrammarFactory {
+    /// Builds a factory for `slices`, or returns `None` if `held` already serves
+    /// them. Handing the new one back instead of storing it lets the caller finish
+    /// its own fallible work before committing.
+    pub(crate) fn build_if_stale(
+        held: Option<&Self>,
+        model: &LlamaModel,
+        slices: Vec<String>,
+    ) -> Result<Option<Self>, SamplerError> {
+        match held {
+            Some(factory) if factory.slices == slices => Ok(None),
+            // A new slice set needs a new slicer but not a second vocab walk.
+            Some(stale) => Self::from_tok_env(stale.tok_env.clone(), slices).map(Some),
+            None => Self::new(model, slices).map(Some),
+        }
+    }
+
+    fn new(model: &LlamaModel, slices: Vec<String>) -> Result<Self, SamplerError> {
+        // The vocab walk behind `llguidance_tok_env` is what dominates the cost.
+        Self::from_tok_env(LlamaSampler::llguidance_tok_env(model), slices)
+    }
+
+    fn from_tok_env(tok_env: TokEnv, slices: Vec<String>) -> Result<Self, SamplerError> {
+        let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), &slices)
+            .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+        Ok(Self {
+            tok_env,
+            slices,
+            factory,
+        })
+    }
+
+    /// A grammar step for a `json_schema`/`regex`/`lark` `tag` + content string.
+    pub(crate) fn grammar_step(
+        &self,
+        tag: &str,
+        grammar: &str,
+    ) -> Result<LlamaSampler, SamplerError> {
+        let tlg = TopLevelGrammar::from_tagged_str(tag, grammar)
+            .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+        let parser = self
+            .factory
+            .create_parser(tlg)
+            .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
+        Ok(LlamaSampler::from(Matcher::new(Ok(parser))))
+    }
+}
+
 /// Builds an llguidance [`LlamaSampler`] for a `json_schema`/`regex`/`lark`
 /// `tag` + `grammar` content string. `slices` are optional vocabulary hints
 /// (see [`crate::tool_calling::ToolFormatHandler::slice_regexes`]), `&[]` for none.
+///
+/// Builds a throwaway [`GrammarFactory`]; hold one instead if the same slice set
+/// will be used again.
 pub fn llguidance_sampler(
     model: &LlamaModel,
     tag: &str,
     grammar: &str,
     slices: &[String],
 ) -> Result<LlamaSampler, SamplerError> {
-    use llguidance::toktrie::InferenceCapabilities;
-    use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
-    let tok_env = LlamaSampler::llguidance_tok_env(model);
-    let factory = ParserFactory::new(&tok_env, InferenceCapabilities::default(), slices)
-        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
-    let tlg = TopLevelGrammar::from_tagged_str(tag, grammar)
-        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
-    let parser = factory
-        .create_parser(tlg)
-        .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
-    Ok(LlamaSampler::from(Matcher::new(Ok(parser))))
+    GrammarFactory::new(model, slices.to_vec())?.grammar_step(tag, grammar)
 }
 
 impl Default for SamplerConfig {
@@ -660,6 +708,35 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+
+    /// A matching slice set reuses the held factory; a different one needs a new
+    /// slicer but not a second vocab walk.
+    #[test]
+    fn grammar_factory_build_if_stale_reuses_tok_env() {
+        let model = &crate::test_utils::load_test_model().language_model;
+        let factory = GrammarFactory::build_if_stale(None, model, vec![])
+            .expect("building a factory")
+            .expect("no held factory means a new one");
+
+        assert!(
+            GrammarFactory::build_if_stale(Some(&factory), model, vec![])
+                .expect("checking the same slice set")
+                .is_none(),
+            "the held factory already serves an unchanged slice set"
+        );
+
+        let slices = crate::tool_calling::json_body_slice_regexes();
+        let rebuilt = GrammarFactory::build_if_stale(Some(&factory), model, slices.clone())
+            .expect("rebuilding for another slice set")
+            .expect("a different slice set needs a new factory");
+
+        assert_eq!(rebuilt.slices, slices, "rebuilt holds the new slice set");
+        assert!(
+            Arc::ptr_eq(&factory.tok_env, &rebuilt.tok_env),
+            "the tokenizer env is shared, not walked again"
+        );
+    }
 
     #[test]
     fn test_json_preset_builds_sampler() {

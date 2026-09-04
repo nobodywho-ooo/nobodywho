@@ -322,14 +322,20 @@ pub(crate) fn lark_delimiter(model: Option<&LlamaModel>, s: &str) -> String {
     format!("\"{}\"", escape_lark_string(s))
 }
 
-/// Map any non-alphanumeric character to `_` for use in Lark rule names.
+/// Map input to lowercase alphanumeric characters and `_` for Lark rule names.
 ///
 /// Tool/property names come from user-controlled input and are spliced into
-/// generated Lark rule names, which only allow a restricted identifier
-/// charset.
+/// generated Lark rule names. Lark treats uppercase identifiers as terminals,
+/// so generated rule identifiers must remain lowercase.
 pub(crate) fn sanitize_lark(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -674,6 +680,42 @@ mod tests {
         // A literal backslash-n in the input must not collide with the newline
         // escape: `\\` is replaced first, so `\n` (two chars) becomes `\\n`.
         assert_eq!(escape_lark_string("a\\nb"), "a\\\\nb");
+    }
+
+    #[test]
+    fn camel_case_tool_properties_produce_valid_lark() {
+        use llguidance::api::TopLevelGrammar;
+
+        assert_eq!(sanitize_lark("activeForm"), "activeform");
+        assert_eq!(sanitize_lark("blockedBy"), "blockedby");
+
+        let tool = Tool::new(
+            "todo",
+            "Manage tasks",
+            json!({
+                "type": "object",
+                "properties": {
+                    "activeForm": {"type": "string"},
+                    "blockedBy": {"type": "array", "items": {"type": "integer"}}
+                }
+            }),
+            Arc::new(|_| String::new()),
+        );
+        let formats = [
+            ToolFormat::Qwen35_36(Qwen35_36Handler),
+            ToolFormat::Gemma4(Gemma4Handler),
+            ToolFormat::Lfm2(Lfm2Handler),
+        ];
+
+        for format in formats {
+            let lark = format
+                .to_lark(std::slice::from_ref(&tool), None)
+                .unwrap_or_else(|error| panic!("to_lark failed for {format:?}: {error}"));
+            TopLevelGrammar::from_tagged_str("lark", &lark)
+                .unwrap_or_else(|error| panic!("invalid Lark for {format:?}: {error}\n{lark}"));
+            assert!(lark.contains("activeForm"));
+            assert!(lark.contains("blockedBy"));
+        }
     }
 
     #[test]

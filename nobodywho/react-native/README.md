@@ -1,22 +1,55 @@
-# NobodyWho React Native
+# NobodyWho React Native / Expo
 
-NobodyWho is a React Native library for running large language models locally and offline on iOS and Android.
+NobodyWho is a React Native / Expo library for running large language models locally and offline on iOS and Android.
 
-Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, embeddings, RAG & function calling.
+Free to use in commercial projects under the EUPL-1.2 license — no API key required. Supports text, vision, hearing, speech-to-text, text-to-speech, voice activity detection, embeddings, RAG & function calling.
 
 - [Documentation](https://docs.nobodywho.ooo) — React Native & other frameworks documentation
-- [Starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) — Test this library in 5 minutes
+- [RN starter example app](https://github.com/nobodywho-ooo/react-native-starter-example) / [Expo starter example app](https://github.com/nobodywho-ooo/expo-starter-example) — Test this library in 5 minutes
 - [Discord](https://discord.gg/qhaMc2qCYB) — Get help, share ideas, and connect with other developers
 - [GitHub Issues](https://github.com/nobodywho-ooo/nobodywho/issues) — Report bugs
 - [GitHub Discussions](https://github.com/nobodywho-ooo/nobodywho/discussions) — Ask questions and request features
 
-## Quick Start
+## How do I get started?
 
-Install the library:
-
-```
+First, install `react-native-nobodywho`.
+```bash
+# React Native
 npm install react-native-nobodywho
+# Expo
+npx expo install react-native-nobodywho
 ```
+
+### React Native
+
+No additional initialization step is required — the native module is loaded automatically when you first import from the package.
+
+### Expo
+
+NobodyWho ships native code, so it does **not** run in [Expo Go](https://docs.expo.dev/get-started/set-up-your-environment/). You need a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
+
+#### • Continuous Native Generation (CNG) projects
+
+In a managed project, `ios/` and `android/` are not committed. For the **first build**, run the command for the platform you are targeting (`run:ios` and `run:android` are alternatives — pick your target). It runs prebuild automatically since the native folders don't exist yet, installs pods, and builds NobodyWho in:
+
+```bash
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+After you **upgrade** NobodyWho (or any other native dependency), the native folders already exist, so `run:*` would build against stale native code. Regenerate them from scratch, then rebuild:
+
+```bash
+npx expo prebuild --clean   # regenerate ios/ and android/ from scratch
+npx expo run:ios            # then rebuild (or run:android)
+```
+
+#### • Bare projects
+
+Here `ios/` and `android/` are committed. Autolinking registers the module on your next native build — just rebuild with `expo run:*` (or your existing native build). Do not run `prebuild --clean` here unless you intend to regenerate the native folders, since it overwrites manual native edits.
+
+You can also build with [EAS Build](https://docs.expo.dev/build/introduction/) instead of building locally. No config plugin is required.
 
 ## Supported Model Format
 
@@ -152,3 +185,76 @@ const response = await chat
 You can pass multiple images/audio files and interleave text between them. If the model performs poorly, try reordering the text, audio and image parts — this can make a noticeable difference. If images consume too much context, increase `contextSize` or preprocess images with compression.
 
 See the [Vision & Hearing documentation](https://docs.nobodywho.ooo/react-native/vision/) for model recommendations and advanced tips.
+
+---
+
+## Speech to Text
+
+Transcribe spoken audio into text using Whisper models in ONNX format:
+
+```typescript
+import { SpeechToText } from "react-native-nobodywho";
+
+const stt = await SpeechToText.load({
+  source: "hf://onnx-community/whisper-base",
+});
+
+const text = await stt.transcribeFile("recording.mp3").completed();
+console.log(text);
+```
+
+You can also transcribe raw PCM buffers with `transcribePcm`, and stream the transcription token by token.
+
+See the [Speech to Text documentation](https://docs.nobodywho.ooo/react-native/speech-to-text/) for more.
+
+---
+
+## Text to Speech
+
+Generate natural-sounding speech from text, ready to save as a WAV file or play back in your app:
+
+```typescript
+import { TextToSpeech } from "react-native-nobodywho";
+
+const tts = await TextToSpeech.load({
+  source: "hf://NobodyWho/Kokoro-82M", // Hugging Face repo or local folder.
+  voice: "bf_emma", // Voice to use from the model.
+  language: "en-gb", // Language code for the input text.
+});
+
+const wav = await tts.synthesize("Hello from NobodyWho!");
+// wav is a Uint8Array containing WAV bytes.
+```
+
+NobodyWho supports the Kokoro, Pocket TTS, and Supertonic speech synthesis architectures.
+
+See the [Text to Speech documentation](https://docs.nobodywho.ooo/react-native/text-to-speech/) for more.
+
+---
+
+## Voice Activity Detection
+
+Detect speech automatically in an audio stream, so you know when to stop listening to the microphone and start transcribing:
+
+```typescript
+import {
+  VoiceActivityDetection,
+  VoiceActivityDetectionEvent,
+} from "react-native-nobodywho";
+
+const vad = await VoiceActivityDetection.load({
+  sampleRate: 16000,
+  source: "hf://onnx-community/silero-vad",
+});
+
+while (true) {
+  const chunk = readMic();
+  if (vad.push(chunk) === VoiceActivityDetectionEvent.SpeechEnded) break;
+}
+
+const speech = vad.finish(); // buffered speech, ready to pass to SpeechToText
+```
+
+You can also segment speech out of an existing recording with `segment()`.
+
+See the [Voice Activity Detection documentation](https://docs.nobodywho.ooo/react-native/voice-activity-detection/) for more.

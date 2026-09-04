@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: How to setup NobodyWho in React Native
+description: How to setup NobodyWho in React Native / Expo
 sidebar_position: 0
 ---
 
@@ -8,10 +8,44 @@ sidebar_position: 0
 
 First, install `react-native-nobodywho`.
 ```bash
+# React Native
 npm install react-native-nobodywho
+# Expo
+npx expo install react-native-nobodywho
 ```
 
+### React Native
+
 No additional initialization step is required — the native module is loaded automatically when you first import from the package.
+
+### Expo
+
+NobodyWho ships native code, so it does **not** run in [Expo Go](https://docs.expo.dev/get-started/set-up-your-environment/). You need a [development build](https://docs.expo.dev/develop/development-builds/introduction/).
+
+#### • Continuous Native Generation (CNG) projects
+
+In a managed project, `ios/` and `android/` are not committed. For the **first build**, run the command for the platform you are targeting (`run:ios` and `run:android` are alternatives — pick your target). It runs prebuild automatically since the native folders don't exist yet, installs pods, and builds NobodyWho in:
+
+```bash
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+After you **upgrade** NobodyWho (or any other native dependency), the native folders already exist, so `run:*` would build against stale native code. Regenerate them from scratch, then rebuild:
+
+```bash
+npx expo prebuild --clean   # regenerate ios/ and android/ from scratch
+npx expo run:ios            # then rebuild (or run:android)
+```
+
+#### • Bare projects
+
+Here `ios/` and `android/` are committed. Autolinking registers the module on your next native build — just rebuild with `expo run:*` (or your existing native build). Do not run `prebuild --clean` here unless you intend to regenerate the native folders, since it overwrites manual native edits.
+
+You can also build with [EAS Build](https://docs.expo.dev/build/introduction/) instead of building locally. No config plugin is required.
+
+## Pick a model
 
 Now you are ready to pick a model. NobodyWho can download GGUF models directly from Hugging Face — just pass a `huggingface:` path. See [model selection](/docs/model-selection) for recommendations.
 

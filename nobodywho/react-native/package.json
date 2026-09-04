@@ -1,21 +1,25 @@
 {
   "name": "react-native-nobodywho",
   "version": "3.0.0",
-  "description": "Run LLMs locally with offline inference — React Native bindings",
+  "description": "Run LLMs locally and offline with React Native & Expo - Tool calling, RAG, Speech-to-Text, Text-to-Speech, and VAD",
   "main": "src/wrapper.ts",
   "types": "src/wrapper.ts",
   "exports": {
     ".": "./src/wrapper.ts"
   },
   "license": "EUPL-1.2",
-  "homepage": "https://nobodywho.ooo",
+  "homepage": "https://www.nobodywho.ai",
   "bugs": "https://github.com/nobodywho-ooo/nobodywho/issues",
   "keywords": [
     "react-native",
+    "expo",
     "ai",
     "llm",
     "local-ai",
     "inference",
+    "stt",
+    "tts",
+    "vad",
     "gguf",
     "on-device",
     "offline"

@@ -4,7 +4,7 @@ const matter = require('gray-matter');
 
 const SITE_URL = 'https://docs.nobodywho.ooo';
 const DESCRIPTION =
-  'NobodyWho runs LLMs locally in Kotlin, Swift, Python, Godot, Flutter, and React Native. It uses llama.cpp and supports streaming chat, tool calling, embeddings, RAG, offline inference, and GPU acceleration.';
+  'NobodyWho runs LLMs locally in Kotlin, Swift, Python, Flutter, React Native, Expo and Godot. It uses llama.cpp and supports streaming chat, tool calling, embeddings, RAG, speech to text, text to speech, voice activity detection, offline inference, and GPU acceleration.';
 
 // Map of documentation sources to section names and route prefixes
 const SECTIONS = [
@@ -12,7 +12,7 @@ const SECTIONS = [
   {id: 'kotlin', label: 'Kotlin', routeBase: '/kotlin'},
   {id: 'python', label: 'Python', routeBase: '/python'},
   {id: 'swift', label: 'Swift', routeBase: '/swift'},
-  {id: 'react-native', label: 'React Native', routeBase: '/react-native'},
+  {id: 'react-native', label: 'React Native/Expo', routeBase: '/react-native'},
   {id: 'flutter', label: 'Flutter', routeBase: '/flutter'},
   {id: 'godot', label: 'Godot', routeBase: '/godot'},
 ];

@@ -22,11 +22,17 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Breaking:** the errors Flutter's chat setters throw are no longer `SetterError`; catch them as plain exceptions rather than by type. This covers `setChatHistory`, `setSamplerConfig`, `setTools`, `setSystemPrompt`, `setTemplateVariable(s)`, `resetContext` and `resetHistory`. `SetterError` was an opaque Dart class carrying no message, so the reason a setter failed could not be read; the exception now carries the rendered error text, as the generation methods already did. The history validation `setChatHistory` performs is the same on every binding — see the system prompt entry above.
 - **Godot:** a chat setter the worker rejects now emits `worker_failed` alongside logging the error, the same way a dropped generation is reported. `set_sampler_preset_*` and `set_sampler_config` previously discarded the error entirely.
 - **Breaking:** raw JSON content now round-trips through a `{"type": "raw", "value": …}` wrapper. `text`, `image` and `audio` are reserved tags: a content array whose entries all carry one of them is read as content parts, while a non-empty array carrying none of them reaches the chat template as a real list — which is what `from_json()` is for, on models finetuned on structured turns. Since both shapes are arrays of `type`-tagged objects, raw content that happens to look like parts would otherwise be read back as parts, so `get_chat_history()` returns it wrapped; the wrapper is accepted on the way in and stripped before the template sees it. Mixing part tags with other tags in one array, or using a reserved tag with fields that do not parse, is now an error instead of being passed through untouched. Affects all bindings.
+- Handing `complete()` both a sampler and a set of tools no longer compiles the tool-calling grammar twice for that turn, and no longer redoes the ~400 ms llguidance initialisation — nor does changing the sampler alone. The tokenizer state a grammar is compiled against depends on the model rather than the grammar, so it is now built once per chat and reused, leaving only the grammar compile itself and turning hundreds of milliseconds of per-turn overhead into single-digit milliseconds. Available for all bindings.
 
 ### Fixed
 
 - A rejected chat setter no longer kills the chat. `set_sampler_config`, `set_tools` and `reset_chat` used to end the worker, so the reason was only logged and every later call — including `ask()` — failed with "worker terminated". The error now reaches the caller and the chat keeps working. Available for all bindings.
 - A rejected encoder or cross-encoder input no longer kills the worker. Text longer than the context window used to end it, so every later `encode()` or `rank()` failed too. The error now reaches the caller and the worker stays usable. Available for all bindings.
+- **React Native:** Logs are now visible in Xcode on iOS.
+- **Swift:** Logs are now visible in Xcode on iOS.
+
+### Removed
+- **Flutter:** Removed `ToolCallExtension` and `ToolCall.argumentsJson` as `ToolCall` is no longer opaque.
 
 ## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20
 
