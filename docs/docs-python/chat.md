@@ -98,7 +98,9 @@ chat.complete([
 print(chat.get_system_prompt())  # "You are a pirate." — replaced
 ```
 
-The list has to describe a conversation the model can answer, so it must not be empty, it must end in a user or tool message, and only the first message may be a system message. Anything else raises a `ValueError`:
+A system message further into the list stays in the history, for the chat template to render in place. Templates without a system role raise an error instead, since only a leading one can be folded into the first user message.
+
+The list has to describe a conversation the model can answer, so it must not be empty and it must end in a user or tool message. Anything else raises a `ValueError`:
 
 ```python continuation
 try:
