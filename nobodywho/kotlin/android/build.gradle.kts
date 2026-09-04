@@ -5,15 +5,30 @@ plugins {
     signing
 }
 
+// The published nobodywho-android AAR embeds the native libraries. Building it
+// requires the local UniFFI AAR produced by ../../android (see its README).
+val localNativeAar = providers.gradleProperty("nobodywhoNativeAar")
+    .orElse(providers.environmentVariable("NOBODYWHO_UNIFFI_ANDROID_AAR"))
+val localNativeRoot = layout.buildDirectory.dir("localNativeAar")
+val extractLocalNativeAar by tasks.registering(Sync::class) {
+    doFirst {
+        require(localNativeAar.isPresent) {
+            "Building the Kotlin Android binding requires -PnobodywhoNativeAar=<path> " +
+                "or NOBODYWHO_UNIFFI_ANDROID_AAR. Published nobodywho-android AARs already contain these libraries."
+        }
+    }
+    from({ localNativeAar.orNull?.let { zipTree(it) } ?: files() }) {
+        include("jni/**/*.so")
+    }
+    into(localNativeRoot)
+}
+
 android {
     namespace = "ai.nobodywho"
     compileSdk = 35
 
     defaultConfig {
         minSdk = 26
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
-        }
     }
 
     compileOptions {
@@ -27,8 +42,7 @@ android {
 
     sourceSets {
         getByName("main") {
-            // Native shared libraries resolved by CI or local build
-            jniLibs.srcDirs(layout.buildDirectory.dir("jniLibs"))
+            jniLibs.srcDir(localNativeRoot.map { it.dir("jni") })
         }
     }
 }
@@ -44,12 +58,14 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
 
+tasks.named("preBuild") {
+    dependsOn(extractLocalNativeAar)
+}
+
 publishing {
     publications {
         register<MavenPublication>("release") {
-            groupId = "ai.nobodywho"
             artifactId = "nobodywho-android"
-            version = project.version.toString()
 
             afterEvaluate {
                 from(components["release"])

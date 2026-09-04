@@ -22,15 +22,15 @@ kotlin/
 
 ### Why three modules?
 
-The Kotlin wrapper code is identical across platforms. What differs is how the native library (`libnobodywho_uniffi`) is packaged:
+The Kotlin wrapper code is identical across platforms. What differs is how the native library (`libnobodywho_uniffi`) is supplied:
 
-- **Android** needs the native `.so` in `jniLibs/{arm64-v8a,x86_64}/` inside an AAR, and JNA must be the AAR variant (`jna:5.14.0@aar`).
+- **Android** embeds the complete multi-ABI native runtime in `nobodywho-android` and uses the AAR variant of JNA (`jna:5.14.0@aar`).
 - **Desktop JVM** needs native libs for all platforms in `src/main/resources/` following JNA's naming convention (`linux-x86-64/`, `darwin-aarch64/`, `win32-x86-64/`), inside a regular JAR with JNA as a normal JAR dependency.
 
 A single module can't produce both an AAR and a JAR, so we split into three:
 
 - **`:common`** (published as `nobodywho-core`) — contains all Kotlin code. Pure JVM, no Android dependency. This is where compilation and tests happen.
-- **`:android`** — empty shell that depends on `:common`, applies the Android Gradle plugin, and packages the AAR with Android-specific JNI libs.
+- **`:android`** — Android shell that depends on `:common`, embeds the complete native runtime, and applies the Android Gradle plugin.
 - **`:jvm`** — empty shell that depends on `:common`, packages a JAR with desktop native libs in JNA layout.
 
 ## Published artifacts
@@ -40,8 +40,12 @@ Three artifacts are published to Maven Central:
 | Artifact | Type | Contains |
 |---|---|---|
 | `ai.nobodywho:nobodywho-core` | JAR | Kotlin wrappers + generated UniFFI bindings (~100KB) |
-| `ai.nobodywho:nobodywho-android` | AAR | Android native libs (arm64-v8a, x86_64), depends on `nobodywho-core` |
+| `ai.nobodywho:nobodywho-android` | AAR | Android facade plus its complete native runtime; depends on `nobodywho-core` |
 | `ai.nobodywho:nobodywho` | JAR | Desktop native libs (Linux, macOS, Windows), depends on `nobodywho-core` |
+
+Flutter and React Native publish their own binding-specific native AARs. The
+unpublished `nobodywho-uniffi-android` file is only a local/CI input used to
+construct the complete Kotlin AAR.
 
 Consumers add one dependency:
 
@@ -104,7 +108,10 @@ nmcpSettings {
 }
 ```
 
-The `publishAggregationToCentralPortal` task collects all three publications, signs them, and uploads them as a single atomic deployment bundle. Maven Central validates them together — all succeed or all fail.
+The Kotlin `publishAggregationToCentralPortal` task collects all three wrapper
+publications, signs them, and uploads them as one deployment. The Android
+publication is built from the same UniFFI native AAR that the release's device
+test used.
 
 POM metadata (name, description, license, developers, SCM) is configured once in the root `build.gradle.kts` and applied to all subprojects via `afterEvaluate`. Signing uses in-memory PGP keys from environment variables (`SIGNING_KEY`, `SIGNING_PASSWORD`).
 
@@ -119,9 +126,12 @@ POM metadata (name, description, license, developers, SCM) is configured once in
 
 ### Testing locally
 
-Publish to the local Maven repository (no credentials needed):
+After staging the native inputs described in [`../android/README.md`](../android/README.md),
+build the local UniFFI AAR and publish the Kotlin artifacts (no credentials needed):
 
 ```bash
+./gradlew -p ../android nativeAar -PnobodywhoBinding=uniffi
+export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/../android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
 ./gradlew publishToMavenLocal
 ```
 
@@ -133,8 +143,10 @@ The version is set once in the root `build.gradle.kts`:
 
 ```kotlin
 allprojects {
-    version = "0.1.0"
+    version = providers.gradleProperty("version").getOrElse("3.0.0")
 }
 ```
 
-All three artifacts share the same version. The CI release job also passes `-Pversion=X.Y.Z` from the git tag, though currently the hardcoded version must match.
+All three Kotlin artifacts share the same version. The CI candidate and release
+jobs read that version from the root build, and the final
+`nobodywho-android` AAR includes the native libraries tested for that release.

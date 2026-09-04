@@ -45,8 +45,34 @@ pub enum MemoryError {
 
 // Model errors
 
+#[derive(Clone, Debug, thiserror::Error, miette::Diagnostic)]
+pub enum BackendInitError {
+    #[error("Could not locate NobodyWho's native library: {reason}")]
+    #[diagnostic(code(nobodywho::backend_library_not_found))]
+    LocateLibrary { reason: String },
+
+    #[error("None of the packaged GGML CPU backends could be loaded")]
+    #[diagnostic(
+        code(nobodywho::cpu_backend_not_found),
+        help("Ensure the NobodyWho Android AAR and all of its native libraries are packaged into the application")
+    )]
+    NoLoadableCpuBackend,
+
+    #[error("Could not register GGML CPU backend: {path}")]
+    #[diagnostic(code(nobodywho::cpu_backend_registration_failed))]
+    RegisterCpuBackend { path: String },
+
+    #[error("Could not initialize llama.cpp: {reason}")]
+    #[diagnostic(code(nobodywho::llama_backend_initialization_failed))]
+    Llama { reason: String },
+}
+
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum LoadModelError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    BackendInit(#[from] BackendInitError),
+
     #[error("Model not found: {path}")]
     #[diagnostic(
         code(nobodywho::model_not_found),
@@ -362,6 +388,10 @@ impl LoadModelError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum InitWorkerError {
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    BackendInit(#[from] BackendInitError),
+
     #[error("Model is not an LLM: {architecture}")]
     #[diagnostic(
         code(nobodywho::not_an_llm),

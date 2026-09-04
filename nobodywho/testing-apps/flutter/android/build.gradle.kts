@@ -1,5 +1,16 @@
 allprojects {
     repositories {
+        System.getenv("NOBODYWHO_CANDIDATE_MAVEN_REPO")?.let { repositoryPath ->
+            exclusiveContent {
+                forRepository {
+                    maven {
+                        name = "NobodyWhoCandidate"
+                        url = uri(repositoryPath)
+                    }
+                }
+                filter { includeGroup("ai.nobodywho") }
+            }
+        }
         google()
         mavenCentral()
     }

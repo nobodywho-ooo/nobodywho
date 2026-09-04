@@ -104,12 +104,17 @@ The `Tool` class uses Kotlin reflection (`KFunction`) to introspect parameter na
 
 ## Building native libraries for Android
 
-For local development with an Android device/emulator:
+Published `ai.nobodywho:nobodywho-android` AARs already contain their native
+libraries. For a source build, create the local UniFFI input as described in
+[`../android/README.md`](../android/README.md), then pass it to Gradle:
 
 ```bash
-# From project root (where flake.nix is)
-nix develop .#android --command bash -c \
-  'cd nobodywho && cargo build -p nobodywho-uniffi --target aarch64-linux-android --release'
+export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
+./nobodywho/kotlin/gradlew -p nobodywho/kotlin :android:assembleDebug
 ```
 
-The `.so` files need to be placed in `build/jniLibs/{arm64-v8a,x86_64}/` for the Gradle build to pick them up.
+The local input contains NobodyWho's entry point, runtime libraries, and the
+matching `libc++_shared.so`; the Kotlin build embeds those files in its final
+AAR. If another Android dependency packages
+the same runtime, follow the
+[shared-runtime conflict instructions](../android/README.md#shared-c-runtime-conflicts).
