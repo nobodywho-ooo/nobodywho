@@ -26,7 +26,12 @@ mod android {
     use tracing::{debug, info};
 
     pub(super) fn load_best_cpu_backend() -> Result<(), BackendInitError> {
-        let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
+        let mut info = libc::Dl_info {
+            dli_fname: ptr::null(),
+            dli_fbase: ptr::null_mut(),
+            dli_sname: ptr::null(),
+            dli_saddr: ptr::null_mut(),
+        };
         let found =
             unsafe { libc::dladdr(load_best_cpu_backend as *const libc::c_void, &mut info) };
         if found == 0 || info.dli_fname.is_null() {
