@@ -1,9 +1,10 @@
-# GGML prototypes
+# Local inference prototypes
 
-This workspace contains two standalone inference prototypes and their shared GGML crates:
+This workspace contains standalone inference prototypes and their shared GGML crates:
 
 - `ggml-supertonic`: Supertonic 3 text-to-speech on CPU and Metal
-- `ggml-gemma4`: Gemma 4 E2B prompt and generation benchmarks on Metal
+- `ggml-gemma4`: Gemma 4 E2B prompt and generation benchmarks through GGML Metal
+- `metal-gemma4`: minimal direct-Metal Gemma 4 E2B decode runtime
 - `ggml-runtime`: shared GGML backend, tensor, graph, and model-loading code
 - `ggml-sys`: direct bindings to the pinned GGML source
 

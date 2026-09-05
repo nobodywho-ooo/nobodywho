@@ -3,6 +3,6 @@ members = [
     "ggml-sys",
     "ggml-runtime",
     "ggml-supertonic",
-    "ggml-gemma4",
+    "ggml-gemma4", "metal-gemma4",
 ]
 resolver = "2"
