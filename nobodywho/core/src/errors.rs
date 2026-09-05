@@ -972,6 +972,15 @@ pub enum GenerateResponseError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum SamplingOverrideError {
+    #[error("temperature must be between 0 and 2")]
+    InvalidTemperature,
+
+    #[error("top_p must be between 0 and 1")]
+    InvalidTopP,
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum SamplerError {
     #[error("Sample step is missing in the sampler! Maybe you did forget to add .sample() call?")]
     MissingSampleStep,

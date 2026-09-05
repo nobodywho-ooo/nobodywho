@@ -8,7 +8,7 @@ use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::errors::SamplerError;
+use crate::errors::{SamplerError, SamplingOverrideError};
 
 // ---- Presets ----
 
@@ -135,6 +135,31 @@ pub fn default_seed() -> u32 {
     1234
 }
 
+pub(crate) fn validate_sampling_overrides(
+    temperature: Option<f32>,
+    top_p: Option<f32>,
+) -> Result<(), SamplingOverrideError> {
+    if temperature.is_some_and(|value| !(0.0..=2.0).contains(&value)) {
+        return Err(SamplingOverrideError::InvalidTemperature);
+    }
+    if top_p.is_some_and(|value| !(0.0..=1.0).contains(&value)) {
+        return Err(SamplingOverrideError::InvalidTopP);
+    }
+    Ok(())
+}
+
+fn replace_or_push(
+    steps: &mut Vec<ShiftStep>,
+    matches: impl Fn(&ShiftStep) -> bool,
+    replacement: ShiftStep,
+) {
+    if let Some(step) = steps.iter_mut().find(|step| matches(step)) {
+        *step = replacement;
+    } else {
+        steps.push(replacement);
+    }
+}
+
 impl SamplerConfig {
     pub fn new(shift_steps: Vec<ShiftStep>, sample_step: SampleStep, seed: u32) -> Self {
         Self {
@@ -142,6 +167,43 @@ impl SamplerConfig {
             sample_step,
             seed,
         }
+    }
+
+    pub fn with_sampling_overrides(
+        mut self,
+        temperature: Option<f32>,
+        top_p: Option<f32>,
+        seed: Option<u32>,
+    ) -> Result<Self, SamplingOverrideError> {
+        validate_sampling_overrides(temperature, top_p)?;
+        if let Some(seed) = seed {
+            self.seed = seed;
+        }
+        if temperature == Some(0.0) {
+            self.sample_step = SampleStep::Greedy;
+            self.steps
+                .retain(|step| !matches!(step, ShiftStep::Temperature { .. }));
+        } else if let Some(temperature) = temperature {
+            if matches!(&self.sample_step, SampleStep::Greedy) {
+                self.sample_step = SampleStep::Dist;
+            }
+            replace_or_push(
+                &mut self.steps,
+                |step| matches!(step, ShiftStep::Temperature { .. }),
+                ShiftStep::Temperature { temperature },
+            );
+        }
+        if let Some(top_p) = top_p {
+            if temperature != Some(0.0) && matches!(&self.sample_step, SampleStep::Greedy) {
+                self.sample_step = SampleStep::Dist;
+            }
+            replace_or_push(
+                &mut self.steps,
+                |step| matches!(step, ShiftStep::TopP { .. }),
+                ShiftStep::TopP { top_p, min_keep: 1 },
+            );
+        }
+        Ok(self)
     }
 
     pub fn build_sampler(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
@@ -736,6 +798,45 @@ mod tests {
             Arc::ptr_eq(&factory.tok_env, &rebuilt.tok_env),
             "the tokenizer env is shared, not walked again"
         );
+    }
+
+    #[test]
+    fn sampling_overrides_switch_greedy_to_distribution() {
+        let sampler = SamplerPresets::greedy()
+            .with_sampling_overrides(None, Some(0.9), Some(42))
+            .unwrap();
+
+        assert!(matches!(sampler.sample_step, SampleStep::Dist));
+        assert_eq!(sampler.seed, 42);
+        assert!(sampler
+            .steps
+            .iter()
+            .any(|step| matches!(step, ShiftStep::TopP { top_p, .. } if *top_p == 0.9)));
+    }
+
+    #[test]
+    fn zero_temperature_stays_greedy() {
+        let sampler = SamplerConfig::default()
+            .with_sampling_overrides(Some(0.0), Some(0.9), None)
+            .unwrap();
+
+        assert!(matches!(sampler.sample_step, SampleStep::Greedy));
+        assert!(!sampler
+            .steps
+            .iter()
+            .any(|step| matches!(step, ShiftStep::Temperature { .. })));
+    }
+
+    #[test]
+    fn sampling_overrides_validate_ranges() {
+        assert!(matches!(
+            SamplerConfig::default().with_sampling_overrides(Some(3.0), None, None),
+            Err(SamplingOverrideError::InvalidTemperature)
+        ));
+        assert!(matches!(
+            SamplerConfig::default().with_sampling_overrides(None, Some(-0.1), None),
+            Err(SamplingOverrideError::InvalidTopP)
+        ));
     }
 
     #[test]
