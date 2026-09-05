@@ -10,6 +10,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
+- **Python:** Added OpenAI-compatible `chat.completions` and `responses` APIs with streaming, usage metadata, tool support, and request-level sampling.
 - Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
 
 ### Fixed
