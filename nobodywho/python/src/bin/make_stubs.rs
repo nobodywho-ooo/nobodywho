@@ -16,6 +16,30 @@ const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[
         "def __next__(self, /) -> str | None: ...",
         "def __next__(self, /) -> str: ...",
     ),
+    (
+        "def __next__(self, /) -> ChatCompletionChunk | None: ...",
+        "def __next__(self, /) -> ChatCompletionChunk: ...",
+    ),
+    (
+        "def __next__(self, /) -> ResponseStreamEvent | None: ...",
+        "def __next__(self, /) -> ResponseStreamEvent: ...",
+    ),
+    (
+        "def __getitem__(self, /, key: str) -> typing.Any: ...",
+        "def __getitem__(self, /, key: str) -> builtins.object: ...",
+    ),
+    (
+        "def __getitem__(self, /, key: str) -> Any: ...",
+        "def __getitem__(self, /, key: str) -> builtins.object: ...",
+    ),
+    (
+        "def __getitem__(self, key: str, /) -> typing.Any: ...",
+        "def __getitem__(self, key: str, /) -> builtins.object: ...",
+    ),
+    (
+        "def __getitem__(self, key: str, /) -> Any: ...",
+        "def __getitem__(self, key: str, /) -> builtins.object: ...",
+    ),
     // __anext__ returns PyAny (wrapping a coroutine), so pyo3 can't infer the inner type
     (
         "def __anext__(self, /) -> typing.Any: ...",
@@ -92,6 +116,12 @@ fn replace_exceptions(mut contents: String) -> String {
     // Ensure `import os` is present (needed for os.PathLike)
     if !contents.lines().any(|l| l == "import os") {
         contents = format!("import os\n{}", contents);
+    }
+
+    // Response mappings use builtins.object so fields named `object` do not
+    // shadow the type name inside generated classes.
+    if !contents.lines().any(|l| l == "import builtins") {
+        contents = format!("import builtins\n{}", contents);
     }
 
     contents

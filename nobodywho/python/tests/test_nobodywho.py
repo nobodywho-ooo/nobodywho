@@ -383,6 +383,117 @@ def test_complete_iterator(chat):
     assert "copenhagen" in response_str.lower()
 
 
+def test_structured_complete(chat):
+    completion = chat.complete(
+        [{"role": "user", "content": "Reply with only: Copenhagen"}],
+        max_tokens=32,
+        stream=False,
+    )
+
+    assert isinstance(completion, nobodywho.ChatCompletion)
+    assert completion.object == "chat.completion"
+    assert "copenhagen" in completion.choices[0].message.content.lower()
+    assert completion["choices"][0]["message"]["content"] == (
+        completion.choices[0].message.content
+    )
+    assert completion.usage.total_tokens == (
+        completion.usage.prompt_tokens + completion.usage.completion_tokens
+    )
+
+
+def test_structured_complete_stream(chat):
+    stream = chat.complete(
+        [{"role": "user", "content": "Reply with only: Copenhagen"}],
+        max_tokens=32,
+        stream=True,
+    )
+    chunks = list(stream)
+    completion = stream.completed()
+
+    assert isinstance(stream, nobodywho.ChatCompletionStream)
+    assert all(isinstance(chunk, nobodywho.ChatCompletionChunk) for chunk in chunks)
+    assert chunks[0].choices[0].delta.role == "assistant"
+    assert chunks[-1].choices[0].finish_reason in {"stop", "length"}
+    assert "copenhagen" in completion.choices[0].message.content.lower()
+
+
+def test_respond_and_reuse_output(chat):
+    first = chat.respond(input="My name is Duarte.", max_output_tokens=32)
+    history = [
+        {"type": "message", "role": "system", "content": "Answer concisely."},
+        {"type": "message", "role": "user", "content": "My name is Duarte."},
+    ]
+    history.extend(first.output)
+    history.append({"type": "message", "role": "user", "content": "What is my name?"})
+    second = chat.respond(input=history, max_output_tokens=32)
+
+    assert isinstance(first, nobodywho.Response)
+    assert first.output_text
+    assert second.output_text
+    assert "duarte" in second.output_text.lower()
+    assert second.usage.total_tokens == (
+        second.usage.input_tokens + second.usage.output_tokens
+    )
+
+
+def test_response_stream(chat):
+    stream = chat.respond(
+        input="Reply with only: Copenhagen",
+        max_output_tokens=32,
+        stream=True,
+    )
+    events = list(stream)
+    response = stream.completed()
+
+    assert isinstance(stream, nobodywho.ResponseStream)
+    assert events[-1].type == "response.completed"
+    assert any(event.type == "response.output_text.delta" for event in events)
+    assert "copenhagen" in response.output_text.lower()
+
+
+@pytest.mark.parametrize(
+    "content_fields",
+    [{"content": None}, {}, {"content": ""}, {"content": "Checking the weather."}],
+    ids=["null", "omitted", "empty", "text"],
+)
+def test_complete_accepts_openai_tool_history(chat, content_fields):
+    completion = chat.complete(
+        [
+            {
+                "role": "assistant",
+                **content_fields,
+                "tool_calls": [
+                    {
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {
+                            "name": "weather",
+                            "arguments": '{"city":"Copenhagen"}',
+                        },
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call-1", "content": "sunny"},
+        ],
+        max_tokens=1,
+        stream=False,
+    )
+
+    assert isinstance(completion, nobodywho.ChatCompletion)
+
+
+def test_response_rejects_output_text_as_user_input(chat):
+    with pytest.raises(ValueError, match="unsupported user response content type"):
+        chat.respond(
+            input=[
+                {
+                    "role": "user",
+                    "content": [{"type": "output_text", "text": "not user input"}],
+                }
+            ]
+        )
+
+
 def test_complete_replaces_history(chat):
     """Every role converts, the messages become the history, and the reply is appended."""
     chat.ask("My favorite color is teal.").completed()
@@ -419,6 +530,60 @@ def test_complete_options_stick(chat):
     chat.complete([{"role": "user", "content": "Say hi again."}]).completed()
     assert chat.get_template_variables() == {"enable_thinking": False}
     assert chat.get_sampler_config().to_json() == after_first
+
+
+def test_openai_sampling_overrides_do_not_stick(chat):
+    before = chat.get_sampler_config().to_json()
+
+    completion = chat.complete(
+        messages=[{"role": "user", "content": "Say hi."}],
+        temperature=0,
+        top_p=0.5,
+        seed=42,
+        max_completion_tokens=1,
+        stream=False,
+    )
+    assert isinstance(completion, nobodywho.ChatCompletion)
+    assert chat.get_sampler_config().to_json() == before
+
+    response = chat.respond(
+        input="Say hi.",
+        temperature=0.7,
+        top_p=0.9,
+        seed=7,
+        max_output_tokens=1,
+    )
+    assert isinstance(response, nobodywho.Response)
+    assert chat.get_sampler_config().to_json() == before
+
+
+def test_openai_sampling_override_conflicts(chat):
+    messages = [{"role": "user", "content": "Say hi."}]
+
+    with pytest.raises(ValueError, match="sampler cannot be combined"):
+        chat.complete(
+            messages=messages,
+            sampler=nobodywho.SamplerPresets.greedy(),
+            temperature=0.5,
+            stream=False,
+        )
+
+    with pytest.raises(ValueError, match="max_tokens or max_completion_tokens"):
+        chat.complete(
+            messages=messages,
+            max_tokens=1,
+            max_completion_tokens=1,
+            stream=False,
+        )
+
+    with pytest.raises(ValueError, match="require stream=True or stream=False"):
+        chat.complete(messages=messages, temperature=0.5)
+
+    with pytest.raises(ValueError, match="temperature must be between 0 and 2"):
+        chat.respond(input="Say hi.", temperature=3)
+
+    with pytest.raises(ValueError, match="top_p must be between 0 and 1"):
+        chat.respond(input="Say hi.", top_p=-0.1)
 
 
 def test_complete_options_are_keyword_only(chat):
