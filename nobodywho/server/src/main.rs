@@ -7,7 +7,8 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::Parser;
 use nobodywho::chat::{
-    AssistantResponse, ChatBuilder, ChatHandleAsync, CompletionChunk, Message, Options,
+    ChatBuilder, ChatHandleAsync, CompletionResponse, Message, Options, StructuredCompletionChunk,
+    StructuredCompletionStreamAsync,
 };
 use nobodywho::llm;
 use nobodywho::sampler::{SampleStep, SamplerConfig, ShiftStep};
@@ -395,7 +396,7 @@ async fn start_completion(
             .map_err(internal_error)?;
         state
             .chat
-            .complete_with_external_tools(messages, options, Some(max_tokens))
+            .complete_with_external_tools_and_metadata(messages, options, Some(max_tokens))
             .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?
     };
 
@@ -410,12 +411,11 @@ async fn start_completion(
             id,
             response_model,
             created,
-            max_tokens,
             has_tools,
         ));
     }
 
-    let response = buffered_response(stream, id, response_model, created, max_tokens).await?;
+    let response = buffered_response(stream, id, response_model, created).await?;
     Ok(Json(response).into_response())
 }
 
@@ -595,18 +595,21 @@ fn replace_or_push(
 }
 
 async fn buffered_response(
-    mut stream: nobodywho::chat::CompletionStreamAsync,
+    mut stream: StructuredCompletionStreamAsync,
     id: String,
     model: String,
     created: u64,
-    max_tokens: usize,
 ) -> Result<Value, (StatusCode, String)> {
-    let mut token_count = 0;
     while let Some(chunk) = stream.next().await.map_err(internal_error)? {
         match chunk {
-            CompletionChunk::Token(_) => token_count += 1,
-            CompletionChunk::Done(response) => {
-                let finish_reason = finish_reason(&response, token_count, max_tokens);
+            StructuredCompletionChunk::Token(_) => {}
+            StructuredCompletionChunk::Done(response) => {
+                let finish_reason = response.finish_reason.as_str();
+                let usage = json!({
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens(),
+                });
                 let message = response_message(response, &id);
                 return Ok(json!({
                     "id": id,
@@ -617,7 +620,8 @@ async fn buffered_response(
                         "index": 0,
                         "message": message,
                         "finish_reason": finish_reason,
-                    }]
+                    }],
+                    "usage": usage,
                 }));
             }
         }
@@ -749,11 +753,10 @@ impl ResponseStreamParser {
 }
 
 fn streaming_response(
-    mut stream: nobodywho::chat::CompletionStreamAsync,
+    mut stream: StructuredCompletionStreamAsync,
     id: String,
     model: String,
     created: u64,
-    max_tokens: usize,
     has_tools: bool,
 ) -> Response {
     let (sender, receiver) = mpsc::channel(32);
@@ -768,12 +771,10 @@ fn streaming_response(
             return;
         }
 
-        let mut token_count = 0;
         let mut parser = ResponseStreamParser::new(has_tools);
         loop {
             match stream.next().await {
-                Ok(Some(CompletionChunk::Token(token))) => {
-                    token_count += 1;
+                Ok(Some(StructuredCompletionChunk::Token(token))) => {
                     for delta in parser.push(&token) {
                         let chunk =
                             completion_chunk(&id, &model, created, parsed_delta_value(delta), None);
@@ -782,7 +783,7 @@ fn streaming_response(
                         }
                     }
                 }
-                Ok(Some(CompletionChunk::Done(response))) => {
+                Ok(Some(StructuredCompletionChunk::Done(response))) => {
                     for delta in parser.finish(!response.tool_calls.is_empty()) {
                         let chunk =
                             completion_chunk(&id, &model, created, parsed_delta_value(delta), None);
@@ -803,7 +804,7 @@ fn streaming_response(
                             return;
                         }
                     }
-                    let reason = finish_reason(&response, token_count, max_tokens);
+                    let reason = response.finish_reason.as_str();
                     let final_chunk =
                         completion_chunk(&id, &model, created, json!({}), Some(reason));
                     if send_event(&sender, final_chunk).await.is_err() {
@@ -864,7 +865,7 @@ fn completion_chunk(
     })
 }
 
-fn response_message(response: AssistantResponse, id: &str) -> Value {
+fn response_message(response: CompletionResponse, id: &str) -> Value {
     let (content, reasoning) = split_response_content(&response.content);
     let mut message = if response.tool_calls.is_empty() {
         json!({"role": "assistant", "content": content})
@@ -912,20 +913,6 @@ fn response_tool_calls(tool_calls: &[ToolCall], response_id: &str) -> Vec<Value>
             })
         })
         .collect()
-}
-
-fn finish_reason(
-    response: &AssistantResponse,
-    token_count: usize,
-    max_tokens: usize,
-) -> &'static str {
-    if !response.tool_calls.is_empty() {
-        "tool_calls"
-    } else if token_count >= max_tokens {
-        "length"
-    } else {
-        "stop"
-    }
 }
 
 fn model_id_for(source: &str) -> String {
@@ -1212,9 +1199,11 @@ mod tests {
     #[test]
     fn returns_buffered_thinking_separately() {
         let message = response_message(
-            AssistantResponse {
+            CompletionResponse {
                 content: "<think>plan</think>answer".into(),
                 tool_calls: Vec::new(),
+                finish_reason: nobodywho::chat::FinishReason::Stop,
+                usage: nobodywho::chat::CompletionUsage::default(),
             },
             "chatcmpl-1",
         );
