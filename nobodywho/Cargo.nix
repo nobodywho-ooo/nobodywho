@@ -10491,6 +10491,11 @@ rec {
             packageId = "rand 0.9.5";
           }
           {
+            name = "serde";
+            packageId = "serde";
+            features = [ "derive" ];
+          }
+          {
             name = "serde_json";
             packageId = "serde_json";
             features = [ "preserve_order" ];

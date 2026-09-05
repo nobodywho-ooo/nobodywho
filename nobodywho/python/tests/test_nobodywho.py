@@ -27,6 +27,11 @@ def chat(model):
 
 
 @pytest.fixture
+def client():
+    return nobodywho.NobodyWho()
+
+
+@pytest.fixture
 def chat_async(model):
     return nobodywho.ChatAsync(
         model,
@@ -381,6 +386,213 @@ def test_complete_iterator(chat):
         assert isinstance(token, str)
         response_str += token
     assert "copenhagen" in response_str.lower()
+
+
+def test_client_chat_completion(client, model):
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": "Reply with only: Copenhagen"}],
+        thinking=False,
+        max_tokens=32,
+    )
+
+    assert isinstance(completion, nobodywho.ChatCompletion)
+    assert completion.object == "chat.completion"
+    assert completion.model == os.environ["TEST_MODEL"]
+    assert "copenhagen" in completion.choices[0].message.content.lower()
+    assert completion["choices"][0]["message"]["content"] == (
+        completion.choices[0].message.content
+    )
+    assert completion.usage.total_tokens == (
+        completion.usage.prompt_tokens + completion.usage.completion_tokens
+    )
+
+
+def test_client_chat_completion_stream(client, model):
+    stream = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": "Reply with only: Copenhagen"}],
+        thinking=False,
+        max_tokens=32,
+        stream=True,
+    )
+    chunks = list(stream)
+    completion = stream.completed()
+
+    assert isinstance(stream, nobodywho.ChatCompletionStream)
+    assert all(isinstance(chunk, nobodywho.ChatCompletionChunk) for chunk in chunks)
+    assert chunks[0].choices[0].delta.role == "assistant"
+    assert chunks[-1].choices[0].finish_reason in {"stop", "length"}
+    assert "copenhagen" in completion.choices[0].message.content.lower()
+
+
+def test_client_chat_completion_reuses_full_conversation(client, model):
+    messages = [
+        {
+            "role": "user",
+            "content": "Remember the passphrase DUARTE. Reply only with OK.",
+        }
+    ]
+    first = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        thinking=False,
+        temperature=0,
+        max_tokens=32,
+    )
+    messages.extend(
+        [
+            {"role": "assistant", "content": first.choices[0].message.content},
+            {
+                "role": "user",
+                "content": (
+                    "Copy the passphrase from my first message. Reply only with the "
+                    "passphrase."
+                ),
+            },
+        ]
+    )
+    second = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        thinking=False,
+        temperature=0,
+        max_tokens=32,
+    )
+
+    assert "duarte" in second.choices[0].message.content.lower()
+
+
+def test_client_responses_reuses_output(client, model):
+    first = client.responses.create(
+        model=model,
+        input="My name is Duarte.",
+        thinking=False,
+        max_output_tokens=32,
+    )
+    history = [
+        {"type": "message", "role": "user", "content": "My name is Duarte."},
+        *first.output,
+        {"type": "message", "role": "user", "content": "What is my name?"},
+    ]
+    second = client.responses.create(
+        model=model,
+        input=history,
+        instructions="Answer concisely.",
+        thinking=False,
+        max_output_tokens=32,
+    )
+
+    assert isinstance(first, nobodywho.Response)
+    assert first.model == os.environ["TEST_MODEL"]
+    assert first.output_text
+    assert "duarte" in second.output_text.lower()
+    assert second.usage.total_tokens == (
+        second.usage.input_tokens + second.usage.output_tokens
+    )
+
+
+def test_client_response_stream(client, model):
+    stream = client.responses.create(
+        model=model,
+        input="Reply with only: Copenhagen",
+        thinking=False,
+        max_output_tokens=32,
+        stream=True,
+    )
+    events = list(stream)
+    response = stream.completed()
+
+    assert isinstance(stream, nobodywho.ResponseStream)
+    assert events[-1].type == "response.completed"
+    assert any(event.type == "response.output_text.delta" for event in events)
+    assert "copenhagen" in response.output_text.lower()
+
+
+def test_client_requests_do_not_share_history(client, model):
+    messages = [{"role": "user", "content": "Reply with one word: hello"}]
+    first = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        max_tokens=1,
+    )
+    client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": "My favorite color is teal."}],
+        max_tokens=1,
+    )
+    third = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        max_tokens=1,
+    )
+
+    assert first.usage.prompt_tokens == third.usage.prompt_tokens
+
+
+def test_client_accepts_openai_tool_history(client, model):
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call-1",
+                        "type": "function",
+                        "function": {
+                            "name": "weather",
+                            "arguments": '{"city":"Copenhagen"}',
+                        },
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call-1", "content": "sunny"},
+        ],
+        max_tokens=1,
+    )
+
+    assert isinstance(completion, nobodywho.ChatCompletion)
+
+
+def test_client_validates_request_options(client, model):
+    messages = [{"role": "user", "content": "Say hi."}]
+
+    with pytest.raises(ValueError, match="sampler cannot be combined"):
+        client.chat.completions.create(
+            model=model,
+            messages=messages,
+            sampler=nobodywho.SamplerPresets.greedy(),
+            temperature=0.5,
+        )
+
+    with pytest.raises(ValueError, match="max_tokens or max_completion_tokens"):
+        client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=1,
+            max_completion_tokens=1,
+        )
+
+    with pytest.raises(ValueError, match="temperature must be between 0 and 2"):
+        client.responses.create(model=model, input="Say hi.", temperature=3)
+
+    with pytest.raises(ValueError, match="top_p must be between 0 and 1"):
+        client.responses.create(model=model, input="Say hi.", top_p=-0.1)
+
+
+def test_client_response_rejects_output_text_as_user_input(client, model):
+    with pytest.raises(ValueError, match="unsupported user response content type"):
+        client.responses.create(
+            model=model,
+            input=[
+                {
+                    "role": "user",
+                    "content": [{"type": "output_text", "text": "not user input"}],
+                }
+            ],
+        )
 
 
 def test_complete_replaces_history(chat):
