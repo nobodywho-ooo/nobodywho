@@ -135,6 +135,80 @@ Pass all three and the call no longer depends on what the chat is currently hold
 
 Changing `tools` re-selects the chat template and rewrites the system-prompt region, so that turn re-prefills from near token zero. It is the one option with a real cost attached — set it when it changes, not on every call.
 
+### Structured results
+
+The structured methods use field names from the [OpenAI Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/create) and [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create). They return NobodyWho classes rather than OpenAI SDK objects. The classes support attribute access, item access, `to_dict()`, and `model_dump()`.
+
+Pass `stream=False` to return an OpenAI-shaped completion instead of the legacy `TokenStream`:
+
+```python continuation
+completion = chat.complete(
+   [{"role": "user", "content": "Name one fruit."}],
+   sampler=SamplerPresets.greedy(),
+   thinking=False,
+   max_tokens=64,
+   stream=False,
+)
+
+print(completion.choices[0].message.content)
+print(completion["usage"])
+```
+
+Pass `stream=True` for OpenAI-shaped chunks. The stream's `completed()` method returns the final structured completion:
+
+```python continuation
+stream = chat.complete(
+   [{"role": "user", "content": "Name one fruit."}],
+   stream=True,
+)
+
+for chunk in stream:
+   content = chunk.choices[0].delta.content
+   if content:
+      print(content, end="")
+
+completion = stream.completed()
+```
+
+Leaving `stream` out keeps the existing behavior and returns a `TokenStream` of strings.
+
+Use `temperature`, `top_p`, and `seed` when porting an OpenAI request. These values apply only to that request and do not change the sampler stored on the chat:
+
+```python continuation
+completion = chat.complete(
+   messages=[{"role": "user", "content": "Name one fruit."}],
+   temperature=0.7,
+   top_p=0.9,
+   seed=42,
+   max_completion_tokens=64,
+   stream=False,
+)
+```
+
+`max_completion_tokens` is an alias for `max_tokens`. Do not pass both names. A direct sampling argument cannot be combined with `sampler`. Request-only sampling arguments and token limits require an explicit `stream=True` or `stream=False`; omitting `stream` keeps the legacy behavior.
+
+### Responses-style input
+
+`respond()` accepts a string or an explicit list of messages. It returns a structured Responses-style result by default:
+
+```python continuation
+response = chat.respond(
+   instructions="Answer concisely.",
+   input="Name one fruit.",
+   sampler=SamplerPresets.greedy(),
+   thinking=False,
+   max_output_tokens=64,
+)
+
+print(response.output_text)
+print(response.output)
+print(response.usage)
+```
+
+`respond()` also accepts request-only `temperature`, `top_p`, and `seed` arguments. It uses `max_output_tokens` for its token limit.
+
+Pass `stream=True` to receive `response.output_text.delta` events followed by a `response.completed` event. This is a small subset of the OpenAI Responses event protocol. Tools passed to `complete()` or `respond()` use NobodyWho's existing tool loop and run locally. Unknown request arguments, JSON schema output, and configurable context-overflow policies are not supported.
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall behavior.

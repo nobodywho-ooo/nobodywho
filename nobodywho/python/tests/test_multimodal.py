@@ -177,21 +177,32 @@ def test_complete_with_content_parts(multimodal_chat):
     assert content[1]["path"] == os.path.join(os.path.dirname(__file__), "img/dog.png")
 
 
-def test_complete_rejects_media_in_system_message(multimodal_chat):
+@pytest.mark.parametrize("role", ["system", "developer"])
+@pytest.mark.parametrize(
+    "media_type, media_path",
+    [("image", "img/dog.png"), ("audio", "../../../assets/sound_16k.wav")],
+)
+@pytest.mark.parametrize("stream", [None, False, True])
+def test_complete_rejects_media_in_system_message(
+    multimodal_chat, role, media_type, media_path, stream
+):
+    system_prompt = multimodal_chat.get_system_prompt()
+    history = multimodal_chat.get_chat_history()
     with pytest.raises(ValueError):
         multimodal_chat.complete(
             [
                 {
-                    "role": "system",
+                    "role": role,
                     "content": [
                         {
-                            "type": "image",
-                            "path": os.path.join(
-                                os.path.dirname(__file__), "img/dog.png"
-                            ),
+                            "type": media_type,
+                            "path": os.path.join(os.path.dirname(__file__), media_path),
                         }
                     ],
                 },
                 {"role": "user", "content": "Hello"},
-            ]
+            ],
+            stream=stream,
         )
+    assert multimodal_chat.get_system_prompt() == system_prompt
+    assert multimodal_chat.get_chat_history() == history
