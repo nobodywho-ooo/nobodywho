@@ -8,7 +8,7 @@ use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::errors::SamplerError;
+use crate::errors::{SamplerError, SamplingParameterError};
 
 // ---- Presets ----
 
@@ -189,6 +189,40 @@ impl SamplerConfig {
             sample_step,
             seed,
         }
+    }
+
+    pub fn from_openai_parameters(
+        temperature: Option<f32>,
+        top_p: Option<f32>,
+        seed: Option<u32>,
+    ) -> Result<Self, SamplingParameterError> {
+        let temperature = temperature.unwrap_or(TEMPERATURE_DEFAULT);
+        if !(0.0..=2.0).contains(&temperature) {
+            return Err(SamplingParameterError::InvalidTemperature);
+        }
+
+        let top_p = top_p.unwrap_or(TOP_P_DEFAULT);
+        if !(0.0..=1.0).contains(&top_p) {
+            return Err(SamplingParameterError::InvalidTopP);
+        }
+
+        if temperature == 0.0 {
+            return Ok(SamplerPresets::greedy());
+        }
+
+        Ok(Self::new(
+            vec![],
+            vec![
+                ShiftStep::default_top_k(),
+                ShiftStep::TopP {
+                    top_p,
+                    min_keep: MIN_KEEP_DEFAULT,
+                },
+                ShiftStep::Temperature { temperature },
+            ],
+            SampleStep::Dist,
+            seed.unwrap_or_else(default_seed),
+        ))
     }
 
     pub fn build_sampler(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
@@ -861,6 +895,33 @@ mod tests {
         assert!(*multiplier > 0.0, "DRY is disabled by a zero multiplier");
         assert!(*base >= 1.0, "DRY is disabled by a base below 1");
         assert!(*penalty_last_n != 0, "DRY is disabled by a zero last_n");
+    }
+
+    #[test]
+    fn openai_parameters_build_config() -> Result<(), SamplingParameterError> {
+        let sampler = SamplerConfig::from_openai_parameters(Some(0.7), Some(0.8), Some(42))?;
+
+        assert_eq!(sampler.seed, 42);
+        assert!(matches!(sampler.sample_step, SampleStep::Dist));
+        assert!(sampler.steps.iter().any(
+            |step| matches!(step, ShiftStep::Temperature { temperature } if *temperature == 0.7)
+        ));
+        assert!(sampler
+            .steps
+            .iter()
+            .any(|step| matches!(step, ShiftStep::TopP { top_p, .. } if *top_p == 0.8)));
+        assert!(SamplerConfig::from_openai_parameters(Some(f32::NAN), None, None).is_err());
+        assert!(SamplerConfig::from_openai_parameters(None, Some(f32::NAN), None).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn zero_temperature_uses_greedy_sampling() -> Result<(), SamplingParameterError> {
+        let sampler = SamplerConfig::from_openai_parameters(Some(0.0), None, Some(42))?;
+
+        assert!(matches!(sampler.sample_step, SampleStep::Greedy));
+        assert!(sampler.steps.is_empty());
+        Ok(())
     }
 
     /// A matching slice set reuses the held factory; a different one needs a new
