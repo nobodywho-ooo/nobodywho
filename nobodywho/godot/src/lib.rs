@@ -2088,8 +2088,8 @@ impl NobodyWhoSamplerBuilder {
         self.to_gd()
     }
 
-    /// Constrain output to valid JSON of any shape. For schema-validated JSON,
-    /// use `constrain_with_json_schema()` instead.
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrain_with_json_schema()` instead.
     #[func]
     fn json(&mut self) -> Gd<NobodyWhoSamplerBuilder> {
         self.inner = self.inner.clone().json();

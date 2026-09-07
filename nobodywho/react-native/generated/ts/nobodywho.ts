@@ -4155,7 +4155,7 @@ export interface SamplerBuilderInterface {
      */
     greedy() : SamplerConfigInterface;
     /**
-     * Constrain output to valid JSON of any shape. Use
+     * Constrain output to a JSON object of any shape. Use
      * `constrain_with_json_schema()` to pin down the structure too.
      */
     json() : SamplerBuilderInterface;
@@ -4371,7 +4371,7 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     }
     
     /**
-     * Constrain output to valid JSON of any shape. Use
+     * Constrain output to a JSON object of any shape. Use
      * `constrain_with_json_schema()` to pin down the structure too.
      */
  json(): SamplerBuilderInterface {
@@ -5087,7 +5087,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() !== 32898) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() !== 53107) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() !== 18949) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() !== 61844) {

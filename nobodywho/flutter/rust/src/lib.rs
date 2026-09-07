@@ -1530,8 +1530,8 @@ impl SamplerBuilder {
         }
     }
 
-    /// Constrain output to valid JSON of any shape. For schema-validated JSON,
-    /// use `constrainWithJsonSchema()` instead.
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrainWithJsonSchema()` instead.
     #[flutter_rust_bridge::frb(sync)]
     pub fn json(&self) -> Self {
         SamplerBuilder {

@@ -93,10 +93,10 @@ impl SamplerPresets {
         )
     }
 
-    /// Constrain output to valid JSON of any shape.
+    /// Constrain output to a JSON object of any shape.
     pub fn json() -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::Lark(JSON_GRAMMAR.into())],
+            vec![ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into())],
             SampleStep::Dist,
             default_seed(),
         )
@@ -442,11 +442,11 @@ impl SamplerBuilder {
         }
     }
 
-    /// Constrain output to valid JSON of any shape. Use
+    /// Constrain output to a JSON object of any shape. Use
     /// [`constrain_with_json_schema`][Self::constrain_with_json_schema] to pin
     /// down the structure too.
     pub fn json(self) -> Self {
-        self.shift(ShiftStep::Lark(JSON_GRAMMAR.into()))
+        self.shift(ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into()))
     }
 
     /// Constrain output to a JSON schema.
@@ -465,32 +465,11 @@ impl SamplerBuilder {
     }
 }
 
-const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
-root   ::= object
-value  ::= object | array | string | number | ("true" | "false" | "null") ws
-
-object ::=
-"{" ws (
-            string ":" ws value
-    ("," ws string ":" ws value)*
-)? "}" ws
-
-array  ::=
-"[" ws (
-            value
-    ("," ws value)*
-)? "]" ws
-
-string ::=
-"\"" (
-    [^"\\\x7F\x00-\x1F] |
-    "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
-)* "\"" ws
-
-number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
-
-# Optional space: by convention, applied in this grammar after literal chars when allowed
-ws ::= | " " | "\n" [ \t]{0,20}"#;
+/// Any JSON object, for the `json` preset and builder step. A schema rather than
+/// a hand-written grammar so it takes the [`ShiftStep::JsonSchema`] path and its
+/// slices; an object rather than a bare `{}`, since an any-value constraint is
+/// already satisfied by a one-token scalar and models answer `false` and stop.
+const JSON_OBJECT_SCHEMA: &str = r#"{"type":"object"}"#;
 
 /// ----- Sampler Methods -----
 
@@ -831,8 +810,11 @@ mod tests {
             .expect("generation with json preset failed");
 
         assert!(!response.is_empty(), "empty response");
-        serde_json::from_str::<serde_json::Value>(&response)
+        let parsed = serde_json::from_str::<serde_json::Value>(&response)
             .unwrap_or_else(|e| panic!("response is not valid JSON ({e}): {response}"));
+        // A bare `{}` schema would also be valid JSON, but it lets the model
+        // finish with a one-token scalar like `false`, so we constrain to an object.
+        assert!(parsed.is_object(), "expected an object, got: {response}");
     }
 
     #[test]

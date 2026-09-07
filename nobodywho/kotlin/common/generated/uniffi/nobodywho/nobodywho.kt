@@ -1431,7 +1431,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 53107.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 18949.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844.toShort()) {
@@ -5685,7 +5685,7 @@ public interface SamplerBuilderInterface {
     fun `greedy`(): SamplerConfig
     
     /**
-     * Constrain output to valid JSON of any shape. Use
+     * Constrain output to a JSON object of any shape. Use
      * `constrain_with_json_schema()` to pin down the structure too.
      */
     fun `json`(): SamplerBuilder
@@ -6007,7 +6007,7 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
 
     
     /**
-     * Constrain output to valid JSON of any shape. Use
+     * Constrain output to a JSON object of any shape. Use
      * `constrain_with_json_schema()` to pin down the structure too.
      */override fun `json`(): SamplerBuilder {
             return FfiConverterTypeSamplerBuilder.lift(

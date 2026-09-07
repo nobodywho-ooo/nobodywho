@@ -8612,8 +8612,8 @@ class SamplerBuilderImpl extends RustOpaque implements SamplerBuilder {
   SamplerConfig greedy() =>
       NobodyWho.instance.api.crateSamplerBuilderGreedy(that: this);
 
-  /// Constrain output to valid JSON of any shape. For schema-validated JSON,
-  /// use `constrainWithJsonSchema()` instead.
+  /// Constrain output to a JSON object of any shape. For schema-validated
+  /// JSON, use `constrainWithJsonSchema()` instead.
   SamplerBuilder json() =>
       NobodyWho.instance.api.crateSamplerBuilderJson(that: this);
 

@@ -1024,8 +1024,8 @@ class SamplerBuilder:
         """
     def json(self, /) -> SamplerBuilder:
         """
-        Constrain output to valid JSON of any shape. For schema-validated JSON,
-        use `constrain_with_json_schema()` instead.
+        Constrain output to a JSON object of any shape. For schema-validated
+        JSON, use `constrain_with_json_schema()` instead.
         """
     def logit_bias(self, /, biases: dict[int, float]) -> SamplerBuilder:
         """

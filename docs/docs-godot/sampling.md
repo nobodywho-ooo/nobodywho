@@ -96,7 +96,7 @@ Constraining steps — the same formats as the `set_sampler_preset_constrain_wit
 - `.constrain_with_json_schema(...)` — output matches a JSON schema, given as a JSON string
 - `.constrain_with_regex(...)` — output matches a regular expression
 - `.constrain_with_grammar(...)` — output matches a grammar, in either Lark or GBNF syntax
-- `.json()` — output is valid JSON of any shape
+- `.json()` — output is a JSON object of any shape
 
 Constraining steps always run **before** the other shift steps, wherever you chain them.
 This is to avoid the case where a step like `.top_k(5)` followed by a constraint could

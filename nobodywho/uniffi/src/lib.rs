@@ -1779,7 +1779,7 @@ impl SamplerBuilder {
         })
     }
 
-    /// Constrain output to valid JSON of any shape. Use
+    /// Constrain output to a JSON object of any shape. Use
     /// `constrain_with_json_schema()` to pin down the structure too.
     pub fn json(&self) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {

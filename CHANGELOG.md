@@ -17,7 +17,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Changed
 
-- `SamplerPresets.json()` now constrains through llguidance rather than llama.cpp's GBNF sampler, so it takes the same faster per-token path as the other `constrain_with_*` presets. The grammar and the set of accepted outputs are unchanged. Affects all bindings.
+- `SamplerPresets.json()` and the new `SamplerBuilder.json()` now constrain with the JSON schema `{"type":"object"}` through llguidance, so they take the same faster per-token path as the other `constrain_with_*` presets. Output is still a JSON object of any shape, as the old grammar's root was an object too. The new grammar is slightly more permissive at the edges: the old one allowed at most one newline plus 20 spaces of indentation per gap, and could not emit exponents like `1e10`. Affects all bindings.
 - `SamplerPresets.json()` and the deprecated `SamplerPresets.grammar()` no longer prepend their constraint to the default sampling chain (top-k 20, top-p 0.95, temperature 0.6) — they constrain and sample directly, as `constrain_with_json_schema`/`_regex`/`_grammar` already did. Output is still always valid, but picks within the constrained set are more random than before. Affects all bindings.
 - **Breaking:** a message's media is now part of its content instead of a separate `assets` list, and the `Asset` type is gone. Where you passed `{"role": "user", "content": "...", "assets": [...]}`, pass a content list of parts instead. The media file path now lives on the part it belongs to, so the ordering of text and media within a message is explicit rather than implied. Affects all bindings.
 - **Breaking:** the system prompt is no longer stored as the first chat message; it is a setting on the `Chat`, as in the Anthropic and Gemini SDKs. `get_chat_history()` therefore never returns a system message, and `complete()` no longer clears the system prompt when the list you pass has none. Media in a system message is now rejected, since no chat template supports it. Affects all bindings.
@@ -35,6 +35,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Swift:** Logs are now visible in Xcode on iOS.
 
 ### Removed
+- **Breaking:** the `lark_with_slices` sampler step is gone. Nothing constructed it, so the only way to have one is a hand-written sampler config, and `SamplerConfig.from_json()` now rejects a payload containing `{"type": "lark_with_slices"}`. Change it to `{"type": "lark"}` to keep the same grammar. Affects every binding with `SamplerConfig.from_json()`: Python, Flutter, Kotlin, Swift and React Native.
 - **Flutter:** Removed `ToolCallExtension` and `ToolCall.argumentsJson` as `ToolCall` is no longer opaque.
 
 ## [Python v2.0.0, Flutter v3.0.0, Godot v10.0.0, Kotlin v3.0.0, React Native v3.0.0, Swift v3.0.0] - 2026-08-20

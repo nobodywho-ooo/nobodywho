@@ -184,7 +184,7 @@ Constraining steps — the same formats as the presets above, but chainable with
 - `.constrainWithJsonSchema(...)` — output matches a JSON schema, given as a JSON string
 - `.constrainWithRegex(...)` — output matches a regular expression
 - `.constrainWithGrammar(...)` — output matches a grammar, in either Lark or GBNF syntax
-- `.json()` — output is valid JSON of any shape
+- `.json()` — output is a JSON object of any shape
 
 Unlike `SamplerPresets`, these take strings rather than a schema object or a `RegExp` —
 use `JSON.stringify(schema)` and `pattern.source` to convert.

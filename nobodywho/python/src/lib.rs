@@ -2474,8 +2474,8 @@ impl SamplerBuilder {
         }
     }
 
-    /// Constrain output to valid JSON of any shape. For schema-validated JSON,
-    /// use `constrain_with_json_schema()` instead.
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrain_with_json_schema()` instead.
     pub fn json(&self) -> Self {
         SamplerBuilder {
             inner: self.inner.clone().json(),

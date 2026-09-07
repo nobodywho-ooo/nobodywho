@@ -40,8 +40,8 @@ class SamplerScope {
     fun constrainWithRegex(pattern: String) { builder = builder.constrainWithRegex(pattern) }
     fun constrainWithGrammar(grammar: String) { builder = builder.constrainWithGrammar(grammar) }
 
-    /// Constrain output to valid JSON of any shape. For schema-validated JSON,
-    /// use [constrainWithJsonSchema] instead.
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use [constrainWithJsonSchema] instead.
     fun json() { builder = builder.json() }
 
     /// Set the RNG seed used by random samplers (`dist`, `mirostatV1`, `mirostatV2`, `xtc`).

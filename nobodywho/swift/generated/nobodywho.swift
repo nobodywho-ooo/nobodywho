@@ -2737,7 +2737,7 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     func greedy()  -> SamplerConfig
     
     /**
-     * Constrain output to valid JSON of any shape. Use
+     * Constrain output to a JSON object of any shape. Use
      * `constrain_with_json_schema()` to pin down the structure too.
      */
     func json()  -> SamplerBuilder
@@ -2981,7 +2981,7 @@ open func greedy() -> SamplerConfig  {
 }
     
     /**
-     * Constrain output to valid JSON of any shape. Use
+     * Constrain output to a JSON object of any shape. Use
      * `constrain_with_json_schema()` to pin down the structure too.
      */
 open func json() -> SamplerBuilder  {
@@ -5598,7 +5598,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 53107) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 18949) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844) {

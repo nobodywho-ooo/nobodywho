@@ -518,8 +518,8 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
   ///     A complete SamplerConfig ready to use
   SamplerConfig greedy();
 
-  /// Constrain output to valid JSON of any shape. For schema-validated JSON,
-  /// use `constrainWithJsonSchema()` instead.
+  /// Constrain output to a JSON object of any shape. For schema-validated
+  /// JSON, use `constrainWithJsonSchema()` instead.
   SamplerBuilder json();
 
   /// Modify the likelihood of specific tokens.

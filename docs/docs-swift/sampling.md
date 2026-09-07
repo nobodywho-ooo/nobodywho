@@ -171,7 +171,7 @@ Constraining steps — the same formats as the presets above, but chainable with
 - `.constrainWithJsonSchema(schema: ...)` — output matches a JSON schema, given as a JSON string
 - `.constrainWithRegex(pattern: ...)` — output matches a regular expression
 - `.constrainWithGrammar(grammar: ...)` — output matches a grammar, in either Lark or GBNF syntax
-- `.json()` — output is valid JSON of any shape
+- `.json()` — output is a JSON object of any shape
 
 Constraining steps always run **before** the other shift steps, wherever you chain them.
 This is to avoid the case where a step like `.topK(topK: 5)` followed by a constraint could
