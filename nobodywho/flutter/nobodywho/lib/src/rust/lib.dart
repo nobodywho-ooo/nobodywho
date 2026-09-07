@@ -457,6 +457,19 @@ abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {
+  /// Constrain output to a grammar, given as either Lark or GBNF.
+  SamplerBuilder constrainWithGrammar({required String grammar});
+
+  /// Constrain output to a JSON schema, given as a JSON string.
+  ///
+  /// Constraining steps always run before the other shift steps, wherever you
+  /// chain them: a grammar that runs after truncation can find none of the
+  /// surviving candidates valid, which aborts generation.
+  SamplerBuilder constrainWithJsonSchema({required String schema});
+
+  /// Constrain output to a regular expression.
+  SamplerBuilder constrainWithRegex({required String pattern});
+
   /// Sample from the probability distribution (weighted random selection).
   ///
   /// Returns:
@@ -504,6 +517,10 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig greedy();
+
+  /// Constrain output to valid JSON of any shape. For schema-validated JSON,
+  /// use `constrainWithJsonSchema()` instead.
+  SamplerBuilder json();
 
   /// Modify the likelihood of specific tokens.
   ///

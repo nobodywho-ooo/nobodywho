@@ -403,7 +403,19 @@ void main() {
           .dist();
     });
 
-    test('sampling.md:182', () async {
+    test('sampling.md:184', () async {
+      final sampler = nobodywho.SamplerBuilder()
+          .constrainWithRegex(pattern: "yes|no")
+          .temperature(temperature: 0.8)
+          .dist();
+      
+      final same = nobodywho.SamplerBuilder()
+          .temperature(temperature: 0.8)
+          .constrainWithRegex(pattern: "yes|no")
+          .dist();
+    });
+
+    test('sampling.md:206', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       
       final sampler = nobodywho.SamplerBuilder()

@@ -799,6 +799,12 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
@@ -808,6 +814,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
+    ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(
     ): Short
@@ -1019,6 +1027,12 @@ external fun uniffi_nobodywho_uniffi_fn_free_samplerbuilder(`handle`: Long,uniff
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(uniffi_out_err: UniffiRustCallStatus, 
 ): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_grammar(`ptr`: Long,`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_json_schema(`ptr`: Long,`schema`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_regex(`ptr`: Long,`pattern`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(`ptr`: Long,`multiplier`: Float,`base`: Float,`allowedLength`: Int,`penaltyLastN`: Int,`seqBreakers`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1028,6 +1042,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperatur
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(`ptr`: Long,`grammar`: RustBuffer.ByValue,`triggerOn`: RustBuffer.ByValue,`root`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_json(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(`ptr`: Long,`biases`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1391,6 +1407,15 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar() != 36786.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema() != 45268.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex() != 1166.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1404,6 +1429,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 53107.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844.toShort()) {
@@ -5611,6 +5639,21 @@ public object FfiConverterTypeRustVoiceActivityDetection: FfiConverter<RustVoice
 public interface SamplerBuilderInterface {
     
     /**
+     * Constrain output to a grammar, given as either Lark or GBNF.
+     */
+    fun `constrainWithGrammar`(`grammar`: kotlin.String): SamplerBuilder
+    
+    /**
+     * Constrain output to a JSON schema, given as a JSON string.
+     */
+    fun `constrainWithJsonSchema`(`schema`: kotlin.String): SamplerBuilder
+    
+    /**
+     * Constrain output to a regular expression.
+     */
+    fun `constrainWithRegex`(`pattern`: kotlin.String): SamplerBuilder
+    
+    /**
      * Sample from the probability distribution (weighted random selection).
      */
     fun `dist`(): SamplerConfig
@@ -5640,6 +5683,12 @@ public interface SamplerBuilderInterface {
      * Always select the most probable token (deterministic).
      */
     fun `greedy`(): SamplerConfig
+    
+    /**
+     * Constrain output to valid JSON of any shape. Use
+     * `constrain_with_json_schema()` to pin down the structure too.
+     */
+    fun `json`(): SamplerBuilder
     
     /**
      * Modify the likelihood of specific tokens.
@@ -5824,6 +5873,54 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
 
     
     /**
+     * Constrain output to a grammar, given as either Lark or GBNF.
+     */override fun `constrainWithGrammar`(`grammar`: kotlin.String): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_grammar(
+        it,
+        FfiConverterString.lower(`grammar`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Constrain output to a JSON schema, given as a JSON string.
+     */override fun `constrainWithJsonSchema`(`schema`: kotlin.String): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_json_schema(
+        it,
+        FfiConverterString.lower(`schema`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Constrain output to a regular expression.
+     */override fun `constrainWithRegex`(`pattern`: kotlin.String): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_regex(
+        it,
+        FfiConverterString.lower(`pattern`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Sample from the probability distribution (weighted random selection).
      */override fun `dist`(): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
@@ -5900,6 +5997,23 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Constrain output to valid JSON of any shape. Use
+     * `constrain_with_json_schema()` to pin down the structure too.
+     */override fun `json`(): SamplerBuilder {
+            return FfiConverterTypeSamplerBuilder.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_json(
         it,
         _status)
 }
