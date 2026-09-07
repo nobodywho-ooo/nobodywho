@@ -162,7 +162,33 @@ Shift steps — call as many as you want, in order:
 - `logitBias(biases = mapOf(1 to -1.0, 2 to 3.0))` — token 1 less probable, token 2 is more probable
 - `dry()` — penalty for repeated *phrases* (its defaults are a good start)
 - `seed(42)` — fix the RNG for reproducible output
-- `grammar(...)` — deprecated; use the `constrainWith*` presets above
+- `grammar(...)` — deprecated; use `constrainWithGrammar(...)` below
+
+Constraining steps — the same formats as the presets above, but chainable with the rest:
+
+- `constrainWithJsonSchema(...)` — output matches a JSON schema, given as a JSON string
+- `constrainWithRegex(...)` — output matches a regular expression
+- `constrainWithGrammar(...)` — output matches a grammar, in either Lark or GBNF syntax
+- `json()` — output is valid JSON of any shape
+
+Constraining steps always run **before** the other shift steps, wherever you call them.
+This is to avoid the case where a step like `topK(5)` followed by a constraint could
+find that none of the five surviving tokens is valid, leaving nothing to sample and
+aborting generation. Both blocks below therefore behave identically.
+
+```kotlin
+val sampler = buildSampler {
+    constrainWithRegex("yes|no")
+    temperature(0.8)
+    dist()
+}
+
+val same = buildSampler {
+    temperature(0.8)
+    constrainWithRegex("yes|no")
+    dist()
+}
+```
 
 Terminal step — call at most one:
 
