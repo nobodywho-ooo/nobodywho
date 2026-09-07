@@ -977,4 +977,41 @@ mod tests {
             lark
         );
     }
+
+    /// The any-JSON grammar behind `SamplerPresets::json()` reaches llguidance
+    /// through this conversion, so every construct in it has to survive: `#`
+    /// comments, the empty first alternative in `ws`, bounded repeats and
+    /// negated character classes.
+    #[test]
+    fn test_full_json_grammar_converts() {
+        let gbnf = r#"# this default gbnf grammar forces valid json output
+root   ::= object
+value  ::= object | array | string | number | ("true" | "false" | "null") ws
+
+object ::=
+"{" ws (
+            string ":" ws value
+    ("," ws string ":" ws value)*
+)? "}" ws
+
+array  ::=
+"[" ws (
+            value
+    ("," ws value)*
+)? "]" ws
+
+string ::=
+"\"" (
+    [^"\\\x7F\x00-\x1F] |
+    "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
+)* "\"" ws
+
+number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
+
+# Optional space: by convention, applied in this grammar after literal chars when allowed
+ws ::= | " " | "\n" [ \t]{0,20}"#;
+
+        let lark = gbnf_to_lark(gbnf).expect("the json preset grammar should convert to lark");
+        assert!(lark.contains("start:"), "{}", lark);
+    }
 }
