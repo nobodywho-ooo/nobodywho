@@ -2162,14 +2162,7 @@ impl<'a> Chat<'a> {
                 let (_result, _bytes_read, _had_errors) =
                     decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-                // HACK (gemma4): some gemma4 models emit token id 1 (which renders as the
-                // literal "<eos>") as a stop token after tool calls. llama.cpp's `is_eog_token`
-                // does not flag it, which causes a runaway generation loop, so match it
-                // explicitly. vllm handles the same case:
-                // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
-                let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
-
-                let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
+                let has_eog = self.engine.ctx.model.is_eog_token(new_token);
                 trace!(?new_token, ?token_str, ?has_eog);
 
                 if has_eog {
