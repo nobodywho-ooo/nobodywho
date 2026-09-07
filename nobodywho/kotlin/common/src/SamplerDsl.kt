@@ -33,6 +33,17 @@ class SamplerScope {
     fun xtc(xtcProbability: Double, xtcThreshold: Double, minKeep: Int = 1) { builder = builder.xtc(xtcProbability.toFloat(), xtcThreshold.toFloat(), minKeep.toUInt()) }
     fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder = builder.grammar(grammar, triggerOn, root) }
 
+    /// Constraining steps always run before the other shift steps, wherever you
+    /// chain them: a grammar that runs after truncation can find none of the
+    /// surviving candidates valid, which aborts generation.
+    fun constrainWithJsonSchema(schema: String) { builder = builder.constrainWithJsonSchema(schema) }
+    fun constrainWithRegex(pattern: String) { builder = builder.constrainWithRegex(pattern) }
+    fun constrainWithGrammar(grammar: String) { builder = builder.constrainWithGrammar(grammar) }
+
+    /// Constrain output to valid JSON of any shape. For schema-validated JSON,
+    /// use [constrainWithJsonSchema] instead.
+    fun json() { builder = builder.json() }
+
     /// Set the RNG seed used by random samplers (`dist`, `mirostatV1`, `mirostatV2`, `xtc`).
     /// `greedy` ignores it. If unset, a default seed is used.
     fun seed(value: Int) { builder = builder.seed(value.toUInt()) }

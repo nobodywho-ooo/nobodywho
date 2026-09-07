@@ -1752,6 +1752,41 @@ impl SamplerBuilder {
         })
     }
 
+    // -- Constraining steps --
+    //
+    // These always run before the other shift steps, wherever you chain them: a
+    // grammar that runs after truncation can find none of the surviving
+    // candidates valid, which aborts generation.
+
+    /// Constrain output to a JSON schema, given as a JSON string.
+    pub fn constrain_with_json_schema(&self, schema: String) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().constrain_with_json_schema(schema),
+        })
+    }
+
+    /// Constrain output to a regular expression.
+    pub fn constrain_with_regex(&self, pattern: String) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().constrain_with_regex(pattern),
+        })
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    pub fn constrain_with_grammar(&self, grammar: String) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().constrain_with_grammar(grammar),
+        })
+    }
+
+    /// Constrain output to valid JSON of any shape. Use
+    /// `constrain_with_json_schema()` to pin down the structure too.
+    pub fn json(&self) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().json(),
+        })
+    }
+
     /// Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     #[deprecated(
         note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings."
