@@ -73,6 +73,11 @@
               # the godot-integration-test derivation. Mirrors docs/conftest.py
               # so the hf_path_test runs offline.
               export XDG_CACHE_HOME=${godot-integration-test}/hf-cache
+              # The speech_to_text_test's audio lives in assets/, which is
+              # outside the integration-test derivation's src, so hand it the
+              # store copy. The whisper model itself resolves through the
+              # hf-cache above.
+              export TEST_AUDIO_FILE=${./assets/sound.mp3}
               ./game --headless
               touch $out
             '';
