@@ -38,9 +38,8 @@ fn defaults_replacing(replacement: ShiftStep) -> Vec<ShiftStep> {
 }
 
 /// The default steps, with `step` in front. Constraint and penalty steps must
-/// run before the truncation samplers: if top-k runs first and none of the
-/// surviving candidates is grammar-valid, the constraint masks out every token
-/// and generation aborts.
+/// run before the truncation samplers. Penalties should act on the whole vocabulary, and
+/// grammar after truncation can result in no valid tokens.
 fn defaults_prepending(step: ShiftStep) -> Vec<ShiftStep> {
     let mut steps = vec![step];
     steps.extend(SamplerConfig::default().steps);
@@ -79,10 +78,13 @@ impl SamplerPresets {
         )
     }
 
+    /// The default steps plus a DRY penalty. A `multiplier` of 0.8 with `base`
+    /// 1.75 is the usual tuning: barely felt just past `allowed_length`, growing
+    /// superexponentially into an effective ban on long verbatim repeats.
     pub fn dry() -> SamplerConfig {
         SamplerConfig::new(
             defaults_prepending(ShiftStep::DRY {
-                multiplier: 0.0,
+                multiplier: 0.8,
                 base: 1.75,
                 allowed_length: 2,
                 penalty_last_n: -1,
@@ -448,16 +450,16 @@ impl SamplerBuilder {
         }
     }
 
-    /// Adds a shift step: constraining steps go to the front of the chain, the
-    /// rest to the end. A grammar that runs after the truncation samplers can
-    /// find none of the surviving candidates valid, which masks out every token
-    /// and aborts generation.
+    /// Adds a shift step: constraint and penalty steps go to the front of the
+    /// chain, the rest to the end, for the reasons in [`defaults_prepending`].
     pub fn shift(mut self, step: ShiftStep) -> Self {
         match step {
             ShiftStep::Grammar { .. }
             | ShiftStep::JsonSchema(_)
             | ShiftStep::Regex(_)
-            | ShiftStep::Lark(_) => self.steps.insert(0, step),
+            | ShiftStep::Lark(_)
+            | ShiftStep::DRY { .. }
+            | ShiftStep::Penalties { .. } => self.steps.insert(0, step),
             _ => self.steps.push(step),
         }
         self
@@ -811,6 +813,25 @@ mod tests {
         }
     }
 
+    /// llama.cpp treats multiplier 0, base < 1 or last_n 0 as "DRY off", which
+    /// would leave the preset sampling exactly like the default one.
+    #[test]
+    fn dry_preset_is_enabled() {
+        let steps = SamplerPresets::dry().steps;
+        let ShiftStep::DRY {
+            multiplier,
+            base,
+            penalty_last_n,
+            ..
+        } = &steps[0]
+        else {
+            panic!("the dry preset should lead with a DRY step, got: {steps:?}");
+        };
+        assert!(*multiplier > 0.0, "DRY is disabled by a zero multiplier");
+        assert!(*base >= 1.0, "DRY is disabled by a base below 1");
+        assert!(*penalty_last_n != 0, "DRY is disabled by a zero last_n");
+    }
+
     /// A matching slice set reuses the held factory; a different one needs a new
     /// slicer but not a second vocab walk.
     #[test]
@@ -929,18 +950,35 @@ mod tests {
     }
 
     #[test]
-    fn test_shift_prepends_constraints() {
+    fn test_shift_prepends_constraints_and_penalties() {
         let config = SamplerBuilder::new()
             .shift(ShiftStep::TopK { top_k: 40 })
             .constrain_with_regex("yes|no".into())
+            .shift(ShiftStep::DRY {
+                multiplier: 0.8,
+                base: 1.75,
+                allowed_length: 2,
+                penalty_last_n: -1,
+                seq_breakers: vec!["\n".to_string()],
+            })
+            .shift(ShiftStep::Penalties {
+                penalty_last_n: 64,
+                penalty_repeat: 1.1,
+                penalty_freq: 0.0,
+                penalty_present: 0.0,
+            })
             .sample(SampleStep::Dist);
 
-        assert_eq!(config.steps.len(), 2);
+        assert_eq!(config.steps.len(), 4);
         assert!(
-            matches!(config.steps[0], ShiftStep::Regex(_)),
-            "a constraint added after top-k still has to run before it"
+            config.steps[..3].iter().all(|step| matches!(
+                step,
+                ShiftStep::Regex(_) | ShiftStep::DRY { .. } | ShiftStep::Penalties { .. }
+            )),
+            "a constraint or penalty added after top-k still has to run before it, got: {:?}",
+            config.steps
         );
-        assert!(matches!(config.steps[1], ShiftStep::TopK { .. }));
+        assert!(matches!(config.steps[3], ShiftStep::TopK { .. }));
     }
 
     /// The builder counterpart of `test_ordering_grammar_first_with_unlikely_literal`:
