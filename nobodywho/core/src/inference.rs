@@ -478,6 +478,20 @@ impl<'a> InferenceEngine<'a> {
         output: &mut Vec<LlamaToken>,
     ) -> Result<(), DecodingError> {
         trace!("Applying sampler (solo)");
+
+        // Somewhat un-intuitively, we actually want to sample first, before
+        // attempting to generate new logits / tokens.
+        //
+        // This done for two reasons:
+        // 1. Right after prefilling, the next token has already been
+        //    generated (along with logits for all other tokens).
+        // 2. Decoding is asynchronous, and sampling here implicitly
+        //    synchronizes with it.
+        //
+        // The second point in particular is important for performance:
+        // ideally, we always want a decoding stage in progress, so that all
+        // the various other work we do (including the work the user does)
+        // isn't going to block inference.
         let new_token = sampler.active().sample(&self.ctx, -1);
         sampler.observe(new_token);
 
