@@ -5,7 +5,7 @@
 [![PyPI Version](https://img.shields.io/pypi/v/nobodywho?style=flat-square&labelColor=%233775A9&color=%23FFD242)](https://pypi.org/project/nobodywho/)
 [![npm Version](https://img.shields.io/npm/v/react-native-nobodywho?style=flat-square&logo=npm&label=npm)](https://www.npmjs.com/package/react-native-nobodywho)
 [![Godot Engine](https://img.shields.io/badge/Godot-%23FFFFFF.svg?logo=godot-engine&style=flat-square)](https://godotengine.org/asset-library/asset/2886)
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md) 
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md)
 [![Docs](https://img.shields.io/badge/Docs-lightblue?style=flat-square)](https://docs.nobodywho.ooo)
 
 <p align="center">
@@ -167,7 +167,7 @@ from nobodywho import Chat
 chat = Chat("huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf")
 
 response = chat.ask("What is the capital of Denmark?").completed()
-print(response) // The capital of Denmark is Copenhagen.
+print(response) # The capital of Denmark is Copenhagen.
 ```
 
 Install via pip:
@@ -196,7 +196,7 @@ For further instructions on how to setup NobodyWho in Godot please refer to our 
 
 [The documentation](https://docs.nobodywho.ooo) has everything you might want to know: https://docs.nobodywho.ooo/
 
-## How to Help 
+## How to Help
 
 * ⭐ Star the repo and spread the word about NobodyWho!
 * Join our [Discord](https://discord.gg/qhaMc2qCYB) or [Matrix](https://matrix.to/#/#nobodywho:matrix.org) communities

@@ -37,7 +37,7 @@ fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
     let memory_total = d.memory_total as u64;
 
     if memory_free > memory_total {
-        warn!("Detected more free memory on the device than the total memory of the device. This should not happen.");
+        warn!(?memory_free, ?memory_total, "Detected more free memory on the device than the total memory of the device. This should not happen.");
     }
 
     memory_free.min(memory_total)

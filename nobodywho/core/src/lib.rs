@@ -47,6 +47,7 @@ pub fn send_llamacpp_logs_to_tracing() {
 #[cfg(test)]
 pub mod test_utils {
     use crate::llm::{get_model, Model};
+    use crate::send_llamacpp_logs_to_tracing;
     use std::sync::{Arc, Once};
 
     static INIT: Once = Once::new();
@@ -54,12 +55,14 @@ pub mod test_utils {
     /// Initialize tracing for tests
     pub fn init_test_tracing() {
         INIT.call_once(|| {
+            send_llamacpp_logs_to_tracing();
+
             tracing_subscriber::fmt()
-                .with_max_level(tracing::Level::TRACE)
+                .with_max_level(tracing::Level::INFO)
                 .with_timer(tracing_subscriber::fmt::time::uptime())
                 .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
-                .try_init()
-                .ok();
+                .with_test_writer()
+                .init();
         });
     }
 

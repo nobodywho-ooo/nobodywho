@@ -1,2 +1,2 @@
 lib/src/rust/** linguist-generated
-test/doctest_generated_test.dart
+test/doctest_generated_test.dart linguist-generated
