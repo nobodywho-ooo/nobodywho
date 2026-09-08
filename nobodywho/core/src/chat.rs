@@ -2093,8 +2093,7 @@ impl<'a> Chat<'a> {
 
         self.sampler.reset();
 
-        // init statefull decoder for split up tokens like emojis
-        let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let mut decoder = StringDecoder::new();
 
         while !self.should_stop()
             && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
@@ -2135,17 +2134,7 @@ impl<'a> Chat<'a> {
                 x => x,
             }?;
 
-            // Attempt to convert bytes to utf8 string.
-            let max_len = decoder
-                .max_utf8_buffer_length(token_bytes.len())
-                .unwrap_or(32);
-            let mut token_str = String::with_capacity(max_len);
-
-            // this is where the utf-8 decoder handles partial unicode
-            // it'll write whatever printable chars it can into `token_str`
-            // and retain partial codepoints for next decoding attempt
-            let (_result, _bytes_read, _had_errors) =
-                decoder.decode_to_string(&token_bytes, &mut token_str, false);
+            let token_str = decoder.decode(&token_bytes);
 
             let has_eog = self.engine.ctx.model.is_eog_token(new_token);
             trace!(?new_token, ?token_str, ?has_eog);
@@ -2660,6 +2649,37 @@ impl<'a> Chat<'a> {
         let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
         let chunks = self.engine.tokenize(prompt.to_string(), bitmap_refs)?;
         Ok(chunks.to_token_ids())
+    }
+}
+
+/// Stateful decoder for splitting up incomplete UTF-8 tokens like emojis.
+pub struct StringDecoder {
+    decoder: encoding_rs::Decoder,
+}
+
+impl StringDecoder {
+    pub fn new() -> Self {
+        Self {
+            decoder: encoding_rs::UTF_8.new_decoder(),
+        }
+    }
+
+    pub fn decode(&mut self, bytes: &[u8]) -> String {
+        // Attempt to convert bytes to UTF-8 string.
+        let max_len = self
+            .decoder
+            .max_utf8_buffer_length(bytes.len())
+            .expect("required buffer larger than usize");
+        let mut token_str = String::with_capacity(max_len);
+
+        // This is where the utf-8 decoder handles partial unicode.
+        //
+        // It'll write whatever printable chars it can into `token_str`
+        // and retain partial codepoints for next decoding attempt
+        let (_result, _bytes_read, _had_errors) =
+            self.decoder.decode_to_string(&bytes, &mut token_str, false);
+
+        token_str
     }
 }
 
@@ -4665,5 +4685,23 @@ mod tests {
         Ok(())
     }
 
-    // Template rendering tests have been moved to template.rs module
+    #[test]
+    fn decoder() {
+        let mut decoder = StringDecoder::new();
+        assert_eq!(decoder.decode(b"\xE2\x99\xA5"), "♥");
+
+        // Test split up over multiple input strings.
+        assert_eq!(decoder.decode(b"\xE2"), "");
+        assert_eq!(decoder.decode(b"\x99"), "");
+        assert_eq!(decoder.decode(b"\xA5"), "♥");
+
+        // Invalid UTF-8
+        assert_eq!(decoder.decode(b"\xE2\x82"), "");
+        assert_eq!(decoder.decode(b"\x28"), "�(");
+
+        // Now valid again
+        assert_eq!(decoder.decode(b"\xE2"), "");
+        assert_eq!(decoder.decode(b"\x99"), "");
+        assert_eq!(decoder.decode(b"\xA5"), "♥");
+    }
 }
