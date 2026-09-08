@@ -40,6 +40,10 @@ enum SamplerPresets {
 }
 ```
 
+Every preset starts from `default()` and changes one thing, so `constrainWithJsonSchema` still
+samples with the default top-k, top-p and temperature. `greedy()` is the exception: it always picks
+the most probable token, so it needs no other steps.
+
 ## Structured output
 
 One of the most useful features is constraining the model to produce structured output —

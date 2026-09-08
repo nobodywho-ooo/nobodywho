@@ -3,6 +3,10 @@ import NobodyWhoGenerated
 
 /// Static factory methods for common sampler configurations.
 ///
+/// Every preset builds on `default()` and adds its own step on top, replacing the
+/// default step of the same kind if there is one. `greedy()` is the exception: it
+/// always picks the most probable token, so it needs no steps.
+///
 /// ```swift
 /// let chat = try await Chat.fromPath(
 ///     modelPath: "model.gguf",

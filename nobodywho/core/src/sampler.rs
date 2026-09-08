@@ -13,12 +13,44 @@ use crate::errors::SamplerError;
 // ---- Presets ----
 
 /// Some simple presets, that can be useful for basic sampling.
+///
+/// Every preset builds on [`SamplerConfig::default`] and adds its own step on
+/// top, replacing the default step of the same kind if there is one. So
+/// `constrain_with_json_schema` still samples with the default top-k, top-p and
+/// temperature, and `temperature` overrides only the temperature. The exception
+/// is [`SamplerPresets::greedy`], which always picks the most probable token and
+/// so needs no shift steps at all.
 pub struct SamplerPresets;
+
+/// The default steps, with `replacement` substituted for the default step of the
+/// same kind (appended if the defaults have no such step).
+fn defaults_replacing(replacement: ShiftStep) -> Vec<ShiftStep> {
+    let mut steps = SamplerConfig::default().steps;
+    let kind = std::mem::discriminant(&replacement);
+    match steps
+        .iter_mut()
+        .find(|step| std::mem::discriminant(&**step) == kind)
+    {
+        Some(slot) => *slot = replacement,
+        None => steps.push(replacement),
+    }
+    steps
+}
+
+/// The default steps, with `step` in front. Constraint and penalty steps must
+/// run before the truncation samplers: if top-k runs first and none of the
+/// surviving candidates is grammar-valid, the constraint masks out every token
+/// and generation aborts.
+fn defaults_prepending(step: ShiftStep) -> Vec<ShiftStep> {
+    let mut steps = vec![step];
+    steps.extend(SamplerConfig::default().steps);
+    steps
+}
 
 impl SamplerPresets {
     pub fn top_k(k: i32) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::TopK { top_k: k }],
+            defaults_replacing(ShiftStep::TopK { top_k: k }),
             SampleStep::Dist,
             default_seed(),
         )
@@ -26,10 +58,10 @@ impl SamplerPresets {
 
     pub fn top_p(p: f32) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::TopP {
-                min_keep: 0,
+            defaults_replacing(ShiftStep::TopP {
+                min_keep: 1,
                 top_p: p,
-            }],
+            }),
             SampleStep::Dist,
             default_seed(),
         )
@@ -41,7 +73,7 @@ impl SamplerPresets {
 
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::Temperature { temperature }],
+            defaults_replacing(ShiftStep::Temperature { temperature }),
             SampleStep::Dist,
             default_seed(),
         )
@@ -49,7 +81,7 @@ impl SamplerPresets {
 
     pub fn dry() -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::DRY {
+            defaults_prepending(ShiftStep::DRY {
                 multiplier: 0.0,
                 base: 1.75,
                 allowed_length: 2,
@@ -60,7 +92,7 @@ impl SamplerPresets {
                     "\"".to_string(),
                     "*".to_string(),
                 ],
-            }],
+            }),
             SampleStep::Dist,
             default_seed(),
         )
@@ -69,7 +101,7 @@ impl SamplerPresets {
     /// Constrain output to a JSON schema using llguidance.
     pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::JsonSchema(schema)],
+            defaults_prepending(ShiftStep::JsonSchema(schema)),
             SampleStep::Dist,
             default_seed(),
         )
@@ -78,7 +110,7 @@ impl SamplerPresets {
     /// Constrain output to a regular expression using llguidance.
     pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::Regex(pattern)],
+            defaults_prepending(ShiftStep::Regex(pattern)),
             SampleStep::Dist,
             default_seed(),
         )
@@ -87,7 +119,7 @@ impl SamplerPresets {
     /// Constrain output using a Lark context-free grammar via llguidance.
     pub fn constrain_with_grammar(lark: String) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::Lark(lark)],
+            defaults_prepending(ShiftStep::Lark(lark)),
             SampleStep::Dist,
             default_seed(),
         )
@@ -96,7 +128,7 @@ impl SamplerPresets {
     /// Constrain output to a JSON object of any shape.
     pub fn json() -> SamplerConfig {
         SamplerConfig::new(
-            vec![ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into())],
+            defaults_prepending(ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into())),
             SampleStep::Dist,
             default_seed(),
         )
@@ -109,7 +141,11 @@ impl SamplerPresets {
             root: "root".into(),
             grammar,
         };
-        SamplerConfig::new(vec![grammar_step], SampleStep::Dist, default_seed())
+        SamplerConfig::new(
+            defaults_prepending(grammar_step),
+            SampleStep::Dist,
+            default_seed(),
+        )
     }
 }
 
@@ -473,7 +509,7 @@ const JSON_OBJECT_SCHEMA: &str = r#"{"type":"object"}"#;
 
 /// ----- Sampler Methods -----
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum ShiftStep {
     TopK {
@@ -712,6 +748,68 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    /// A preset that overrides one default step keeps the other two, in place.
+    #[test]
+    fn preset_replaces_only_its_own_default_step() {
+        let defaults = SamplerConfig::default().steps;
+        let cases = [
+            (SamplerPresets::top_k(5), ShiftStep::TopK { top_k: 5 }),
+            (
+                SamplerPresets::top_p(0.5),
+                ShiftStep::TopP {
+                    top_p: 0.5,
+                    min_keep: 1,
+                },
+            ),
+            (
+                SamplerPresets::temperature(0.2),
+                ShiftStep::Temperature { temperature: 0.2 },
+            ),
+        ];
+
+        for (config, expected) in cases {
+            assert_eq!(
+                config.steps.len(),
+                defaults.len(),
+                "a preset should override a default step, not add one: {:?}",
+                config.steps
+            );
+            let differing: Vec<_> = config
+                .steps
+                .iter()
+                .zip(&defaults)
+                .filter(|(step, default)| step != default)
+                .map(|(step, _)| step.clone())
+                .collect();
+            assert_eq!(
+                differing,
+                vec![expected],
+                "exactly one step should differ from the defaults, got: {:?}",
+                config.steps
+            );
+        }
+    }
+
+    /// A constraint preset samples with the defaults, but constrains first: a
+    /// constraint after truncation can mask out every surviving candidate.
+    #[test]
+    fn constraint_preset_keeps_defaults_behind_the_constraint() {
+        for config in [
+            SamplerPresets::constrain_with_regex("yes|no".into()),
+            SamplerPresets::constrain_with_json_schema("{}".into()),
+            SamplerPresets::constrain_with_grammar("start: \"a\"".into()),
+            SamplerPresets::json(),
+            SamplerPresets::dry(),
+        ] {
+            let steps = config.steps;
+            assert_eq!(
+                &steps[1..],
+                &SamplerConfig::default().steps[..],
+                "the default steps should follow the added one, got: {steps:?}"
+            );
+        }
+    }
 
     /// A matching slice set reuses the held factory; a different one needs a new
     /// slicer but not a second vocab walk.

@@ -392,7 +392,7 @@ export function samplerPresetTemperature(temperature: /*f32*/number): SamplerCon
     ));
     }
 /**
- * Create a sampler with top-k filtering only.
+ * Create a sampler with the default steps, but top-k overridden.
  */
 export function samplerPresetTopK(topK: /*i32*/number): SamplerConfigInterface {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
@@ -405,7 +405,7 @@ export function samplerPresetTopK(topK: /*i32*/number): SamplerConfigInterface {
     ));
     }
 /**
- * Create a sampler with nucleus (top-p) sampling.
+ * Create a sampler with the default steps, but nucleus (top-p) overridden.
  */
 export function samplerPresetTopP(topP: /*f32*/number): SamplerConfigInterface {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
@@ -4940,10 +4940,10 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() !== 64803) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() !== 44137) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() !== 56996) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() !== 54893) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() !== 22588) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() !== 53575) {

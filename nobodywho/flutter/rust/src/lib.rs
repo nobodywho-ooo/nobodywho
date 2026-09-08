@@ -1714,6 +1714,10 @@ impl SamplerBuilder {
 /// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
 /// `SamplerConfig` from some pre-defined sampler chain.
 /// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
+///
+/// Every preset builds on `SamplerPresets.defaultSampler()` and adds its own step on top,
+/// replacing the default step of the same kind if there is one. `greedy()` is the exception:
+/// it always picks the most probable token, so it needs no steps.
 #[flutter_rust_bridge::frb(opaque)]
 pub struct SamplerPresets {
     _private: (),
@@ -1728,7 +1732,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with top-k filtering only.
+    /// Create a sampler with the default steps, but top-k overridden.
     ///
     /// Args:
     ///     top_k: Number of top tokens to keep
@@ -1739,7 +1743,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with nucleus (top-p) sampling.
+    /// Create a sampler with the default steps, but nucleus (top-p) overridden.
     ///
     /// Args:
     ///     top_p: Cumulative probability threshold (0.0 to 1.0)

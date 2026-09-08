@@ -7,7 +7,11 @@ The model does not produce tokens directly but rather a probability distribution
 
 ## Sampler Presets
 
-NobodyWho offers several built-in presets you can apply to your `NobodyWhoChat` node:
+NobodyWho offers several built-in presets you can apply to your `NobodyWhoChat` node.
+
+Every preset starts from the default sampler and changes one thing, so constraining the output
+still samples with the default top-k, top-p and temperature. `set_sampler_preset_greedy()` is the
+exception: it always picks the most probable token, so it needs no other steps.
 
 ### JSON Output
 

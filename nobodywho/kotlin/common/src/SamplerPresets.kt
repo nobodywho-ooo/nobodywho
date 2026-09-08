@@ -15,6 +15,10 @@ import uniffi.nobodywho.samplerPresetTopP
 /**
  * Factory methods for common sampler configurations.
  *
+ * Every preset builds on [default] and adds its own step on top, replacing the
+ * default step of the same kind if there is one. [greedy] is the exception: it
+ * always picks the most probable token, so it needs no steps.
+ *
  * ```kotlin
  * val sampler = SamplerPresets.temperature(0.7f)
  * val chat = Chat(model = model, sampler = sampler)

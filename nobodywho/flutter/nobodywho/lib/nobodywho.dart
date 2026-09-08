@@ -940,6 +940,10 @@ class VoiceActivityDetection {
 
 /// Sampler preset factory methods.
 ///
+/// Every preset builds on [defaultSampler] and adds its own step on top, replacing
+/// the default step of the same kind if there is one. [greedy] is the exception: it
+/// always picks the most probable token, so it needs no steps.
+///
 /// [constrainWithJsonSchema] accepts either a [Map] or a JSON string.
 class SamplerPresets {
   SamplerPresets._();

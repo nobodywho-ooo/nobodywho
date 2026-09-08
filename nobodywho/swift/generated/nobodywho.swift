@@ -5368,7 +5368,7 @@ public func samplerPresetTemperature(temperature: Float) -> SamplerConfig  {
 })
 }
 /**
- * Create a sampler with top-k filtering only.
+ * Create a sampler with the default steps, but top-k overridden.
  */
 public func samplerPresetTopK(topK: Int32) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
@@ -5378,7 +5378,7 @@ public func samplerPresetTopK(topK: Int32) -> SamplerConfig  {
 })
 }
 /**
- * Create a sampler with nucleus (top-p) sampling.
+ * Create a sampler with the default steps, but nucleus (top-p) overridden.
  */
 public func samplerPresetTopP(topP: Float) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
@@ -5451,10 +5451,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 44137) {
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 56996) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 54893) {
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 22588) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575) {

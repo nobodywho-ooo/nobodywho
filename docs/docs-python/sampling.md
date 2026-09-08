@@ -35,6 +35,10 @@ class SamplerPresets:
     def constrain_with_grammar(grammar: str) -> SamplerConfig: ...
 ```
 
+Every preset starts from `default()` and changes one thing, so `constrain_with_json_schema` still
+samples with the default top-k, top-p and temperature. `greedy()` is the exception: it always picks
+the most probable token, so it needs no other steps.
+
 ## Structured output
 
 One of the most useful features is constraining the model to produce structured output —

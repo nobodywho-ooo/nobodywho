@@ -1954,6 +1954,10 @@ impl SamplerBuilder {
 // ---------- SamplerPresets ----------
 // Free functions for uniffi-bindgen-react-native compatibility.
 // The TypeScript wrapper collects these into a static SamplerPresets class.
+//
+// Every preset builds on the default configuration and adds its own step on top,
+// replacing the default step of the same kind if there is one. Greedy is the
+// exception: it always picks the most probable token, so it needs no steps.
 
 /// Get the default sampler configuration.
 #[uniffi::export]
@@ -1963,7 +1967,7 @@ pub fn sampler_preset_default() -> Arc<SamplerConfig> {
     })
 }
 
-/// Create a sampler with top-k filtering only.
+/// Create a sampler with the default steps, but top-k overridden.
 #[uniffi::export]
 pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
@@ -1971,7 +1975,7 @@ pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     })
 }
 
-/// Create a sampler with nucleus (top-p) sampling.
+/// Create a sampler with the default steps, but nucleus (top-p) overridden.
 #[uniffi::export]
 pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {

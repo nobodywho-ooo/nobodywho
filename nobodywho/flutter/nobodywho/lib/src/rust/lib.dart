@@ -696,14 +696,14 @@ abstract class SamplerPresets implements RustOpaqueInterface {
       .api
       .crateSamplerPresetsTemperature(temperature: temperature);
 
-  /// Create a sampler with top-k filtering only.
+  /// Create a sampler with the default steps, but top-k overridden.
   ///
   /// Args:
   ///     top_k: Number of top tokens to keep
   static SamplerConfig topK({required int topK}) =>
       NobodyWho.instance.api.crateSamplerPresetsTopK(topK: topK);
 
-  /// Create a sampler with nucleus (top-p) sampling.
+  /// Create a sampler with the default steps, but nucleus (top-p) overridden.
   ///
   /// Args:
   ///     top_p: Cumulative probability threshold (0.0 to 1.0)

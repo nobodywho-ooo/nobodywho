@@ -1284,10 +1284,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 44137.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 56996.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 54893.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 22588.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575.toShort()) {
@@ -8500,7 +8500,7 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
     
 
         /**
-         * Create a sampler with top-k filtering only.
+         * Create a sampler with the default steps, but top-k overridden.
          */ fun `samplerPresetTopK`(`topK`: kotlin.Int): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
@@ -8513,7 +8513,7 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
     
 
         /**
-         * Create a sampler with nucleus (top-p) sampling.
+         * Create a sampler with the default steps, but nucleus (top-p) overridden.
          */ fun `samplerPresetTopP`(`topP`: kotlin.Float): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
