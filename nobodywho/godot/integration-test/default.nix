@@ -65,9 +65,8 @@ stdenv.mkDerivation {
     ln -s ${models.TEST_MODEL} \
       $out/hf-cache/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf
 
-    mkdir -p $out/hf-cache/nobodywho/models/onnx-community
-    ln -s ${models.TEST_WHISPER_MODEL} \
-      $out/hf-cache/nobodywho/models/onnx-community/whisper-base
+    ln -s ${models.TEST_WHISPER_HF_CACHE}/onnx-community \
+      $out/hf-cache/nobodywho/models/onnx-community
 
     # Patch binaries.
     patchelf --set-interpreter $(cat $NIX_CC/nix-support/dynamic-linker) $out/game
