@@ -176,7 +176,7 @@ Constraining steps — the same formats as the presets above, but chainable with
 - `json()` — output is a JSON object of any shape
 
 Constraining steps and the penalty steps, `dry(...)` and `penalties(...)`, always run
-**before** the other shift steps, wherever you call them.
+**before** the other shift steps, in the order you called them.
 This is to avoid the case where a step like `topK(5)` followed by a constraint could
 find that none of the five surviving tokens is valid, leaving nothing to sample and
 aborting generation. Both blocks below therefore behave identically.

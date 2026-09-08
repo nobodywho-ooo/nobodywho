@@ -194,7 +194,7 @@ Unlike `SamplerPresets`, these take strings rather than a schema object or a `Re
 use `JSON.stringify(schema)` and `pattern.source` to convert.
 
 Constraining steps and the penalty steps, `.dry(...)` and `.penalties(...)`, always run
-**before** the other shift steps, wherever you chain them.
+**before** the other shift steps, in the order you chained them.
 This is to avoid the case where a step like `.topK(5)` followed by a constraint could
 find that none of the five surviving tokens is valid, leaving nothing to sample and
 aborting generation. Both chains below therefore behave identically.

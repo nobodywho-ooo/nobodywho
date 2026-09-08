@@ -452,15 +452,17 @@ impl SamplerBuilder {
 
     /// Adds a shift step: constraint and penalty steps go to the front of the
     /// chain, the rest to the end, for the reasons in [`defaults_prepending`].
+    /// Both groups keep the order they were added in, since two penalties do not
+    /// commute — DRY subtracts from a logit where `Penalties` scales it.
     pub fn shift(mut self, step: ShiftStep) -> Self {
-        match step {
-            ShiftStep::Grammar { .. }
-            | ShiftStep::JsonSchema(_)
-            | ShiftStep::Regex(_)
-            | ShiftStep::Lark(_)
-            | ShiftStep::DRY { .. }
-            | ShiftStep::Penalties { .. } => self.steps.insert(0, step),
-            _ => self.steps.push(step),
+        if step.runs_before_truncation() {
+            // The chain is always a run-first prefix followed by the rest.
+            let at = self
+                .steps
+                .partition_point(ShiftStep::runs_before_truncation);
+            self.steps.insert(at, step);
+        } else {
+            self.steps.push(step);
         }
         self
     }
@@ -594,6 +596,22 @@ pub enum ShiftStep {
         biases: HashMap<i32, f32>,
     },
     // FIXME(madsmtm): Add `Infill` variant once `llama-cpp-rs` supports it?
+}
+
+impl ShiftStep {
+    /// Whether this step belongs ahead of the truncation samplers, for the
+    /// reasons in [`defaults_prepending`].
+    fn runs_before_truncation(&self) -> bool {
+        matches!(
+            self,
+            ShiftStep::Grammar { .. }
+                | ShiftStep::JsonSchema(_)
+                | ShiftStep::Regex(_)
+                | ShiftStep::Lark(_)
+                | ShiftStep::DRY { .. }
+                | ShiftStep::Penalties { .. }
+        )
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -969,16 +987,17 @@ mod tests {
             })
             .sample(SampleStep::Dist);
 
+        // Hoisted ahead of top-k, but in the order they were added: DRY subtracts
+        // from a logit where `Penalties` scales it, so the two do not commute.
         assert_eq!(config.steps.len(), 4);
         assert!(
-            config.steps[..3].iter().all(|step| matches!(
-                step,
-                ShiftStep::Regex(_) | ShiftStep::DRY { .. } | ShiftStep::Penalties { .. }
-            )),
-            "a constraint or penalty added after top-k still has to run before it, got: {:?}",
+            matches!(config.steps[0], ShiftStep::Regex(_))
+                && matches!(config.steps[1], ShiftStep::DRY { .. })
+                && matches!(config.steps[2], ShiftStep::Penalties { .. })
+                && matches!(config.steps[3], ShiftStep::TopK { .. }),
+            "expected [regex, dry, penalties, top_k], got: {:?}",
             config.steps
         );
-        assert!(matches!(config.steps[3], ShiftStep::TopK { .. }));
     }
 
     /// The builder counterpart of `test_ordering_grammar_first_with_unlikely_literal`:
