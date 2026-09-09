@@ -497,28 +497,11 @@ impl<'a> InferenceEngine<'a> {
             .load_audio(path)
     }
 
-    // FIXME(madsmtm): Refactor this
-    pub(crate) fn sample_and_decode_next_tokens(
-        &mut self,
-        sampler: &mut ChatSampler,
-        output: &mut Vec<LlamaToken>,
-        _max_output_tokens: Option<usize>,
-    ) -> Result<(), DecodingError> {
-        output.clear();
-        let token = match &self.ctx {
-            EngineContext::Solo(_) => self.sample_and_decode_solo(sampler),
-            EngineContext::Speculative(_) => self.sample_and_decode_speculative(sampler),
-        }?;
-        output.push(token);
-        Ok(())
-    }
-
-    fn sample_and_decode_solo(
+    /// Sample and decode the next token.
+    pub(crate) fn next_token(
         &mut self,
         sampler: &mut ChatSampler,
     ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler (solo)");
-
         // Somewhat un-intuitively, we actually want to sample first, before
         // attempting to generate new logits / tokens.
         //
@@ -532,26 +515,8 @@ impl<'a> InferenceEngine<'a> {
         // ideally, we always want a decoding stage in progress, so that all
         // the various other work we do (including the work the user does)
         // isn't going to block inference.
-        let token = sampler.active().sample(&self.ctx, -1);
-        sampler.observe(token);
 
-        self.batch.clear();
-        self.batch.add(token, self.n_past, &[0], true)?;
-
-        let _span = trace_span!("write decode", n_past = self.n_past).entered();
-        self.ctx.decode(&mut self.batch)?;
-
-        self.n_past += 1;
-
-        Ok(token)
-    }
-
-    fn sample_and_decode_speculative(
-        &mut self,
-        sampler: &mut ChatSampler,
-    ) -> Result<LlamaToken, DecodingError> {
-        trace!("Applying sampler (MTP speculative, deferred)");
-
+        let span = trace_span!("sample").entered();
         let token = if let Some(draft) = self.draft_state.drafts.get(self.draft_state.accepted) {
             let token = sampler
                 .active()
@@ -569,12 +534,13 @@ impl<'a> InferenceEngine<'a> {
             // Otherwise decode new tokens.
             token
         } else {
-            // We're out of draft tokens, we haven't started, or the state
-            // has been reset previously.
+            // No need to use `sampler.accept` as `.sample` already accepts
+            // the token: https://github.com/utilityai/llama-cpp-rs/issues/604
             let token = sampler.active().sample(&self.ctx, -1);
             sampler.observe(token);
             token
         };
+        drop(span);
 
         // Reset draft state.
         self.accept_drafts()?;
@@ -582,26 +548,27 @@ impl<'a> InferenceEngine<'a> {
         self.draft_state.drafts.clear();
         self.draft_state.accepted = 0;
 
-        let EngineContext::Speculative(spec) = &mut self.ctx else {
-            unreachable!("sample_and_decode_speculative called on solo ctx");
-        };
-
-        // FIXME(madsmtm): Avoid starting a whole new draft if the token is an
-        // EOG token (then we'd rather decode just that token).
-
         // Create new drafts.
-        trace!(n_past = self.n_past, ?token, "starting draft");
-        let mut drafts = spec.draft(self.n_past, token, &[])?;
+        //
+        // FIXME(madsmtm): Maybe avoid starting a whole new draft if the
+        // token is an EOG token (then we'd rather decode just that token).
+        let drafts = if let EngineContext::Speculative(spec) = &mut self.ctx {
+            let _span = trace_span!("draft", n_past = self.n_past, ?token).entered();
+            let mut drafts = spec.draft(self.n_past, token, &[])?;
 
-        // Make sure we later `.accept(...)` the drafts.
-        self.draft_state.needs_accept = !drafts.is_empty();
+            // Make sure we later `.accept(...)` the drafts.
+            self.draft_state.needs_accept = !drafts.is_empty();
 
-        // Clamp drafts so the verify batch [pending, drafts...] stays
-        // within the context window:
-        let room =
-            usize::try_from(spec.target_context().n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
-        drafts.truncate(room);
-        trace!(?drafts);
+            // Clamp drafts so the verify batch [pending, drafts...] stays
+            // within the context window:
+            let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
+            drafts.truncate(room);
+
+            trace!(?drafts);
+            drafts
+        } else {
+            Vec::new()
+        };
 
         self.batch.clear();
         self.batch.add(token, self.n_past, &[0], true)?;
@@ -609,11 +576,18 @@ impl<'a> InferenceEngine<'a> {
             self.batch.add(d, self.n_past + 1 + i as i32, &[0], true)?;
         }
 
-        let span = trace_span!("mtp verify decode", n_past = self.n_past).entered();
-        spec.target_context_mut().decode(&mut self.batch)?;
+        let span = trace_span!("decode", n_past = self.n_past).entered();
+        self.ctx.decode(&mut self.batch)?;
         drop(span);
 
-        spec.process(&self.batch)?;
+        if let EngineContext::Speculative(spec) = &mut self.ctx {
+            // Keep MTP state in sync.
+            //
+            // FIXME(madsmtm): This seems to synchronize the context, can we
+            // avoid that somehow?
+            let _span = trace_span!("mtp_process").entered();
+            spec.process(&self.batch)?;
+        }
 
         self.draft_state.drafts = drafts;
 
