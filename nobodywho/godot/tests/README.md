@@ -121,6 +121,7 @@ chat_test.gd              # NobodyWhoChat query/mutation tests (needs TEST_MODEL
 tools_test.gd             # NobodyWhoTool tests (needs TEST_MODEL)
 tts_test.gd               # NobodyWhoTextToSpeech tests (needs TEST_TTS_SOURCE)
 stt_test.gd               # NobodyWhoSpeechToText tests (needs TEST_STT_SOURCE + TEST_AUDIO_FILE)
+vad_test.gd              # NobodyWhoVoiceActivityDetection tests (needs TEST_VAD_MODEL + TEST_AUDIO_FILE_WAV)
 prompt_test.gd             # NobodyWhoPrompt tests (tier 1 model-less; tier 2 needs TEST_VISION_MODEL + TEST_IMAGE_FILE, optional TEST_VISION_MMPROJ)
 ```
 
