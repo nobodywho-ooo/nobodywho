@@ -465,7 +465,11 @@ impl<'a> InferenceEngine<'a> {
     ) -> Result<(), DecodingError> {
         output.clear();
         match &self.ctx {
-            EngineContext::Solo(_) => self.sample_and_decode_solo(sampler, output),
+            EngineContext::Solo(_) => {
+                let token = self.sample_and_decode_solo(sampler)?;
+                output.push(token);
+                Ok(())
+            }
             EngineContext::Speculative(_) => {
                 self.sample_and_decode_speculative(sampler, output, max_output_tokens)
             }
@@ -475,8 +479,7 @@ impl<'a> InferenceEngine<'a> {
     fn sample_and_decode_solo(
         &mut self,
         sampler: &mut ChatSampler,
-        output: &mut Vec<LlamaToken>,
-    ) -> Result<(), DecodingError> {
+    ) -> Result<LlamaToken, DecodingError> {
         trace!("Applying sampler (solo)");
 
         // Somewhat un-intuitively, we actually want to sample first, before
@@ -492,20 +495,18 @@ impl<'a> InferenceEngine<'a> {
         // ideally, we always want a decoding stage in progress, so that all
         // the various other work we do (including the work the user does)
         // isn't going to block inference.
-        let new_token = sampler.active().sample(&self.ctx, -1);
-        sampler.observe(new_token);
+        let token = sampler.active().sample(&self.ctx, -1);
+        sampler.observe(token);
 
         self.small_batch.clear();
-        self.small_batch.add(new_token, self.n_past, &[0], true)?;
+        self.small_batch.add(token, self.n_past, &[0], true)?;
 
-        let decode_span = trace_span!("write decode", n_past = self.n_past);
-        let decode_guard = decode_span.enter();
+        let _span = trace_span!("write decode", n_past = self.n_past).entered();
         self.ctx.decode(&mut self.small_batch)?;
-        drop(decode_guard);
+
         self.n_past += 1;
 
-        output.push(new_token);
-        Ok(())
+        Ok(token)
     }
 
     fn sample_and_decode_speculative(
