@@ -535,7 +535,6 @@ impl<'a> InferenceEngine<'a> {
             };
             spec.draft(self.n_past, pending, &[])?
         };
-        let accept_owed = !drafts.is_empty();
 
         // Clamp drafts so the verify batch [pending, drafts...] stays
         // within the context window:
@@ -546,56 +545,33 @@ impl<'a> InferenceEngine<'a> {
         drafts.truncate(room.min(output_room));
         let k_max = drafts.len();
 
-        if k_max == 0 {
-            trace!(?pending, "MTP: no draft proposals to verify");
-            self.small_batch.clear();
-            self.small_batch.add(pending, self.n_past, &[0], true)?;
-            self.ctx.decode(&mut self.small_batch)?;
-            self.ctx.mtp_process(&self.small_batch)?;
-            if accept_owed {
-                let EngineContext::Speculative(spec) = &mut self.ctx else {
-                    unreachable!();
-                };
-                spec.accept(0)?;
-            }
-            let new_pending = sampler.active().sample(&self.ctx, -1);
-            self.n_past += 1;
-            self.pending = Some(new_pending);
-            output.push(pending);
-            return Ok(());
-        }
-
         self.big_batch.clear();
         self.big_batch.add(pending, self.n_past, &[0], true)?;
         for (i, &d) in drafts.iter().enumerate() {
             self.big_batch
                 .add(d, self.n_past + 1 + i as i32, &[0], true)?;
         }
-        {
-            let decode_span = trace_span!("mtp verify decode", n_past = self.n_past, k_max);
-            let _decode_guard = decode_span.enter();
-            self.ctx.decode(&mut self.big_batch)?;
-        }
+        let span = trace_span!("mtp verify decode", n_past = self.n_past, k_max).entered();
+        self.ctx.decode(&mut self.big_batch)?;
+        drop(span);
         self.ctx.mtp_process(&self.big_batch)?;
 
         let mut accepted_count = 0;
-        let mut new_pending = None;
+        self.pending = None;
         for (i, &draft) in drafts.iter().enumerate() {
             let ti = sampler.active().sample(&self.ctx, i as i32);
             if self.ctx.model.is_eog_token(ti) {
                 trace!(?ti, "MTP: target sampled EOG during verify, stopping");
-                new_pending = Some(ti);
+                self.pending = Some(ti);
                 break;
             }
             if ti != draft {
-                new_pending = Some(ti);
+                self.pending = Some(ti);
                 break;
             }
             accepted_count += 1;
             sampler.observe(draft); // detects switch to grammar-constrained sampling
         }
-        let new_pending =
-            new_pending.unwrap_or_else(|| sampler.active().sample(&self.ctx, k_max as i32));
 
         if accepted_count < k_max {
             let keep_up_to = (self.n_past + 1 + accepted_count as i32) as u32;
@@ -621,7 +597,6 @@ impl<'a> InferenceEngine<'a> {
         }
 
         self.n_past += 1 + accepted_count as i32;
-        self.pending = Some(new_pending);
         self.mtp_drafts_proposed += k_max as u64;
         self.mtp_drafts_accepted += accepted_count as u64;
 
@@ -629,7 +604,6 @@ impl<'a> InferenceEngine<'a> {
             accepted_count,
             k_max,
             ?pending,
-            ?new_pending,
             "MTP: deferred iteration complete"
         );
 
