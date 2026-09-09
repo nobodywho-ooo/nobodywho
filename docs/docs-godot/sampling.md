@@ -32,6 +32,7 @@ The presets, as static functions on `NobodyWhoSamplerPresets`:
 NobodyWhoSamplerPresets.default()
 NobodyWhoSamplerPresets.dry()
 NobodyWhoSamplerPresets.greedy()
+NobodyWhoSamplerPresets.json()
 NobodyWhoSamplerPresets.temperature(temperature)
 NobodyWhoSamplerPresets.top_k(top_k)
 NobodyWhoSamplerPresets.top_p(top_p)
@@ -133,9 +134,12 @@ Shift steps (chainable, each returns a new builder):
 | `typical_p(p, min_keep)` | Typical-p sampling. |
 | `xtc(probability, threshold, min_keep)` | Probabilistically exclude high-probability tokens for diversity. |
 | `temperature(t)` | Scale the distribution. `0` deterministic, `1` unchanged, `>1` more random. |
+| `dynamic_temperature(t, delta, exponent)` | Entropy-based temperature: lands in `[t - delta; t + delta]`, computed as `entropy^exponent`. |
+| `top_n_sigma(n)` | Keep tokens within `n` standard deviations from the mean. |
+| `logit_bias(biases)` | Boost/ban specific token IDs. `biases` is a Dictionary of token ID (int) to bias (float); `-INF` bans a token. |
 | `penalties(last_n, repeat, freq, present)` | Repetition/frequency/presence penalties. |
 | `dry(multiplier, base, allowed_length, last_n, seq_breakers)` | DRY (Don't Repeat Yourself) penalty. |
-| `json_schema(schema)` / `regex(pattern)` / `lark(grammar)` | Constrain output (see above). |
+| `json_schema(schema)` / `regex(pattern)` / `lark(grammar)` / `json()` | Constrain output (see above). |
 | `seed(s)` | RNG seed for random samplers. |
 
 Sampling steps (terminals, return a `NobodyWhoSamplerConfig`):
