@@ -1,188 +1,165 @@
-# Sampling
-_Controlling how the model picks tokens and constraining output format._
-
+---
+title: Sampling
+description: A description of how samplers can be configured in NobodyWho
+sidebar_position: 4
 ---
 
-The model does not produce tokens directly but rather a probability distribution over all possible tokens. We must then choose how to pick the next token from the distribution. This is the job of a **sampler**, which using NobodyWho you can freely modify to achieve better quality outputs or constrain the outputs to some known format (e.g. JSON).
+The model does not produce tokens but rather a probability distribution over all possible tokens.
+We must then choose how to pick the next token from the distribution. This is the job of a
+**sampler**, which using NobodyWho you can freely modify, to achieve better quality outputs or
+constrain the outputs to some known format (e.g. JSON).
 
-## Sampler Presets
+## Sampler presets
 
-NobodyWho offers several built-in presets you can apply to your `NobodyWhoChat` node.
-
-All presets have top-k, top-p, temperature and dist steps, and change or add just the one thing
-they are named for: the top-k, top-p and temperature presets each override their counterpart,
-while the others add a step and leave the three defaults alone. `set_sampler_preset_greedy()`
-is the exception — it always picks the most probable token, so it needs no other steps.
-
-### JSON Output
-
-Force the model to always produce valid JSON:
+To get a quick start, NobodyWho offers a couple of well-known presets. Presets start with the
+default top-k, top-p, temperature, and distribution steps, then override or add the behavior they
+are named for. `greedy()` is the exception: it always chooses the most probable token and needs no
+other steps. For example, to adjust the model's "creativity", select the `temperature` preset:
 
 ```gdscript
-chat.set_sampler_preset_json()
-chat.system_prompt = "Generate a character with name, weapon, and armor properties."
-chat.ask("Create a fantasy character")
-# Output will always be valid JSON, e.g.:
-# {"name": "Eldara", "weapon": "enchanted bow", "armor": "leather vest"}
+var chat = await NobodyWhoChat.create("./model.gguf", {
+    "sampler": NobodyWhoSamplerPresets.temperature(0.2),
+})
 ```
 
-### Temperature
+Setting `temperature` to `0.2` will then affect the sampler when choosing the next token, making
+the distribution less flat and therefore the model will favour more probable tokens — good for
+deterministic NPC dialogue.
 
-Control the "creativity" of the model. Lower values make the model more deterministic:
+The presets, as static functions on `NobodyWhoSamplerPresets`:
 
 ```gdscript
-chat.set_sampler_preset_temperature(0.2)  # More focused/deterministic
-chat.set_sampler_preset_temperature(1.5)  # More creative/random
+NobodyWhoSamplerPresets.default()
+NobodyWhoSamplerPresets.dry()
+NobodyWhoSamplerPresets.greedy()
+NobodyWhoSamplerPresets.temperature(temperature)
+NobodyWhoSamplerPresets.top_k(top_k)
+NobodyWhoSamplerPresets.top_p(top_p)
+
+# Constrain output to a specific format:
+NobodyWhoSamplerPresets.constrain_with_json_schema(schema)
+NobodyWhoSamplerPresets.constrain_with_regex(pattern)
+NobodyWhoSamplerPresets.constrain_with_grammar(grammar)
 ```
 
-### Greedy
+## Structured output
 
-Always pick the most probable token:
+One of the most useful features is constraining the model to produce structured output — this
+gives you a hard guarantee that the output matches a specific format, rather than relying on the
+model to get it right on its own.
+
+### Regular expressions
+
+For simpler patterns, you can constrain the output with a regex:
 
 ```gdscript
-chat.set_sampler_preset_greedy()
+# Force the model to answer with exactly "yes" or "no"
+var chat = await NobodyWhoChat.create("./model.gguf", {
+    "sampler": NobodyWhoSamplerPresets.constrain_with_regex("yes|no"),
+})
+var answer: String = await chat.ask("Is the sky blue?").completed()
+```
+
+### JSON schema
+
+In some use-cases it might be useful to let the LLM generate JSON output. Use
+`constrain_with_json_schema` to enforce a specific JSON shape:
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {
+    "sampler": NobodyWhoSamplerPresets.constrain_with_json_schema(JSON.stringify({
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "maxLength": 50},
+            "age": {"type": "integer"},
+        },
+        "required": ["name", "age"],
+        "additionalProperties": false,
+    })),
+})
+var response: String = await chat.ask("Give me a person as JSON with name and age fields.").completed()
+var person = JSON.parse_string(response) # always valid JSON matching the schema
+```
+
+### Custom grammars (advanced)
+
+For cases where JSON schema and regex are not expressive enough, you can supply a custom
+grammar. `constrain_with_grammar` accepts both **Lark** syntax and **GBNF** (llama.cpp format) —
+NobodyWho automatically converts GBNF to Lark before passing it to the inference engine.
+
+```gdscript
+var sampler = NobodyWhoSamplerPresets.constrain_with_grammar("""
+    start: record (NEWLINE record)* NEWLINE?
+    record: field ("," field)*
+    field: /[^,"\\n\\r]+/
+    NEWLINE: /\\r?\\n/
+""")
 ```
 
 ## Defining your own samplers
 
-Presets cover the common cases, but when you want to chain multiple shift
-steps, set a seed for reproducible output, or use Mirostat, build a sampler
-with `NobodyWhoSamplerBuilder`:
+For full control, chain steps on a `NobodyWhoSamplerBuilder`. Shift steps filter and scale the
+token distribution; the chain ends with exactly one sampling step, which picks the token:
 
 ```gdscript
-var cfg = NobodyWhoSamplerBuilder.new() \
-    .top_k(40) \
-    .temperature(0.8) \
-    .dist()
-chat.set_sampler_config(cfg)
-```
-
-`NobodyWhoSamplerBuilder` has two kinds of methods: **shift steps** that transform the
-probability distribution (returning the builder for further chaining) and
-**terminal steps** that finalize the chain into a `NobodyWhoSamplerConfig`. Always end
-the chain with one of the terminals: `dist()`, `greedy()`, `mirostat_v1(...)`,
-or `mirostat_v2(...)`.
-
-For reproducible output, set the RNG seed anywhere in the chain. The seed is
-consumed by every random sampler in the chain — `dist`, `mirostat_v1`,
-`mirostat_v2`, and the `xtc` shift step. `greedy` ignores it. If unset, a
-default seed is used.
-
-```gdscript
-var cfg = NobodyWhoSamplerBuilder.new() \
-    .top_k(40) \
-    .temperature(0.8) \
-    .seed(42) \
-    .dist()
-chat.set_sampler_config(cfg)
-```
-
-### Available Sampling Steps
-
-Pick any of the **shift steps** below (each reshapes the token distribution), then finish with one **terminal step** that picks the token — exactly like the `.top_k(40).temperature(0.8).dist()` chain above.
-
-Shift steps — add as many as you want, applied in order:
-
-- `.top_k(40)` — keep only the 40 most likely tokens
-- `.top_p(0.95, 1)` — nucleus: keep the top tokens up to 95% of the probability mass
-- `.min_p(0.05, 1)` — drop tokens below 5% of the most likely token's probability
-- `.typical_p(0.9, 1)` — keep tokens whose "surprise" is close to average, dropping both the too-predictable and the too-random ([locally typical sampling](https://arxiv.org/abs/2202.00666))
-- `.xtc(0.5, 0.1, 1)` — "exclude top choices": occasionally drop the top tokens for more variety
-- `.temperature(0.8)` — below 1.0 = more focused, above 1.0 = more random
-- `.dynamic_temperature(0.8, 0.3, 1.5)` — temperature in range [0.5; 1.1], scaled based on confidence level (`exponent` > 1.0 = when uncertain, higher temperature)
-- `.penalties(64, 1.1, 0.0, 0.0)` — per-token repetition penalty: `penalty_last_n, penalty_repeat, penalty_freq, penalty_present` (`penalty_repeat` 1.0 = off)
-- `.top_n_sigma(2.0)` — keep only the tokens within 2 standard deviations of the most probable token
-- `.logit_bias({1: -1.0, 2: 3.0})` — token 1 less probable, token 2 is more probable
-- `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, penalty_last_n, seq_breakers`
-- `.seed(42)` — fix the RNG for reproducible output
-
-The order you chain them matters: `.penalties(...)`, `.logit_bias(...)` and `.dry(...)` reweigh
-whatever distribution reaches them, so put them *before* any grammar/constraining step
-if you want them to see the whole vocabulary.
-
-Constraining steps — the same formats as the `set_sampler_preset_constrain_with_*` methods, but chainable with the rest:
-
-- `.constrain_with_json_schema(...)` — output matches a JSON schema, given as a JSON string
-- `.constrain_with_regex(...)` — output matches a regular expression
-- `.constrain_with_grammar(...)` — output matches a grammar, in either Lark or GBNF syntax
-- `.json()` — output is a JSON object of any shape
-
-Constraining steps always run **before** the other shift steps, wherever you chain them.
-This is to avoid the case where a step like `.top_k(5)` followed by a constraint could
-find that none of the five surviving tokens is valid, leaving nothing to sample and
-aborting generation. Both chains below therefore behave identically.
-
-```gdscript
-var cfg = NobodyWhoSamplerBuilder.new().constrain_with_regex("yes|no").temperature(0.8).dist()
-var same = NobodyWhoSamplerBuilder.new().temperature(0.8).constrain_with_regex("yes|no").dist()
-```
-
-Terminal step — end the chain with exactly one:
-
-- `.dist()` — pick a token with weighted randomness (the usual choice)
-- `.greedy()` — always take the most likely token
-- `.mirostat_v1(5.0, 0.1, 100)` / `.mirostat_v2(5.0, 0.1)` — steer output "surprise" toward a target
-
-`min_keep` is the floor on how many tokens survive a cut (`1` is fine).
-
-## Structured Output
-
-One of the most powerful features is constraining the model to produce output in a specific format. This gives you a hard guarantee that the output matches your format, rather than relying on the model to get it right on its own.
-
-### Grammar Constraints
-
-You can constrain the model's output using a GBNF grammar:
-
-```gdscript
-var grammar = """
-root ::= greeting " " name
-greeting ::= "Hello" | "Hi" | "Hey"
-name ::= "World" | "Friend" | "There"
-"""
-chat.set_sampler_preset_constrain_with_grammar(grammar)
-```
-
-This makes it **impossible** for the model to generate anything outside your defined format.
-
-For a comprehensive tutorial on writing GBNF grammars, including JSON generation, compact formats, and practical game examples, see the [Structured Output](structured-output.md) guide.
-
-### JSON Schema Constraints
-
-Force the model to produce JSON matching a specific schema:
-
-```gdscript
-var schema = JSON.stringify({
-    "type": "object",
-    "properties": {
-        "name": {"type": "string"},
-        "level": {"type": "integer"},
-        "class": {"type": "string", "enum": ["Warrior", "Mage", "Rogue"]}
-    },
-    "required": ["name", "level", "class"]
+var chat = await NobodyWhoChat.create("./model.gguf", {
+    "sampler": NobodyWhoSamplerBuilder.new()
+        .top_k(40)
+        .top_p(0.95, 1)
+        .temperature(0.6)
+        .dist(),
 })
-chat.set_sampler_preset_constrain_with_json_schema(schema)
 ```
 
-### Regex Constraints
-
-For simpler patterns, constrain the output with a regular expression:
+Constraints can also be chained into the builder — they always run *before* the other steps,
+wherever you put them in the chain, so a constraint can't be starved by an earlier filter:
 
 ```gdscript
-# Force the model to answer with exactly "yes" or "no"
-chat.set_sampler_preset_constrain_with_regex("yes|no")
+var cfg = NobodyWhoSamplerBuilder.new()
+    .json_schema(schema_dict)
+    .temperature(0.8)
+    .dist()
 ```
 
-## Changing Samplers Mid-Conversation
+### Available sampling steps
 
-You can change the sampler at any point during a conversation. The new sampler will take effect on the next `ask()` call:
+Shift steps (chainable, each returns a new builder):
+
+| Step | Effect |
+| --- | --- |
+| `top_k(k)` | Keep only the `k` most probable tokens. Typical: 40-50. |
+| `top_p(p, min_keep)` | Keep tokens whose cumulative probability is below `p`. Typical: 0.9-0.95. |
+| `min_p(p, min_keep)` | Keep tokens with probability above `p` times the most-likely one. |
+| `typical_p(p, min_keep)` | Typical-p sampling. |
+| `xtc(probability, threshold, min_keep)` | Probabilistically exclude high-probability tokens for diversity. |
+| `temperature(t)` | Scale the distribution. `0` deterministic, `1` unchanged, `>1` more random. |
+| `penalties(last_n, repeat, freq, present)` | Repetition/frequency/presence penalties. |
+| `dry(multiplier, base, allowed_length, last_n, seq_breakers)` | DRY (Don't Repeat Yourself) penalty. |
+| `json_schema(schema)` / `regex(pattern)` / `lark(grammar)` | Constrain output (see above). |
+| `seed(s)` | RNG seed for random samplers. |
+
+Sampling steps (terminals, return a `NobodyWhoSamplerConfig`):
+
+| Step | Effect |
+| --- | --- |
+| `dist()` | Weighted random sampling from the distribution. |
+| `greedy()` | Always pick the most probable token (deterministic). |
+| `mirostat_v1(tau, eta, m)` | Perplexity-controlled sampling. |
+| `mirostat_v2(tau, eta)` | Perplexity-controlled sampling, simplified. |
+
+## Persisting a sampler
+
+A finished `NobodyWhoSamplerConfig` can be serialized for save files and settings screens:
 
 ```gdscript
-# Start with free-form chat
-chat.ask("Tell me about yourself")
-var response = await chat.response_finished
+var cfg = NobodyWhoSamplerPresets.temperature(0.7)
+var json: String = cfg.to_json()
+var restored = NobodyWhoSamplerConfig.from_json(json)
+```
 
-# Switch to structured output for the next question
-chat.set_sampler_preset_json()
-chat.ask("Now describe your stats as JSON")
-var json_response = await chat.response_finished
+You can also read and swap the sampler of a live chat:
+
+```gdscript
+var current = await chat.get_sampler_config()
+await chat.set_sampler_config(NobodyWhoSamplerPresets.greedy())
 ```
