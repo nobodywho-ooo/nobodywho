@@ -26,6 +26,7 @@ func run(runner: Node) -> void:
 	await _test_system_prompt(runner, chat)
 	await _test_template_variables(runner, chat)
 	await _test_sampler_config(runner, chat)
+	await _test_sampler_constraints(runner, chat)
 	await _test_stats(runner, chat)
 	await _test_tokenize(runner, chat)
 	await _test_chat_history(runner, chat)
@@ -111,6 +112,52 @@ func _test_sampler_config(runner: Node, chat) -> void:
 		runner.ok("sampler_config: builder chain (top_k=7, greedy)")
 	else:
 		runner.fail("sampler_config: builder chain wrong, got %s" % bj)
+
+func _test_sampler_constraints(runner: Node, chat) -> void:
+	# Constrain output with a regex / JSON schema on the builder.
+	await chat.set_template_variable("enable_thinking", false)
+	await chat.set_system_prompt("You are a helpful assistant, capable of answering questions about the world.")
+
+	# top_k(1) first on purpose: the constraint must run before it (core
+	# prepends constraining steps), or the single surviving candidate is
+	# unlikely to be grammar-valid and generation aborts. The literal is one
+	# no model would answer with on its own, so an exact match proves the
+	# constraint applied.
+	var regex_cfg := NobodyWhoSamplerBuilder.new().top_k(1).regex("zqxjvkw").dist()
+	await chat.set_sampler_config(regex_cfg)
+
+	var stream = chat.call("ask", "Please tell me what the capital city of Denmark is.")
+	var response: String = await stream.call("completed")
+	if response == "zqxjvkw":
+		runner.ok("sampler_constraints: regex literal forced through top_k(1)")
+	else:
+		runner.fail("sampler_constraints: expected the constrained literal 'zqxjvkw', got: %s" % response)
+
+	# JSON schema constraint (a Dictionary schema exercises the
+	# variant_to_json conversion path; a JSON string is also accepted).
+	await chat.reset_history()
+	var schema := {
+		"type": "object",
+		"properties": {"capital": {"type": "string"}},
+		"required": ["capital"],
+		"additionalProperties": false,
+	}
+	var schema_cfg: Variant = NobodyWhoSamplerBuilder.new().json_schema(schema).temperature(0.8).dist()
+	await chat.set_sampler_config(schema_cfg)
+
+	stream = chat.call("ask", "Give me the capital of Denmark as JSON with a 'capital' field.")
+	var json_response: String = await stream.call("completed")
+	var parsed = JSON.parse_string(json_response)
+	if parsed is Dictionary and parsed.has("capital"):
+		runner.ok("sampler_constraints: json_schema gave valid JSON with a 'capital' field")
+	else:
+		runner.fail("sampler_constraints: response was not the constrained JSON, got: %s" % json_response)
+
+	# Don't leak the constraint or prompt into the tests that run after this.
+	await chat.set_sampler_config(NobodyWhoSamplerPresets.default())
+	await chat.reset_history()
+	await chat.set_system_prompt(null)
+	await chat.set_template_variable("enable_thinking", true)
 
 func _test_stats(runner: Node, chat) -> void:
 	var stats = await chat.get_stats()
