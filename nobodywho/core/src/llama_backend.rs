@@ -23,6 +23,7 @@ mod android {
     use crate::errors::BackendInitError;
     use std::ffi::{CStr, CString};
     use std::path::Path;
+    use std::ptr;
     use tracing::{debug, info};
 
     pub(super) fn load_best_cpu_backend() -> Result<(), BackendInitError> {
