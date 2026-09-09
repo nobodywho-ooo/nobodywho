@@ -115,8 +115,8 @@ pub(crate) struct InferenceEngine<'a> {
     tokenizer: Tokenizer<'a>,
     // Configured limits before llama.cpp's internal rounding.
     batch_capacity: BatchCapacity,
-    big_batch: LlamaBatch<'a>,
-    small_batch: LlamaBatch<'a>,
+    /// Batch that's used when decoding. Stored here to re-use the allocation.
+    batch: LlamaBatch<'static>,
     use_embeddings: bool,
     /// Deferred-decode "pending sample": a token sampled from the
     /// target but not yet decoded into the KV cache
@@ -133,19 +133,20 @@ pub(crate) struct InferenceEngine<'a> {
 impl<'a> InferenceEngine<'a> {
     pub(crate) fn new(
         ctx: EngineContext<'a>,
-        big_batch: LlamaBatch<'a>,
-        small_batch: LlamaBatch<'a>,
         projection_model: Option<&'a ProjectionModel>,
         batch_capacity: BatchCapacity,
         tokenizer: Tokenizer<'a>,
         use_embeddings: bool,
     ) -> Self {
+        // The batch limit is sequence IDs per token; each embedding token
+        // belongs to one sequence.
+        let batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
+
         Self {
             n_past: 0,
             ctx,
             batch_capacity,
-            big_batch,
-            small_batch,
+            batch,
             projection_model,
             tokenizer,
             use_embeddings,
@@ -200,14 +201,14 @@ impl<'a> InferenceEngine<'a> {
         let mut outputs = Vec::with_capacity(tokenized_inputs.len());
 
         for range in ranges {
-            self.big_batch.clear();
+            self.batch.clear();
             for (sequence_id, tokens) in tokenized_inputs[range.clone()].iter().enumerate() {
-                self.big_batch
+                self.batch
                     .add_sequence(tokens, sequence_id as i32, true)
                     .map_err(ReadError::BatchAdd)?;
             }
 
-            let n_tokens = self.big_batch.n_tokens();
+            let n_tokens = self.batch.n_tokens();
             let n_sequences = range.len();
             let inference_lock_token = acquire_inference_lock();
             self.reset_context();
@@ -219,7 +220,7 @@ impl<'a> InferenceEngine<'a> {
             );
             let decode_guard = decode_span.enter();
             self.ctx
-                .decode(&mut self.big_batch)
+                .decode(&mut self.batch)
                 .map_err(ReadError::Decode)?;
             drop(decode_guard);
 
@@ -318,7 +319,7 @@ impl<'a> InferenceEngine<'a> {
         {
             debug!("Populating batch");
             // make batch
-            self.big_batch.clear();
+            self.batch.clear();
             let seq_ids = &[0];
             for (i, token) in (0..).zip(tokens.iter()) {
                 // For LLM workers only the last token's logits are needed (sampling).
@@ -327,7 +328,7 @@ impl<'a> InferenceEngine<'a> {
                 // logs "embeddings required but some input tokens were not marked as
                 // outputs -> overriding" and silently flips them on for us.
                 let output_logits = self.use_embeddings || i == n_tokens - 1;
-                self.big_batch
+                self.batch
                     .add(*token, self.n_past + i as i32, seq_ids, output_logits)?;
             }
         }
@@ -335,12 +336,12 @@ impl<'a> InferenceEngine<'a> {
         // llm go brr
         let decode_span = debug_span!("read decode", n_tokens = n_tokens);
         let decode_guard = decode_span.enter();
-        self.ctx.decode(&mut self.big_batch)?;
+        self.ctx.decode(&mut self.batch)?;
         drop(decode_guard);
         // brrr
 
         // Keep the MTP draft ctx's hidden state in sync (no-op on solo).
-        self.ctx.mtp_process(&self.big_batch)?;
+        self.ctx.mtp_process(&self.batch)?;
 
         self.n_past += tokens.len() as i32;
         // A new prompt (or context-shift replay) invalidates any deferred
@@ -498,11 +499,11 @@ impl<'a> InferenceEngine<'a> {
         let token = sampler.active().sample(&self.ctx, -1);
         sampler.observe(token);
 
-        self.small_batch.clear();
-        self.small_batch.add(token, self.n_past, &[0], true)?;
+        self.batch.clear();
+        self.batch.add(token, self.n_past, &[0], true)?;
 
         let _span = trace_span!("write decode", n_past = self.n_past).entered();
-        self.ctx.decode(&mut self.small_batch)?;
+        self.ctx.decode(&mut self.batch)?;
 
         self.n_past += 1;
 
@@ -546,16 +547,15 @@ impl<'a> InferenceEngine<'a> {
         drafts.truncate(room.min(output_room));
         let k_max = drafts.len();
 
-        self.big_batch.clear();
-        self.big_batch.add(pending, self.n_past, &[0], true)?;
+        self.batch.clear();
+        self.batch.add(pending, self.n_past, &[0], true)?;
         for (i, &d) in drafts.iter().enumerate() {
-            self.big_batch
-                .add(d, self.n_past + 1 + i as i32, &[0], true)?;
+            self.batch.add(d, self.n_past + 1 + i as i32, &[0], true)?;
         }
         let span = trace_span!("mtp verify decode", n_past = self.n_past, k_max).entered();
-        self.ctx.decode(&mut self.big_batch)?;
+        self.ctx.decode(&mut self.batch)?;
         drop(span);
-        self.ctx.mtp_process(&self.big_batch)?;
+        self.ctx.mtp_process(&self.batch)?;
 
         let mut accepted_count = 0;
         self.pending = None;
