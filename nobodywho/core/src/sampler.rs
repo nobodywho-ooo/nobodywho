@@ -610,6 +610,7 @@ impl ShiftStep {
                 | ShiftStep::Lark(_)
                 | ShiftStep::DRY { .. }
                 | ShiftStep::Penalties { .. }
+                | ShiftStep::LogitBias { .. }
         )
     }
 }
@@ -985,17 +986,21 @@ mod tests {
                 penalty_freq: 0.0,
                 penalty_present: 0.0,
             })
+            .shift(ShiftStep::LogitBias {
+                biases: HashMap::from([(7, 2.0)]),
+            })
             .sample(SampleStep::Dist);
 
         // Hoisted ahead of top-k, but in the order they were added: DRY subtracts
         // from a logit where `Penalties` scales it, so the two do not commute.
-        assert_eq!(config.steps.len(), 4);
+        assert_eq!(config.steps.len(), 5);
         assert!(
             matches!(config.steps[0], ShiftStep::Regex(_))
                 && matches!(config.steps[1], ShiftStep::DRY { .. })
                 && matches!(config.steps[2], ShiftStep::Penalties { .. })
-                && matches!(config.steps[3], ShiftStep::TopK { .. }),
-            "expected [regex, dry, penalties, top_k], got: {:?}",
+                && matches!(config.steps[3], ShiftStep::LogitBias { .. })
+                && matches!(config.steps[4], ShiftStep::TopK { .. }),
+            "expected [regex, dry, penalties, logit_bias, top_k], got: {:?}",
             config.steps
         );
     }
