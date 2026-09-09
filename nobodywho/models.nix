@@ -1,4 +1,5 @@
 { fetchurl, runCommand, fetchgit }:
+rec
 {
   TEST_MODEL = fetchurl {
     name = "Qwen_Qwen3-0.6B-Q4_K_M.gguf";
@@ -94,4 +95,27 @@
       chmod -R u+w $dir
       (cd $dir && find . -type f -printf '%P\n' | sort) > $dir/.nobodywho-complete
     '';
+
+  # Kokoro TTS — the org's flat-layout mirror (model.onnx at the repo root,
+  # safetensors voices), so TEST_TTS_SOURCE can point straight at a local
+  # dir and the dev shell runs the TTS suite offline. The source string
+  # contains "kokoro", which is what the architecture inference matches on.
+  # (Not wired into the nix sandbox test: ort under the sandbox-built godot
+  # extension hits a heap-corruption abort — see tests/default.nix.)
+  TEST_TTS_SOURCE = "${fetchgit {
+    name = "kokoro-82M";
+    url = "https://huggingface.co/NobodyWho/Kokoro-82M";
+    rev = "0c5985572257cf2f1bce418b2cf47ed5a9580b14";
+    fetchLFS = true;
+    hash = "sha256-dmAaNqJHv1og1dGuqYNBPA+htIj28280QUfc0zBGnyw=";
+  }}";
+
+  # Whisper STT test inputs — point straight at the nix-fetched local repo so
+  # the dev shell (and anything else exporting these) runs the STT suite
+  # offline. Exported to the dev shell via shell.nix's `env` spread.
+  TEST_STT_SOURCE = "${TEST_WHISPER_HF_CACHE}/onnx-community/whisper-base";
+  TEST_AUDIO_FILE = "${../assets/sound.mp3}";
+
+  # The godot encoder_test reads TEST_ENCODER_MODEL; alias the legacy name.
+  TEST_ENCODER_MODEL = TEST_EMBEDDINGS_MODEL;
 }
