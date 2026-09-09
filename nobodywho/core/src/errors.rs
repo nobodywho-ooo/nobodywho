@@ -492,6 +492,9 @@ pub enum SetterError {
 
     #[error("Invalid sampler configuration: {0}")]
     Sampler(#[from] SamplerError),
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1002,6 +1005,12 @@ pub enum DecodingError {
     #[error("MTP speculative decode call failed: {0}")]
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 
+    #[error(transparent)]
+    Rollback(#[from] RollbackError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RollbackError {
     #[error("KV cache rollback failed: {0}")]
     KvCache(#[from] llama_cpp_2::context::kv_cache::KvCacheConversionError),
 
@@ -1211,6 +1220,9 @@ pub enum ContextSyncError {
     #[error("Error shifting context: {0}")]
     #[diagnostic(transparent)]
     Shift(#[from] ShiftError),
+
+    #[error("MTP speculative decode call failed: {0}")]
+    MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
 }
 
 #[derive(Debug, thiserror::Error)]
