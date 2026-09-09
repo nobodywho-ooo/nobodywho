@@ -69,8 +69,6 @@ stdenv.mkDerivation {
     TEST_MODEL=${models.TEST_MODEL} \
     TEST_ENCODER_MODEL=${models.TEST_EMBEDDINGS_MODEL} \
     TEST_CROSSENCODER_MODEL=${models.TEST_CROSSENCODER_MODEL} \
-    TEST_STT_SOURCE="hf://onnx-community/whisper-base" \
-    TEST_AUDIO_FILE=${./../../../assets/sound.mp3} \
     XDG_CACHE_HOME=$out/hf-cache \
     ${godot_4}/bin/godot --headless --path .
 
