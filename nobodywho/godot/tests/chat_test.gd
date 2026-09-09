@@ -154,6 +154,60 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 	else:
 		runner.fail("sampler_constraints: response was not the constrained JSON, got: %s" % json_response)
 
+	# Bare json() preset — any valid JSON object.
+	await chat.reset_history()
+	await chat.set_sampler_config(NobodyWhoSamplerPresets.json())
+	stream = chat.ask("Give me the capital of Denmark as a JSON object.")
+	var any_json = JSON.parse_string(await stream.completed())
+	if any_json is Dictionary:
+		runner.ok("sampler_constraints: json() preset gave valid JSON")
+	else:
+		runner.fail("sampler_constraints: json() response was not valid JSON")
+
+	# logit_bias: ban the token for " 3" and the model can't count to three.
+	await chat.reset_history()
+	var three_ids = await chat.tokenize(" 3")
+	if three_ids is Array and not three_ids.is_empty():
+		await chat.set_sampler_config(NobodyWhoSamplerPresets.greedy())
+
+		# Control: with no bias, counting emits the " 3" token.
+		stream = chat.ask("Count from 1 to 5, separated by spaces.")
+		var control: String = await stream.completed()
+		var control_ids = await chat.tokenize(control)
+		if not (control_ids as Array).has(three_ids[0]):
+			runner.fail("sampler_constraints: control turn didn't emit the ' 3' token (%s)" % control)
+			return
+
+		# Ban it, and the same prompt can no longer produce that token.
+		var banned: Dictionary = {}
+		banned[three_ids[0]] = -INF
+		var lb_builder = NobodyWhoSamplerBuilder.new().logit_bias(banned)
+		if lb_builder == null:
+			runner.fail("sampler_constraints: logit_bias rejected its biases")
+			return
+		await chat.set_sampler_config(lb_builder.greedy())
+		await chat.reset_history()
+		stream = chat.ask("Count from 1 to 5, separated by spaces.")
+		var banned_response: String = await stream.completed()
+		var banned_ids = await chat.tokenize(banned_response)
+		if not (banned_ids as Array).has(three_ids[0]):
+			runner.ok("sampler_constraints: logit_bias banned the token (got: %s)" % banned_response)
+		else:
+			runner.fail("sampler_constraints: banned token still produced, got: %s" % banned_response)
+	else:
+		runner.fail("sampler_constraints: tokenize gave no token ids for logit_bias")
+
+	# dynamic_temperature + top_n_sigma build and generate (smoke).
+	await chat.reset_history()
+	var dt_cfg = NobodyWhoSamplerBuilder.new() \
+			.dynamic_temperature(0.8, 0.2, 1.0) \
+			.top_n_sigma(1.5) \
+			.dist()
+	await chat.set_sampler_config(dt_cfg)
+	stream = chat.ask("Say one word.")
+	var _dt_response: String = await stream.completed()
+	runner.ok("sampler_constraints: dynamic_temperature + top_n_sigma chain generated")
+
 	# Don't leak the constraint or prompt into the tests that run after this.
 	await chat.set_sampler_config(NobodyWhoSamplerPresets.default())
 	await chat.reset_history()

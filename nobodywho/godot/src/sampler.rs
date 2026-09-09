@@ -191,6 +191,64 @@ impl NobodyWhoSamplerBuilder {
         self.shift(ShiftStep::Temperature { temperature })
     }
 
+    /// Dynamic temperature scaling (a.k.a. entropy), as in
+    /// <https://arxiv.org/abs/2309.02772>. The final temperature lands in
+    /// `[temperature - delta; temperature + delta]`, computed as
+    /// `entropy^exponent`.
+    #[func]
+    fn dynamic_temperature(&self, temperature: f32, delta: f32, exponent: f32) -> Gd<Self> {
+        self.shift(ShiftStep::DynamicTemperature {
+            temperature,
+            delta,
+            exponent,
+        })
+    }
+
+    /// Top-n-sigma sampling, as in "Top-n-sigma: Not All Logits Are You Need"
+    /// (<https://arxiv.org/pdf/2411.07641>): keep tokens within `n`
+    /// standard deviations from the mean.
+    #[func]
+    fn top_n_sigma(&self, n: f32) -> Gd<Self> {
+        self.shift(ShiftStep::TopNSigma { n })
+    }
+
+    /// Modify the likelihood of specific tokens. `biases` is a Dictionary
+    /// mapping token ID (int) to bias (float): `> 0` makes the token more
+    /// likely, `< 0` less likely, and `-INF` bans it entirely. Returns the
+    /// extended builder, or null if a key or value has the wrong type.
+    #[func]
+    fn logit_bias(&self, biases: VarDictionary) -> Variant {
+        let mut parsed = std::collections::HashMap::new();
+        for (key, value) in biases.iter_shared() {
+            let token_id = match key.try_to::<i64>() {
+                Ok(id) => id as i32,
+                Err(_) => {
+                    godot_error!("NobodyWhoSamplerBuilder.logit_bias: key {key} is not a token ID");
+                    return Variant::nil();
+                }
+            };
+            let bias = match value.try_to::<f32>() {
+                Ok(b) => b,
+                Err(_) => {
+                    godot_error!(
+                        "NobodyWhoSamplerBuilder.logit_bias: bias for token {token_id} is not a float"
+                    );
+                    return Variant::nil();
+                }
+            };
+            parsed.insert(token_id, bias);
+        }
+        self.shift(ShiftStep::LogitBias { biases: parsed })
+            .to_variant()
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, chain `json_schema()` instead.
+    #[func]
+    fn json(&self) -> Gd<Self> {
+        self.rebuild(|b| b.json())
+    }
+
     /// Set the RNG seed for random samplers (`dist`, `mirostat*`, `xtc`).
     /// `greedy` ignores it.
     #[func]
@@ -302,6 +360,13 @@ impl NobodyWhoSamplerPresets {
     #[func]
     fn dry() -> Gd<NobodyWhoSamplerConfig> {
         NobodyWhoSamplerConfig::wrap(SamplerPresets::dry())
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrain_with_json_schema()` instead.
+    #[func]
+    fn json() -> Gd<NobodyWhoSamplerConfig> {
+        NobodyWhoSamplerConfig::wrap(SamplerPresets::json())
     }
 
     /// Constrain output to a JSON schema, given as a JSON string or a
