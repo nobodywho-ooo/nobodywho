@@ -2777,7 +2777,8 @@ mod tests {
     /// env vars are set to existing files.
     #[test]
     fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
+        test_utils::init_test_tracing();
+
         let (Some(target_path), Some(draft_path)) = (
             test_utils::test_mtp_target_model_path(),
             test_utils::test_mtp_draft_model_path(),
@@ -2822,11 +2823,21 @@ mod tests {
                 sender.send(resp).unwrap();
             }
         };
-
         worker.ask("What is the capital of Denmark?".into(), f)?;
         let resp = receiver.recv()?;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Copenhagen"));
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
+                sender.send(resp).unwrap();
+            }
+        };
+        worker.ask("Are you sure?".into(), f)?;
+        let resp = receiver.recv()?;
+        println!("MTP response: {}", resp);
+        assert!(resp.contains("Yes"));
 
         Ok(())
     }
