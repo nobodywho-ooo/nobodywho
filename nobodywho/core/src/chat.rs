@@ -2102,8 +2102,6 @@ impl<'a> Chat<'a> {
         {
             // Check if the context is full
             if self.engine.is_context_full() {
-                // pending should be preserved during context shift
-                let deferred_pending = self.engine.take_pending();
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
                 if !tokens_written_until_now.is_empty() {
@@ -2113,7 +2111,6 @@ impl<'a> Chat<'a> {
                     self.engine
                         .read_chunks(generated_chunks, inference_lock_token)?;
                 }
-                self.engine.restore_pending(deferred_pending);
                 // do not update tokens_in_context as this is done later by ask
             }
 
@@ -2514,7 +2511,7 @@ impl<'a> Chat<'a> {
             self.tool_format.as_ref(),
         )?;
 
-        self.engine.reset_context();
+        self.engine.reset_context()?;
         self.sampler.set_tool(tool_sampler);
         self.tools = tools;
         self.messages = Vec::new();

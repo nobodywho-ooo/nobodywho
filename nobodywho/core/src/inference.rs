@@ -1,7 +1,7 @@
 //! Generic inference pipeline, independent of chat history.
 
 use crate::chat::ChatSampler;
-use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError};
+use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError, RollbackError};
 use crate::llm::{GlobalInferenceLockToken, WriteOutput, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
@@ -11,7 +11,7 @@ use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
-use llama_cpp_2::speculative::MtpSpeculative;
+use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeError};
 use llama_cpp_2::token::LlamaToken;
 use std::ops::Range;
 use std::path::Path;
@@ -89,22 +89,20 @@ impl<'a> std::ops::DerefMut for EngineContext<'a> {
     }
 }
 
-impl<'a> EngineContext<'a> {
-    fn mtp_process(
-        &mut self,
-        batch: &LlamaBatch<'a>,
-    ) -> Result<(), llama_cpp_2::speculative::MtpSpeculativeError> {
-        if let Self::Speculative(spec) = self {
-            spec.process(batch)?;
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct BatchCapacity {
     pub(crate) tokens: usize,
     pub(crate) sequences: usize,
+}
+
+/// The state of an in-progress draft.
+#[derive(Debug)]
+struct DraftState {
+    drafts: Vec<LlamaToken>,
+    /// The number of accepted drafts.
+    accepted: usize,
+    /// Whether we still need to tell the MTP state which tokens are accepted.
+    needs_accept: bool,
 }
 
 #[derive(Debug)]
@@ -118,14 +116,7 @@ pub(crate) struct InferenceEngine<'a> {
     /// Batch that's used when decoding. Stored here to re-use the allocation.
     batch: LlamaBatch<'static>,
     use_embeddings: bool,
-    /// Deferred-decode "pending sample": a token sampled from the
-    /// target but not yet decoded into the KV cache
-    /// Invariants:
-    /// - `None` after `read_text_tokens` and `reset_context`.
-    /// - `Some(t)` between speculative iterations, where `t` is the
-    ///   target's sample for the next-to-emit position and is *not* in
-    ///   the KV cache.
-    pending: Option<LlamaToken>,
+    draft_state: DraftState,
     pub(crate) mtp_drafts_proposed: u64,
     pub(crate) mtp_drafts_accepted: u64,
 }
@@ -150,18 +141,24 @@ impl<'a> InferenceEngine<'a> {
             projection_model,
             tokenizer,
             use_embeddings,
-            pending: None,
+            draft_state: DraftState {
+                drafts: Vec::new(),
+                accepted: 0,
+                needs_accept: false,
+            },
             mtp_drafts_proposed: 0,
             mtp_drafts_accepted: 0,
         }
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    pub(crate) fn reset_context(&mut self) -> &mut Self {
+    pub(crate) fn reset_context(&mut self) -> Result<(), MtpSpeculativeError> {
+        self.accept_drafts()?;
+        self.draft_state.drafts.clear();
+        self.draft_state.accepted = 0;
         self.ctx.clear_kv_cache();
         self.n_past = 0;
-        self.pending = None;
-        self
+        Ok(())
     }
 
     pub(crate) fn reset_mtp_stats(&mut self) {
@@ -211,7 +208,7 @@ impl<'a> InferenceEngine<'a> {
             let n_tokens = self.batch.n_tokens();
             let n_sequences = range.len();
             let inference_lock_token = acquire_inference_lock();
-            self.reset_context();
+            self.reset_context().expect("failed resetting context");
 
             let decode_span = debug_span!(
                 "read embedding batch",
@@ -340,13 +337,15 @@ impl<'a> InferenceEngine<'a> {
         drop(decode_guard);
         // brrr
 
-        // Keep the MTP draft ctx's hidden state in sync (no-op on solo).
-        self.ctx.mtp_process(&self.batch)?;
+        // Keep the MTP draft ctx's hidden state in sync.
+        if let EngineContext::Speculative(spec) = &mut self.ctx {
+            spec.process(&self.batch)?;
+        }
 
         self.n_past += tokens.len() as i32;
-        // A new prompt (or context-shift replay) invalidates any deferred
-        // pending sample from a previous generation.
-        self.pending = None;
+        // A new prompt (or context-shift replay) invalidates any drafts
+        self.draft_state.drafts.clear();
+        self.draft_state.accepted = 0;
 
         debug!("Completed read tokens operation, n_past: {}", self.n_past);
 
@@ -359,7 +358,7 @@ impl<'a> InferenceEngine<'a> {
     /// Returns `(effective_prefix, trimmed)` where:
     /// - `effective_prefix` is the number of tokens still valid in the KV cache
     /// - `trimmed` is how many positions were evicted.
-    pub(crate) fn remove_all_tokens_from_index_from_ctx(
+    fn remove_all_tokens_from_index_from_ctx(
         &mut self,
         index: usize,
     ) -> Result<(usize, i32), KvCacheConversionError> {
@@ -384,9 +383,54 @@ impl<'a> InferenceEngine<'a> {
                 n_past = self.n_past,
                 "Partial KV cache removal not supported, falling back to full context reset"
             );
-            self.reset_context();
+            self.ctx.clear_kv_cache();
+            self.n_past = 0;
             Ok((0, before))
         }
+    }
+
+    /// Update MTP state to accept in-progress drafts.
+    ///
+    /// This should only happen once per draft state.
+    fn accept_drafts(&mut self) -> Result<(), MtpSpeculativeError> {
+        if self.draft_state.needs_accept {
+            let (accepted, declined) = self.draft_state.drafts.split_at(self.draft_state.accepted);
+            trace!(?accepted, ?declined, "accepting draft");
+
+            let EngineContext::Speculative(spec) = &mut self.ctx else {
+                unreachable!("only context should not have drafts");
+            };
+            spec.accept(self.draft_state.accepted as u16)?;
+
+            self.draft_state.needs_accept = false;
+        }
+
+        self.mtp_drafts_proposed += self.draft_state.drafts.len() as u64;
+        self.mtp_drafts_accepted += self.draft_state.accepted as u64;
+
+        Ok(())
+    }
+
+    fn roll_back_declined_drafts(&mut self) -> Result<(), RollbackError> {
+        let declined = self.draft_state.drafts.len() - self.draft_state.accepted;
+        if 0 < declined {
+            // Remove declined drafts from the KV cache.
+            let keep_up_to = self.n_past as u32;
+            let rolled_back = self
+                .ctx
+                .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
+            if !rolled_back {
+                // Recurrent / hybrid-recurrent memory types reject partial
+                // removal (Ok(false)). Unlike `remove_all_tokens_from_index_from_ctx`
+                // we cannot fall back to a full reset here — that would drop the
+                // prompt mid-generation. Leaving the rejected drafts' KV in place
+                // would silently corrupt subsequent decodes, so fail loudly. MTP
+                // targets attention models, where partial removal is supported.
+                return Err(RollbackError::MtpPartialRollbackUnsupported);
+            }
+        }
+
+        Ok(())
     }
 
     /// Diff `target` chunks against `prev` and load only the new tail into the KV cache.
@@ -397,6 +441,10 @@ impl<'a> InferenceEngine<'a> {
         prev: &TokenizerChunks,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<TokenizerChunks, ContextSyncError> {
+        self.accept_drafts()?;
+        self.draft_state.drafts.clear();
+        self.draft_state.accepted = 0;
+
         let prefix_index = find_chunks_prefix_difference(prev, &target);
 
         debug_assert!(!target.is_empty());
@@ -422,18 +470,9 @@ impl<'a> InferenceEngine<'a> {
         self.n_past as u32
     }
 
-    /// Detach the deferred MTP `pending` token so a context-shift KV replay
-    /// can run without desyncing the stateful sampler.
-    pub(crate) fn take_pending(&mut self) -> Option<LlamaToken> {
-        self.pending.take()
-    }
-
-    pub(crate) fn restore_pending(&mut self, pending: Option<LlamaToken>) {
-        self.pending = pending;
-    }
-
     pub(crate) fn is_context_full(&self) -> bool {
-        self.n_past as u32 == self.ctx.n_ctx()
+        let in_progress_drafts = (self.draft_state.drafts.len() - self.draft_state.accepted) as u32;
+        self.n_past as u32 + in_progress_drafts == self.ctx.n_ctx()
     }
 
     pub(crate) fn tokenize(
@@ -458,23 +497,20 @@ impl<'a> InferenceEngine<'a> {
             .load_audio(path)
     }
 
+    // FIXME(madsmtm): Refactor this
     pub(crate) fn sample_and_decode_next_tokens(
         &mut self,
         sampler: &mut ChatSampler,
         output: &mut Vec<LlamaToken>,
-        max_output_tokens: Option<usize>,
+        _max_output_tokens: Option<usize>,
     ) -> Result<(), DecodingError> {
         output.clear();
-        match &self.ctx {
-            EngineContext::Solo(_) => {
-                let token = self.sample_and_decode_solo(sampler)?;
-                output.push(token);
-                Ok(())
-            }
-            EngineContext::Speculative(_) => {
-                self.sample_and_decode_speculative(sampler, output, max_output_tokens)
-            }
-        }
+        let token = match &self.ctx {
+            EngineContext::Solo(_) => self.sample_and_decode_solo(sampler),
+            EngineContext::Speculative(_) => self.sample_and_decode_speculative(sampler),
+        }?;
+        output.push(token);
+        Ok(())
     }
 
     fn sample_and_decode_solo(
@@ -513,104 +549,77 @@ impl<'a> InferenceEngine<'a> {
     fn sample_and_decode_speculative(
         &mut self,
         sampler: &mut ChatSampler,
-        output: &mut Vec<LlamaToken>,
-        max_output_tokens: Option<usize>,
-    ) -> Result<(), DecodingError> {
+    ) -> Result<LlamaToken, DecodingError> {
         trace!("Applying sampler (MTP speculative, deferred)");
-        let pending = match self.pending {
-            Some(p) => p,
-            None => sampler.active().sample(&self.ctx, -1),
+
+        let token = if let Some(draft) = self.draft_state.drafts.get(self.draft_state.accepted) {
+            let token = sampler
+                .active()
+                .sample(&self.ctx, self.draft_state.accepted as _);
+            sampler.observe(token);
+
+            // Fast path: If the token matches what the draft model predicted,
+            // return the token.
+            if token == *draft {
+                self.draft_state.accepted += 1;
+                self.n_past += 1;
+                return Ok(token);
+            }
+
+            // Otherwise decode new tokens.
+            token
+        } else {
+            // We're out of draft tokens, we haven't started, or the state
+            // has been reset previously.
+            let token = sampler.active().sample(&self.ctx, -1);
+            sampler.observe(token);
+            token
         };
 
-        if self.ctx.model.is_eog_token(pending) {
-            trace!(?pending, "MTP: pending is EOG, short-circuiting");
-            self.pending = None;
-            output.push(pending);
-            return Ok(());
-        }
+        // Reset draft state.
+        self.accept_drafts()?;
+        self.roll_back_declined_drafts()?;
+        self.draft_state.drafts.clear();
+        self.draft_state.accepted = 0;
 
-        sampler.observe(pending);
-
-        let mut drafts = {
-            let EngineContext::Speculative(spec) = &mut self.ctx else {
-                unreachable!("sample_and_decode_speculative called on solo ctx");
-            };
-            spec.draft(self.n_past, pending, &[])?
+        let EngineContext::Speculative(spec) = &mut self.ctx else {
+            unreachable!("sample_and_decode_speculative called on solo ctx");
         };
+
+        // FIXME(madsmtm): Avoid starting a whole new draft if the token is an
+        // EOG token (then we'd rather decode just that token).
+
+        // Create new drafts.
+        trace!(n_past = self.n_past, ?token, "starting draft");
+        let mut drafts = spec.draft(self.n_past, token, &[])?;
+
+        // Make sure we later `.accept(...)` the drafts.
+        self.draft_state.needs_accept = !drafts.is_empty();
 
         // Clamp drafts so the verify batch [pending, drafts...] stays
         // within the context window:
-        let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
-        let output_room = max_output_tokens
-            .map(|max_output_tokens| max_output_tokens.saturating_sub(1))
-            .unwrap_or(usize::MAX);
-        drafts.truncate(room.min(output_room));
-        let k_max = drafts.len();
+        let room =
+            usize::try_from(spec.target_context().n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
+        drafts.truncate(room);
+        trace!(?drafts);
 
         self.batch.clear();
-        self.batch.add(pending, self.n_past, &[0], true)?;
+        self.batch.add(token, self.n_past, &[0], true)?;
         for (i, &d) in drafts.iter().enumerate() {
             self.batch.add(d, self.n_past + 1 + i as i32, &[0], true)?;
         }
-        let span = trace_span!("mtp verify decode", n_past = self.n_past, k_max).entered();
-        self.ctx.decode(&mut self.batch)?;
+
+        let span = trace_span!("mtp verify decode", n_past = self.n_past).entered();
+        spec.target_context_mut().decode(&mut self.batch)?;
         drop(span);
-        self.ctx.mtp_process(&self.batch)?;
 
-        let mut accepted_count = 0;
-        self.pending = None;
-        for (i, &draft) in drafts.iter().enumerate() {
-            let ti = sampler.active().sample(&self.ctx, i as i32);
-            if self.ctx.model.is_eog_token(ti) {
-                trace!(?ti, "MTP: target sampled EOG during verify, stopping");
-                self.pending = Some(ti);
-                break;
-            }
-            if ti != draft {
-                self.pending = Some(ti);
-                break;
-            }
-            accepted_count += 1;
-            sampler.observe(draft); // detects switch to grammar-constrained sampling
-        }
+        spec.process(&self.batch)?;
 
-        if accepted_count < k_max {
-            let keep_up_to = (self.n_past + 1 + accepted_count as i32) as u32;
-            let rolled_back = self
-                .ctx
-                .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
-            if !rolled_back {
-                // Recurrent / hybrid-recurrent memory types reject partial
-                // removal (Ok(false)). Unlike `remove_all_tokens_from_index_from_ctx`
-                // we cannot fall back to a full reset here — that would drop the
-                // prompt mid-generation. Leaving the rejected drafts' KV in place
-                // would silently corrupt subsequent decodes, so fail loudly. MTP
-                // targets attention models, where partial removal is supported.
-                return Err(DecodingError::MtpPartialRollbackUnsupported);
-            }
-        }
+        self.draft_state.drafts = drafts;
 
-        {
-            let EngineContext::Speculative(spec) = &mut self.ctx else {
-                unreachable!();
-            };
-            spec.accept(accepted_count as u16)?;
-        }
+        self.n_past += 1;
 
-        self.n_past += 1 + accepted_count as i32;
-        self.mtp_drafts_proposed += k_max as u64;
-        self.mtp_drafts_accepted += accepted_count as u64;
-
-        trace!(
-            accepted_count,
-            k_max,
-            ?pending,
-            "MTP: deferred iteration complete"
-        );
-
-        output.push(pending);
-        output.extend_from_slice(&drafts[..accepted_count]);
-        Ok(())
+        Ok(token)
     }
 }
 
