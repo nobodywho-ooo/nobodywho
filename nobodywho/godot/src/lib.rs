@@ -2063,6 +2063,39 @@ impl NobodyWhoSamplerBuilder {
         self.to_gd()
     }
 
+    /// Constrain output to a JSON schema, given as a JSON string.
+    ///
+    /// Constraining steps always run before the other shift steps, wherever you
+    /// chain them: a grammar that runs after truncation can find none of the
+    /// surviving candidates valid, which aborts generation.
+    #[func]
+    fn constrain_with_json_schema(&mut self, schema: String) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().constrain_with_json_schema(schema);
+        self.to_gd()
+    }
+
+    /// Constrain output to a regular expression.
+    #[func]
+    fn constrain_with_regex(&mut self, pattern: String) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().constrain_with_regex(pattern);
+        self.to_gd()
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    #[func]
+    fn constrain_with_grammar(&mut self, grammar: String) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().constrain_with_grammar(grammar);
+        self.to_gd()
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrain_with_json_schema()` instead.
+    #[func]
+    fn json(&mut self) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().json();
+        self.to_gd()
+    }
+
     /// DRY (Don't Repeat Yourself) penalty to reduce repetitive output.
     #[func]
     fn dry(

@@ -3,6 +3,7 @@
 //      the issue is mostly that the llvmpipe stuff we're doing inside nix sandbox is slow as hell
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:test/test.dart';
+import 'dart:convert';
 import 'dart:io';
 
 List<List<double>> multiplyMatrices(
@@ -409,6 +410,40 @@ void main() {
       final response2 = await chat!.ask("Say exactly: 'Hello'").completed();
 
       expect(response1, equals(response2)); // Should be identical with greedy
+    });
+
+    test('SamplerBuilder constraints run before truncation steps', () async {
+      // topK(1) first on purpose: the constraint has to be moved ahead of it,
+      // or the single surviving candidate is unlikely to be grammar-valid and
+      // generation aborts. The literal is one no model would answer with on
+      // its own, so passing proves the constraint applied.
+      final sampler = nobodywho.SamplerBuilder()
+          .topK(topK: 1)
+          .constrainWithRegex(pattern: "zqxjvkw")
+          .dist();
+      await chat!.setSamplerConfig(sampler);
+      final response = await chat!
+          .ask("Explain in detail why the sky appears blue.")
+          .completed();
+      expect(response, equals("zqxjvkw"));
+    });
+
+    test('SamplerBuilder combines a JSON schema with a temperature', () async {
+      final sampler = nobodywho.SamplerBuilder()
+          .constrainWithJsonSchema(
+            schema:
+                '{"type":"object","properties":{"name":{"type":"string"}},'
+                '"required":["name"],"additionalProperties":false}',
+          )
+          .temperature(temperature: 0.8)
+          .dist();
+      await chat!.setSamplerConfig(sampler);
+      final response = await chat!
+          .ask("Give me a person as JSON with a name field.")
+          .completed();
+
+      final parsed = jsonDecode(response) as Map<String, dynamic>;
+      expect(parsed.containsKey('name'), isTrue);
     });
 
     test('constrain_with_grammar enforces Lark grammar', () async {

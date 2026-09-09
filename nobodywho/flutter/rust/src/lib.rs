@@ -1502,6 +1502,43 @@ impl SamplerBuilder {
         )
     }
 
+    /// Constrain output to a JSON schema, given as a JSON string.
+    ///
+    /// Constraining steps always run before the other shift steps, wherever you
+    /// chain them: a grammar that runs after truncation can find none of the
+    /// surviving candidates valid, which aborts generation.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_json_schema(&self, schema: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_json_schema(schema),
+        }
+    }
+
+    /// Constrain output to a regular expression.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_regex(&self, pattern: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_regex(pattern),
+        }
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_grammar(&self, grammar: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_grammar(grammar),
+        }
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrainWithJsonSchema()` instead.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn json(&self) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().json(),
+        }
+    }
+
     /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
     #[flutter_rust_bridge::frb(sync)]
     #[deprecated(

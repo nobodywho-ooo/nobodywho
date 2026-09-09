@@ -164,7 +164,24 @@ Shift steps — add as many as you want, applied in order:
 - `.logitBias(biases: [1: -1.0, 2: 3.0])` — token 1 less probable, token 2 is more probable
 - `.dry(multiplier: 0.8, base: 1.75, allowedLength: 2, penaltyLastN: -1, seqBreakers: ["\n"])` — penalty for repeated *phrases*
 - `.seed(seed: 42)` — fix the RNG for reproducible output
-- `.grammar(...)` — deprecated; use the `constrainWith*` presets above
+- `.grammar(...)` — deprecated; use `.constrainWithGrammar(...)` below
+
+Constraining steps — the same formats as the presets above, but chainable with the rest:
+
+- `.constrainWithJsonSchema(schema: ...)` — output matches a JSON schema, given as a JSON string
+- `.constrainWithRegex(pattern: ...)` — output matches a regular expression
+- `.constrainWithGrammar(grammar: ...)` — output matches a grammar, in either Lark or GBNF syntax
+- `.json()` — output is a JSON object of any shape
+
+Constraining steps always run **before** the other shift steps, wherever you chain them.
+This is to avoid the case where a step like `.topK(topK: 5)` followed by a constraint could
+find that none of the five surviving tokens is valid, leaving nothing to sample and
+aborting generation. Both chains below therefore behave identically.
+
+```swift
+let sampler = SamplerBuilder().constrainWithRegex(pattern: "yes|no").temperature(temperature: 0.8).dist()
+let same = SamplerBuilder().temperature(temperature: 0.8).constrainWithRegex(pattern: "yes|no").dist()
+```
 
 Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
 

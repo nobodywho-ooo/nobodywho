@@ -2437,6 +2437,51 @@ impl SamplerBuilder {
         )
     }
 
+    /// Constrain output to a JSON schema.
+    ///
+    /// Constraining steps always run before the other shift steps, wherever you
+    /// chain them: a grammar that runs after truncation can find none of the
+    /// surviving candidates valid, which aborts generation.
+    ///
+    /// Args:
+    ///     schema: JSON schema as a dict or a JSON string
+    pub fn constrain_with_json_schema(&self, schema: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(SamplerBuilder {
+            inner: self
+                .inner
+                .clone()
+                .constrain_with_json_schema(json_schema_to_string(schema)?),
+        })
+    }
+
+    /// Constrain output to a regular expression.
+    ///
+    /// Args:
+    ///     pattern: Regular expression pattern
+    pub fn constrain_with_regex(&self, pattern: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_regex(pattern),
+        }
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    ///
+    /// Args:
+    ///     grammar: Grammar string in Lark or GBNF syntax
+    pub fn constrain_with_grammar(&self, grammar: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_grammar(grammar),
+        }
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrain_with_json_schema()` instead.
+    pub fn json(&self) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().json(),
+        }
+    }
+
     /// Apply a GBNF grammar constraint to enforce structured output.
     ///
     /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
@@ -2627,6 +2672,18 @@ fn sample_step(builder: SamplerBuilder, step: nobodywho::sampler::SampleStep) ->
     }
 }
 
+/// A JSON schema given as either a dict or an already-serialized JSON string.
+fn json_schema_to_string(schema: &Bound<'_, PyAny>) -> PyResult<String> {
+    if let Ok(s) = schema.extract::<String>() {
+        return Ok(s);
+    }
+    schema
+        .py()
+        .import("json")?
+        .call_method1("dumps", (schema,))?
+        .extract::<String>()
+}
+
 /// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
 /// `SamplerConfig` from some pre-defined sampler chain.
 /// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
@@ -2699,18 +2756,9 @@ impl SamplerPresets {
     ///     schema: JSON schema as a dict or a JSON string
     #[staticmethod]
     pub fn constrain_with_json_schema(schema: &Bound<'_, PyAny>) -> PyResult<SamplerConfig> {
-        let schema_str: String = if let Ok(s) = schema.extract::<String>() {
-            s
-        } else {
-            schema
-                .py()
-                .import("json")?
-                .call_method1("dumps", (schema,))?
-                .extract::<String>()?
-        };
         Ok(SamplerConfig {
             sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_json_schema(
-                schema_str,
+                json_schema_to_string(schema)?,
             ),
         })
     }
