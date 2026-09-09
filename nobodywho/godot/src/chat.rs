@@ -133,6 +133,55 @@ impl NobodyWhoChat {
         NobodyWhoTokenStream::wrap_chat(self.handle.ask(core_prompt)).to_variant()
     }
 
+    /// Answer a full message list, which replaces the chat history. Returns
+    /// a per-call token stream like `ask()`, or null on a bad message list
+    /// (with a `godot_error!`).
+    ///
+    /// `messages` is an Array of message dicts (`{role, content, ...}`). The
+    /// list is the whole conversation: it must be non-empty, end in a user or
+    /// tool message, and carry a system message only in front. A leading
+    /// system message becomes the chat's system prompt; a list without one
+    /// keeps the prompt the chat already had. The response is appended, so a
+    /// following `ask()` continues that same conversation.
+    ///
+    /// `config` holds per-turn settings, following the same rule: what you
+    /// pass stays set after the turn, what you leave out is kept. Optional
+    /// keys (same names as `create()`):
+    /// - `"sampler"` (NobodyWhoSamplerConfig)
+    /// - `"template_variables"` (Dictionary String->bool)
+    /// - `"tools"` (Array of NobodyWhoTool)
+    #[func]
+    fn complete(&self, messages: VarArray, config: VarDictionary) -> Variant {
+        let json = match variant_to_json(&messages.to_variant()) {
+            Ok(v) => v,
+            Err(e) => {
+                godot_error!("complete: invalid messages: {e}");
+                return Variant::nil();
+            }
+        };
+        let msgs: Vec<nobodywho::chat::Message> = match serde_json::from_value(json) {
+            Ok(m) => m,
+            Err(e) => {
+                godot_error!("complete: invalid messages: {e}");
+                return Variant::nil();
+            }
+        };
+        let options = match Self::parse_options(&config, &self.reentrancy_flag) {
+            Ok(o) => o,
+            Err(e) => {
+                godot_error!("complete: {e}");
+                return Variant::nil();
+            }
+        };
+        match self.handle.complete(msgs, options) {
+            Ok(stream) => NobodyWhoTokenStream::wrap_chat(stream).to_variant(),
+            Err(e) => {
+                godot_error!("complete: {}", nobodywho::render_miette(&e));
+                Variant::nil()
+            }
+        }
+    }
+
     /// Stop the current generation early. Chat-scoped: with queued concurrent
     /// asks, stops whatever is currently generating.
     #[func]
@@ -428,6 +477,27 @@ impl NobodyWhoChat {
         })
         .bind()
         .wait()
+    }
+
+    /// Parse the `complete` config Dictionary into per-turn `Options`. Every
+    /// key is optional; a missing key keeps the chat's current setting, a
+    /// present one stays set after the turn. Errors on a recognized key
+    /// holding a value of the wrong type.
+    fn parse_options(
+        config: &VarDictionary,
+        reentrancy_flag: &Arc<AtomicBool>,
+    ) -> Result<nobodywho::chat::Options, String> {
+        let mut options = nobodywho::chat::Options::new();
+        if let Some(sampler) = dict_get::<Gd<NobodyWhoSamplerConfig>>(config, "sampler")? {
+            options = options.with_sampler(sampler.bind().inner.clone());
+        }
+        if let Some(vars) = dict_get::<VarDictionary>(config, "template_variables")? {
+            options = options.with_template_variables(collect_template_variables(&vars)?);
+        }
+        if let Some(tools) = dict_get::<VarArray>(config, "tools")? {
+            options = options.with_tools(build_core_tools(&tools, reentrancy_flag));
+        }
+        Ok(options)
     }
 
     /// Parse the `create` config Dictionary into a core `ChatConfig` plus the

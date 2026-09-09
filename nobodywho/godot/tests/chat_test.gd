@@ -30,6 +30,7 @@ func run(runner: Node) -> void:
 	await _test_stats(runner, chat)
 	await _test_tokenize(runner, chat)
 	await _test_chat_history(runner, chat)
+	await _test_complete(runner, chat)
 
 	# RefCounted: chat is refcount-managed, nothing to free.
 
@@ -158,6 +159,62 @@ func _test_sampler_constraints(runner: Node, chat) -> void:
 	await chat.reset_history()
 	await chat.set_system_prompt(null)
 	await chat.set_template_variable("enable_thinking", true)
+
+func _test_complete(runner: Node, chat) -> void:
+	# A leading system message becomes the system prompt; the list is the
+	# whole conversation, and the response is appended to it.
+	await chat.reset_history()
+	var stream = chat.complete([
+		{"role": "system", "content": "You answer with a single word."},
+		{"role": "user", "content": "What is the capital of France?"},
+	], {})
+	if stream == null:
+		runner.fail("complete: returned null for a valid message list")
+		return
+	var response: String = await stream.completed()
+	if response.to_lower().find("paris") < 0:
+		runner.fail("complete: expected Paris in the answer, got: %s" % response)
+	else:
+		runner.ok("complete: answered from the message list")
+
+	# The passed list became the history — the leading system message is
+	# consumed into the chat's system prompt, leaving [user, assistant].
+	var hist = await chat.get_chat_history()
+	var prompt: String = await chat.get_system_prompt()
+	var roles_ok: bool = hist is Array and hist.size() == 2 and hist[0]["role"] == "user" and hist[1]["role"] == "assistant"
+	if roles_ok and hist[1]["content"].to_lower().find("paris") >= 0 and prompt == "You answer with a single word.":
+		runner.ok("complete: the list became the chat history (system message became the prompt)")
+	else:
+		runner.fail("complete: history wrong after complete (prompt=%s): %s" % [prompt, str(hist)])
+
+	# Per-turn settings: pass a sampler, it stays set after the turn.
+	stream = chat.complete(
+		[{"role": "user", "content": "Name one fruit."}],
+		{"sampler": NobodyWhoSamplerPresets.temperature(0.456)},
+	)
+	if stream == null:
+		runner.fail("complete: per-turn settings rejected")
+		return
+	var _text: String = await stream.completed()
+	var cfg = await chat.get_sampler_config()
+	var cfg_json: String = cfg.to_json() if cfg else ""
+	if cfg and cfg_json.find("0.456") >= 0:
+		runner.ok("complete: per-turn sampler stays set after the turn")
+	else:
+		runner.fail("complete: per-turn sampler did not stick, got: %s" % cfg_json)
+
+	# An empty list is rejected (the godot_error! is the expected noise).
+	await chat.reset_history()
+	var bad = chat.complete([], {})
+	if bad == null:
+		runner.ok("complete: rejects an empty message list")
+	else:
+		runner.fail("complete: empty list should return null")
+
+	# Restore the default sampler so later tests aren't affected.
+	await chat.set_sampler_config(NobodyWhoSamplerPresets.default())
+	await chat.reset_history()
+	await chat.set_system_prompt(null)
 
 func _test_stats(runner: Node, chat) -> void:
 	var stats = await chat.get_stats()

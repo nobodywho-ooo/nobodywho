@@ -95,6 +95,55 @@ A leading system message sets the chat's system prompt. The list must not be emp
 a user or tool message, and may only have a system message first. To clear the conversation but
 keep the system prompt and tools, use `reset_history()`.
 
+## Chat completion
+
+If you would rather pass the whole conversation on every call than let the chat remember it, use
+`complete()`:
+
+```gdscript
+var stream = chat.complete([
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Who was the first person to walk on the moon?"},
+    {"role": "assistant", "content": "Neil Armstrong."},
+    {"role": "user", "content": "Which year did he do it?"},
+], {})
+print(await stream.completed())
+```
+
+You get back the same `NobodyWhoTokenStream` as from `ask()`, so you can also pull it token by
+token.
+
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is
+added to it — so `ask()` continues that same conversation. A system message at the front sets the
+chat's system prompt (it doesn't stay in the history); leave it out and the prompt already on the
+chat is kept. The same validity rules as `set_chat_history()` apply — anything else resolves to
+`null` with an error.
+
+### Per-turn settings
+
+`complete()`'s second argument takes the chat's other settings — `"sampler"`,
+`"template_variables"` and `"tools"`, with the same names as `create()`. They follow the same
+rule as the system message: what you pass stays set, what you leave out is kept.
+
+```gdscript
+var stream = chat.complete(
+    [{"role": "user", "content": "Name one fruit."}],
+    {"sampler": NobodyWhoSamplerPresets.greedy(), "template_variables": {"enable_thinking": false}},
+)
+print(await stream.completed())
+
+# Both are now the chat's settings, so the next call need not repeat them
+print(await chat.ask("Name another.").completed())
+```
+
+Pass all three and the call no longer depends on what the chat is currently holding — useful if
+you drive it entirely through `complete()`.
+
+:::warning
+Changing `"tools"` re-selects the chat template and rewrites the system-prompt region, so that
+turn re-prefills from near token zero. Set it when it changes, not on every call.
+:::
+
 ## System prompt
 
 A system prompt is a special message put into the chat context, which should guide its overall
