@@ -27,7 +27,7 @@ pub use crate::content::{ContentPart, MessageContent};
 use crate::errors::{
     ChatWorkerError, CompleteError, ContextSyncError, GenerateResponseError, InitWorkerError,
     InvalidHistoryError, MultimodalError, RenderError, SayError, SetterError, ShiftError,
-    TokenizeError, ToolCallingSetupError, WrappedResponseError,
+    TokenizeError, ToolCallingSetupError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
@@ -1895,6 +1895,10 @@ struct Chat<'a> {
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
     context: ChatContext,
+    /// Tokens decoded for an in-progress turn.
+    in_progress_tokens: Vec<LlamaToken>,
+    /// Decoder state for an in-progress turn.
+    decoder: StringDecoder,
 }
 
 impl<'a> Chat<'a> {
@@ -1964,6 +1968,8 @@ impl<'a> Chat<'a> {
             template_variables: config.template_variables,
             tools: config.tools,
             context: ChatContext::new(),
+            in_progress_tokens: Vec::new(),
+            decoder: StringDecoder::new(),
         })
     }
 
@@ -2001,9 +2007,11 @@ impl<'a> Chat<'a> {
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
         let mut chunks = self.render_as_chunks(&self.messages, true)?;
+        chunks.append(TokenizerChunk::new_text(self.in_progress_tokens.clone()));
         if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
             self.context_shift()?;
             chunks = self.render_as_chunks(&self.messages, true)?;
+            chunks.append(TokenizerChunk::new_text(self.in_progress_tokens.clone()));
         }
 
         // We should never try to sync with an empty render
@@ -2071,99 +2079,62 @@ impl<'a> Chat<'a> {
     // This is a safety meassure to prevent bugs from multiple
     // contexts with the same model. It might not be necessary
     // but assume it is.
-    fn generate_response_until_done_with_limit<F>(
+    fn next_token(
         &mut self,
-        mut respond: F,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-        max_tokens: Option<usize>,
-    ) -> Result<&mut Self, GenerateResponseError>
-    where
-        F: FnMut(WriteOutput),
-    {
-        // Token generation loop
-        info!("Worker writing until done");
-
-        self.engine.reset_mtp_stats();
-
-        // pre-allocating 4096 bytes for the response string
-        // 4096 is a very randomly chosen number. how does this affect performance?
-        let mut full_response: String = String::with_capacity(4096);
-        let mut tokens_written_until_now = Vec::new();
-        let mut generated_tokens = 0;
-
-        self.sampler.reset();
-
-        // init statefull decoder for split up tokens like emojis
-        let mut decoder = encoding_rs::UTF_8.new_decoder();
-
-        while !self.should_stop()
-            && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
-        {
-            // Check if the context is full
-            if self.engine.is_context_full() {
-                self.context_shift()?;
-                self.sync_context_with_render(inference_lock_token)?;
-                if !tokens_written_until_now.is_empty() {
-                    let mut generated_chunks = TokenizerChunks::new();
-                    generated_chunks
-                        .append(TokenizerChunk::new_text(tokens_written_until_now.clone()));
-                    self.engine
-                        .read_chunks(generated_chunks, inference_lock_token)?;
-                }
-                // do not update tokens_in_context as this is done later by ask
-            }
-
-            let new_token = self.engine.next_token(&mut self.sampler)?;
-
-            tokens_written_until_now.push(new_token);
-
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
-                .engine
-                .ctx
-                .model
-                .token_to_piece_bytes(new_token, 64, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
-                }
-                x => x,
-            }?;
-
-            // Attempt to convert bytes to utf8 string.
-            let max_len = decoder
-                .max_utf8_buffer_length(token_bytes.len())
-                .unwrap_or(32);
-            let mut token_str = String::with_capacity(max_len);
-
-            // this is where the utf-8 decoder handles partial unicode
-            // it'll write whatever printable chars it can into `token_str`
-            // and retain partial codepoints for next decoding attempt
-            let (_result, _bytes_read, _had_errors) =
-                decoder.decode_to_string(&token_bytes, &mut token_str, false);
-
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token);
-            trace!(?new_token, ?token_str, ?has_eog);
-
-            if has_eog {
-                break;
-            }
-
-            full_response.push_str(&token_str);
-            generated_tokens += 1;
-            trace!(?token_str, "Sending out token:");
-            respond(WriteOutput::Token(token_str));
+    ) -> Result<Option<String>, GenerateResponseError> {
+        // Check if the context is full
+        if self.engine.is_context_full() {
+            self.context_shift()?;
+            self.sync_context_with_render(inference_lock_token)?;
+            // do not update tokens_in_context as this is done later by ask
         }
 
-        // we're done!
-        debug!(%full_response, "Sending out");
-        respond(WriteOutput::Done(full_response));
-        Ok(self)
+        let new_token = self.engine.next_token(&mut self.sampler)?;
+
+        self.in_progress_tokens.push(new_token);
+
+        // Attempt to convert token(s) to bytes
+        let token_bytes = match self
+            .engine
+            .ctx
+            .model
+            .token_to_piece_bytes(new_token, 64, true, None)
+        {
+            Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
+                self.engine.ctx.model.token_to_piece_bytes(
+                    new_token,
+                    (-i).try_into().expect("Error buffer size is positive"),
+                    true,
+                    None,
+                )
+            }
+            x => x,
+        }?;
+
+        let token_str = self.decoder.decode(&token_bytes);
+
+        let has_eog = self.engine.ctx.model.is_eog_token(new_token);
+        trace!(?new_token, ?token_str, ?has_eog);
+
+        if has_eog {
+            return Ok(None);
+        }
+
+        Ok(Some(token_str))
+    }
+
+    /// Reset state for a turn.
+    fn reset_turn(
+        &mut self,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+    ) -> Result<(), ContextSyncError> {
+        self.engine.reset_mtp_stats();
+        self.sampler.reset();
+        self.in_progress_tokens.clear();
+        self.decoder = StringDecoder::new();
+        self.sync_context_with_render(inference_lock_token)?;
+        Ok(())
     }
 
     pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
@@ -2250,8 +2221,7 @@ impl<'a> Chat<'a> {
         // grammar is added dynamically inside `generate_response_until_done_with_limit`
         // the moment the begin token appears in the streamed output.
 
-        let mut response =
-            self.wrapped_update_context_and_generate_response(respond.clone(), max_tokens)?;
+        let mut response = self.generate_response(respond.clone(), max_tokens)?;
 
         // Process tool calls if tool format is configured
         // Clone to avoid borrow issues in the loop
@@ -2300,8 +2270,7 @@ impl<'a> Chat<'a> {
                 }
 
                 // get the finished response
-                response =
-                    self.wrapped_update_context_and_generate_response(respond.clone(), max_tokens)?;
+                response = self.generate_response(respond.clone(), max_tokens)?;
             }
         } // Close if let Some(tool_format)
 
@@ -2447,31 +2416,55 @@ impl<'a> Chat<'a> {
         Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
     }
 
-    fn wrapped_update_context_and_generate_response<F>(
+    fn generate_response<F>(
         &mut self,
         respond: F,
         max_tokens: Option<usize>,
-    ) -> Result<String, WrappedResponseError>
+    ) -> Result<String, GenerateResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
         let inference_lock_token = acquire_inference_lock();
-        self.sync_context_with_render(&inference_lock_token)?;
+
+        self.reset_turn(&inference_lock_token)?;
 
         let tool_call_begin_token = self
             .tool_format
             .as_ref()
             .map(|format| format.begin_token().to_string());
-        let (wrapped_respond, resp_receiver) =
-            crate::inference::wrap_respond(respond, tool_call_begin_token);
 
-        self.generate_response_until_done_with_limit(
-            wrapped_respond,
-            &inference_lock_token,
-            max_tokens,
-        )?;
+        // pre-allocating 4096 bytes for the response string
+        // 4096 is a very randomly chosen number. how does this affect performance?
+        let mut full_response: String = String::with_capacity(4096);
+        let mut generated_tokens = 0;
+        let mut emitting = true;
 
-        Ok(resp_receiver.recv()?)
+        // Token generation loop
+        while !self.should_stop()
+            && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
+        {
+            if let Some(token_str) = self.next_token(&inference_lock_token)? {
+                full_response.push_str(&token_str);
+                generated_tokens += 1;
+
+                if tool_call_begin_token.as_ref() == Some(&token_str) {
+                    emitting = false;
+                }
+
+                if emitting {
+                    trace!(?token_str, "sending token");
+                    respond(WriteOutput::Token(token_str));
+                }
+            } else {
+                break;
+            }
+        }
+
+        // we're done!
+        debug!(%full_response, "sending done");
+        respond(WriteOutput::Done(full_response.clone()));
+
+        Ok(full_response)
     }
 
     pub fn reset_chat(
@@ -2660,6 +2653,37 @@ impl<'a> Chat<'a> {
         let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
         let chunks = self.engine.tokenize(prompt.to_string(), bitmap_refs)?;
         Ok(chunks.to_token_ids())
+    }
+}
+
+/// Stateful decoder for splitting up incomplete UTF-8 tokens like emojis.
+pub struct StringDecoder {
+    decoder: encoding_rs::Decoder,
+}
+
+impl StringDecoder {
+    pub fn new() -> Self {
+        Self {
+            decoder: encoding_rs::UTF_8.new_decoder(),
+        }
+    }
+
+    pub fn decode(&mut self, bytes: &[u8]) -> String {
+        // Attempt to convert bytes to UTF-8 string.
+        let max_len = self
+            .decoder
+            .max_utf8_buffer_length(bytes.len())
+            .expect("required buffer larger than usize");
+        let mut token_str = String::with_capacity(max_len);
+
+        // This is where the utf-8 decoder handles partial unicode.
+        //
+        // It'll write whatever printable chars it can into `token_str`
+        // and retain partial codepoints for next decoding attempt
+        let (_result, _bytes_read, _had_errors) =
+            self.decoder.decode_to_string(&bytes, &mut token_str, false);
+
+        token_str
     }
 }
 
@@ -4665,5 +4689,23 @@ mod tests {
         Ok(())
     }
 
-    // Template rendering tests have been moved to template.rs module
+    #[test]
+    fn decoder() {
+        let mut decoder = StringDecoder::new();
+        assert_eq!(decoder.decode(b"\xE2\x99\xA5"), "♥");
+
+        // Test split up over multiple input strings.
+        assert_eq!(decoder.decode(b"\xE2"), "");
+        assert_eq!(decoder.decode(b"\x99"), "");
+        assert_eq!(decoder.decode(b"\xA5"), "♥");
+
+        // Invalid UTF-8
+        assert_eq!(decoder.decode(b"\xE2\x82"), "");
+        assert_eq!(decoder.decode(b"\x28"), "�(");
+
+        // Now valid again
+        assert_eq!(decoder.decode(b"\xE2"), "");
+        assert_eq!(decoder.decode(b"\x99"), "");
+        assert_eq!(decoder.decode(b"\xA5"), "♥");
+    }
 }
