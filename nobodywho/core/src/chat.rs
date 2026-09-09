@@ -27,7 +27,7 @@ pub use crate::content::{ContentPart, MessageContent};
 use crate::errors::{
     ChatWorkerError, CompleteError, ContextSyncError, GenerateResponseError, InitWorkerError,
     InvalidHistoryError, MultimodalError, RenderError, SayError, SetterError, ShiftError,
-    TokenizeError, ToolCallingSetupError, WrappedResponseError,
+    TokenizeError, ToolCallingSetupError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
@@ -2420,7 +2420,7 @@ impl<'a> Chat<'a> {
         &mut self,
         respond: F,
         max_tokens: Option<usize>,
-    ) -> Result<String, WrappedResponseError>
+    ) -> Result<String, GenerateResponseError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
@@ -2432,13 +2432,12 @@ impl<'a> Chat<'a> {
             .tool_format
             .as_ref()
             .map(|format| format.begin_token().to_string());
-        let (mut wrapped_respond, resp_receiver) =
-            crate::inference::wrap_respond(respond, tool_call_begin_token);
 
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
         let mut generated_tokens = 0;
+        let mut emitting = true;
 
         // Token generation loop
         while !self.should_stop()
@@ -2447,18 +2446,25 @@ impl<'a> Chat<'a> {
             if let Some(token_str) = self.next_token(&inference_lock_token)? {
                 full_response.push_str(&token_str);
                 generated_tokens += 1;
-                trace!(?token_str, "Sending out token:");
-                wrapped_respond(WriteOutput::Token(token_str));
+
+                if tool_call_begin_token.as_ref() == Some(&token_str) {
+                    emitting = false;
+                }
+
+                if emitting {
+                    trace!(?token_str, "sending token");
+                    respond(WriteOutput::Token(token_str));
+                }
             } else {
                 break;
             }
         }
 
         // we're done!
-        debug!(%full_response, "Sending out");
-        wrapped_respond(WriteOutput::Done(full_response));
+        debug!(%full_response, "sending done");
+        respond(WriteOutput::Done(full_response.clone()));
 
-        Ok(resp_receiver.recv()?)
+        Ok(full_response)
     }
 
     pub fn reset_chat(
