@@ -8,6 +8,8 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+## [Python v3.0.0, Flutter v4.0.0, Godot v11.0.0, Kotlin v4.0.0, React Native v4.0.0, Swift v4.0.0] - 2026-09-09
+
 ### Added
 
 - `Chat.complete(messages)` answers a whole conversation passed as a list of messages, for when you would rather hand over the conversation than let the `Chat` remember it. The list becomes the chat history and the response is appended, so `ask()` continues from there. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept. Media referenced by the messages is re-read from its file path, so a saved conversation containing images or audio can be replayed. Available for all bindings.
@@ -28,6 +30,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 - A rejected chat setter no longer kills the chat. `set_sampler_config`, `set_tools` and `reset_chat` used to end the worker, so the reason was only logged and every later call — including `ask()` — failed with "worker terminated". The error now reaches the caller and the chat keeps working. Available for all bindings.
 - A rejected encoder or cross-encoder input no longer kills the worker. Text longer than the context window used to end it, so every later `encode()` or `rank()` failed too. The error now reaches the caller and the worker stays usable. Available for all bindings.
+- **Godot:** `NobodyWhoTextToSpeech` no longer panics while loading a model. The load ran on `tokio::task::spawn_blocking`, which needs an active Tokio runtime, but `godot::task::spawn` runs on gdext's own executor; it now runs on a plain thread.
 - **React Native:** Logs are now visible in Xcode on iOS.
 - **Swift:** Logs are now visible in Xcode on iOS.
 
