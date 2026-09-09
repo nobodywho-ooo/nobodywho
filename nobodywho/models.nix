@@ -118,4 +118,8 @@ rec
 
   # The godot encoder_test reads TEST_ENCODER_MODEL; alias the legacy name.
   TEST_ENCODER_MODEL = TEST_EMBEDDINGS_MODEL;
+
+  # PCM WAV variant of the shared test audio, for the VAD tests (python's
+  # test_vad.py reads the same env var).
+  TEST_AUDIO_FILE_WAV = "${../assets/sound_16k.wav}";
 }

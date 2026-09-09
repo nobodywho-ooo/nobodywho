@@ -14,6 +14,7 @@ mod speech_to_text;
 mod task;
 mod text_to_speech;
 mod tools;
+mod vad;
 
 // --- Logging -----------------------------------------------------------------
 
