@@ -1,79 +1,53 @@
-# Downloading models
-_How NobodyWho downloads, caches, and inspects GGUF models in Godot._
-
+---
+title: Downloading models
+description: Where to put your model files and how NobodyWho downloads them
+sidebar_position: 1
 ---
 
-NobodyWho can either load a model from a path on disk or download it for you on first use, caching it for subsequent runs. This page covers the available model path formats, how to observe a download in progress, how to access gated/private models, and how to inspect what's already in the local cache.
+NobodyWho needs a model file to do anything useful. Model paths are accepted everywhere a model is
+loaded — `NobodyWhoChat.create()`, `NobodyWhoModel.create()`, `NobodyWhoEncoder.create()`, and so
+on — and all of them accept the same set of formats.
 
 ## Supported model path formats
 
-The `model_path` field on `NobodyWhoModel` (and `projection_model_path` for vision models) accepts several forms:
-
-| Form | Example | Notes |
-| ---- | ------- | ----- |
-| Godot resource path | `res://models/my-model.gguf` | Bundled with your game export |
-| User data path | `user://downloaded.gguf` | Written by your game at runtime |
-| Absolute filesystem path | `/opt/models/foo.gguf` | Local file |
-| HuggingFace reference | `hf:owner/repo/file.gguf` | Downloaded and cached on first use |
-| HTTPS URL | `https://example.com/model.gguf` | Downloaded and cached on first use |
-
-The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
-
-## Tracking download progress
-
-`NobodyWhoModel` emits a `download_progress(downloaded, total)` signal while a remote model is downloading, throttled to roughly 10 Hz with a guaranteed final emit on completion. Connect it if you'd like to drive a progress bar:
+- **Local file path**: `"./model.gguf"`, `"C:/models/model.gguf"`, etc.
+- **Godot paths**: `"res://models/model.gguf"` (shipped with your game) or
+  `"user://models/model.gguf"` (writable per-user directory). NobodyWho resolves these to real
+  filesystem paths for you.
+- **Hugging Face repos**: `"hf://owner/repo"` — a model from Hugging Face, downloaded and cached
+  on first use. Examples:
+  - `"hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF"` (chat, GGUF)
+  - `"hf://onnx-community/whisper-base"` (speech to text, ONNX)
+- **`"auto"`**: pick a chat model that fits the machine's available memory.
 
 ```gdscript
-model.download_progress.connect(func(downloaded: int, total: int):
-    print("%d / %d bytes" % [downloaded, total])
-)
+var chat = await NobodyWhoChat.create("hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF", {})
 ```
 
-The signal is not emitted for local files or already-cached downloads.
+Downloads go to a per-user cache directory: `$XDG_CACHE_HOME/nobodywho/models` on Linux, the
+equivalent `~/.cache` location on macOS, and `%LOCALAPPDATA%\nobodywho\models` on Windows. The
+cache survives restarts, so each model is downloaded once. If you ship a model inside your game
+with `res://`, nothing is ever downloaded.
 
 ## Downloading a gated model
 
-Some HuggingFace models are private or gated by a license you need to accept. In both cases you need to be authorized to download the model weights.
+Some Hugging Face repositories require accepting a license. After accepting it on the model page,
+export a [Hugging Face access token](https://huggingface.co/settings/tokens) as `HF_TOKEN` in the
+environment before starting your game:
 
-You can manually download the GGUF file via your web browser and then point your `NobodyWhoModel` at the local path.
-
-Alternatively, use the `NobodyWhoDownloader` node, which lets you pass an authorization header:
-
-```gdscript
-var dl = NobodyWhoDownloader.new()
-dl.model_path = "huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
-dl.headers = {"Authorization": "Bearer your_hf_token"}
-dl.download_complete.connect(func(local_path: String):
-    get_node("../ChatModel").model_path = local_path
-)
-dl.download_failed.connect(func(error: String):
-    push_error("Download failed: " + error)
-)
-dl.start_download()
-add_child(dl)
+```sh
+export HF_TOKEN=hf_...
 ```
-
-You can generate a HuggingFace token in [your account settings](https://huggingface.co/settings/tokens).
 
 ## Inspecting the model cache
 
-`NobodyWhoModel.get_cached_models()` is a static function that returns every `.gguf` model in NobodyWho's cache directory, paired with its size in bytes. This is the same cache used by `NobodyWhoDownloader` and by `NobodyWhoModel`'s `huggingface:` paths.
+The cache mirrors the Hugging Face repo layout, so you can look around it with any file browser:
 
-```gdscript
-for entry in NobodyWhoModel.get_cached_models():
-    print("%s: %d bytes" % [entry["path"], entry["size"]])
+```
+~/.cache/nobodywho/models/
+└── NobodyWho/
+    └── Qwen_Qwen3-0.6B-GGUF/
+        └── Qwen_Qwen3-0.6B-Q4_K_M.gguf
 ```
 
-Each entry is a `Dictionary` with two keys:
-
-- `"path"` — absolute path to the cached `.gguf` file
-- `"size"` — size in bytes
-
-The array is empty if nothing has been downloaded yet. On error the function returns `null` and logs a Godot error to the console.
-
-## Android permissions
-
-Loading a model from `hf://` or `https://` needs network access. In the Android export preset, enable the **Internet** permission under **Permissions** before exporting.
-
-Exports that only load models from local paths need no network permission.
-
+Deleting a folder makes NobodyWho re-download it on next use.

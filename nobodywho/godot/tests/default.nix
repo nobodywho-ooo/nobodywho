@@ -49,15 +49,12 @@ stdenv.mkDerivation {
     ln -s ${models.TEST_MODEL} \
       $out/hf-cache/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-Q4_K_M.gguf
 
-    # Whisper STT — same cache-layout trick, so hf://onnx-community/whisper-base
-    # resolves offline.
-    ln -s ${models.TEST_WHISPER_HF_CACHE}/onnx-community \
-      $out/hf-cache/nobodywho/models/onnx-community
-
-    # Kokoro TTS — fetch from HF cache layout.
-    # (If a TEST_TTS_SOURCE is not in the cache, the test self-skips, so this
-    # is optional. We include the chat model + cross-encoder + encoder which
-    # are the primary model-backed tests.)
+    # NOTE: the ort-based suites (stt/tts/vad) are deliberately NOT wired up
+    # here: in the sandbox the extension links the nixpkgs-built dynamic
+    # onnxruntime, whose std::filesystem usage corrupts godot's statically
+    # linked-libstdc++ locale state (free(): invalid size abort). They run
+    # on hosts instead — see models.nix, which exports all their test
+    # inputs for the dev shell / `just godot-test`.
 
     # Import the project (generates .godot/ cache so extension classes resolve).
     ${godot_4}/bin/godot --headless --import --path . || true
