@@ -53,8 +53,8 @@ func _test_python_tool(runner: Node) -> void:
 		runner.fail("tools: python: could not create chat")
 		return
 
-	var stream = chat.call("ask", "Use the run_python tool to compute 7 * 6 and tell me the answer.")
-	var _text: String = await stream.call("completed")
+	var stream = chat.ask("Use the run_python tool to compute 7 * 6 and tell me the answer.")
+	var _text: String = await stream.completed()
 	# Built-in tool: we can't easily observe whether it was called from here,
 	# but the chat must not hang and must produce *some* output.
 	runner.ok("tools: python tool registered, chat did not hang (built-in mechanism OK)")
@@ -83,8 +83,8 @@ func _test_schema_lambda_tool(runner: Node) -> void:
 		runner.fail("tools: schema/lambda: could not create chat")
 		return
 
-	var stream = chat.call("ask", "Use the press_button tool to press the green button, then tell me what it said.")
-	var text: String = await stream.call("completed")
+	var stream = chat.ask("Use the press_button tool to press the green button, then tell me what it said.")
+	var text: String = await stream.completed()
 	if _lambda_arg == null:
 		runner.fail("tools: schema/lambda: tool was never called")
 	elif not text.to_lower().contains("quartz"):
@@ -117,8 +117,8 @@ func _test_timeout_recovery(runner: Node) -> void:
 		return
 
 	# First call wedges its coroutine; generation must complete via timeout.
-	var stream = chat.call("ask", "Use the stuck_oracle tool to ask 'one?' and report its answer.")
-	var _text1: String = await stream.call("completed")
+	var stream = chat.ask("Use the stuck_oracle tool to ask 'one?' and report its answer.")
+	var _text1: String = await stream.completed()
 	if _stuck_calls < 1:
 		runner.fail("tools: timeout: tool was never called")
 		return
@@ -128,9 +128,9 @@ func _test_timeout_recovery(runner: Node) -> void:
 	# signal that never fires — if the dispatcher were wedged by it, this
 	# second call would never run (with the old inline loop it would also
 	# queue behind the wedged first call and time out too).
-	await chat.call("reset_history")
-	stream = chat.call("ask", "Use the stuck_oracle tool once more to ask 'two?' and report its answer.")
-	var text2: String = await stream.call("completed")
+	await chat.reset_history()
+	stream = chat.ask("Use the stuck_oracle tool once more to ask 'two?' and report its answer.")
+	var text2: String = await stream.completed()
 	if not _stuck_returned:
 		runner.fail("tools: timeout: second call never ran — dispatcher wedged by the first (calls=%d)" % _stuck_calls)
 	elif not text2.to_lower().contains("emerald"):
@@ -156,8 +156,8 @@ func _test_reentrancy_guard(runner: Node) -> void:
 		runner.fail("tools: reentrancy: could not create chat")
 		return
 
-	var stream = _reentrant_chat.call("ask", "Use the naughty_tool tool with box_name 'blue' and tell me what it says.")
-	var _text: String = await stream.call("completed")
+	var stream = _reentrant_chat.ask("Use the naughty_tool tool with box_name 'blue' and tell me what it says.")
+	var _text: String = await stream.completed()
 	# The generation must complete (no hang), and the re-entrant call inside
 	# the tool must have resolved null via the guard.
 	if _reentrant_result != null:
@@ -185,8 +185,8 @@ func _test_sync_tool(runner: Node) -> void:
 		runner.fail("tools: sync: could not create chat")
 		return
 
-	var stream = chat.call("ask", "Use the get_magic_word tool with box_name 'red' and tell me the magic word.")
-	var text: String = await stream.call("completed")
+	var stream = chat.ask("Use the get_magic_word tool with box_name 'red' and tell me the magic word.")
+	var text: String = await stream.completed()
 	if not _sync_tool_called:
 		runner.fail("tools: sync: tool was never called")
 	elif _sync_tool_arg != "red":
@@ -218,8 +218,8 @@ func _test_async_tool(runner: Node) -> void:
 		runner.fail("tools: async: could not create chat")
 		return
 
-	var stream = chat.call("ask", "Use the get_oracle_answer tool to ask the oracle 'what is best?' and tell me its answer.")
-	var text: String = await stream.call("completed")
+	var stream = chat.ask("Use the get_oracle_answer tool to ask the oracle 'what is best?' and tell me its answer.")
+	var text: String = await stream.completed()
 	if not _async_tool_called:
 		runner.fail("tools: async: tool was never called")
 	elif not text.to_lower().contains("banana"):
