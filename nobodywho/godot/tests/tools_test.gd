@@ -123,8 +123,12 @@ func _test_timeout_recovery(runner: Node) -> void:
 		runner.fail("tools: timeout: tool was never called")
 		return
 
-	# Second call must actually run and return (with the old inline loop it
-	# would queue behind the wedged first call and time out too).
+	# Reset history so the model doesn't see the timeout error and chicken
+	# out of retrying. The wedged coroutine from call 1 is still parked on a
+	# signal that never fires — if the dispatcher were wedged by it, this
+	# second call would never run (with the old inline loop it would also
+	# queue behind the wedged first call and time out too).
+	await chat.call("reset_history")
 	stream = chat.call("ask", "Use the stuck_oracle tool once more to ask 'two?' and report its answer.")
 	var text2: String = await stream.call("completed")
 	if not _stuck_returned:
