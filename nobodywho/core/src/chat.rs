@@ -40,6 +40,7 @@ use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChu
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
+use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -1807,7 +1808,7 @@ impl ChatSampler {
     }
 
     /// The sampler that should produce the next token.
-    pub(crate) fn active(&mut self) -> &mut LlamaSampler {
+    fn active(&mut self) -> &mut LlamaSampler {
         if self.grammar_activated {
             self.tool
                 .as_mut()
@@ -1817,11 +1818,19 @@ impl ChatSampler {
         }
     }
 
+    pub(crate) fn sample(&mut self, ctx: &LlamaContext<'_>, idx: i32) -> LlamaToken {
+        // No need to use `sampler.accept` as `.sample` already accepts
+        // the token: https://github.com/utilityai/llama-cpp-rs/issues/604
+        let token = self.active().sample(ctx, idx);
+        self.observe(token);
+        token
+    }
+
     /// Feed an emitted token back in so the begin sequence can be tracked, and
     /// switch to the tool sampler once it completes. Must be called on each
     /// emitted token, in order, before its successor is sampled. Returns whether
     /// the switch just happened.
-    pub(crate) fn observe(&mut self, token: LlamaToken) -> bool {
+    fn observe(&mut self, token: LlamaToken) -> bool {
         if self.grammar_activated || self.begin_tokens.is_empty() {
             return false;
         }

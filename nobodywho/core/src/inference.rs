@@ -522,10 +522,7 @@ impl<'a> InferenceEngine<'a> {
 
         let span = trace_span!("sample").entered();
         let token = if let Some(draft) = self.draft_state.drafts.get(self.draft_state.accepted) {
-            let token = sampler
-                .active()
-                .sample(&self.ctx, self.draft_state.accepted as _);
-            sampler.observe(token);
+            let token = sampler.sample(&self.ctx, self.draft_state.accepted as _);
 
             // Fast path: If the token matches what the draft model predicted,
             // return the token.
@@ -538,11 +535,7 @@ impl<'a> InferenceEngine<'a> {
             // Otherwise decode new tokens.
             token
         } else {
-            // No need to use `sampler.accept` as `.sample` already accepts
-            // the token: https://github.com/utilityai/llama-cpp-rs/issues/604
-            let token = sampler.active().sample(&self.ctx, -1);
-            sampler.observe(token);
-            token
+            sampler.sample(&self.ctx, -1)
         };
         drop(span);
 
