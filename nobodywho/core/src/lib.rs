@@ -45,7 +45,7 @@ pub fn send_llamacpp_logs_to_tracing() {
 }
 
 #[cfg(test)]
-pub mod test_utils {
+pub(crate) mod test_utils {
     use crate::llm::{get_model, Model};
     use crate::send_llamacpp_logs_to_tracing;
     use std::sync::{Arc, Once};
@@ -53,7 +53,7 @@ pub mod test_utils {
     static INIT: Once = Once::new();
 
     /// Initialize tracing for tests
-    pub fn init_test_tracing() {
+    pub(crate) fn init_test_tracing() {
         INIT.call_once(|| {
             send_llamacpp_logs_to_tracing();
 
@@ -66,55 +66,19 @@ pub mod test_utils {
         });
     }
 
-    /// Get path to test model from TEST_MODEL env var or default to "model.gguf"
-    pub fn test_model_path() -> String {
-        std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string())
-    }
-
-    /// Get path to test embeddings model from TEST_EMBEDDINGS_MODEL env var
-    pub fn test_embeddings_model_path() -> String {
-        std::env::var("TEST_EMBEDDINGS_MODEL").unwrap_or_else(|_| "embeddings.gguf".to_string())
-    }
-
-    /// Get path to test crossencoder model from TEST_CROSSENCODER_MODEL env var
-    pub fn test_crossencoder_model_path() -> String {
-        std::env::var("TEST_CROSSENCODER_MODEL").unwrap_or_else(|_| "crossencoder.gguf".to_string())
-    }
-
-    /// Get path to test multimodal projector from TEST_MMPROJ env var
-    pub fn test_mmproj_path() -> String {
-        std::env::var("TEST_MMPROJ").unwrap_or_else(|_| "mmproj.gguf".to_string())
-    }
-
-    /// Get path to test vision model from TEST_VISION_MODEL env var
-    pub fn test_vision_model_path() -> String {
-        std::env::var("TEST_VISION_MODEL").unwrap_or_else(|_| "vision-model.gguf".to_string())
-    }
-
-    /// Get path to MTP target model from TEST_MTP_TARGET_MODEL env var
-    pub fn test_mtp_target_model_path() -> Option<String> {
-        std::env::var("TEST_MTP_TARGET_MODEL").ok()
-    }
-
-    /// Get path to MTP draft (heads-only) model from
-    /// TEST_MTP_DRAFT_MODEL env var, or `None` if unset. See
-    /// [`test_mtp_target_model_path`].
-    pub fn test_mtp_draft_model_path() -> Option<String> {
-        std::env::var("TEST_MTP_DRAFT_MODEL").ok()
-    }
-
     /// Load the test model with GPU acceleration if available
-    pub fn load_test_model() -> Arc<Model> {
-        let path = test_model_path();
+    pub(crate) fn load_test_model() -> Arc<Model> {
+        let path = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
         Arc::new(
             get_model(&path, true, None, None, None)
-                .unwrap_or_else(|e| panic!("Failed to load test model from {}: {:?}", path, e)),
+                .unwrap_or_else(|e| panic!("failed to load test model from {path}: {e}")),
         )
     }
 
     /// Load the embeddings model with GPU acceleration if available
-    pub fn load_embeddings_model() -> Arc<Model> {
-        let path = test_embeddings_model_path();
+    pub(crate) fn load_embeddings_model() -> Arc<Model> {
+        let path = std::env::var("TEST_EMBEDDINGS_MODEL")
+            .unwrap_or_else(|_| "embeddings.gguf".to_string());
         // XXX: loading the embeddings model for unit tests without GPU offloading
         //      because it otherwise caused a segfault specifically with the llvmpipe vulkan driver.
         //      (which is used in the nix sandbox, since we don't have access to the host GPU)
@@ -122,20 +86,60 @@ pub mod test_utils {
         //      this segfault doesn't happen on nobodywho commit 94d51c5.
         //      it's most likely related to an upstream change in llama.cpp
         Arc::new(
-            get_model(&path, false, None, None, None).unwrap_or_else(|e| {
-                panic!("Failed to load embeddings model from {}: {:?}", path, e)
-            }),
+            get_model(&path, false, None, None, None)
+                .unwrap_or_else(|e| panic!("failed to load embeddings model from {path}: {e}")),
         )
     }
 
     /// Load the crossencoder model with GPU acceleration if available
-    pub fn load_crossencoder_model() -> Arc<Model> {
-        let path = test_crossencoder_model_path();
+    pub(crate) fn load_crossencoder_model() -> Arc<Model> {
+        let path = std::env::var("TEST_CROSSENCODER_MODEL")
+            .unwrap_or_else(|_| "crossencoder.gguf".to_string());
         // Same GPU offloading note as embeddings model
         Arc::new(
-            get_model(&path, false, None, None, None).unwrap_or_else(|e| {
-                panic!("Failed to load crossencoder model from {}: {:?}", path, e)
-            }),
+            get_model(&path, false, None, None, None)
+                .unwrap_or_else(|e| panic!("failed to load crossencoder model from {path}: {e}")),
         )
+    }
+
+    /// Load the MTP draft and target models.
+    pub(crate) fn load_mtp_models() -> Option<Arc<Model>> {
+        let target_path = std::env::var("TEST_MTP_TARGET_MODEL").ok()?;
+        let draft_path = std::env::var("TEST_MTP_DRAFT_MODEL")
+            .expect("should have TEST_MTP_DRAFT_MODEL if TEST_MTP_TARGET_MODEL is set");
+
+        Some(Arc::new(
+            get_model(&target_path, true, None, Some(&draft_path), None).unwrap_or_else(|e| {
+                panic!("failed to load MTP models from {target_path} and {draft_path}: {e}")
+            }),
+        ))
+    }
+
+    pub(crate) fn load_mtmd_models() -> Option<Arc<Model>> {
+        let vision_path = std::env::var("TEST_VISION_MODEL").ok()?;
+        let mmproj_path = std::env::var("TEST_MMPROJ_MODEL")
+            .expect("should have TEST_MMPROJ_MODEL if TEST_VISION_MODEL is set");
+
+        Some(Arc::new(
+            get_model(&vision_path, true, Some(&mmproj_path), None, None).unwrap_or_else(|e| {
+                panic!("failed to load vision models from {vision_path} and {mmproj_path}: {e}")
+            }),
+        ))
+    }
+
+    pub(crate) fn gemma4_model() -> Option<Arc<Model>> {
+        let path = std::env::var("GEMMA4_MODEL").ok()?;
+        Some(Arc::new(
+            get_model(&path, true, None, None, None)
+                .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e}")),
+        ))
+    }
+
+    pub(crate) fn qwen36_model() -> Option<Arc<Model>> {
+        let path = std::env::var("QWEN36_MODEL").ok()?;
+        Some(Arc::new(
+            get_model(&path, false, None, None, None)
+                .unwrap_or_else(|e| panic!("failed to load Qwen3.6 model from {path}: {e}")),
+        ))
     }
 }

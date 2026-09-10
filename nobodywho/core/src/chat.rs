@@ -2777,34 +2777,15 @@ mod tests {
     /// env vars are set to existing files.
     #[test]
     fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
-        let (Some(target_path), Some(draft_path)) = (
-            test_utils::test_mtp_target_model_path(),
-            test_utils::test_mtp_draft_model_path(),
-        ) else {
+        test_utils::init_test_tracing();
+
+        let Some(model) = test_utils::load_mtp_models() else {
             eprintln!(
                 "skipping test_mtp_gemma4_smoke: \
                  set TEST_MTP_TARGET_MODEL and TEST_MTP_DRAFT_MODEL to enable"
             );
             return Ok(());
         };
-        if !std::path::Path::new(&target_path).exists()
-            || !std::path::Path::new(&draft_path).exists()
-        {
-            eprintln!(
-                "skipping test_mtp_gemma4_smoke: file missing at {} or {}",
-                target_path, draft_path
-            );
-            return Ok(());
-        }
-
-        let model = Arc::new(crate::llm::get_model(
-            &target_path,
-            true,
-            None,
-            Some(&draft_path),
-            None,
-        )?);
 
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -4333,10 +4314,8 @@ mod tests {
     #[test]
     fn test_set_chat_history_reloads_media() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_set_chat_history_reloads_media: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4344,13 +4323,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
@@ -4386,10 +4358,8 @@ mod tests {
     #[test]
     fn test_complete_with_content_parts_from_json() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_complete_with_content_parts_from_json: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4397,13 +4367,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
@@ -4469,10 +4432,8 @@ mod tests {
     #[test]
     fn test_complete_reloads_media_from_part_paths() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_complete_reloads_media_from_part_paths: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4480,13 +4441,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
@@ -4574,10 +4528,8 @@ mod tests {
     #[test]
     fn test_reload_media_covers_every_non_system_role() -> Result<(), Box<dyn std::error::Error>> {
         test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_reload_media_covers_every_non_system_role: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4585,13 +4537,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
