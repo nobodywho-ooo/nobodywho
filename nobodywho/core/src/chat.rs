@@ -40,6 +40,7 @@ use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChu
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
+use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
@@ -1635,18 +1636,12 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
         ChatMsg::GetStats { output_tx } => {
             let stats = ChatStats {
                 context_size: worker_state.engine.ctx.n_ctx(),
-                context_used: worker_state.engine.n_past(),
+                context_used: worker_state.engine.actual_context_size() as u32,
             };
             let _ = output_tx.blocking_send(stats);
         }
         ChatMsg::GetMtpAcceptanceRate { output_tx } => {
-            let proposed = worker_state.engine.mtp_drafts_proposed;
-            let rate = if proposed > 0 {
-                Some(worker_state.engine.mtp_drafts_accepted as f32 / proposed as f32)
-            } else {
-                None
-            };
-            let _ = output_tx.blocking_send(rate);
+            let _ = output_tx.blocking_send(worker_state.engine.mtp_acceptance_rate());
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);
@@ -1807,7 +1802,7 @@ impl ChatSampler {
     }
 
     /// The sampler that should produce the next token.
-    pub(crate) fn active(&mut self) -> &mut LlamaSampler {
+    fn active(&mut self) -> &mut LlamaSampler {
         if self.grammar_activated {
             self.tool
                 .as_mut()
@@ -1817,11 +1812,19 @@ impl ChatSampler {
         }
     }
 
+    pub(crate) fn sample(&mut self, ctx: &LlamaContext<'_>, idx: i32) -> LlamaToken {
+        // No need to use `sampler.accept` as `.sample` already accepts
+        // the token: https://github.com/utilityai/llama-cpp-rs/issues/604
+        let token = self.active().sample(ctx, idx);
+        self.observe(token);
+        token
+    }
+
     /// Feed an emitted token back in so the begin sequence can be tracked, and
     /// switch to the tool sampler once it completes. Must be called on each
     /// emitted token, in order, before its successor is sampled. Returns whether
     /// the switch just happened.
-    pub(crate) fn observe(&mut self, token: LlamaToken) -> bool {
+    fn observe(&mut self, token: LlamaToken) -> bool {
         if self.grammar_activated || self.begin_tokens.is_empty() {
             return false;
         }
@@ -2089,7 +2092,6 @@ impl<'a> Chat<'a> {
         // 4096 is a very randomly chosen number. how does this affect performance?
         let mut full_response: String = String::with_capacity(4096);
         let mut tokens_written_until_now = Vec::new();
-        let mut new_tokens = Vec::new();
         let mut generated_tokens = 0;
 
         self.sampler.reset();
@@ -2102,8 +2104,6 @@ impl<'a> Chat<'a> {
         {
             // Check if the context is full
             if self.engine.is_context_full() {
-                // pending should be preserved during context shift
-                let deferred_pending = self.engine.take_pending();
                 self.context_shift()?;
                 self.sync_context_with_render(inference_lock_token)?;
                 if !tokens_written_until_now.is_empty() {
@@ -2113,77 +2113,54 @@ impl<'a> Chat<'a> {
                     self.engine
                         .read_chunks(generated_chunks, inference_lock_token)?;
                 }
-                self.engine.restore_pending(deferred_pending);
                 // do not update tokens_in_context as this is done later by ask
             }
 
-            // Sample next token(s), no need to use sampler.accept as sample already accepts the token.
-            // using sampler.accept() will cause the sampler to crash when using grammar sampling.
-            // https://github.com/utilityai/llama-cpp-rs/issues/604
-            let remaining_tokens =
-                max_tokens.map(|max_tokens| max_tokens.saturating_sub(generated_tokens));
-            self.engine.sample_and_decode_next_tokens(
-                &mut self.sampler,
-                &mut new_tokens,
-                remaining_tokens,
-            )?;
+            let new_token = self.engine.next_token(&mut self.sampler)?;
 
-            tokens_written_until_now.extend_from_slice(&new_tokens);
+            tokens_written_until_now.push(new_token);
 
-            let mut should_finish = false;
-            for &new_token in &new_tokens {
-                // Attempt to convert token(s) to bytes
-                let token_bytes = match self
-                    .engine
-                    .ctx
-                    .model
-                    .token_to_piece_bytes(new_token, 64, true, None)
-                {
-                    Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                        self.engine.ctx.model.token_to_piece_bytes(
-                            new_token,
-                            (-i).try_into().expect("Error buffer size is positive"),
-                            true,
-                            None,
-                        )
-                    }
-                    x => x,
-                }?;
-
-                // Attempt to convert bytes to utf8 string.
-                let max_len = decoder
-                    .max_utf8_buffer_length(token_bytes.len())
-                    .unwrap_or(32);
-                let mut token_str = String::with_capacity(max_len);
-
-                // this is where the utf-8 decoder handles partial unicode
-                // it'll write whatever printable chars it can into `token_str`
-                // and retain partial codepoints for next decoding attempt
-                let (_result, _bytes_read, _had_errors) =
-                    decoder.decode_to_string(&token_bytes, &mut token_str, false);
-
-                let has_eog = self.engine.ctx.model.is_eog_token(new_token);
-                trace!(?new_token, ?token_str, ?has_eog);
-
-                if has_eog {
-                    should_finish = true;
-                    break;
+            // Attempt to convert token(s) to bytes
+            let token_bytes = match self
+                .engine
+                .ctx
+                .model
+                .token_to_piece_bytes(new_token, 64, true, None)
+            {
+                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
+                    self.engine.ctx.model.token_to_piece_bytes(
+                        new_token,
+                        (-i).try_into().expect("Error buffer size is positive"),
+                        true,
+                        None,
+                    )
                 }
+                x => x,
+            }?;
 
-                full_response.push_str(&token_str);
-                generated_tokens += 1;
-                trace!(?token_str, "Sending out token:");
-                respond(WriteOutput::Token(token_str));
+            // Attempt to convert bytes to utf8 string.
+            let max_len = decoder
+                .max_utf8_buffer_length(token_bytes.len())
+                .unwrap_or(32);
+            let mut token_str = String::with_capacity(max_len);
 
-                if max_tokens.is_some_and(|max_tokens| generated_tokens >= max_tokens) {
-                    should_finish = true;
-                    break;
-                }
-            }
+            // this is where the utf-8 decoder handles partial unicode
+            // it'll write whatever printable chars it can into `token_str`
+            // and retain partial codepoints for next decoding attempt
+            let (_result, _bytes_read, _had_errors) =
+                decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-            if should_finish {
+            let has_eog = self.engine.ctx.model.is_eog_token(new_token);
+            trace!(?new_token, ?token_str, ?has_eog);
+
+            if has_eog {
                 break;
             }
+
+            full_response.push_str(&token_str);
+            generated_tokens += 1;
+            trace!(?token_str, "Sending out token:");
+            respond(WriteOutput::Token(token_str));
         }
 
         // we're done!
@@ -2514,7 +2491,7 @@ impl<'a> Chat<'a> {
             self.tool_format.as_ref(),
         )?;
 
-        self.engine.reset_context();
+        self.engine.reset_context()?;
         self.sampler.set_tool(tool_sampler);
         self.tools = tools;
         self.messages = Vec::new();
@@ -2777,7 +2754,8 @@ mod tests {
     /// env vars are set to existing files.
     #[test]
     fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
+        test_utils::init_test_tracing();
+
         let (Some(target_path), Some(draft_path)) = (
             test_utils::test_mtp_target_model_path(),
             test_utils::test_mtp_draft_model_path(),
@@ -2822,11 +2800,21 @@ mod tests {
                 sender.send(resp).unwrap();
             }
         };
-
         worker.ask("What is the capital of Denmark?".into(), f)?;
         let resp = receiver.recv()?;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Copenhagen"));
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let f = move |x| {
+            if let llm::WriteOutput::Done(resp) = x {
+                sender.send(resp).unwrap();
+            }
+        };
+        worker.ask("Are you sure?".into(), f)?;
+        let resp = receiver.recv()?;
+        println!("MTP response: {}", resp);
+        assert!(resp.contains("Yes"));
 
         Ok(())
     }

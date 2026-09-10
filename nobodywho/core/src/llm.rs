@@ -4,14 +4,13 @@ use crate::errors::{InitWorkerError, LoadModelError};
 use crate::huggingface::{download_gguf, parse_model_path};
 #[cfg(test)]
 use crate::inference::acquire_inference_lock;
-use crate::inference::{BatchCapacity, EngineContext, InferenceEngine};
+use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, SpeculativeEngine};
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
 use llama_cpp_2::llama_backend::LlamaBackend;
-use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
@@ -382,10 +381,6 @@ where
             .new_context(&LLAMA_BACKEND, ctx_params)?;
         let n_batch = planned_n_ctx as usize;
 
-        // The batch limit is sequence IDs per token; each embedding token belongs to one sequence.
-        let big_batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
-        let small_batch = LlamaBatch::new(1, 1);
-
         let engine_ctx = if let Some(mtp_config) = mtp {
             match &model.draft_model {
                 Some(draft_model) => {
@@ -410,7 +405,7 @@ where
                         p_min: mtp_config.p_min,
                     };
                     let spec = MtpSpeculative::new(ctx, draft_ctx, spec_params)?;
-                    EngineContext::Speculative(spec)
+                    EngineContext::Speculative(SpeculativeEngine::new(spec))
                 }
                 None => {
                     return Err(InitWorkerError::MtpDraftModelNotLoaded);
@@ -427,8 +422,6 @@ where
 
         let engine = InferenceEngine::new(
             engine_ctx,
-            big_batch,
-            small_batch,
             projection_model,
             BatchCapacity {
                 tokens: n_batch,
