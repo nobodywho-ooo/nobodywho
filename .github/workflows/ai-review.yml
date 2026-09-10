@@ -180,7 +180,7 @@ jobs:
         if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Install Pi
         if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'

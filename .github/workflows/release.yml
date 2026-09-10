@@ -24,12 +24,12 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
         - uses: actions/checkout@v5
-  
+
         - name: "Download all build artifacts"
           uses: actions/download-artifact@v5
           with:
             path: ./artifacts
-  
+
         - name: "Make directory structure for release zip"
           run: |
             mkdir -p nobodywho-release/bin/addons/nobodywho
@@ -83,7 +83,7 @@ jobs:
         - uses: actions/setup-python@v6
           with:
             python-version: "3.13"
-        
+
         - name: Install dependencies
           run: |
             python -m pip install --upgrade pip
@@ -248,7 +248,7 @@ jobs:
       - name: "Setup Node.js"
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
           registry-url: https://registry.npmjs.org
 
       - name: "Verify Login"

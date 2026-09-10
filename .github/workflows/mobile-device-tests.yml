@@ -515,7 +515,7 @@ jobs:
       # The React Native template declares engines.node >= 22.11.0.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
           cache-dependency-path: nobodywho/testing-apps/react-native/package-lock.json
 
@@ -591,7 +591,7 @@ jobs:
       # The React Native template declares engines.node >= 22.11.0.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
           cache-dependency-path: nobodywho/testing-apps/react-native/package-lock.json
 
