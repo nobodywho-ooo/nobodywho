@@ -58,7 +58,7 @@ pub(crate) mod test_utils {
             send_llamacpp_logs_to_tracing();
 
             tracing_subscriber::fmt()
-                .with_max_level(tracing::Level::INFO)
+                .with_max_level(tracing::Level::TRACE)
                 .with_timer(tracing_subscriber::fmt::time::uptime())
                 .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
                 .with_test_writer()
