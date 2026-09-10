@@ -15,9 +15,12 @@ The `model_path` field on `NobodyWhoModel` (and `projection_model_path` for visi
 | User data path | `user://downloaded.gguf` | Written by your game at runtime |
 | Absolute filesystem path | `/opt/models/foo.gguf` | Local file |
 | HuggingFace reference | `hf:owner/repo/file.gguf` | Downloaded and cached on first use |
+| llama.cpp-style reference | `owner/repo:quantization` | Downloaded and cached on first use |
 | HTTPS URL | `https://example.com/model.gguf` | Downloaded and cached on first use |
 
 The HuggingFace prefix is case-insensitive and the `//` is optional — `hf:`, `hf://`, `huggingface:`, and `huggingface://` all mean the same thing. Remote models are downloaded to the platform cache directory on first load and re-used on subsequent runs. Downloads happen on a background thread — the Godot main loop stays responsive while a multi-GB model is fetched.
+
+The llama.cpp-style reference takes no prefix, and names a HuggingFace repo whose name must end in `-GGUF` — the convention llama.cpp relies on to work out the filename. NobodyWho resolves it the same way, so `ggml-org/gemma-3-1b-it-GGUF:Q8_0` fetches `gemma-3-1b-it-Q8_0.gguf` from the `ggml-org/gemma-3-1b-it-GGUF` repo. Both the `-GGUF` suffix and the quantization are required; without them the string is read as a local path rather than a download. **Note:** llama.cpp will take the first model in the repo if there is no exact match for the quantization, but NobodyWho will fail with an error if the quantization is not found.
 
 ## Tracking download progress
 

@@ -38,6 +38,14 @@ The model is downloaded once and cached locally — no internet connection is ne
 
 You can also pass a full `https://` URL to download a model from any host.
 
+Repos can also be referenced the way llama.cpp does it, with no prefix and a quantization instead of a filename:
+
+```
+owner/repo:quantization
+```
+
+The repo name must end with `-GGUF`, which is the convention llama.cpp relies on to work out the filename. NobodyWho resolves it the same way, so `ggml-org/gemma-3-1b-it-GGUF:Q8_0` fetches `gemma-3-1b-it-Q8_0.gguf` from the `ggml-org/gemma-3-1b-it-GGUF` repo. Both the `-GGUF` suffix and the quantization are required — without them the string is read as a local path. **Note:** llama.cpp will take the first model in the repo if there is no exact match for the quantization, but NobodyWho will fail with an error if the quantization is not found.
+
 Of course, you can still pass a local file path if you prefer to manage model files yourself.
 
 We recommend starting with the models on our [Hugging Face page](https://huggingface.co/NobodyWho) since they are known to work well with NobodyWho.
