@@ -68,6 +68,8 @@ pub(crate) mod test_utils {
 
     /// Load the test model with GPU acceleration if available
     pub(crate) fn load_test_model() -> Arc<Model> {
+        init_test_tracing();
+
         let path = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
         Arc::new(
             get_model(&path, true, None, None, None)
@@ -77,6 +79,8 @@ pub(crate) mod test_utils {
 
     /// Load the embeddings model with GPU acceleration if available
     pub(crate) fn load_embeddings_model() -> Arc<Model> {
+        init_test_tracing();
+
         let path = std::env::var("TEST_EMBEDDINGS_MODEL")
             .unwrap_or_else(|_| "embeddings.gguf".to_string());
         // XXX: loading the embeddings model for unit tests without GPU offloading
@@ -93,6 +97,8 @@ pub(crate) mod test_utils {
 
     /// Load the crossencoder model with GPU acceleration if available
     pub(crate) fn load_crossencoder_model() -> Arc<Model> {
+        init_test_tracing();
+
         let path = std::env::var("TEST_CROSSENCODER_MODEL")
             .unwrap_or_else(|_| "crossencoder.gguf".to_string());
         // Same GPU offloading note as embeddings model
@@ -104,6 +110,8 @@ pub(crate) mod test_utils {
 
     /// Load the MTP draft and target models.
     pub(crate) fn load_mtp_models() -> Option<Arc<Model>> {
+        init_test_tracing();
+
         let target_path = std::env::var("TEST_MTP_TARGET_MODEL").ok()?;
         let draft_path = std::env::var("TEST_MTP_DRAFT_MODEL")
             .expect("should have TEST_MTP_DRAFT_MODEL if TEST_MTP_TARGET_MODEL is set");
@@ -116,6 +124,8 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn load_mtmd_models() -> Option<Arc<Model>> {
+        init_test_tracing();
+
         let vision_path = std::env::var("TEST_VISION_MODEL").ok()?;
         let mmproj_path = std::env::var("TEST_MMPROJ_MODEL")
             .expect("should have TEST_MMPROJ_MODEL if TEST_VISION_MODEL is set");
@@ -128,6 +138,8 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn gemma4_model() -> Option<Arc<Model>> {
+        init_test_tracing();
+
         let path = std::env::var("GEMMA4_MODEL").ok()?;
         Some(Arc::new(
             get_model(&path, true, None, None, None)
@@ -136,6 +148,8 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn qwen36_model() -> Option<Arc<Model>> {
+        init_test_tracing();
+
         let path = std::env::var("QWEN36_MODEL").ok()?;
         Some(Arc::new(
             get_model(&path, false, None, None, None)

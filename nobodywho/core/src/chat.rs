@@ -2736,7 +2736,6 @@ mod tests {
 
     #[test]
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let mut worker = Chat::new_chat_worker(
@@ -2777,8 +2776,6 @@ mod tests {
     /// env vars are set to existing files.
     #[test]
     fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-
         let Some(model) = test_utils::load_mtp_models() else {
             eprintln!(
                 "skipping test_mtp_gemma4_smoke: \
@@ -2814,7 +2811,6 @@ mod tests {
 
     #[test]
     fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -2856,7 +2852,6 @@ mod tests {
 
     #[test]
     fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -2968,7 +2963,6 @@ mod tests {
     #[test]
     #[ignore = "manual perf benchmark — run with `cargo test bench_pre_built_sampler_amortization -- --ignored --nocapture`"]
     fn bench_pre_built_sampler_amortization() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let setup_start = std::time::Instant::now();
         let mut worker = Chat::new_chat_worker(
@@ -3028,7 +3022,6 @@ mod tests {
     #[test]
     #[ignore = "manual perf benchmark — run with `cargo test bench_tool_grammar_rebuild -- --ignored --nocapture`"]
     fn bench_tool_grammar_rebuild() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let setup_start = std::time::Instant::now();
@@ -3065,7 +3058,6 @@ mod tests {
     /// drive a real tool call, so exercise one on each side of the change.
     #[test]
     fn tool_calling_survives_a_sampler_config_change() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -3110,7 +3102,6 @@ mod tests {
 
     #[test]
     fn test_tool_chat() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -3147,7 +3138,6 @@ mod tests {
 
     #[test]
     fn test_multi_tool_call() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -3221,7 +3211,6 @@ mod tests {
 
     #[test]
     fn test_context_shift() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         // Use a very small context size to force shifting
@@ -3498,7 +3487,6 @@ mod tests {
 
     #[test]
     fn test_context_shift_with_tool_calls() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         // Use a very small context size to force shifting
@@ -3606,7 +3594,6 @@ mod tests {
 
     #[test]
     fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let n_messages = 14;
@@ -3684,7 +3671,6 @@ mod tests {
 
     #[test]
     fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let n_messages = 19;
@@ -3761,7 +3747,6 @@ mod tests {
 
     #[test]
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         // Create two separate chat handles that will run in parallel
@@ -3810,7 +3795,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .build_async()
@@ -3844,7 +3828,6 @@ mod tests {
 
     #[test]
     fn test_greedy_sampler_produces_deterministic_output() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let chat = ChatBuilder::new(model)
@@ -3871,7 +3854,6 @@ mod tests {
 
     #[test]
     fn test_reset_chat_with_no_system_prompt() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -3900,7 +3882,6 @@ mod tests {
     /// The supplied messages become the history, and the reply is appended to them.
     #[test]
     fn test_complete_replaces_history() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -3940,7 +3921,6 @@ mod tests {
     /// leave out is kept — so a later `complete` need not repeat them.
     #[test]
     fn test_complete_options_stick() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -3987,7 +3967,6 @@ mod tests {
     /// without one keeps the prompt the chat already had.
     #[test]
     fn test_complete_replaces_system_prompt() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -4034,7 +4013,6 @@ mod tests {
 
     #[test]
     fn test_ask_after_complete_continues_completion() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -4074,7 +4052,6 @@ mod tests {
 
     #[test]
     fn test_complete_with_tools() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(4096)
@@ -4105,7 +4082,6 @@ mod tests {
     /// that cannot produce a grammar leaves the sampler config alone too.
     #[test]
     fn apply_options_is_atomic_on_failure() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(512)
@@ -4313,8 +4289,6 @@ mod tests {
     /// to be re-registered from the part paths.
     #[test]
     fn test_set_chat_history_reloads_media() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-
         let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_set_chat_history_reloads_media: \
@@ -4357,8 +4331,6 @@ mod tests {
     /// of parts, with an image interleaved between two runs of text.
     #[test]
     fn test_complete_with_content_parts_from_json() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-
         let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_complete_with_content_parts_from_json: \
@@ -4431,8 +4403,6 @@ mod tests {
     /// mean nothing to this worker.
     #[test]
     fn test_complete_reloads_media_from_part_paths() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-
         let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_complete_reloads_media_from_part_paths: \
@@ -4527,8 +4497,6 @@ mod tests {
     /// An unregistered part would flatten to a marker with no bitmap behind it.
     #[test]
     fn test_reload_media_covers_every_non_system_role() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-
         let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_reload_media_covers_every_non_system_role: \
@@ -4603,7 +4571,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_async() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
