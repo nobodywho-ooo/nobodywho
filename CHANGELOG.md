@@ -34,6 +34,9 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **React Native:** Logs are now visible in Xcode on iOS.
 - **Swift:** Logs are now visible in Xcode on iOS.
 
+### Fixed
+- **Flutter:** Logs are now forwarded to Dart's logging package.
+
 ### Removed
 - **Breaking:** the `lark_with_slices` sampler step is gone. Nothing constructed it, so the only way to have one is a hand-written sampler config, and `SamplerConfig.from_json()` now rejects a payload containing `{"type": "lark_with_slices"}`. Change it to `{"type": "lark"}` to keep the same grammar. Affects every binding with `SamplerConfig.from_json()`: Python, Flutter, Kotlin, Swift and React Native.
 - **Flutter:** Removed `ToolCallExtension` and `ToolCall.argumentsJson` as `ToolCall` is no longer opaque.
