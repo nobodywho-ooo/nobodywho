@@ -3269,6 +3269,7 @@ dependencies = [
  "nom 8.0.0",
  "pyo3",
  "pyo3-async-runtimes",
+ "pyo3-build-config",
  "pyo3-introspection",
  "pyo3-log",
  "pythonize",

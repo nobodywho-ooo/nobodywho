@@ -10510,6 +10510,12 @@ rec {
             packageId = "tracing-subscriber";
           }
         ];
+        buildDependencies = [
+          {
+            name = "pyo3-build-config";
+            packageId = "pyo3-build-config";
+          }
+        ];
 
       };
       "nobodywho-server" = rec {
