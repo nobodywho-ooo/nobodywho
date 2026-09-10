@@ -52,6 +52,76 @@ where
     (wrapped_respond, resp_receiver)
 }
 
+/// MTP state.
+#[derive(Debug)]
+pub(crate) struct SpeculativeEngine<'a> {
+    ctx: MtpSpeculative<'a>,
+    /// The in-progress drafts.
+    drafts: Vec<LlamaToken>,
+    /// The number of accepted drafts.
+    accepted: usize,
+    /// Whether we still need to tell the MTP state which tokens are accepted.
+    needs_accept: bool,
+    /// Statistics.
+    total_proposed: u64,
+    total_accepted: u64,
+}
+
+impl<'a> SpeculativeEngine<'a> {
+    pub(crate) fn new(ctx: MtpSpeculative<'a>) -> Self {
+        Self {
+            ctx,
+            drafts: Vec::new(),
+            accepted: 0,
+            needs_accept: false,
+            total_proposed: 0,
+            total_accepted: 0,
+        }
+    }
+
+    /// Update MTP state to accept in-progress drafts.
+    ///
+    /// This should only happen once per draft state.
+    fn accept_drafts(&mut self) -> Result<(), MtpSpeculativeError> {
+        if self.needs_accept {
+            let (accepted, declined) = self.drafts.split_at(self.accepted);
+            trace!(?accepted, ?declined, "accepting draft");
+
+            self.ctx.accept(self.accepted as u16)?;
+
+            self.needs_accept = false;
+        }
+
+        self.total_proposed += self.drafts.len() as u64;
+        self.total_accepted += self.accepted as u64;
+
+        Ok(())
+    }
+
+    fn roll_back_declined_drafts(&mut self, keep_up_to: u32) -> Result<(), RollbackError> {
+        let declined = self.drafts.len() - self.accepted;
+        if 0 < declined {
+            // Remove declined drafts from the KV cache.
+            let rolled_back = self.ctx.target_context_mut().clear_kv_cache_seq(
+                Some(0),
+                Some(keep_up_to),
+                None,
+            )?;
+            if !rolled_back {
+                // Recurrent / hybrid-recurrent memory types reject partial
+                // removal (Ok(false)). Unlike `remove_all_tokens_from_index_from_ctx`
+                // we cannot fall back to a full reset here — that would drop the
+                // prompt mid-generation. Leaving the rejected drafts' KV in place
+                // would silently corrupt subsequent decodes, so fail loudly. MTP
+                // targets attention models, where partial removal is supported.
+                return Err(RollbackError::MtpPartialRollbackUnsupported);
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// The low-level inference state for a single llama.cpp context.
 ///
 /// Holds everything needed to read tokens/media into the KV cache and sample new tokens,
@@ -67,7 +137,7 @@ where
 #[derive(Debug)]
 pub(crate) enum EngineContext<'a> {
     Solo(LlamaContext<'a>),
-    Speculative(MtpSpeculative<'a>),
+    Speculative(SpeculativeEngine<'a>),
 }
 
 impl<'a> std::ops::Deref for EngineContext<'a> {
@@ -75,7 +145,7 @@ impl<'a> std::ops::Deref for EngineContext<'a> {
     fn deref(&self) -> &LlamaContext<'a> {
         match self {
             Self::Solo(c) => c,
-            Self::Speculative(s) => s.target_context(),
+            Self::Speculative(s) => s.ctx.target_context(),
         }
     }
 }
@@ -84,7 +154,7 @@ impl<'a> std::ops::DerefMut for EngineContext<'a> {
     fn deref_mut(&mut self) -> &mut LlamaContext<'a> {
         match self {
             Self::Solo(c) => c,
-            Self::Speculative(s) => s.target_context_mut(),
+            Self::Speculative(s) => s.ctx.target_context_mut(),
         }
     }
 }
@@ -93,16 +163,6 @@ impl<'a> std::ops::DerefMut for EngineContext<'a> {
 pub(crate) struct BatchCapacity {
     pub(crate) tokens: usize,
     pub(crate) sequences: usize,
-}
-
-/// The state of an in-progress draft.
-#[derive(Debug)]
-struct DraftState {
-    drafts: Vec<LlamaToken>,
-    /// The number of accepted drafts.
-    accepted: usize,
-    /// Whether we still need to tell the MTP state which tokens are accepted.
-    needs_accept: bool,
 }
 
 #[derive(Debug)]
@@ -116,9 +176,6 @@ pub(crate) struct InferenceEngine<'a> {
     /// Batch that's used when decoding. Stored here to re-use the allocation.
     batch: LlamaBatch<'static>,
     use_embeddings: bool,
-    draft_state: DraftState,
-    pub(crate) mtp_drafts_proposed: u64,
-    pub(crate) mtp_drafts_accepted: u64,
 }
 
 impl<'a> InferenceEngine<'a> {
@@ -141,29 +198,39 @@ impl<'a> InferenceEngine<'a> {
             projection_model,
             tokenizer,
             use_embeddings,
-            draft_state: DraftState {
-                drafts: Vec::new(),
-                accepted: 0,
-                needs_accept: false,
-            },
-            mtp_drafts_proposed: 0,
-            mtp_drafts_accepted: 0,
         }
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
     pub(crate) fn reset_context(&mut self) -> Result<(), MtpSpeculativeError> {
-        self.accept_drafts()?;
-        self.draft_state.drafts.clear();
-        self.draft_state.accepted = 0;
+        if let EngineContext::Speculative(spec) = &mut self.ctx {
+            spec.accept_drafts()?;
+            spec.drafts.clear();
+            spec.accepted = 0;
+        }
         self.ctx.clear_kv_cache();
         self.n_past = 0;
         Ok(())
     }
 
     pub(crate) fn reset_mtp_stats(&mut self) {
-        self.mtp_drafts_proposed = 0;
-        self.mtp_drafts_accepted = 0;
+        if let EngineContext::Speculative(spec) = &mut self.ctx {
+            spec.total_proposed = 0;
+            spec.total_accepted = 0;
+        }
+    }
+
+    pub(crate) fn mtp_acceptance_rate(&self) -> Option<f32> {
+        if let EngineContext::Speculative(spec) = &self.ctx {
+            let proposed = spec.total_proposed;
+            if proposed > 0 {
+                Some(spec.total_accepted as f32 / proposed as f32)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub(crate) fn read_strings_batched<T, E>(
@@ -338,14 +405,14 @@ impl<'a> InferenceEngine<'a> {
         // brrr
 
         // Keep the MTP draft ctx's hidden state in sync.
-        if let EngineContext::Speculative(spec) = &mut self.ctx {
-            spec.process(&self.batch)?;
+        if let EngineContext::Speculative(s) = &mut self.ctx {
+            s.ctx.process(&self.batch)?;
+            // A new prompt (or context-shift replay) invalidates any drafts
+            s.drafts.clear();
+            s.accepted = 0;
         }
 
         self.n_past += tokens.len() as i32;
-        // A new prompt (or context-shift replay) invalidates any drafts
-        self.draft_state.drafts.clear();
-        self.draft_state.accepted = 0;
 
         debug!("Completed read tokens operation, n_past: {}", self.n_past);
 
@@ -389,50 +456,6 @@ impl<'a> InferenceEngine<'a> {
         }
     }
 
-    /// Update MTP state to accept in-progress drafts.
-    ///
-    /// This should only happen once per draft state.
-    fn accept_drafts(&mut self) -> Result<(), MtpSpeculativeError> {
-        if self.draft_state.needs_accept {
-            let (accepted, declined) = self.draft_state.drafts.split_at(self.draft_state.accepted);
-            trace!(?accepted, ?declined, "accepting draft");
-
-            let EngineContext::Speculative(spec) = &mut self.ctx else {
-                unreachable!("only context should not have drafts");
-            };
-            spec.accept(self.draft_state.accepted as u16)?;
-
-            self.draft_state.needs_accept = false;
-        }
-
-        self.mtp_drafts_proposed += self.draft_state.drafts.len() as u64;
-        self.mtp_drafts_accepted += self.draft_state.accepted as u64;
-
-        Ok(())
-    }
-
-    fn roll_back_declined_drafts(&mut self) -> Result<(), RollbackError> {
-        let declined = self.draft_state.drafts.len() - self.draft_state.accepted;
-        if 0 < declined {
-            // Remove declined drafts from the KV cache.
-            let keep_up_to = self.n_past as u32;
-            let rolled_back = self
-                .ctx
-                .clear_kv_cache_seq(Some(0), Some(keep_up_to), None)?;
-            if !rolled_back {
-                // Recurrent / hybrid-recurrent memory types reject partial
-                // removal (Ok(false)). Unlike `remove_all_tokens_from_index_from_ctx`
-                // we cannot fall back to a full reset here — that would drop the
-                // prompt mid-generation. Leaving the rejected drafts' KV in place
-                // would silently corrupt subsequent decodes, so fail loudly. MTP
-                // targets attention models, where partial removal is supported.
-                return Err(RollbackError::MtpPartialRollbackUnsupported);
-            }
-        }
-
-        Ok(())
-    }
-
     /// Diff `target` chunks against `prev` and load only the new tail into the KV cache.
     /// Returns the new KV-cache mirror; the caller is responsible for storing it.
     pub(crate) fn sync_context(
@@ -441,9 +464,11 @@ impl<'a> InferenceEngine<'a> {
         prev: &TokenizerChunks,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<TokenizerChunks, ContextSyncError> {
-        self.accept_drafts()?;
-        self.draft_state.drafts.clear();
-        self.draft_state.accepted = 0;
+        if let EngineContext::Speculative(spec) = &mut self.ctx {
+            spec.accept_drafts()?;
+            spec.drafts.clear();
+            spec.accepted = 0;
+        }
 
         let prefix_index = find_chunks_prefix_difference(prev, &target);
 
@@ -471,7 +496,12 @@ impl<'a> InferenceEngine<'a> {
     }
 
     pub(crate) fn is_context_full(&self) -> bool {
-        let in_progress_drafts = (self.draft_state.drafts.len() - self.draft_state.accepted) as u32;
+        let in_progress_drafts = if let EngineContext::Speculative(spec) = &self.ctx {
+            (spec.drafts.len() - spec.accepted) as u32
+        } else {
+            0
+        };
+
         self.n_past as u32 + in_progress_drafts == self.ctx.n_ctx()
     }
 
@@ -521,29 +551,35 @@ impl<'a> InferenceEngine<'a> {
         // isn't going to block inference.
 
         let span = trace_span!("sample").entered();
-        let token = if let Some(draft) = self.draft_state.drafts.get(self.draft_state.accepted) {
-            let token = sampler.sample(&self.ctx, self.draft_state.accepted as _);
+        let token = if let EngineContext::Speculative(spec) = &mut self.ctx {
+            if let Some(draft) = spec.drafts.get(spec.accepted) {
+                let token = sampler.sample(spec.ctx.target_context_mut(), spec.accepted as _);
 
-            // Fast path: If the token matches what the draft model predicted,
-            // return the token.
-            if token == *draft {
-                self.draft_state.accepted += 1;
-                self.n_past += 1;
-                return Ok(token);
+                // Fast path: If the token matches what the draft model predicted,
+                // return the token.
+                if token == *draft {
+                    spec.accepted += 1;
+                    self.n_past += 1;
+                    return Ok(token);
+                }
+
+                // Otherwise decode new tokens.
+                token
+            } else {
+                sampler.sample(&self.ctx, -1)
             }
-
-            // Otherwise decode new tokens.
-            token
         } else {
             sampler.sample(&self.ctx, -1)
         };
         drop(span);
 
         // Reset draft state.
-        self.accept_drafts()?;
-        self.roll_back_declined_drafts()?;
-        self.draft_state.drafts.clear();
-        self.draft_state.accepted = 0;
+        if let EngineContext::Speculative(spec) = &mut self.ctx {
+            spec.accept_drafts()?;
+            spec.roll_back_declined_drafts(self.n_past as u32)?;
+            spec.drafts.clear();
+            spec.accepted = 0;
+        }
 
         // Create new drafts.
         //
@@ -551,10 +587,10 @@ impl<'a> InferenceEngine<'a> {
         // token is an EOG token (then we'd rather decode just that token).
         let drafts = if let EngineContext::Speculative(spec) = &mut self.ctx {
             let _span = trace_span!("draft", n_past = self.n_past, ?token).entered();
-            let mut drafts = spec.draft(self.n_past, token, &[])?;
+            let mut drafts = spec.ctx.draft(self.n_past, token, &[])?;
 
             // Make sure we later `.accept(...)` the drafts.
-            self.draft_state.needs_accept = !drafts.is_empty();
+            spec.needs_accept = !drafts.is_empty();
 
             // Clamp drafts so the verify batch [pending, drafts...] stays
             // within the context window:
@@ -583,10 +619,10 @@ impl<'a> InferenceEngine<'a> {
             // FIXME(madsmtm): This seems to synchronize the context, can we
             // avoid that somehow?
             let _span = trace_span!("mtp_process").entered();
-            spec.process(&self.batch)?;
-        }
+            spec.ctx.process(&self.batch)?;
 
-        self.draft_state.drafts = drafts;
+            spec.drafts = drafts;
+        }
 
         self.n_past += 1;
 

@@ -4,7 +4,7 @@ use crate::errors::{InitWorkerError, LoadModelError};
 use crate::huggingface::{download_gguf, parse_model_path};
 #[cfg(test)]
 use crate::inference::acquire_inference_lock;
-use crate::inference::{BatchCapacity, EngineContext, InferenceEngine};
+use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, SpeculativeEngine};
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
@@ -405,7 +405,7 @@ where
                         p_min: mtp_config.p_min,
                     };
                     let spec = MtpSpeculative::new(ctx, draft_ctx, spec_params)?;
-                    EngineContext::Speculative(spec)
+                    EngineContext::Speculative(SpeculativeEngine::new(spec))
                 }
                 None => {
                     return Err(InitWorkerError::MtpDraftModelNotLoaded);

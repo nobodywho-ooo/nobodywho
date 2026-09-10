@@ -1641,13 +1641,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
             let _ = output_tx.blocking_send(stats);
         }
         ChatMsg::GetMtpAcceptanceRate { output_tx } => {
-            let proposed = worker_state.engine.mtp_drafts_proposed;
-            let rate = if proposed > 0 {
-                Some(worker_state.engine.mtp_drafts_accepted as f32 / proposed as f32)
-            } else {
-                None
-            };
-            let _ = output_tx.blocking_send(rate);
+            let _ = output_tx.blocking_send(worker_state.engine.mtp_acceptance_rate());
         }
         ChatMsg::Tokenize { prompt, output_tx } => {
             let result = worker_state.tokenize(prompt);
