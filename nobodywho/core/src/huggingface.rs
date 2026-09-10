@@ -471,12 +471,37 @@ pub fn get_cached_models() -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError
     ModelCache::open()?.list_cached()
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct LlamaCppUrl {
+    owner: String,
+    repo: String,
+    quantization: String,
+}
+
+impl LlamaCppUrl {
+    fn resolve_source(&self) -> GgufSource {
+        let Self {
+            owner,
+            repo,
+            quantization,
+        } = self;
+        // In the models Llama CPP supports with this format, the repo name always ends with `-GGUF`, but that is not included in the filename.
+        let filename = repo.strip_suffix("-GGUF").unwrap_or(repo);
+        let filename = format!("{filename}-{quantization}.gguf");
+        GgufSource::HuggingFace {
+            repo: HfRepo::main(owner, repo),
+            filename,
+        }
+    }
+}
+
 /// A parsed `model_path` string, before it's resolved to somewhere on disk.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum ParsedModelPath {
     HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
-    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
-    FilesystemPath(PathBuf),                // e.g. ./qwen3.gguf
+    LlamaCppUrl(LlamaCppUrl), // e.g. owner/repo:quantization -> (owner, repo, quantization)
+    HttpUrl(String),          // e.g. https://example.com/lol/qwen3.gguf
+    FilesystemPath(PathBuf),  // e.g. ./qwen3.gguf
 }
 
 pub(crate) fn parse_model_path(
@@ -507,6 +532,20 @@ pub(crate) fn parse_model_path(
             (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
             |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
         ),
+        map(
+            (
+                terminated(verify(take_until("/"), |s: &str| !s.is_empty()), tag("/")),
+                terminated(verify(take_until(":"), |s: &str| !s.is_empty()), tag(":")),
+                verify(rest, |s: &str| !s.is_empty()),
+            ),
+            |(owner, repo, quantization): (&str, &str, &str)| {
+                ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
+                    owner: owner.into(),
+                    repo: repo.into(),
+                    quantization: quantization.into(),
+                })
+            },
+        ),
         // Anything else is a filesystem path (expand leading ~ on non-Android)
         map(rest, |p: &str| {
             ParsedModelPath::FilesystemPath(PathBuf::from(p))
@@ -533,6 +572,9 @@ pub(crate) fn download_gguf(
                 filename,
             };
             cache.download_file(&source, progress, headers)?
+        }
+        ParsedModelPath::LlamaCppUrl(llama_cpp_url) => {
+            cache.download_file(&llama_cpp_url.resolve_source(), progress, headers)?
         }
         ParsedModelPath::FilesystemPath(path) => path,
         ParsedModelPath::HttpUrl(url) => {
@@ -852,6 +894,85 @@ pub(crate) fn download_onnx(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_gguf_hf_scheme() {
+        let ParsedModelPath::HuggingFaceUrl(owner, repo, filename) =
+            parse_model_path("hf://owner/repo/filename.gguf").unwrap()
+        else {
+            panic!("expected HuggingFaceUrl");
+        };
+        assert_eq!(owner, "owner");
+        assert_eq!(repo, "repo");
+        assert_eq!(filename, "filename.gguf");
+    }
+
+    #[test]
+    fn parses_gguf_llama_scheme_with_quant() {
+        let ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
+            owner,
+            repo,
+            quantization,
+        }) = parse_model_path("owner/repo:quantization").unwrap()
+        else {
+            panic!("expected LlamaCppUrl");
+        };
+        assert_eq!(owner, "owner");
+        assert_eq!(repo, "repo");
+        assert_eq!(quantization, "quantization");
+    }
+
+    #[test]
+    fn parses_gguf_llama_scheme_without_quant_as_file_path() {
+        // Bare `owner/repo` is not auto-interpreted as a LlamaCppUrl.
+        let ParsedModelPath::FilesystemPath(path) = parse_model_path("owner/repo").unwrap() else {
+            panic!("expected FilesystemPath");
+        };
+        assert_eq!(path, PathBuf::from("owner/repo"));
+    }
+
+    #[test]
+    fn resolves_url_of_llama_scheme_model() {
+        let cases = [(
+            "ggml-org/Qwen3.8-27B-GGUF:Q8_0",
+            "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-Q8_0.gguf",
+        ),
+        (
+            "ggml-org/Qwen3.8-27B-GGUF:Q4_K_M",
+            "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-Q4_K_M.gguf"
+        ),
+        (
+            "ggml-org/Laguna-XS-2.1-GGUF:Q8_0",
+            "https://huggingface.co/ggml-org/Laguna-XS-2.1-GGUF/resolve/main/Laguna-XS-2.1-Q8_0.gguf"
+        ),
+        (
+            "ggml-org/Laguna-XS-2.1-GGUF:Q4_K_M",
+            "https://huggingface.co/ggml-org/Laguna-XS-2.1-GGUF/resolve/main/Laguna-XS-2.1-Q4_K_M.gguf"
+        ),
+        (
+            "XHToken/Spark-X2.5-4B-GGUF:Q8_0",
+            "https://huggingface.co/XHToken/Spark-X2.5-4B-GGUF/resolve/main/Spark-X2.5-4B-Q8_0.gguf"
+        ),
+        (
+            "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF:UD-IQ3_XXS",
+            "https://huggingface.co/peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF/resolve/main/Tiel-Coder-35B-A3B-UD-IQ3_XXS.gguf"
+        )];
+
+        for (input, expected_url) in cases {
+            let parsed = parse_model_path(input).unwrap();
+            let source = if let ParsedModelPath::LlamaCppUrl(llama_cpp_url) = parsed {
+                llama_cpp_url.resolve_source()
+            } else {
+                panic!("Expected LlamaCppUrl")
+            };
+            if let GgufSource::HuggingFace { repo, filename } = source {
+                let url = repo.resolve_url(&filename);
+                assert_eq!(url, expected_url, "Failed for input: {input}");
+            } else {
+                unreachable!("Expected GgufSource::HuggingFace");
+            }
+        }
+    }
 
     #[test]
     fn parses_hf_scheme() {
