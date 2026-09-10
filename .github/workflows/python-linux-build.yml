@@ -1,0 +1,139 @@
+name: "Python Linux Build"
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        required: true
+        type: string
+      manylinux_target:
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    container:
+      image: quay.io/pypa/${{ inputs.manylinux_target }}
+      # Passed through so WarpBuilds/cache can authenticate from inside the container.
+      env:
+        WARPBUILD_RUNNER_VERIFICATION_TOKEN: ${{ env.WARPBUILD_RUNNER_VERIFICATION_TOKEN }}
+    env:
+      RUSTFLAGS: ${{ inputs.runner == 'warp-ubuntu-latest-x64-4x' && '-C target-cpu=x86-64-v3' || '' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Install cache prerequisites"
+        run: yum install -y zstd wget
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          source "$HOME/.cargo/env"
+
+      - name: "Cache Cargo Home"
+        uses: WarpBuilds/cache@v1
+        with:
+          path: |
+            ~/.cargo
+            nobodywho/target
+            !nobodywho/target/wheels
+          key: ${{ inputs.manylinux_target }}-cargo-wheel-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ inputs.manylinux_target }}-cargo-wheel-
+
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.2.5
+        with:
+          vulkan_version: 1.4.313.0
+          # Restoring the full SDK was slower than downloading it.
+          cache: false
+
+      - name: Install build dependencies
+        run: |
+          yum install -y clang cmake wget tar gzip python3-pip
+          pip3 install maturin auditwheel
+
+      - name: Setup Vulkan SDK (manual for ARM64)
+        if: inputs.runner == 'warp-ubuntu-latest-arm64-4x'
+        run: |
+          SDK_VERSION="1.4.304.0"
+          SDK_URL="https://github.com/jakoch/vulkan-sdk-arm/releases/download/${SDK_VERSION}/vulkansdk-ubuntu-22.04-arm-${SDK_VERSION}.tar.xz"
+          cd /tmp
+          wget -q "$SDK_URL" -O vulkan-sdk.tar.xz
+          tar -xf vulkan-sdk.tar.xz
+          SDK_DIR="/tmp/$(ls -d */ | grep -E '^[0-9]' | head -n1)"
+          VULKAN_SDK="${SDK_DIR%/}/aarch64"
+          echo "VULKAN_SDK=$VULKAN_SDK" >> $GITHUB_ENV
+          echo "$VULKAN_SDK/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=$VULKAN_SDK/lib" >> $GITHUB_ENV
+
+      - name: "Cache ARM64 glslc"
+        if: inputs.runner == 'warp-ubuntu-latest-arm64-4x'
+        id: glslc-cache
+        uses: WarpBuilds/cache@v1
+        with:
+          path: ~/.cache/nobodywho/glslc
+          key: arm64-glslc-shaderc-v2024.3-${{ inputs.manylinux_target }}
+
+      - name: Build ARM64 glslc
+        if: inputs.runner == 'warp-ubuntu-latest-arm64-4x' && steps.glslc-cache.outputs.cache-hit != 'true'
+        run: |
+          yum install -y python3 git
+          cd /tmp
+          git clone --depth 1 --branch v2024.3 https://github.com/google/shaderc.git
+          cd shaderc
+          ./utils/git-sync-deps
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$VULKAN_SDK" \
+                -DSHADERC_SKIP_TESTS=ON \
+                -DSHADERC_SKIP_EXAMPLES=ON \
+                ..
+          make -j$(nproc)
+          mkdir -p "$HOME/.cache/nobodywho"
+          cp glslc/glslc "$HOME/.cache/nobodywho/glslc"
+
+      - name: Install ARM64 glslc
+        if: inputs.runner == 'warp-ubuntu-latest-arm64-4x'
+        run: cp "$HOME/.cache/nobodywho/glslc" "$VULKAN_SDK/bin/"
+
+      - name: Build linux python wheel
+        run: |
+          source "$HOME/.cargo/env"
+          rm -rf ../target/wheels
+          maturin build --verbose --release --locked
+        working-directory: ./nobodywho/python
+
+      - name: Repair wheel to use manylinux
+        run: auditwheel repair --plat ${{ inputs.manylinux_target }} nobodywho/target/wheels/nobodywho*.whl
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho_python_linux_${{ inputs.manylinux_target }}
+          path: ./wheelhouse/nobodywho*.whl
+      - name: Cancel this CI run on failure
+        if: >-
+          failure() &&
+          github.workflow == 'Build and test' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.actions.cancelWorkflowRun({
+                ...context.repo,
+                run_id: context.runId,
+              });
+            } catch (error) {
+              if (error.status !== 409) throw error;
+              core.info('Cancellation was already requested or the run has finished.');
+            }

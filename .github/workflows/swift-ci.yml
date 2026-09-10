@@ -1,10 +1,10 @@
 name: "Swift CI"
 
-# Gated by build-and-test.yml on needs.plan.outputs.run_swift — the workflow
-# itself has no input; it only runs when the plan job says swift is in scope.
+# Called by build.yml as soon as the Swift xcframework is ready.
 on: workflow_call
 
 permissions:
+  actions: write
   contents: read
 
 jobs:
@@ -40,25 +40,27 @@ jobs:
         working-directory: ./nobodywho/swift
         run: swift test --filter MacroTests
 
+      - name: Cache test models
+        uses: WarpBuilds/cache@v2
+        with:
+          path: test-models/
+          key: test-models-swift-${{ hashFiles('.github/workflows/swift-ci.yml') }}
+
       - name: "Download test models"
+        timeout-minutes: 20
         run: |
-          mkdir -p test-models
-          curl -L -o test-models/model.gguf \
-            "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
-          curl -L -o test-models/vision-model.gguf \
-            "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
-          curl -L -o test-models/mmproj.gguf \
-            "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf"
-          # Whisper ONNX — only the files we actually load (fp32 / "default"
-          # quantization, matching the SpeechToText tests' quantization="default").
+          source .github/scripts/download-model.sh
+          download_model --output test-models/model.gguf \
+            --url "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+          download_model --output test-models/vision-model.gguf \
+            --url "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf"
+          download_model --output test-models/mmproj.gguf \
+            --url "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf"
+          # fp32 files match the tests' quantization="default".
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
-          mkdir -p test-models/whisper-base/onnx
-          curl -L --fail "$WHISPER_BASE/onnx/encoder_model.onnx"       -o test-models/whisper-base/onnx/encoder_model.onnx
-          curl -L --fail "$WHISPER_BASE/onnx/decoder_model_merged.onnx" -o test-models/whisper-base/onnx/decoder_model_merged.onnx
-          curl -L --fail "$WHISPER_BASE/tokenizer.json"                 -o test-models/whisper-base/tokenizer.json
-          curl -L --fail "$WHISPER_BASE/generation_config.json"         -o test-models/whisper-base/generation_config.json
-          curl -L --fail "$WHISPER_BASE/config.json"                    -o test-models/whisper-base/config.json
-          curl -L --fail "$WHISPER_BASE/preprocessor_config.json"       -o test-models/whisper-base/preprocessor_config.json
+          for file in onnx/encoder_model.onnx onnx/decoder_model_merged.onnx tokenizer.json generation_config.json config.json preprocessor_config.json; do
+            download_model --url "$WHISPER_BASE/$file" --output "test-models/whisper-base/$file"
+          done
 
       - name: "Run integration tests"
         working-directory: ./nobodywho/swift
@@ -69,3 +71,21 @@ jobs:
           TEST_WHISPER_MODEL: ${{ github.workspace }}/test-models/whisper-base
           TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
         run: swift test --filter NobodyWhoTests
+      - name: Cancel this CI run on failure
+        if: >-
+          failure() &&
+          github.workflow == 'Build and test' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.actions.cancelWorkflowRun({
+                ...context.repo,
+                run_id: context.runId,
+              });
+            } catch (error) {
+              if (error.status !== 409) throw error;
+              core.info('Cancellation was already requested or the run has finished.');
+            }

@@ -26,6 +26,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: write
   contents: write
   pages: write
   id-token: write
@@ -77,16 +78,6 @@ jobs:
       # /apple-extended-ci to compile-check just those targets.
       apple_extended:   ${{ needs.plan.outputs.run_apple_extended == 'true' }}
 
-  swift-ci:
-    needs: [plan, build]
-    if: needs.plan.outputs.run_swift == 'true'
-    uses: ./.github/workflows/swift-ci.yml
-
-  kotlin-ci:
-    needs: [plan, build]
-    if: needs.plan.outputs.run_kotlin == 'true'
-    uses: ./.github/workflows/kotlin-ci.yml
-
   test:
     # Always invoked so the flutter doctest-drift check runs on every event.
     # The heavy jobs inside (nix flake check, flutter multimodal/SpeechToText) gate
@@ -114,13 +105,10 @@ jobs:
       GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
 
   release:
-    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci, mobile-device-tests]
-    # always() so a *skipped* mobile-device-tests does not skip the release —
-    # Swift/Python/Godot tags have no Android device tests. Failures and
-    # cancellations still block, which is the point: a kotlin release cannot
-    # ship unless its device job passed.
+    needs: [plan, linting, regen-checks, build, test, python-ci, mobile-device-tests]
+    # Skipped device jobs are allowed; failures and cancellations block release.
     if: >-
-      always() &&
+      !cancelled() &&
       needs.plan.outputs.run_release == 'true' &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')

@@ -1,10 +1,10 @@
 name: "Kotlin CI"
 
-# Gated by build-and-test.yml on needs.plan.outputs.run_kotlin — the workflow
-# itself has no input; it only runs when the plan job says kotlin is in scope.
+# Called by build.yml as soon as the Linux libraries are ready.
 on: workflow_call
 
 permissions:
+  actions: write
   contents: read
 
 jobs:
@@ -57,11 +57,17 @@ jobs:
         working-directory: ./nobodywho/kotlin
         run: ./gradlew :nobodywho-core:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
 
+      - name: Cache test model
+        uses: WarpBuilds/cache@v2
+        with:
+          path: test-models/
+          key: test-models-kotlin-${{ hashFiles('.github/workflows/kotlin-ci.yml') }}
+
       - name: "Download test model"
+        timeout-minutes: 20
         run: |
-          mkdir -p test-models
-          curl -L -o test-models/model.gguf \
-            "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+          bash .github/scripts/download-model.sh --output test-models/model.gguf \
+            --url "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
 
       - name: "Run tests"
         working-directory: ./nobodywho/kotlin
@@ -69,3 +75,21 @@ jobs:
           NOBODYWHO_LIB_DIR: ${{ github.workspace }}/native-lib
           TEST_MODEL: ${{ github.workspace }}/test-models/model.gguf
         run: ./gradlew :nobodywho-core:test
+      - name: Cancel this CI run on failure
+        if: >-
+          failure() &&
+          github.workflow == 'Build and test' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.actions.cancelWorkflowRun({
+                ...context.repo,
+                run_id: context.runId,
+              });
+            } catch (error) {
+              if (error.status !== 409) throw error;
+              core.info('Cancellation was already requested or the run has finished.');
+            }

@@ -45,6 +45,22 @@ jobs:
             name: nobodywho-godot-all-platforms
             path: ./nobodywho-release
 
+        - &cancel-ci-on-failure
+          name: Cancel this CI run on failure
+          if: >-
+            failure() && github.workflow == 'Build and test' &&
+            (github.event_name != 'pull_request' ||
+             github.event.pull_request.head.repo.full_name == github.repository)
+          uses: actions/github-script@v8
+          with:
+            script: |
+              try {
+                await github.rest.actions.cancelWorkflowRun({ ...context.repo, run_id: context.runId });
+              } catch (error) {
+                if (error.status !== 409) throw error;
+                core.info('Cancellation was already requested or the run has finished.');
+              }
+
   create-github-release-godot:
     needs: [godot-distributable]
     if: startsWith(github.ref, 'refs/tags/nobodywho-godot-')
@@ -66,6 +82,8 @@ jobs:
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - *cancel-ci-on-failure
 
   test-publish-wheels:
       runs-on: warp-ubuntu-latest-x64-2x
@@ -101,6 +119,7 @@ jobs:
             source ./maturinvenv/bin/activate
             python3 -m pip install --index-url https://test.pypi.org/simple/ nobodywho
 
+        - *cancel-ci-on-failure
 
   publish-wheels:
     needs:
@@ -134,6 +153,8 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_AUTH_TOKEN }}
 
+      - *cancel-ci-on-failure
+
   create-github-release-python:
     needs: [publish-wheels]
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
@@ -156,11 +177,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - *cancel-ci-on-failure
+
   create-github-release-flutter:
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write # Required to create github release
+      actions: write
     steps:
       - uses: actions/checkout@v5
 
@@ -191,6 +215,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - *cancel-ci-on-failure
+
   publish-flutter-to-pubdev:
     needs: [create-github-release-flutter]
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
@@ -200,12 +226,20 @@ jobs:
     with:
       working-directory: nobodywho/flutter/nobodywho
 
+  cancel-failed-pubdev:
+    needs: publish-flutter-to-pubdev
+    if: failure() && needs.publish-flutter-to-pubdev.result == 'failure' && github.workflow == 'Build and test'
+    runs-on: ubuntu-latest
+    steps:
+      - *cancel-ci-on-failure
+
   # Create GitHub Release with native binaries, then publish to npm.
   create-github-release-react-native:
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
       contents: write
+      actions: write
     steps:
       - name: "Download Android ARM64 artifact"
         uses: actions/download-artifact@v5
@@ -238,6 +272,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - *cancel-ci-on-failure
+
   publish-react-native-npm:
     needs: [create-github-release-react-native]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
@@ -263,12 +299,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - *cancel-ci-on-failure
+
   # Create GitHub Release with xcframework, then push to nobodywho-swift mirror repo.
   create-github-release-swift:
     if: startsWith(github.ref, 'refs/tags/nobodywho-swift-')
     runs-on: warp-macos-15-arm64-6x
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
 
@@ -318,12 +357,15 @@ jobs:
           git push origin main --force
           git push origin "${VERSION}"
 
+      - *cancel-ci-on-failure
+
   # Build AAR + JAR with native libs, create GitHub Release, publish to Maven Central.
   create-github-release-kotlin:
     if: startsWith(github.ref, 'refs/tags/nobodywho-kotlin-v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
 
@@ -405,3 +447,5 @@ jobs:
           SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
         run: ./gradlew publishAggregationToCentralPortal -Pversion=${{ env.VERSION }}
+
+      - *cancel-ci-on-failure

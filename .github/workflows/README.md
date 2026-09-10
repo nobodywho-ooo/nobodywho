@@ -16,7 +16,7 @@
 | `regen` | uniffi/flutter bindings regen-drift | `core/`, `uniffi/`, `grammar/`, `Cargo.*`, `*/generated/`, binding config | main, tag |
 | `rust_core` | `nix flake check` | `core/` | main, tag |
 | `python` | wheels + pytest + pip-install + multimodal (+ always-on static checks: ruff/ty/stubs) | `python/` | main, tag |
-| `python_models` | 6-model tool-calling matrix (linux wheel only) | `core/` | main, tag |
+| `python_models` | 6-model tool-calling matrix (Linux x86_64 wheel only) | `core/` | main, tag |
 | `godot` | godot build (linux/win/macos/android) | `godot/` | main, tag |
 | `flutter` | flutter build + multimodal tests + xcframework | `flutter/` | main, tag |
 | `swift` | uniffi Apple build + xcframework + tests | `swift/`, `uniffi/` | main, tag |
@@ -41,7 +41,18 @@ Cross-bucket: `core/**` → `rust_core` + `python_models`; `uniffi/**` → `swif
 | nightly 04:00 UTC on `main` | all device tests (`mobile-device-tests.yml` schedule) |
 | `[skip ci]` | nothing |
 
-Always-on floor (every event): lint + flutter doctest-drift. Concurrency: PR runs cancel on a new push; `main`/tags/dispatch run to completion.
+Always-on floor (every event): lint + flutter doctest-drift. New pushes cancel older PR runs, but do not supersede `main`, tag, or dispatch runs.
+
+## Failure handling
+
+Matrices fail fast. Each job's final failure hook requests cancellation of its
+current `Build and test` run after failure-log uploads. Hooks use `actions: write`
+and skip fork PRs, whose tokens are read-only. Forks still get matrix fail-fast.
+Standalone device-test workflows are unchanged.
+
+GitHub may report the run as cancelled; the failed step remains in its logs.
+Hooks require a working runner. Cancelling GitHub jobs does not undo published
+releases or necessarily stop tests already submitted to Firebase Test Lab.
 
 Device tests are the exception to "push to `main` runs everything": they run on real
 phones and bill per device-minute, so a push never triggers them. Main is covered by
@@ -71,6 +82,22 @@ always opt-in. `source` builds the binding from this repo (what you are about to
 ship); `released` builds against the published package (what users have today), so a
 red `released` job means something already shipped is broken.
 
+## Build dependencies and caches
+
+Swift and Kotlin tests run inside `build.yml` after their required builds, without
+waiting for Windows. Python x86_64 tests do not wait for ARM64; model-only CI builds
+only x86_64. ARM64 caches `glslc` separately from the Vulkan SDK.
+
+Linux/macOS model caches use WarpBuild, separate from compiler caches. Keys include
+the workflow defining the models. Windows Cargo caches save only on `main` because
+[Warp cache does not support Windows](https://www.warpbuild.com/docs/ci/features/caching#limitations).
+Cache capacity does not change branch visibility rules.
+
+[download-model.sh](../scripts/download-model.sh) handles missing models with bounded
+retries and resumed transfers. [reliability_runner.py](../../nobodywho/python/tests/reliability_runner.py)
+limits smoke-test processes and keeps failure logs. Model coverage and repetition
+counts are unchanged.
+
 ## macOS granularity
 
 `cargo-build-macos` is the priciest job, so `matrix-gen` emits an explicit `{integration, target}` list — only the combos a triggered consumer downloads (all release):
@@ -90,7 +117,7 @@ visionOS/watchOS are tier-3 Rust targets: they need `cargo +nightly -Z build-std
 ## Release gating
 
 `release` depends on every other job, including `mobile-device-tests`. It uses
-`always() && … && !contains(needs.*.result, 'failure' | 'cancelled')`, so a *skipped*
+`!cancelled() && … && !contains(needs.*.result, 'failure' | 'cancelled')`, so a *skipped*
 job does not block a release while a *failed* one does. That distinction matters
 because device tests are skipped for bindings that have none — a Swift or Python tag
 releases normally, while a `nobodywho-kotlin-v*` tag cannot publish unless its
@@ -106,7 +133,8 @@ regen-checks.yml    Bindings regen-drift checks (gated by run_regen).
 build.yml           Per-platform cargo builds; matrix-gen computes integration + macOS matrix.
 test.yml            nix flake check (run_rust_core) + flutter tests (run_flutter) + always-on doctest-drift.
 python-ci.yml       Static checks always; wheels/tests by run_python; model matrix by run_python_models.
-swift-ci.yml        Swift tests. kotlin-ci.yml  Kotlin/Android tests. (both gated upstream)
+python-linux-build.yml  Reusable manylinux wheel build, called separately per architecture.
+swift-ci.yml        Swift tests. kotlin-ci.yml  Kotlin/Android tests. (called inside build.yml)
 docs.yml            Docusaurus deploy (main only).
 release.yml         Package publish (release tag).
 mobile-device-tests.yml  On-device tests on real phones via Firebase Test Lab.

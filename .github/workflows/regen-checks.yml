@@ -9,6 +9,7 @@ name: "Regeneration checks"
 on: workflow_call
 
 permissions:
+  actions: write
   contents: read
 
 jobs:
@@ -56,6 +57,25 @@ jobs:
         with:
           name: uniffi-host
           path: uniffi-host-out/
+      - &cancel-ci-on-failure
+        name: Cancel this CI run on failure
+        if: >-
+          failure() &&
+          github.workflow == 'Build and test' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.actions.cancelWorkflowRun({
+                ...context.repo,
+                run_id: context.runId,
+              });
+            } catch (error) {
+              if (error.status !== 409) throw error;
+              core.info('Cancellation was already requested or the run has finished.');
+            }
 
   swift-bindings-check:
     needs: build-uniffi-host
@@ -101,7 +121,7 @@ jobs:
             echo "    --language swift --out-dir swift/generated"
             exit 1
           fi
-
+      - *cancel-ci-on-failure
   kotlin-bindings-check:
     needs: build-uniffi-host
     runs-on: warp-ubuntu-latest-x64-2x
@@ -142,7 +162,7 @@ jobs:
             echo "    --language kotlin --out-dir kotlin/common/generated"
             exit 1
           fi
-
+      - *cancel-ci-on-failure
   react-native-bindings-check:
     needs: build-uniffi-host
     runs-on: warp-ubuntu-latest-x64-2x
@@ -192,3 +212,4 @@ jobs:
             echo "    target/debug/libnobodywho_uniffi.so"
             exit 1
           fi
+      - *cancel-ci-on-failure

@@ -39,3 +39,21 @@ jobs:
         # reachable only from tests is never type-checked on any platform in a normal PR
         # (lib tests themselves only run under `nix flake check`, which is opt-in).
         run: cargo clippy --no-deps --all-targets -- -D warnings
+      - name: Cancel this CI run on failure
+        if: >-
+          failure() &&
+          github.workflow == 'Build and test' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.actions.cancelWorkflowRun({
+                ...context.repo,
+                run_id: context.runId,
+              });
+            } catch (error) {
+              if (error.status !== 409) throw error;
+              core.info('Cancellation was already requested or the run has finished.');
+            }

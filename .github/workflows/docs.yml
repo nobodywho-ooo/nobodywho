@@ -11,6 +11,7 @@ permissions:
   pages: write
   id-token: write
   deployments: write
+  actions: write
 jobs:
   deploy-pages:
     runs-on: warp-ubuntu-latest-x64-2x
@@ -39,3 +40,22 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy ./docs/build/ --project-name=nobodywho-docs
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cancel this CI run on failure
+        if: >-
+          failure() &&
+          github.workflow == 'Build and test' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.actions.cancelWorkflowRun({
+                ...context.repo,
+                run_id: context.runId,
+              });
+            } catch (error) {
+              if (error.status !== 409) throw error;
+              core.info('Cancellation was already requested or the run has finished.');
+            }

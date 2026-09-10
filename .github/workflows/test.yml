@@ -43,6 +43,25 @@ jobs:
             echo "dart run tool/doctest.dart ../../../docs/docs-flutter --generate-only"
             exit 1
           fi
+      - &cancel-ci-on-failure
+        name: Cancel this CI run on failure
+        if: >-
+          failure() &&
+          github.workflow == 'Build and test' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.head.repo.full_name == github.repository)
+        uses: actions/github-script@v8
+        with:
+          script: |
+            try {
+              await github.rest.actions.cancelWorkflowRun({
+                ...context.repo,
+                run_id: context.runId,
+              });
+            } catch (error) {
+              if (error.status !== 409) throw error;
+              core.info('Cancellation was already requested or the run has finished.');
+            }
 
 
 
@@ -77,8 +96,7 @@ jobs:
       - name: "nix flake check"
         run: |
           nix --extra-experimental-features nix-command --extra-experimental-features flakes flake check -L --max-jobs 1
-
-
+      - *cancel-ci-on-failure
   flutter-multimodal-tests:
     if: inputs.run_flutter
     runs-on: warp-ubuntu-latest-x64-4x
@@ -115,11 +133,19 @@ jobs:
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-flutter --locked
 
+      - &cache-flutter-models
+        name: Cache test models
+        uses: WarpBuilds/cache@v2
+        with:
+          path: models/
+          key: test-models-flutter-${{ github.job }}-${{ hashFiles('.github/workflows/test.yml') }}
+
       - name: Download vision models
+        timeout-minutes: 20
         run: |
-          mkdir -p models
-          curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf -o models/gemma-3-4b-it-Q4_K_M.gguf
-          curl -L --fail --progress-bar https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf -o models/mmproj-gemma-3-f16.gguf
+          source .github/scripts/download-model.sh
+          download_model --url https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q4_K_M.gguf --output models/gemma-3-4b-it-Q4_K_M.gguf
+          download_model --url https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf --output models/mmproj-gemma-3-f16.gguf
 
       - name: Run Flutter multimodal tests
         working-directory: ./nobodywho/flutter/nobodywho
@@ -128,8 +154,7 @@ jobs:
           TEST_MULTIMODAL_MMPROJ: ${{ github.workspace }}/models/mmproj-gemma-3-f16.gguf
           LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_multimodal_test.dart --reporter expanded
-
-
+      - *cancel-ci-on-failure
   flutter-stt-tests:
     if: inputs.run_flutter
     runs-on: warp-ubuntu-latest-x64-2x
@@ -166,17 +191,16 @@ jobs:
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-flutter --locked
 
+      - *cache-flutter-models
       - name: Download Whisper model
+        timeout-minutes: 20
         run: |
+          source .github/scripts/download-model.sh
           # fp32 ("default") files, matching the Flutter SpeechToText test's quantization='default'.
           WHISPER_BASE="https://huggingface.co/onnx-community/whisper-base/resolve/main"
-          mkdir -p models/whisper-base/onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/encoder_model.onnx"       -o models/whisper-base/onnx/encoder_model.onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/onnx/decoder_model_merged.onnx" -o models/whisper-base/onnx/decoder_model_merged.onnx
-          curl -L --fail --progress-bar "$WHISPER_BASE/tokenizer.json"                 -o models/whisper-base/tokenizer.json
-          curl -L --fail --progress-bar "$WHISPER_BASE/generation_config.json"         -o models/whisper-base/generation_config.json
-          curl -L --fail --progress-bar "$WHISPER_BASE/config.json"                    -o models/whisper-base/config.json
-          curl -L --fail --progress-bar "$WHISPER_BASE/preprocessor_config.json"       -o models/whisper-base/preprocessor_config.json
+          for file in onnx/encoder_model.onnx onnx/decoder_model_merged.onnx tokenizer.json generation_config.json config.json preprocessor_config.json; do
+            download_model --url "$WHISPER_BASE/$file" --output "models/whisper-base/$file"
+          done
 
       - name: Run Flutter SpeechToText tests
         working-directory: ./nobodywho/flutter/nobodywho
@@ -185,3 +209,4 @@ jobs:
           TEST_AUDIO_FILE: ${{ github.workspace }}/assets/sound.mp3
           LD_LIBRARY_PATH: ${{ github.workspace }}/nobodywho/target/debug
         run: flutter test test/nobodywho_test.dart --name "SpeechToText" --reporter expanded
+      - *cancel-ci-on-failure
