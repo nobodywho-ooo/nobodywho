@@ -139,3 +139,5 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup instructions.
 ## Documentation
 Documentation is built with Docusaurus and lives in the `docs/` folder. It is deployed to docs.nobodywho.ooo via Cloudflare Pages (see `.github/workflows/docs.yml`).
 
+For user-facing changes, add a concise entry under `Unreleased` in [`CHANGELOG.md`](CHANGELOG.md). Use the appropriate Keep a Changelog section and name the affected bindings when the change is not universal.
+
