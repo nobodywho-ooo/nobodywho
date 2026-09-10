@@ -1636,7 +1636,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
         ChatMsg::GetStats { output_tx } => {
             let stats = ChatStats {
                 context_size: worker_state.engine.ctx.n_ctx(),
-                context_used: worker_state.engine.n_past(),
+                context_used: worker_state.engine.actual_context_size() as u32,
             };
             let _ = output_tx.blocking_send(stats);
         }

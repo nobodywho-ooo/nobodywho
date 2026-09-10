@@ -169,6 +169,9 @@ pub(crate) struct BatchCapacity {
 pub(crate) struct InferenceEngine<'a> {
     pub(crate) ctx: EngineContext<'a>,
     projection_model: Option<&'a ProjectionModel>,
+    /// The token position in the KV cache that we've logically read.
+    ///
+    /// This does not include drafts.
     n_past: i32,
     tokenizer: Tokenizer<'a>,
     // Configured limits before llama.cpp's internal rounding.
@@ -407,7 +410,7 @@ impl<'a> InferenceEngine<'a> {
         // Keep the MTP draft ctx's hidden state in sync.
         if let EngineContext::Speculative(s) = &mut self.ctx {
             s.ctx.process(&self.batch)?;
-            // A new prompt (or context-shift replay) invalidates any drafts
+            // A new prompt (or context-shift replay) invalidates in-progress drafts.
             s.drafts.clear();
             s.accepted = 0;
         }
@@ -429,18 +432,18 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         index: usize,
     ) -> Result<(usize, i32), KvCacheConversionError> {
-        if self.n_past <= index as i32 {
+        let context_size = self.actual_context_size();
+        if context_size <= index as i32 {
             return Ok((index, 0));
         }
 
-        let before = self.n_past;
         let seq_rm_success = self
             .ctx
             .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
 
         if seq_rm_success {
             self.n_past = index as i32;
-            Ok((index, before - self.n_past))
+            Ok((index, context_size - self.n_past))
         } else {
             // Partial sequence removal is not supported by this model's memory type
             // (e.g. hybrid models with recurrent components). Fall back to full reset,
@@ -452,7 +455,7 @@ impl<'a> InferenceEngine<'a> {
             );
             self.ctx.clear_kv_cache();
             self.n_past = 0;
-            Ok((0, before))
+            Ok((0, context_size))
         }
     }
 
@@ -465,6 +468,10 @@ impl<'a> InferenceEngine<'a> {
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<TokenizerChunks, ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
+            // Clear draft state.
+            //
+            // The parts of the KV cache containing the drafts will be cleared
+            // in `remove_all_tokens_from_index_from_ctx`.
             spec.accept_drafts()?;
             spec.drafts.clear();
             spec.accepted = 0;
@@ -491,18 +498,18 @@ impl<'a> InferenceEngine<'a> {
         Ok(target)
     }
 
-    pub(crate) fn n_past(&self) -> u32 {
-        self.n_past as u32
-    }
-
-    pub(crate) fn is_context_full(&self) -> bool {
+    /// The context size including drafts.
+    pub(crate) fn actual_context_size(&self) -> i32 {
         let in_progress_drafts = if let EngineContext::Speculative(spec) = &self.ctx {
-            (spec.drafts.len() - spec.accepted) as u32
+            (spec.drafts.len() - spec.accepted) as i32
         } else {
             0
         };
+        self.n_past + in_progress_drafts
+    }
 
-        self.n_past as u32 + in_progress_drafts == self.ctx.n_ctx()
+    pub(crate) fn is_context_full(&self) -> bool {
+        self.actual_context_size() == self.ctx.n_ctx() as i32
     }
 
     pub(crate) fn tokenize(
