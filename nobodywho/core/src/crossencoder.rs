@@ -204,7 +204,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_crossencoder_async() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
         let handle: CrossEncoderAsync = CrossEncoderAsync::new(model, 4096);
 
@@ -246,7 +245,6 @@ mod tests {
     #[test]
     fn test_crossencoder_batch_matches_individual_scores() -> Result<(), Box<dyn std::error::Error>>
     {
-        test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
         let encoder = CrossEncoder::new(model, 48);
         let query = "What is the capital of France?".to_string();
@@ -337,7 +335,6 @@ mod tests {
 
     #[test]
     fn test_crossencoder_sync() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
         let encoder = CrossEncoder::new(model, 4096);
 
@@ -376,7 +373,6 @@ mod tests {
 
     #[test]
     fn test_oversized_input_keeps_crossencoder_alive() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_crossencoder_model();
         let crossencoder = CrossEncoder::new(model, 64);
 
