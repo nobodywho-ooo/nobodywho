@@ -1001,20 +1001,6 @@ class SamplerBuilder:
             delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
             exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
         """
-    def grammar(
-        self, /, grammar: str, trigger_on: str | None, root: str
-    ) -> SamplerBuilder:
-        """
-        Apply a GBNF grammar constraint to enforce structured output.
-
-        Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-
-        Args:
-            grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-            trigger_on: Optional string that, when generated, activates the grammar constraint.
-                        Useful for letting the model generate free-form text until a specific marker.
-            root: Name of the root grammar rule to start parsing from
-        """
     def greedy(self, /) -> SamplerConfig:
         """
         Always select the most probable token (deterministic).
@@ -1225,11 +1211,6 @@ class SamplerPresets:
     def dry() -> SamplerConfig:
         """
         Create a DRY sampler preset to reduce repetition.
-        """
-    @staticmethod
-    def grammar(grammar: str) -> SamplerConfig:
-        """
-        Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
         """
     @staticmethod
     def greedy() -> SamplerConfig:

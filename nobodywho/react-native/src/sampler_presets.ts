@@ -5,7 +5,6 @@ import {
   samplerPresetConstrainWithRegex,
   samplerPresetDefault,
   samplerPresetDry,
-  samplerPresetGrammar,
   samplerPresetGreedy,
   samplerPresetJson,
   samplerPresetTemperature,
@@ -83,12 +82,5 @@ export class SamplerPresets {
    */
   static constrainWithGrammar(grammar: string): SamplerConfig {
     return samplerPresetConstrainWithGrammar(grammar) as SamplerConfig;
-  }
-
-  /**
-   * @deprecated Use {@link constrainWithGrammar} instead. It accepts both Lark and GBNF strings.
-   */
-  static grammar(grammar: string): SamplerConfig {
-    return samplerPresetGrammar(grammar) as SamplerConfig;
   }
 }

@@ -2482,27 +2482,6 @@ impl SamplerBuilder {
         }
     }
 
-    /// Apply a GBNF grammar constraint to enforce structured output.
-    ///
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    ///
-    /// Args:
-    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-    ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
-    ///                 Useful for letting the model generate free-form text until a specific marker.
-    ///     root: Name of the root grammar rule to start parsing from
-    #[allow(deprecated)]
-    pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
-        shift_step(
-            self.clone(),
-            nobodywho::sampler::ShiftStep::Grammar {
-                grammar,
-                trigger_on,
-                root,
-            },
-        )
-    }
-
     /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
     ///
     /// Args:
@@ -2797,15 +2776,6 @@ impl SamplerPresets {
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler::SamplerPresets::json(),
-        }
-    }
-
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    #[staticmethod]
-    #[allow(deprecated)]
-    pub fn grammar(grammar: String) -> SamplerConfig {
-        SamplerConfig {
-            sampler_config: nobodywho::sampler::SamplerPresets::grammar(grammar),
         }
     }
 }

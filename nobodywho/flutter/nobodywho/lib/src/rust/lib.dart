@@ -505,13 +505,6 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double exponent,
   });
 
-  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-  SamplerBuilder grammar({
-    required String grammar,
-    String? triggerOn,
-    required String root,
-  });
-
   /// Always select the most probable token (deterministic).
   ///
   /// Returns:
@@ -674,10 +667,6 @@ abstract class SamplerPresets implements RustOpaqueInterface {
 
   /// Create a DRY sampler preset to reduce repetition.
   static SamplerConfig dry() => NobodyWho.instance.api.crateSamplerPresetsDry();
-
-  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
-  static SamplerConfig grammar({required String grammar}) =>
-      NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
 
   /// Create a greedy sampler (always picks most probable token).
   static SamplerConfig greedy() =>

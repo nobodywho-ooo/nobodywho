@@ -345,19 +345,6 @@ export function samplerPresetDry(): SamplerConfigInterface {
     ));
     }
 /**
- * Create a sampler with a custom grammar constraint.
- */
-export function samplerPresetGrammar(grammar: string): SamplerConfigInterface {
-    return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(
-        FfiConverterString.lower(grammar),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    ));
-    }
-/**
  * Create a greedy sampler (always picks most probable token).
  */
 export function samplerPresetGreedy(): SamplerConfigInterface {
@@ -369,6 +356,9 @@ export function samplerPresetGreedy(): SamplerConfigInterface {
             /*liftString:*/ FfiConverterString.lift,
     ));
     }
+/**
+ * Constrain output to a JSON object of any shape.
+ */
 export function samplerPresetJson(): SamplerConfigInterface {
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
@@ -4147,10 +4137,6 @@ export interface SamplerBuilderInterface {
      */
     dynamicTemperature(temperature: /*f32*/number, delta: /*f32*/number, exponent: /*f32*/number) : SamplerBuilderInterface;
     /**
-     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-     */
-    grammar(grammar: string, triggerOn: string | undefined, root: string) : SamplerBuilderInterface;
-    /**
      * Always select the most probable token (deterministic).
      */
     greedy() : SamplerConfigInterface;
@@ -4335,22 +4321,6 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
         FfiConverterFloat32.lower(temperature),
         FfiConverterFloat32.lower(delta),
         FfiConverterFloat32.lower(exponent),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift,
-    ));
-    }
-    
-    /**
-     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-     */
- grammar(grammar: string, triggerOn: string | undefined, root: string): SamplerBuilderInterface {
-    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
-            /*caller:*/ (callStatus) => {
-                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
-        FfiConverterString.lower(grammar),
-        FfiConverterOptionalString.lower(triggerOn),
-        FfiConverterString.lower(root),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4928,13 +4898,10 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry() !== 55378) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar() !== 29288) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar");
-    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() !== 13219) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() !== 8103) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() !== 42303) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() !== 64803) {
@@ -5080,9 +5047,6 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() !== 5004) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature");
-    }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() !== 3547) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() !== 32898) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy");

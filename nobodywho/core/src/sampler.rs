@@ -14,42 +14,24 @@ use crate::errors::SamplerError;
 
 /// Some simple presets, that can be useful for basic sampling.
 ///
-/// Every preset builds on [`SamplerConfig::default`] and adds its own step on
-/// top, replacing the default step of the same kind if there is one. So
-/// `constrain_with_json_schema` still samples with the default top-k, top-p and
-/// temperature, and `temperature` overrides only the temperature. The exception
-/// is [`SamplerPresets::greedy`], which always picks the most probable token and
-/// so needs no shift steps at all.
+/// Each carries [`SamplerConfig::default`]'s steps and adds or overrides one of
+/// them. [`SamplerPresets::greedy`] is the exception and needs none.
 pub struct SamplerPresets;
 
-/// The default steps, with `replacement` substituted for the default step of the
-/// same kind (appended if the defaults have no such step).
-fn defaults_replacing(replacement: ShiftStep) -> Vec<ShiftStep> {
-    let mut steps = SamplerConfig::default().steps;
-    let kind = std::mem::discriminant(&replacement);
-    match steps
-        .iter_mut()
-        .find(|step| std::mem::discriminant(&**step) == kind)
-    {
-        Some(slot) => *slot = replacement,
-        None => steps.push(replacement),
-    }
-    steps
-}
-
-/// The default steps, with `step` in front. Constraint and penalty steps must
-/// run before the truncation samplers. Penalties should act on the whole vocabulary, and
-/// grammar after truncation can result in no valid tokens.
-fn defaults_prepending(step: ShiftStep) -> Vec<ShiftStep> {
-    let mut steps = vec![step];
-    steps.extend(SamplerConfig::default().steps);
-    steps
-}
+const TOP_K_DEFAULT: i32 = 20;
+const TOP_P_DEFAULT: f32 = 0.95;
+const MIN_KEEP_DEFAULT: u32 = 1;
+const TEMPERATURE_DEFAULT: f32 = 0.6;
 
 impl SamplerPresets {
     pub fn top_k(k: i32) -> SamplerConfig {
         SamplerConfig::new(
-            defaults_replacing(ShiftStep::TopK { top_k: k }),
+            vec![],
+            vec![
+                ShiftStep::TopK { top_k: k },
+                ShiftStep::default_top_p(),
+                ShiftStep::default_temperature(),
+            ],
             SampleStep::Dist,
             default_seed(),
         )
@@ -57,44 +39,59 @@ impl SamplerPresets {
 
     pub fn top_p(p: f32) -> SamplerConfig {
         SamplerConfig::new(
-            defaults_replacing(ShiftStep::TopP {
-                min_keep: 1,
-                top_p: p,
-            }),
+            vec![],
+            vec![
+                ShiftStep::default_top_k(),
+                ShiftStep::TopP {
+                    top_p: p,
+                    min_keep: MIN_KEEP_DEFAULT,
+                },
+                ShiftStep::default_temperature(),
+            ],
             SampleStep::Dist,
             default_seed(),
         )
     }
 
     pub fn greedy() -> SamplerConfig {
-        SamplerConfig::new(vec![], SampleStep::Greedy, default_seed())
+        SamplerConfig::new(vec![], vec![], SampleStep::Greedy, default_seed())
     }
 
     pub fn temperature(temperature: f32) -> SamplerConfig {
         SamplerConfig::new(
-            defaults_replacing(ShiftStep::Temperature { temperature }),
+            vec![],
+            vec![
+                ShiftStep::default_top_k(),
+                ShiftStep::default_top_p(),
+                ShiftStep::Temperature { temperature },
+            ],
             SampleStep::Dist,
             default_seed(),
         )
     }
 
-    /// The default steps plus a DRY penalty. A `multiplier` of 0.8 with `base`
-    /// 1.75 is the usual tuning: barely felt just past `allowed_length`, growing
-    /// superexponentially into an effective ban on long verbatim repeats.
+    /// The default steps plus a DRY penalty, at the usual `multiplier` 0.8 and
+    /// `base` 1.75 tuning. Applies before top_k, top_p, and temperature.
     pub fn dry() -> SamplerConfig {
         SamplerConfig::new(
-            defaults_prepending(ShiftStep::DRY {
-                multiplier: 0.8,
-                base: 1.75,
-                allowed_length: 2,
-                penalty_last_n: -1,
-                seq_breakers: vec![
-                    "\n".to_string(),
-                    ":".to_string(),
-                    "\"".to_string(),
-                    "*".to_string(),
-                ],
-            }),
+            vec![],
+            vec![
+                ShiftStep::DRY {
+                    multiplier: 0.8,
+                    base: 1.75,
+                    allowed_length: 2,
+                    penalty_last_n: -1,
+                    seq_breakers: vec![
+                        "\n".to_string(),
+                        ":".to_string(),
+                        "\"".to_string(),
+                        "*".to_string(),
+                    ],
+                },
+                ShiftStep::default_top_k(),
+                ShiftStep::default_top_p(),
+                ShiftStep::default_temperature(),
+            ],
             SampleStep::Dist,
             default_seed(),
         )
@@ -103,7 +100,12 @@ impl SamplerPresets {
     /// Constrain output to a JSON schema using llguidance.
     pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
         SamplerConfig::new(
-            defaults_prepending(ShiftStep::JsonSchema(schema)),
+            vec![ConstraintStep::JsonSchema(schema)],
+            vec![
+                ShiftStep::default_top_k(),
+                ShiftStep::default_top_p(),
+                ShiftStep::default_temperature(),
+            ],
             SampleStep::Dist,
             default_seed(),
         )
@@ -112,7 +114,12 @@ impl SamplerPresets {
     /// Constrain output to a regular expression using llguidance.
     pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
         SamplerConfig::new(
-            defaults_prepending(ShiftStep::Regex(pattern)),
+            vec![ConstraintStep::Regex(pattern)],
+            vec![
+                ShiftStep::default_top_k(),
+                ShiftStep::default_top_p(),
+                ShiftStep::default_temperature(),
+            ],
             SampleStep::Dist,
             default_seed(),
         )
@@ -121,7 +128,12 @@ impl SamplerPresets {
     /// Constrain output using a Lark context-free grammar via llguidance.
     pub fn constrain_with_grammar(lark: String) -> SamplerConfig {
         SamplerConfig::new(
-            defaults_prepending(ShiftStep::Lark(lark)),
+            vec![ConstraintStep::Lark(lark)],
+            vec![
+                ShiftStep::default_top_k(),
+                ShiftStep::default_top_p(),
+                ShiftStep::default_temperature(),
+            ],
             SampleStep::Dist,
             default_seed(),
         )
@@ -130,21 +142,12 @@ impl SamplerPresets {
     /// Constrain output to a JSON object of any shape.
     pub fn json() -> SamplerConfig {
         SamplerConfig::new(
-            defaults_prepending(ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into())),
-            SampleStep::Dist,
-            default_seed(),
-        )
-    }
-
-    #[deprecated(note = "Use SamplerPresets::constrain_with_grammar() instead")]
-    pub fn grammar(grammar: String) -> SamplerConfig {
-        let grammar_step = ShiftStep::Grammar {
-            trigger_on: None,
-            root: "root".into(),
-            grammar,
-        };
-        SamplerConfig::new(
-            defaults_prepending(grammar_step),
+            vec![ConstraintStep::JsonSchema(JSON_OBJECT_SCHEMA.into())],
+            vec![
+                ShiftStep::default_top_k(),
+                ShiftStep::default_top_p(),
+                ShiftStep::default_temperature(),
+            ],
             SampleStep::Dist,
             default_seed(),
         )
@@ -153,11 +156,16 @@ impl SamplerPresets {
 
 /// Sampler configuration struct.
 ///
+/// The chain runs `constraining_steps`, then `steps`, then `sample_step`: a
+/// constraint has to mask before a shift step truncates away its valid tokens.
+///
 /// Carries a single `seed` that is consumed by every random sampler in the
 /// chain (`SampleStep::Dist`, `MirostatV1`, `MirostatV2`, and `ShiftStep::XTC`).
 /// `SampleStep::Greedy` ignores it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamplerConfig {
+    #[serde(default)]
+    pub constraining_steps: Vec<ConstraintStep>,
     pub steps: Vec<ShiftStep>,
     pub sample_step: SampleStep,
     #[serde(default = "default_seed")]
@@ -169,8 +177,14 @@ pub fn default_seed() -> u32 {
 }
 
 impl SamplerConfig {
-    pub fn new(shift_steps: Vec<ShiftStep>, sample_step: SampleStep, seed: u32) -> Self {
+    pub fn new(
+        constraining_steps: Vec<ConstraintStep>,
+        shift_steps: Vec<ShiftStep>,
+        sample_step: SampleStep,
+        seed: u32,
+    ) -> Self {
         Self {
+            constraining_steps,
             steps: shift_steps,
             sample_step,
             seed,
@@ -189,10 +203,16 @@ impl SamplerConfig {
         model: &LlamaModel,
         extra_step: Option<LlamaSampler>,
     ) -> Result<LlamaSampler, SamplerError> {
-        // Grammar step goes first, so it constrains before anything else runs.
+        // Constraints go first, so they mask before anything truncates.
         let mut shift_steps = extra_step
             .into_iter()
             .map(Ok)
+            .chain(
+                self.constraining_steps
+                    .iter()
+                    .cloned()
+                    .map(|step| self.build_constraint(model, step)),
+            )
             .chain(
                 self.steps
                     .iter()
@@ -241,14 +261,6 @@ impl SamplerConfig {
             ShiftStep::MinP { min_keep, min_p } => {
                 Ok(LlamaSampler::min_p(min_p, min_keep as usize))
             }
-            ShiftStep::Grammar {
-                grammar,
-                trigger_on,
-                root,
-            } => match trigger_on {
-                Some(trigger) => self.build_lazy_grammar(model, &grammar, &root, &trigger),
-                None => self.build_regular_grammar(model, &grammar, &root),
-            },
             ShiftStep::DRY {
                 multiplier,
                 base,
@@ -288,56 +300,29 @@ impl SamplerConfig {
                     .collect();
                 Ok(LlamaSampler::logit_bias(model.n_vocab(), &biases))
             }
+        }
+    }
+
+    fn build_constraint(
+        &self,
+        model: &LlamaModel,
+        step: ConstraintStep,
+    ) -> Result<LlamaSampler, SamplerError> {
+        match step {
             // A schema always has JSON string bodies, so the slice pays for itself.
-            ShiftStep::JsonSchema(schema) => llguidance_sampler(
+            ConstraintStep::JsonSchema(schema) => llguidance_sampler(
                 model,
                 "json_schema",
                 &schema,
                 &crate::tool_calling::json_body_slice_regexes(),
             ),
-            ShiftStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
-            ShiftStep::Lark(lark) => {
+            ConstraintStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
+            ConstraintStep::Lark(lark) => {
                 let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
                     .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
                 llguidance_sampler(model, "lark", &lark, &[])
             }
         }
-    }
-
-    fn build_lazy_grammar(
-        &self,
-        model: &LlamaModel,
-        grammar: &str,
-        root: &str,
-        trigger: &str,
-    ) -> Result<LlamaSampler, SamplerError> {
-        let token_result = model
-            .str_to_token(trigger, llama_cpp_2::model::AddBos::Never)
-            .map(|v| v.first().copied());
-
-        let token = match token_result {
-            Ok(Some(token)) => token,
-            _ => {
-                return Err(SamplerError::UnsupportedToolCallingTokenization);
-            }
-        };
-
-        Ok(LlamaSampler::grammar_lazy(
-            model,
-            grammar,
-            root,
-            Vec::<&str>::new(),
-            &[token],
-        )?)
-    }
-
-    fn build_regular_grammar(
-        &self,
-        model: &LlamaModel,
-        grammar: &str,
-        root: &str,
-    ) -> Result<LlamaSampler, SamplerError> {
-        Ok(LlamaSampler::grammar(model, grammar, root)?)
     }
 }
 
@@ -416,13 +401,11 @@ pub fn llguidance_sampler(
 impl Default for SamplerConfig {
     fn default() -> SamplerConfig {
         SamplerConfig::new(
+            vec![],
             vec![
-                ShiftStep::TopK { top_k: 20 },
-                ShiftStep::TopP {
-                    top_p: 0.95,
-                    min_keep: 1,
-                },
-                ShiftStep::Temperature { temperature: 0.6 },
+                ShiftStep::default_top_k(),
+                ShiftStep::default_top_p(),
+                ShiftStep::default_temperature(),
             ],
             SampleStep::Dist,
             default_seed(),
@@ -432,6 +415,7 @@ impl Default for SamplerConfig {
 
 #[derive(Clone)]
 pub struct SamplerBuilder {
+    constraining_steps: Vec<ConstraintStep>,
     steps: Vec<ShiftStep>,
     seed: u32,
 }
@@ -445,25 +429,23 @@ impl Default for SamplerBuilder {
 impl SamplerBuilder {
     pub fn new() -> Self {
         Self {
+            constraining_steps: vec![],
             steps: vec![],
             seed: default_seed(),
         }
     }
 
-    /// Adds a shift step: constraint and penalty steps go to the front of the
-    /// chain, the rest to the end, for the reasons in [`defaults_prepending`].
-    /// Both groups keep the order they were added in, since two penalties do not
-    /// commute — DRY subtracts from a logit where `Penalties` scales it.
+    /// Appends a shift step; the chain runs them in the order they were added.
+    /// A penalty added after a truncation step only sees what survived it.
     pub fn shift(mut self, step: ShiftStep) -> Self {
-        if step.runs_before_truncation() {
-            // The chain is always a run-first prefix followed by the rest.
-            let at = self
-                .steps
-                .partition_point(ShiftStep::runs_before_truncation);
-            self.steps.insert(at, step);
-        } else {
-            self.steps.push(step);
-        }
+        self.steps.push(step);
+        self
+    }
+
+    /// Appends a constraint. Constraints run before every shift step regardless
+    /// of where they are added, for the reason in [`SamplerConfig`].
+    pub fn constrain(mut self, step: ConstraintStep) -> Self {
+        self.constraining_steps.push(step);
         self
     }
 
@@ -476,6 +458,7 @@ impl SamplerBuilder {
 
     pub fn sample(self, step: SampleStep) -> SamplerConfig {
         SamplerConfig {
+            constraining_steps: self.constraining_steps,
             steps: self.steps,
             sample_step: step,
             seed: self.seed,
@@ -486,32 +469,44 @@ impl SamplerBuilder {
     /// [`constrain_with_json_schema`][Self::constrain_with_json_schema] to pin
     /// down the structure too.
     pub fn json(self) -> Self {
-        self.shift(ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into()))
+        self.constrain(ConstraintStep::JsonSchema(JSON_OBJECT_SCHEMA.into()))
     }
 
     /// Constrain output to a JSON schema.
     pub fn constrain_with_json_schema(self, schema: String) -> Self {
-        self.shift(ShiftStep::JsonSchema(schema))
+        self.constrain(ConstraintStep::JsonSchema(schema))
     }
 
     /// Constrain output to a regular expression.
     pub fn constrain_with_regex(self, pattern: String) -> Self {
-        self.shift(ShiftStep::Regex(pattern))
+        self.constrain(ConstraintStep::Regex(pattern))
     }
 
     /// Constrain output to a grammar, given as either Lark or GBNF.
     pub fn constrain_with_grammar(self, grammar: String) -> Self {
-        self.shift(ShiftStep::Lark(grammar))
+        self.constrain(ConstraintStep::Lark(grammar))
     }
 }
 
 /// Any JSON object, for the `json` preset and builder step. A schema rather than
-/// a hand-written grammar so it takes the [`ShiftStep::JsonSchema`] path and its
+/// a hand-written grammar so it takes the [`ConstraintStep::JsonSchema`] path and its
 /// slices; an object rather than a bare `{}`, since an any-value constraint is
 /// already satisfied by a one-token scalar and models answer `false` and stop.
 const JSON_OBJECT_SCHEMA: &str = r#"{"type":"object"}"#;
 
-/// ----- Sampler Methods -----
+/// A step that masks out the tokens some format disallows. Held apart from
+/// [`ShiftStep`] because it has to run before any of them — see [`SamplerConfig`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+pub enum ConstraintStep {
+    /// Constrain output to a JSON schema via llguidance.
+    JsonSchema(String),
+    /// Constrain output to a regular expression via llguidance.
+    Regex(String),
+    /// Constrain output using a Lark context-free grammar via llguidance.
+    /// GBNF is accepted too, and converted before use.
+    Lark(String),
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
@@ -537,19 +532,6 @@ pub enum ShiftStep {
         typ_p: f32,
         min_keep: u32,
     },
-    /// Deprecated: use [`SamplerPresets::constrain_with_grammar`] instead. It accepts both Lark and GBNF strings.
-    Grammar {
-        trigger_on: Option<String>,
-        root: String,
-        grammar: String,
-    },
-    /// Constrain output to a JSON schema via llguidance.
-    JsonSchema(String),
-    /// Constrain output to a regular expression via llguidance.
-    Regex(String),
-    /// Constrain output using a Lark context-free grammar via llguidance.
-    /// GBNF is accepted too, and converted before use.
-    Lark(String),
     #[serde(rename = "dry")]
     DRY {
         multiplier: f32,
@@ -599,19 +581,26 @@ pub enum ShiftStep {
 }
 
 impl ShiftStep {
-    /// Whether this step belongs ahead of the truncation samplers, for the
-    /// reasons in [`defaults_prepending`].
-    fn runs_before_truncation(&self) -> bool {
-        matches!(
-            self,
-            ShiftStep::Grammar { .. }
-                | ShiftStep::JsonSchema(_)
-                | ShiftStep::Regex(_)
-                | ShiftStep::Lark(_)
-                | ShiftStep::DRY { .. }
-                | ShiftStep::Penalties { .. }
-                | ShiftStep::LogitBias { .. }
-        )
+    /// The top-k step [`SamplerConfig::default`] and the presets use.
+    pub fn default_top_k() -> Self {
+        ShiftStep::TopK {
+            top_k: TOP_K_DEFAULT,
+        }
+    }
+
+    /// The top-p step [`SamplerConfig::default`] and the presets use.
+    pub fn default_top_p() -> Self {
+        ShiftStep::TopP {
+            top_p: TOP_P_DEFAULT,
+            min_keep: MIN_KEEP_DEFAULT,
+        }
+    }
+
+    /// The temperature step [`SamplerConfig::default`] and the presets use.
+    pub fn default_temperature() -> Self {
+        ShiftStep::Temperature {
+            temperature: TEMPERATURE_DEFAULT,
+        }
     }
 }
 
@@ -759,6 +748,7 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
     }
 
     Some(SamplerConfig::new(
+        vec![],
         steps,
         sample_step.unwrap_or(SampleStep::Dist),
         default_seed(),
@@ -812,24 +802,44 @@ mod tests {
         }
     }
 
-    /// A constraint preset samples with the defaults, but constrains first: a
-    /// constraint after truncation can mask out every surviving candidate.
+    /// A constraint preset carries its constraint in `constraining_steps`, and
+    /// samples the tokens it leaves with the default steps.
     #[test]
-    fn constraint_preset_keeps_defaults_behind_the_constraint() {
+    fn constraint_preset_samples_with_the_defaults() {
         for config in [
             SamplerPresets::constrain_with_regex("yes|no".into()),
             SamplerPresets::constrain_with_json_schema("{}".into()),
             SamplerPresets::constrain_with_grammar("start: \"a\"".into()),
             SamplerPresets::json(),
-            SamplerPresets::dry(),
         ] {
-            let steps = config.steps;
             assert_eq!(
-                &steps[1..],
-                &SamplerConfig::default().steps[..],
-                "the default steps should follow the added one, got: {steps:?}"
+                config.constraining_steps.len(),
+                1,
+                "expected exactly the one constraint, got: {:?}",
+                config.constraining_steps
+            );
+            assert_eq!(
+                config.steps,
+                SamplerConfig::default().steps,
+                "a constraint preset should sample with the default steps"
             );
         }
+    }
+
+    /// The DRY preset leads with its penalty: a penalty after truncation only
+    /// sees the tokens that survived it.
+    #[test]
+    fn dry_preset_penalises_before_truncating() {
+        let steps = SamplerPresets::dry().steps;
+        assert!(
+            matches!(steps.first(), Some(ShiftStep::DRY { .. })),
+            "the dry preset should lead with a DRY step, got: {steps:?}"
+        );
+        assert_eq!(
+            &steps[1..],
+            &SamplerConfig::default().steps[..],
+            "the default steps should follow the DRY step, got: {steps:?}"
+        );
     }
 
     /// llama.cpp treats multiplier 0, base < 1 or last_n 0 as "DRY off", which
@@ -901,14 +911,8 @@ mod tests {
         );
 
         let cfg = SamplerConfig::new(
-            vec![
-                ShiftStep::Grammar {
-                    trigger_on: None,
-                    root: "root".into(),
-                    grammar: "root ::= \"zqxjvkw\"".into(),
-                },
-                ShiftStep::TopK { top_k: 1 },
-            ],
+            vec![ConstraintStep::Lark("root ::= \"zqxjvkw\"".into())],
+            vec![ShiftStep::TopK { top_k: 1 }],
             SampleStep::Dist,
             default_seed(),
         );
@@ -968,11 +972,12 @@ mod tests {
         assert!(matches!(config.steps[1], ShiftStep::Temperature { .. }));
     }
 
+    /// Shift steps stay in the order they were chained — including penalties,
+    /// which are no longer moved ahead of truncation on the caller's behalf.
     #[test]
-    fn test_shift_prepends_constraints_and_penalties() {
+    fn test_shift_keeps_the_order_it_was_given() {
         let config = SamplerBuilder::new()
             .shift(ShiftStep::TopK { top_k: 40 })
-            .constrain_with_regex("yes|no".into())
             .shift(ShiftStep::DRY {
                 multiplier: 0.8,
                 base: 1.75,
@@ -980,28 +985,40 @@ mod tests {
                 penalty_last_n: -1,
                 seq_breakers: vec!["\n".to_string()],
             })
-            .shift(ShiftStep::Penalties {
-                penalty_last_n: 64,
-                penalty_repeat: 1.1,
-                penalty_freq: 0.0,
-                penalty_present: 0.0,
-            })
             .shift(ShiftStep::LogitBias {
                 biases: HashMap::from([(7, 2.0)]),
             })
             .sample(SampleStep::Dist);
 
-        // Hoisted ahead of top-k, but in the order they were added: DRY subtracts
-        // from a logit where `Penalties` scales it, so the two do not commute.
-        assert_eq!(config.steps.len(), 5);
         assert!(
-            matches!(config.steps[0], ShiftStep::Regex(_))
+            matches!(config.steps[0], ShiftStep::TopK { .. })
                 && matches!(config.steps[1], ShiftStep::DRY { .. })
-                && matches!(config.steps[2], ShiftStep::Penalties { .. })
-                && matches!(config.steps[3], ShiftStep::LogitBias { .. })
-                && matches!(config.steps[4], ShiftStep::TopK { .. }),
-            "expected [regex, dry, penalties, logit_bias, top_k], got: {:?}",
+                && matches!(config.steps[2], ShiftStep::LogitBias { .. }),
+            "expected [top_k, dry, logit_bias], got: {:?}",
             config.steps
+        );
+    }
+
+    /// A constraint lands in its own list wherever it is chained, so it cannot
+    /// end up behind a truncation step.
+    #[test]
+    fn test_constraints_are_kept_apart_from_shift_steps() {
+        let config = SamplerBuilder::new()
+            .shift(ShiftStep::TopK { top_k: 40 })
+            .constrain_with_regex("yes|no".into())
+            .json()
+            .sample(SampleStep::Dist);
+
+        assert_eq!(
+            config.steps,
+            vec![ShiftStep::TopK { top_k: 40 }],
+            "the constraints should not be in `steps`"
+        );
+        assert!(
+            matches!(config.constraining_steps[0], ConstraintStep::Regex(_))
+                && matches!(config.constraining_steps[1], ConstraintStep::JsonSchema(_)),
+            "constraints should keep the order they were added, got: {:?}",
+            config.constraining_steps
         );
     }
 
@@ -1073,5 +1090,35 @@ mod tests {
         let cfg: SamplerConfig = serde_json::from_str(legacy_mirostat_v1)
             .expect("legacy v2.2.0 JSON with mirostat_v1 (no seed field) should deserialize");
         assert!(matches!(cfg.sample_step, SampleStep::MirostatV1 { .. }));
+    }
+
+    /// Constraints used to be `ShiftStep`s, so a config saved by an older
+    /// version has them inside `steps`. They belong in `constraining_steps` now,
+    /// and the old shape is rejected rather than silently sampled unconstrained.
+    #[test]
+    fn test_deserialize_rejects_constraint_in_shift_steps() {
+        let constraint_in_steps = r#"{
+            "steps": [
+                {"type":"regex","value":"yes|no"},
+                {"type":"top_k","value":{"top_k":20}}
+            ],
+            "sample_step": {"type":"dist"}
+        }"#;
+        let err = serde_json::from_str::<SamplerConfig>(constraint_in_steps)
+            .expect_err("a constraint inside `steps` should be rejected");
+        assert!(
+            err.to_string().contains("unknown variant `regex`"),
+            "the error should name the misplaced step, got: {err}"
+        );
+
+        let moved = r#"{
+            "constraining_steps": [{"type":"regex","value":"yes|no"}],
+            "steps": [{"type":"top_k","value":{"top_k":20}}],
+            "sample_step": {"type":"dist"}
+        }"#;
+        let cfg: SamplerConfig =
+            serde_json::from_str(moved).expect("the same config, with the constraint moved");
+        assert_eq!(cfg.constraining_steps.len(), 1);
+        assert_eq!(cfg.steps.len(), 1);
     }
 }

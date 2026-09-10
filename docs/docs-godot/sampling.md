@@ -9,9 +9,10 @@ The model does not produce tokens directly but rather a probability distribution
 
 NobodyWho offers several built-in presets you can apply to your `NobodyWhoChat` node.
 
-Every preset starts from the default sampler and changes one thing, so constraining the output
-still samples with the default top-k, top-p and temperature. `set_sampler_preset_greedy()` is the
-exception: it always picks the most probable token, so it needs no other steps.
+All presets have top-k, top-p, temperature and dist steps, and change or add just the one thing
+they are named for: the top-k, top-p and temperature presets each override their counterpart,
+while the others add a step and leave the three defaults alone. `set_sampler_preset_greedy()`
+is the exception — it always picks the most probable token, so it needs no other steps.
 
 ### JSON Output
 
@@ -95,6 +96,11 @@ Shift steps — add as many as you want, applied in order:
 - `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, penalty_last_n, seq_breakers`
 - `.seed(42)` — fix the RNG for reproducible output
 
+The order you chain them matters: `.penalties(...)`, `.logit_bias(...)` and `.dry(...)`
+reweight whatever distribution reaches them, so put them *before* any truncation step if you
+want them to see the whole vocabulary — that is why llama.cpp's own default chain leads with
+the penalties.
+
 Constraining steps — the same formats as the `set_sampler_preset_constrain_with_*` methods, but chainable with the rest:
 
 - `.constrain_with_json_schema(...)` — output matches a JSON schema, given as a JSON string
@@ -102,9 +108,7 @@ Constraining steps — the same formats as the `set_sampler_preset_constrain_wit
 - `.constrain_with_grammar(...)` — output matches a grammar, in either Lark or GBNF syntax
 - `.json()` — output is a JSON object of any shape
 
-Constraining steps and the steps that reweight the whole vocabulary — `.dry(...)`,
-`.penalties(...)` and `.logit_bias(...)` — always run **before** the other shift steps,
-in the order you chained them.
+Constraining steps always run **before** the other shift steps, wherever you chain them.
 This is to avoid the case where a step like `.top_k(5)` followed by a constraint could
 find that none of the five surviving tokens is valid, leaving nothing to sample and
 aborting generation. Both chains below therefore behave identically.

@@ -31,7 +31,6 @@ class SamplerScope {
     fun logitBias(biases: Map<Int, Float>) { builder = builder.logitBias(biases) }
     fun typicalP(typP: Double, minKeep: Int = 1) { builder = builder.typicalP(typP.toFloat(), minKeep.toUInt()) }
     fun xtc(xtcProbability: Double, xtcThreshold: Double, minKeep: Int = 1) { builder = builder.xtc(xtcProbability.toFloat(), xtcThreshold.toFloat(), minKeep.toUInt()) }
-    fun grammar(grammar: String, triggerOn: String? = null, root: String = "root") { builder = builder.grammar(grammar, triggerOn, root) }
 
     /// Constraining steps always run before the other shift steps, wherever you
     /// chain them: a grammar that runs after truncation can find none of the

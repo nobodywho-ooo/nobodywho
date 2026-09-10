@@ -709,8 +709,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry(
     ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar(
-    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json(
@@ -810,8 +808,6 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(
-    ): Short
-    external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
     ): Short
@@ -1039,8 +1035,6 @@ external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(`ptr`: Long,`m
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(`ptr`: Long,`temperature`: Float,`delta`: Float,`exponent`: Float,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
-external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(`ptr`: Long,`grammar`: RustBuffer.ByValue,`triggerOn`: RustBuffer.ByValue,`root`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_samplerbuilder_json(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1104,8 +1098,6 @@ external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(uniffi_out_err: UniffiRustCallStatus, 
-): Long
-external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(`grammar`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_func_sampler_preset_greedy(uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -1272,13 +1264,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry() != 55378.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar() != 29288.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() != 13219.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 8103.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 42303.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803.toShort()) {
@@ -1423,9 +1412,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() != 5004.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 3547.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898.toShort()) {
@@ -5675,11 +5661,6 @@ public interface SamplerBuilderInterface {
     fun `dynamicTemperature`(`temperature`: kotlin.Float, `delta`: kotlin.Float, `exponent`: kotlin.Float): SamplerBuilder
     
     /**
-     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-     */
-    fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder
-    
-    /**
      * Always select the most probable token (deterministic).
      */
     fun `greedy`(): SamplerConfig
@@ -5967,22 +5948,6 @@ open class SamplerBuilder: Disposable, AutoCloseable, SamplerBuilderInterface
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
         it,
         FfiConverterFloat.lower(`temperature`),FfiConverterFloat.lower(`delta`),FfiConverterFloat.lower(`exponent`),_status)
-}
-    }
-    )
-    }
-    
-
-    
-    /**
-     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-     */override fun `grammar`(`grammar`: kotlin.String, `triggerOn`: kotlin.String?, `root`: kotlin.String): SamplerBuilder {
-            return FfiConverterTypeSamplerBuilder.lift(
-    callWithHandle {
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(
-        it,
-        FfiConverterString.lower(`grammar`),FfiConverterOptionalString.lower(`triggerOn`),FfiConverterString.lower(`root`),_status)
 }
     }
     )
@@ -8451,19 +8416,6 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
     
 
         /**
-         * Create a sampler with a custom grammar constraint.
-         */ fun `samplerPresetGrammar`(`grammar`: kotlin.String): SamplerConfig {
-            return FfiConverterTypeSamplerConfig.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(
-    
-        FfiConverterString.lower(`grammar`),_status)
-}
-    )
-    }
-    
-
-        /**
          * Create a greedy sampler (always picks most probable token).
          */ fun `samplerPresetGreedy`(): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
@@ -8475,7 +8427,10 @@ public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.Str
     )
     }
     
- fun `samplerPresetJson`(): SamplerConfig {
+
+        /**
+         * Constrain output to a JSON object of any shape.
+         */ fun `samplerPresetJson`(): SamplerConfig {
             return FfiConverterTypeSamplerConfig.lift(
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_func_sampler_preset_json(

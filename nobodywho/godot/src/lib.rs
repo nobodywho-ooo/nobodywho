@@ -1847,13 +1847,6 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::json());
     }
 
-    /// Deprecated: Use set_sampler_preset_constrain_with_grammar() instead.
-    #[func]
-    #[deprecated(note = "Use set_sampler_preset_constrain_with_grammar() instead")]
-    fn set_sampler_preset_grammar(&mut self, grammar: String) {
-        self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
-    }
-
     /// Sets a custom sampler configuration built with `NobodyWhoSamplerBuilder`.
     ///
     /// Use this when the `set_sampler_preset_*` methods don't cover your

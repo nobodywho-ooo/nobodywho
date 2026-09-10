@@ -32,7 +32,4 @@ public enum SamplerPresets {
 
     @available(*, deprecated, message: "Use constrainWithJsonSchema() for JSON output or constrainWithGrammar() for custom grammars")
     public static func json() -> SamplerConfig { samplerPresetJson() }
-
-    @available(*, deprecated, message: "Use constrainWithGrammar() instead — it accepts both Lark and GBNF")
-    public static func grammar(_ grammar: String) -> SamplerConfig { samplerPresetGrammar(grammar: grammar) }
 }

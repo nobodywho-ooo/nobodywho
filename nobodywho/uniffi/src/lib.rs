@@ -1787,28 +1787,6 @@ impl SamplerBuilder {
         })
     }
 
-    /// Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    #[deprecated(
-        note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings."
-    )]
-    pub fn grammar(
-        &self,
-        grammar: String,
-        trigger_on: Option<String>,
-        root: String,
-    ) -> Arc<SamplerBuilder> {
-        Arc::new(SamplerBuilder {
-            inner: self
-                .inner
-                .clone()
-                .shift(nobodywho::sampler::ShiftStep::Grammar {
-                    grammar,
-                    trigger_on,
-                    root,
-                }),
-        })
-    }
-
     /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
     pub fn dry(
         &self,
@@ -2031,17 +2009,10 @@ pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConf
     })
 }
 
+/// Constrain output to a JSON object of any shape.
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
         inner: nobodywho::sampler::SamplerPresets::json(),
-    })
-}
-
-/// Create a sampler with a custom grammar constraint.
-#[uniffi::export]
-pub fn sampler_preset_grammar(grammar: String) -> Arc<SamplerConfig> {
-    Arc::new(SamplerConfig {
-        inner: nobodywho::sampler::SamplerPresets::grammar(grammar),
     })
 }

@@ -35,9 +35,10 @@ class SamplerPresets:
     def constrain_with_grammar(grammar: str) -> SamplerConfig: ...
 ```
 
-Every preset starts from `default()` and changes one thing, so `constrain_with_json_schema` still
-samples with the default top-k, top-p and temperature. `greedy()` is the exception: it always picks
-the most probable token, so it needs no other steps.
+All presets have top-k, top-p, temperature and dist steps, and change or add just the one thing
+they are named for: the top-k, top-p and temperature presets each override their counterpart,
+while the others add a step and leave the three defaults alone. `greedy()` is the exception —
+it always picks the most probable token, so it needs no other steps.
 
 ## Structured output
 
@@ -110,11 +111,6 @@ See the [Lark documentation](https://lark-parser.readthedocs.io/en/latest/gramma
 [GBNF specification](https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md) for the
 full grammar syntax.
 
-:::info
-The older `SamplerPresets.grammar()` method is deprecated. Use `SamplerPresets.constrain_with_grammar()` instead - it accepts both Lark and GBNF strings and should run faster!
-:::
-
-
 ## Defining your own samplers
 
 Sampler presets abstract away some control, that you might want - for example, if you
@@ -164,7 +160,11 @@ Shift steps — add as many as you want, applied in order:
 - `.logit_bias({ 1: -1.0, 2: 3.0 })` — token 1 less probable, token 2 is more probable
 - `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, last_n, seq_breakers`
 - `.seed(42)` — fix the RNG for reproducible output
-- `.grammar(...)` — deprecated; use `.constrain_with_grammar(...)` below
+
+The order you chain them matters: `.penalties(...)`, `.logit_bias(...)` and `.dry(...)`
+reweight whatever distribution reaches them, so put them *before* any truncation step if you
+want them to see the whole vocabulary — that is why llama.cpp's own default chain leads with
+the penalties.
 
 Constraining steps — the same formats as the presets above, but chainable with the rest:
 
@@ -173,9 +173,7 @@ Constraining steps — the same formats as the presets above, but chainable with
 - `.constrain_with_grammar(...)` — output matches a grammar, in either Lark or GBNF syntax
 - `.json()` — output is a JSON object of any shape
 
-Constraining steps and the steps that reweight the whole vocabulary — `.dry(...)`,
-`.penalties(...)` and `.logit_bias(...)` — always run **before** the other shift steps,
-in the order you chained them.
+Constraining steps always run **before** the other shift steps, wherever you chain them.
 This is to avoid the case where a step like `.top_k(5)` followed by a constraint could
 find that none of the five surviving tokens is valid, leaving nothing to sample and
 aborting generation. Both chains below therefore behave identically.

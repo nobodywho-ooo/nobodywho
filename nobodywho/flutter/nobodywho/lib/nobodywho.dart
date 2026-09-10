@@ -978,9 +978,4 @@ class SamplerPresets {
 
   static nobodywho.SamplerConfig topP({required double topP}) =>
       nobodywho.SamplerPresets.topP(topP: topP);
-
-  /// Deprecated: Use [constrainWithGrammar] instead.
-  @Deprecated('Use constrainWithGrammar() instead. It accepts both Lark and GBNF strings.')
-  static nobodywho.SamplerConfig grammar({required String grammar}) =>
-      nobodywho.SamplerPresets.grammar(grammar: grammar);
 }
