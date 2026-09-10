@@ -15,15 +15,15 @@ jobs:
       - name: "Setup Node.js"
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
           registry-url: https://registry.npmjs.org
-        
+
       - name: "Verify Login"
         working-directory: ./nobodywho/react-native
         run: npm whoami
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          
+
       - name: "Publish to npm"
         working-directory: ./nobodywho/react-native
         run: npm publish --access public

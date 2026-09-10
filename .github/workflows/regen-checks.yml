@@ -163,7 +163,7 @@ jobs:
       - name: "Setup Node.js"
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
 
       - name: "Install react-native npm dependencies"
         working-directory: ./nobodywho/react-native
