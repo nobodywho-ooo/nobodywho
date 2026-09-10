@@ -493,6 +493,7 @@ pub fn get_cached_models() -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError
 #[derive(Clone, Debug)]
 pub(crate) struct LlamaCppUrl {
     owner: String,
+    /// The repo name without the `-GGUF` suffix, which is added back in `resolve_source`.
     repo: String,
     quantization: String,
 }
@@ -504,9 +505,10 @@ impl LlamaCppUrl {
             repo,
             quantization,
         } = self;
-        // In the models Llama CPP supports with this format, the repo name always ends with `-GGUF`, but that is not included in the filename.
-        let filename = repo.strip_suffix("-GGUF").unwrap_or(repo);
-        let filename = format!("{filename}-{quantization}.gguf");
+        // In the models Llama CPP supports with this format, the repo name always ends with `-GGUF`,
+        // but that was removed during parsing.
+        let filename = format!("{repo}-{quantization}.gguf");
+        let repo = format!("{repo}-GGUF");
         GgufSource::HuggingFace {
             repo: HfRepo::main(owner, repo),
             filename,
@@ -553,9 +555,17 @@ pub(crate) fn parse_model_path(
         ),
         map(
             (
-                terminated(verify(take_until("/"), |s: &str| !s.is_empty()), tag("/")),
-                terminated(verify(take_until(":"), |s: &str| !s.is_empty()), tag(":")),
-                verify(rest, |s: &str| !s.is_empty()),
+                terminated(
+                    verify(take_until("/"), |s: &str| !s.is_empty() && !s.contains('/')),
+                    tag("/"),
+                ),
+                terminated(
+                    verify(take_until("-GGUF:"), |s: &str| {
+                        !s.is_empty() && !s.contains('/')
+                    }),
+                    tag("-GGUF:"),
+                ),
+                verify(rest, |s: &str| !s.is_empty() && !s.contains('/')),
             ),
             |(owner, repo, quantization): (&str, &str, &str)| {
                 ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
@@ -985,7 +995,7 @@ mod tests {
             owner,
             repo,
             quantization,
-        }) = parse_model_path("owner/repo:quantization").unwrap()
+        }) = parse_model_path("owner/repo-GGUF:quantization").unwrap()
         else {
             panic!("expected LlamaCppUrl");
         };
