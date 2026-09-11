@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use godot::prelude::*;
 
-use crate::convert::{dict_get, resolve_godot_path};
+use crate::convert::{dict_get, resolve_godot_path, validate_config_keys};
 use crate::task::task;
 
 /// A loaded model. Cheap to share (internally `Arc`); pass it to
@@ -33,8 +33,8 @@ impl NobodyWhoModel {
     /// - `"mmproj_path"` (String): multimodal projector file for vision models.
     /// - `"draft_path"` (String): MTP draft-heads gguf for speculative decoding.
     ///
-    /// Pass `{}` for defaults. Unrecognized keys are ignored; a recognized
-    /// key with a value of the wrong type is an error (resolves to null).
+    /// Pass `{}` for defaults. Unknown keys and values of the wrong type are
+    /// errors (resolve to null).
     #[func]
     fn create(path: GString, config: VarDictionary) -> Variant {
         let path = resolve_godot_path(&path);
@@ -73,11 +73,11 @@ impl NobodyWhoModel {
 
 impl NobodyWhoModel {
     /// Parse the `create` config Dictionary into `(use_gpu, mmproj_path,
-    /// draft_path)`. Errors on any recognized key holding a value of the
-    /// wrong type.
+    /// draft_path)`. Unknown keys and invalid values are errors.
     fn parse_config(
         config: &VarDictionary,
     ) -> Result<(bool, Option<String>, Option<String>), String> {
+        validate_config_keys(config, &["use_gpu", "mmproj_path", "draft_path"])?;
         Ok((
             dict_get::<bool>(config, "use_gpu")?.unwrap_or(true),
             dict_get::<GString>(config, "mmproj_path")?.map(|s| resolve_godot_path(&s)),

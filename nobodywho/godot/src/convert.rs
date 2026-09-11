@@ -40,6 +40,24 @@ pub fn globalize_message_media_paths(
     })
 }
 
+/// Reject non-string and unknown configuration keys.
+pub fn validate_config_keys(dict: &VarDictionary, allowed: &[&str]) -> Result<(), String> {
+    dict.iter_shared().try_for_each(|(key, _)| {
+        let key = key
+            .try_to::<GString>()
+            .map_err(|_| format!("config key {key} is not a String"))?
+            .to_string();
+        if allowed.contains(&key.as_str()) {
+            Ok(())
+        } else {
+            Err(format!(
+                "unknown config key \"{key}\"; expected one of: {}",
+                allowed.join(", ")
+            ))
+        }
+    })
+}
+
 /// Typed config-dictionary lookup. A missing key is fine (`Ok(None)`); a
 /// present value of the wrong type is a hard error, so a mistyped config
 /// value never silently falls back to the default.
@@ -51,6 +69,33 @@ pub fn dict_get<T: FromGodot>(dict: &VarDictionary, key: &str) -> Result<Option<
                 v.get_type()
             )
         })
+    })
+}
+
+/// Read a non-negative Godot integer that fits in `u32`.
+pub fn dict_get_u32(dict: &VarDictionary, key: &str) -> Result<Option<u32>, String> {
+    dict_get::<i64>(dict, key)?
+        .map(|value| {
+            u32::try_from(value).map_err(|_| {
+                format!(
+                    "config key \"{key}\" must be between 0 and {}, got {value}",
+                    u32::MAX
+                )
+            })
+        })
+        .transpose()
+}
+
+/// Read a positive Godot integer that fits in `u32`.
+pub fn dict_get_positive_u32(dict: &VarDictionary, key: &str) -> Result<Option<u32>, String> {
+    dict_get_u32(dict, key)?.map_or(Ok(None), |value| {
+        if value > 0 {
+            Ok(Some(value))
+        } else {
+            Err(format!(
+                "config key \"{key}\" must be a positive integer, got {value}"
+            ))
+        }
     })
 }
 

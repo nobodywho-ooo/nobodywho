@@ -6,7 +6,9 @@ use nobodywho::voice_activity_detection::{
     VoiceActivityDetection as CoreVad, VoiceActivityDetectionConfig, VoiceActivityDetectionEvent,
 };
 
-use crate::convert::{dict_get, resolve_godot_path};
+use crate::convert::{
+    dict_get, dict_get_positive_u32, dict_get_u32, resolve_godot_path, validate_config_keys,
+};
 use crate::task::{on_blocking_thread, task};
 
 /// A streaming voice activity detector (Silero VAD) for live microphone
@@ -145,29 +147,45 @@ fn event_str(event: VoiceActivityDetectionEvent) -> &'static str {
 }
 
 /// Parse the GDScript config Dictionary into a core `VoiceActivityDetectionConfig` +
-/// `Device`. Empty string / 0 mean "use the default".
+/// `Device`.
 fn parse_vad_config(
     source: &str,
     config: &VarDictionary,
 ) -> Result<(VoiceActivityDetectionConfig, Device), String> {
+    validate_config_keys(
+        config,
+        &[
+            "sample_rate",
+            "threshold",
+            "min_silence_duration_ms",
+            "min_speech_duration_ms",
+            "preroll_duration_ms",
+            "device",
+        ],
+    )?;
     let mut cfg = VoiceActivityDetectionConfig::default();
     if !source.is_empty() {
         cfg.source = source.to_string();
     }
-    if let Some(rate) = dict_get::<i64>(config, "sample_rate")?.filter(|&r| r > 0) {
-        cfg.sample_rate = rate as u32;
+    if let Some(rate) = dict_get_positive_u32(config, "sample_rate")? {
+        cfg.sample_rate = rate;
     }
-    if let Some(threshold) = dict_get::<f32>(config, "threshold")?.filter(|&t| t > 0.0) {
+    if let Some(threshold) = dict_get::<f32>(config, "threshold")? {
+        if !threshold.is_finite() || !(0.0..=1.0).contains(&threshold) {
+            return Err(format!(
+                "config key \"threshold\" must be a finite number between 0.0 and 1.0, got {threshold}"
+            ));
+        }
         cfg.threshold = threshold;
     }
-    if let Some(ms) = dict_get::<i64>(config, "min_silence_duration_ms")?.filter(|&v| v > 0) {
-        cfg.min_silence_duration_ms = ms as u32;
+    if let Some(ms) = dict_get_u32(config, "min_silence_duration_ms")? {
+        cfg.min_silence_duration_ms = ms;
     }
-    if let Some(ms) = dict_get::<i64>(config, "min_speech_duration_ms")?.filter(|&v| v > 0) {
-        cfg.min_speech_duration_ms = ms as u32;
+    if let Some(ms) = dict_get_u32(config, "min_speech_duration_ms")? {
+        cfg.min_speech_duration_ms = ms;
     }
-    if let Some(ms) = dict_get::<i64>(config, "preroll_duration_ms")?.filter(|&v| v > 0) {
-        cfg.preroll_duration_ms = ms as u32;
+    if let Some(ms) = dict_get_u32(config, "preroll_duration_ms")? {
+        cfg.preroll_duration_ms = ms;
     }
     let device = dict_get::<GString>(config, "device")?
         .filter(|s| !s.is_empty())
