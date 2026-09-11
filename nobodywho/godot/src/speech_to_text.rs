@@ -8,7 +8,7 @@ use nobodywho::onnx::Device;
 use nobodywho::speech_to_text::{SpeechToText as CoreStt, SpeechToTextConfig, WhisperConfig};
 
 use crate::chat::NobodyWhoTokenStream;
-use crate::convert::{dict_get, resolve_godot_path};
+use crate::convert::{dict_get, resolve_godot_path, validate_config_keys};
 use crate::task::{on_blocking_thread, task};
 
 /// A speech-to-text transcriber (Whisper ONNX). Build it with the async
@@ -161,12 +161,19 @@ fn parse_stt_config(
     source: &str,
     config: &VarDictionary,
 ) -> Result<(SpeechToTextConfig, Device), String> {
+    validate_config_keys(config, &["language", "quantization", "device"])?;
     let mut cfg = WhisperConfig::new(source);
     cfg.language = dict_get::<GString>(config, "language")?
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
     if let Some(q) = dict_get::<GString>(config, "quantization")?.filter(|s| !s.is_empty()) {
-        cfg.quantization = q.to_string();
+        let q = q.to_string().to_ascii_lowercase();
+        if !["default", "fp16", "int8", "uint8", "bnb4", "q4", "q4f16"].contains(&q.as_str()) {
+            return Err(format!(
+                "quantization must be 'default', 'fp16', 'int8', 'uint8', 'bnb4', 'q4', or 'q4f16', got '{q}'"
+            ));
+        }
+        cfg.quantization = q;
     }
     let device = dict_get::<GString>(config, "device")?
         .filter(|s| !s.is_empty())
