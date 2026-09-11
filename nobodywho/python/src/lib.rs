@@ -2482,27 +2482,6 @@ impl SamplerBuilder {
         }
     }
 
-    /// Apply a GBNF grammar constraint to enforce structured output.
-    ///
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    ///
-    /// Args:
-    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-    ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
-    ///                 Useful for letting the model generate free-form text until a specific marker.
-    ///     root: Name of the root grammar rule to start parsing from
-    #[allow(deprecated)]
-    pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
-        shift_step(
-            self.clone(),
-            nobodywho::sampler::ShiftStep::Grammar {
-                grammar,
-                trigger_on,
-                root,
-            },
-        )
-    }
-
     /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
     ///
     /// Args:
@@ -2687,6 +2666,10 @@ fn json_schema_to_string(schema: &Bound<'_, PyAny>) -> PyResult<String> {
 /// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
 /// `SamplerConfig` from some pre-defined sampler chain.
 /// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
+///
+/// Every preset builds on `SamplerPresets.default()` and adds its own step on top, replacing
+/// the default step of the same kind if there is one. `greedy()` is the exception: it always
+/// picks the most probable token, so it needs no steps.
 #[pyclass]
 pub struct SamplerPresets {}
 
@@ -2701,7 +2684,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with top-k filtering only.
+    /// Create a sampler with the default steps, but top-k overridden.
     ///
     /// Args:
     ///     top_k: Number of top tokens to keep
@@ -2712,7 +2695,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with nucleus (top-p) sampling.
+    /// Create a sampler with the default steps, but nucleus (top-p) overridden.
     ///
     /// Args:
     ///     top_p: Cumulative probability threshold (0.0 to 1.0)
@@ -2785,7 +2768,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler that constrains output to valid JSON (any structure) using GBNF.
+    /// Create a sampler that constrains output to a JSON object of any shape.
     ///
     /// For schema-validated JSON, use `constrain_with_json_schema()` instead.
     #[staticmethod]
@@ -2793,15 +2776,6 @@ impl SamplerPresets {
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler::SamplerPresets::json(),
-        }
-    }
-
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    #[staticmethod]
-    #[allow(deprecated)]
-    pub fn grammar(grammar: String) -> SamplerConfig {
-        SamplerConfig {
-            sampler_config: nobodywho::sampler::SamplerPresets::grammar(grammar),
         }
     }
 }

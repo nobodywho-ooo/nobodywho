@@ -976,14 +976,6 @@ pub enum SamplerError {
     #[error("Sample step is missing in the sampler! Maybe you did forget to add .sample() call?")]
     MissingSampleStep,
 
-    #[error(
-        "Lazy GBNF grammar was specified, but the trigger token does not cleanly tokenize with the given model. You most likely tried to do tool calling with a model that doesn't natively support tool calling."
-    )]
-    UnsupportedToolCallingTokenization,
-
-    #[error("Could not initialize lazy grammar: {0}")]
-    LazyGrammarError(#[from] llama_cpp_2::GrammarError),
-
     #[error("Could not initialize llguidance grammar: {0}")]
     LlguidanceGrammarError(String),
 

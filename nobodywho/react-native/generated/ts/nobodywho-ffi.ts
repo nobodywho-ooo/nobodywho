@@ -94,7 +94,6 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(ptr: bigint, multiplier: number, base: number, allowedLength: number, penaltyLastN: number, seqBreakers: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(ptr: bigint, temperature: number, delta: number, exponent: number, uniffi_out_err: UniffiRustCallStatus): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(ptr: bigint, grammar: Uint8Array, triggerOn: Uint8Array, root: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_json(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(ptr: bigint, biases: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -127,7 +126,6 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_constrain_with_regex(pattern: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(uniffi_out_err: UniffiRustCallStatus): bigint;
-    ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(grammar: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_greedy(uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_json(uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_func_sampler_preset_temperature(temperature: number, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -193,7 +191,6 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_constrain_with_regex(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_default(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry(): number;
-    ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature(): number;
@@ -244,7 +241,6 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(): number;
-    ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias(): number;

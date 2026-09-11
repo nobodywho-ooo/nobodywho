@@ -35,7 +35,7 @@ class SamplerDslTest {
     @Test fun `all shift steps with dist`() {
         assertNotNull(buildSampler {
             topK(40); topP(0.9); minP(0.05); temperature(0.8)
-            typicalP(0.95); xtc(0.1, 0.5); grammar("root ::= \"hi\"")
+            typicalP(0.95); xtc(0.1, 0.5)
             dry(); penalties(); dist()
         })
     }
@@ -45,16 +45,6 @@ class SamplerDslTest {
         assertNotNull(buildSampler { constrainWithRegex("yes|no"); dist() })
         assertNotNull(buildSampler { constrainWithGrammar("start: \"hi\""); dist() })
         assertNotNull(buildSampler { json(); dist() })
-    }
-
-    /// A constraint has to end up ahead of the truncation steps even when it is
-    /// called after them, or it can mask out every surviving candidate.
-    @Test fun `constraining steps are moved to the front of the chain`() {
-        val json = buildSampler { topK(40); constrainWithRegex("yes|no"); dist() }.toJson()
-        val steps = JSONObject(json).getJSONArray("steps")
-        assertEquals("expected 2 shift steps, got: $json", 2, steps.length())
-        assertEquals("constraint should come first, got: $json", "regex", steps.getJSONObject(0).getString("type"))
-        assertEquals("top_k should come second, got: $json", "top_k", steps.getJSONObject(1).getString("type"))
     }
 
     @Test(expected = IllegalStateException::class)

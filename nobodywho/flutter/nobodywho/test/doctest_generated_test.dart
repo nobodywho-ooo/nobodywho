@@ -341,7 +341,7 @@ void main() {
       );
     });
 
-    test('sampling.md:51', () async {
+    test('sampling.md:56', () async {
       // Force the model to answer with exactly "yes" or "no"
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
@@ -350,7 +350,7 @@ void main() {
       final answer = await chat.ask("Is the sky blue?").completed();
     });
 
-    test('sampling.md:64', () async {
+    test('sampling.md:69', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
         sampler: nobodywho.SamplerPresets.constrainWithJsonSchema(schema: {
@@ -367,7 +367,7 @@ void main() {
       final person = jsonDecode(response); // always valid JSON matching the schema
     });
 
-    test('sampling.md:88', () async {
+    test('sampling.md:93', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           start: record (NEWLINE record)* NEWLINE?
           record: field ("," field)*
@@ -376,7 +376,7 @@ void main() {
       """);
     });
 
-    test('sampling.md:98', () async {
+    test('sampling.md:103', () async {
       final sampler = nobodywho.SamplerPresets.constrainWithGrammar(grammar: """
           file   ::= record (newline record)* newline?
           record ::= field ("," field)*
@@ -403,7 +403,7 @@ void main() {
           .dist();
     });
 
-    test('sampling.md:184', () async {
+    test('sampling.md:187', () async {
       final sampler = nobodywho.SamplerBuilder()
           .constrainWithRegex(pattern: "yes|no")
           .temperature(temperature: 0.8)
@@ -415,7 +415,7 @@ void main() {
           .dist();
     });
 
-    test('sampling.md:206', () async {
+    test('sampling.md:209', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       
       final sampler = nobodywho.SamplerBuilder()
