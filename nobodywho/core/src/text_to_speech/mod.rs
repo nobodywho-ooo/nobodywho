@@ -268,41 +268,4 @@ mod tests {
     fn from_source_returns_none_when_architecture_unknown() {
         assert!(TextToSpeechConfig::from_source("hf://random/repo", None).is_none());
     }
-
-    /// Repro for the `free(): invalid size` crash observed via the Godot
-    /// binding. The Godot binding loads the TTS on a throwaway
-    /// `on_blocking_thread` (which exits after `with_device` returns), then
-    /// the worker thread uses the ONNX model. This test mimics that pattern:
-    /// load on a short-lived thread, synthesize on the main test thread.
-    /// Requires `KOKORO_SOURCE`; ignored by default.
-    ///   KOKORO_SOURCE=hf://NobodyWho/Kokoro-82M cargo test -p nobodywho kokoro_cross_thread_repro -- --nocapture --ignored
-    #[test]
-    #[ignore]
-    fn kokoro_cross_thread_repro() {
-        let source = match std::env::var("KOKORO_SOURCE") {
-            Ok(s) if !s.is_empty() => s,
-            _ => {
-                eprintln!("set KOKORO_SOURCE (e.g. hf://NobodyWho/Kokoro-82M) to run this repro");
-                return;
-            }
-        };
-        // Load on a throwaway thread (mimics on_blocking_thread), which exits
-        // after with_device returns. The ONNX model is then used by the
-        // worker thread — if ONNX has thread-affinity, this corrupts the heap.
-        let (tx, rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            let tts = TextToSpeech::new(TextToSpeechConfig::kokoro(&source));
-            let _ = tx.send(tts);
-        });
-        let tts = rx
-            .recv()
-            .expect("loading thread panicked")
-            .expect("failed to load Kokoro");
-        // The loading thread has now exited. Synthesize from the main thread.
-        let wav = tts
-            .synthesize("Hello from NobodyWho.")
-            .expect("synthesize failed");
-        assert!(wav.starts_with(b"RIFF"), "expected a WAV container");
-        eprintln!("cross-thread synthesized {} bytes", wav.len());
-    }
 }
