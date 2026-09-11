@@ -5,7 +5,7 @@ use godot::prelude::*;
 
 use nobodywho::crossencoder::CrossEncoderAsync;
 
-use crate::convert::{dict_get, resolve_godot_path};
+use crate::convert::{collect_strings, dict_get, resolve_godot_path};
 use crate::model::NobodyWhoModel;
 use crate::task::task;
 
@@ -76,12 +76,15 @@ impl NobodyWhoCrossEncoder {
     /// `await rank(...)` resolves to the array, or null on failure.
     #[func]
     fn rank(&self, query: GString, documents: VarArray) -> Variant {
+        let docs = match collect_strings(&documents, "documents") {
+            Ok(documents) => documents,
+            Err(e) => {
+                godot_error!("rank: {e}");
+                return Variant::nil();
+            }
+        };
         let handle = self.handle.clone();
         let query = query.to_string();
-        let docs: Vec<String> = documents
-            .iter_shared()
-            .map(|v| v.to::<GString>().to_string())
-            .collect();
         task(async move {
             match handle.rank(query, docs).await {
                 Ok(scores) => PackedFloat32Array::from(scores).to_variant(),
@@ -101,12 +104,15 @@ impl NobodyWhoCrossEncoder {
     /// on failure.
     #[func]
     fn rank_and_sort(&self, query: GString, documents: VarArray) -> Variant {
+        let docs = match collect_strings(&documents, "documents") {
+            Ok(documents) => documents,
+            Err(e) => {
+                godot_error!("rank_and_sort: {e}");
+                return Variant::nil();
+            }
+        };
         let handle = self.handle.clone();
         let query = query.to_string();
-        let docs: Vec<String> = documents
-            .iter_shared()
-            .map(|v| v.to::<GString>().to_string())
-            .collect();
         task(async move {
             match handle.rank_and_sort(query, docs).await {
                 Ok(ranked) => {
