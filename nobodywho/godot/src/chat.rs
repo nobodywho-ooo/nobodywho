@@ -4,7 +4,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use godot::prelude::*;
 
-use crate::convert::{dict_get, json_to_variant, resolve_godot_path, variant_to_json};
+use crate::convert::{
+    dict_get, globalize_message_media_paths, json_to_variant, resolve_godot_path, variant_to_json,
+};
 use crate::model::NobodyWhoModel;
 use crate::prompt::NobodyWhoPrompt;
 use crate::sampler::NobodyWhoSamplerConfig;
@@ -139,8 +141,9 @@ impl NobodyWhoChat {
     ///
     /// `messages` is an Array of message dicts (`{role, content, ...}`). The
     /// list is the whole conversation: it must be non-empty, end in a user or
-    /// tool message, and carry a system message only in front. A leading
-    /// system message becomes the chat's system prompt; a list without one
+    /// tool message, and carry a system message only in front. `res://` and
+    /// `user://` paths in image/audio parts are globalized before loading. A
+    /// leading system message becomes the chat's system prompt; a list without one
     /// keeps the prompt the chat already had. The response is appended, so a
     /// following `ask()` continues that same conversation.
     ///
@@ -159,13 +162,17 @@ impl NobodyWhoChat {
                 return Variant::nil();
             }
         };
-        let msgs: Vec<nobodywho::chat::Message> = match serde_json::from_value(json) {
+        let mut msgs: Vec<nobodywho::chat::Message> = match serde_json::from_value(json) {
             Ok(m) => m,
             Err(e) => {
                 godot_error!("complete: invalid messages: {e}");
                 return Variant::nil();
             }
         };
+        if let Err(e) = globalize_message_media_paths(&mut msgs) {
+            godot_error!("complete: invalid messages: {e}");
+            return Variant::nil();
+        }
         let options = match Self::parse_options(&config, &self.reentrancy_flag) {
             Ok(o) => o,
             Err(e) => {
@@ -243,14 +250,30 @@ impl NobodyWhoChat {
     }
 
     /// Replace the chat history. `messages` is an Array of message dicts
-    /// (`{role, content, ...}`). Resolves to null (success) or null + error.
+    /// (`{role, content, ...}`). `res://` and `user://` paths in image/audio
+    /// parts are globalized before loading. Resolves to null (success) or null + error.
     #[func]
     fn set_chat_history(&self, messages: VarArray) -> Variant {
+        let json = match variant_to_json(&messages.to_variant()) {
+            Ok(json) => json,
+            Err(e) => {
+                godot_error!("set_chat_history: invalid messages: {e}");
+                return Variant::nil();
+            }
+        };
+        let mut msgs: Vec<nobodywho::chat::Message> = match serde_json::from_value(json) {
+            Ok(messages) => messages,
+            Err(e) => {
+                godot_error!("set_chat_history: invalid messages: {e}");
+                return Variant::nil();
+            }
+        };
+        if let Err(e) = globalize_message_media_paths(&mut msgs) {
+            godot_error!("set_chat_history: invalid messages: {e}");
+            return Variant::nil();
+        }
         let handle = self.handle.clone();
-        let json = variant_to_json(&messages.to_variant());
         self.guarded("set_chat_history", async move {
-            let msgs: Vec<nobodywho::chat::Message> =
-                serde_json::from_value(json?).map_err(|e| format!("invalid messages: {e}"))?;
             handle
                 .set_chat_history(msgs)
                 .await
