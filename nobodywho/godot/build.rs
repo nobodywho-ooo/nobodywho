@@ -36,11 +36,18 @@ fn main() {
         );
         return;
     }
-    // Symlink, not copy: fs::copy preserves a read-only mode (e.g. from the
-    // nix store), which breaks overwriting on the next build.
     let dest = out_dir.join("libstdc++.a");
     let _ = std::fs::remove_file(&dest);
+
+    // Prefer a symlink: copying preserves a read-only mode (e.g. from the
+    // nix store), which can make later builds harder to clean up. Build
+    // scripts compile for the host, so keep the Unix API behind `cfg` to let
+    // native Windows builds compile and take the early return above.
+    #[cfg(unix)]
     std::os::unix::fs::symlink(&archive, &dest).expect("failed to symlink libstdc++.a");
+
+    #[cfg(not(unix))]
+    std::fs::copy(&archive, &dest).expect("failed to copy libstdc++.a");
 
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-arg=-static-libstdc++");
