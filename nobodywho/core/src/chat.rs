@@ -3967,7 +3967,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let greedy = SamplerConfig::new(vec![], vec![], crate::sampler::SampleStep::Greedy, 1234);
+        let greedy = SamplerPresets::greedy();
         chat.complete(
             vec![user("Say hi.")],
             Options::new()

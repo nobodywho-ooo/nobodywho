@@ -96,10 +96,9 @@ Shift steps — add as many as you want, applied in order:
 - `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, penalty_last_n, seq_breakers`
 - `.seed(42)` — fix the RNG for reproducible output
 
-The order you chain them matters: `.penalties(...)`, `.logit_bias(...)` and `.dry(...)`
-reweight whatever distribution reaches them, so put them *before* any truncation step if you
-want them to see the whole vocabulary — that is why llama.cpp's own default chain leads with
-the penalties.
+The order you chain them matters: `.penalties(...)`, `.logit_bias(...)` and `.dry(...)` reweigh
+whatever distribution reaches them, so put them *before* any grammar/constraining step
+if you want them to see the whole vocabulary.
 
 Constraining steps — the same formats as the `set_sampler_preset_constrain_with_*` methods, but chainable with the rest:
 

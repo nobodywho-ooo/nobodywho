@@ -100,7 +100,7 @@ impl SamplerPresets {
     /// Constrain output to a JSON schema using llguidance.
     pub fn constrain_with_json_schema(schema: String) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ConstraintStep::JsonSchema(schema)],
+            vec![GrammarStep::JsonSchema(schema)],
             vec![
                 ShiftStep::default_top_k(),
                 ShiftStep::default_top_p(),
@@ -114,7 +114,7 @@ impl SamplerPresets {
     /// Constrain output to a regular expression using llguidance.
     pub fn constrain_with_regex(pattern: String) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ConstraintStep::Regex(pattern)],
+            vec![GrammarStep::Regex(pattern)],
             vec![
                 ShiftStep::default_top_k(),
                 ShiftStep::default_top_p(),
@@ -128,7 +128,7 @@ impl SamplerPresets {
     /// Constrain output using a Lark context-free grammar via llguidance.
     pub fn constrain_with_grammar(lark: String) -> SamplerConfig {
         SamplerConfig::new(
-            vec![ConstraintStep::Lark(lark)],
+            vec![GrammarStep::Lark(lark)],
             vec![
                 ShiftStep::default_top_k(),
                 ShiftStep::default_top_p(),
@@ -142,7 +142,7 @@ impl SamplerPresets {
     /// Constrain output to a JSON object of any shape.
     pub fn json() -> SamplerConfig {
         SamplerConfig::new(
-            vec![ConstraintStep::JsonSchema(JSON_OBJECT_SCHEMA.into())],
+            vec![GrammarStep::JsonSchema(JSON_OBJECT_SCHEMA.into())],
             vec![
                 ShiftStep::default_top_k(),
                 ShiftStep::default_top_p(),
@@ -156,8 +156,8 @@ impl SamplerPresets {
 
 /// Sampler configuration struct.
 ///
-/// The chain runs `constraining_steps`, then `steps`, then `sample_step`: a
-/// constraint has to mask before a shift step truncates away its valid tokens.
+/// The chain runs `grammar_steps`, then `steps`, then `sample_step`: a grammar
+/// has to mask before a shift step truncates away its valid tokens.
 ///
 /// Carries a single `seed` that is consumed by every random sampler in the
 /// chain (`SampleStep::Dist`, `MirostatV1`, `MirostatV2`, and `ShiftStep::XTC`).
@@ -165,7 +165,7 @@ impl SamplerPresets {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamplerConfig {
     #[serde(default)]
-    pub constraining_steps: Vec<ConstraintStep>,
+    pub grammar_steps: Vec<GrammarStep>,
     pub steps: Vec<ShiftStep>,
     pub sample_step: SampleStep,
     #[serde(default = "default_seed")]
@@ -178,13 +178,13 @@ pub fn default_seed() -> u32 {
 
 impl SamplerConfig {
     pub fn new(
-        constraining_steps: Vec<ConstraintStep>,
+        grammar_steps: Vec<GrammarStep>,
         shift_steps: Vec<ShiftStep>,
         sample_step: SampleStep,
         seed: u32,
     ) -> Self {
         Self {
-            constraining_steps,
+            grammar_steps,
             steps: shift_steps,
             sample_step,
             seed,
@@ -203,15 +203,15 @@ impl SamplerConfig {
         model: &LlamaModel,
         extra_step: Option<LlamaSampler>,
     ) -> Result<LlamaSampler, SamplerError> {
-        // Constraints go first, so they mask before anything truncates.
+        // Grammar steps go first, so they mask before anything truncates.
         let mut shift_steps = extra_step
             .into_iter()
             .map(Ok)
             .chain(
-                self.constraining_steps
+                self.grammar_steps
                     .iter()
                     .cloned()
-                    .map(|step| self.build_constraint(model, step)),
+                    .map(|step| self.build_grammar_step(model, step)),
             )
             .chain(
                 self.steps
@@ -303,21 +303,21 @@ impl SamplerConfig {
         }
     }
 
-    fn build_constraint(
+    fn build_grammar_step(
         &self,
         model: &LlamaModel,
-        step: ConstraintStep,
+        step: GrammarStep,
     ) -> Result<LlamaSampler, SamplerError> {
         match step {
             // A schema always has JSON string bodies, so the slice pays for itself.
-            ConstraintStep::JsonSchema(schema) => llguidance_sampler(
+            GrammarStep::JsonSchema(schema) => llguidance_sampler(
                 model,
                 "json_schema",
                 &schema,
                 &crate::tool_calling::json_body_slice_regexes(),
             ),
-            ConstraintStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
-            ConstraintStep::Lark(lark) => {
+            GrammarStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
+            GrammarStep::Lark(lark) => {
                 let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
                     .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
                 llguidance_sampler(model, "lark", &lark, &[])
@@ -415,7 +415,7 @@ impl Default for SamplerConfig {
 
 #[derive(Clone)]
 pub struct SamplerBuilder {
-    constraining_steps: Vec<ConstraintStep>,
+    grammar_steps: Vec<GrammarStep>,
     steps: Vec<ShiftStep>,
     seed: u32,
 }
@@ -429,7 +429,7 @@ impl Default for SamplerBuilder {
 impl SamplerBuilder {
     pub fn new() -> Self {
         Self {
-            constraining_steps: vec![],
+            grammar_steps: vec![],
             steps: vec![],
             seed: default_seed(),
         }
@@ -442,10 +442,10 @@ impl SamplerBuilder {
         self
     }
 
-    /// Appends a constraint. Constraints run before every shift step regardless
-    /// of where they are added, for the reason in [`SamplerConfig`].
-    pub fn constrain(mut self, step: ConstraintStep) -> Self {
-        self.constraining_steps.push(step);
+    /// Appends a grammar step. Grammar steps run before every shift step
+    /// regardless of where they are added, for the reason in [`SamplerConfig`].
+    pub fn add_grammar(mut self, step: GrammarStep) -> Self {
+        self.grammar_steps.push(step);
         self
     }
 
@@ -458,7 +458,7 @@ impl SamplerBuilder {
 
     pub fn sample(self, step: SampleStep) -> SamplerConfig {
         SamplerConfig {
-            constraining_steps: self.constraining_steps,
+            grammar_steps: self.grammar_steps,
             steps: self.steps,
             sample_step: step,
             seed: self.seed,
@@ -469,27 +469,27 @@ impl SamplerBuilder {
     /// [`constrain_with_json_schema`][Self::constrain_with_json_schema] to pin
     /// down the structure too.
     pub fn json(self) -> Self {
-        self.constrain(ConstraintStep::JsonSchema(JSON_OBJECT_SCHEMA.into()))
+        self.add_grammar(GrammarStep::JsonSchema(JSON_OBJECT_SCHEMA.into()))
     }
 
     /// Constrain output to a JSON schema.
     pub fn constrain_with_json_schema(self, schema: String) -> Self {
-        self.constrain(ConstraintStep::JsonSchema(schema))
+        self.add_grammar(GrammarStep::JsonSchema(schema))
     }
 
     /// Constrain output to a regular expression.
     pub fn constrain_with_regex(self, pattern: String) -> Self {
-        self.constrain(ConstraintStep::Regex(pattern))
+        self.add_grammar(GrammarStep::Regex(pattern))
     }
 
     /// Constrain output to a grammar, given as either Lark or GBNF.
     pub fn constrain_with_grammar(self, grammar: String) -> Self {
-        self.constrain(ConstraintStep::Lark(grammar))
+        self.add_grammar(GrammarStep::Lark(grammar))
     }
 }
 
 /// Any JSON object, for the `json` preset and builder step. A schema rather than
-/// a hand-written grammar so it takes the [`ConstraintStep::JsonSchema`] path and its
+/// a hand-written grammar so it takes the [`GrammarStep::JsonSchema`] path and its
 /// slices; an object rather than a bare `{}`, since an any-value constraint is
 /// already satisfied by a one-token scalar and models answer `false` and stop.
 const JSON_OBJECT_SCHEMA: &str = r#"{"type":"object"}"#;
@@ -498,7 +498,7 @@ const JSON_OBJECT_SCHEMA: &str = r#"{"type":"object"}"#;
 /// [`ShiftStep`] because it has to run before any of them — see [`SamplerConfig`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
-pub enum ConstraintStep {
+pub enum GrammarStep {
     /// Constrain output to a JSON schema via llguidance.
     JsonSchema(String),
     /// Constrain output to a regular expression via llguidance.
@@ -802,7 +802,7 @@ mod tests {
         }
     }
 
-    /// A constraint preset carries its constraint in `constraining_steps`, and
+    /// A constraint preset carries its constraint in `grammar_steps`, and
     /// samples the tokens it leaves with the default steps.
     #[test]
     fn constraint_preset_samples_with_the_defaults() {
@@ -813,10 +813,10 @@ mod tests {
             SamplerPresets::json(),
         ] {
             assert_eq!(
-                config.constraining_steps.len(),
+                config.grammar_steps.len(),
                 1,
                 "expected exactly the one constraint, got: {:?}",
-                config.constraining_steps
+                config.grammar_steps
             );
             assert_eq!(
                 config.steps,
@@ -911,7 +911,7 @@ mod tests {
         );
 
         let cfg = SamplerConfig::new(
-            vec![ConstraintStep::Lark("root ::= \"zqxjvkw\"".into())],
+            vec![GrammarStep::Lark("root ::= \"zqxjvkw\"".into())],
             vec![ShiftStep::TopK { top_k: 1 }],
             SampleStep::Dist,
             default_seed(),
@@ -1015,10 +1015,10 @@ mod tests {
             "the constraints should not be in `steps`"
         );
         assert!(
-            matches!(config.constraining_steps[0], ConstraintStep::Regex(_))
-                && matches!(config.constraining_steps[1], ConstraintStep::JsonSchema(_)),
+            matches!(config.grammar_steps[0], GrammarStep::Regex(_))
+                && matches!(config.grammar_steps[1], GrammarStep::JsonSchema(_)),
             "constraints should keep the order they were added, got: {:?}",
-            config.constraining_steps
+            config.grammar_steps
         );
     }
 
@@ -1093,7 +1093,7 @@ mod tests {
     }
 
     /// Constraints used to be `ShiftStep`s, so a config saved by an older
-    /// version has them inside `steps`. They belong in `constraining_steps` now,
+    /// version has them inside `steps`. They belong in `grammar_steps` now,
     /// and the old shape is rejected rather than silently sampled unconstrained.
     #[test]
     fn test_deserialize_rejects_constraint_in_shift_steps() {
@@ -1112,13 +1112,13 @@ mod tests {
         );
 
         let moved = r#"{
-            "constraining_steps": [{"type":"regex","value":"yes|no"}],
+            "grammar_steps": [{"type":"regex","value":"yes|no"}],
             "steps": [{"type":"top_k","value":{"top_k":20}}],
             "sample_step": {"type":"dist"}
         }"#;
         let cfg: SamplerConfig =
             serde_json::from_str(moved).expect("the same config, with the constraint moved");
-        assert_eq!(cfg.constraining_steps.len(), 1);
+        assert_eq!(cfg.grammar_steps.len(), 1);
         assert_eq!(cfg.steps.len(), 1);
     }
 }

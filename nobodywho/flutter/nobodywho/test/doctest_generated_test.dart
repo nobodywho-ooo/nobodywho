@@ -403,7 +403,7 @@ void main() {
           .dist();
     });
 
-    test('sampling.md:188', () async {
+    test('sampling.md:187', () async {
       final sampler = nobodywho.SamplerBuilder()
           .constrainWithRegex(pattern: "yes|no")
           .temperature(temperature: 0.8)
@@ -415,7 +415,7 @@ void main() {
           .dist();
     });
 
-    test('sampling.md:210', () async {
+    test('sampling.md:209', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: "./model.gguf");
       
       final sampler = nobodywho.SamplerBuilder()
