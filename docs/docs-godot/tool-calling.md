@@ -45,15 +45,11 @@ func press_button(color: String) -> String:
 
 NobodyWho waits for the coroutine to finish and feeds its return value to the model.
 
-### Timeouts
-
-A tool that never returns would wedge the generation forever, so every tool call has a timeout —
-60 seconds by default. If it expires, the model is told the tool timed out and generation
-continues. Pass a custom timeout (in seconds) as the third argument to `create`:
-
-```gdscript
-var tool = NobodyWhoTool.create(slow_lookup, "Looks up old save data.", 10)
-```
+:::warning
+Tool calls have no timeout. A tool must eventually return; otherwise its chat remains blocked and
+its response stream never completes. `stop_generation()` cannot stop a tool that is already
+running.
+:::
 
 ### Providing a schema manually
 

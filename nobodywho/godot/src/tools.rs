@@ -9,9 +9,6 @@ use nobodywho::tool_calling::Tool as CoreTool;
 
 use crate::convert::{json_to_variant, variant_to_json};
 
-/// Time budget for one tool call. Override via the factories' `timeout_secs`.
-const DEFAULT_TOOL_TIMEOUT_SECS: i64 = 60;
-
 /// What a `NobodyWhoTool` builds when it is registered to a chat.
 enum ToolSpec {
     /// Ready-made core tool (python/bash). Cloned per chat.
@@ -24,7 +21,6 @@ enum ToolSpec {
         /// Argument names in call order.
         order: Vec<String>,
         callable: Callable,
-        timeout: Duration,
     },
 }
 
@@ -49,18 +45,13 @@ impl NobodyWhoTool {
     /// need primitive type hints (bool, int, float, String, Array).
     /// For lambdas or richer schemas, use `create_with_schema`.
     #[func]
-    fn create(
-        callable: Callable,
-        description: GString,
-        #[opt(default = 60)] timeout_secs: i64,
-    ) -> Gd<Self> {
+    fn create(callable: Callable, description: GString) -> Gd<Self> {
         let spec = schema_from_callable(&callable).map(|(name, schema, order)| ToolSpec::Script {
             name,
             description: description.to_string(),
             schema,
             order,
             callable,
-            timeout: timeout_duration(timeout_secs),
         });
         Self::from_spec(spec, "NobodyWhoTool.create")
     }
@@ -75,7 +66,6 @@ impl NobodyWhoTool {
         description: GString,
         json_schema: Variant,
         callable: Callable,
-        #[opt(default = 60)] timeout_secs: i64,
     ) -> Gd<Self> {
         let spec = validate_tool_name(&name.to_string()).and_then(|()| {
             let schema = parse_schema(&json_schema)?;
@@ -86,7 +76,6 @@ impl NobodyWhoTool {
                 schema,
                 order,
                 callable,
-                timeout: timeout_duration(timeout_secs),
             })
         });
         Self::from_spec(spec, "NobodyWhoTool.create_with_schema")
@@ -134,14 +123,12 @@ impl NobodyWhoTool {
                 schema,
                 order,
                 callable,
-                timeout,
             } => Some(build_gdscript_tool(
                 name.clone(),
                 description.clone(),
                 schema.clone(),
                 order.clone(),
                 callable.clone(),
-                *timeout,
                 reentrancy_flag,
             )),
         }
@@ -151,10 +138,6 @@ impl NobodyWhoTool {
 /// Optional int parameter: 0 means "not set".
 fn opt_i64(v: i64) -> Option<i64> {
     (v != 0).then_some(v)
-}
-
-fn timeout_duration(secs: i64) -> Duration {
-    Duration::from_secs(opt_i64(secs).unwrap_or(DEFAULT_TOOL_TIMEOUT_SECS).max(1) as u64)
 }
 
 // ====================================================================
@@ -297,24 +280,18 @@ fn build_gdscript_tool(
     json_schema: serde_json::Value,
     order: Vec<String>,
     callable: Callable,
-    timeout: Duration,
     reentrancy_flag: Arc<AtomicBool>,
 ) -> CoreTool {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<ToolRequest>();
 
-    // Main-thread dispatcher; owns the Callable. Each request runs in its
-    // own sub-task, so a coroutine that never finishes only wedges that one
-    // call — later calls to the tool still work.
+    // Main-thread dispatcher; owns the Callable. Core invokes tools serially,
+    // so one loop can await each call before receiving the next.
     let loop_name: Arc<str> = name.clone().into();
     let loop_order: Arc<[String]> = order.into();
     godot::task::spawn(async move {
         while let Some(req) = rx.recv().await {
-            let (callable, order, name) = (callable.clone(), loop_order.clone(), loop_name.clone());
-            godot::task::spawn(async move {
-                let result = run_tool_call(&callable, &order, &name, &req.args_json).await;
-                // Send fails if the worker already timed out; that's fine.
-                let _ = req.result_tx.send(result);
-            });
+            let result = run_tool_call(&callable, &loop_order, &loop_name, &req.args_json).await;
+            let _ = req.result_tx.send(result);
         }
     });
 
@@ -322,7 +299,6 @@ fn build_gdscript_tool(
     // until the dispatcher sends the result back. The re-entrancy flag is
     // set for the duration, before the send, so a tool that calls back into
     // its own chat fails fast instead of hanging.
-    let closure_name = name.clone();
     let func: Arc<dyn Fn(serde_json::Value) -> String + Send + Sync> = Arc::new(move |args_json| {
         let (result_tx, result_rx) = std::sync::mpsc::channel::<String>();
         reentrancy_flag.store(true, Ordering::Release);
@@ -336,8 +312,8 @@ fn build_gdscript_tool(
             "Error: tool runner gone".into()
         } else {
             result_rx
-                .recv_timeout(timeout)
-                .unwrap_or_else(|_| format!("Error: tool '{closure_name}' timed out"))
+                .recv()
+                .unwrap_or_else(|_| "Error: tool runner gone".into())
         };
         reentrancy_flag.store(false, Ordering::Release);
         result
