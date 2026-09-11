@@ -62,11 +62,10 @@ nix shell nixpkgs#godot_4 --command godot --headless --path .
 - A few `ObjectDB instances were leaked at exit` / `resources still in use`
   warnings may appear at shutdown. They're cosmetic (spawned task objects
   outliving the immediate quit) and don't affect the exit code.
-- The `prompt_test: create aborts on a bad element` case deliberately
-  feeds `NobodyWhoPrompt.create` four malformed parts, each logging a
-  `godot_error!` (`part is not a Dictionary`, `unknown part type`, missing
-  field) and returning `null`. Those error lines are the *expected*
-  behavior, not a failure — the test asserts each call returns null.
+- The malformed-input tests deliberately pass non-String batch elements to
+  the encoder and cross-encoder, and malformed parts to `NobodyWhoPrompt`.
+  Each call logs a `godot_error!` and returns `null`; those error lines are
+  expected, and the tests assert that execution continues without a panic.
 
 ## Model-backed tests
 
