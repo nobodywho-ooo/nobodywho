@@ -129,7 +129,9 @@ impl NobodyWhoSamplerBuilder {
     #[func]
     fn json_schema(&self, schema: Variant) -> Variant {
         match schema_to_string(&schema) {
-            Ok(s) => self.shift(ShiftStep::JsonSchema(s)).to_variant(),
+            Ok(s) => self
+                .rebuild(|b| b.constrain_with_json_schema(s))
+                .to_variant(),
             Err(e) => {
                 godot_error!("NobodyWhoSamplerBuilder.json_schema: {e}");
                 Variant::nil()
@@ -140,13 +142,13 @@ impl NobodyWhoSamplerBuilder {
     /// Constrain output to a regular expression.
     #[func]
     fn regex(&self, pattern: GString) -> Gd<Self> {
-        self.shift(ShiftStep::Regex(pattern.to_string()))
+        self.rebuild(|b| b.constrain_with_regex(pattern.to_string()))
     }
 
     /// Constrain output using a Lark context-free grammar.
     #[func]
     fn lark(&self, grammar: GString) -> Gd<Self> {
-        self.shift(ShiftStep::Lark(grammar.to_string()))
+        self.rebuild(|b| b.constrain_with_grammar(grammar.to_string()))
     }
 
     /// DRY (Don't Repeat Yourself) repetition penalty.
