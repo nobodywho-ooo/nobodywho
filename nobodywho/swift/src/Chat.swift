@@ -91,11 +91,11 @@ public class Chat {
 
     /// Answer a full list of messages, replacing the chat history.
     ///
-    /// The list is the whole conversation, used as given: it must be non-empty, end
-    /// in a user or tool message, and carry a system message only first. That system
-    /// message sets the chat's system prompt; leave it out and the prompt already on
-    /// the chat is kept. The response is appended, and the next `ask` continues from
-    /// there.
+    /// The list is the whole conversation, used as given: it must be non-empty and
+    /// end in a user or tool message. A leading system message sets the chat's system
+    /// prompt; leave it out and the prompt already on the chat is kept. A later one
+    /// stays in the history, for the chat template to render in place. The response
+    /// is appended, and the next `ask` continues from there.
     ///
     /// `options` follows the same rule for the chat's other settings.
     public func complete(_ messages: [Message], options: Options = Options()) throws -> TokenStream {

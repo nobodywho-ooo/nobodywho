@@ -1059,18 +1059,11 @@ pub enum InvalidHistoryError {
     )]
     DoesNotEndInUserOrTool { role: &'static str },
 
-    #[error("System message at index {index}: only the first message may be a system message")]
-    #[diagnostic(
-        code(nobodywho::misplaced_system_message),
-        help("Move the system message to the front of the list, or remove it")
-    )]
-    MisplacedSystemMessage { index: usize },
-
     #[error("System message contains media")]
     #[diagnostic(
         code(nobodywho::media_in_system_message),
         help(
-            "No chat template supports images or audio in the system prompt. Move the media \
+            "No chat template supports images or audio in a system message. Move the media \
              to a user message."
         )
     )]
@@ -1085,6 +1078,9 @@ pub enum CompleteError {
 
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
+
+    #[error("Could not render the conversation: {0}")]
+    Render(#[from] RenderError),
 
     /// Rendered rather than typed: the underlying `ChatWorkerError` is
     /// crate-private, and nothing branches on this.
@@ -1217,6 +1213,15 @@ pub enum ContextSyncError {
 pub enum RenderError {
     #[error("Template failed to render: {0}")]
     MiniJinja(#[from] minijinja::Error),
+
+    /// This chat template has no system role, so the system prompt is folded into
+    /// the first user message instead. A system message further into the
+    /// conversation has nowhere to be folded.
+    #[error(
+        "This chat template does not support the system role, so only a leading system message \
+         can be rendered. Move the instruction into the system prompt or into a user message."
+    )]
+    InlineSystemMessageUnsupported,
 
     #[error("Could not tokenize string: {0}")]
     CreateContext(#[from] llama_cpp_2::StringToTokenError),
