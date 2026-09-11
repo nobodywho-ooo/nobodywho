@@ -31,6 +31,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 - A rejected chat setter no longer kills the chat. `set_sampler_config`, `set_tools` and `reset_chat` used to end the worker, so the reason was only logged and every later call — including `ask()` — failed with "worker terminated". The error now reaches the caller and the chat keeps working. Available for all bindings.
 - A rejected encoder or cross-encoder input no longer kills the worker. Text longer than the context window used to end it, so every later `encode()` or `rank()` failed too. The error now reaches the caller and the worker stays usable. Available for all bindings.
+- Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.
 - **React Native:** Logs are now visible in Xcode on iOS.
 - **Swift:** Logs are now visible in Xcode on iOS.
 
