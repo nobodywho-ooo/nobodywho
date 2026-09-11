@@ -126,6 +126,8 @@ func _test_vision(runner: Node) -> void:
 		runner.fail("prompt vision: could not create chat (check TEST_VISION_MODEL)")
 		return
 
+	await _test_history_path_resolution(runner, chat, image_path)
+
 	# Bad-type dispatch: ask(123) and tokenize(123) return null + godot_error!.
 	var bad_ask = chat.ask(123)
 	if bad_ask == null:
@@ -181,3 +183,43 @@ func _test_vision(runner: Node) -> void:
 		runner.ok("prompt vision: multimodal ask generated a response (%d chars)" % vtext.length())
 	else:
 		runner.fail("prompt vision: multimodal ask produced empty text")
+
+func _test_history_path_resolution(runner: Node, chat, image_path: String) -> void:
+	var bytes := FileAccess.get_file_as_bytes(image_path)
+	if bytes.is_empty():
+		runner.fail("prompt vision: could not read image for media-history path test")
+		return
+
+	var extension := image_path.get_extension()
+	if extension.is_empty():
+		extension = "png"
+	var user_path := "user://nobodywho-media-history-test.%s" % extension
+	var file := FileAccess.open(user_path, FileAccess.WRITE)
+	if file == null:
+		runner.fail("prompt vision: could not create user:// media-history fixture")
+		return
+	file.store_buffer(bytes)
+	file = null
+
+	await chat.reset_history()
+	await chat.set_chat_history([
+		{"role": "user", "content": [
+			{"type": "text", "text": "Remember this image."},
+			{"type": "image", "path": user_path},
+		]},
+	])
+	var history = await chat.get_chat_history()
+	var expected_path := ProjectSettings.globalize_path(user_path)
+	var actual_path := ""
+	if history is Array and history.size() == 1:
+		var content = history[0].get("content", [])
+		if content is Array and content.size() == 2:
+			actual_path = content[1].get("path", "")
+
+	if actual_path == expected_path:
+		runner.ok("prompt vision: user:// media path globalized in chat history")
+	else:
+		runner.fail("prompt vision: expected globalized media path %s, got %s" % [expected_path, actual_path])
+
+	await chat.reset_history()
+	DirAccess.remove_absolute(expected_path)
