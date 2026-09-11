@@ -235,10 +235,7 @@ impl NobodyWhoChat {
     fn get_chat_history(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_chat_history", async move {
-            let msgs = handle
-                .get_chat_history()
-                .await
-                .map_err(|e| nobodywho::render_miette(&e))?;
+            let msgs = handle.get_chat_history().await.map_err(|e| e.to_string())?;
             let json = serde_json::to_value(&msgs)
                 .map_err(|e| format!("failed to serialize messages: {e}"))?;
             Ok(json_to_variant(&json))
@@ -285,7 +282,7 @@ impl NobodyWhoChat {
             let prompt = handle
                 .get_system_prompt()
                 .await
-                .map_err(|e| nobodywho::render_miette(&e))?;
+                .map_err(|e| e.to_string())?;
             Ok(prompt.map_or(Variant::nil(), |s| GString::from(&s).to_variant()))
         })
     }
@@ -320,7 +317,7 @@ impl NobodyWhoChat {
             let cfg = handle
                 .get_sampler_config()
                 .await
-                .map_err(|e| nobodywho::render_miette(&e))?;
+                .map_err(|e| e.to_string())?;
             Ok(NobodyWhoSamplerConfig::wrap(cfg).to_variant())
         })
     }
@@ -349,7 +346,7 @@ impl NobodyWhoChat {
             let vars = handle
                 .get_template_variables()
                 .await
-                .map_err(|e| nobodywho::render_miette(&e))?;
+                .map_err(|e| e.to_string())?;
             let mut dict: VarDictionary = Dictionary::new();
             for (k, v) in vars {
                 let _ = dict.insert(&GString::from(&k), &v.to_variant());
@@ -394,10 +391,7 @@ impl NobodyWhoChat {
     fn get_stats(&self) -> Variant {
         let handle = self.handle.clone();
         self.guarded("get_stats", async move {
-            let stats = handle
-                .get_stats()
-                .await
-                .map_err(|e| nobodywho::render_miette(&e))?;
+            let stats = handle.get_stats().await.map_err(|e| e.to_string())?;
             let mut dict: VarDictionary = Dictionary::new();
             let _ = dict.insert(
                 &GString::from("context_size"),
@@ -420,7 +414,7 @@ impl NobodyWhoChat {
             let rate = handle
                 .mtp_acceptance_rate()
                 .await
-                .map_err(|e| nobodywho::render_miette(&e))?;
+                .map_err(|e| e.to_string())?;
             Ok(rate.map_or(Variant::nil(), |r| r.to_variant()))
         })
     }
@@ -442,7 +436,7 @@ impl NobodyWhoChat {
             let ids = handle
                 .tokenize(core_prompt)
                 .await
-                .map_err(|e| nobodywho::render_miette(&e))?;
+                .map_err(|e| e.to_string())?;
             let arr: VarArray = ids
                 .iter()
                 .map(|id| id.map_or(Variant::nil(), |i| i.to_variant()))

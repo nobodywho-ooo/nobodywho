@@ -494,13 +494,13 @@ pub enum SetterError {
     Sampler(#[from] SamplerError),
 }
 
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[derive(Debug, thiserror::Error)]
 pub enum GetterError {
     #[error("Worker terminated before processing getter: {0}")]
     GetterError(String),
 }
 
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[derive(Debug, thiserror::Error)]
 pub enum TokenizeError {
     #[error("Worker terminated before processing tokenize request")]
     WorkerTerminated,
