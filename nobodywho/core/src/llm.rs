@@ -25,7 +25,7 @@ use tracing::{debug, error, info, info_span, warn};
 // `nobodywho::llm::*`. The implementations now live in `crate::huggingface`.
 pub use crate::huggingface::{
     default_progress_callback, get_cached_models, throttled_progress_callback,
-    DownloadProgressCallback,
+    DownloadCancellationCallback, DownloadProgressCallback,
 };
 
 #[derive(Debug)]
@@ -122,6 +122,25 @@ pub fn get_model(
     draft_model_path: Option<&str>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<Model, LoadModelError> {
+    get_model_cancellable(
+        model_path,
+        use_gpu_if_available,
+        mmproj_path,
+        draft_model_path,
+        progress,
+        None,
+    )
+}
+
+#[tracing::instrument(level = "info", skip(progress, cancellation))]
+pub fn get_model_cancellable(
+    model_path: &str,
+    use_gpu_if_available: bool,
+    mmproj_path: Option<&str>,
+    draft_model_path: Option<&str>,
+    progress: Option<DownloadProgressCallback>,
+    cancellation: Option<DownloadCancellationCallback>,
+) -> Result<Model, LoadModelError> {
     if model_path == "auto" && mmproj_path.is_some() {
         return Err(LoadModelError::InvalidModel(
             "Automatic model selection does not support projection models; pass an explicit multimodal model path"
@@ -134,13 +153,23 @@ pub fn get_model(
     let model_progress = progress
         .clone()
         .unwrap_or_else(|| default_progress_callback(model_path));
-    let real_model_path = download_gguf(parse_model_path(model_path)?, &model_progress, &[])?;
+    let real_model_path = download_gguf(
+        parse_model_path(model_path)?,
+        &model_progress,
+        &[],
+        cancellation.as_ref(),
+    )?;
     let real_mmproj_path = match mmproj_path {
         Some(p) => {
             let mmproj_progress = progress
                 .clone()
                 .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(parse_model_path(p)?, &mmproj_progress, &[])?)
+            Some(download_gguf(
+                parse_model_path(p)?,
+                &mmproj_progress,
+                &[],
+                cancellation.as_ref(),
+            )?)
         }
         None => None,
     };
@@ -149,7 +178,12 @@ pub fn get_model(
             let draft_progress = progress
                 .clone()
                 .unwrap_or_else(|| default_progress_callback(p));
-            Some(download_gguf(parse_model_path(p)?, &draft_progress, &[])?)
+            Some(download_gguf(
+                parse_model_path(p)?,
+                &draft_progress,
+                &[],
+                cancellation.as_ref(),
+            )?)
         }
         None => None,
     };
@@ -268,8 +302,22 @@ pub fn download_model(
     headers: Vec<(String, String)>,
     progress: Option<DownloadProgressCallback>,
 ) -> Result<std::path::PathBuf, LoadModelError> {
+    download_model_cancellable(model_path, headers, progress, None)
+}
+
+pub fn download_model_cancellable(
+    model_path: &str,
+    headers: Vec<(String, String)>,
+    progress: Option<DownloadProgressCallback>,
+    cancellation: Option<DownloadCancellationCallback>,
+) -> Result<std::path::PathBuf, LoadModelError> {
     let progress = progress.unwrap_or_else(|| default_progress_callback(model_path));
-    download_gguf(parse_model_path(model_path)?, &progress, &headers)
+    download_gguf(
+        parse_model_path(model_path)?,
+        &progress,
+        &headers,
+        cancellation.as_ref(),
+    )
 }
 
 fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {

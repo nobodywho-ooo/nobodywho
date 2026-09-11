@@ -29,6 +29,18 @@ use tracing::{info, warn};
 /// synchronization (hence the `Sync` bound).
 pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
+/// Callback checked between download chunks. Returning `true` stops the download.
+pub type DownloadCancellationCallback = Arc<dyn Fn() -> bool + Send + Sync>;
+
+fn check_download_cancellation(
+    cancellation: Option<&DownloadCancellationCallback>,
+) -> Result<(), LoadModelError> {
+    if cancellation.is_some_and(|is_cancelled| is_cancelled()) {
+        return Err(LoadModelError::DownloadCancelled);
+    }
+    Ok(())
+}
+
 /// Default terminal progress bar shown when the user doesn't pass their own callback,
 /// labeled with the last path segment of `path` — e.g. `"hf://owner/repo/model.gguf"`
 /// shows as `"model.gguf"`.
@@ -184,8 +196,10 @@ impl ModelCache {
         target_path: &Path,
         progress: &DownloadProgressCallback,
         headers: &[(String, String)],
+        cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<(), LoadModelError> {
         Self::validate_no_traversal(target_path)?;
+        check_download_cancellation(cancellation)?;
 
         if target_path.exists() {
             info!("Using cached file: {}", target_path.display());
@@ -206,6 +220,7 @@ impl ModelCache {
             &tmp_path,
             content_length,
             progress,
+            cancellation,
         )?;
 
         tmp_file
@@ -307,12 +322,14 @@ impl ModelCache {
         tmp_path: &Path,
         content_length: u64,
         progress: &DownloadProgressCallback,
+        cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<(), LoadModelError> {
         let mut downloaded: u64 = 0;
         let mut last_logged_pct: u64 = 0;
         let mut buf = vec![0u8; 256 * 1024];
 
         loop {
+            check_download_cancellation(cancellation)?;
             let n = reader
                 .read(&mut buf)
                 .map_err(|source| LoadModelError::ReadDownload {
@@ -330,6 +347,7 @@ impl ModelCache {
             downloaded += n as u64;
 
             progress(downloaded, content_length);
+            check_download_cancellation(cancellation)?;
 
             if let Some(pct) = (downloaded * 100).checked_div(content_length) {
                 if pct >= last_logged_pct + 5 {
@@ -421,6 +439,7 @@ impl ModelCache {
         source: &GgufSource,
         progress: &DownloadProgressCallback,
         headers: &[(String, String)],
+        cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<PathBuf, LoadModelError> {
         let (url, target) = match source {
             GgufSource::HuggingFace { repo, filename } => (
@@ -435,7 +454,7 @@ impl ModelCache {
             }
         };
 
-        self.fetch_to_path(&url, &target, progress, headers)?;
+        self.fetch_to_path(&url, &target, progress, headers, cancellation)?;
         Ok(target)
     }
 
@@ -524,7 +543,9 @@ pub(crate) fn download_gguf(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
     headers: &[(String, String)],
+    cancellation: Option<&DownloadCancellationCallback>,
 ) -> Result<PathBuf, LoadModelError> {
+    check_download_cancellation(cancellation)?;
     let cache = ModelCache::open()?;
     let fs_model_path = match parsed_path {
         ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
@@ -532,11 +553,11 @@ pub(crate) fn download_gguf(
                 repo: HfRepo::main(owner, repo),
                 filename,
             };
-            cache.download_file(&source, progress, headers)?
+            cache.download_file(&source, progress, headers, cancellation)?
         }
         ParsedModelPath::FilesystemPath(path) => path,
         ParsedModelPath::HttpUrl(url) => {
-            cache.download_file(&GgufSource::Url(url), progress, headers)?
+            cache.download_file(&GgufSource::Url(url), progress, headers, cancellation)?
         }
     };
 
@@ -754,7 +775,7 @@ impl ModelCache {
                 named(downloaded, total);
                 progress(downloaded, total);
             });
-            self.fetch_to_path(&url, &target, &file_progress, headers)
+            self.fetch_to_path(&url, &target, &file_progress, headers, None)
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
                     source: Box::new(source),
@@ -852,6 +873,54 @@ pub(crate) fn download_onnx(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[test]
+    fn cancelled_download_removes_partial_file() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = stream.read(&mut request);
+            let body = vec![0; 512 * 1024];
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(&body);
+        });
+
+        let directory = tempfile::tempdir().unwrap();
+        let target = directory.path().join("model.gguf");
+        let cache = ModelCache {
+            root: directory.path().to_path_buf(),
+        };
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let progress_cancelled = Arc::clone(&cancelled);
+        let progress: DownloadProgressCallback = Arc::new(move |_, _| {
+            progress_cancelled.store(true, Ordering::Relaxed);
+        });
+        let cancellation: DownloadCancellationCallback =
+            Arc::new(move || cancelled.load(Ordering::Relaxed));
+
+        let result = cache.fetch_to_path(
+            &format!("http://{address}/model.gguf"),
+            &target,
+            &progress,
+            &[],
+            Some(&cancellation),
+        );
+
+        assert!(matches!(result, Err(LoadModelError::DownloadCancelled)));
+        assert!(!target.exists());
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .all(|entry| !entry.unwrap().path().to_string_lossy().ends_with(".part")));
+        server.join().unwrap();
+    }
 
     #[test]
     fn parses_hf_scheme() {
