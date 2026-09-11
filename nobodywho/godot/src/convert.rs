@@ -14,6 +14,32 @@ pub fn resolve_godot_path(path: &GString) -> String {
     }
 }
 
+/// Globalize Godot paths in every image and audio part of a message list.
+pub fn globalize_message_media_paths(
+    messages: &mut [nobodywho::chat::Message],
+) -> Result<(), String> {
+    messages.iter_mut().try_for_each(|message| {
+        message
+            .content_mut()
+            .media_parts_mut()
+            .into_iter()
+            .try_for_each(|part| {
+                let path = match part {
+                    nobodywho::chat::ContentPart::Image { path, .. }
+                    | nobodywho::chat::ContentPart::Audio { path, .. } => path,
+                    nobodywho::chat::ContentPart::Text { .. } => unreachable!(),
+                };
+                let path_string = path
+                    .to_str()
+                    .ok_or_else(|| format!("media path {} is not valid UTF-8", path.display()))?;
+                if path_string.starts_with("res://") || path_string.starts_with("user://") {
+                    *path = resolve_godot_path(&GString::from(path_string)).into();
+                }
+                Ok(())
+            })
+    })
+}
+
 /// Typed config-dictionary lookup. A missing key is fine (`Ok(None)`); a
 /// present value of the wrong type is a hard error, so a mistyped config
 /// value never silently falls back to the default.

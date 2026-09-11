@@ -59,8 +59,9 @@ await chat.set_chat_history([
 ])
 ```
 
-`get_chat_history()` returns media messages in this same shape, so a history full of images and
-audio round-trips through save/load unchanged.
+`res://` and `user://` media paths are globalized before the files are loaded.
+`get_chat_history()` returns media messages in the same shape, with those paths stored as absolute
+filesystem paths, so the history can be saved and loaded again.
 
 ## Media in a saved conversation
 
@@ -84,7 +85,6 @@ var stream = chat.ask(prompt)
 ```
 
 :::info
-Image and audio paths are stored as-is. `res://` paths in a save file resolve relative to the
-game that loads it — use absolute filesystem paths or `user://` paths if saves move between
-machines.
+Saved histories contain globalized media paths. They remain valid on the same installation, but
+may need to be rewritten if a save is moved to another machine or installation directory.
 :::
