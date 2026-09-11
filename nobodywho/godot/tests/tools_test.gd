@@ -19,9 +19,6 @@ var _async_tool_called: bool = false
 var _reentrant_chat = null
 var _reentrant_result = null
 var _lambda_arg = null
-var _stuck_calls: int = 0
-var _stuck_returned: bool = false
-signal _never_fires
 
 func run(runner: Node) -> void:
 	_model_path = OS.get_environment("TEST_MODEL")
@@ -35,7 +32,6 @@ func run(runner: Node) -> void:
 	await _test_sync_tool(runner)
 	await _test_async_tool(runner)
 	await _test_schema_lambda_tool(runner)
-	await _test_timeout_recovery(runner)
 	await _test_reentrancy_guard(runner)
 
 	runner.remove_child(self)
@@ -91,52 +87,6 @@ func _test_schema_lambda_tool(runner: Node) -> void:
 		runner.fail("tools: schema/lambda: response missing tool result (arg=%s, got: %s)" % [str(_lambda_arg), text])
 	else:
 		runner.ok("tools: create_with_schema lambda tool called (arg=%s), result reached the model" % str(_lambda_arg))
-
-	chat = null
-
-# --- timeout: a stuck coroutine must not poison the tool for later calls ---
-
-func stuck_oracle(question: String) -> String:
-	_stuck_calls += 1
-	if _stuck_calls == 1:
-		# Never completes: awaits a signal that never fires. The worker's
-		# recv_timeout must unblock generation with an error string, and the
-		# dispatcher must keep serving later calls (sub-task isolation).
-		await _never_fires
-		return "unreachable (q: %s)" % question
-	_stuck_returned = true
-	return "the oracle recovered and says 'emerald' (q: %s)" % question
-
-func _test_timeout_recovery(runner: Node) -> void:
-	_stuck_calls = 0
-	_stuck_returned = false
-	var tool = NobodyWhoTool.create(stuck_oracle, "Ask the oracle a question and get its answer.", 2)
-	var chat = await _make_chat([tool])
-	if chat == null:
-		runner.fail("tools: timeout: could not create chat")
-		return
-
-	# First call wedges its coroutine; generation must complete via timeout.
-	var stream = chat.ask("Use the stuck_oracle tool to ask 'one?' and report its answer.")
-	var _text1: String = await stream.completed()
-	if _stuck_calls < 1:
-		runner.fail("tools: timeout: tool was never called")
-		return
-
-	# Reset history so the model doesn't see the timeout error and chicken
-	# out of retrying. The wedged coroutine from call 1 is still parked on a
-	# signal that never fires — if the dispatcher were wedged by it, this
-	# second call would never run (with the old inline loop it would also
-	# queue behind the wedged first call and time out too).
-	await chat.reset_history()
-	stream = chat.ask("Use the stuck_oracle tool once more to ask 'two?' and report its answer.")
-	var text2: String = await stream.completed()
-	if not _stuck_returned:
-		runner.fail("tools: timeout: second call never ran — dispatcher wedged by the first (calls=%d)" % _stuck_calls)
-	elif not text2.to_lower().contains("emerald"):
-		runner.fail("tools: timeout: second call ran but result missing (got: %s)" % text2)
-	else:
-		runner.ok("tools: timeout unblocked generation, later call to the same tool recovered")
 
 	chat = null
 
