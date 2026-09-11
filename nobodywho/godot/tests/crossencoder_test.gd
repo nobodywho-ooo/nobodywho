@@ -32,6 +32,12 @@ func _test_rank(runner: Node) -> void:
 	# Which doc scores highest is model-dependent (and this small reranker
 	# may not always pick the "obvious" one).
 	runner.ok("crossencoder: rank -> 3 scores [%.3f, %.3f, %.3f]" % [scores[0], scores[1], scores[2]])
+
+	var malformed = await ce.rank("query", ["valid", 42])
+	if malformed == null:
+		runner.ok("crossencoder: rank rejects non-String elements")
+	else:
+		runner.fail("crossencoder: rank accepted a non-String element")
 	ce = null
 
 func _test_rank_and_sort(runner: Node) -> void:
@@ -56,4 +62,10 @@ func _test_rank_and_sort(runner: Node) -> void:
 		runner.ok("crossencoder: rank_and_sort -> sorted desc [%.3f, %.3f, %.3f]" % [s0, s1, s2])
 	else:
 		runner.fail("crossencoder: rank_and_sort -> not sorted desc [%.3f, %.3f, %.3f]" % [s0, s1, s2])
+
+	var malformed = await ce.rank_and_sort("query", ["valid", 42])
+	if malformed == null:
+		runner.ok("crossencoder: rank_and_sort rejects non-String elements")
+	else:
+		runner.fail("crossencoder: rank_and_sort accepted a non-String element")
 	ce = null

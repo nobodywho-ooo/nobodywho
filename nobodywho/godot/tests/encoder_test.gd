@@ -42,6 +42,12 @@ func _test_encode_batch(runner: Node) -> void:
 		runner.fail("embedding: batch: vectors empty or mismatched (v0=%d v1=%d)" % [v0.size(), v1.size()])
 		return
 	runner.ok("embedding: encode_batch returned 2 vectors of %d dims" % v0.size())
+
+	var malformed = await enc.encode_batch(["valid", 42])
+	if malformed == null:
+		runner.ok("embedding: encode_batch rejects non-String elements")
+	else:
+		runner.fail("embedding: encode_batch accepted a non-String element")
 	enc = null
 
 func _test_cosine_similarity(runner: Node) -> void:

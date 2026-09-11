@@ -28,6 +28,26 @@ pub fn dict_get<T: FromGodot>(dict: &VarDictionary, key: &str) -> Result<Option<
     })
 }
 
+/// Convert every element of an Array to a String, reporting the first bad
+/// element instead of panicking through `Variant::to`.
+pub fn collect_strings(values: &VarArray, name: &str) -> Result<Vec<String>, String> {
+    values
+        .iter_shared()
+        .enumerate()
+        .map(|(index, value)| {
+            value
+                .try_to::<GString>()
+                .map(|string| string.to_string())
+                .map_err(|_| {
+                    format!(
+                        "{name}[{index}] must be a String, got {:?}",
+                        value.get_type()
+                    )
+                })
+        })
+        .collect()
+}
+
 // --- JSON <-> Variant bridge -----------------------------------------------
 // Recursive converters between serde_json::Value and Godot Variant. Used for
 // chat history (Vec<Message> serializes to a JSON array of role/content dicts).

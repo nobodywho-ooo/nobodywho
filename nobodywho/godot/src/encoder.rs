@@ -5,7 +5,7 @@ use godot::prelude::*;
 
 use nobodywho::encoder::{EncoderAsync, cosine_similarity};
 
-use crate::convert::{dict_get, resolve_godot_path};
+use crate::convert::{collect_strings, dict_get, resolve_godot_path};
 use crate::model::NobodyWhoModel;
 use crate::task::task;
 
@@ -96,11 +96,14 @@ impl NobodyWhoEncoder {
     /// (one per input text), or null on failure.
     #[func]
     fn encode_batch(&self, texts: VarArray) -> Variant {
+        let texts = match collect_strings(&texts, "texts") {
+            Ok(texts) => texts,
+            Err(e) => {
+                godot_error!("encode_batch: {e}");
+                return Variant::nil();
+            }
+        };
         let handle = self.handle.clone();
-        let texts: Vec<String> = texts
-            .iter_shared()
-            .map(|v| v.to::<GString>().to_string())
-            .collect();
         task(async move {
             match handle.encode_batch(texts).await {
                 Ok(vecs) => {
