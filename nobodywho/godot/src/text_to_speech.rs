@@ -8,7 +8,7 @@ use nobodywho::text_to_speech::{
     TextToSpeech as CoreTts, TextToSpeechArchitecture, TextToSpeechConfig, TextToSpeechDevice,
 };
 
-use crate::convert::{dict_get, resolve_godot_path};
+use crate::convert::{dict_get, dict_get_u32, resolve_godot_path, validate_config_keys};
 use crate::task::{on_blocking_thread, task};
 
 /// A text-to-speech synthesizer. Build it with the async factory:
@@ -113,23 +113,68 @@ fn parse_tts_config(
     source: &str,
     config: &VarDictionary,
 ) -> Result<(TextToSpeechConfig, TextToSpeechDevice), String> {
+    validate_config_keys(
+        config,
+        &[
+            "architecture",
+            "voice",
+            "language",
+            "speed",
+            "steps",
+            "silence_duration",
+            "precision",
+            "temperature",
+            "huggingface_token",
+            "device",
+        ],
+    )?;
     let architecture = dict_get::<GString>(config, "architecture")?
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .as_deref()
         .map(parse_architecture)
         .transpose()?;
+    let mut cfg = TextToSpeechConfig::from_source(source, architecture)
+        .ok_or_else(|| {
+            "architecture is required for unknown sources; set it to 'kokoro', 'pocket-tts', or 'supertonic'".to_string()
+        })?;
+    let allowed_keys = match &cfg {
+        TextToSpeechConfig::Kokoro(_) => {
+            &["architecture", "voice", "language", "speed", "device"][..]
+        }
+        TextToSpeechConfig::PocketTts(_) => &[
+            "architecture",
+            "voice",
+            "language",
+            "steps",
+            "precision",
+            "temperature",
+            "huggingface_token",
+            "device",
+        ],
+        TextToSpeechConfig::Supertonic(_) => &[
+            "architecture",
+            "voice",
+            "language",
+            "speed",
+            "steps",
+            "silence_duration",
+            "device",
+        ],
+    };
+    validate_config_keys(config, allowed_keys)?;
+
     let voice = str_opt(config, "voice")?;
     let language = str_opt(config, "language")?;
-    let speed = dict_get::<f32>(config, "speed")?.filter(|&s| s > 0.0);
-    let steps = dict_get::<i64>(config, "steps")?
-        .filter(|&s| s > 0)
-        .map(|s| s as usize);
-    let silence_duration = dict_get::<f32>(config, "silence_duration")?.filter(|&s| s >= 0.0);
+    let speed = optional_positive_float(config, "speed")?;
+    let steps = dict_get_u32(config, "steps")?
+        .filter(|&steps| steps > 0)
+        .map(|steps| steps as usize);
+    let silence_duration = optional_float_with_negative_default(config, "silence_duration")?;
     let precision = dict_get::<GString>(config, "precision")?
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
-    let temperature = dict_get::<f32>(config, "temperature")?.filter(|&t| t >= 0.0);
+    let temperature = optional_float_with_negative_default(config, "temperature")?;
     let huggingface_token = str_opt(config, "huggingface_token")?;
     let device = dict_get::<GString>(config, "device")?
         .filter(|s| !s.is_empty())
@@ -138,11 +183,6 @@ fn parse_tts_config(
         .map(parse_device)
         .transpose()?
         .unwrap_or(TextToSpeechDevice::Auto);
-
-    let mut cfg = TextToSpeechConfig::from_source(source, architecture)
-        .ok_or_else(|| {
-            "architecture is required for unknown sources; set it to 'kokoro', 'pocket-tts', or 'supertonic'".to_string()
-        })?;
     match &mut cfg {
         TextToSpeechConfig::Kokoro(c) => {
             if let Some(v) = voice {
@@ -220,6 +260,33 @@ fn parse_device(s: &str) -> Result<TextToSpeechDevice, String> {
             "device must be 'auto', 'cpu', or 'cuda', got '{s}'"
         )),
     }
+}
+
+fn optional_positive_float(config: &VarDictionary, key: &str) -> Result<Option<f32>, String> {
+    dict_get::<f32>(config, key)?.map_or(Ok(None), |value| {
+        if !value.is_finite() || value < 0.0 {
+            Err(format!(
+                "config key \"{key}\" must be a finite non-negative number, got {value}"
+            ))
+        } else {
+            Ok((value > 0.0).then_some(value))
+        }
+    })
+}
+
+fn optional_float_with_negative_default(
+    config: &VarDictionary,
+    key: &str,
+) -> Result<Option<f32>, String> {
+    dict_get::<f32>(config, key)?.map_or(Ok(None), |value| {
+        if value.is_finite() {
+            Ok((value >= 0.0).then_some(value))
+        } else {
+            Err(format!(
+                "config key \"{key}\" must be a finite number, got {value}"
+            ))
+        }
+    })
 }
 
 /// A config string key that's `None` when empty.

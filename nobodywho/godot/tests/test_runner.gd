@@ -15,6 +15,7 @@ func _ready() -> void:
 
 func _run_all() -> void:
 	var suites: Array = [
+		preload("res://config_test.gd").new(),
 		preload("res://chat_test.gd").new(),
 		preload("res://tools_test.gd").new(),
 		preload("res://tts_test.gd").new(),

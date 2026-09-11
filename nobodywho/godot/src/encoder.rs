@@ -5,7 +5,9 @@ use godot::prelude::*;
 
 use nobodywho::encoder::{EncoderAsync, cosine_similarity};
 
-use crate::convert::{collect_strings, dict_get, resolve_godot_path};
+use crate::convert::{
+    collect_strings, dict_get_positive_u32, resolve_godot_path, validate_config_keys,
+};
 use crate::model::NobodyWhoModel;
 use crate::task::task;
 
@@ -37,11 +39,15 @@ impl NobodyWhoEncoder {
     ///   Embedding models with longer max sequence lengths use more VRAM.
     #[func]
     fn create(model: Variant, config: VarDictionary) -> Variant {
-        let n_ctx = dict_get::<i64>(&config, "n_ctx")
-            .ok()
-            .flatten()
-            .map(|i| i.max(0) as u32)
-            .unwrap_or(4096);
+        let n_ctx = match validate_config_keys(&config, &["n_ctx"])
+            .and_then(|()| dict_get_positive_u32(&config, "n_ctx"))
+        {
+            Ok(n_ctx) => n_ctx.unwrap_or(4096),
+            Err(e) => {
+                godot_error!("NobodyWhoEncoder.create: {e}");
+                return Variant::nil();
+            }
+        };
         task(async move {
             // Resolve model-or-path to a shared Arc<Model>, mirroring
             // NobodyWhoChat.create. A path is loaded with default options

@@ -5,7 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use godot::prelude::*;
 
 use crate::convert::{
-    dict_get, globalize_message_media_paths, json_to_variant, resolve_godot_path, variant_to_json,
+    dict_get, dict_get_positive_u32, globalize_message_media_paths, json_to_variant,
+    resolve_godot_path, validate_config_keys, variant_to_json,
 };
 use crate::model::NobodyWhoModel;
 use crate::prompt::NobodyWhoPrompt;
@@ -56,8 +57,8 @@ impl NobodyWhoChat {
     /// - `"template_variables"` (Dictionary String->bool): chat-template vars.
     /// - `"tools"` (Array of NobodyWhoTool): tools the model can call.
     ///
-    /// Pass `{}` for defaults. Unrecognized keys are ignored; a recognized
-    /// key with a value of the wrong type is an error (resolves to null).
+    /// Pass `{}` for defaults. Unknown keys and invalid values are errors
+    /// (resolve to null).
     #[func]
     fn create(model: Variant, config: VarDictionary) -> Variant {
         let reentrancy_flag = Arc::new(AtomicBool::new(false));
@@ -498,12 +499,13 @@ impl NobodyWhoChat {
 
     /// Parse the `complete` config Dictionary into per-turn `Options`. Every
     /// key is optional; a missing key keeps the chat's current setting, a
-    /// present one stays set after the turn. Errors on a recognized key
-    /// holding a value of the wrong type.
+    /// present one stays set after the turn. Unknown keys and invalid values
+    /// are errors.
     fn parse_options(
         config: &VarDictionary,
         reentrancy_flag: &Arc<AtomicBool>,
     ) -> Result<nobodywho::chat::Options, String> {
+        validate_config_keys(config, &["sampler", "template_variables", "tools"])?;
         let mut options = nobodywho::chat::Options::new();
         if let Some(sampler) = dict_get::<Gd<NobodyWhoSamplerConfig>>(config, "sampler")? {
             options = options.with_sampler(sampler.bind().inner.clone());
@@ -518,12 +520,24 @@ impl NobodyWhoChat {
     }
 
     /// Parse the `create` config Dictionary into a core `ChatConfig` plus the
-    /// `use_gpu` flag (used only when the model is given as a path). Errors
-    /// on any recognized key holding a value of the wrong type.
+    /// `use_gpu` flag (used only when the model is given as a path). Unknown
+    /// keys and invalid values are errors.
     fn parse_config(
         config: &VarDictionary,
         reentrancy_flag: &Arc<AtomicBool>,
     ) -> Result<(nobodywho::chat::ChatConfig, bool), String> {
+        validate_config_keys(
+            config,
+            &[
+                "system_prompt",
+                "n_ctx",
+                "n_threads",
+                "use_gpu",
+                "sampler",
+                "template_variables",
+                "tools",
+            ],
+        )?;
         let defaults = nobodywho::chat::ChatConfig::default();
         let tools = dict_get::<VarArray>(config, "tools")?
             .map(|arr| build_core_tools(&arr, reentrancy_flag))
@@ -532,8 +546,8 @@ impl NobodyWhoChat {
             system_prompt: dict_get::<GString>(config, "system_prompt")?
                 .map(|s| s.to_string())
                 .filter(|s| !s.is_empty()),
-            n_ctx: dict_get::<u32>(config, "n_ctx")?.unwrap_or(defaults.n_ctx),
-            n_threads: dict_get::<u32>(config, "n_threads")?,
+            n_ctx: dict_get_positive_u32(config, "n_ctx")?.unwrap_or(defaults.n_ctx),
+            n_threads: dict_get_positive_u32(config, "n_threads")?,
             sampler_config: dict_get::<Gd<NobodyWhoSamplerConfig>>(config, "sampler")?
                 .map(|gd| gd.bind().inner.clone()),
             template_variables: dict_get::<VarDictionary>(config, "template_variables")?
