@@ -1,8 +1,9 @@
 use pyo3::prelude::*;
-use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use std::time::Duration;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use nobodywho::render_miette;
 
@@ -26,6 +27,48 @@ fn py_completion_options(
     }
 }
 
+fn structured_completion_options(
+    sampler: Option<&SamplerConfig>,
+    temperature: Option<f32>,
+    top_p: Option<f32>,
+    seed: Option<u32>,
+) -> PyResult<nobodywho::chat::Options> {
+    let has_overrides = temperature.is_some() || top_p.is_some() || seed.is_some();
+    if sampler.is_some() && has_overrides {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "sampler cannot be combined with temperature, top_p, or seed",
+        ));
+    }
+    nobodywho::chat::Options::new()
+        .with_sampler(
+            sampler
+                .map(|sampler| sampler.sampler_config.clone())
+                .unwrap_or_default(),
+        )
+        .with_sampling_overrides(temperature, top_p, seed)
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
+}
+
+fn validate_output_limit(
+    chat: &nobodywho::chat::ChatHandle,
+    max_tokens: Option<usize>,
+    py: Python<'_>,
+) -> PyResult<Option<usize>> {
+    let Some(max_tokens) = max_tokens else {
+        return Ok(None);
+    };
+    let context_size = py
+        .detach(|| chat.get_stats())
+        .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))?
+        .context_size as usize;
+    if max_tokens == 0 || max_tokens > context_size {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "the output token limit must be between 1 and {context_size}"
+        )));
+    }
+    Ok(Some(max_tokens))
+}
+
 /// Gate for forwarding tracing events to Python's logging module.
 /// Set to `true` after pyo3_log is installed, set to `false` via an `atexit`
 /// handler before `Py_FinalizeEx` runs. This prevents worker threads from
@@ -39,6 +82,7 @@ static PYTHON_LOGGING_AVAILABLE: AtomicBool = AtomicBool::new(false);
 #[pyclass]
 pub struct Model {
     model: Arc<nobodywho::llm::Model>,
+    source: String,
 }
 
 /// Wrap a Python `on_download_progress` argument into a core `DownloadProgressCallback`.
@@ -136,6 +180,7 @@ impl Model {
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
+                source: path_str.to_owned(),
             }),
             Err(e) => Err(err(e)),
         }
@@ -208,6 +253,7 @@ impl Model {
         match model_result {
             Ok(model) => Ok(Self {
                 model: Arc::new(model),
+                source: path_str.to_owned(),
             }),
             Err(e) => Err(err(e)),
         }
@@ -231,6 +277,18 @@ pub enum ModelOrPath<'py> {
 }
 
 impl<'py> ModelOrPath<'py> {
+    fn source(&self) -> PyResult<String> {
+        match self {
+            Self::ModelObj(model) => Ok(model.borrow().source.clone()),
+            Self::Path(path) => path.to_str().map(str::to_owned).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Path contains invalid UTF-8: {}",
+                    path.display()
+                ))
+            }),
+        }
+    }
+
     /// returns nobodywho core's internal model struct from a python `str | Model`
     fn get_inner_model(&self) -> PyResult<Arc<nobodywho::llm::Model>> {
         match self {
@@ -248,6 +306,396 @@ impl<'py> ModelOrPath<'py> {
                     .map(Arc::new)
             }
         }
+    }
+}
+
+struct CachedRequestModel {
+    source: String,
+    model: Arc<nobodywho::llm::Model>,
+}
+
+#[derive(Default)]
+struct NobodyWhoState {
+    cached_model: Mutex<Option<CachedRequestModel>>,
+}
+
+impl NobodyWhoState {
+    fn model_for(
+        &self,
+        requested: ModelOrPath<'_>,
+        py: Python<'_>,
+    ) -> PyResult<(Arc<nobodywho::llm::Model>, String)> {
+        let source = requested.source()?;
+        let supplied_model = match requested {
+            ModelOrPath::ModelObj(model) => Some(Arc::clone(&model.borrow().model)),
+            ModelOrPath::Path(_) => None,
+        };
+        let model = py
+            .detach(|| -> Result<Arc<nobodywho::llm::Model>, String> {
+                let mut cached = self
+                    .cached_model
+                    .lock()
+                    .map_err(|_| "NobodyWho model cache is unavailable".to_string())?;
+                if let Some(model) = supplied_model.as_ref() {
+                    *cached = Some(CachedRequestModel {
+                        source: source.clone(),
+                        model: Arc::clone(model),
+                    });
+                    return Ok(Arc::clone(model));
+                }
+                if let Some(model) = cached
+                    .as_ref()
+                    .filter(|cached| cached.source == source)
+                    .map(|cached| Arc::clone(&cached.model))
+                {
+                    return Ok(model);
+                }
+                let model = nobodywho::llm::get_model(&source, true, None, None, None)
+                    .map(Arc::new)
+                    .map_err(|error| render_miette(&error))?;
+                *cached = Some(CachedRequestModel {
+                    source: source.clone(),
+                    model: Arc::clone(&model),
+                });
+                Ok(model)
+            })
+            .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error))?;
+        Ok((model, source))
+    }
+}
+
+struct RequestOptions {
+    sampler: Option<SamplerConfig>,
+    temperature: Option<f32>,
+    top_p: Option<f32>,
+    seed: Option<u32>,
+    template_variables: HashMap<String, bool>,
+    tools: Vec<Tool>,
+    thinking: Option<bool>,
+    max_tokens: Option<usize>,
+    n_ctx: u32,
+    n_threads: Option<u32>,
+    mtp: Option<MtpConfig>,
+}
+
+struct CompletionRequest<'py> {
+    model: ModelOrPath<'py>,
+    messages: Vec<nobodywho::chat::Message>,
+    options: RequestOptions,
+    id_prefix: &'static str,
+}
+
+fn request_completion_stream(
+    model: Arc<nobodywho::llm::Model>,
+    messages: Vec<nobodywho::chat::Message>,
+    options: RequestOptions,
+    py: Python<'_>,
+) -> PyResult<nobodywho::chat::StructuredCompletionStream> {
+    let RequestOptions {
+        sampler,
+        temperature,
+        top_p,
+        seed,
+        mut template_variables,
+        tools,
+        thinking,
+        max_tokens,
+        n_ctx,
+        n_threads,
+        mtp,
+    } = options;
+    let completion_options =
+        structured_completion_options(sampler.as_ref(), temperature, top_p, seed)?;
+    if let Some(thinking) = thinking {
+        template_variables.insert("enable_thinking".to_string(), thinking);
+    }
+    let mut builder = nobodywho::chat::ChatBuilder::new(model)
+        .with_context_size(n_ctx)
+        .with_template_variables(template_variables)
+        .with_tools(tools.into_iter().map(|tool| tool.tool).collect());
+    if let Some(n_threads) = n_threads {
+        builder = builder.with_n_threads(n_threads);
+    }
+    if let Some(mtp) = mtp {
+        builder = builder.with_mtp(mtp.into());
+    }
+    let chat = py.detach(|| builder.build()).map_err(err)?;
+    let max_tokens = validate_output_limit(&chat, max_tokens, py)?;
+    chat.complete_with_metadata(messages, completion_options, max_tokens)
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(render_miette(&error)))
+}
+
+fn completion_stream_for(
+    state: &NobodyWhoState,
+    request: CompletionRequest<'_>,
+    py: Python<'_>,
+) -> PyResult<ChatCompletionStream> {
+    let (model, model_source) = state.model_for(request.model, py)?;
+    let inner = request_completion_stream(model, request.messages, request.options, py)?;
+    Ok(ChatCompletionStream::new(
+        inner,
+        model_source,
+        request.id_prefix,
+    ))
+}
+
+static COMPLETION_IDS: AtomicU64 = AtomicU64::new(1);
+
+fn serialized_response(value: &impl Serialize) -> PyResult<serde_json::Value> {
+    serde_json::to_value(value).map_err(|error| {
+        pyo3::exceptions::PyRuntimeError::new_err(format!("failed to serialize response: {error}"))
+    })
+}
+
+fn response_field(value: &impl Serialize, key: &str, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    let value = serialized_response(value)?;
+    let field = value
+        .get(key)
+        .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(key.to_owned()))?;
+    pythonize::pythonize(py, field)
+        .map(Bound::unbind)
+        .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))
+}
+
+fn response_dict(value: &impl Serialize, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    let value = serialized_response(value)?;
+    pythonize::pythonize(py, &value)
+        .map(Bound::unbind)
+        .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))
+}
+
+fn response_keys(value: &impl Serialize) -> PyResult<Vec<String>> {
+    let value = serialized_response(value)?;
+    Ok(value
+        .as_object()
+        .map(|fields| fields.keys().cloned().collect())
+        .unwrap_or_default())
+}
+
+fn response_repr(value: &impl Serialize) -> String {
+    serde_json::to_string(value)
+        .unwrap_or_else(|error| format!("<response serialization failed: {error}>"))
+}
+
+macro_rules! response_mapping_methods {
+    ($name:ty) => {
+        #[pymethods]
+        impl $name {
+            fn __getitem__(&self, key: &str, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                response_field(self, key, py)
+            }
+
+            fn __len__(&self) -> PyResult<usize> {
+                Ok(response_keys(self)?.len())
+            }
+
+            fn keys(&self) -> PyResult<Vec<String>> {
+                response_keys(self)
+            }
+
+            #[pyo3(signature = () -> "dict")]
+            fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                response_dict(self, py)
+            }
+
+            #[pyo3(signature = () -> "dict")]
+            fn model_dump(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                response_dict(self, py)
+            }
+
+            fn __repr__(&self) -> String {
+                response_repr(self)
+            }
+        }
+    };
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct CompletionUsage {
+    pub prompt_tokens: usize,
+    pub completion_tokens: usize,
+    pub total_tokens: usize,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletionFunction {
+    pub name: String,
+    pub arguments: String,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletionToolCall {
+    pub index: usize,
+    pub id: String,
+    #[serde(rename = "type")]
+    pub r#type: String,
+    pub function: ChatCompletionFunction,
+}
+
+/// Assistant message returned by a chat completion.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletionMessage {
+    pub role: String,
+    pub content: Option<String>,
+    pub reasoning_content: Option<String>,
+    pub tool_calls: Vec<ChatCompletionToolCall>,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletionChoice {
+    pub index: usize,
+    pub message: ChatCompletionMessage,
+    pub finish_reason: String,
+}
+
+/// OpenAI-shaped chat completion result.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletion {
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub model: String,
+    pub choices: Vec<ChatCompletionChoice>,
+    pub usage: CompletionUsage,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletionDelta {
+    pub role: Option<String>,
+    pub content: Option<String>,
+    pub reasoning_content: Option<String>,
+    pub tool_calls: Vec<ChatCompletionToolCall>,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletionChunkChoice {
+    pub index: usize,
+    pub delta: ChatCompletionDelta,
+    pub finish_reason: Option<String>,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ChatCompletionChunk {
+    pub id: String,
+    pub object: String,
+    pub created: u64,
+    pub model: String,
+    pub choices: Vec<ChatCompletionChunkChoice>,
+    pub usage: Option<CompletionUsage>,
+}
+
+/// A text block inside a Responses output message.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ResponseOutputText {
+    #[serde(rename = "type")]
+    pub r#type: String,
+    pub text: String,
+    pub annotations: Vec<HashMap<String, String>>,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ResponseOutputMessage {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub r#type: String,
+    pub status: String,
+    pub role: String,
+    pub content: Vec<ResponseOutputText>,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ResponseUsage {
+    pub input_tokens: usize,
+    pub output_tokens: usize,
+    pub total_tokens: usize,
+}
+
+/// OpenAI Responses-shaped result.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct Response {
+    pub id: String,
+    pub object: String,
+    pub created_at: f64,
+    pub status: String,
+    pub model: String,
+    pub output: Vec<ResponseOutputMessage>,
+    pub usage: ResponseUsage,
+    pub error: Option<String>,
+    pub incomplete_details: Option<HashMap<String, String>>,
+}
+
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone, Serialize)]
+pub struct ResponseStreamEvent {
+    #[serde(rename = "type")]
+    pub r#type: String,
+    pub delta: Option<String>,
+    pub response: Option<Response>,
+}
+
+response_mapping_methods!(CompletionUsage);
+response_mapping_methods!(ChatCompletionFunction);
+response_mapping_methods!(ChatCompletionToolCall);
+response_mapping_methods!(ChatCompletionMessage);
+response_mapping_methods!(ChatCompletionChoice);
+response_mapping_methods!(ChatCompletion);
+response_mapping_methods!(ChatCompletionDelta);
+response_mapping_methods!(ChatCompletionChunkChoice);
+response_mapping_methods!(ChatCompletionChunk);
+response_mapping_methods!(ResponseOutputText);
+response_mapping_methods!(ResponseOutputMessage);
+response_mapping_methods!(ResponseUsage);
+response_mapping_methods!(ResponseStreamEvent);
+
+#[pymethods]
+impl Response {
+    /// All output text blocks concatenated in output order.
+    #[getter]
+    fn output_text(&self) -> String {
+        self.output
+            .iter()
+            .flat_map(|item| &item.content)
+            .map(|content| content.text.as_str())
+            .collect()
+    }
+
+    fn __getitem__(&self, key: &str, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        response_field(self, key, py)
+    }
+
+    fn __len__(&self) -> PyResult<usize> {
+        Ok(response_keys(self)?.len())
+    }
+
+    fn keys(&self) -> PyResult<Vec<String>> {
+        response_keys(self)
+    }
+
+    #[pyo3(signature = () -> "dict")]
+    fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        response_dict(self, py)
+    }
+
+    #[pyo3(signature = () -> "dict")]
+    fn model_dump(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        response_dict(self, py)
+    }
+
+    fn __repr__(&self) -> String {
+        response_repr(self)
     }
 }
 
@@ -862,6 +1310,483 @@ impl TokenStream {
     pub fn __next__(&mut self, py: Python) -> PyResult<Option<String>> {
         py.detach(|| self.inner.next_token())
             .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ParsedResponseText {
+    Content,
+    Reasoning,
+}
+
+#[derive(Default)]
+struct ReasoningStreamParser {
+    reasoning: bool,
+    pending: String,
+}
+
+impl ReasoningStreamParser {
+    fn push(&mut self, token: &str) -> Vec<(ParsedResponseText, String)> {
+        self.pending.push_str(token);
+        self.drain(false)
+    }
+
+    fn finish(&mut self) -> Vec<(ParsedResponseText, String)> {
+        self.drain(true)
+    }
+
+    fn drain(&mut self, finished: bool) -> Vec<(ParsedResponseText, String)> {
+        let mut parsed = Vec::new();
+        loop {
+            let marker = if self.reasoning {
+                "</think>"
+            } else {
+                "<think>"
+            };
+            if let Some(position) = self.pending.find(marker) {
+                self.emit(position, &mut parsed);
+                self.pending.drain(..marker.len());
+                self.reasoning = !self.reasoning;
+                continue;
+            }
+            let held = if finished {
+                0
+            } else {
+                (1..marker.len())
+                    .rev()
+                    .find(|length| self.pending.ends_with(&marker[..*length]))
+                    .unwrap_or(0)
+            };
+            self.emit(self.pending.len() - held, &mut parsed);
+            break;
+        }
+        parsed
+    }
+
+    fn emit(&mut self, length: usize, parsed: &mut Vec<(ParsedResponseText, String)>) {
+        if length == 0 {
+            return;
+        }
+        let text = self.pending[..length].to_string();
+        self.pending.drain(..length);
+        parsed.push((
+            if self.reasoning {
+                ParsedResponseText::Reasoning
+            } else {
+                ParsedResponseText::Content
+            },
+            text,
+        ));
+    }
+}
+
+/// A streaming OpenAI-shaped chat completion.
+#[pyclass]
+pub struct ChatCompletionStream {
+    inner: Option<nobodywho::chat::StructuredCompletionStream>,
+    id: String,
+    model: String,
+    created: u64,
+    role_pending: bool,
+    parser: ReasoningStreamParser,
+    pending_deltas: VecDeque<(ParsedResponseText, String)>,
+    pending_response: Option<nobodywho::chat::CompletionResponse>,
+    completed: Option<ChatCompletion>,
+}
+
+impl Drop for ChatCompletionStream {
+    fn drop(&mut self) {
+        let inner = self.inner.take();
+        Python::attach(|py| py.detach(|| drop(inner)));
+    }
+}
+
+impl ChatCompletionStream {
+    fn new(
+        inner: nobodywho::chat::StructuredCompletionStream,
+        model: String,
+        id_prefix: &str,
+    ) -> Self {
+        let (id, created) = completion_identity(id_prefix);
+        Self {
+            inner: Some(inner),
+            id,
+            model,
+            created,
+            role_pending: true,
+            parser: ReasoningStreamParser::default(),
+            pending_deltas: VecDeque::new(),
+            pending_response: None,
+            completed: None,
+        }
+    }
+
+    fn chunk(
+        &self,
+        delta: ChatCompletionDelta,
+        finish_reason: Option<String>,
+        usage: Option<CompletionUsage>,
+    ) -> ChatCompletionChunk {
+        ChatCompletionChunk {
+            id: self.id.clone(),
+            object: "chat.completion.chunk".to_string(),
+            created: self.created,
+            model: self.model.clone(),
+            choices: vec![ChatCompletionChunkChoice {
+                index: 0,
+                delta,
+                finish_reason,
+            }],
+            usage,
+        }
+    }
+
+    fn next_chunk(&mut self, py: Python<'_>) -> PyResult<Option<ChatCompletionChunk>> {
+        if self.completed.is_some() {
+            return Ok(None);
+        }
+        if self.role_pending {
+            self.role_pending = false;
+            return Ok(Some(self.chunk(
+                ChatCompletionDelta {
+                    role: Some("assistant".to_string()),
+                    content: None,
+                    reasoning_content: None,
+                    tool_calls: Vec::new(),
+                },
+                None,
+                None,
+            )));
+        }
+
+        loop {
+            if let Some((kind, text)) = self.pending_deltas.pop_front() {
+                return Ok(Some(self.chunk(
+                    ChatCompletionDelta {
+                        role: None,
+                        content:
+                            matches!(kind, ParsedResponseText::Content).then_some(text.clone()),
+                        reasoning_content:
+                            matches!(kind, ParsedResponseText::Reasoning).then_some(text),
+                        tool_calls: Vec::new(),
+                    },
+                    None,
+                    None,
+                )));
+            }
+            if let Some(response) = self.pending_response.take() {
+                let completion = structured_completion_result(
+                    response,
+                    self.id.clone(),
+                    self.created,
+                    self.model.clone(),
+                );
+                let choice = &completion.choices[0];
+                let chunk = self.chunk(
+                    ChatCompletionDelta {
+                        role: None,
+                        content: None,
+                        reasoning_content: None,
+                        tool_calls: choice.message.tool_calls.clone(),
+                    },
+                    Some(choice.finish_reason.clone()),
+                    Some(completion.usage.clone()),
+                );
+                self.completed = Some(completion);
+                return Ok(Some(chunk));
+            }
+
+            let inner = self.inner.as_mut().expect("stream used after drop");
+            let chunk = py.detach(|| inner.next()).map_err(|error| {
+                pyo3::exceptions::PyRuntimeError::new_err(render_miette(&error))
+            })?;
+            match chunk {
+                Some(nobodywho::chat::StructuredCompletionChunk::Token(token)) => {
+                    self.pending_deltas.extend(self.parser.push(&token));
+                }
+                Some(nobodywho::chat::StructuredCompletionChunk::Done(response)) => {
+                    self.pending_deltas.extend(self.parser.finish());
+                    self.pending_response = Some(response);
+                }
+                None => {
+                    return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                        "completion stream ended without a response",
+                    ))
+                }
+            }
+        }
+    }
+
+    fn finish(&mut self, py: Python<'_>) -> PyResult<ChatCompletion> {
+        while self.completed.is_none() {
+            self.next_chunk(py)?.ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "completion stream ended without a response",
+                )
+            })?;
+        }
+        Ok(self.completed.clone().expect("completion was initialized"))
+    }
+}
+
+#[pymethods]
+impl ChatCompletionStream {
+    fn completed(&mut self, py: Python<'_>) -> PyResult<ChatCompletion> {
+        self.finish(py)
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<ChatCompletionChunk>> {
+        self.next_chunk(py)
+    }
+}
+
+/// A streaming Responses-style result.
+#[pyclass]
+pub struct ResponseStream {
+    inner: ChatCompletionStream,
+    completed: Option<Response>,
+}
+
+impl ResponseStream {
+    fn new(inner: ChatCompletionStream) -> Self {
+        Self {
+            inner,
+            completed: None,
+        }
+    }
+
+    fn next_event(&mut self, py: Python<'_>) -> PyResult<Option<ResponseStreamEvent>> {
+        if self.completed.is_some() {
+            return Ok(None);
+        }
+        loop {
+            let chunk = self.inner.next_chunk(py)?.ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "response stream ended without a response",
+                )
+            })?;
+            let choice = chunk
+                .choices
+                .into_iter()
+                .next()
+                .expect("completion always has one choice");
+            if let Some(delta) = choice.delta.content {
+                return Ok(Some(ResponseStreamEvent {
+                    r#type: "response.output_text.delta".to_string(),
+                    delta: Some(delta),
+                    response: None,
+                }));
+            }
+            if choice.finish_reason.is_some() {
+                let response = response_result(self.inner.finish(py)?);
+                self.completed = Some(response.clone());
+                return Ok(Some(ResponseStreamEvent {
+                    r#type: "response.completed".to_string(),
+                    delta: None,
+                    response: Some(response),
+                }));
+            }
+        }
+    }
+
+    fn finish(&mut self, py: Python<'_>) -> PyResult<Response> {
+        while self.completed.is_none() {
+            self.next_event(py)?.ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err(
+                    "response stream ended without a response",
+                )
+            })?;
+        }
+        Ok(self.completed.clone().expect("response was initialized"))
+    }
+}
+
+#[pymethods]
+impl ResponseStream {
+    fn completed(&mut self, py: Python<'_>) -> PyResult<Response> {
+        self.finish(py)
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<ResponseStreamEvent>> {
+        self.next_event(py)
+    }
+}
+
+/// A stateless client for OpenAI-compatible local inference APIs.
+#[pyclass]
+pub struct NobodyWho {
+    state: Arc<NobodyWhoState>,
+}
+
+#[pymethods]
+impl NobodyWho {
+    #[new]
+    fn new() -> Self {
+        Self {
+            state: Arc::new(NobodyWhoState::default()),
+        }
+    }
+
+    #[getter]
+    fn chat(&self) -> ChatResource {
+        ChatResource {
+            state: Arc::clone(&self.state),
+        }
+    }
+
+    #[getter]
+    fn responses(&self) -> ResponsesResource {
+        ResponsesResource {
+            state: Arc::clone(&self.state),
+        }
+    }
+}
+
+/// The `chat` namespace on `NobodyWho`.
+#[pyclass]
+pub struct ChatResource {
+    state: Arc<NobodyWhoState>,
+}
+
+#[pymethods]
+impl ChatResource {
+    #[getter]
+    fn completions(&self) -> ChatCompletionsResource {
+        ChatCompletionsResource {
+            state: Arc::clone(&self.state),
+        }
+    }
+}
+
+/// The `chat.completions` namespace on `NobodyWho`.
+#[pyclass]
+pub struct ChatCompletionsResource {
+    state: Arc<NobodyWhoState>,
+}
+
+#[pymethods]
+impl ChatCompletionsResource {
+    /// Create a completion from the complete conversation supplied in `messages`.
+    #[pyo3(signature = (*, model: "Model | os.PathLike | str", messages: "list[dict]", sampler: "SamplerConfig | None" = None, temperature: "float | None" = None, top_p: "float | None" = None, seed: "int | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None, thinking: "bool | None" = None, max_tokens: "int | None" = None, max_completion_tokens: "int | None" = None, stream = false, n_ctx = 4096, n_threads: "int | None" = None, mtp: "MtpConfig | None" = None) -> "ChatCompletion | ChatCompletionStream")]
+    fn create(
+        &self,
+        model: ModelOrPath<'_>,
+        messages: &Bound<'_, PyAny>,
+        sampler: Option<SamplerConfig>,
+        temperature: Option<f32>,
+        top_p: Option<f32>,
+        seed: Option<u32>,
+        template_variables: Option<HashMap<String, bool>>,
+        tools: Option<Vec<Tool>>,
+        thinking: Option<bool>,
+        max_tokens: Option<usize>,
+        max_completion_tokens: Option<usize>,
+        stream: bool,
+        n_ctx: u32,
+        n_threads: Option<u32>,
+        mtp: Option<MtpConfig>,
+        py: Python<'_>,
+    ) -> PyResult<Py<PyAny>> {
+        if max_tokens.is_some() && max_completion_tokens.is_some() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "pass max_tokens or max_completion_tokens, not both",
+            ));
+        }
+        let messages = chat_messages_from_python(messages)?;
+        let mut completion_stream = completion_stream_for(
+            &self.state,
+            CompletionRequest {
+                model,
+                messages,
+                options: RequestOptions {
+                    sampler,
+                    temperature,
+                    top_p,
+                    seed,
+                    template_variables: template_variables.unwrap_or_default(),
+                    tools: tools.unwrap_or_default(),
+                    thinking,
+                    max_tokens: max_completion_tokens.or(max_tokens),
+                    n_ctx,
+                    n_threads,
+                    mtp,
+                },
+                id_prefix: "chatcmpl",
+            },
+            py,
+        )?;
+        if !stream {
+            return Py::new(py, completion_stream.finish(py)?).map(Py::into_any);
+        }
+        Py::new(py, completion_stream).map(Py::into_any)
+    }
+}
+
+/// The `responses` namespace on `NobodyWho`.
+#[pyclass]
+pub struct ResponsesResource {
+    state: Arc<NobodyWhoState>,
+}
+
+#[pymethods]
+impl ResponsesResource {
+    /// Create a response from the complete input supplied in `input`.
+    #[pyo3(signature = (*, model: "Model | os.PathLike | str", input: "str | list[dict]", instructions: "str | None" = None, sampler: "SamplerConfig | None" = None, temperature: "float | None" = None, top_p: "float | None" = None, seed: "int | None" = None, template_variables: "dict[str, bool] | None" = None, tools: "list[Tool] | None" = None, thinking: "bool | None" = None, max_output_tokens: "int | None" = None, stream = false, n_ctx = 4096, n_threads: "int | None" = None, mtp: "MtpConfig | None" = None) -> "Response | ResponseStream")]
+    fn create(
+        &self,
+        model: ModelOrPath<'_>,
+        input: &Bound<'_, PyAny>,
+        instructions: Option<String>,
+        sampler: Option<SamplerConfig>,
+        temperature: Option<f32>,
+        top_p: Option<f32>,
+        seed: Option<u32>,
+        template_variables: Option<HashMap<String, bool>>,
+        tools: Option<Vec<Tool>>,
+        thinking: Option<bool>,
+        max_output_tokens: Option<usize>,
+        stream: bool,
+        n_ctx: u32,
+        n_threads: Option<u32>,
+        mtp: Option<MtpConfig>,
+        py: Python<'_>,
+    ) -> PyResult<Py<PyAny>> {
+        let messages = response_messages_from_python(input, instructions)?;
+        let completion_stream = completion_stream_for(
+            &self.state,
+            CompletionRequest {
+                model,
+                messages,
+                options: RequestOptions {
+                    sampler,
+                    temperature,
+                    top_p,
+                    seed,
+                    template_variables: template_variables.unwrap_or_default(),
+                    tools: tools.unwrap_or_default(),
+                    thinking,
+                    max_tokens: max_output_tokens,
+                    n_ctx,
+                    n_threads,
+                    mtp,
+                },
+                id_prefix: "resp",
+            },
+            py,
+        )?;
+        let mut response_stream = ResponseStream::new(completion_stream);
+        if !stream {
+            return Py::new(py, response_stream.finish(py)?).map(Py::into_any);
+        }
+        Py::new(py, response_stream).map(Py::into_any)
     }
 }
 
@@ -2233,8 +3158,410 @@ impl ChatAsync {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ResponseInput {
+    Text(String),
+    Items(Vec<ResponseInputMessage>),
+}
+
+#[derive(Deserialize)]
+struct ResponseInputMessage {
+    role: String,
+    content: ResponseInputContent,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ResponseInputContent {
+    Text(String),
+    Parts(Vec<ResponseInputPart>),
+}
+
+#[derive(Deserialize)]
+struct ResponseInputPart {
+    #[serde(rename = "type")]
+    kind: String,
+    text: String,
+}
+
+fn normalize_chat_tool_call(
+    call: &serde_json::Value,
+    tool_names: &mut HashMap<String, String>,
+) -> PyResult<serde_json::Value> {
+    let fields = call.as_object().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("assistant tool calls must be dictionaries")
+    })?;
+    let (name, arguments) = if let Some(name) = fields.get("name") {
+        (name, fields.get("arguments"))
+    } else {
+        let function = fields
+            .get("function")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("every tool call needs a function")
+            })?;
+        (
+            function.get("name").unwrap_or(&serde_json::Value::Null),
+            function.get("arguments"),
+        )
+    };
+    let name = name.as_str().ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("every tool call function needs a name")
+    })?;
+    let arguments = arguments.ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err("every tool call function needs arguments")
+    })?;
+    let arguments = match arguments {
+        serde_json::Value::String(arguments) => {
+            serde_json::from_str(arguments).map_err(|error| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "tool call arguments must contain valid JSON: {error}"
+                ))
+            })?
+        }
+        arguments => arguments.clone(),
+    };
+    if let Some(id) = fields.get("id").and_then(serde_json::Value::as_str) {
+        tool_names.insert(id.to_string(), name.to_string());
+    }
+    Ok(serde_json::json!({"name": name, "arguments": arguments}))
+}
+
+fn chat_messages_from_python(
+    messages: &Bound<'_, PyAny>,
+) -> PyResult<Vec<nobodywho::chat::Message>> {
+    let value: serde_json::Value = pythonize::depythonize(messages)
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+    let items = value.as_array().ok_or_else(|| {
+        pyo3::exceptions::PyTypeError::new_err("messages must be a list of dictionaries")
+    })?;
+    let mut system_parts = Vec::new();
+    let mut converted = Vec::with_capacity(items.len());
+    let mut tool_names = HashMap::new();
+    let mut saw_conversation = false;
+
+    for item in items {
+        let role = item
+            .get("role")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("every message needs a role"))?;
+        if matches!(role, "system" | "developer") {
+            if saw_conversation {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "system and developer messages must come first",
+                ));
+            }
+            let content = item.get("content").cloned().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("system messages need content")
+            })?;
+            let content: nobodywho::chat::MessageContent = serde_json::from_value(content)
+                .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+            if !content.media_parts().is_empty() {
+                return Err(pyo3::exceptions::PyValueError::new_err(render_miette(
+                    &nobodywho::errors::InvalidHistoryError::MediaInSystemMessage,
+                )));
+            }
+            system_parts.push(content.to_string());
+            continue;
+        }
+
+        saw_conversation = true;
+        let mut item = item.clone();
+        let fields = item.as_object_mut().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("every message must be a dictionary")
+        })?;
+        if role == "assistant" {
+            if let Some(calls) = fields.get("tool_calls") {
+                let calls = calls.as_array().ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err("tool_calls must be a list")
+                })?;
+                let calls = calls
+                    .iter()
+                    .map(|call| normalize_chat_tool_call(call, &mut tool_names))
+                    .collect::<PyResult<Vec<_>>>()?;
+                fields.insert("tool_calls".to_string(), serde_json::Value::Array(calls));
+                if fields.get("content").is_none_or(serde_json::Value::is_null) {
+                    fields.insert(
+                        "content".to_string(),
+                        serde_json::Value::String(String::new()),
+                    );
+                }
+            }
+        } else if role == "tool" && !fields.contains_key("name") {
+            let call_id = fields
+                .get("tool_call_id")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(
+                        "tool messages need a name or tool_call_id",
+                    )
+                })?;
+            let name = tool_names.get(call_id).ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "tool message refers to unknown tool call: {call_id}"
+                ))
+            })?;
+            fields.insert("name".to_string(), serde_json::Value::String(name.clone()));
+        }
+        let message = serde_json::from_value(item)
+            .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+        converted.push(message);
+    }
+
+    if !system_parts.is_empty() {
+        converted.insert(
+            0,
+            nobodywho::chat::Message::new_system(system_parts.join("\n\n")),
+        );
+    }
+    nobodywho::chat::validate_completion_messages(&converted)
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(render_miette(&error)))?;
+    Ok(converted)
+}
+
+fn response_input_from_python(input: &Bound<'_, PyAny>) -> PyResult<ResponseInput> {
+    if let Ok(input) = pythonize::depythonize(input) {
+        return Ok(input);
+    }
+
+    let items = input.cast::<pyo3::types::PyList>().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err("input must be a string or list of message items")
+    })?;
+    let values = items
+        .iter()
+        .map(|item| {
+            if let Ok(message) = item.extract::<PyRef<'_, ResponseOutputMessage>>() {
+                return serde_json::to_value(&*message)
+                    .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()));
+            }
+            pythonize::depythonize(&item)
+                .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
+        })
+        .collect::<PyResult<Vec<serde_json::Value>>>()?;
+    serde_json::from_value(serde_json::Value::Array(values))
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))
+}
+
+fn response_messages_from_python(
+    input: &Bound<'_, PyAny>,
+    instructions: Option<String>,
+) -> PyResult<Vec<nobodywho::chat::Message>> {
+    let input = response_input_from_python(input)?;
+    let items = match input {
+        ResponseInput::Text(text) => vec![ResponseInputMessage {
+            role: "user".to_string(),
+            content: ResponseInputContent::Text(text),
+        }],
+        ResponseInput::Items(items) => items,
+    };
+    let mut system_parts = instructions.into_iter().collect::<Vec<_>>();
+    let mut converted = Vec::with_capacity(items.len() + 1);
+    let mut saw_conversation = false;
+
+    for item in items {
+        let role = item.role;
+        let text = match item.content {
+            ResponseInputContent::Text(text) => text,
+            ResponseInputContent::Parts(parts) => parts
+                .into_iter()
+                .map(|part| {
+                    let supported = match role.as_str() {
+                        "assistant" => matches!(part.kind.as_str(), "output_text" | "text"),
+                        _ => matches!(part.kind.as_str(), "input_text" | "text"),
+                    };
+                    supported.then_some(part.text).ok_or_else(|| {
+                        pyo3::exceptions::PyValueError::new_err(format!(
+                            "unsupported {role} response content type: {}",
+                            part.kind
+                        ))
+                    })
+                })
+                .collect::<PyResult<String>>()?,
+        };
+        match role.as_str() {
+            "system" | "developer" if !saw_conversation => system_parts.push(text),
+            "system" | "developer" => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "system and developer messages must come first",
+                ));
+            }
+            "user" => {
+                saw_conversation = true;
+                converted.push(nobodywho::chat::Message::new_user(text));
+            }
+            "assistant" => {
+                saw_conversation = true;
+                converted.push(nobodywho::chat::Message::new_assistant(text));
+            }
+            role => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported response input role: {role}"
+                )));
+            }
+        }
+    }
+
+    if !system_parts.is_empty() {
+        converted.insert(
+            0,
+            nobodywho::chat::Message::new_system(system_parts.join("\n\n")),
+        );
+    }
+    nobodywho::chat::validate_completion_messages(&converted)
+        .map_err(|error| pyo3::exceptions::PyValueError::new_err(render_miette(&error)))?;
+    Ok(converted)
+}
+
+fn split_reasoning_content(response: String) -> (String, Option<String>) {
+    let mut parser = ReasoningStreamParser::default();
+    let mut parsed = parser.push(&response);
+    parsed.extend(parser.finish());
+    let mut content = String::new();
+    let mut reasoning = String::new();
+    for (kind, text) in parsed {
+        match kind {
+            ParsedResponseText::Content => content.push_str(&text),
+            ParsedResponseText::Reasoning => reasoning.push_str(&text),
+        }
+    }
+    let reasoning = (!reasoning.is_empty()).then_some(reasoning);
+    (content, reasoning)
+}
+
+fn completion_usage(usage: nobodywho::chat::CompletionUsage) -> CompletionUsage {
+    CompletionUsage {
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens(),
+    }
+}
+
+fn response_usage(usage: CompletionUsage) -> ResponseUsage {
+    ResponseUsage {
+        input_tokens: usage.prompt_tokens,
+        output_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens,
+    }
+}
+
+fn completion_tool_calls(
+    calls: &[nobodywho::tool_calling::ToolCall],
+    response_id: &str,
+) -> Vec<ChatCompletionToolCall> {
+    calls
+        .iter()
+        .enumerate()
+        .map(|(index, call)| ChatCompletionToolCall {
+            index,
+            id: format!("call-{response_id}-{index}"),
+            r#type: "function".to_string(),
+            function: ChatCompletionFunction {
+                name: call.name.clone(),
+                arguments: call.arguments.to_string(),
+            },
+        })
+        .collect()
+}
+
+fn structured_completion_result(
+    response: nobodywho::chat::CompletionResponse,
+    id: String,
+    created: u64,
+    model: String,
+) -> ChatCompletion {
+    let usage = completion_usage(response.usage);
+    let finish_reason = response.finish_reason.as_str().to_string();
+    let tool_calls = completion_tool_calls(&response.tool_calls, &id);
+    let (content, reasoning_content) = split_reasoning_content(response.content);
+    let content = if content.is_empty() && !tool_calls.is_empty() {
+        None
+    } else {
+        Some(content)
+    };
+    ChatCompletion {
+        id,
+        object: "chat.completion".to_string(),
+        created,
+        model,
+        choices: vec![ChatCompletionChoice {
+            index: 0,
+            message: ChatCompletionMessage {
+                role: "assistant".to_string(),
+                content,
+                reasoning_content,
+                tool_calls,
+            },
+            finish_reason,
+        }],
+        usage,
+    }
+}
+
+fn response_result(completion: ChatCompletion) -> Response {
+    let ChatCompletion {
+        id,
+        created,
+        model,
+        choices,
+        usage,
+        ..
+    } = completion;
+    let choice = choices
+        .into_iter()
+        .next()
+        .expect("completion always has one choice");
+    debug_assert!(
+        choice.message.tool_calls.is_empty(),
+        "responses execute tool calls locally"
+    );
+    let incomplete = choice.finish_reason == "length";
+    let usage = response_usage(usage);
+    Response {
+        output: vec![ResponseOutputMessage {
+            id: format!("msg-{id}"),
+            r#type: "message".to_string(),
+            status: if incomplete {
+                "incomplete"
+            } else {
+                "completed"
+            }
+            .to_string(),
+            role: "assistant".to_string(),
+            content: vec![ResponseOutputText {
+                r#type: "output_text".to_string(),
+                text: choice.message.content.unwrap_or_default(),
+                annotations: Vec::new(),
+            }],
+        }],
+        id,
+        object: "response".to_string(),
+        created_at: created as f64,
+        status: if incomplete {
+            "incomplete"
+        } else {
+            "completed"
+        }
+        .to_string(),
+        model,
+        usage,
+        error: None,
+        incomplete_details: incomplete
+            .then(|| HashMap::from([("reason".to_string(), "max_output_tokens".to_string())])),
+    }
+}
+
+fn completion_identity(prefix: &str) -> (String, u64) {
+    let created = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let sequence = COMPLETION_IDS.fetch_add(1, Ordering::Relaxed);
+    (format!("{prefix}-{created}-{sequence}"), created)
+}
+
 /// Compute the cosine similarity between two vectors.
-/// Particularly useful for comparing embedding vectors from an Encoder.
+/// Particularly useful for comparing vectors from an Encoder.
 ///
 /// Args:
 ///     a: First vector
@@ -3522,6 +4849,62 @@ fn get_cached_models() -> PyResult<Vec<(String, usize)>> {
         .collect()
 }
 
+#[cfg(test)]
+mod completion_tests {
+    use super::{
+        response_messages_from_python, split_reasoning_content, ParsedResponseText,
+        ReasoningStreamParser,
+    };
+    use pyo3::types::PyString;
+
+    #[test]
+    fn splits_reasoning_across_stream_tokens() {
+        let mut parser = ReasoningStreamParser::default();
+        let mut parsed = parser.push("answer<th");
+        parsed.extend(parser.push("ink>plan</thi"));
+        parsed.extend(parser.push("nk>done"));
+        parsed.extend(parser.finish());
+
+        assert_eq!(
+            parsed,
+            vec![
+                (ParsedResponseText::Content, "answer".to_string()),
+                (ParsedResponseText::Reasoning, "plan".to_string()),
+                (ParsedResponseText::Content, "done".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn splits_buffered_reasoning() {
+        assert_eq!(
+            split_reasoning_content("<think>plan</think>answer".to_string()),
+            ("answer".to_string(), Some("plan".to_string()))
+        );
+    }
+
+    #[test]
+    fn response_instructions_become_system_message() {
+        pyo3::Python::initialize();
+        pyo3::Python::attach(|py| {
+            let input = PyString::new(py, "Hello");
+            let messages =
+                response_messages_from_python(input.as_any(), Some("You are concise.".to_string()))
+                    .unwrap();
+
+            assert!(matches!(
+                messages.as_slice(),
+                [
+                    nobodywho::chat::Message::System { .. },
+                    nobodywho::chat::Message::User { .. }
+                ]
+            ));
+            assert_eq!(messages[0].content(), "You are concise.");
+            assert_eq!(messages[1].content(), "Hello");
+        });
+    }
+}
+
 #[pymodule(name = "nobodywho")]
 pub mod nobodywhopython {
     use pyo3::prelude::*;
@@ -3689,7 +5072,31 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::ChatAsync;
     #[pymodule_export]
+    use super::ChatCompletion;
+    #[pymodule_export]
+    use super::ChatCompletionChoice;
+    #[pymodule_export]
+    use super::ChatCompletionChunk;
+    #[pymodule_export]
+    use super::ChatCompletionChunkChoice;
+    #[pymodule_export]
+    use super::ChatCompletionDelta;
+    #[pymodule_export]
+    use super::ChatCompletionFunction;
+    #[pymodule_export]
+    use super::ChatCompletionMessage;
+    #[pymodule_export]
+    use super::ChatCompletionStream;
+    #[pymodule_export]
+    use super::ChatCompletionToolCall;
+    #[pymodule_export]
+    use super::ChatCompletionsResource;
+    #[pymodule_export]
+    use super::ChatResource;
+    #[pymodule_export]
     use super::ChatStats;
+    #[pymodule_export]
+    use super::CompletionUsage;
     #[pymodule_export]
     use super::CrossEncoder;
     #[pymodule_export]
@@ -3705,7 +5112,23 @@ pub mod nobodywhopython {
     #[pymodule_export]
     use super::MtpConfig;
     #[pymodule_export]
+    use super::NobodyWho;
+    #[pymodule_export]
     use super::Prompt;
+    #[pymodule_export]
+    use super::Response;
+    #[pymodule_export]
+    use super::ResponseOutputMessage;
+    #[pymodule_export]
+    use super::ResponseOutputText;
+    #[pymodule_export]
+    use super::ResponseStream;
+    #[pymodule_export]
+    use super::ResponseStreamEvent;
+    #[pymodule_export]
+    use super::ResponseUsage;
+    #[pymodule_export]
+    use super::ResponsesResource;
     #[pymodule_export]
     use super::SamplerBuilder;
     #[pymodule_export]
