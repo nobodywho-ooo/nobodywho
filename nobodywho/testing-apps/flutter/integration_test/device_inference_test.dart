@@ -62,7 +62,7 @@ void main() {
           (await chat.getChatHistory()).whereType<nobodywho.Message_Tool>();
       expect(toolMessages, isNotEmpty,
           reason: 'expected a tool response in chat history');
-      expect(toolMessages.first.content, 'pong');
+      expect(toolMessages.first.content.text, 'pong');
     },
     // Generous: the first run downloads the model before any inference starts.
     timeout: const Timeout(Duration(minutes: 20)),

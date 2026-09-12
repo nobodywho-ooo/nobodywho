@@ -16,6 +16,11 @@ implementation("ai.nobodywho:nobodywho-android:2.2.0")
 implementation("ai.nobodywho:nobodywho:2.2.0")
 ```
 
+### Android C++ runtime conflicts
+
+If `mergeNativeLibs` reports a duplicate `libc++_shared.so`, follow the
+[shared-runtime conflict instructions](https://github.com/nobodywho-ooo/nobodywho/blob/main/nobodywho/android/README.md#shared-c-runtime-conflicts).
+
 Next, pick a model. NobodyWho can download GGUF models directly from Hugging Face — just pass an `hf://` path. See [model selection](/docs/model-selection) for recommendations.
 
 Then create a `Chat` and call `.ask`!

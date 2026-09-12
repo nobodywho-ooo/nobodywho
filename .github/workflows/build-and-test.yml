@@ -1,5 +1,7 @@
 name: "Build and test"
 on:
+  schedule:
+    - cron: "0 4 * * *"
   push:
     branches: [main]
     tags: ['nobodywho-*']
@@ -65,7 +67,8 @@ jobs:
       needs.plan.outputs.run_swift == 'true' ||
       needs.plan.outputs.run_kotlin == 'true' ||
       needs.plan.outputs.run_react_native == 'true' ||
-      needs.plan.outputs.run_apple_extended == 'true'
+      needs.plan.outputs.run_apple_extended == 'true' ||
+      needs.plan.outputs.run_android_candidates == 'true'
     uses: ./.github/workflows/build.yml
     with:
       run_godot:        ${{ needs.plan.outputs.run_godot == 'true' }}
@@ -73,6 +76,7 @@ jobs:
       run_swift:        ${{ needs.plan.outputs.run_swift == 'true' }}
       run_kotlin:       ${{ needs.plan.outputs.run_kotlin == 'true' }}
       run_react_native: ${{ needs.plan.outputs.run_react_native == 'true' }}
+      android_native: ${{ needs.plan.outputs.run_android_candidates == 'true' }}
       # visionOS/watchOS: nightly rust + ORT from source. Full runs, or
       # /apple-extended-ci to compile-check just those targets.
       apple_extended:   ${{ needs.plan.outputs.run_apple_extended == 'true' }}
@@ -99,12 +103,27 @@ jobs:
     secrets:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+  # Package the exact binding-owned, multi-ABI AARs that source device tests
+  # consume and binding releases later publish without rebuilding.
+  package-android-candidates:
+    needs: [plan, build]
+    if: needs.plan.outputs.run_android_candidates == 'true'
+    uses: ./.github/workflows/package-android-candidates.yml
+
   # On-device tests on real phones via Firebase Test Lab. plan.yml selects jobs
-  # here only for a release tag (the binding being released) or an explicit
-  # /<binding>-device-<source|released>-ci comment — never for an ordinary push.
+  # here only for the nightly schedule, a release tag (the binding being
+  # released), an explicit /<binding>-device-<source|released>-ci comment, or a
+  # workflow_dispatch with `buckets: device_<binding>_<mode>` — never for an
+  # ordinary push.
   mobile-device-tests:
-    needs: plan
-    if: needs.plan.outputs.device_jobs != ''
+    needs: [plan, package-android-candidates]
+    if: >-
+      always() &&
+      needs.plan.outputs.device_jobs != '' &&
+      (
+        needs.plan.outputs.run_android_candidates != 'true' ||
+        needs.package-android-candidates.result == 'success'
+      )
     uses: ./.github/workflows/mobile-device-tests.yml
     with:
       jobs: ${{ needs.plan.outputs.device_jobs }}
@@ -114,7 +133,7 @@ jobs:
       GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
 
   release:
-    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci, mobile-device-tests]
+    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci, package-android-candidates, mobile-device-tests]
     # always() so a *skipped* mobile-device-tests does not skip the release —
     # Swift/Python/Godot tags have no Android device tests. Failures and
     # cancellations still block, which is the point: a kotlin release cannot

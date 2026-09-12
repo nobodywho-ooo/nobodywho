@@ -53,9 +53,11 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;34.0.0"
 
+      # :android has no Kotlin sources; its AAR (which needs the native input)
+      # is built by the kotlin-source device test and the release.
       - name: "Compile Kotlin modules"
         working-directory: ./nobodywho/kotlin
-        run: ./gradlew :nobodywho-core:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
+        run: ./gradlew :nobodywho-core:compileKotlin :jvm:compileKotlin
 
       - name: "Download test model"
         run: |

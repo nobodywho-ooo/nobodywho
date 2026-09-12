@@ -1,0 +1,172 @@
+name: "Package Android binding candidates"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # Each artifact holds libnobodywho-<integration>-<target>-release.so,
+      # nobodywho-runtime-<target>/ (common libs + CPU backends) and, for
+      # x86_64, libonnxruntime.so. nobodywho/android's Gradle build reads this
+      # layout directly.
+      - name: "Download Flutter Android build artifacts"
+        uses: actions/download-artifact@v5
+        with:
+          pattern: nobodywho-flutter-*-linux-android-release
+          merge-multiple: true
+          path: ./artifacts/flutter
+
+      - name: "Download UniFFI Android build artifacts"
+        uses: actions/download-artifact@v5
+        with:
+          pattern: nobodywho-uniffi-*-linux-android-release
+          merge-multiple: true
+          path: ./artifacts/uniffi
+
+      - name: "Install Android NDK"
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r28
+          add-to-path: false
+
+      - name: "Add libc++_shared.so and strip release libraries"
+        run: |
+          set -euo pipefail
+          TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
+          # The entry point, libllama and the CPU backends share the NDK's C++
+          # runtime. build.yml compiles with this same NDK release.
+          for integration in flutter uniffi; do
+            for target in aarch64-linux-android x86_64-linux-android; do
+              cp "$TOOLCHAIN/sysroot/usr/lib/$target/libc++_shared.so" \
+                "artifacts/$integration/nobodywho-runtime-$target/"
+            done
+          done
+          find artifacts -type f -name '*.so' -exec "$TOOLCHAIN/bin/llvm-strip" --strip-unneeded {} +
+
+      - name: "Setup JDK"
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Read binding versions"
+        run: |
+          set -euo pipefail
+          FLUTTER_VERSION=$(awk '$1 == "version:" { print $2; exit }' nobodywho/flutter/nobodywho/pubspec.yaml)
+          REACT_NATIVE_VERSION=$(jq -r .version nobodywho/react-native/package.json)
+          for version in "$FLUTTER_VERSION" "$REACT_NATIVE_VERSION"; do
+            if [[ -z "$version" || "$version" == "null" ]]; then
+              echo "::error::could not read all binding versions"
+              exit 1
+            fi
+          done
+
+          # On a binding release tag, fail here rather than after the paid
+          # device test if the committed version was not bumped to the tag.
+          # Kotlin takes its version from the tag itself (-Pversion).
+          case "$GITHUB_REF_NAME" in
+            nobodywho-flutter-v*)      EXPECTED="nobodywho-flutter-v$FLUTTER_VERSION" ;;
+            nobodywho-react-native-v*) EXPECTED="nobodywho-react-native-v$REACT_NATIVE_VERSION" ;;
+            *)                         EXPECTED="$GITHUB_REF_NAME" ;;
+          esac
+          if [[ "$GITHUB_REF_NAME" != "$EXPECTED" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the committed binding version ($EXPECTED)"
+            exit 1
+          fi
+          {
+            echo "FLUTTER_VERSION=$FLUTTER_VERSION"
+            echo "REACT_NATIVE_VERSION=$REACT_NATIVE_VERSION"
+          } >> "$GITHUB_ENV"
+
+      - name: "Build binding-owned Android candidates"
+        run: |
+          set -euo pipefail
+          CANDIDATES="$PWD/android-candidates"
+          mkdir -p "$CANDIDATES/maven"
+
+          # Flutter and React Native publish native AARs versioned with their
+          # wrapper package. Source device tests resolve them from the local
+          # Maven directory; the release publishes these exact files.
+          for spec in "flutter:flutter:$FLUTTER_VERSION" "react-native:uniffi:$REACT_NATIVE_VERSION"; do
+            IFS=: read -r binding integration version <<< "$spec"
+            ./nobodywho/kotlin/gradlew -p nobodywho/android \
+              nativeAar publishNativePublicationToCandidateRepository \
+              -PnobodywhoBinding="$binding" \
+              -PnobodywhoInputDir="$PWD/artifacts/$integration" \
+              -Pversion="$version" \
+              -PcandidateRepository="$CANDIDATES/maven"
+            cp "nobodywho/android/build/outputs/nobodywho-$binding-android-$version.aar" "$CANDIDATES/"
+          done
+
+          # Kotlin embeds these libraries into its own nobodywho-android AAR.
+          # The device test and the release both build that AAR from this file.
+          ./nobodywho/kotlin/gradlew -p nobodywho/android nativeAar \
+            -PnobodywhoBinding=uniffi \
+            -PnobodywhoInputDir="$PWD/artifacts/uniffi"
+          cp nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar "$CANDIDATES/"
+
+      # Gradle's nativeAar task already checked that every required library is
+      # present. This step checks what Gradle cannot: the ELF machine type and
+      # that every non-system NEEDED library ships next to its consumer.
+      - name: "Validate packaged AARs"
+        env:
+          LLVM_READELF: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
+        run: |
+          set -euo pipefail
+
+          validate_aar() {
+            local aar="android-candidates/$1"
+            local unpacked="$RUNNER_TEMP/${1%.aar}"
+
+            unzip -tq "$aar"
+            rm -rf "$unpacked"
+            mkdir -p "$unpacked"
+            unzip -q "$aar" -d "$unpacked"
+
+            for abi in arm64-v8a x86_64; do
+              local abi_dir="$unpacked/jni/$abi"
+              for library in "$abi_dir"/*.so; do
+                if [[ "$abi" == arm64-v8a ]]; then
+                  "$LLVM_READELF" -h "$library" | grep -q 'Machine:.*AArch64'
+                else
+                  "$LLVM_READELF" -h "$library" | grep -q 'Machine:.*X86-64'
+                fi
+
+                while read -r needed; do
+                  case "$needed" in
+                    libc.so|libm.so|libdl.so|liblog.so|libandroid.so|libz.so|\
+                    libvulkan.so|libEGL.so|libGLESv1_CM.so|libGLESv2.so|libGLESv3.so|\
+                    libjnigraphics.so|libmediandk.so|libaaudio.so|libOpenSLES.so|\
+                    libnativewindow.so)
+                      ;;
+                    *)
+                      if [[ ! -f "$abi_dir/$needed" ]]; then
+                        echo "::error::$1/$abi/$(basename "$library") needs unpackaged $needed"
+                        exit 1
+                      fi
+                      ;;
+                  esac
+                done < <("$LLVM_READELF" -d "$library" | sed -n 's/.*Shared library: \[\(.*\)\].*/\1/p')
+              done
+            done
+          }
+
+          validate_aar "nobodywho-flutter-android-$FLUTTER_VERSION.aar"
+          validate_aar "nobodywho-react-native-android-$REACT_NATIVE_VERSION.aar"
+          validate_aar nobodywho-uniffi-android-0.0.0-local.aar
+
+      - name: "Upload exact Android binding candidates"
+        uses: actions/upload-artifact@v5
+        with:
+          name: nobodywho-android-binding-candidates
+          path: android-candidates/
+          if-no-files-found: error
+          retention-days: 14

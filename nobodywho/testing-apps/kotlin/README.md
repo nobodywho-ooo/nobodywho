@@ -12,14 +12,11 @@ nothing to wire into `kotlin/settings.gradle.kts`.
 
 ## Running the tests locally
 
-1. Build the native library for Android arm64 and drop it where the `:android`
-   module expects it:
+1. Build the complete local UniFFI AAR as described in
+   [`../../android/README.md`](../../android/README.md), then point the Kotlin
+   build at it:
    ```bash
-   nix develop .#android --command bash -c \
-     'cd nobodywho && cargo build -p nobodywho-uniffi --target aarch64-linux-android --release'
-   mkdir -p nobodywho/kotlin/android/build/jniLibs/arm64-v8a
-   cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-     nobodywho/kotlin/android/build/jniLibs/arm64-v8a/
+   export NOBODYWHO_UNIFFI_ANDROID_AAR="$PWD/nobodywho/android/build/outputs/nobodywho-uniffi-android-0.0.0-local.aar"
    ```
 
 2. With a phone plugged in, run the suite — much faster than a CI round-trip:
