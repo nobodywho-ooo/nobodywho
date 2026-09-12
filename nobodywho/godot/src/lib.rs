@@ -2287,11 +2287,17 @@ impl NobodyWhoTts {
             (config, device)
         };
 
-        let handle =
-            tokio::task::spawn_blocking(move || nobodywho::tts::Tts::with_device(config, device))
-                .await
-                .map_err(|e| GString::from(format!("TTS load task failed: {e}").as_str()))?
-                .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
+        // tokio::task::spawn_blocking requires an active Tokio runtime, but
+        // godot::task::spawn runs on gdext's own executor. Use a plain thread
+        // with a oneshot channel instead, like the STT node does.
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(nobodywho::tts::Tts::with_device(config, device));
+        });
+        let handle = rx
+            .await
+            .map_err(|_| GString::from("TTS load thread panicked during model load"))?
+            .map_err(|e| GString::from(nobodywho::render_miette(&e).as_str()))?;
 
         let mut b = me.bind_mut();
         if let Some(existing) = &b.tts_handle {
