@@ -1752,25 +1752,38 @@ impl SamplerBuilder {
         })
     }
 
-    /// Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    #[deprecated(
-        note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings."
-    )]
-    pub fn grammar(
-        &self,
-        grammar: String,
-        trigger_on: Option<String>,
-        root: String,
-    ) -> Arc<SamplerBuilder> {
+    // -- Constraining steps --
+    //
+    // These always run before the other shift steps, wherever you chain them: a
+    // grammar that runs after truncation can find none of the surviving
+    // candidates valid, which aborts generation.
+
+    /// Constrain output to a JSON schema, given as a JSON string.
+    pub fn constrain_with_json_schema(&self, schema: String) -> Arc<SamplerBuilder> {
         Arc::new(SamplerBuilder {
-            inner: self
-                .inner
-                .clone()
-                .shift(nobodywho::sampler::ShiftStep::Grammar {
-                    grammar,
-                    trigger_on,
-                    root,
-                }),
+            inner: self.inner.clone().constrain_with_json_schema(schema),
+        })
+    }
+
+    /// Constrain output to a regular expression.
+    pub fn constrain_with_regex(&self, pattern: String) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().constrain_with_regex(pattern),
+        })
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    pub fn constrain_with_grammar(&self, grammar: String) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().constrain_with_grammar(grammar),
+        })
+    }
+
+    /// Constrain output to a JSON object of any shape. Use
+    /// `constrain_with_json_schema()` to pin down the structure too.
+    pub fn json(&self) -> Arc<SamplerBuilder> {
+        Arc::new(SamplerBuilder {
+            inner: self.inner.clone().json(),
         })
     }
 
@@ -1919,6 +1932,10 @@ impl SamplerBuilder {
 // ---------- SamplerPresets ----------
 // Free functions for uniffi-bindgen-react-native compatibility.
 // The TypeScript wrapper collects these into a static SamplerPresets class.
+//
+// Every preset builds on the default configuration and adds its own step on top,
+// replacing the default step of the same kind if there is one. Greedy is the
+// exception: it always picks the most probable token, so it needs no steps.
 
 /// Get the default sampler configuration.
 #[uniffi::export]
@@ -1928,7 +1945,7 @@ pub fn sampler_preset_default() -> Arc<SamplerConfig> {
     })
 }
 
-/// Create a sampler with top-k filtering only.
+/// Create a sampler with the default steps, but top-k overridden.
 #[uniffi::export]
 pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
@@ -1936,7 +1953,7 @@ pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     })
 }
 
-/// Create a sampler with nucleus (top-p) sampling.
+/// Create a sampler with the default steps, but nucleus (top-p) overridden.
 #[uniffi::export]
 pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
@@ -1992,17 +2009,10 @@ pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConf
     })
 }
 
+/// Constrain output to a JSON object of any shape.
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
         inner: nobodywho::sampler::SamplerPresets::json(),
-    })
-}
-
-/// Create a sampler with a custom grammar constraint.
-#[uniffi::export]
-pub fn sampler_preset_grammar(grammar: String) -> Arc<SamplerConfig> {
-    Arc::new(SamplerConfig {
-        inner: nobodywho::sampler::SamplerPresets::grammar(grammar),
     })
 }

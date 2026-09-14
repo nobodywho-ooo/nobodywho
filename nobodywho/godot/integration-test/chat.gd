@@ -12,6 +12,7 @@ func run_test():
 	assert(await test_tool_call_underscores())
 	assert(await test_tool_remove())
 	assert(await test_sampler_builder())
+	assert(await test_sampler_builder_constraints())
 	assert(await test_stats())
 	return true
 
@@ -173,6 +174,52 @@ func test_sampler_builder():
 	var response = await response_finished
 	print("✨ Got response: " + response)
 	assert("Copenhagen" in response)
+	return true
+
+
+func test_sampler_builder_constraints():
+	print("✨ Testing SamplerBuilder constraints")
+	reset_context()
+	self.allow_thinking = false
+	self.system_prompt = "You are a helpful assistant, capable of answering questions about the world."
+
+	# top_k(1) first on purpose: the constraint has to be moved ahead of it, or
+	# the single surviving candidate is unlikely to be grammar-valid and
+	# generation aborts. The literal is one no model would answer with on its
+	# own, so passing proves the constraint applied.
+	var cfg = NobodyWhoSamplerBuilder.new() \
+		.top_k(1) \
+		.constrain_with_regex("zqxjvkw") \
+		.dist()
+	set_sampler_config(cfg)
+
+	ask("Please tell me what the capital city of Denmark is.")
+	var response = await response_finished
+	print("✨ Got constrained response: " + response)
+	assert(response == "zqxjvkw", "expected the constrained literal, got: " + response)
+
+	reset_context()
+	var schema = JSON.stringify({
+		"type": "object",
+		"properties": {"capital": {"type": "string"}},
+		"required": ["capital"],
+		"additionalProperties": false,
+	})
+	var schema_cfg = NobodyWhoSamplerBuilder.new() \
+		.constrain_with_json_schema(schema) \
+		.temperature(0.8) \
+		.dist()
+	set_sampler_config(schema_cfg)
+
+	ask("Give me the capital of Denmark as JSON with a 'capital' field.")
+	var json_response = await response_finished
+	print("✨ Got JSON response: " + json_response)
+	var parsed = JSON.parse_string(json_response)
+	assert(parsed != null, "response was not valid JSON: " + json_response)
+	assert(parsed.has("capital"), "response is missing the 'capital' field: " + json_response)
+
+	# don't leak the constraint into the tests that run after this one
+	set_sampler_preset_default()
 	return true
 
 

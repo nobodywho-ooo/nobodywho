@@ -254,6 +254,18 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_constructor_samplerbuilder_new(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_grammar(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_json_schema(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_regex(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dist(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -264,10 +276,10 @@ protected:
   cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_json(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_logit_bias(
@@ -363,9 +375,6 @@ protected:
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_fn_func_sampler_preset_greedy(
@@ -567,9 +576,6 @@ protected:
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar(
-      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
-      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -732,6 +738,18 @@ protected:
   cpp_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
+  jsi::Value
+  cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex(
+      jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+      size_t count);
   jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
@@ -742,10 +760,10 @@ protected:
   cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
-  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy(
+  jsi::Value cpp_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json(
       jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
       size_t count);
   jsi::Value

@@ -35,9 +35,16 @@ class SamplerDslTest {
     @Test fun `all shift steps with dist`() {
         assertNotNull(buildSampler {
             topK(40); topP(0.9); minP(0.05); temperature(0.8)
-            typicalP(0.95); xtc(0.1, 0.5); grammar("root ::= \"hi\"")
+            typicalP(0.95); xtc(0.1, 0.5)
             dry(); penalties(); dist()
         })
+    }
+
+    @Test fun `all constraining steps with dist`() {
+        assertNotNull(buildSampler { constrainWithJsonSchema("{\"type\": \"object\"}"); dist() })
+        assertNotNull(buildSampler { constrainWithRegex("yes|no"); dist() })
+        assertNotNull(buildSampler { constrainWithGrammar("start: \"hi\""); dist() })
+        assertNotNull(buildSampler { json(); dist() })
     }
 
     @Test(expected = IllegalStateException::class)

@@ -40,6 +40,11 @@ enum SamplerPresets {
 }
 ```
 
+All presets have top-k, top-p, temperature and dist steps, and change or add just the one thing
+they are named for: the top-k, top-p and temperature presets each override their counterpart,
+while the others add a step and leave the three defaults alone. `greedy()` is the exception —
+it always picks the most probable token, so it needs no other steps.
+
 ## Structured output
 
 One of the most useful features is constraining the model to produce structured output —
@@ -113,9 +118,9 @@ See the [Lark documentation](https://lark-parser.readthedocs.io/en/latest/gramma
 full grammar syntax.
 
 :::info
-The older `SamplerPresets.json()` and `SamplerPresets.grammar()` methods are deprecated.
-Use `SamplerPresets.constrainWithJsonSchema()` for JSON output or
-`SamplerPresets.constrainWithGrammar()` for custom grammars — the latter accepts both Lark and GBNF strings.
+The older `SamplerPresets.json()` method is deprecated.
+Use `SamplerPresets.constrainWithJsonSchema()` for JSON output, or
+`SamplerPresets.constrainWithGrammar()` for custom grammars — it accepts both Lark and GBNF strings.
 :::
 
 ## Defining your own samplers
@@ -164,7 +169,27 @@ Shift steps — add as many as you want, applied in order:
 - `.logitBias(biases: [1: -1.0, 2: 3.0])` — token 1 less probable, token 2 is more probable
 - `.dry(multiplier: 0.8, base: 1.75, allowedLength: 2, penaltyLastN: -1, seqBreakers: ["\n"])` — penalty for repeated *phrases*
 - `.seed(seed: 42)` — fix the RNG for reproducible output
-- `.grammar(...)` — deprecated; use the `constrainWith*` presets above
+
+The order you chain them matters: `.penalties(...)`, `.logitBias(...)` and `.dry(...)` reweigh
+whatever distribution reaches them, so put them *before* any grammar/constraining step
+if you want them to see the whole vocabulary.
+
+Constraining steps — the same formats as the presets above, but chainable with the rest:
+
+- `.constrainWithJsonSchema(schema: ...)` — output matches a JSON schema, given as a JSON string
+- `.constrainWithRegex(pattern: ...)` — output matches a regular expression
+- `.constrainWithGrammar(grammar: ...)` — output matches a grammar, in either Lark or GBNF syntax
+- `.json()` — output is a JSON object of any shape
+
+Constraining steps always run **before** the other shift steps, wherever you chain them.
+This is to avoid the case where a step like `.topK(topK: 5)` followed by a constraint could
+find that none of the five surviving tokens is valid, leaving nothing to sample and
+aborting generation. Both chains below therefore behave identically.
+
+```swift
+let sampler = SamplerBuilder().constrainWithRegex(pattern: "yes|no").temperature(temperature: 0.8).dist()
+let same = SamplerBuilder().temperature(temperature: 0.8).constrainWithRegex(pattern: "yes|no").dist()
+```
 
 Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
 

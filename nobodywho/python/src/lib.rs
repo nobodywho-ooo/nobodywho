@@ -1,7 +1,8 @@
+use pyo3::exceptions::PyKeyboardInterrupt;
 use pyo3::prelude::*;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use nobodywho::render_miette;
@@ -41,22 +42,91 @@ pub struct Model {
     model: Arc<nobodywho::llm::Model>,
 }
 
-/// Wrap a Python `on_download_progress` argument into a core `DownloadProgressCallback`.
-///
-/// - `Some(py_callable)` → wraps it so the Python function is invoked on each chunk
-///   with `(downloaded_bytes, total_bytes)`. Exceptions are printed and swallowed.
-/// - `None` → returns `None`; core installs its own default terminal progress bar.
-///
-/// Returns `TypeError` if `py_callback` is not callable, so a non-callable argument
-/// fails fast at construction rather than per-chunk during download.
+struct PythonDownloadContext {
+    cancelled: Arc<AtomicBool>,
+    signal_error: Arc<Mutex<Option<PyErr>>>,
+}
+
+impl PythonDownloadContext {
+    fn new() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            signal_error: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn cancellation_callback(&self) -> nobodywho::llm::DownloadCancellationCallback {
+        let cancelled = Arc::clone(&self.cancelled);
+        let signal_error = Arc::clone(&self.signal_error);
+        Arc::new(move || {
+            if cancelled.load(Ordering::Relaxed) {
+                return true;
+            }
+            Python::attach(|py| match py.check_signals() {
+                Ok(()) => false,
+                Err(error) => {
+                    *signal_error.lock().expect("signal error mutex poisoned") = Some(error);
+                    cancelled.store(true, Ordering::Relaxed);
+                    true
+                }
+            })
+        })
+    }
+
+    fn finish<T>(&self, result: Result<T, nobodywho::errors::LoadModelError>) -> PyResult<T> {
+        if let Some(error) = self
+            .signal_error
+            .lock()
+            .expect("signal error mutex poisoned")
+            .take()
+        {
+            return Err(error);
+        }
+        Python::attach(|py| py.check_signals())?;
+        result.map_err(err)
+    }
+
+    fn resolve_progress(
+        &self,
+        py_callback: Option<Py<PyAny>>,
+    ) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
+        let Some(callback) = py_callback else {
+            return Ok(None);
+        };
+        Python::attach(|py| {
+            if !callback.bind(py).is_callable() {
+                return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "on_download_progress must be callable, taking (downloaded_bytes, total_bytes)",
+                ));
+            }
+            Ok(())
+        })?;
+
+        let cancelled = Arc::clone(&self.cancelled);
+        let signal_error = Arc::clone(&self.signal_error);
+        Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
+            Python::attach(|py| {
+                if let Err(error) = callback.call1(py, (downloaded, total)) {
+                    if error.is_instance_of::<PyKeyboardInterrupt>(py) {
+                        *signal_error.lock().expect("signal error mutex poisoned") = Some(error);
+                        cancelled.store(true, Ordering::Relaxed);
+                    } else {
+                        error.print(py);
+                    }
+                }
+            });
+        }) as nobodywho::llm::DownloadProgressCallback))
+    }
+}
+
 fn resolve_on_download_progress(
     py_callback: Option<Py<PyAny>>,
 ) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
-    let Some(cb) = py_callback else {
+    let Some(callback) = py_callback else {
         return Ok(None);
     };
     Python::attach(|py| {
-        if !cb.bind(py).is_callable() {
+        if !callback.bind(py).is_callable() {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "on_download_progress must be callable, taking (downloaded_bytes, total_bytes)",
             ));
@@ -65,8 +135,8 @@ fn resolve_on_download_progress(
     })?;
     Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
         Python::attach(|py| {
-            if let Err(e) = cb.call1(py, (downloaded, total)) {
-                e.print(py);
+            if let Err(error) = callback.call1(py, (downloaded, total)) {
+                error.print(py);
             }
         });
     }) as nobodywho::llm::DownloadProgressCallback))
@@ -125,20 +195,19 @@ impl Model {
                 })
             })
             .transpose()?;
-        let progress = resolve_on_download_progress(on_download_progress)?;
-        let model_result = nobodywho::llm::get_model(
+        let download = PythonDownloadContext::new();
+        let progress = download.resolve_progress(on_download_progress)?;
+        let model = download.finish(nobodywho::llm::get_model_cancellable(
             path_str,
             use_gpu_if_available,
             mmproj_str,
             draft_str,
             progress,
-        );
-        match model_result {
-            Ok(model) => Ok(Self {
-                model: Arc::new(model),
-            }),
-            Err(e) => Err(err(e)),
-        }
+            Some(download.cancellation_callback()),
+        ))?;
+        Ok(Self {
+            model: Arc::new(model),
+        })
     }
 
     /// Asynchronously load a model from a GGUF file.
@@ -243,8 +312,16 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None, None, None)
-                    .map_err(err)
+                let download = PythonDownloadContext::new();
+                download
+                    .finish(nobodywho::llm::get_model_cancellable(
+                        path_str,
+                        true,
+                        None,
+                        None,
+                        None,
+                        Some(download.cancellation_callback()),
+                    ))
                     .map(Arc::new)
             }
         }
@@ -2284,8 +2361,14 @@ fn download_model(
         ))
     })?;
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
-    let progress = resolve_on_download_progress(on_download_progress)?;
-    nobodywho::llm::download_model(path_str, headers_vec, progress).map_err(err)
+    let download = PythonDownloadContext::new();
+    let progress = download.resolve_progress(on_download_progress)?;
+    download.finish(nobodywho::llm::download_model_cancellable(
+        path_str,
+        headers_vec,
+        progress,
+        Some(download.cancellation_callback()),
+    ))
 }
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
@@ -2437,25 +2520,49 @@ impl SamplerBuilder {
         )
     }
 
-    /// Apply a GBNF grammar constraint to enforce structured output.
+    /// Constrain output to a JSON schema.
     ///
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
+    /// Constraining steps always run before the other shift steps, wherever you
+    /// chain them: a grammar that runs after truncation can find none of the
+    /// surviving candidates valid, which aborts generation.
     ///
     /// Args:
-    ///     grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-    ///     trigger_on: Optional string that, when generated, activates the grammar constraint.
-    ///                 Useful for letting the model generate free-form text until a specific marker.
-    ///     root: Name of the root grammar rule to start parsing from
-    #[allow(deprecated)]
-    pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
-        shift_step(
-            self.clone(),
-            nobodywho::sampler::ShiftStep::Grammar {
-                grammar,
-                trigger_on,
-                root,
-            },
-        )
+    ///     schema: JSON schema as a dict or a JSON string
+    pub fn constrain_with_json_schema(&self, schema: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(SamplerBuilder {
+            inner: self
+                .inner
+                .clone()
+                .constrain_with_json_schema(json_schema_to_string(schema)?),
+        })
+    }
+
+    /// Constrain output to a regular expression.
+    ///
+    /// Args:
+    ///     pattern: Regular expression pattern
+    pub fn constrain_with_regex(&self, pattern: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_regex(pattern),
+        }
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    ///
+    /// Args:
+    ///     grammar: Grammar string in Lark or GBNF syntax
+    pub fn constrain_with_grammar(&self, grammar: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_grammar(grammar),
+        }
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrain_with_json_schema()` instead.
+    pub fn json(&self) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().json(),
+        }
     }
 
     /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
@@ -2627,9 +2734,25 @@ fn sample_step(builder: SamplerBuilder, step: nobodywho::sampler::SampleStep) ->
     }
 }
 
+/// A JSON schema given as either a dict or an already-serialized JSON string.
+fn json_schema_to_string(schema: &Bound<'_, PyAny>) -> PyResult<String> {
+    if let Ok(s) = schema.extract::<String>() {
+        return Ok(s);
+    }
+    schema
+        .py()
+        .import("json")?
+        .call_method1("dumps", (schema,))?
+        .extract::<String>()
+}
+
 /// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
 /// `SamplerConfig` from some pre-defined sampler chain.
 /// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
+///
+/// Every preset builds on `SamplerPresets.default()` and adds its own step on top, replacing
+/// the default step of the same kind if there is one. `greedy()` is the exception: it always
+/// picks the most probable token, so it needs no steps.
 #[pyclass]
 pub struct SamplerPresets {}
 
@@ -2644,7 +2767,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with top-k filtering only.
+    /// Create a sampler with the default steps, but top-k overridden.
     ///
     /// Args:
     ///     top_k: Number of top tokens to keep
@@ -2655,7 +2778,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with nucleus (top-p) sampling.
+    /// Create a sampler with the default steps, but nucleus (top-p) overridden.
     ///
     /// Args:
     ///     top_p: Cumulative probability threshold (0.0 to 1.0)
@@ -2699,18 +2822,9 @@ impl SamplerPresets {
     ///     schema: JSON schema as a dict or a JSON string
     #[staticmethod]
     pub fn constrain_with_json_schema(schema: &Bound<'_, PyAny>) -> PyResult<SamplerConfig> {
-        let schema_str: String = if let Ok(s) = schema.extract::<String>() {
-            s
-        } else {
-            schema
-                .py()
-                .import("json")?
-                .call_method1("dumps", (schema,))?
-                .extract::<String>()?
-        };
         Ok(SamplerConfig {
             sampler_config: nobodywho::sampler::SamplerPresets::constrain_with_json_schema(
-                schema_str,
+                json_schema_to_string(schema)?,
             ),
         })
     }
@@ -2737,7 +2851,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler that constrains output to valid JSON (any structure) using GBNF.
+    /// Create a sampler that constrains output to a JSON object of any shape.
     ///
     /// For schema-validated JSON, use `constrain_with_json_schema()` instead.
     #[staticmethod]
@@ -2745,15 +2859,6 @@ impl SamplerPresets {
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler::SamplerPresets::json(),
-        }
-    }
-
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    #[staticmethod]
-    #[allow(deprecated)]
-    pub fn grammar(grammar: String) -> SamplerConfig {
-        SamplerConfig {
-            sampler_config: nobodywho::sampler::SamplerPresets::grammar(grammar),
         }
     }
 }
