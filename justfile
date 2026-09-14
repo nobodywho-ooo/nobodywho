@@ -1,7 +1,7 @@
 LIB_EXT := if os() == "macos" { "dylib" } else { "so" }
 
 GODOT := env("GODOT", "godot")
-GODOT_PROJECT := "nobodywho/godot/integration-test"
+GODOT_PROJECT := "nobodywho/godot/tests"
 
 check: fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze godot-build
 

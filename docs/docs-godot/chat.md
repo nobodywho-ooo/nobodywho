@@ -1,330 +1,345 @@
-# Simple Chat
-
-_A comprehensive guide to configuring, streaming, and controlling LLM responses through the Chat component._
-
-
+---
+title: Chat
+description: A concise introduction to the Chat functionality of NobodyWho.
+sidebar_position: 1
 ---
 
-Great! You've completed the ["Getting Started"](getting-started.md) guide and got your first chat working as well as a basic understanding of the vocabulary.   
-Now let's dive deeper into the Chat component and show you all the settings and techniques you'll actually use when working with LLMs.
- 
-The Chat component isn't just for conversations - it's your main interface for any kind of LLM processing, whether that's generating dialogue, analyzing text, creating content, or any other language task.
+As you may have noticed in the [welcome guide](./), every interaction with your LLM starts by
+creating a `NobodyWhoChat` object. In the following sections, we talk about which configuration
+options it has, and when to use them.
 
-Set the model node's `model_path` to `"auto"` to select a chat model based on available memory.
+## Creating a chat
 
-In this guide, you'll learn:
-
-- The main settings that control LLM behavior
-- How to handle LLM responses efficiently 
-- Managing context and memory
-- Controlling when and how the LLM stops generating
-
-
-Before we get started, you'll hear these words being used:
-
-| Term | Meaning |
-| ---- | ------- |
-| **Sampler** | The thing that controls how the LLM selects the next token during generation (temperature, top-p, etc.). |
-| **Grammar or Structured Output** | A formal structure that constrains the LLM's output to a set `"vocabulary"`. |
-| **GBNF** | GGML Backus-Naur Form - a way to define structured output formats. |
-
-## Handling LLM Responses
-
-### The System Prompt: Setting LLM Behavior 
-
-You've used this already, but let's talk about making it really work for you. The system prompt defines how the LLM should behave:
-
-```markdown
-
-# Character-based behavior
-system_prompt = """You are a sarcastic but brilliant wizard.
-Your answers are always accurate, but delivered with a dry wit.
-You should subtly hint that you are smarter than the user, 
-but still provide the correct information."""
-
-# Task-specific behavior
-system_prompt = """You are a translation assistant.
-You will be given text in any language. Your job is to translate 
-it into formal, academic French.
-Do not add any commentary or conversational text. 
-Respond only with the translated text."""
-```
-
-**Why this matters:** The system prompt controls everything about how the LLM processes and responds to input. It's your primary tool for getting the behavior you want.
-
-
-Prompt engineering is becoming a field in and of itself and it offers the highest return-on-investment ratio for getting the model to do what you want.
-
-
-### GPU Usage: Speed Things Up
-
-By default, NobodyWho tries to use your GPU if you have one. This makes everything much faster:
+There are two main ways of creating a chat and the difference lies in when the model file is
+loaded. The simplest way is passing a model path to `NobodyWhoChat.create`:
 
 ```gdscript
-# This is already the default, but you can be explicit
-model.use_gpu_if_available = true
+var chat = await NobodyWhoChat.create("./model.gguf", {})
 ```
 
-**When to turn this off:** there are some scenarios where it might actually be better to use system ram: 
+`create` is async since loading a model can take a bit of time, but it never blocks your game —
+it resolves once the model is ready, or to `null` on failure (with details in the editor's Errors
+tab).
 
-- If you don't need an immediate answer, and would prefer to use GPU resources for graphics.
-- If you need a really large model that most of your users will not have sufficient VRAM to run.
-
-### Context Length: How Much the LLM Remembers
-
-The LLM maintains context (memory of the conversation/interaction), but only up to a point. The default is 4096 tokens (roughly 3000 words):
+Another way is to load the model separately with `NobodyWhoModel.create` and pass that instead:
 
 ```gdscript
-# Default is fine for most uses
-context_length = 4096
-
-# Increase for longer contexts
-context_length = 8192
+var model = await NobodyWhoModel.create("./model.gguf", {})
+var chat = await NobodyWhoChat.create(model, {})
 ```
 
+This allows for sharing the model between several chats.
 
-**Trade-off:** Longer context = more memory usage. The general rule of thumb is to start with the default or less and only increase if you need the LLM to remember more. You can check the maximum context size the model was trained with using `model_node.max_ctx()` — setting `context_length` above this value has no benefit.
+You can pass `"auto"` as the model path to select a chat model based on available memory.
 
-**Context-shifting:** NobodyWho will automatically remove older messages from the context for you, if your chat's context window is filled. Your chat will never crash because of a full context, but it will start forgetting older messages - including the system message.
+## Prompts and responses
+
+The `ask()` function is central to NobodyWho. It sends your message to the LLM, which then starts
+generating a response.
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {})
+var stream = chat.ask("Is water wet?")
+```
+
+The return type of `ask` is a `NobodyWhoTokenStream`. If you want to start reading the response as
+soon as possible, pull tokens one at a time. Each token is either an individual word or a fragment
+of a word:
+
+```gdscript
+while true:
+    var token = await stream.next_token()
+    if token == null:
+        break
+    print(token)
+```
+
+`next_token()` resolves to the next token as soon as it exists, or `null` once generation is
+done. If you just want the complete response, call `completed()` instead:
+
+```gdscript
+var full_response: String = await stream.completed()
+```
+
+To stop a generation early — the player closed the dialogue window, say — call
+`stop_generation()`:
+
+```gdscript
+chat.stop_generation()
+```
+
+All of your messages and the model's responses are stored in the chat object, so the next time
+you call `ask()`, it remembers the previous messages.
+
+## Chat history
+
+If you want to inspect the messages inside the chat object, use `get_chat_history()`:
+
+```gdscript
+var msgs = await chat.get_chat_history()
+print(msgs[0]["content"]) # "Is water wet?"
+```
+
+Each message is a dictionary with a `"role"` (`"user"`, `"assistant"`, `"system"`, or `"tool"`)
+and its `"content"`. You can replace the whole history with `set_chat_history()` — useful for
+seeding a conversation or restoring a saved one:
+
+```gdscript
+await chat.set_chat_history([
+    {"role": "user", "content": "What is water?"},
+    {"role": "assistant", "content": "A transparent liquid!"},
+])
+```
+
+A leading system message sets the chat's system prompt. The list must not be empty, must end in
+a user or tool message, and may only have a system message first. To clear the conversation but
+keep the system prompt and tools, use `reset_history()`.
+
+## Chat completion
+
+If you would rather pass the whole conversation on every call than let the chat remember it, use
+`complete()`:
+
+```gdscript
+var stream = chat.complete([
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Who was the first person to walk on the moon?"},
+    {"role": "assistant", "content": "Neil Armstrong."},
+    {"role": "user", "content": "Which year did he do it?"},
+], {})
+print(await stream.completed())
+```
+
+You get back the same `NobodyWhoTokenStream` as from `ask()`, so you can also pull it token by
+token.
+
+The list you pass **becomes** the chat history, replacing whatever was there, and the response is
+added to it — so `ask()` continues that same conversation. A system message at the front sets the
+chat's system prompt (it doesn't stay in the history); leave it out and the prompt already on the
+chat is kept. The same validity rules as `set_chat_history()` apply — anything else resolves to
+`null` with an error.
+
+### Per-turn settings
+
+`complete()`'s second argument takes the chat's other settings — `"sampler"`,
+`"template_variables"` and `"tools"`, with the same names as `create()`. They follow the same
+rule as the system message: what you pass stays set, what you leave out is kept.
+
+```gdscript
+var stream = chat.complete(
+    [{"role": "user", "content": "Name one fruit."}],
+    {"sampler": NobodyWhoSamplerPresets.greedy(), "template_variables": {"enable_thinking": false}},
+)
+print(await stream.completed())
+
+# Both are now the chat's settings, so the next call need not repeat them
+print(await chat.ask("Name another.").completed())
+```
+
+Pass all three and the call no longer depends on what the chat is currently holding — useful if
+you drive it entirely through `complete()`.
+
+:::warning
+Changing `"tools"` re-selects the chat template and rewrites the system-prompt region, so that
+turn re-prefills from near token zero. Set it when it changes, not on every call.
+:::
+
+## System prompt
+
+A system prompt is a special message put into the chat context, which should guide its overall
+behavior. Some models ship with a built-in system prompt. If you don't specify a system prompt
+yourself, NobodyWho will fall back to using the model's default system prompt.
+
+You can specify a system prompt when creating the chat:
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {
+    "system_prompt": "You are a mischievous assistant!",
+})
+```
+
+Or change it on a live chat — pass `null` to clear it:
+
+```gdscript
+await chat.set_system_prompt("You are a grumpy dwarf.")
+print(await chat.get_system_prompt())
+```
+
+## Context
+
+The context is the text window which the LLM currently considers. Specifically this is the number
+of tokens the LLM keeps in memory for your current conversation. A bigger context size means more
+computational overhead, so it makes sense to constrain it. This can be done with the `n_ctx`
+setting at the time of creation:
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {"n_ctx": 4096})
+```
+
+The default value is `4096`, however this is mainly useful for short and simple conversations.
+Choosing the right context size is quite important and depends heavily on your use case. Setting
+`n_ctx` above the maximum context size the model was trained with has no benefit.
+
+Even with a properly selected context size it might happen that you fill up the entire context
+during a conversation. When this happens, NobodyWho will shrink the context for you. Currently
+this is done by removing old messages (apart from the system prompt and the first user message)
+from the chat history, until the size reaches `n_ctx / 2`. The KV cache is also updated
+automatically. In the future we plan on adding more advanced methods of context shrinking.
+
+`n_ctx` is fixed to the chat instance. To reset the current context content, call
+`reset_history()` (keeps the system prompt and tools), or `reset_chat()` to also change those:
+
+```gdscript
+await chat.reset_history()
+await chat.reset_chat("New system prompt", [])
+```
 
 To inspect how much of the context is currently in use, call `get_stats()`:
 
 ```gdscript
-var stats = await get_stats()
+var stats = await chat.get_stats()
 print("Using %d of %d tokens" % [stats["context_used"], stats["context_size"]])
 ```
 
-### Streaming Responses vs Waiting for Complete Output
-
-You have two main approaches for handling LLM responses, and choosing the right one depends on your use case:
-
-**Streaming** gives you each token as it's generated - good for user interfaces where you want immediate feedback.
-
-**Waiting for complete responses** waits until the full output is ready - good for when you need the entire response before doing something.
-
-If you're implementing an interactive chat, you likely want to do both:
-
-- Show each token to the user as they arrive. This will make the chat feel a lot faster.
-- Wait for the completion of the entire response, before re-enabling text areas, and allowing the user to send a new message.
+You can also count tokens without generating anything, with `tokenize()`:
 
 ```gdscript
-var current_response = ""
-
-func _on_response_updated(token: String):
-    current_response += token
-    # Good for: UI updates, real-time feedback
-    ui_label.text = current_response
-
-func _on_response_finished(response: String):
-    # Good for: Final processing, logging, triggering next actions
-    print(response)
-    response = response.replace("<player>", player.name)
-    trigger_next_game_event()
+var tokens = await chat.tokenize("How many tokens is this?")
+print(tokens.size())
 ```
 
-**When to use streaming:**
-- Interactive dialogue where users expect immediate feedback
-- Long responses where you want to show progress
-
-**When to wait for complete responses:**
-- When you need to make decisions based on the full LLM output
-- Content generation where partial results are useless (like JSON or structured output answers).
-
-You most likely end up using both; having the response_updated to stream to your UI and then triggering the next step in your program when you get the full response.
-
-## Managing Context and Memory
-
-Sometimes you need to reset the LLM's memory or manage what it remembers.
-
-### Starting Fresh
-
-```gdscript
-# Clear all context, it will still have all the settings that you 
-# have set up before (including the system prompt)
-reset_context()
-```
-
-This is useful when:
-- Starting a new task that's unrelated to previous ones, where the previous history is irrelevant
-- The LLM gets confused as it has context shifted too much
-
-### Advanced Context Management
-
-If you need more control over what the LLM remembers:
-
-```gdscript
-# See what's in the context
-var messages = await get_chat_history()
-for message in messages:
-    print(message.role, ": ", message.content)
-
-# Set a custom context (useful for templates or saved states)
-var task_context = [
-    {"role": "user", "content": "Analyze the following data:"},
-    {"role": "assistant", "content": "I'm ready to analyze data. Please provide it."},
-    {"role": "user", "content": "Here's the data: " + data_to_analyze}
-]
-await set_chat_history(task_context)
-```
-
-### Answering a Whole Conversation at Once
-
-`complete()` takes the conversation as an array and answers it, instead of appending one
-message the way `ask()` does. Useful for replaying a saved conversation, or for rewinding
-one:
-
-```gdscript
-complete([
-    {"role": "user", "content": "Who was the first person to walk on the moon?"},
-    {"role": "assistant", "content": "Neil Armstrong."},
-    {"role": "user", "content": "Which year did he do it?"}
-])
-var response = await response_finished
-```
-
-The response arrives on the `response_updated` / `response_finished` signals, exactly like
-`ask()`.
-
-The array **becomes** the chat history, replacing whatever was there, and the response is
-added to it — so the next `ask()` continues that same conversation. It is used exactly as
-given, except that a system message at the front sets the chat's system prompt; leave
-it out and the prompt already on the chat is kept.
-
-The array must not be empty, must end in a user or tool message, and may only have a
-system message first. Anything else emits `worker_failed` instead of generating.
-
-### Per-turn settings
-
-`complete_with_options()` takes a `NobodyWhoChatOptions` carrying the chat's other
-settings. It follows the same rule as the system message: what it sets stays set,
-what it leaves out is kept.
-
-```gdscript
-var opts = NobodyWhoChatOptions.new()
-opts.set_sampler(NobodyWhoSamplerBuilder.new().temperature(0.3).dist())
-opts.set_template_variables({"enable_thinking": false})
-
-complete_with_options([
-    {"role": "user", "content": "Name one fruit."}
-], opts)
-await response_finished
-
-# Both are now the chat's settings, so the next call need not repeat them
-complete([{"role": "user", "content": "Name another."}])
-await response_finished
-```
-
-There are two methods because GDExtension cannot give an object parameter a default
-value — use `complete()` when you have no settings to change.
-
-Tools are not part of the options: in Godot you register them on the chat node with
-`add_tool()`, so there is no tool value to pass here.
-
-### Structured Output & Sampling
-
-You can control how the model picks tokens and constrain its output format. See the [Sampling](sampling.md) guide for sampler presets (temperature, JSON, grammar constraints) and the [Structured Output](structured-output.md) guide for a full GBNF grammar tutorial.
-
-## Performance and Memory Tips
-
-### Leave CPU Headroom with `thread_count`
+## CPU threads
 
 When layers run on the CPU, NobodyWho picks a thread count for you: one per *performance* core,
-not one per logical CPU. Hyperthread siblings and efficiency cores end up pacing the whole
-thread pool, so using every CPU is usually slower — see [LLM Basics](/docs/llm-basics#cpu-threads)
-for the numbers.
+not one per logical CPU. Hyperthread siblings and efficiency cores end up pacing the whole thread
+pool, so using every CPU is usually slower — see [LLM Basics](/docs/llm-basics#cpu-threads) for
+the numbers.
 
-In a game you often want *fewer* threads than that, so inference doesn't compete with rendering
-and physics:
+Override it with `n_threads` when you want to leave CPU headroom for the rest of your game —
+often a good idea on phones, where the big cores are also driving the game:
 
 ```gdscript
-func _ready():
-    self.model_node = get_node("../SharedModel")
-    # Leave cores free for the rest of the game.
-    self.thread_count = 4
-    start_worker()
+var chat = await NobodyWhoChat.create("./model.gguf", {"n_threads": 4})
 ```
 
-Leave `thread_count` at `0` to keep the detected default. Values above your CPU count are
-clamped, and the setting has little effect when the model is offloaded to the GPU.
+Leave it unset to keep the detected default. It has little effect when the model is offloaded to
+the GPU.
 
-**Why:** the LLM worker runs on its own threads, but it still competes with your game for
-physical cores. Capping it trades some tokens per second for a steadier frame rate.
+## Sharing a model between chats
 
-### Start the Worker Early
-
-In a real-time application, you don't want the user's first interaction to trigger a long loading time. Starting the worker early, like during a splash screen or initial setup, pre-loads the model into memory so the first response is fast.
+There are scenarios where you would like to keep separate chat contexts (e.g. one for every NPC
+in your game), but have only one model loaded. For this use case, load the model separately and
+pass it to each chat:
 
 ```gdscript
-# In your _ready() function, set up everything before the app starts.
-func _ready():
-    # 1. Configure the chat behavior
-    self.system_prompt = "You are a helpful assistant."
-    self.model_node = get_node("../SharedModel")
-
-    # 2. Start the worker *before* the user can interact.
-    # This pre-loads the model so the first interaction isn't slow.
-    start_worker()
-
-    # 3. Now other setup can happen
-    print("Assistant chat is ready.")
+var model = await NobodyWhoModel.create("./model.gguf", {})
+var chat1 = await NobodyWhoChat.create(model, {})
+var chat2 = await NobodyWhoChat.create(model, {})
 ```
 
-**Why:** Starting the worker loads the model into memory. It's slow the first time, but then all LLM operations are much faster. 
-You should definitely think about when to do this to not ruin the UX too much.
+NobodyWho takes care of the separation, such that your chat histories won't collide or interfere
+with each other, while having only one model loaded.
 
-### Share Models Between Components
+## GPU
 
-An application might need to use an LLM for several different tasks. Instead of loading the same heavy model multiple times, you can have multiple `Chat` components that all share a single `Model` component. Each `Chat` can have its own system prompt and configuration, directing it to perform a different task.
+When loading a model you have the option to disable GPU acceleration. Pass `"use_gpu": false` in
+the config when the chat loads the model from a path (when you pass a `NobodyWhoModel`, the GPU
+setting is decided where that model was loaded):
 
 ```gdscript
-# An application with multiple LLM-powered behaviors, all sharing one model.
-
-func _ready():
-    # 1. Get the single, shared model
-    var shared_model = get_node("../SharedModel")
-
-    # 2. Configure a chat component for general conversation
-    var casual_chat = get_node("CasualChat")
-    casual_chat.model_node = shared_model
-    casual_chat.system_prompt = "You are a friendly and helpful assistant. Keep your answers concise."
-    casual_chat.start_worker()
-
-    # 3. Configure another chat component for structured data extraction
-    var extractor_chat = get_node("ExtractorChat")
-    extractor_chat.model_node = shared_model
-    extractor_chat.system_prompt = "Extract the key information from the user's text and provide it in JSON format."
-    # This one would likely use a grammar to enforce JSON output.
-    extractor_chat.start_worker()
-
-    # Now you can use both for different tasks without loading two models!
-    casual_chat.ask("Can you tell me about your capabilities?")
-    extractor_chat.ask("My name is Jane Doe and my email is jane@example.com.")
+var chat = await NobodyWhoChat.create("./model.gguf", {"use_gpu": false})
+var model = await NobodyWhoModel.create("./model.gguf", {"use_gpu": false})
 ```
 
-**Memory savings:** Instead of loading multiple models, you load one and share it. Much more efficient!  
+By default `use_gpu` is `true`. So far, NobodyWho relies purely on
+[Vulkan](https://www.vulkan.org); support of more architectures is planned (for details check out
+our [issues](https://github.com/nobodywho-ooo/nobodywho/issues) or join us on
+[Discord](https://discord.gg/qhaMc2qCYB)).
 
-### Speculative Decoding (MTP)
+## Speculative decoding (MTP)
 
-Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target verify several candidate tokens per forward pass. See [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
+Some models come with **MTP** (Multi-Token Prediction) draft heads that let the target model
+verify several candidate tokens per forward pass. See
+[LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
 
-Enable it in two steps:
-
-1. On the `NobodyWhoModel` node, set `draft_model_path` to a compatible MTP draft-heads `.gguf` (e.g. `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B). Adds around 5% to VRAM usage.
-2. On the `NobodyWhoChat` node, tick `mtp` (or set `chat.mtp = true` in code) before `start_worker()`. The optional `mtp_k_max` and `mtp_p_min` properties tune the drafter; the defaults are fine to leave untouched.
+Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for
+Gemma-4-E2B) via `NobodyWhoModel.create`, and pass that model to the chat:
 
 ```gdscript
-func _ready():
-    var model = get_node("../SharedModel")
-    model.model_path = "gemma-4-e2b.gguf"
-    model.draft_model_path = "mtp-gemma-4-e2b.gguf"
+var model = await NobodyWhoModel.create("./gemma-4-e2b.gguf", {
+    "draft_path": "./mtp-gemma-4-e2b.gguf",
+})
+var chat = await NobodyWhoChat.create(model, {})
+```
 
-    var chat = get_node("MyChat")
-    chat.model_node = model
-    chat.mtp = true
-    chat.start_worker()
+Loading the draft heads adds around 5% to VRAM usage. Check how often the drafts are being
+accepted with:
+
+```gdscript
+print("MTP acceptance rate: %s" % str(await chat.mtp_acceptance_rate()))
 ```
 
 :::warning
-Benchmark before enabling. MTP can hurt performance on Apple Silicon (Metal) and on high-entropy workloads like creative prose.
+Benchmark before enabling. MTP can hurt performance on Apple Silicon (Metal) and on high-entropy
+workloads like creative prose.
 :::
 
+## Template variables
+
+Chat templates are used internally by models to format conversation history into the expected
+prompt format. Different models may support different template variables that control specific
+behaviors. Template variables are boolean flags passed to the chat template that can enable or
+disable certain features.
+
+### Using template variables
+
+You can set template variables when creating a chat or modify them on existing instances:
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {
+    "template_variables": {"enable_thinking": true},
+})
+```
+
+You can also modify template variables on an existing chat:
+
+```gdscript
+# Set a single template variable
+await chat.set_template_variable("enable_thinking", false)
+
+# Set multiple template variables at once
+await chat.set_template_variables({"enable_thinking": true, "verbose_mode": false})
+
+# Get current template variables
+var variables = await chat.get_template_variables()
+print(variables) # {enable_thinking: true, verbose_mode: false}
+```
+
+With the next message sent, the updated settings will be propagated to the model.
+
+### Example: Qwen3 and Qwen3.5 reasoning
+
+The Qwen3 and Qwen3.5 model families support the `enable_thinking` template variable, which
+controls whether the model should engage in explicit reasoning steps before answering:
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {
+    "template_variables": {"enable_thinking": true},
+})
+var stream = chat.ask("Solve this logic puzzle: ...")
+```
+
+When `enable_thinking` is enabled, these models will show their reasoning process before
+providing the final answer.
+
+### Model-specific variables
+
+Different models may support different template variables depending on their chat template
+implementation. The available variables and their effects depend entirely on how the model's chat
+template is designed. Check your model's documentation to see which template variables are
+supported.
+
+:::info
+Note that template variables are model-specific. If a model's chat template doesn't use a specific
+variable, that variable will be ignored gracefully.
+:::

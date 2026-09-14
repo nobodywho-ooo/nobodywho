@@ -50,7 +50,7 @@ use crate::errors::TextToSpeechError;
 pub use crate::onnx::Device as TextToSpeechDevice;
 pub use kokoro::KokoroConfig;
 pub use pocket::{PocketTtsConfig, PocketTtsPrecision};
-use std::{str::FromStr, sync::mpsc};
+use std::{str::FromStr, sync::mpsc, sync::Arc};
 pub use supertonic::SupertonicConfig;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -135,7 +135,17 @@ type SynthRequest = (
 
 #[derive(Clone)]
 pub struct TextToSpeech {
+    worker: Arc<Worker>,
+}
+
+// Dropped when the last handle drops. Joining matters: otherwise the worker
+// thread may still be dropping the model while the host process (e.g. Godot)
+// unloads this library at exit, which segfaults.
+struct Worker {
+    // Field order is load-bearing: msg_tx drops first, closing the channel
+    // so the worker loop exits; then the join below can complete.
     msg_tx: mpsc::Sender<SynthRequest>,
+    _join: crate::join_on_drop::JoinOnDrop,
 }
 
 impl TextToSpeech {
@@ -149,7 +159,7 @@ impl TextToSpeech {
     ) -> Result<Self, TextToSpeechError> {
         let mut architecture = architecture::load_architecture(config, device)?;
         let (msg_tx, msg_rx) = mpsc::channel::<SynthRequest>();
-        std::thread::spawn(move || {
+        let join = std::thread::spawn(move || {
             while let Ok((text, response_tx)) = msg_rx.recv() {
                 let result = architecture.synthesize(&text);
                 if response_tx.blocking_send(result).is_err() {
@@ -157,7 +167,12 @@ impl TextToSpeech {
                 }
             }
         });
-        Ok(Self { msg_tx })
+        Ok(Self {
+            worker: Arc::new(Worker {
+                msg_tx,
+                _join: crate::join_on_drop::JoinOnDrop::new(join),
+            }),
+        })
     }
 
     fn enqueue(
@@ -166,7 +181,8 @@ impl TextToSpeech {
     ) -> Result<tokio::sync::mpsc::Receiver<Result<Vec<u8>, TextToSpeechError>>, TextToSpeechError>
     {
         let (response_tx, response_rx) = tokio::sync::mpsc::channel(1);
-        self.msg_tx
+        self.worker
+            .msg_tx
             .send((text, response_tx))
             .map_err(|_| TextToSpeechError::WorkerDead)?;
         Ok(response_rx)

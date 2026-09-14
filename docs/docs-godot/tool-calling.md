@@ -1,186 +1,116 @@
-# Tool Calling
-_Triggering actions from within the model._
-
+---
+title: Tool Calling
+description: Let the LLM call your GDScript functions.
+sidebar_position: 2
 ---
 
-Welcome to the tool calling page!
+The LLM can call functions in your game — flip switches, query inventory, run game logic — and
+then reason about the results. You declare tools with `NobodyWhoTool` and hand them to the chat;
+the model decides when to call them.
 
-Now that you have some of the basics understood (if not, please read [Chat](chat.md)), 
-we can move on to adding one of the truly powerful and fun components to our model; Tool/Function Calling.
+## Declaring a tool
 
-Tool calling is a way to give your model actions to perform in your game world.  
+The simplest way is `NobodyWhoTool.create` with one of your methods. The tool's name is the method
+name, and its schema is derived from the parameter **type hints** — so annotate every parameter
+with `int`, `float`, `bool`, `String`, or `Array`:
 
-The model can:
-
-* Check data - "What's my health?"
-* Change the world - "Open the north gate."
-* Run helper logic - damage rolls, crafting math, random loot.
-
-We'll start with a small and simple tool, add arguments, then increase accuracy using schema and adding constraints.
-
-**Note that not all models support tool calling**
-
----
-
-## A simple tool
-
-This is an example of how to give the model access to a function we have created that gets the player's current stats (health, mana, gold).
-
-    
 ```gdscript
-extends NobodyWhoChat
-
-func get_player_stats() -> String:
-    var player = GameManager.get_local_player()
-    return JSON.stringify({
-        "health": player.health,
-        "mana":   player.mana,
-        "gold":   player.gold
-    })
+func get_magic_word(box_name: String) -> String:
+    # your game logic here
+    return "sesame"
 
 func _ready():
-    add_tool(get_player_stats, "Returns the local player's health, mana, and gold.")
+    var tool = NobodyWhoTool.create(get_magic_word, "Gets the magic word for a box.")
+    var chat = await NobodyWhoChat.create("./model.gguf", {"tools": [tool]})
+    var stream = chat.ask("Open the red box using the magic word.")
+    print(await stream.completed())
 ```
 
-Ask "How hurt am I?" - the model calls your tool and answers with real numbers.
+The model asks for the tool with the arguments it wants, NobodyWho calls your method, and the
+return value is fed back so the model can finish its answer.
 
----
+Return values become strings the model sees: `String` values pass through directly, and other
+values are JSON-encoded — a returned Dictionary becomes a JSON object the model can read.
 
+### Async tools
 
-## But I need arguments, you say:
-
-Sure - that is possible, but only primitives are currently implemented in NobodyWho:
-Allowed primitive types: `int`, `float`, `bool`, `String`/`string`, `Array`/`string[]`
-
-Models operate with JSON as an abstract layer instead of using a specific language (like Godot) when calling tools. 
-When NobodyWho receives a function or a delegate it will deconstruct the name and parameters and use them 
-to construct a JSON schema that we can pass to the model.
-
-In the example below the generated json will look something like this:
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "amount": {
-      "type": "integer",
-      "description": ""
-    }
-  },
-  "required": ["amount"]
-}
-```
-
-This is then used to construct a lazy-loadable gbnf grammar, so the models always pass the correct number and set of arguments.
-A limitation of this is that we cannot extract the description from a given argument. 
-Therefore it might be advantageous to write your own schema for maximum precision.
+A tool can also be a coroutine — useful when the action itself has to await something (an
+animation, a signal, another model). Just make the method async:
 
 ```gdscript
-func heal_player(amount: int) -> String:
-    GameManager.get_local_player().heal(amount)
-    return "Healed %d HP" % amount
-
-add_tool(heal_player, "Heals the local player by a number of hit-points")
-```
-*Godot auto-builds the JSON schema from the type hints.*  
-Therefore you must ensure that all parameters are listed and return type is defined from the method.
-
----
-
-
-## Your model is now ready to interact with the world
-
-Have the model open a door.
-
-```gdscript
-func open_door(door_id: String) -> String:
-    DoorManager.open(door_id)
-    return "Opened door %s" % door_id
-
-add_tool(open_door, "Opens a door in the world by id")
-
-chat.ask("can you open the door")
-```
-
-The model will pause any generation until the tool is completed.
-
-
----
-
-## Multiple Tools & Resetting
-
-You can add as many tools as like, but you need to reset the context before they will be taken into account.
-
-```gdscript
-add_tool(get_player_stats, "Player stats")
-add_tool(open_door,        "Open a door")
-reset_context()
-```
-
----
-
-## But I don't want it to hallucinate random strings
-
-Don't worry, we've got you. 
-As I mentioned before, we are using the OpenSchema specification, which goes like this:
-
-```jsonschema
-{
-  "type": "object",
-  "properties": {
-    "color": {
-      "type": "string",
-      "description": "A specific color for the button",
-      "enum": ["red", "blue", "green"]
-    }
-  },
-  "required": ["color"],
-}
-```
-
-The type must always be an `object`, the properties are a dictionary of where the key is the parameter name, and the value describes the data for the parameter. Ie. type determines whether it is a string, a list or something else. Description describes how the parameter is used. 
-
-If the properties are not a part of the `required` list, the model will see them as optional parameter.
-
-```gdscript
-# `press_button_schema` holds the JSON shown above.
 func press_button(color: String) -> String:
-    ButtonManager.press(color)
-    return "Pressed %s button" % color
-
-add_tool_with_schema(press_button,
-                     press_button_schema,
-                     "Press one of the three coloured buttons (red, blue, green)")
+    await get_tree().create_timer(0.5).timeout # let the animation play
+    return "the %s button lit up" % color
 ```
 
-Result: the model **cannot** request any color other than *red*, *blue*, or *green*.  Use the same pattern for item rarities, quest tiers, etc...
+NobodyWho waits for the coroutine to finish and feeds its return value to the model.
 
-**Heads-up** – NobodyWho turns that schema into a GBNF grammar using the open-source [`richardanaya/gbnf`](https://github.com/richardanaya/gbnf) converter.  It currently supports the common bits: primitive types, `enum`, `required`, flat `oneOf`, and simple arrays.  Exotic keywords (`minimum`, `pattern`, deeply-nested refs) may be ignored until the library grows.
+:::warning
+Tool calls have no timeout. A tool must eventually return; otherwise its chat remains blocked and
+its response stream never completes. `stop_generation()` cannot stop a tool that is already
+running.
+:::
 
----
+### Providing a schema manually
 
-A note on descriptions:
+Lambdas have no type hints to infer from, and some schemas need more than hints can express —
+enums, nested objects, parameter descriptions, optional fields. For those, use
+`create_with_schema` with a JSON schema (a Dictionary, or a JSON string):
 
-The description helps the model pick the right tool and pass the right arguments. Be explicit. Explain when to use the tool, explain what the tool does.
-Bad: **"Door"**  
-Good: **"Use this function when the assistant is blocked or needs to close a door. This tool opens or closes the door with the given id, if -1 is given, the nearest door will be interacted with."**
+```gdscript
+var tool = NobodyWhoTool.create_with_schema(
+    "press_button", # tool name, as the model will see it
+    "Press the button of the given color. Returns what happened.",
+    {
+        "type": "object",
+        "properties": {
+            "color": {
+                "type": "string",
+                "enum": ["red", "green", "blue"],
+                "description": "Which button to press.",
+            },
+        },
+        "required": ["color"],
+    },
+    func(color: String) -> String: return "the %s button lit up" % color,
+)
+```
 
----
+The schema's `properties` keys must match the callable's parameter names; missing arguments
+arrive as `null`.
 
 ## Pre-packaged tools
 
-We ship NobodyWho with two packaged-in tools, which are general enough for multiple use-cases - [monty](https://github.com/pydantic/monty) Python interpreter
-and [bashkit](https://github.com/everruns/bashkit) Bash interpreter. Both of them should serve similar purpose - to give your small LLM a better chance to answer
-questions requiring precise reasoning or some kind of computation, possibly on a big context.
+NobodyWho ships two sandboxed interpreter tools that need no game code. The sandbox has **no
+access** to the filesystem, the network, or environment variables:
 
-The usage is straightforward. Use `add_python_tool()` and `add_bash_tool()`:
+- `NobodyWhoTool.python()` — a Python interpreter. Optional limits (0 = no limit):
+  `max_duration_secs`, `max_memory_bytes`, `max_recursion_depth`.
+- `NobodyWhoTool.bash()` — an in-memory bash shell, `max_commands` optional.
 
 ```gdscript
-func _ready():
-    add_python_tool()
-    add_bash_tool()
+var tool = NobodyWhoTool.python()
+var chat = await NobodyWhoChat.create("./model.gguf", {"tools": [tool]})
+var stream = chat.ask("What is 6 times 7? Use the run_python tool to compute it.")
+print(await stream.completed())
 ```
 
-Lastly, keep in mind that for most use-cases it is reasonable to constrain the tools with some limits regarding memory and computation time,
-so that you don't end up executing infinite loop code. To solve this, `add_python_tool()` provides `max_duration_secs`, `max_memory_bytes` and `max_recursion_depth`
-and `add_bash_tool()` provides `max_commands`.
+These are great for "let the model do math" style tasks without writing glue code yourself.
+
+## Tool calling and the context
+
+Tool calls and their results are stored in the chat history, just like normal messages — the
+model remembers what it did. That also means they consume context, so a chatty tool-loop eats
+tokens; see [Chat](./chat#context) for context management.
+
+To change the available tools on a live chat, call `set_tools()`:
+
+```gdscript
+await chat.set_tools([tool1, tool2])
+```
+
+:::info
+A tool that calls **back into its own chat** (asking a question while the chat is waiting for the
+tool to return) can never complete — NobodyWho detects this and fails fast with an error instead
+of hanging. Use a second chat instance if a tool needs model inference.
+:::
