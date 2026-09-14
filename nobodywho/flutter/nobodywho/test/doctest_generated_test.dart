@@ -183,13 +183,13 @@ void main() {
       );
     });
 
-    test('downloading-models.md:37', () async {
+    test('downloading-models.md:40', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: './model.gguf',
       );
     });
 
-    test('downloading-models.md:45', () async {
+    test('downloading-models.md:48', () async {
       final modelPath = await nobodywho.downloadModel(
         modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
         headers: {'Authorization': 'Bearer your_hf_token'},
@@ -198,7 +198,7 @@ void main() {
       final chat = await nobodywho.Chat.fromPath(modelPath: modelPath);
     });
 
-    test('downloading-models.md:62', () async {
+    test('downloading-models.md:65', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: 'huggingface:NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf',
         onDownloadProgress: (downloaded, total) {
@@ -207,7 +207,7 @@ void main() {
       );
     });
 
-    test('downloading-models.md:75', () async {
+    test('downloading-models.md:78', () async {
       final models = nobodywho.getCachedModels();
       for (final (path, size) in models) {
         print('$path: ${size ~/ BigInt.from(1024 * 1024)} MiB');
