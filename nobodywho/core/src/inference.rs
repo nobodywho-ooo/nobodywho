@@ -432,18 +432,18 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         index: usize,
     ) -> Result<(usize, i32), KvCacheConversionError> {
-        let context_size = self.actual_context_size();
-        if context_size <= index as i32 {
+        if self.n_past <= index as i32 {
             return Ok((index, 0));
         }
 
+        let before = self.n_past;
         let seq_rm_success = self
             .ctx
             .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
 
         if seq_rm_success {
             self.n_past = index as i32;
-            Ok((index, context_size - self.n_past))
+            Ok((index, before - self.n_past))
         } else {
             // Partial sequence removal is not supported by this model's memory type
             // (e.g. hybrid models with recurrent components). Fall back to full reset,
@@ -455,7 +455,7 @@ impl<'a> InferenceEngine<'a> {
             );
             self.ctx.clear_kv_cache();
             self.n_past = 0;
-            Ok((0, context_size))
+            Ok((0, before))
         }
     }
 
@@ -469,10 +469,8 @@ impl<'a> InferenceEngine<'a> {
     ) -> Result<TokenizerChunks, ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
             // Clear draft state.
-            //
-            // The parts of the KV cache containing the drafts will be cleared
-            // in `remove_all_tokens_from_index_from_ctx`.
             spec.accept_drafts()?;
+            spec.roll_back_declined_drafts(self.n_past as _)?;
             spec.drafts.clear();
             spec.accepted = 0;
         }

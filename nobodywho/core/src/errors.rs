@@ -1223,6 +1223,9 @@ pub enum ContextSyncError {
 
     #[error("MTP speculative decode call failed: {0}")]
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error(transparent)]
+    Rollback(#[from] RollbackError),
 }
 
 #[derive(Debug, thiserror::Error)]
