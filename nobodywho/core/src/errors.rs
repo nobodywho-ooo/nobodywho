@@ -111,6 +111,9 @@ pub enum LoadModelError {
     ModelChannelError,
     #[error("Failed parsing model path: {0}")]
     FailedParsingModelPath(#[from] nom::Err<nom::error::Error<String>>),
+    #[error("Model download cancelled")]
+    #[diagnostic(code(nobodywho::download_cancelled))]
+    DownloadCancelled,
     #[error("Failed to download model: authentication required")]
     #[diagnostic(
         code(nobodywho::download_unauthorized),
