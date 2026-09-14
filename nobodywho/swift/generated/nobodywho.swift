@@ -2691,6 +2691,21 @@ public func FfiConverterTypeRustVoiceActivityDetection_lower(_ value: RustVoiceA
 public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     
     /**
+     * Constrain output to a grammar, given as either Lark or GBNF.
+     */
+    func constrainWithGrammar(grammar: String)  -> SamplerBuilder
+    
+    /**
+     * Constrain output to a JSON schema, given as a JSON string.
+     */
+    func constrainWithJsonSchema(schema: String)  -> SamplerBuilder
+    
+    /**
+     * Constrain output to a regular expression.
+     */
+    func constrainWithRegex(pattern: String)  -> SamplerBuilder
+    
+    /**
      * Sample from the probability distribution (weighted random selection).
      */
     func dist()  -> SamplerConfig
@@ -2712,14 +2727,15 @@ public protocol SamplerBuilderProtocol: AnyObject, Sendable {
     func dynamicTemperature(temperature: Float, delta: Float, exponent: Float)  -> SamplerBuilder
     
     /**
-     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-     */
-    func grammar(grammar: String, triggerOn: String?, root: String)  -> SamplerBuilder
-    
-    /**
      * Always select the most probable token (deterministic).
      */
     func greedy()  -> SamplerConfig
+    
+    /**
+     * Constrain output to a JSON object of any shape. Use
+     * `constrain_with_json_schema()` to pin down the structure too.
+     */
+    func json()  -> SamplerBuilder
     
     /**
      * Modify the likelihood of specific tokens.
@@ -2852,6 +2868,42 @@ public convenience init() {
 
     
     /**
+     * Constrain output to a grammar, given as either Lark or GBNF.
+     */
+open func constrainWithGrammar(grammar: String) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_grammar(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(grammar),$0
+    )
+})
+}
+    
+    /**
+     * Constrain output to a JSON schema, given as a JSON string.
+     */
+open func constrainWithJsonSchema(schema: String) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_json_schema(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(schema),$0
+    )
+})
+}
+    
+    /**
+     * Constrain output to a regular expression.
+     */
+open func constrainWithRegex(pattern: String) -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_regex(
+            self.uniffiCloneHandle(),
+        FfiConverterString.lower(pattern),$0
+    )
+})
+}
+    
+    /**
      * Sample from the probability distribution (weighted random selection).
      */
 open func dist() -> SamplerConfig  {
@@ -2899,25 +2951,23 @@ open func dynamicTemperature(temperature: Float, delta: Float, exponent: Float) 
 }
     
     /**
-     * Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-     */
-open func grammar(grammar: String, triggerOn: String?, root: String) -> SamplerBuilder  {
-    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
-    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(
-            self.uniffiCloneHandle(),
-        FfiConverterString.lower(grammar),
-        FfiConverterOptionString.lower(triggerOn),
-        FfiConverterString.lower(root),$0
-    )
-})
-}
-    
-    /**
      * Always select the most probable token (deterministic).
      */
 open func greedy() -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Constrain output to a JSON object of any shape. Use
+     * `constrain_with_json_schema()` to pin down the structure too.
+     */
+open func json() -> SamplerBuilder  {
+    return try!  FfiConverterTypeSamplerBuilder_lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_samplerbuilder_json(
             self.uniffiCloneHandle(),$0
     )
 })
@@ -5264,16 +5314,6 @@ public func samplerPresetDry() -> SamplerConfig  {
 })
 }
 /**
- * Create a sampler with a custom grammar constraint.
- */
-public func samplerPresetGrammar(grammar: String) -> SamplerConfig  {
-    return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
-    uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(
-        FfiConverterString.lower(grammar),$0
-    )
-})
-}
-/**
  * Create a greedy sampler (always picks most probable token).
  */
 public func samplerPresetGreedy() -> SamplerConfig  {
@@ -5282,6 +5322,9 @@ public func samplerPresetGreedy() -> SamplerConfig  {
     )
 })
 }
+/**
+ * Constrain output to a JSON object of any shape.
+ */
 public func samplerPresetJson() -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_func_sampler_preset_json($0
@@ -5299,7 +5342,7 @@ public func samplerPresetTemperature(temperature: Float) -> SamplerConfig  {
 })
 }
 /**
- * Create a sampler with top-k filtering only.
+ * Create a sampler with the default steps, but top-k overridden.
  */
 public func samplerPresetTopK(topK: Int32) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
@@ -5309,7 +5352,7 @@ public func samplerPresetTopK(topK: Int32) -> SamplerConfig  {
 })
 }
 /**
- * Create a sampler with nucleus (top-p) sampling.
+ * Create a sampler with the default steps, but nucleus (top-p) overridden.
  */
 public func samplerPresetTopP(topP: Float) -> SamplerConfig  {
     return try!  FfiConverterTypeSamplerConfig_lift(try! rustCall() {
@@ -5370,22 +5413,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry() != 55378) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar() != 29288) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy() != 13219) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 8103) {
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_json() != 42303) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_temperature() != 64803) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 44137) {
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_k() != 56996) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 54893) {
+    if (uniffi_nobodywho_uniffi_checksum_func_sampler_preset_top_p() != 22588) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_ask() != 53575) {
@@ -5505,6 +5545,15 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() != 39967) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar() != 36786) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema() != 45268) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex() != 1166) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() != 23376) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -5514,10 +5563,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature() != 5004) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar() != 3547) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() != 32898) {
+    if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() != 18949) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() != 61844) {

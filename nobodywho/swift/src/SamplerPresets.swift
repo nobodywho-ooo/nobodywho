@@ -3,6 +3,10 @@ import NobodyWhoGenerated
 
 /// Static factory methods for common sampler configurations.
 ///
+/// Every preset builds on `default()` and adds its own step on top, replacing the
+/// default step of the same kind if there is one. `greedy()` is the exception: it
+/// always picks the most probable token, so it needs no steps.
+///
 /// ```swift
 /// let chat = try await Chat.fromPath(
 ///     modelPath: "model.gguf",
@@ -28,7 +32,4 @@ public enum SamplerPresets {
 
     @available(*, deprecated, message: "Use constrainWithJsonSchema() for JSON output or constrainWithGrammar() for custom grammars")
     public static func json() -> SamplerConfig { samplerPresetJson() }
-
-    @available(*, deprecated, message: "Use constrainWithGrammar() instead — it accepts both Lark and GBNF")
-    public static func grammar(_ grammar: String) -> SamplerConfig { samplerPresetGrammar(grammar: grammar) }
 }

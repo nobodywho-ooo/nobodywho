@@ -457,6 +457,19 @@ abstract class RustVoiceActivityDetection implements RustOpaqueInterface {
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SamplerBuilder>>
 abstract class SamplerBuilder implements RustOpaqueInterface {
+  /// Constrain output to a grammar, given as either Lark or GBNF.
+  SamplerBuilder constrainWithGrammar({required String grammar});
+
+  /// Constrain output to a JSON schema, given as a JSON string.
+  ///
+  /// Constraining steps always run before the other shift steps, wherever you
+  /// chain them: a grammar that runs after truncation can find none of the
+  /// surviving candidates valid, which aborts generation.
+  SamplerBuilder constrainWithJsonSchema({required String schema});
+
+  /// Constrain output to a regular expression.
+  SamplerBuilder constrainWithRegex({required String pattern});
+
   /// Sample from the probability distribution (weighted random selection).
   ///
   /// Returns:
@@ -492,18 +505,15 @@ abstract class SamplerBuilder implements RustOpaqueInterface {
     required double exponent,
   });
 
-  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-  SamplerBuilder grammar({
-    required String grammar,
-    String? triggerOn,
-    required String root,
-  });
-
   /// Always select the most probable token (deterministic).
   ///
   /// Returns:
   ///     A complete SamplerConfig ready to use
   SamplerConfig greedy();
+
+  /// Constrain output to a JSON object of any shape. For schema-validated
+  /// JSON, use `constrainWithJsonSchema()` instead.
+  SamplerBuilder json();
 
   /// Modify the likelihood of specific tokens.
   ///
@@ -658,10 +668,6 @@ abstract class SamplerPresets implements RustOpaqueInterface {
   /// Create a DRY sampler preset to reduce repetition.
   static SamplerConfig dry() => NobodyWho.instance.api.crateSamplerPresetsDry();
 
-  /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
-  static SamplerConfig grammar({required String grammar}) =>
-      NobodyWho.instance.api.crateSamplerPresetsGrammar(grammar: grammar);
-
   /// Create a greedy sampler (always picks most probable token).
   static SamplerConfig greedy() =>
       NobodyWho.instance.api.crateSamplerPresetsGreedy();
@@ -679,14 +685,14 @@ abstract class SamplerPresets implements RustOpaqueInterface {
       .api
       .crateSamplerPresetsTemperature(temperature: temperature);
 
-  /// Create a sampler with top-k filtering only.
+  /// Create a sampler with the default steps, but top-k overridden.
   ///
   /// Args:
   ///     top_k: Number of top tokens to keep
   static SamplerConfig topK({required int topK}) =>
       NobodyWho.instance.api.crateSamplerPresetsTopK(topK: topK);
 
-  /// Create a sampler with nucleus (top-p) sampling.
+  /// Create a sampler with the default steps, but nucleus (top-p) overridden.
   ///
   /// Args:
   ///     top_p: Cumulative probability threshold (0.0 to 1.0)

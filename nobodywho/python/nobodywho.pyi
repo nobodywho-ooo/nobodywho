@@ -938,6 +938,31 @@ class SamplerBuilder:
         """
         Create a new SamplerBuilder to construct a custom sampler chain.
         """
+    def constrain_with_grammar(self, /, grammar: str) -> SamplerBuilder:
+        """
+        Constrain output to a grammar, given as either Lark or GBNF.
+
+        Args:
+            grammar: Grammar string in Lark or GBNF syntax
+        """
+    def constrain_with_json_schema(self, /, schema: str | dict) -> SamplerBuilder:
+        """
+        Constrain output to a JSON schema.
+
+        Constraining steps always run before the other shift steps, wherever you
+        chain them: a grammar that runs after truncation can find none of the
+        surviving candidates valid, which aborts generation.
+
+        Args:
+            schema: JSON schema as a dict or a JSON string
+        """
+    def constrain_with_regex(self, /, pattern: str) -> SamplerBuilder:
+        """
+        Constrain output to a regular expression.
+
+        Args:
+            pattern: Regular expression pattern
+        """
     def dist(self, /) -> SamplerConfig:
         """
         Sample from the probability distribution (weighted random selection).
@@ -976,26 +1001,17 @@ class SamplerBuilder:
             delta: Dynamic temperature range. The final temperature will be in the range of `[temperature - delta; temperature + delta]`.
             exponent: Temperature is calculated as `entropy^exponent` (bounded by the range above)
         """
-    def grammar(
-        self, /, grammar: str, trigger_on: str | None, root: str
-    ) -> SamplerBuilder:
-        """
-        Apply a GBNF grammar constraint to enforce structured output.
-
-        Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-
-        Args:
-            grammar: Grammar specification in GBNF format (GGML BNF, a variant of BNF used by llama.cpp)
-            trigger_on: Optional string that, when generated, activates the grammar constraint.
-                        Useful for letting the model generate free-form text until a specific marker.
-            root: Name of the root grammar rule to start parsing from
-        """
     def greedy(self, /) -> SamplerConfig:
         """
         Always select the most probable token (deterministic).
 
         Returns:
             A complete SamplerConfig ready to use
+        """
+    def json(self, /) -> SamplerBuilder:
+        """
+        Constrain output to a JSON object of any shape. For schema-validated
+        JSON, use `constrain_with_json_schema()` instead.
         """
     def logit_bias(self, /, biases: dict[int, float]) -> SamplerBuilder:
         """
@@ -1157,6 +1173,10 @@ class SamplerPresets:
     `SamplerPresets` is a static class which contains a bunch of functions to easily create a
     `SamplerConfig` from some pre-defined sampler chain.
     E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
+
+    Every preset builds on `SamplerPresets.default()` and adds its own step on top, replacing
+    the default step of the same kind if there is one. `greedy()` is the exception: it always
+    picks the most probable token, so it needs no steps.
     """
     @staticmethod
     def constrain_with_grammar(grammar: str) -> SamplerConfig:
@@ -1193,11 +1213,6 @@ class SamplerPresets:
         Create a DRY sampler preset to reduce repetition.
         """
     @staticmethod
-    def grammar(grammar: str) -> SamplerConfig:
-        """
-        Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-        """
-    @staticmethod
     def greedy() -> SamplerConfig:
         """
         Create a greedy sampler (always picks most probable token).
@@ -1205,7 +1220,7 @@ class SamplerPresets:
     @staticmethod
     def json() -> SamplerConfig:
         """
-        Create a sampler that constrains output to valid JSON (any structure) using GBNF.
+        Create a sampler that constrains output to a JSON object of any shape.
 
         For schema-validated JSON, use `constrain_with_json_schema()` instead.
         """
@@ -1220,7 +1235,7 @@ class SamplerPresets:
     @staticmethod
     def top_k(top_k: int) -> SamplerConfig:
         """
-        Create a sampler with top-k filtering only.
+        Create a sampler with the default steps, but top-k overridden.
 
         Args:
             top_k: Number of top tokens to keep
@@ -1228,7 +1243,7 @@ class SamplerPresets:
     @staticmethod
     def top_p(top_p: float) -> SamplerConfig:
         """
-        Create a sampler with nucleus (top-p) sampling.
+        Create a sampler with the default steps, but nucleus (top-p) overridden.
 
         Args:
             top_p: Cumulative probability threshold (0.0 to 1.0)

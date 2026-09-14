@@ -1776,7 +1776,7 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::greedy());
     }
 
-    /// Sets the sampler to use top-k sampling.
+    /// Sets the sampler to the default preset, but with top-k overridden.
     /// Only considers the k most likely tokens at each step.
     /// Lower values (e.g., 10-40) make output more focused, higher values more diverse.
     #[func]
@@ -1784,7 +1784,7 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::top_k(k));
     }
 
-    /// Sets the sampler to use top-p (nucleus) sampling.
+    /// Sets the sampler to the default preset, but with top-p (nucleus) overridden.
     /// Considers tokens until their cumulative probability reaches p.
     /// Values like 0.9-0.95 provide a good balance between coherence and creativity.
     #[func]
@@ -1792,7 +1792,7 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::top_p(p));
     }
 
-    /// Sets the sampler to use temperature-based sampling.
+    /// Sets the sampler to the default preset, but with temperature overridden.
     /// Higher values (e.g., 0.8-1.2) increase randomness and creativity.
     /// Lower values (e.g., 0.2-0.5) make output more focused and deterministic.
     #[func]
@@ -1800,7 +1800,7 @@ impl NobodyWhoChat {
         self.set_sampler_preset_impl(SamplerPresets::temperature(temperature));
     }
 
-    /// Sets the sampler to use DRY (Don't Repeat Yourself) sampling.
+    /// Adds DRY (Don't Repeat Yourself) sampling on top of the default preset.
     /// Helps reduce repetitive text by penalizing recently generated tokens.
     /// Useful for longer text generation where repetition is undesirable.
     #[func]
@@ -1809,6 +1809,7 @@ impl NobodyWhoChat {
     }
 
     /// Constrains the model output to a JSON schema via llguidance.
+    /// The default sampling parameters still apply.
     ///
     /// Prefer this over set_sampler_preset_json for new code.
     #[func]
@@ -1819,6 +1820,7 @@ impl NobodyWhoChat {
     }
 
     /// Constrains the model output to a regular expression via llguidance.
+    /// The default sampling parameters still apply.
     #[func]
     fn set_sampler_preset_constrain_with_regex(&mut self, pattern: String) {
         self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_regex(
@@ -1827,6 +1829,7 @@ impl NobodyWhoChat {
     }
 
     /// Constrains the model output using a Lark context-free grammar via llguidance.
+    /// The default sampling parameters still apply.
     #[func]
     fn set_sampler_preset_constrain_with_grammar(&mut self, grammar: String) {
         self.set_sampler_preset_impl(nobodywho::sampler::SamplerPresets::constrain_with_grammar(
@@ -1834,20 +1837,14 @@ impl NobodyWhoChat {
         ));
     }
 
-    /// Constrain output to valid JSON (any structure) using GBNF.
+    /// Constrain output to a JSON object of any shape.
+    /// The default sampling parameters still apply.
     ///
     /// For schema-validated JSON, use set_sampler_preset_constrain_with_json_schema() instead.
     #[func]
     #[allow(deprecated)]
     fn set_sampler_preset_json(&mut self) {
         self.set_sampler_preset_impl(SamplerPresets::json());
-    }
-
-    /// Deprecated: Use set_sampler_preset_constrain_with_grammar() instead.
-    #[func]
-    #[deprecated(note = "Use set_sampler_preset_constrain_with_grammar() instead")]
-    fn set_sampler_preset_grammar(&mut self, grammar: String) {
-        self.set_sampler_preset_impl(SamplerPresets::grammar(grammar));
     }
 
     /// Sets a custom sampler configuration built with `NobodyWhoSamplerBuilder`.
@@ -2060,6 +2057,39 @@ impl NobodyWhoSamplerBuilder {
             .inner
             .clone()
             .shift(ShiftStep::Temperature { temperature });
+        self.to_gd()
+    }
+
+    /// Constrain output to a JSON schema, given as a JSON string.
+    ///
+    /// Constraining steps always run before the other shift steps, wherever you
+    /// chain them: a grammar that runs after truncation can find none of the
+    /// surviving candidates valid, which aborts generation.
+    #[func]
+    fn constrain_with_json_schema(&mut self, schema: String) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().constrain_with_json_schema(schema);
+        self.to_gd()
+    }
+
+    /// Constrain output to a regular expression.
+    #[func]
+    fn constrain_with_regex(&mut self, pattern: String) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().constrain_with_regex(pattern);
+        self.to_gd()
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    #[func]
+    fn constrain_with_grammar(&mut self, grammar: String) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().constrain_with_grammar(grammar);
+        self.to_gd()
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrain_with_json_schema()` instead.
+    #[func]
+    fn json(&mut self) -> Gd<NobodyWhoSamplerBuilder> {
+        self.inner = self.inner.clone().json();
         self.to_gd()
     }
 

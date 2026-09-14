@@ -1502,21 +1502,41 @@ impl SamplerBuilder {
         )
     }
 
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
+    /// Constrain output to a JSON schema, given as a JSON string.
+    ///
+    /// Constraining steps always run before the other shift steps, wherever you
+    /// chain them: a grammar that runs after truncation can find none of the
+    /// surviving candidates valid, which aborts generation.
     #[flutter_rust_bridge::frb(sync)]
-    #[deprecated(
-        note = "Use SamplerPresets.constrainWithGrammar() instead. It accepts both Lark and GBNF strings."
-    )]
-    #[allow(deprecated)]
-    pub fn grammar(&self, grammar: String, trigger_on: Option<String>, root: String) -> Self {
-        shift_step(
-            self.clone(),
-            nobodywho::sampler::ShiftStep::Grammar {
-                grammar,
-                trigger_on,
-                root,
-            },
-        )
+    pub fn constrain_with_json_schema(&self, schema: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_json_schema(schema),
+        }
+    }
+
+    /// Constrain output to a regular expression.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_regex(&self, pattern: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_regex(pattern),
+        }
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn constrain_with_grammar(&self, grammar: String) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().constrain_with_grammar(grammar),
+        }
+    }
+
+    /// Constrain output to a JSON object of any shape. For schema-validated
+    /// JSON, use `constrainWithJsonSchema()` instead.
+    #[flutter_rust_bridge::frb(sync)]
+    pub fn json(&self) -> Self {
+        SamplerBuilder {
+            inner: self.inner.clone().json(),
+        }
     }
 
     /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
@@ -1677,6 +1697,10 @@ impl SamplerBuilder {
 /// `SamplerPresets` is a static class which contains a bunch of functions to easily create a
 /// `SamplerConfig` from some pre-defined sampler chain.
 /// E.g. `SamplerPresets.temperature(0.8)` will return a `SamplerConfig` with temperature=0.8.
+///
+/// Every preset builds on `SamplerPresets.defaultSampler()` and adds its own step on top,
+/// replacing the default step of the same kind if there is one. `greedy()` is the exception:
+/// it always picks the most probable token, so it needs no steps.
 #[flutter_rust_bridge::frb(opaque)]
 pub struct SamplerPresets {
     _private: (),
@@ -1691,7 +1715,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with top-k filtering only.
+    /// Create a sampler with the default steps, but top-k overridden.
     ///
     /// Args:
     ///     top_k: Number of top tokens to keep
@@ -1702,7 +1726,7 @@ impl SamplerPresets {
         }
     }
 
-    /// Create a sampler with nucleus (top-p) sampling.
+    /// Create a sampler with the default steps, but nucleus (top-p) overridden.
     ///
     /// Args:
     ///     top_p: Cumulative probability threshold (0.0 to 1.0)
@@ -1770,16 +1794,6 @@ impl SamplerPresets {
     pub fn json() -> SamplerConfig {
         SamplerConfig {
             sampler_config: nobodywho::sampler::SamplerPresets::json(),
-        }
-    }
-
-    /// Deprecated: Use `SamplerPresets.constrain_with_grammar()` instead.
-    #[flutter_rust_bridge::frb(sync)]
-    #[deprecated(note = "Use SamplerPresets.constrain_with_grammar() instead")]
-    #[allow(deprecated)]
-    pub fn grammar(grammar: String) -> SamplerConfig {
-        SamplerConfig {
-            sampler_config: nobodywho::sampler::SamplerPresets::grammar(grammar),
         }
     }
 }

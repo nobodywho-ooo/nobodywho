@@ -51,7 +51,7 @@ ws01 ::= ([ \\t\\n])?
 	"""
 	chat.start_worker()
 	await chat.worker_started
-	chat.set_sampler_preset_grammar(gbnf_grammar)
+	chat.set_sampler_preset_constrain_with_grammar(gbnf_grammar)
 
 	var result = await test_json_output()
 	return true
