@@ -496,18 +496,21 @@ impl<'a> InferenceEngine<'a> {
         Ok(target)
     }
 
-    /// The context size including drafts.
-    pub(crate) fn actual_context_size(&self) -> i32 {
-        let in_progress_drafts = if let EngineContext::Speculative(spec) = &self.ctx {
+    fn in_progress_drafts(&self) -> i32 {
+        if let EngineContext::Speculative(spec) = &self.ctx {
             (spec.drafts.len() - spec.accepted) as i32
         } else {
             0
-        };
-        self.n_past + in_progress_drafts
+        }
+    }
+
+    /// The context size including drafts.
+    pub(crate) fn actual_context_size(&self) -> i32 {
+        self.n_past + self.in_progress_drafts()
     }
 
     pub(crate) fn is_context_full(&self) -> bool {
-        self.actual_context_size() == self.ctx.n_ctx() as i32
+        self.actual_context_size() >= self.ctx.n_ctx() as i32
     }
 
     pub(crate) fn tokenize(
