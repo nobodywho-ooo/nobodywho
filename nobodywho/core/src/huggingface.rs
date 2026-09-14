@@ -495,6 +495,8 @@ pub(crate) struct LlamaCppUrl {
     owner: String,
     /// The repo name without the `-GGUF` suffix, which is added back in `resolve_source`.
     repo: String,
+    /// The GGUF suffix of the repo. We store it to remember capitalization.
+    gguf: String,
     quantization: String,
 }
 
@@ -503,12 +505,13 @@ impl LlamaCppUrl {
         let Self {
             owner,
             repo,
+            gguf,
             quantization,
         } = self;
         // In the models Llama CPP supports with this format, the repo name always ends with `-GGUF`,
         // but that was removed during parsing.
         let filename = format!("{repo}-{quantization}.gguf");
-        let repo = format!("{repo}-GGUF");
+        let repo = format!("{repo}{gguf}");
         GgufSource::HuggingFace {
             repo: HfRepo::main(owner, repo),
             filename,
@@ -528,6 +531,7 @@ pub(crate) enum ParsedModelPath {
 pub(crate) fn parse_model_path(
     model_path: &str,
 ) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
+    const GGUF_SUFFIX_LOWER_CASE: &str = "-gguf";
     let mut parser = alt((
         // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
         map(
@@ -560,17 +564,18 @@ pub(crate) fn parse_model_path(
                     tag("/"),
                 ),
                 terminated(
-                    verify(take_until("-GGUF:"), |s: &str| {
-                        !s.is_empty() && !s.contains('/')
+                    verify(take_until(":"), |s: &str| {
+                        s.to_lowercase().ends_with(GGUF_SUFFIX_LOWER_CASE) && !s.contains('/')
                     }),
-                    tag("-GGUF:"),
+                    tag(":"),
                 ),
                 verify(rest, |s: &str| !s.is_empty() && !s.contains('/')),
             ),
             |(owner, repo, quantization): (&str, &str, &str)| {
                 ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
                     owner: owner.into(),
-                    repo: repo.into(),
+                    repo: repo[..repo.len() - GGUF_SUFFIX_LOWER_CASE.len()].into(),
+                    gguf: repo[repo.len() - GGUF_SUFFIX_LOWER_CASE.len()..].into(),
                     quantization: quantization.into(),
                 })
             },
@@ -994,13 +999,15 @@ mod tests {
         let ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
             owner,
             repo,
+            gguf,
             quantization,
-        }) = parse_model_path("owner/repo-GGUF:quantization").unwrap()
+        }) = parse_model_path("owner/repo-GGuF:quantization").unwrap()
         else {
             panic!("expected LlamaCppUrl");
         };
         assert_eq!(owner, "owner");
         assert_eq!(repo, "repo");
+        assert_eq!(gguf, "-GGuF");
         assert_eq!(quantization, "quantization");
     }
 
@@ -1038,6 +1045,10 @@ mod tests {
         (
             "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF:UD-IQ3_XXS",
             "https://huggingface.co/peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF/resolve/main/Tiel-Coder-35B-A3B-UD-IQ3_XXS.gguf"
+        ),
+        (
+            "microsoft/Phi-3-mini-4k-instruct-gguf:q4",
+            "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf"
         )];
 
         for (input, expected_url) in cases {
