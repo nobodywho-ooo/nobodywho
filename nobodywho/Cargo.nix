@@ -10467,7 +10467,7 @@ rec {
           {
             name = "pyo3";
             packageId = "pyo3";
-            features = [ "abi3-py39" "experimental-async" "experimental-inspect" "extension-module" ];
+            features = [ "abi3-py39" "experimental-async" "experimental-inspect" ];
           }
           {
             name = "pyo3-async-runtimes";
@@ -10508,12 +10508,6 @@ rec {
           {
             name = "tracing-subscriber";
             packageId = "tracing-subscriber";
-          }
-        ];
-        buildDependencies = [
-          {
-            name = "pyo3-build-config";
-            packageId = "pyo3-build-config";
           }
         ];
 
@@ -12492,7 +12486,7 @@ rec {
           "time" = [ "dep:time" ];
           "uuid" = [ "dep:uuid" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" "experimental-async" "experimental-inspect" "extension-module" "macros" "pyo3-macros" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" "experimental-async" "experimental-inspect" "macros" "pyo3-macros" ];
       };
       "pyo3-async-runtimes" = rec {
         crateName = "pyo3-async-runtimes";
@@ -12610,7 +12604,7 @@ rec {
         ];
         features = {
         };
-        resolvedDefaultFeatures = [ "default" "extension-module" ];
+        resolvedDefaultFeatures = [ "default" ];
       };
       "pyo3-ffi" = rec {
         crateName = "pyo3-ffi";
@@ -12647,7 +12641,7 @@ rec {
           "extension-module" = [ "pyo3-build-config/extension-module" ];
           "generate-import-lib" = [ "pyo3-build-config/generate-import-lib" ];
         };
-        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" "extension-module" ];
+        resolvedDefaultFeatures = [ "abi3" "abi3-py310" "abi3-py311" "abi3-py312" "abi3-py313" "abi3-py314" "abi3-py315" "abi3-py39" "default" ];
       };
       "pyo3-introspection" = rec {
         crateName = "pyo3-introspection";

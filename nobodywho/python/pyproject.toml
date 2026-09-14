@@ -16,10 +16,7 @@ dependencies = [
     "sounddevice>=0.5.5",
 ]
 
-
 [tool.maturin]
-# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
-features = ["pyo3/extension-module"]
 module-name = "nobodywho"
 
 [tool.uv]
