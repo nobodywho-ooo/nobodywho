@@ -4,6 +4,7 @@ import ai.nobodywho.Chat
 import ai.nobodywho.Message
 import ai.nobodywho.Model
 import ai.nobodywho.Tool
+import ai.nobodywho.text
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.toList
@@ -72,6 +73,6 @@ class DeviceInferenceTest {
         chat.ask("Ping the server").completed()
         val toolResponse = chat.getChatHistory().firstOrNull { it is Message.Tool }
         assertNotNull("Expected a tool response in chat history", toolResponse)
-        assertEquals("pong", (toolResponse as Message.Tool).content)
+        assertEquals("pong", (toolResponse as Message.Tool).content.text)
     }
 }
