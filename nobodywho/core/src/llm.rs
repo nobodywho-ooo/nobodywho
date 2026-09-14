@@ -13,13 +13,12 @@ use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPo
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeParams};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
-use tracing::{debug, error, info, info_span, warn};
+use tracing::{error, info, info_span, warn};
 
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
 // `nobodywho::llm::*`. The implementations now live in `crate::huggingface`.
@@ -320,28 +319,6 @@ pub fn download_model_cancellable(
     )
 }
 
-fn read_add_bos_metadata(model: &LlamaModel) -> Result<AddBos, InitWorkerError> {
-    match model.meta_val_str("tokenizer.ggml.add_bos_token") {
-        Ok(val) => match val.as_str() {
-            "true" => Ok(AddBos::Always),
-            "false" => Ok(AddBos::Never),
-            _ => Err(InitWorkerError::InvalidAddBosData(format!(
-                "Invalid boolean value for tokenizer.ggml.add_bos_token: '{}'",
-                val,
-            ))),
-        },
-        Err(_) => {
-            // Defaulting to true seems to be "safer" than defaulting to false
-            // the GGUF files for the gpt-oss models (at least ones that I have seen in the wild)
-            // don't have the add_bos metadata field, and have a massive aneurysm if they don't
-            // get the bos.
-            // could it be that omitting bos generally does more damage than including it?
-            warn!("tokenizer.ggml.add_bos_token not found in GGUF metadata, defaulting to true");
-            Ok(AddBos::Always)
-        }
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct Worker<'a, S> {
     pub(crate) engine: InferenceEngine<'a>,
@@ -468,10 +445,7 @@ where
             EngineContext::Solo(ctx)
         };
 
-        let add_bos = read_add_bos_metadata(&model.language_model)?;
-        debug!(?add_bos, "Read add_bos from GGUF metadata:");
-
-        let tokenizer = Tokenizer::new(&model.language_model, projection_model, add_bos);
+        let tokenizer = Tokenizer::new(&model.language_model, projection_model);
 
         let engine = InferenceEngine::new(
             engine_ctx,
