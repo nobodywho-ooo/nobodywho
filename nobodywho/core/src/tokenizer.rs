@@ -364,18 +364,12 @@ impl ProjectionModel {
 pub struct Tokenizer<'a> {
     model: &'a LlamaModel,
     projection_model: Option<&'a ProjectionModel>,
-    add_bos: AddBos,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(
-        model: &'a LlamaModel,
-        projection_model: Option<&'a ProjectionModel>,
-        add_bos: AddBos,
-    ) -> Self {
+    pub fn new(model: &'a LlamaModel, projection_model: Option<&'a ProjectionModel>) -> Self {
         Self {
             projection_model,
-            add_bos,
             model,
         }
     }
@@ -420,8 +414,10 @@ impl<'a> Tokenizer<'a> {
                 self.model
                     .str_to_token(
                         split,
+                        // NOTE: Renamed to `add_special` in llama.cpp, the
+                        // model keeps track of whether BOS tokens make sense.
                         if idx == 0 {
-                            self.add_bos
+                            AddBos::Always
                         } else {
                             AddBos::Never
                         },
