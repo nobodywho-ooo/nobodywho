@@ -906,6 +906,7 @@ pub enum WrappedResponseError {
     Shift(#[from] ShiftError),
 
     #[error("Error rendering chat history with chat template: {0}")]
+    #[diagnostic(transparent)]
     Render(#[from] RenderError),
 
     #[error("Error removing tokens not present in the common prefix: {0}")]
@@ -1019,6 +1020,7 @@ pub enum SayError {
     Response(#[from] std::sync::mpsc::RecvError),
 
     #[error("Error finding token difference: {0}")]
+    #[diagnostic(transparent)]
     Render(#[from] RenderError),
 
     #[error("Error creating response: {0}")]
@@ -1072,15 +1074,8 @@ pub enum InvalidHistoryError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompleteError {
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    InvalidHistory(#[from] InvalidHistoryError),
-
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
-
-    #[error("Could not render the conversation: {0}")]
-    Render(#[from] RenderError),
 
     /// Rendered rather than typed: the underlying `ChatWorkerError` is
     /// crate-private, and nothing branches on this.
@@ -1189,6 +1184,7 @@ pub enum ContextSyncError {
     StringToToken(#[from] llama_cpp_2::StringToTokenError),
 
     #[error("Could not render messages {0}")]
+    #[diagnostic(transparent)]
     TemplateRender(#[from] RenderError),
 
     #[error("Error reading token render into model {0}")]
@@ -1201,25 +1197,23 @@ pub enum ContextSyncError {
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
-    #[error(transparent)]
-    InvalidHistory(#[from] InvalidHistoryError),
-
     #[error("Error shifting context: {0}")]
     #[diagnostic(transparent)]
     Shift(#[from] ShiftError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum RenderError {
     #[error("Template failed to render: {0}")]
     MiniJinja(#[from] minijinja::Error),
 
-    /// This chat template has no system role, so the system prompt is folded into
-    /// the first user message instead. A system message further into the
-    /// conversation has nowhere to be folded.
-    #[error(
-        "This chat template does not support the system role, so only a leading system message \
-         can be rendered. Move the instruction into the system prompt or into a user message."
+    #[error("This chat template only supports a system message at the front")]
+    #[diagnostic(
+        code(nobodywho::inline_system_message_unsupported),
+        help(
+            "Only a leading system message can be rendered with this chat template. Move the \
+             instruction into the system prompt, or into the user message it applies to."
+        )
     )]
     InlineSystemMessageUnsupported,
 

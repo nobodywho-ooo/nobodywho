@@ -191,8 +191,9 @@ given, except that a system message at the front sets the chat's system prompt; 
 it out and the prompt already on the chat is kept.
 
 A system message further in stays in the history, for the chat template to render in
-place. Templates without a system role fail instead, since only a leading one can be
-folded into the first user message.
+place. Not every model has a system role — those fold the system prompt into the first
+user message instead, and only a leading one can be folded, so generating emits
+`worker_failed` with an error telling you where to move the instruction.
 
 The array must not be empty and must end in a user or tool message. Anything else emits
 `worker_failed` instead of generating.

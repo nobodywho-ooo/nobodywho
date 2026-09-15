@@ -171,31 +171,128 @@ impl Message {
     }
 }
 
-/// Check that a message list describes a conversation the model can answer:
-/// non-empty and ending in a user or tool message. A trailing assistant message
-/// would render without a generation prompt, making the model continue that
-/// message instead of replying to the user.
+/// A conversation the chat can hold. Construction is the check: no system
+/// message carries media, since the system prompt is stored as plain text and no
+/// chat template renders media in that role. The rest of the chat leans on that
+/// rather than re-checking it.
 ///
 /// A system message may sit anywhere: a leading one becomes the chat's system
-/// prompt, and a later one stays in the history for the chat template to render.
-pub fn validate_completion_messages(messages: &[Message]) -> Result<(), InvalidHistoryError> {
+/// prompt, a later one stays in the history for the template to render in place.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(transparent)]
+pub struct History(Vec<Message>);
+
+/// Deliberately no `DerefMut`: mutation goes through the methods below, which
+/// cannot break the invariant.
+impl std::ops::Deref for History {
+    type Target = [Message];
+
+    fn deref(&self) -> &[Message] {
+        &self.0
+    }
+}
+
+impl History {
+    pub fn new(messages: Vec<Message>) -> Result<Self, InvalidHistoryError> {
+        if messages
+            .iter()
+            .any(|message| message.is_system() && !message.content_ref().media_parts().is_empty())
+        {
+            return Err(InvalidHistoryError::MediaInSystemMessage);
+        }
+        Ok(Self(messages))
+    }
+
+    /// Split an OpenAI-shaped array into the two things the chat stores: a
+    /// leading system message becomes the prompt, the rest stays history. Cannot
+    /// fail, since the type already ruled out media that has no place in text.
+    pub fn take_system_prompt(&mut self) -> Option<String> {
+        let Some(Message::System { content }) = self.0.first() else {
+            return None;
+        };
+        let system_prompt = content.to_string();
+        self.0.remove(0);
+        Some(system_prompt)
+    }
+
+    /// The conversation as the chat template expects to see it: the system
+    /// prompt, which the chat holds as a setting rather than a turn, back in front.
+    pub fn with_system_prompt(&self, system_prompt: Option<&str>) -> Self {
+        Self(
+            system_prompt
+                .map(|content| Message::new_system(content.to_string()))
+                .into_iter()
+                .chain(self.0.iter().cloned())
+                .collect(),
+        )
+    }
+
+    /// Drop `range`, except the system messages in it: those are instructions for
+    /// the rest of the conversation, not part of the exchange being forgotten.
+    pub fn forget(&mut self, range: std::ops::Range<usize>) {
+        let kept: Vec<Message> = self.0[range.clone()]
+            .iter()
+            .filter(|message| message.is_system())
+            .cloned()
+            .collect();
+        self.0.splice(range, kept);
+    }
+
+    /// The only way to mutate a message: system content stays out of reach, so
+    /// media cannot get into it.
+    pub fn non_system_content_mut(&mut self) -> impl Iterator<Item = &mut MessageContent> {
+        self.0
+            .iter_mut()
+            .filter(|message| !message.is_system())
+            .map(Message::content_mut)
+    }
+
+    /// These roles may carry media, so appending one needs no check.
+    pub fn push_user(&mut self, content: impl Into<MessageContent>) {
+        self.0.push(Message::new_user(content));
+    }
+
+    pub fn push_assistant(&mut self, content: impl Into<MessageContent>) {
+        self.0.push(Message::new_assistant(content));
+    }
+
+    pub fn push_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
+        self.0.push(Message::Assistant {
+            content: "".into(),
+            tool_calls: Some(tool_calls),
+        });
+    }
+
+    pub fn push_tool_response(&mut self, name: String, content: impl Into<MessageContent>) {
+        self.0.push(Message::new_tool(name, content));
+    }
+
+    /// The one role that can break the invariant, so the one push that can fail.
+    pub fn push_system(
+        &mut self,
+        content: impl Into<MessageContent>,
+    ) -> Result<(), InvalidHistoryError> {
+        let content = content.into();
+        if !content.media_parts().is_empty() {
+            return Err(InvalidHistoryError::MediaInSystemMessage);
+        }
+        self.0.push(Message::System { content });
+        Ok(())
+    }
+}
+
+/// A trailing assistant message would render without a generation prompt, making
+/// the model continue that message instead of replying to the user.
+///
+/// A property of one request rather than of a history — the chat's own history
+/// ends in an assistant message most of the time — so it is checked here rather
+/// than by [`History`].
+fn check_answerable(messages: &History) -> Result<(), InvalidHistoryError> {
     let Some(last) = messages.last() else {
         return Err(InvalidHistoryError::Empty);
     };
-
     if !(last.is_user() || last.is_tool()) {
         return Err(InvalidHistoryError::DoesNotEndInUserOrTool { role: last.role() });
-    }
-
-    check_no_media_in_system_messages(messages)
-}
-
-fn check_no_media_in_system_messages(messages: &[Message]) -> Result<(), InvalidHistoryError> {
-    if messages
-        .iter()
-        .any(|message| message.is_system() && !message.content_ref().media_parts().is_empty())
-    {
-        return Err(InvalidHistoryError::MediaInSystemMessage);
     }
     Ok(())
 }
@@ -213,36 +310,6 @@ fn user_message_indices(messages: &[Message]) -> Vec<usize> {
         .filter(|(_, message)| message.is_user())
         .map(|(index, _)| index)
         .collect()
-}
-
-/// `messages` as the chat template expects to see them: the system prompt,
-/// which we hold as a setting rather than a turn, put back at index 0.
-fn prepend_system_prompt(system_prompt: Option<&str>, messages: &[Message]) -> Vec<Message> {
-    system_prompt
-        .map(|content| Message::new_system(content.to_string()))
-        .into_iter()
-        .chain(messages.iter().cloned())
-        .collect()
-}
-
-/// Render a candidate conversation and discard the result, so a template and a
-/// history that do not go together are reported before either is committed.
-/// Text only, so it needs no bitmaps.
-fn check_renderable(
-    chat_template: &ChatTemplate,
-    template_context: &ChatTemplateContext,
-    system_prompt: Option<&str>,
-    messages: &[Message],
-) -> Result<(), RenderError> {
-    // Templates that index into `messages[0]` fail on an empty render.
-    if messages.is_empty() {
-        return Ok(());
-    }
-    chat_template.render(
-        &prepend_system_prompt(system_prompt, messages),
-        template_context,
-    )?;
-    Ok(())
 }
 
 /// Settings to apply before a [`complete`](ChatHandle::complete) turn.
@@ -555,7 +622,8 @@ impl ChatHandle {
         messages: Vec<Message>,
         options: Options,
     ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
-        validate_completion_messages(&messages)?;
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Complete {
             messages,
@@ -642,7 +710,7 @@ impl ChatHandle {
     pub fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_blocking(
             |output_tx| ChatMsg::SetChatHistory {
-                messages: vec![],
+                messages: History::default(),
                 output_tx,
             },
             "reset_history",
@@ -757,6 +825,7 @@ impl ChatHandle {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
+        let messages = History::new(messages)?;
         self.set_and_wait_blocking(
             |output_tx| ChatMsg::SetChatHistory {
                 messages,
@@ -938,7 +1007,8 @@ impl ChatHandleAsync {
         messages: Vec<Message>,
         options: Options,
     ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
-        validate_completion_messages(&messages)?;
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
         self.guard.send(ChatMsg::Complete {
             messages,
@@ -992,7 +1062,8 @@ impl ChatHandleAsync {
         options: Options,
         max_tokens: Option<usize>,
     ) -> Result<CompletionStreamAsync, InvalidHistoryError> {
-        validate_completion_messages(&messages)?;
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
         self.guard.send(ChatMsg::CompleteWithExternalTools {
             messages,
@@ -1044,7 +1115,7 @@ impl ChatHandleAsync {
     pub async fn reset_history(&self) -> Result<(), crate::errors::SetterError> {
         self.set_and_wait_async(
             |output_tx| ChatMsg::SetChatHistory {
-                messages: vec![],
+                messages: History::default(),
                 output_tx,
             },
             "reset_history",
@@ -1167,6 +1238,7 @@ impl ChatHandleAsync {
         &self,
         messages: Vec<Message>,
     ) -> Result<(), crate::errors::SetterError> {
+        let messages = History::new(messages)?;
         self.set_and_wait_async(
             |output_tx| ChatMsg::SetChatHistory {
                 messages,
@@ -1390,12 +1462,12 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
     },
     Complete {
-        messages: Vec<Message>,
+        messages: History,
         options: Options,
         output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
     },
     CompleteWithExternalTools {
-        messages: Vec<Message>,
+        messages: History,
         options: Options,
         max_tokens: Option<usize>,
         output_tx: tokio::sync::mpsc::Sender<ExternalCompletionOutput>,
@@ -1443,7 +1515,7 @@ enum ChatMsg {
         output_tx: tokio::sync::mpsc::Sender<SamplerConfig>,
     },
     SetChatHistory {
-        messages: Vec<Message>,
+        messages: History,
         output_tx: SetterReply,
     },
     GetStats {
@@ -1925,7 +1997,7 @@ struct Chat<'a> {
     sampler: ChatSampler,
     grammar_factory: Option<GrammarFactory>,
     sampler_config: SamplerConfig,
-    messages: Vec<Message>,
+    messages: History,
     system_prompt: Option<String>,
     template_variables: std::collections::HashMap<String, bool>,
     tools: Vec<Tool>,
@@ -1994,7 +2066,7 @@ impl<'a> Chat<'a> {
             sampler: ChatSampler::new(base_sampler, tool_sampler),
             grammar_factory,
             sampler_config,
-            messages: vec![],
+            messages: History::default(),
             system_prompt: config.system_prompt,
             chat_template: template,
             template_variables: config.template_variables,
@@ -2008,24 +2080,19 @@ impl<'a> Chat<'a> {
     }
 
     pub fn add_assistant_message(&mut self, content: String) {
-        self.messages.push(Message::new_assistant(content));
+        self.messages.push_assistant(content);
     }
 
     pub fn add_user_message(&mut self, content: impl Into<MessageContent>) {
-        self.messages.push(Message::User {
-            content: content.into(),
-        });
+        self.messages.push_user(content);
     }
 
     pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
-        self.messages.push(Message::Assistant {
-            content: "".into(),
-            tool_calls: Some(tool_calls),
-        });
+        self.messages.push_tool_calls(tool_calls);
     }
 
     pub fn add_tool_resp(&mut self, name: String, content: String) {
-        self.messages.push(Message::new_tool(name, content));
+        self.messages.push_tool_response(name, content);
     }
 
     /// Compare tokens from a template-rendered chat history with the tokens in the LLM's context,
@@ -2105,15 +2172,9 @@ impl<'a> Chat<'a> {
             // 1 <= n <= turn_starts.len() - 3, so the range is never empty and
             // never reaches the preserved turns.
             let n = min(turns_to_delete, deletable);
-            let dropped = turn_starts[1]..turn_starts[1 + n];
             // The range starts at a user message, so every pass still removes at
             // least one turn start and the loop keeps converging.
-            let kept_system_messages: Vec<Message> = messages[dropped.clone()]
-                .iter()
-                .filter(|message| message.is_system())
-                .cloned()
-                .collect();
-            messages.splice(dropped, kept_system_messages);
+            messages.forget(turn_starts[1]..turn_starts[1 + n]);
             turns_to_delete = turns_to_delete.saturating_mul(2);
         }
 
@@ -2416,31 +2477,21 @@ impl<'a> Chat<'a> {
     /// continues that conversation.
     pub fn complete<F>(
         &mut self,
-        mut messages: Vec<Message>,
+        mut messages: History,
         options: Options,
         respond: F,
     ) -> Result<&mut Self, CompleteError>
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
-        validate_completion_messages(&messages)?;
-
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        let hoisted = Self::take_leading_system_message(&mut messages)?;
+        let hoisted = messages.take_system_prompt();
         self.reload_media(&mut messages)?;
         self.apply_options(options)
             .map_err(|e| CompleteError::Options(e.to_string()))?;
-
-        // After the options, since new tools re-select the template.
-        check_renderable(
-            &self.chat_template,
-            &self.template_context(&self.tools),
-            hoisted.as_deref().or(self.system_prompt.as_deref()),
-            &messages,
-        )?;
 
         if let Some(system_prompt) = hoisted {
             self.system_prompt = Some(system_prompt);
@@ -2453,7 +2504,7 @@ impl<'a> Chat<'a> {
 
     fn complete_once<F>(
         &mut self,
-        mut messages: Vec<Message>,
+        mut messages: History,
         options: Options,
         max_tokens: Option<usize>,
         respond: F,
@@ -2461,21 +2512,12 @@ impl<'a> Chat<'a> {
     where
         F: Fn(llm::WriteOutput) + Clone,
     {
-        validate_completion_messages(&messages)?;
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
-        let hoisted = Self::take_leading_system_message(&mut messages)?;
+        let hoisted = messages.take_system_prompt();
         self.reload_media(&mut messages)?;
         self.apply_options(options)
             .map_err(|error| CompleteError::Options(error.to_string()))?;
-
-        // After the options, since new tools re-select the template.
-        check_renderable(
-            &self.chat_template,
-            &self.template_context(&self.tools),
-            hoisted.as_deref().or(self.system_prompt.as_deref()),
-            &messages,
-        )?;
 
         if let Some(system_prompt) = hoisted {
             self.system_prompt = Some(system_prompt);
@@ -2486,28 +2528,15 @@ impl<'a> Chat<'a> {
 
     /// Re-read the media files referenced by `messages` and relink the parts to
     /// the freshly registered bitmaps, since bitmap ids mean nothing outside the
-    /// worker that issued them. System messages carry no media, so they are
-    /// skipped — see [`check_no_media_in_system_messages`].
+    /// worker that issued them.
     ///
     /// Media already registered here is not re-read, so a file that changed on
     /// disk goes unnoticed — see [`register_media`](Self::register_media).
-    fn reload_media(&mut self, messages: &mut [Message]) -> Result<(), MultimodalError> {
-        for message in messages.iter_mut() {
-            if message.is_system() {
-                continue;
-            }
-            self.register_media(message.content_mut())?;
+    fn reload_media(&mut self, messages: &mut History) -> Result<(), MultimodalError> {
+        for content in messages.non_system_content_mut() {
+            self.register_media(content)?;
         }
         Ok(())
-    }
-
-    /// The template variables and tools a render of this chat is given. `tools`
-    /// is a parameter so a setter can check a candidate set before committing.
-    fn template_context(&self, tools: &[Tool]) -> ChatTemplateContext {
-        ChatTemplateContext::new(
-            self.template_variables.clone(),
-            (!tools.is_empty()).then(|| tools.to_vec()),
-        )
     }
 
     /// Go for the unhandled mode when you are context shifting.
@@ -2515,14 +2544,17 @@ impl<'a> Chat<'a> {
     /// Otherwise please handle stuff.
     fn render_as_chunks(
         &self,
-        messages: &[Message],
+        messages: &History,
         handled: bool,
     ) -> Result<TokenizerChunks, RenderError> {
         // Callers pass the conversation they want rendered — which may be a
         // shortened one, during a context shift. The system prompt is not part
         // of that, so it is added here.
-        let messages = &prepend_system_prompt(self.system_prompt.as_deref(), messages);
-        let template_context = self.template_context(&self.tools);
+        let messages = &messages.with_system_prompt(self.system_prompt.as_deref());
+        let template_context = ChatTemplateContext::new(
+            self.template_variables.clone(),
+            (!self.tools.is_empty()).then(|| self.tools.clone()),
+        );
 
         let rendered_chat = if handled {
             self.chat_template.render(messages, &template_context)?
@@ -2583,7 +2615,7 @@ impl<'a> Chat<'a> {
         self.engine.reset_context();
         self.sampler.set_tool(tool_sampler);
         self.tools = tools;
-        self.messages = Vec::new();
+        self.messages = History::default();
         self.system_prompt = system_prompt;
         self.context = ChatContext::new();
         Ok(())
@@ -2687,40 +2719,12 @@ impl<'a> Chat<'a> {
         self.apply_sampler_and_tools(None, Some(tools))
     }
 
-    /// Take a leading system message out of `messages` and return it as the new
-    /// system prompt, so that an OpenAI-shaped array can be passed in as-is.
-    /// `None` means the list had none and the chat keeps the prompt it has.
-    ///
-    /// A system message further in stays where it is, for the chat template to
-    /// render as a turn of its own. Fails if any system message carries media,
-    /// which has nowhere to go in that role. Mutates nothing on the chat, so
-    /// callers can render the result before committing to it.
-    fn take_leading_system_message(
-        messages: &mut Vec<Message>,
-    ) -> Result<Option<String>, InvalidHistoryError> {
-        check_no_media_in_system_messages(messages)?;
-        let Some(Message::System { content }) = messages.first() else {
-            return Ok(None);
-        };
-        let system_prompt = content.to_string();
-        messages.remove(0);
-        Ok(Some(system_prompt))
-    }
-
     /// Media is re-registered from the part paths, since bitmap ids issued by
-    /// another worker mean nothing here. Nothing is committed unless that, the
-    /// hoist and a trial render all succeed.
-    pub fn set_chat_history(&mut self, mut messages: Vec<Message>) -> Result<(), ContextSyncError> {
-        // Hoist first: it establishes the no-media-in-system invariant that lets
-        // `reload_media` skip that role.
-        let hoisted = Self::take_leading_system_message(&mut messages)?;
+    /// another worker mean nothing here. Nothing is committed unless that
+    /// succeeds.
+    pub fn set_chat_history(&mut self, mut messages: History) -> Result<(), ContextSyncError> {
+        let hoisted = messages.take_system_prompt();
         self.reload_media(&mut messages)?;
-        check_renderable(
-            &self.chat_template,
-            &self.template_context(&self.tools),
-            hoisted.as_deref().or(self.system_prompt.as_deref()),
-            &messages,
-        )?;
 
         if let Some(system_prompt) = hoisted {
             self.system_prompt = Some(system_prompt);
@@ -2739,7 +2743,7 @@ impl<'a> Chat<'a> {
     }
 
     pub fn get_chat_history(&self) -> Vec<Message> {
-        self.messages.clone()
+        self.messages.to_vec()
     }
 
     pub fn get_sampler_config(&self) -> SamplerConfig {
@@ -2768,6 +2772,84 @@ mod tests {
     use super::*;
     use crate::sampler::SamplerPresets;
     use crate::test_utils;
+
+    fn image_system_message() -> Message {
+        Message::new_system(vec![
+            ContentPart::text("Describe like this:"),
+            ContentPart::image("example.png"),
+        ])
+    }
+
+    #[test]
+    fn test_history_rejects_media_in_any_system_message() {
+        assert!(matches!(
+            History::new(vec![image_system_message(), user("Hi")]),
+            Err(InvalidHistoryError::MediaInSystemMessage)
+        ));
+
+        // Not just the leading one, which is the one that becomes the plain-text
+        // system prompt: no chat template renders media in that role either.
+        assert!(matches!(
+            History::new(vec![
+                user("Hi"),
+                assistant("Hello!"),
+                image_system_message()
+            ]),
+            Err(InvalidHistoryError::MediaInSystemMessage)
+        ));
+
+        let mut history = History::new(vec![]).expect("an empty history is a fine history");
+        assert!(matches!(
+            history.push_system(vec![ContentPart::image("example.png")]),
+            Err(InvalidHistoryError::MediaInSystemMessage)
+        ));
+        assert!(history.is_empty());
+    }
+
+    #[test]
+    fn test_history_takes_only_a_leading_system_prompt() {
+        let mut history = History::new(vec![
+            Message::new_system("Be terse.".to_string()),
+            user("Hi"),
+            Message::new_system("Now answer in French.".to_string()),
+        ])
+        .unwrap();
+
+        assert_eq!(history.take_system_prompt().as_deref(), Some("Be terse."));
+        assert_eq!(history.len(), 2);
+        // The remaining one is not leading, so it stays a turn of its own.
+        assert_eq!(history.take_system_prompt(), None);
+
+        let for_render = history.with_system_prompt(Some("Be terse."));
+        assert!(for_render[0].is_system());
+        assert_eq!(for_render.len(), 3);
+    }
+
+    #[test]
+    fn test_history_forget_keeps_system_messages() {
+        let mut history = History::new(vec![
+            user("first"),
+            assistant("first"),
+            user("second"),
+            Message::new_system("Answer in French.".to_string()),
+            assistant("second"),
+            user("third"),
+        ])
+        .unwrap();
+
+        history.forget(2..5);
+
+        assert_eq!(
+            serde_json::to_value(&history).unwrap(),
+            serde_json::to_value([
+                user("first"),
+                assistant("first"),
+                Message::new_system("Answer in French.".to_string()),
+                user("third"),
+            ])
+            .unwrap()
+        );
+    }
 
     // Helper function to verify message structure is valid
     fn assert_valid_message_structure(messages: &[Message]) {
@@ -3363,7 +3445,9 @@ mod tests {
         //    cannot delete it — but it must still reach a render of the
         //    shortened history.
         let rendered = worker.chat_template.render(
-            &prepend_system_prompt(worker.system_prompt.as_deref(), &worker.messages),
+            &worker
+                .messages
+                .with_system_prompt(worker.system_prompt.as_deref()),
             &ChatTemplateContext::new(worker.template_variables.clone(), None),
         )?;
         assert!(
@@ -3450,7 +3534,7 @@ mod tests {
         assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
 
         let mut shortened_messages = worker.messages.clone();
-        shortened_messages.drain(2..=3);
+        shortened_messages.forget(2..4);
         assert!(
             worker
                 .render_as_chunks(&shortened_messages, false)?
@@ -3539,7 +3623,7 @@ mod tests {
         worker.add_assistant_message("large".to_string());
         worker
             .messages
-            .push(Message::new_system("Answer in French.".to_string()));
+            .push_system("Answer in French.".to_string())?;
         for (user, assistant) in [("keep", "keep"), ("recent", "recent")] {
             worker.add_user_message(user.to_string());
             worker.add_assistant_message(assistant.to_string());
@@ -4387,12 +4471,12 @@ mod tests {
         ));
     }
 
-    /// Whether a mid-conversation system message can be rendered is only
-    /// knowable from a render, so both entry points render before committing: a
-    /// rejected history leaves the chat as it was, rather than one every later
-    /// turn fails on too.
+    /// Nothing trial-renders a history before accepting it, so a mid-conversation
+    /// system message on a template without a system role is only caught when the
+    /// turn renders. Check that what comes back then explains itself.
     #[test]
-    fn test_unrenderable_history_is_not_committed() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_inline_system_message_reports_a_useful_error() -> Result<(), Box<dyn std::error::Error>>
+    {
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -4412,47 +4496,27 @@ mod tests {
             "",
         )?;
 
-        worker.set_chat_history(vec![
-            Message::new_system("Be terse.".to_string()),
-            user("Hi"),
-            assistant("Hello!"),
-        ])?;
-
-        let unrenderable = vec![
+        let unrenderable = History::new(vec![
             user("Hi"),
             assistant("Hello!"),
             Message::new_system("Now answer in French.".to_string()),
             user("How are you?"),
-        ];
-
-        let err = worker.set_chat_history(unrenderable.clone()).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                ContextSyncError::TemplateRender(RenderError::InlineSystemMessageUnsupported)
-            ),
-            "{err:?}"
-        );
+        ])?;
 
         // `complete` returns `&mut Self` on success, which has no `Debug`.
         let err = worker
             .complete(unrenderable, Options::new(), |_| {})
             .map(|_| ())
             .unwrap_err();
-        assert!(
-            matches!(
-                err,
-                CompleteError::Render(RenderError::InlineSystemMessageUnsupported)
-            ),
-            "{err:?}"
-        );
 
-        // Neither call touched the conversation the chat already had.
-        assert_eq!(worker.get_system_prompt().as_deref(), Some("Be terse."));
-        assert_eq!(
-            serde_json::to_value(worker.get_chat_history())?,
-            serde_json::to_value([user("Hi"), assistant("Hello!")])?,
+        // The help has to survive every wrapper between the template and the
+        // binding that renders it.
+        let rendered = crate::render_miette(&err);
+        assert!(
+            rendered.contains("only supports a system message at the front"),
+            "{rendered}"
         );
+        assert!(rendered.contains("Move the instruction"), "{rendered}");
 
         Ok(())
     }
@@ -4481,9 +4545,9 @@ mod tests {
         assert!(
             matches!(
                 err,
-                crate::errors::SetterError::ContextSync(ContextSyncError::InvalidHistory(
+                crate::errors::SetterError::InvalidHistory(
                     InvalidHistoryError::MediaInSystemMessage
-                ))
+                )
             ),
             "{err:?}"
         );
@@ -4616,7 +4680,7 @@ mod tests {
             part.set_id("id-from-another-session".to_string());
         }
 
-        worker.set_chat_history(vec![Message::User { content }])?;
+        worker.set_chat_history(History::new(vec![Message::User { content }])?)?;
 
         let history = worker.get_chat_history();
         let registered = history[0].content_ref().media_parts()[0]
@@ -4671,7 +4735,7 @@ mod tests {
         }]))?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(messages, Options::new(), move |out| {
+        worker.complete(History::new(messages)?, Options::new(), move |out| {
             if let llm::WriteOutput::Done(resp) = out {
                 sender.send(resp).unwrap();
             }
@@ -4775,7 +4839,11 @@ mod tests {
         );
         assert_eq!(worker.context.bitmaps.len(), 1);
 
-        worker.complete(vec![user("Say the word 'banana'.")], Options::new(), |_| {})?;
+        worker.complete(
+            History::new(vec![user("Say the word 'banana'.")])?,
+            Options::new(),
+            |_| {},
+        )?;
         assert_eq!(
             worker.context.bitmaps.len(),
             0,
@@ -4794,7 +4862,7 @@ mod tests {
         let replayed = Message::User { content };
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(vec![replayed], Options::new(), move |out| {
+        worker.complete(History::new(vec![replayed])?, Options::new(), move |out| {
             if let llm::WriteOutput::Done(resp) = out {
                 sender.send(resp).unwrap();
             }
@@ -4851,14 +4919,14 @@ mod tests {
         let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
         let screenshot =
             || MessageContent::parts([ContentPart::text("Here it is:"), ContentPart::image(image)]);
-        let mut messages = vec![
+        let mut messages = History::new(vec![
             user("Take a screenshot."),
             Message::new_tool("screenshot".to_string(), screenshot()),
-        ];
+        ])?;
 
         worker.reload_media(&mut messages)?;
 
-        for message in &messages {
+        for message in messages.iter() {
             for part in message.content_ref().media_parts() {
                 assert!(
                     part.id()
