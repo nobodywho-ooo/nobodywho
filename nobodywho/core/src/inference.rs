@@ -4,7 +4,7 @@ use crate::chat::ChatSampler;
 use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError, RollbackError};
 use crate::llm::{GlobalInferenceLockToken, WriteOutput, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
-    find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
+    find_chunks_prefix_difference, tokenize, ProjectionModel, TokenizerChunk, TokenizerChunks,
 };
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::LlamaContext;
@@ -212,12 +212,11 @@ pub(crate) struct BatchCapacity {
 #[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
     pub(crate) ctx: EngineContext<'a>,
-    projection_model: Option<&'a ProjectionModel>,
+    pub(crate) projection_model: Option<&'a ProjectionModel>,
     /// The token position in the KV cache that we've logically read.
     ///
     /// This does not include drafts.
     n_past: i32,
-    tokenizer: Tokenizer<'a>,
     // Configured limits before llama.cpp's internal rounding.
     batch_capacity: BatchCapacity,
     /// Batch that's used when decoding. Stored here to re-use the allocation.
@@ -230,7 +229,6 @@ impl<'a> InferenceEngine<'a> {
         ctx: EngineContext<'a>,
         projection_model: Option<&'a ProjectionModel>,
         batch_capacity: BatchCapacity,
-        tokenizer: Tokenizer<'a>,
         use_embeddings: bool,
     ) -> Self {
         // The batch limit is sequence IDs per token; each embedding token
@@ -243,7 +241,6 @@ impl<'a> InferenceEngine<'a> {
             batch_capacity,
             batch,
             projection_model,
-            tokenizer,
             use_embeddings,
         }
     }
@@ -288,7 +285,7 @@ impl<'a> InferenceEngine<'a> {
         let tokenized_inputs = texts
             .into_iter()
             .map(|text| {
-                let chunks = self.tokenize(text, vec![])?;
+                let chunks = tokenize(self.ctx.model, text, vec![], self.projection_model)?;
                 let mut tokens = vec![];
                 for chunk in chunks {
                     match chunk {
@@ -558,14 +555,6 @@ impl<'a> InferenceEngine<'a> {
 
     pub(crate) fn is_context_full(&self) -> bool {
         self.actual_context_size() >= self.ctx.n_ctx() as i32
-    }
-
-    pub(crate) fn tokenize(
-        &self,
-        text: String,
-        bitmaps: Vec<&MtmdBitmap>,
-    ) -> Result<TokenizerChunks, crate::errors::TokenizationError> {
-        self.tokenizer.tokenize(text, bitmaps)
     }
 
     pub(crate) fn load_image(&self, path: &Path) -> Result<MtmdBitmap, MultimodalError> {

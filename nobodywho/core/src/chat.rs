@@ -36,7 +36,7 @@ use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::GrammarFactory;
 use crate::sampler::SamplerConfig;
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
-use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks};
+use crate::tokenizer::{tokenize, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
@@ -2555,7 +2555,12 @@ impl<'a> Chat<'a> {
             .flat_map(|msg| msg.media_ids())
             .filter_map(|id| self.context.bitmaps.get(id))
             .collect();
-        Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
+        Ok(tokenize(
+            self.engine.ctx.model,
+            rendered_chat,
+            bitmaps,
+            self.engine.projection_model,
+        )?)
     }
 
     fn wrapped_update_context_and_generate_response<F>(
@@ -2749,7 +2754,12 @@ impl<'a> Chat<'a> {
             .collect::<Result<Vec<MtmdBitmap>, MultimodalError>>()?;
 
         let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
-        let chunks = self.engine.tokenize(prompt.to_string(), bitmap_refs)?;
+        let chunks = tokenize(
+            self.engine.ctx.model,
+            prompt.to_string(),
+            bitmap_refs,
+            self.engine.projection_model,
+        )?;
         Ok(chunks.to_token_ids())
     }
 }

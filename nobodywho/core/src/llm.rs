@@ -1,13 +1,9 @@
-#[cfg(test)]
-use crate::errors::ReadError;
 use crate::errors::{InitWorkerError, LoadModelError};
 use crate::huggingface::{download_gguf, parse_model_path};
-#[cfg(test)]
-use crate::inference::acquire_inference_lock;
 use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, SpeculativeEngine};
 use crate::memory;
 use crate::model_selection;
-use crate::tokenizer::{ProjectionModel, Tokenizer};
+use crate::tokenizer::ProjectionModel;
 use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
 use llama_cpp_2::llama_backend::LlamaBackend;
@@ -440,8 +436,6 @@ where
             EngineContext::Solo(ctx)
         };
 
-        let tokenizer = Tokenizer::new(&model.language_model, projection_model);
-
         let engine = InferenceEngine::new(
             engine_ctx,
             projection_model,
@@ -449,7 +443,6 @@ where
                 tokens: n_batch,
                 sequences: n_seq_max as usize,
             },
-            tokenizer,
             use_embeddings,
         );
         Ok(Worker { engine, extra })
@@ -458,9 +451,14 @@ where
     /// Tokenize `text` and read it into the context under the global inference lock.
     #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
-        let inference_lock_token = acquire_inference_lock();
-        let chunks = self.engine.tokenize(text, vec![])?;
+    pub fn read_string(&mut self, text: String) -> Result<&mut Self, crate::errors::ReadError> {
+        let inference_lock_token = crate::inference::acquire_inference_lock();
+        let chunks = crate::tokenizer::tokenize(
+            self.engine.ctx.model,
+            text,
+            vec![],
+            self.engine.projection_model,
+        )?;
         self.engine.read_chunks(chunks, &inference_lock_token)?;
         Ok(self)
     }

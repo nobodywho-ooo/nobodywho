@@ -360,122 +360,99 @@ impl ProjectionModel {
     }
 }
 
-#[derive(Debug)]
-pub struct Tokenizer<'a> {
-    model: &'a LlamaModel,
-    projection_model: Option<&'a ProjectionModel>,
-}
+pub fn tokenize(
+    model: &LlamaModel,
+    rendered_chat: String,
+    bitmaps: Vec<&MtmdBitmap>,
+    projection_model: Option<&ProjectionModel>,
+) -> Result<TokenizerChunks, TokenizationError> {
+    let text_chunks = tokenize_text(model, &rendered_chat)?;
 
-impl<'a> Tokenizer<'a> {
-    pub fn new(model: &'a LlamaModel, projection_model: Option<&'a ProjectionModel>) -> Self {
-        Self {
-            projection_model,
-            model,
-        }
+    let n_image_markers = text_chunks.len() - 1;
+    if n_image_markers != bitmaps.len() {
+        let preview = rendered_chat.chars().take(200).collect::<String>();
+        return Err(TokenizationError::MediaMarkerMismatch {
+            n_markers: n_image_markers,
+            n_bitmaps: bitmaps.len(),
+            template_preview: preview,
+        });
     }
 
-    pub fn tokenize(
-        &self,
-        rendered_chat: String,
-        bitmaps: Vec<&MtmdBitmap>,
-    ) -> Result<TokenizerChunks, TokenizationError> {
-        let text_chunks = self.tokenize_text(&rendered_chat)?;
-
-        let n_image_markers = text_chunks.len() - 1;
-        if n_image_markers != bitmaps.len() {
-            let preview = rendered_chat.chars().take(200).collect::<String>();
-            return Err(TokenizationError::MediaMarkerMismatch {
-                n_markers: n_image_markers,
-                n_bitmaps: bitmaps.len(),
-                template_preview: preview,
-            });
-        }
-
-        let image_chunks = if !bitmaps.is_empty() {
-            self.tokenize_media(bitmaps)?
-        } else {
-            vec![]
-        };
-        let chunks = self
-            .interleave(text_chunks, image_chunks)
-            .into_iter()
-            .filter(|chunk| chunk.n_tokens() > 0)
-            .collect();
-
-        Ok(TokenizerChunks { chunks })
-    }
-
-    fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, TokenizationError> {
-        let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
-        let splits = text
-            .split(media_marker.as_str())
-            .enumerate()
-            .map(|(idx, split)| {
-                self.model
-                    .str_to_token(
-                        split,
-                        // NOTE: Renamed to `add_special` in llama.cpp, the
-                        // model keeps track of whether BOS tokens make sense.
-                        if idx == 0 {
-                            AddBos::Always
-                        } else {
-                            AddBos::Never
-                        },
-                    )
-                    .map(TokenizerChunk::new_text)
-                    .map_err(|e| TokenizationError::TextTokenizationFailed {
-                        position: idx,
-                        text_preview: split.chars().take(100).collect(),
-                        error: e.to_string(),
-                    })
-            })
-            .collect::<Result<Vec<TokenizerChunk>, TokenizationError>>()?;
-
-        Ok(splits)
-    }
-
-    fn tokenize_media(
-        &self,
-        bitmaps: Vec<&MtmdBitmap>,
-    ) -> Result<Vec<TokenizerChunk>, TokenizationError> {
-        let projection_model = self.projection_model.as_ref().ok_or(
+    let image_chunks = if !bitmaps.is_empty() {
+        let projection_model = projection_model.ok_or(
             TokenizationError::ProjectionTokenizationError("Context not initialized".to_string()),
         )?;
-
         // Tokenize each media item separately to get individual chunks
         bitmaps
             .iter()
             .map(|bitmap| projection_model.tokenize(bitmap))
-            .collect::<Result<Vec<_>, TokenizationError>>()
-    }
+            .collect::<Result<Vec<_>, TokenizationError>>()?
+    } else {
+        vec![]
+    };
+    let chunks = interleave(text_chunks, image_chunks)
+        .into_iter()
+        .filter(|chunk| chunk.n_tokens() > 0)
+        .collect();
 
-    fn interleave<T>(&self, v1: Vec<T>, v2: Vec<T>) -> Vec<T> {
-        let mut ai = v1.into_iter();
-        let mut bi = v2.into_iter();
-        let mut out = Vec::new();
+    Ok(TokenizerChunks { chunks })
+}
 
-        loop {
-            match (ai.next(), bi.next()) {
-                (Some(x), Some(y)) => {
-                    out.push(x);
-                    out.push(y);
-                }
-                (Some(x), None) => {
-                    out.push(x);
-                    out.extend(ai);
-                    break;
-                }
-                (None, Some(y)) => {
-                    out.push(y);
-                    out.extend(bi);
-                    break;
-                }
-                (None, None) => break,
+fn tokenize_text(model: &LlamaModel, text: &str) -> Result<Vec<TokenizerChunk>, TokenizationError> {
+    let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
+    let splits = text
+        .split(media_marker.as_str())
+        .enumerate()
+        .map(|(idx, split)| {
+            model
+                .str_to_token(
+                    split,
+                    // NOTE: Renamed to `add_special` in llama.cpp, the
+                    // model keeps track of whether BOS tokens make sense.
+                    if idx == 0 {
+                        AddBos::Always
+                    } else {
+                        AddBos::Never
+                    },
+                )
+                .map(TokenizerChunk::new_text)
+                .map_err(|e| TokenizationError::TextTokenizationFailed {
+                    position: idx,
+                    text_preview: split.chars().take(100).collect(),
+                    error: e.to_string(),
+                })
+        })
+        .collect::<Result<Vec<TokenizerChunk>, TokenizationError>>()?;
+
+    Ok(splits)
+}
+
+fn interleave<T>(v1: Vec<T>, v2: Vec<T>) -> Vec<T> {
+    let mut ai = v1.into_iter();
+    let mut bi = v2.into_iter();
+    let mut out = Vec::new();
+
+    loop {
+        match (ai.next(), bi.next()) {
+            (Some(x), Some(y)) => {
+                out.push(x);
+                out.push(y);
             }
+            (Some(x), None) => {
+                out.push(x);
+                out.extend(ai);
+                break;
+            }
+            (None, Some(y)) => {
+                out.push(y);
+                out.extend(bi);
+                break;
+            }
+            (None, None) => break,
         }
-
-        out
     }
+
+    out
 }
 
 #[cfg(test)]
