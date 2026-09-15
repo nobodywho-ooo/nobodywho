@@ -35,6 +35,7 @@ dev_dependencies:
   test: ^1.25.6
   freezed: ^3.2.3
   build_runner: ^2.4.13
+  logging: 1.3.0
 
 flutter:
   plugin:

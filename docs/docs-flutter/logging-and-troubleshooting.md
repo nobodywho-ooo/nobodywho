@@ -11,7 +11,7 @@ To enable debug logs, follow the example from their documentation, and add an `o
 before you run `NobodyWho.init()`. Something like the following would work:
 
 ```dart
-import 'package:nobodywho/nobodywho.dart';
+import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:logging/logging.dart';
 
 void main() async {
@@ -22,7 +22,7 @@ void main() async {
   });
 
   // Initialize NobodyWho
-  await NobodyWho.init();
+  await nobodywho.NobodyWho.init();
 
   // Rest of application here.
 }
