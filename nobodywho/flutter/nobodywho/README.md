@@ -30,6 +30,11 @@ void main() async {
 }
 ```
 
+### Android C++ runtime conflicts
+
+If `mergeNativeLibs` reports a duplicate `libc++_shared.so`, follow the
+[shared-runtime conflict instructions](https://github.com/nobodywho-ooo/nobodywho/blob/main/nobodywho/android/README.md#shared-c-runtime-conflicts).
+
 ## Supported Model Format
 
 This library uses the **GGUF format** — a binary format optimized for fast loading and efficient LLM inference. A wide selection of GGUF models is available on [Hugging Face](https://huggingface.co/models).

@@ -27,6 +27,11 @@ A call to any of the functions in NobodyWho will result in an error before `.ini
 However a second call to `.init()` will also result in an error, so you should be mindful about when you make this call.
 We suggest you make it as early and as close to the root of your app as possible, as even though it is async it is a very fast operation.
 
+### Android C++ runtime conflicts
+
+If `mergeNativeLibs` reports a duplicate `libc++_shared.so`, follow the
+[shared-runtime conflict instructions](https://github.com/nobodywho-ooo/nobodywho/blob/main/nobodywho/android/README.md#shared-c-runtime-conflicts).
+
 With that setup done we can move on to the exiting stuff! We will in the rest of the docs that 
 you have imported NobodyWho using namespacing and that `.init()` has been called. 
 

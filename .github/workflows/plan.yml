@@ -42,6 +42,8 @@ on:
         value: ${{ jobs.plan.outputs.run_regen }}
       run_release:
         value: ${{ jobs.plan.outputs.run_release }}
+      run_android_candidates:
+        value: ${{ jobs.plan.outputs.run_android_candidates }}
       device_jobs:
         # Selector for mobile-device-tests.yml (e.g. "kotlin-source", "all");
         # empty means none.
@@ -68,6 +70,7 @@ jobs:
       run_docs:           ${{ steps.decide.outputs.run_docs }}
       run_regen:          ${{ steps.decide.outputs.run_regen }}
       run_release:        ${{ steps.decide.outputs.run_release }}
+      run_android_candidates: ${{ steps.decide.outputs.run_android_candidates }}
       device_jobs:        ${{ steps.decide.outputs.device_jobs }}
       is_full:            ${{ steps.decide.outputs.is_full }}
     steps:
@@ -166,6 +169,12 @@ jobs:
 
           # Emit one p_* per filter, mirroring the names the decide step reads.
           contains '^nobodywho/core/'        && out core         true || out core         false
+          if contains '^nobodywho/(android/|\.cargo/config\.toml$|core/(Cargo\.toml|build\.rs|cmake/llama-build-overrides\.cmake|src/(errors|lib|llama_backend)\.rs)$)' \
+             || contains '^\.github/(actions/publish-android-binding-aar/|workflows/(mobile-device-tests|package-android-candidates)\.yml$)'; then
+            out android true
+          else
+            out android false
+          fi
           contains '^nobodywho/uniffi/'      && out uniffi       true || out uniffi       false
           contains '^nobodywho/python/'      && out python       true || out python       false
           contains '^nobodywho/godot/'       && out godot        true || out godot        false
@@ -202,6 +211,7 @@ jobs:
           DISPATCH_FULL_CI: ${{ inputs.dispatch_full_ci }}
           DISPATCH_BUCKETS: ${{ inputs.dispatch_buckets }}
           P_CORE:           ${{ steps.paths.outputs.core }}
+          P_ANDROID:        ${{ steps.paths.outputs.android }}
           P_UNIFFI:         ${{ steps.paths.outputs.uniffi }}
           P_PYTHON:         ${{ steps.paths.outputs.python }}
           P_GODOT:          ${{ steps.paths.outputs.godot }}
@@ -225,6 +235,7 @@ jobs:
 
           # Normalize path outputs (may be empty when no diff ran).
           p_core="${P_CORE:-false}"
+          p_android="${P_ANDROID:-false}"
           p_uniffi="${P_UNIFFI:-false}"
           p_python="${P_PYTHON:-false}"
           p_godot="${P_GODOT:-false}"
@@ -251,10 +262,10 @@ jobs:
           run_rust_core=$(any "$everything" "$p_core")
           run_python=$(any "$everything" "$p_python")
           run_godot=$(any "$everything" "$p_godot")
-          run_flutter=$(any "$everything" "$p_flutter")
+          run_flutter=$(any "$everything" "$p_android" "$p_flutter")
           run_swift=$(any "$everything" "$p_uniffi" "$p_swift")
-          run_kotlin=$(any "$everything" "$p_uniffi" "$p_kotlin")
-          run_react_native=$(any "$everything" "$p_uniffi" "$p_rn")
+          run_kotlin=$(any "$everything" "$p_android" "$p_uniffi" "$p_kotlin")
+          run_react_native=$(any "$everything" "$p_android" "$p_uniffi" "$p_rn")
 
           # python_models: tool-calling matrix (core coverage) — runs on any core change.
           run_python_models=false
@@ -299,18 +310,23 @@ jobs:
           # ---- on-device tests (Firebase Test Lab) --------------------------
           # Deliberately NOT tied to $everything: these run on real phones and
           # bill per device-minute, so a push to main must not trigger them.
-          # Main is covered by the nightly schedule in mobile-device-tests.yml.
+          # Main is covered by build-and-test.yml's nightly schedule.
           # They run here only when a release tag needs gating, or when someone
           # explicitly asks via a /<binding>-device-<source|released>-ci comment.
           device_jobs=""
           add_device() { device_jobs="${device_jobs:+$device_jobs,}$1"; }
 
-          # A release tag must prove its own binding still works on hardware.
+          # A binding release must prove its release-shaped package and
+          # binding-owned Android candidate on hardware.
           case "$REF" in
             refs/tags/nobodywho-kotlin-v*)       add_device kotlin-source ;;
             refs/tags/nobodywho-flutter-v*)      add_device flutter-source ;;
             refs/tags/nobodywho-react-native-v*) add_device react-native-source ;;
           esac
+
+          if [[ "$EVENT" == "schedule" ]]; then
+            device_jobs="all"
+          fi
 
           if [[ -n "${DISPATCH_BUCKETS:-}" ]]; then
             if has_bucket device_all; then
@@ -323,6 +339,14 @@ jobs:
               has_bucket device_react_native_source  && add_device react-native-source  || true
               has_bucket device_react_native_released && add_device react-native-released || true
             fi
+          fi
+
+          # Package and validate candidates whenever Android packaging/runtime
+          # code changes, even when no paid device test was requested. Every
+          # source-package device test also consumes these same candidates.
+          run_android_candidates="$p_android"
+          if [[ "$device_jobs" == "all" || "$device_jobs" == "source" || ",$device_jobs," == *"-source,"* ]]; then
+            run_android_candidates=true
           fi
 
           # ---- emit --------------------------------------------------------
@@ -339,6 +363,7 @@ jobs:
             echo "run_docs=$run_docs"
             echo "run_regen=$run_regen"
             echo "run_release=$run_release"
+            echo "run_android_candidates=$run_android_candidates"
             echo "device_jobs=$device_jobs"
             echo "is_full=$everything"
           } >> "$GITHUB_OUTPUT"
@@ -363,5 +388,6 @@ jobs:
             echo "| regen | $run_regen |"
             echo "| docs | $run_docs |"
             echo "| release | $run_release |"
+            echo "| Android candidates | $run_android_candidates |"
             echo "| device tests | ${device_jobs:-none} |"
           } >> "$GITHUB_STEP_SUMMARY"

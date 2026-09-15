@@ -12,6 +12,20 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
+        providers.gradleProperty("nobodywhoRepository").orNull?.let { repositoryPath ->
+            // Keep NobodyWho resolution inside the candidate repository. If an
+            // expected artifact is missing, do not silently fall back to a
+            // previously published Maven Central version.
+            exclusiveContent {
+                forRepository {
+                    maven {
+                        name = "NobodyWhoCandidate"
+                        url = uri(repositoryPath)
+                    }
+                }
+                filter { includeGroup("ai.nobodywho") }
+            }
+        }
         google()
         mavenCentral()
     }
@@ -25,9 +39,9 @@ rootProject.name = "nobodywho-android-testapp"
 //    changes on a branch are exercised without publishing anything. The
 //    bindings' own settings/pluginManagement stay free of app concerns.
 //
-//  * -PnobodywhoVersion=<version> — skip the composite build and resolve the
-//    released artifact from Maven Central instead, exercising exactly what a
-//    consumer downloads (needs no Rust toolchain and no NDK).
+//  * -PnobodywhoVersion=<version> — skip the composite build and resolve a
+//    Maven artifact. By default that is Maven Central; source device tests also
+//    pass -PnobodywhoRepository=<local directory> for their staged candidate.
 //
 // dependencySubstitution below always overrides the coordinate, so the composite
 // build has to be skipped entirely for the released artifact to be used.
