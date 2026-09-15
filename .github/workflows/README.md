@@ -69,7 +69,9 @@ Example: `/swift-ci /kotlin-ci /python-ci` runs those three. `/full-ci` override
 Device commands are never part of `/full-ci` — they cost device minutes, so they are
 always opt-in. `source` builds the binding from this repo (what you are about to
 ship); `released` builds against the published package (what users have today), so a
-red `released` job means something already shipped is broken.
+red `released` job means something already shipped is broken. A `released` job takes
+its test app from that release's git tag rather than from `main`, so an API change on
+`main` does not break it against packages published before the change.
 
 ## macOS granularity
 
