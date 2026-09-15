@@ -144,7 +144,7 @@ impl<'a> SpeculativeEngine<'a> {
 
     fn roll_back_declined_drafts(&mut self, keep_up_to: u32) -> Result<(), RollbackError> {
         let declined = self.drafts.len() - self.n_accepted;
-        if 0 < declined {
+        if declined > 0 {
             // Remove declined drafts from the KV cache.
             let rolled_back = self.ctx.target_context_mut().clear_kv_cache_seq(
                 Some(0),
