@@ -1838,26 +1838,26 @@ struct FrbDartLogger {
 #[cfg(broken_logging)]
 impl log::Log for FrbDartLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        unimplemented!()
+        compile_error!()
     }
 
     fn log(&self, record: &log::Record) {
-        unimplemented!()
+        compile_error!()
     }
 
     fn flush(&self) {
-        unimplemented!()
+        compile_error!()
     }
 }
 
 #[cfg(broken_logging)]
 impl FrbDartLogger {
     fn load_sink(&self) -> Option<std::sync::Arc<FrbLogSink>> {
-        unimplemented!()
+        compile_error!()
     }
 
     fn swap_sink(&self, sink: Option<FrbLogSink>) {
-        unimplemented!()
+        compile_error!()
     }
 }
 
@@ -1882,28 +1882,28 @@ pub fn frb_internal_init_logger(
     sink: crate::frb_generated::StreamSink<FrbLogRecord>,
     max_level: String,
 ) {
-    unimplemented!()
+    compile_error!()
 }
 
 #[cfg(broken_logging)]
 #[doc(hidden)]
 #[flutter_rust_bridge::frb(sync)]
 pub fn frb_internal_dispose_logger() {
-    unimplemented!()
+    compile_error!()
 }
 
 #[cfg(broken_logging)]
 #[doc(hidden)]
 #[flutter_rust_bridge::frb(sync)]
 pub fn frb_internal_logging_max_level() -> String {
-    unimplemented!()
+    compile_error!()
 }
 
 #[cfg(broken_logging)]
 #[doc(hidden)]
 #[flutter_rust_bridge::frb(sync)]
 pub fn frb_internal_logging_setup_dart_logging_output() -> bool {
-    unimplemented!()
+    compile_error!()
 }
 
 #[flutter_rust_bridge::frb(init)]
