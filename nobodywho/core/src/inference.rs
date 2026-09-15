@@ -87,6 +87,7 @@ impl<'a> SpeculativeEngine<'a> {
             let (accepted, declined) = self.drafts.split_at(self.n_accepted);
             trace!(?accepted, ?declined, "accepting draft");
 
+            // FIXME(madsmtm): Why does this need to be called?
             self.ctx.accept(self.n_accepted as u16)?;
 
             self.needs_accept = false;
@@ -410,7 +411,10 @@ impl<'a> InferenceEngine<'a> {
         // Keep the MTP draft ctx's hidden state in sync.
         if let EngineContext::Speculative(s) = &mut self.ctx {
             s.ctx.process(&self.batch)?;
-            // A new prompt (or context-shift replay) invalidates in-progress drafts.
+            // A new prompt (or context-shift replay) invalidates in-progress
+            // drafts.
+            //
+            // FIXME(madsmtm): Should we accept the previous drafts here?
             s.drafts.clear();
             s.n_accepted = 0;
         }
