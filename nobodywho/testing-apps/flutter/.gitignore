@@ -44,6 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Local override pointing at the in-repo bindings (see README); CI writes
-# this in the `flutter` job and must not inherit a committed one.
+# Local override pinning the published package instead of the in-repo bindings
+# the pubspec points at (see README); CI writes this in the `flutter-released`
+# job and must not inherit a committed one.
 pubspec_overrides.yaml

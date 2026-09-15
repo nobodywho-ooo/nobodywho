@@ -10,7 +10,7 @@
   "dependencies": {
     "react": "19.2.3",
     "react-native": "0.84.1",
-    "react-native-nobodywho": "^2.5.0"
+    "react-native-nobodywho": "file:../../react-native"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
