@@ -99,7 +99,8 @@ class Chat:
 
         The list is the entire conversation, used exactly as given. A system message at
         the front sets the chat's system prompt; leave it out and the prompt already on
-        the chat is kept. The response is added to the history, and the next `ask()`
+        the chat is kept. A later one stays in the history, for the chat template to
+        render in place. The response is added to the history, and the next `ask()`
         continues from there.
 
         The keyword arguments follow the same rule for the chat's other settings.
@@ -107,9 +108,8 @@ class Chat:
         Args:
             messages: List of message dicts, each with a 'role' ('system', 'user',
                       'assistant' or 'tool') and a 'content'. A 'tool' message also
-                      needs the 'name' of the tool it answers. Must not be empty, must
-                      end in a user or tool message, and may only have a system message
-                      first.
+                      needs the 'name' of the tool it answers. Must not be empty and
+                      must end in a user or tool message.
             sampler: SamplerConfig to use from this turn on.
             template_variables: Replaces the chat's template variables entirely.
             tools: Tools to use from this turn on. Re-selects the chat template, so
@@ -368,7 +368,8 @@ class ChatAsync:
 
         The list is the entire conversation, used exactly as given. A system message at
         the front sets the chat's system prompt; leave it out and the prompt already on
-        the chat is kept. The response is added to the history, and the next `ask()`
+        the chat is kept. A later one stays in the history, for the chat template to
+        render in place. The response is added to the history, and the next `ask()`
         continues from there.
 
         The keyword arguments follow the same rule for the chat's other settings.
@@ -376,9 +377,8 @@ class ChatAsync:
         Args:
             messages: List of message dicts, each with a 'role' ('system', 'user',
                       'assistant' or 'tool') and a 'content'. A 'tool' message also
-                      needs the 'name' of the tool it answers. Must not be empty, must
-                      end in a user or tool message, and may only have a system message
-                      first.
+                      needs the 'name' of the tool it answers. Must not be empty and
+                      must end in a user or tool message.
             sampler: SamplerConfig to use from this turn on.
             template_variables: Replaces the chat's template variables entirely.
             tools: Tools to use from this turn on. Re-selects the chat template, so

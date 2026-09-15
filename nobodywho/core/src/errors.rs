@@ -909,6 +909,7 @@ pub enum WrappedResponseError {
     Shift(#[from] ShiftError),
 
     #[error("Error rendering chat history with chat template: {0}")]
+    #[diagnostic(transparent)]
     Render(#[from] RenderError),
 
     #[error("Error removing tokens not present in the common prefix: {0}")]
@@ -1014,6 +1015,7 @@ pub enum SayError {
     Response(#[from] std::sync::mpsc::RecvError),
 
     #[error("Error finding token difference: {0}")]
+    #[diagnostic(transparent)]
     Render(#[from] RenderError),
 
     #[error("Error creating response: {0}")]
@@ -1054,18 +1056,11 @@ pub enum InvalidHistoryError {
     )]
     DoesNotEndInUserOrTool { role: &'static str },
 
-    #[error("System message at index {index}: only the first message may be a system message")]
-    #[diagnostic(
-        code(nobodywho::misplaced_system_message),
-        help("Move the system message to the front of the list, or remove it")
-    )]
-    MisplacedSystemMessage { index: usize },
-
     #[error("System message contains media")]
     #[diagnostic(
         code(nobodywho::media_in_system_message),
         help(
-            "No chat template supports images or audio in the system prompt. Move the media \
+            "No chat template supports images or audio in a system message. Move the media \
              to a user message."
         )
     )]
@@ -1074,10 +1069,6 @@ pub enum InvalidHistoryError {
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum CompleteError {
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    InvalidHistory(#[from] InvalidHistoryError),
-
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
@@ -1188,6 +1179,7 @@ pub enum ContextSyncError {
     StringToToken(#[from] llama_cpp_2::StringToTokenError),
 
     #[error("Could not render messages {0}")]
+    #[diagnostic(transparent)]
     TemplateRender(#[from] RenderError),
 
     #[error("Error reading token render into model {0}")]
@@ -1200,18 +1192,25 @@ pub enum ContextSyncError {
     #[error("Multimodal error: {0}")]
     Multimodal(#[from] MultimodalError),
 
-    #[error(transparent)]
-    InvalidHistory(#[from] InvalidHistoryError),
-
     #[error("Error shifting context: {0}")]
     #[diagnostic(transparent)]
     Shift(#[from] ShiftError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 pub enum RenderError {
     #[error("Template failed to render: {0}")]
     MiniJinja(#[from] minijinja::Error),
+
+    #[error("This chat template only supports a system message at the front")]
+    #[diagnostic(
+        code(nobodywho::inline_system_message_unsupported),
+        help(
+            "Only a leading system message can be rendered with this chat template. Move the \
+             instruction into the system prompt, or into the user message it applies to."
+        )
+    )]
+    InlineSystemMessageUnsupported,
 
     #[error("Could not tokenize string: {0}")]
     CreateContext(#[from] llama_cpp_2::StringToTokenError),
