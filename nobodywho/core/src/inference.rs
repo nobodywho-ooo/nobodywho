@@ -53,6 +53,49 @@ where
 }
 
 /// MTP state.
+///
+/// When we do speculative decoding, we basically want to do (in psuedo-C):
+/// ```c
+/// llama_token token = llama_sampler_sample(ctx, sampler);
+/// printf("%i", token);
+///
+/// // Generate guess tokens with the draft model.
+/// llama_token drafts[100];
+/// int n_drafts = speculative_drafts(ctx, n_past, token, &drafts, 100, ...);
+///
+/// // Assume all the tokens were correct, and decode them all at once.
+/// llama_batch batch = llama_batch_init(...);
+/// llama_batch_add(batch, token);
+/// for (int i = 0; i < n_drafts; i++) {
+///     llama_batch_add(batch, drafts[i]);
+/// }
+/// llama_decode(ctx, batch);
+///
+/// // Extra MTP post-processing?
+/// speculative_process(ctx, batch);
+///
+/// // Sample actual tokens
+/// int n_accepted = 0;
+/// for (int i = 0; i < n_drafts; i++) {
+///     token = llama_sampler_sample(ctx, sampler);
+///     if (token == drafts[i]) {
+///         printf("%i", token);
+///         n_accepted += 1;
+///     } else {
+///         break;
+///     }
+/// }
+///
+/// // Tell MTP which tokens were accepted.
+/// speculative_accept(ctx, n_accepted);
+///
+/// // Remove incorrectly guessed tokens from KV-cache.
+/// llama_memory_seq_rm(ctx, ...);
+/// ```
+///
+/// When we actually go do this in [`InferenceEngine::next_token`], we reorder
+/// things so that the accepting happens later, such that we can sample one
+/// token at a time instead.
 #[derive(Debug)]
 pub(crate) struct SpeculativeEngine<'a> {
     ctx: MtpSpeculative<'a>,
