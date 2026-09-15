@@ -31,6 +31,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Fixed
 
+- A FunctionGemma tool call whose argument value spans multiple lines is no longer dropped. The tool-call grammar lets a value contain newlines (a file body, a code snippet), but the extractor stopped at the first newline and discarded the whole call, so no tool ran. Multi-line values are now parsed. Affects all bindings.
 - **Python:** Pressing Ctrl+C during a synchronous GGUF model download now cancels the download, raises `KeyboardInterrupt`, and removes the incomplete temporary file.
 - A rejected chat setter no longer kills the chat. `set_sampler_config`, `set_tools` and `reset_chat` used to end the worker, so the reason was only logged and every later call — including `ask()` — failed with "worker terminated". The error now reaches the caller and the chat keeps working. Available for all bindings.
 - A rejected encoder or cross-encoder input no longer kills the worker. Text longer than the context window used to end it, so every later `encode()` or `rank()` failed too. The error now reaches the caller and the worker stays usable. Available for all bindings.
