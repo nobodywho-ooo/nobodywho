@@ -10362,6 +10362,10 @@ rec {
             packageId = "futures";
           }
           {
+            name = "log";
+            packageId = "log";
+          }
+          {
             name = "nobodywho";
             packageId = "nobodywho";
           }
@@ -10380,10 +10384,7 @@ rec {
           {
             name = "tracing";
             packageId = "tracing";
-          }
-          {
-            name = "tracing-subscriber";
-            packageId = "tracing-subscriber";
+            features = [ "log" ];
           }
         ];
         buildDependencies = [
