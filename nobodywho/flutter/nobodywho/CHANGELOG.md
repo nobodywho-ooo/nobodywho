@@ -1,3 +1,41 @@
+## 4.0.0
+
+### Breaking changes
+
+- A message's media is now part of its content instead of a separate `assets` list, and the `Asset` type is gone (#674). The media file path lives on the part it belongs to, so the ordering of text and media within a message is explicit rather than implied.
+- The system prompt is no longer stored as the first chat message; it is a setting on the `Chat` (#674). `getChatHistory()` therefore never returns a system message, and `complete()` no longer clears the system prompt when the list you pass has none. Media in a system message is now rejected, since no chat template supports it.
+- Raw JSON content now round-trips through a `{"type": "raw", "value": ...}` wrapper (#674). `text`, `image` and `audio` are reserved tags: a content array whose entries all carry one of them is read as content parts, while a non-empty array carrying none of them reaches the chat template as a real list. Mixing part tags with other tags in one array, or using a reserved tag with fields that do not parse, is now an error instead of being passed through untouched.
+- The errors the chat setters throw are no longer `SetterError`; catch them as plain exceptions rather than by type (#701). This covers `setChatHistory`, `setSamplerConfig`, `setTools`, `setSystemPrompt`, `setTemplateVariable(s)`, `resetContext` and `resetHistory`. `SetterError` was an opaque Dart class carrying no message, so the reason a setter failed could not be read; the exception now carries the rendered error text, as the generation methods already did.
+- Removed `ToolCallExtension` and `ToolCall.argumentsJson`, as `ToolCall` is no longer opaque (#697).
+
+### Chat completion (#674)
+
+`Chat.complete(messages)` answers a whole conversation passed as a list of messages, for when you would rather hand over the conversation than let the `Chat` remember it. The list becomes the chat history and the response is appended, so `ask()` continues from there. A system message at the front sets the chat's system prompt; leave it out and the prompt already on the chat is kept. Media referenced by the messages is re-read from its file path, so a saved conversation containing images or audio can be replayed.
+
+Message content can now be a list of typed parts, interleaving text with images and audio in a single message — the shape the OpenAI and Anthropic libraries use, so a multimodal conversation can be handed to `complete()` directly. Parts are `text`, `image` and `audio`; a plain string stays valid wherever content is accepted.
+
+`complete()` also accepts the chat's other settings per call as named arguments — the sampler, the template variables and the tools. They follow the same rule as the system message: what you pass stays set, what you leave out is kept, so specifying all of them makes the call independent of whatever the chat is currently holding. Applying them in the same call as the turn also makes it atomic. Note that changing the tools re-selects the chat template, so that turn re-prefills from near token zero.
+
+### New sampler steps (#687)
+
+Added `dynamicTemperature`, `topNSigma` and `logitBias` sampler steps.
+
+### Faster per-turn tool calling (#705)
+
+Handing `complete()` both a sampler and a set of tools no longer compiles the tool-calling grammar twice for that turn, and no longer redoes the ~400 ms llguidance initialisation — nor does changing the sampler alone. The tokenizer state a grammar is compiled against depends on the model rather than the grammar, so it is now built once per chat and reused, turning hundreds of milliseconds of per-turn overhead into single-digit milliseconds.
+
+### Changed
+
+- Updated `flutter_rust_bridge` to 2.13.0 (#697).
+- Updated `llama-cpp-rs` (#671).
+
+### Fixes
+
+- **Chat setters (#701)** — a rejected chat setter no longer kills the chat. `setSamplerConfig`, `setTools` and `resetHistory` used to end the worker, so the reason was only logged and every later call — including `ask()` — failed with "worker terminated". The error now reaches the caller and the chat keeps working.
+- **Encoder workers (#702)** — a rejected encoder or cross-encoder input no longer kills the worker. Text longer than the context window used to end it, so every later `encode()` or `rank()` failed too. The error now reaches the caller and the worker stays usable.
+- **Android builds on Windows (#706)** — building the Android package from a Windows host now works.
+- **`NOBODYWHO_FLUTTER_XCFRAMEWORK_PATH` (#710)** — the override is honoured again.
+
 ## 3.0.0
 
 ### Breaking changes

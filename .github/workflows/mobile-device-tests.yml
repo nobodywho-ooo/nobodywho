@@ -383,13 +383,21 @@ jobs:
           EOF
           flutter pub get
 
+      # Restricted to arm64-v8a because that is all we build above and all that
+      # FTL runs on. Without it the plugin resolves every supported ABI, finds
+      # no local x86_64 build, and falls back to downloading that .so from the
+      # release matching pubspec.yaml's version — which, on a release-gating
+      # run, is the release this pipeline has not created yet (404). Flutter
+      # forwards --target-platform to Gradle as -Ptarget-platform; the direct
+      # gradlew call needs it passed by hand.
       - name: "Build app + androidTest APKs"
         working-directory: ./nobodywho/testing-apps/flutter
         run: |
-          flutter build apk --debug
+          flutter build apk --debug --target-platform android-arm64
           cd android
           ./gradlew app:assembleAndroidTest \
-                    app:assembleDebug -Ptarget=integration_test/device_inference_test.dart
+                    app:assembleDebug -Ptarget=integration_test/device_inference_test.dart \
+                    -Ptarget-platform=android-arm64
 
       - uses: ./.github/actions/run-ftl
         with:
