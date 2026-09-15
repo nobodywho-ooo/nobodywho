@@ -59,7 +59,7 @@ pub(crate) struct SpeculativeEngine<'a> {
     /// The in-progress drafts.
     drafts: Vec<LlamaToken>,
     /// The number of accepted drafts.
-    accepted: usize,
+    n_accepted: usize,
     /// Whether we still need to tell the MTP state which tokens are accepted.
     needs_accept: bool,
     /// Statistics.
@@ -72,7 +72,7 @@ impl<'a> SpeculativeEngine<'a> {
         Self {
             ctx,
             drafts: Vec::new(),
-            accepted: 0,
+            n_accepted: 0,
             needs_accept: false,
             total_proposed: 0,
             total_accepted: 0,
@@ -84,22 +84,22 @@ impl<'a> SpeculativeEngine<'a> {
     /// This should only happen once per draft state.
     fn accept_drafts(&mut self) -> Result<(), MtpSpeculativeError> {
         if self.needs_accept {
-            let (accepted, declined) = self.drafts.split_at(self.accepted);
+            let (accepted, declined) = self.drafts.split_at(self.n_accepted);
             trace!(?accepted, ?declined, "accepting draft");
 
-            self.ctx.accept(self.accepted as u16)?;
+            self.ctx.accept(self.n_accepted as u16)?;
 
             self.needs_accept = false;
         }
 
         self.total_proposed += self.drafts.len() as u64;
-        self.total_accepted += self.accepted as u64;
+        self.total_accepted += self.n_accepted as u64;
 
         Ok(())
     }
 
     fn roll_back_declined_drafts(&mut self, keep_up_to: u32) -> Result<(), RollbackError> {
-        let declined = self.drafts.len() - self.accepted;
+        let declined = self.drafts.len() - self.n_accepted;
         if 0 < declined {
             // Remove declined drafts from the KV cache.
             let rolled_back = self.ctx.target_context_mut().clear_kv_cache_seq(
@@ -209,7 +209,7 @@ impl<'a> InferenceEngine<'a> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
             spec.accept_drafts()?;
             spec.drafts.clear();
-            spec.accepted = 0;
+            spec.n_accepted = 0;
         }
         self.ctx.clear_kv_cache();
         self.n_past = 0;
@@ -412,7 +412,7 @@ impl<'a> InferenceEngine<'a> {
             s.ctx.process(&self.batch)?;
             // A new prompt (or context-shift replay) invalidates in-progress drafts.
             s.drafts.clear();
-            s.accepted = 0;
+            s.n_accepted = 0;
         }
 
         self.n_past += tokens.len() as i32;
@@ -472,7 +472,7 @@ impl<'a> InferenceEngine<'a> {
             spec.accept_drafts()?;
             spec.roll_back_declined_drafts(self.n_past as _)?;
             spec.drafts.clear();
-            spec.accepted = 0;
+            spec.n_accepted = 0;
         }
 
         let prefix_index = find_chunks_prefix_difference(prev, &target);
@@ -498,7 +498,7 @@ impl<'a> InferenceEngine<'a> {
 
     fn in_progress_drafts(&self) -> i32 {
         if let EngineContext::Speculative(spec) = &self.ctx {
-            (spec.drafts.len() - spec.accepted) as i32
+            (spec.drafts.len() - spec.n_accepted) as i32
         } else {
             0
         }
@@ -560,13 +560,13 @@ impl<'a> InferenceEngine<'a> {
 
         let span = trace_span!("sample").entered();
         let token = if let EngineContext::Speculative(spec) = &mut self.ctx {
-            if let Some(draft) = spec.drafts.get(spec.accepted) {
-                let token = sampler.sample(spec.ctx.target_context_mut(), spec.accepted as _);
+            if let Some(draft) = spec.drafts.get(spec.n_accepted) {
+                let token = sampler.sample(spec.ctx.target_context_mut(), spec.n_accepted as _);
 
                 // Fast path: If the token matches what the draft model predicted,
                 // return the token.
                 if token == *draft {
-                    spec.accepted += 1;
+                    spec.n_accepted += 1;
                     self.n_past += 1;
                     return Ok(token);
                 }
@@ -586,7 +586,7 @@ impl<'a> InferenceEngine<'a> {
             spec.accept_drafts()?;
             spec.roll_back_declined_drafts(self.n_past as u32)?;
             spec.drafts.clear();
-            spec.accepted = 0;
+            spec.n_accepted = 0;
         }
 
         // Create new drafts.
