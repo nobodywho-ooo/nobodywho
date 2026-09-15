@@ -93,28 +93,23 @@ impl SamplerPresets {
         )
     }
 
+    /// Constrain output to a JSON object of any shape.
     pub fn json() -> SamplerConfig {
-        // the grammar must run before the truncation samplers: if top-k
-        // runs first and none of the surviving candidates is grammar-valid,
-        // the grammar masks out every token and generation aborts
-        let mut steps = vec![ShiftStep::Grammar {
-            trigger_on: None,
-            root: "root".into(),
-            grammar: JSON_GRAMMAR.into(),
-        }];
-        steps.extend(SamplerConfig::default().steps);
-        SamplerConfig::new(steps, SampleStep::Dist, default_seed())
+        SamplerConfig::new(
+            vec![ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into())],
+            SampleStep::Dist,
+            default_seed(),
+        )
     }
 
     #[deprecated(note = "Use SamplerPresets::constrain_with_grammar() instead")]
     pub fn grammar(grammar: String) -> SamplerConfig {
-        let mut steps = vec![ShiftStep::Grammar {
+        let grammar_step = ShiftStep::Grammar {
             trigger_on: None,
             root: "root".into(),
             grammar,
-        }];
-        steps.extend(SamplerConfig::default().steps);
-        SamplerConfig::new(steps, SampleStep::Dist, default_seed())
+        };
+        SamplerConfig::new(vec![grammar_step], SampleStep::Dist, default_seed())
     }
 }
 
@@ -255,18 +250,18 @@ impl SamplerConfig {
                     .collect();
                 Ok(LlamaSampler::logit_bias(model.n_vocab(), &biases))
             }
-            ShiftStep::JsonSchema(schema) => llguidance_sampler(model, "json_schema", &schema, &[]),
+            // A schema always has JSON string bodies, so the slice pays for itself.
+            ShiftStep::JsonSchema(schema) => llguidance_sampler(
+                model,
+                "json_schema",
+                &schema,
+                &crate::tool_calling::json_body_slice_regexes(),
+            ),
             ShiftStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
             ShiftStep::Lark(lark) => {
                 let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
                     .map_err(|e| SamplerError::GbnfConversionError(e.to_string()))?;
                 llguidance_sampler(model, "lark", &lark, &[])
-            }
-            // Reachable only via serde or direct construction: the tool path used
-            // to be the sole caller and now builds its own step. NOB-140 is to
-            // give it a `SamplerPresets` constructor like its siblings above.
-            ShiftStep::LarkWithSlices(lark, slices) => {
-                llguidance_sampler(model, "lark", &lark, &slices)
             }
         }
     }
@@ -417,9 +412,18 @@ impl SamplerBuilder {
         }
     }
 
-    /// Appends a shift step to the end of the sampler chain.
+    /// Adds a shift step: constraining steps go to the front of the chain, the
+    /// rest to the end. A grammar that runs after the truncation samplers can
+    /// find none of the surviving candidates valid, which masks out every token
+    /// and aborts generation.
     pub fn shift(mut self, step: ShiftStep) -> Self {
-        self.steps.push(step);
+        match step {
+            ShiftStep::Grammar { .. }
+            | ShiftStep::JsonSchema(_)
+            | ShiftStep::Regex(_)
+            | ShiftStep::Lark(_) => self.steps.insert(0, step),
+            _ => self.steps.push(step),
+        }
         self
     }
 
@@ -437,34 +441,35 @@ impl SamplerBuilder {
             seed: self.seed,
         }
     }
+
+    /// Constrain output to a JSON object of any shape. Use
+    /// [`constrain_with_json_schema`][Self::constrain_with_json_schema] to pin
+    /// down the structure too.
+    pub fn json(self) -> Self {
+        self.shift(ShiftStep::JsonSchema(JSON_OBJECT_SCHEMA.into()))
+    }
+
+    /// Constrain output to a JSON schema.
+    pub fn constrain_with_json_schema(self, schema: String) -> Self {
+        self.shift(ShiftStep::JsonSchema(schema))
+    }
+
+    /// Constrain output to a regular expression.
+    pub fn constrain_with_regex(self, pattern: String) -> Self {
+        self.shift(ShiftStep::Regex(pattern))
+    }
+
+    /// Constrain output to a grammar, given as either Lark or GBNF.
+    pub fn constrain_with_grammar(self, grammar: String) -> Self {
+        self.shift(ShiftStep::Lark(grammar))
+    }
 }
 
-const JSON_GRAMMAR: &str = r#"# this default gbnf grammar forces valid json output
-root   ::= object
-value  ::= object | array | string | number | ("true" | "false" | "null") ws
-
-object ::=
-"{" ws (
-            string ":" ws value
-    ("," ws string ":" ws value)*
-)? "}" ws
-
-array  ::=
-"[" ws (
-            value
-    ("," ws value)*
-)? "]" ws
-
-string ::=
-"\"" (
-    [^"\\\x7F\x00-\x1F] |
-    "\\" (["\\bfnrt] | "u" [0-9a-fA-F]{4}) # escapes
-)* "\"" ws
-
-number ::= ("-"? ([0-9] | [1-9] [0-9]{0,15})) ("." [0-9]+)? ([eE] [-+]? [0-9] [1-9]{0,15})? ws
-
-# Optional space: by convention, applied in this grammar after literal chars when allowed
-ws ::= | " " | "\n" [ \t]{0,20}"#;
+/// Any JSON object, for the `json` preset and builder step. A schema rather than
+/// a hand-written grammar so it takes the [`ShiftStep::JsonSchema`] path and its
+/// slices; an object rather than a bare `{}`, since an any-value constraint is
+/// already satisfied by a one-token scalar and models answer `false` and stop.
+const JSON_OBJECT_SCHEMA: &str = r#"{"type":"object"}"#;
 
 /// ----- Sampler Methods -----
 
@@ -503,10 +508,8 @@ pub enum ShiftStep {
     /// Constrain output to a regular expression via llguidance.
     Regex(String),
     /// Constrain output using a Lark context-free grammar via llguidance.
+    /// GBNF is accepted too, and converted before use.
     Lark(String),
-    /// Like [`Lark`][ShiftStep::Lark] but with custom slice regexes passed to the `ParserFactory`.
-    /// See [`llguidance_sampler`] for how slices speed up per-token constraint evaluation.
-    LarkWithSlices(String, Vec<String>),
     #[serde(rename = "dry")]
     DRY {
         multiplier: f32,
@@ -807,8 +810,11 @@ mod tests {
             .expect("generation with json preset failed");
 
         assert!(!response.is_empty(), "empty response");
-        serde_json::from_str::<serde_json::Value>(&response)
+        let parsed = serde_json::from_str::<serde_json::Value>(&response)
             .unwrap_or_else(|e| panic!("response is not valid JSON ({e}): {response}"));
+        // A bare `{}` schema would also be valid JSON, but it lets the model
+        // finish with a one-token scalar like `false`, so we constrain to an object.
+        assert!(parsed.is_object(), "expected an object, got: {response}");
     }
 
     #[test]
@@ -822,6 +828,47 @@ mod tests {
         // Verify order: TopK first, Temperature second
         assert!(matches!(config.steps[0], ShiftStep::TopK { .. }));
         assert!(matches!(config.steps[1], ShiftStep::Temperature { .. }));
+    }
+
+    #[test]
+    fn test_shift_prepends_constraints() {
+        let config = SamplerBuilder::new()
+            .shift(ShiftStep::TopK { top_k: 40 })
+            .constrain_with_regex("yes|no".into())
+            .sample(SampleStep::Dist);
+
+        assert_eq!(config.steps.len(), 2);
+        assert!(
+            matches!(config.steps[0], ShiftStep::Regex(_)),
+            "a constraint added after top-k still has to run before it"
+        );
+        assert!(matches!(config.steps[1], ShiftStep::TopK { .. }));
+    }
+
+    /// The builder counterpart of `test_ordering_grammar_first_with_unlikely_literal`:
+    /// chaining the constraint last must not put it after the truncation step.
+    #[test]
+    fn test_builder_constraint_survives_top_k_one() {
+        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
+        let model = std::sync::Arc::new(
+            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
+        );
+
+        let cfg = SamplerBuilder::new()
+            .shift(ShiftStep::TopK { top_k: 1 })
+            .constrain_with_grammar("root ::= \"zqxjvkw\"".into())
+            .sample(SampleStep::Dist);
+
+        let chat = crate::chat::ChatBuilder::new(model)
+            .build()
+            .expect("build chat");
+        chat.set_sampler_config(cfg).expect("set sampler config");
+        let response = chat
+            .ask("Say hello.")
+            .completed()
+            .expect("generation with a builder-added constraint failed");
+
+        assert_eq!(response, "zqxjvkw");
     }
 
     #[test]

@@ -177,7 +177,27 @@ Shift steps — add as many as you want, applied in order:
 - `.logitBias({ 1: -1.0, 2: 3.0 })` — token 1 less probable, token 2 is more probable
 - `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowedLength, penaltyLastN, seqBreakers`
 - `.seed(42)` — fix the RNG for reproducible output
-- `.grammar(...)` — deprecated; use the `constrainWith*` presets above
+- `.grammar(...)` — deprecated; use `.constrainWithGrammar(...)` below
+
+Constraining steps — the same formats as the presets above, but chainable with the rest:
+
+- `.constrainWithJsonSchema(...)` — output matches a JSON schema, given as a JSON string
+- `.constrainWithRegex(...)` — output matches a regular expression
+- `.constrainWithGrammar(...)` — output matches a grammar, in either Lark or GBNF syntax
+- `.json()` — output is a JSON object of any shape
+
+Unlike `SamplerPresets`, these take strings rather than a schema object or a `RegExp` —
+use `JSON.stringify(schema)` and `pattern.source` to convert.
+
+Constraining steps always run **before** the other shift steps, wherever you chain them.
+This is to avoid the case where a step like `.topK(5)` followed by a constraint could
+find that none of the five surviving tokens is valid, leaving nothing to sample and
+aborting generation. Both chains below therefore behave identically.
+
+```typescript
+const sampler = new SamplerBuilder().constrainWithRegex("yes|no").temperature(0.8).dist() as SamplerConfig;
+const same = new SamplerBuilder().temperature(0.8).constrainWithRegex("yes|no").dist() as SamplerConfig;
+```
 
 Terminal step — one of these turns the chain into a `SamplerConfig`, so finish with exactly one:
 

@@ -938,6 +938,31 @@ class SamplerBuilder:
         """
         Create a new SamplerBuilder to construct a custom sampler chain.
         """
+    def constrain_with_grammar(self, /, grammar: str) -> SamplerBuilder:
+        """
+        Constrain output to a grammar, given as either Lark or GBNF.
+
+        Args:
+            grammar: Grammar string in Lark or GBNF syntax
+        """
+    def constrain_with_json_schema(self, /, schema: str | dict) -> SamplerBuilder:
+        """
+        Constrain output to a JSON schema.
+
+        Constraining steps always run before the other shift steps, wherever you
+        chain them: a grammar that runs after truncation can find none of the
+        surviving candidates valid, which aborts generation.
+
+        Args:
+            schema: JSON schema as a dict or a JSON string
+        """
+    def constrain_with_regex(self, /, pattern: str) -> SamplerBuilder:
+        """
+        Constrain output to a regular expression.
+
+        Args:
+            pattern: Regular expression pattern
+        """
     def dist(self, /) -> SamplerConfig:
         """
         Sample from the probability distribution (weighted random selection).
@@ -996,6 +1021,11 @@ class SamplerBuilder:
 
         Returns:
             A complete SamplerConfig ready to use
+        """
+    def json(self, /) -> SamplerBuilder:
+        """
+        Constrain output to a JSON object of any shape. For schema-validated
+        JSON, use `constrain_with_json_schema()` instead.
         """
     def logit_bias(self, /, biases: dict[int, float]) -> SamplerBuilder:
         """

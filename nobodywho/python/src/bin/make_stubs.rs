@@ -30,6 +30,10 @@ const EXCEPTIONS_TO_REPLACE: &[(&str, &str)] = &[
         "def constrain_with_json_schema(schema: Any) -> SamplerConfig:",
         "def constrain_with_json_schema(schema: str | dict) -> SamplerConfig:",
     ),
+    (
+        "def constrain_with_json_schema(self, /, schema: Any) -> SamplerBuilder:",
+        "def constrain_with_json_schema(self, /, schema: str | dict) -> SamplerBuilder:",
+    ),
     // Remove Incomplete import and __getattr__ stub
     ("from _typeshed import Incomplete\n", ""),
     ("def __getattr__(name: str) -> Incomplete: ...\n", ""),

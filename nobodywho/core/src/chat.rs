@@ -15,7 +15,7 @@
 //!
 //! let chat = ChatBuilder::new(model)
 //!     .with_system_prompt(Some("You are a helpful assistant"))
-//!     .build();
+//!     .build()?;
 //!
 //! let response = chat.ask("Hello!").completed()?;
 //! # Ok(())
@@ -58,8 +58,8 @@ pub enum Message {
         content: MessageContent,
     },
     // The optional tool_calls field distinguishes a plain assistant response
-    // from one that includes tool calls. When tool_calls is Some, the content
-    // field is typically empty (required by qwen3 chat templates).
+    // from one that includes tool calls. When tool_calls is Some, content holds
+    // whatever the model said before the first call.
     // https://github.com/QwenLM/Qwen3/blob/e5a1d326/docs/source/framework/function_call.md
     Assistant {
         content: MessageContent,
@@ -203,6 +203,10 @@ impl History {
         Ok(Self(messages))
     }
 
+    pub fn into_vec(self) -> Vec<Message> {
+        self.0
+    }
+
     /// Split an OpenAI-shaped array into the two things the chat stores: a
     /// leading system message becomes the prompt, the rest stays history. Cannot
     /// fail, since the type already ruled out media that has no place in text.
@@ -256,9 +260,13 @@ impl History {
         self.0.push(Message::new_assistant(content));
     }
 
-    pub fn push_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
+    pub fn push_tool_calls(
+        &mut self,
+        content: impl Into<MessageContent>,
+        tool_calls: Vec<ToolCall>,
+    ) {
         self.0.push(Message::Assistant {
-            content: "".into(),
+            content: content.into(),
             tool_calls: Some(tool_calls),
         });
     }
@@ -605,11 +613,12 @@ impl ChatHandle {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) {
+    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
     /// let mut stream = chat.ask("Tell me a story");
-    /// while let Some(token) = stream.next_token().await {
+    /// while let Some(token) = stream.next_token().await? {
     ///     print!("{}", token);
     /// }
+    /// # Ok(())
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
@@ -890,7 +899,7 @@ impl ChatHandle {
     /// # use nobodywho::llm::get_model;
     /// # use std::sync::Arc;
     /// # let model = Arc::new(get_model("model.gguf", true, None, None, None).unwrap());
-    /// # let chat = ChatBuilder::new(model).build();
+    /// # let chat = ChatBuilder::new(model).build().unwrap();
     /// chat.set_system_prompt(Some("You are a helpful coding assistant.".to_string()))?;
     /// # Ok::<(), nobodywho::errors::SetterError>(())
     /// ```
@@ -990,11 +999,12 @@ impl ChatHandleAsync {
     /// # Example
     /// ```
     /// # use nobodywho::chat::ChatHandleAsync;
-    /// # async fn example(chat: &ChatHandleAsync) {
+    /// # async fn example(chat: &ChatHandleAsync) -> Result<(), nobodywho::errors::CompletionError> {
     /// let mut stream = chat.ask("Tell me a story");
-    /// while let Some(token) = stream.next_token().await {
+    /// while let Some(token) = stream.next_token().await? {
     ///     print!("{}", token);
     /// }
+    /// # Ok(())
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
@@ -2087,8 +2097,12 @@ impl<'a> Chat<'a> {
         self.messages.push_user(content);
     }
 
-    pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
-        self.messages.push_tool_calls(tool_calls);
+    pub fn add_tool_calls(
+        &mut self,
+        content: impl Into<MessageContent>,
+        tool_calls: Vec<ToolCall>,
+    ) {
+        self.messages.push_tool_calls(content, tool_calls);
     }
 
     pub fn add_tool_resp(&mut self, name: String, content: String) {
@@ -2278,14 +2292,7 @@ impl<'a> Chat<'a> {
                 let (_result, _bytes_read, _had_errors) =
                     decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-                // HACK (gemma4): some gemma4 models emit token id 1 (which renders as the
-                // literal "<eos>") as a stop token after tool calls. llama.cpp's `is_eog_token`
-                // does not flag it, which causes a runaway generation loop, so match it
-                // explicitly. vllm handles the same case:
-                // https://docs.vllm.ai/en/stable/api/vllm/model_executor/models/gemma4_utils/#vllm.model_executor.models.gemma4_utils.has_tool_response_tag
-                let gemma4_eog_hotfix = token_str == "<eos>" && new_token == LlamaToken::new(1);
-
-                let has_eog = self.engine.ctx.model.is_eog_token(new_token) || gemma4_eog_hotfix;
+                let has_eog = self.engine.ctx.model.is_eog_token(new_token);
                 trace!(?new_token, ?token_str, ?has_eog);
 
                 if has_eog {
@@ -2407,13 +2414,16 @@ impl<'a> Chat<'a> {
         if let Some(tool_format) = self.tool_format.clone() {
             while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
                 debug!(?tool_calls, "Got tool calls:");
-                self.add_tool_calls(tool_calls.clone());
+
+                // Whatever the model said before the call is part of the turn,
+                // so it goes into the history message alongside the calls.
+                let content = response
+                    .split_once(tool_format.begin_token())
+                    .map_or("", |(content, _)| content);
+                self.add_tool_calls(content, tool_calls.clone());
 
                 if skip_calling_tools {
-                    let content = response
-                        .split_once(tool_format.begin_token())
-                        .map(|(content, _)| content.to_string())
-                        .unwrap_or_default();
+                    let content = content.to_string();
                     self.context.chunks = self.render_as_chunks(&self.messages, true)?;
                     return Ok(AssistantResponse {
                         content,
@@ -3318,6 +3328,26 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
+
+        // The history splits the response at the begin token: the preamble is
+        // kept as content, the call block itself never is.
+        let begin_token = worker
+            .tool_format
+            .as_ref()
+            .expect("the test model has a tool format")
+            .begin_token();
+        for message in &worker.messages.into_vec() {
+            if let Message::Assistant {
+                content,
+                tool_calls: Some(_),
+            } = message
+            {
+                assert!(
+                    !content.to_string().contains(begin_token),
+                    "raw call block stored as content: {content}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -3352,6 +3382,62 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    /// A tool-calling turn keeps whatever the model wrote before the call, so
+    /// the next turn sees its own reasoning instead of a bare call.
+    #[test]
+    fn tool_call_preamble_is_kept_in_history() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+
+        let preamble = "Let me look up the temperature in Copenhagen.";
+        worker.add_user_message("What is the temperature in Copenhagen?");
+        worker.add_tool_calls(
+            preamble,
+            vec![ToolCall {
+                name: "get_current_temperature".into(),
+                arguments: serde_json::json!({"location": "Copenhagen"}),
+            }],
+        );
+
+        let Some(Message::Assistant {
+            content,
+            tool_calls: Some(_),
+        }) = worker.messages.last()
+        else {
+            panic!("expected an assistant message with tool calls");
+        };
+        assert_eq!(content.to_string(), preamble);
+
+        // Keeping it in the history is only worth anything if the template puts
+        // it back into the prompt next to the call.
+        let rendered = worker
+            .chat_template
+            .render(
+                &worker
+                    .messages
+                    .with_system_prompt(worker.system_prompt.as_deref()),
+                &ChatTemplateContext::new(
+                    worker.template_variables.clone(),
+                    Some(worker.tools.clone()),
+                ),
+            )
+            .expect("rendering a history with a tool call");
+        assert!(
+            rendered.contains(preamble),
+            "preamble missing from the rendered prompt: {rendered}"
+        );
     }
 
     #[test]
@@ -3751,10 +3837,13 @@ mod tests {
             // Add a tool call every other message
             // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
             if i % 2 == 0 {
-                worker.add_tool_calls(vec![ToolCall {
-                    name: "get_current_temperature".into(),
-                    arguments: serde_json::json!({"location": "Copenhagen"}),
-                }]);
+                worker.add_tool_calls(
+                    "",
+                    vec![ToolCall {
+                        name: "get_current_temperature".into(),
+                        arguments: serde_json::json!({"location": "Copenhagen"}),
+                    }],
+                );
                 worker.add_tool_resp("get_current_temperature".into(), "13.37°C".into());
                 worker.add_assistant_message(format!(
                     "The temperature is 13.37°C and {} * {} = {}.",

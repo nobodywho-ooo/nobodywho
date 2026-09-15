@@ -29,8 +29,6 @@ func _ready() -> void:
 	# assert(await $Grammar.run_test())
 	assert(await $CrossEncoder.run_test())
 	assert(await $HfPath.run_test())
-	# SpeechToText test disabled: tokio::task::spawn_blocking panics inside godot::task::spawn
-	# (gdext's executor has no Tokio runtime). Needs a different approach.
-	# assert(await $SpeechToText.run_test())
+	assert(await $SpeechToText.run_test())
 	print("✨ all tests complete")
 	get_tree().quit()

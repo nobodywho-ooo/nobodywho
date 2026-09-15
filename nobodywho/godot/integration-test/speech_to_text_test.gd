@@ -15,7 +15,9 @@ const AUDIO_PATH := "res://../../../assets/sound.mp3"
 func run_test() -> bool:
 	print("🎙️ Starting stt_test")
 
-	var audio_path := ProjectSettings.globalize_path(AUDIO_PATH)
+	var audio_path := OS.get_environment("TEST_AUDIO_FILE")
+	if audio_path.is_empty():
+		audio_path = ProjectSettings.globalize_path(AUDIO_PATH)
 
 	var stt := NobodyWhoSpeechToText.new()
 	stt.model_path = WHISPER_MODEL
@@ -32,13 +34,22 @@ func run_test() -> bool:
 	stt.start_worker()
 	await stt.worker_started
 
-	var transcript := ""
-	stt.transcription_updated.connect(func(piece: String): transcript += piece)
+	var pieces: Array[String] = []
+	stt.transcription_updated.connect(func(piece: String): pieces.append(piece))
 
 	stt.transcribe_file(audio_path)
 	var full: String = await stt.transcription_finished
 
+	var streamed := "".join(pieces)
 	print("✨ stt_test transcript: " + full)
+	print("✨ stt_test streamed %d pieces: %s" % [pieces.size(), streamed])
+
+	assert(not pieces.is_empty(), "Expected transcription_updated to emit at least one piece")
+	assert(
+		streamed.strip_edges() == full.strip_edges(),
+		"Streamed pieces '%s' do not match final transcript '%s'" % [streamed, full]
+	)
+
 	assert("ron" in full.to_lower(), "Expected 'ron' in transcript, got: " + full)
 	assert("billy" in full.to_lower(), "Expected 'billy' in transcript, got: " + full)
 

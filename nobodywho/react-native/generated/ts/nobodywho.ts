@@ -4117,6 +4117,18 @@ const FfiConverterTypeRustVoiceActivityDetection =  new FfiConverterObject(uniff
 export interface SamplerBuilderInterface {
     
     /**
+     * Constrain output to a grammar, given as either Lark or GBNF.
+     */
+    constrainWithGrammar(grammar: string) : SamplerBuilderInterface;
+    /**
+     * Constrain output to a JSON schema, given as a JSON string.
+     */
+    constrainWithJsonSchema(schema: string) : SamplerBuilderInterface;
+    /**
+     * Constrain output to a regular expression.
+     */
+    constrainWithRegex(pattern: string) : SamplerBuilderInterface;
+    /**
      * Sample from the probability distribution (weighted random selection).
      */
     dist() : SamplerConfigInterface;
@@ -4142,6 +4154,11 @@ export interface SamplerBuilderInterface {
      * Always select the most probable token (deterministic).
      */
     greedy() : SamplerConfigInterface;
+    /**
+     * Constrain output to a JSON object of any shape. Use
+     * `constrain_with_json_schema()` to pin down the structure too.
+     */
+    json() : SamplerBuilderInterface;
     /**
      * Modify the likelihood of specific tokens.
      *
@@ -4230,6 +4247,48 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
 
     
     /**
+     * Constrain output to a grammar, given as either Lark or GBNF.
+     */
+ constrainWithGrammar(grammar: string): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_grammar(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(grammar),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Constrain output to a JSON schema, given as a JSON string.
+     */
+ constrainWithJsonSchema(schema: string): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_json_schema(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(schema),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Constrain output to a regular expression.
+     */
+ constrainWithRegex(pattern: string): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_constrain_with_regex(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+        FfiConverterString.lower(pattern),
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
      * Sample from the probability distribution (weighted random selection).
      */
  dist(): SamplerConfigInterface {
@@ -4305,6 +4364,20 @@ export class SamplerBuilder extends UniffiAbstractObject implements SamplerBuild
     return FfiConverterTypeSamplerConfig.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+    /**
+     * Constrain output to a JSON object of any shape. Use
+     * `constrain_with_json_schema()` to pin down the structure too.
+     */
+ json(): SamplerBuilderInterface {
+    return FfiConverterTypeSamplerBuilder.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_samplerbuilder_json(uniffiTypeSamplerBuilderObjectFactory.clonePointer(this), 
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4990,6 +5063,15 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment() !== 39967) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustvoiceactivitydetection_segment");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar() !== 36786) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_grammar");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema() !== 45268) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_json_schema");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex() !== 1166) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_constrain_with_regex");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist() !== 23376) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dist");
     }
@@ -5004,6 +5086,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy() !== 32898) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_greedy");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json() !== 18949) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_json");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias() !== 61844) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_logit_bias");

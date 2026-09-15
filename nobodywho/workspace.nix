@@ -128,7 +128,7 @@ let
         };
 
         nobodywho-flutter = attrs: {
-          env.NOBODYWHO_SKIP_CODEGEN = "True";
+          env.NOBODYWHO_SKIP_CODEGEN = "1";
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
