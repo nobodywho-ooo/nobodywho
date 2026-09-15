@@ -664,6 +664,11 @@ impl<'a> InferenceEngine<'a> {
             self.batch.add(d, self.n_past + 1 + i as i32, &[0], true)?;
         }
 
+        // llm go brr?
+        //
+        // We _start_ the decoding here, though we don't wait for it to finish
+        // (see comment further up), so beware that timings might be somewhat
+        // confusing if you're trying to benchmark.
         let span = trace_span!("decode", n_past = self.n_past).entered();
         self.ctx.decode(&mut self.batch)?;
         drop(span);
