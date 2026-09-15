@@ -2,7 +2,7 @@
 
 Host app for the on-device integration tests that run on real phones via
 Firebase Test Lab. It is deliberately a plain Flutter app: it depends on
-`nobodywho` from pub.dev and does nothing a normal consumer would not do.
+`nobodywho` but otherwise does nothing a normal consumer would not do.
 
 If this app ever needs an extra step to work, that is a defect to fix in the
 library — not a workaround to add here.
@@ -45,17 +45,21 @@ dies with no output at all. Pass the cache dir Flutter itself uses:
 
 `flutter build apk --debug --verbose | grep executing` prints the exact path.
 
-## Testing against local bindings instead of pub.dev
+## Building against a released version
 
-`pubspec.yaml` depends on the published package, which is what a consumer gets.
-To exercise the bindings in this repo instead, add a `pubspec_overrides.yaml`
-next to it (pub's standard mechanism for a local override, and gitignored here):
+`pubspec.yaml` path-depends on `../../flutter/nobodywho`, so this app builds
+against the bindings in this repo and needs no override for everyday work. To
+build against the published package instead, add a `pubspec_overrides.yaml` next
+to it (pub's standard override mechanism, and gitignored here):
 
 ```yaml
 dependency_overrides:
-  nobodywho:
-    path: ../../flutter/nobodywho
+  nobodywho: <version>
 ```
 
-CI does exactly this in the `flutter` job, and omits it in the
-`flutter-released` job. See `.github/workflows/mobile-device-tests.yml`.
+That mode is what a real consumer does, so it is the one that tells you whether
+what we *shipped* works.
+
+CI does exactly this in the `flutter-released` job, resolving the newest
+published version rather than hardcoding one, and omits it in the
+`flutter-source` job. See `.github/workflows/mobile-device-tests.yml`.
