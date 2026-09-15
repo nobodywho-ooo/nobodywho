@@ -57,6 +57,22 @@ class NobodyWho
   @override
   Future<void> executeRustInitializers() async {
     await api.crateInitApp();
+
+    kFrbDartLogging.init(
+      rustLogStream: frbInternalInitLogger(
+        maxLevel: frbInternalLoggingMaxLevel(),
+      ),
+      mapRecord: (record) => FrbLogRecordData(
+        level: record.level,
+        message: record.message,
+        target: record.target,
+        modulePath: record.modulePath,
+        file: record.file,
+        line: record.line,
+      ),
+      setupDefaultOutput: frbInternalLoggingSetupDartLoggingOutput(),
+      disposeRustLogger: frbInternalDisposeLogger,
+    );
   }
 
   @override
@@ -67,7 +83,7 @@ class NobodyWho
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1372430226;
+  int get rustContentHash => 2055835111;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -486,6 +502,14 @@ abstract class NobodyWhoApi extends BaseApi {
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
         noopOnDownloadProgress,
   });
+
+  void crateFrbInternalDisposeLogger();
+
+  Stream<FrbLogRecord> crateFrbInternalInitLogger({required String maxLevel});
+
+  String crateFrbInternalLoggingMaxLevel();
+
+  bool crateFrbInternalLoggingSetupDartLoggingOutput();
 
   List<(String, BigInt)> crateGetCachedModels();
 
@@ -3793,12 +3817,122 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   );
 
   @override
-  List<(String, BigInt)> crateGetCachedModels() {
+  void crateFrbInternalDisposeLogger() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 86)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbInternalDisposeLoggerConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbInternalDisposeLoggerConstMeta =>
+      const TaskConstMeta(
+        debugName: "frb_internal_dispose_logger",
+        argNames: [],
+      );
+
+  @override
+  Stream<FrbLogRecord> crateFrbInternalInitLogger({required String maxLevel}) {
+    final sink = RustStreamSink<FrbLogRecord>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_StreamSink_frb_log_record_Sse(sink, serializer);
+            sse_encode_String(maxLevel, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 87,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: null,
+          ),
+          constMeta: kCrateFrbInternalInitLoggerConstMeta,
+          argValues: [sink, maxLevel],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateFrbInternalInitLoggerConstMeta => const TaskConstMeta(
+    debugName: "frb_internal_init_logger",
+    argNames: ["sink", "maxLevel"],
+  );
+
+  @override
+  String crateFrbInternalLoggingMaxLevel() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 88)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbInternalLoggingMaxLevelConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbInternalLoggingMaxLevelConstMeta =>
+      const TaskConstMeta(
+        debugName: "frb_internal_logging_max_level",
+        argNames: [],
+      );
+
+  @override
+  bool crateFrbInternalLoggingSetupDartLoggingOutput() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateFrbInternalLoggingSetupDartLoggingOutputConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateFrbInternalLoggingSetupDartLoggingOutputConstMeta =>
+      const TaskConstMeta(
+        debugName: "frb_internal_logging_setup_dart_logging_output",
+        argNames: [],
+      );
+
+  @override
+  List<(String, BigInt)> crateGetCachedModels() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_record_string_usize,
@@ -3823,7 +3957,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 87,
+            funcId: 91,
             port: port_,
           );
         },
@@ -3848,7 +3982,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_opt_box_autoadd_usize(maxCommands, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 88)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 92)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3880,7 +4014,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_opt_box_autoadd_u_64(maxDurationSecs, serializer);
           sse_encode_opt_box_autoadd_usize(maxMemoryBytes, serializer);
           sse_encode_opt_box_autoadd_usize(maxRecursionDepth, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 89)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 93)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3919,7 +4053,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           sse_encode_String(description, serializer);
           sse_encode_String(runtimeType, serializer);
           sse_encode_Map_String_String_None(parameterDescriptions, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 90)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 94)!;
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -3961,7 +4095,7 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(downloaded, serializer);
           sse_encode_i_64(total, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 91)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 95)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -4708,6 +4842,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  RustStreamSink<FrbLogRecord> dco_decode_StreamSink_frb_log_record_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
@@ -4821,6 +4963,22 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   double dco_decode_f_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as double;
+  }
+
+  @protected
+  FrbLogRecord dco_decode_frb_log_record(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return FrbLogRecord(
+      level: dco_decode_String(arr[0]),
+      message: dco_decode_String(arr[1]),
+      target: dco_decode_String(arr[2]),
+      modulePath: dco_decode_opt_String(arr[3]),
+      file: dco_decode_opt_String(arr[4]),
+      line: dco_decode_opt_box_autoadd_u_32(arr[5]),
+    );
   }
 
   @protected
@@ -5845,6 +6003,14 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  RustStreamSink<FrbLogRecord> sse_decode_StreamSink_frb_log_record_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -5965,6 +6131,25 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   double sse_decode_f_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getFloat64();
+  }
+
+  @protected
+  FrbLogRecord sse_decode_frb_log_record(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_level = sse_decode_String(deserializer);
+    var var_message = sse_decode_String(deserializer);
+    var var_target = sse_decode_String(deserializer);
+    var var_modulePath = sse_decode_opt_String(deserializer);
+    var var_file = sse_decode_opt_String(deserializer);
+    var var_line = sse_decode_opt_box_autoadd_u_32(deserializer);
+    return FrbLogRecord(
+      level: var_level,
+      message: var_message,
+      target: var_target,
+      modulePath: var_modulePath,
+      file: var_file,
+      line: var_line,
+    );
   }
 
   @protected
@@ -7242,6 +7427,23 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   }
 
   @protected
+  void sse_encode_StreamSink_frb_log_record_Sse(
+    RustStreamSink<FrbLogRecord> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_frb_log_record,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
@@ -7359,6 +7561,17 @@ class NobodyWhoApiImpl extends NobodyWhoApiImplPlatform
   void sse_encode_f_64(double self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putFloat64(self);
+  }
+
+  @protected
+  void sse_encode_frb_log_record(FrbLogRecord self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.level, serializer);
+    sse_encode_String(self.message, serializer);
+    sse_encode_String(self.target, serializer);
+    sse_encode_opt_String(self.modulePath, serializer);
+    sse_encode_opt_String(self.file, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.line, serializer);
   }
 
   @protected
