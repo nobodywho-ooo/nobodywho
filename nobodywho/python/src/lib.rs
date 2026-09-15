@@ -1,7 +1,8 @@
+use pyo3::exceptions::PyKeyboardInterrupt;
 use pyo3::prelude::*;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use nobodywho::render_miette;
@@ -41,22 +42,91 @@ pub struct Model {
     model: Arc<nobodywho::llm::Model>,
 }
 
-/// Wrap a Python `on_download_progress` argument into a core `DownloadProgressCallback`.
-///
-/// - `Some(py_callable)` → wraps it so the Python function is invoked on each chunk
-///   with `(downloaded_bytes, total_bytes)`. Exceptions are printed and swallowed.
-/// - `None` → returns `None`; core installs its own default terminal progress bar.
-///
-/// Returns `TypeError` if `py_callback` is not callable, so a non-callable argument
-/// fails fast at construction rather than per-chunk during download.
+struct PythonDownloadContext {
+    cancelled: Arc<AtomicBool>,
+    signal_error: Arc<Mutex<Option<PyErr>>>,
+}
+
+impl PythonDownloadContext {
+    fn new() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            signal_error: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn cancellation_callback(&self) -> nobodywho::llm::DownloadCancellationCallback {
+        let cancelled = Arc::clone(&self.cancelled);
+        let signal_error = Arc::clone(&self.signal_error);
+        Arc::new(move || {
+            if cancelled.load(Ordering::Relaxed) {
+                return true;
+            }
+            Python::attach(|py| match py.check_signals() {
+                Ok(()) => false,
+                Err(error) => {
+                    *signal_error.lock().expect("signal error mutex poisoned") = Some(error);
+                    cancelled.store(true, Ordering::Relaxed);
+                    true
+                }
+            })
+        })
+    }
+
+    fn finish<T>(&self, result: Result<T, nobodywho::errors::LoadModelError>) -> PyResult<T> {
+        if let Some(error) = self
+            .signal_error
+            .lock()
+            .expect("signal error mutex poisoned")
+            .take()
+        {
+            return Err(error);
+        }
+        Python::attach(|py| py.check_signals())?;
+        result.map_err(err)
+    }
+
+    fn resolve_progress(
+        &self,
+        py_callback: Option<Py<PyAny>>,
+    ) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
+        let Some(callback) = py_callback else {
+            return Ok(None);
+        };
+        Python::attach(|py| {
+            if !callback.bind(py).is_callable() {
+                return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "on_download_progress must be callable, taking (downloaded_bytes, total_bytes)",
+                ));
+            }
+            Ok(())
+        })?;
+
+        let cancelled = Arc::clone(&self.cancelled);
+        let signal_error = Arc::clone(&self.signal_error);
+        Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
+            Python::attach(|py| {
+                if let Err(error) = callback.call1(py, (downloaded, total)) {
+                    if error.is_instance_of::<PyKeyboardInterrupt>(py) {
+                        *signal_error.lock().expect("signal error mutex poisoned") = Some(error);
+                        cancelled.store(true, Ordering::Relaxed);
+                    } else {
+                        error.print(py);
+                    }
+                }
+            });
+        }) as nobodywho::llm::DownloadProgressCallback))
+    }
+}
+
 fn resolve_on_download_progress(
     py_callback: Option<Py<PyAny>>,
 ) -> PyResult<Option<nobodywho::llm::DownloadProgressCallback>> {
-    let Some(cb) = py_callback else {
+    let Some(callback) = py_callback else {
         return Ok(None);
     };
     Python::attach(|py| {
-        if !cb.bind(py).is_callable() {
+        if !callback.bind(py).is_callable() {
             return Err(pyo3::exceptions::PyTypeError::new_err(
                 "on_download_progress must be callable, taking (downloaded_bytes, total_bytes)",
             ));
@@ -65,8 +135,8 @@ fn resolve_on_download_progress(
     })?;
     Ok(Some(Arc::new(move |downloaded: u64, total: u64| {
         Python::attach(|py| {
-            if let Err(e) = cb.call1(py, (downloaded, total)) {
-                e.print(py);
+            if let Err(error) = callback.call1(py, (downloaded, total)) {
+                error.print(py);
             }
         });
     }) as nobodywho::llm::DownloadProgressCallback))
@@ -125,20 +195,19 @@ impl Model {
                 })
             })
             .transpose()?;
-        let progress = resolve_on_download_progress(on_download_progress)?;
-        let model_result = nobodywho::llm::get_model(
+        let download = PythonDownloadContext::new();
+        let progress = download.resolve_progress(on_download_progress)?;
+        let model = download.finish(nobodywho::llm::get_model_cancellable(
             path_str,
             use_gpu_if_available,
             mmproj_str,
             draft_str,
             progress,
-        );
-        match model_result {
-            Ok(model) => Ok(Self {
-                model: Arc::new(model),
-            }),
-            Err(e) => Err(err(e)),
-        }
+            Some(download.cancellation_callback()),
+        ))?;
+        Ok(Self {
+            model: Arc::new(model),
+        })
     }
 
     /// Asynchronously load a model from a GGUF file.
@@ -243,8 +312,16 @@ impl<'py> ModelOrPath<'py> {
                         path.display()
                     ))
                 })?;
-                nobodywho::llm::get_model(path_str, true, None, None, None)
-                    .map_err(err)
+                let download = PythonDownloadContext::new();
+                download
+                    .finish(nobodywho::llm::get_model_cancellable(
+                        path_str,
+                        true,
+                        None,
+                        None,
+                        None,
+                        Some(download.cancellation_callback()),
+                    ))
                     .map(Arc::new)
             }
         }
@@ -2284,8 +2361,14 @@ fn download_model(
         ))
     })?;
     let headers_vec: Vec<(String, String)> = headers.unwrap_or_default().into_iter().collect();
-    let progress = resolve_on_download_progress(on_download_progress)?;
-    nobodywho::llm::download_model(path_str, headers_vec, progress).map_err(err)
+    let download = PythonDownloadContext::new();
+    let progress = download.resolve_progress(on_download_progress)?;
+    download.finish(nobodywho::llm::download_model_cancellable(
+        path_str,
+        headers_vec,
+        progress,
+        Some(download.cancellation_callback()),
+    ))
 }
 
 /// `SamplerConfig` contains the configuration for a token sampler. The mechanism by which
