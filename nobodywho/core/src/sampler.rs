@@ -757,6 +757,8 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils;
+
     use super::*;
     use std::sync::Arc;
 
@@ -891,8 +893,7 @@ mod tests {
 
     #[test]
     fn test_json_preset_builds_sampler() {
-        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
-        let model = crate::llm::get_model(&path, false, None, None, None).expect("load model");
+        let model = test_utils::load_test_model();
 
         let res = SamplerPresets::json().build_sampler(&model.language_model);
         assert!(res.is_ok(), "json preset failed: {:?}", res.err());
@@ -905,10 +906,7 @@ mod tests {
     /// first the literal is emitted regardless of the model.
     #[test]
     fn test_ordering_grammar_first_with_unlikely_literal() {
-        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
-        let model = std::sync::Arc::new(
-            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
-        );
+        let model = test_utils::load_test_model();
 
         let cfg = SamplerConfig::new(
             vec![GrammarStep::Lark("root ::= \"zqxjvkw\"".into())],
@@ -936,10 +934,7 @@ mod tests {
     /// the process during generation.
     #[test]
     fn test_json_preset_full_generation() {
-        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
-        let model = std::sync::Arc::new(
-            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
-        );
+        let model = test_utils::load_test_model();
 
         let chat = crate::chat::ChatBuilder::new(model)
             .build()
@@ -1026,10 +1021,7 @@ mod tests {
     /// chaining the constraint last must not put it after the truncation step.
     #[test]
     fn test_builder_constraint_survives_top_k_one() {
-        let path = std::env::var("TEST_MODEL").expect("set TEST_MODEL to a gguf path");
-        let model = std::sync::Arc::new(
-            crate::llm::get_model(&path, false, None, None, None).expect("load model"),
-        );
+        let model = test_utils::load_test_model();
 
         let cfg = SamplerBuilder::new()
             .shift(ShiftStep::TopK { top_k: 1 })
