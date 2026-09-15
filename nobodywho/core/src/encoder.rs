@@ -163,7 +163,6 @@ mod tests {
     use crate::test_utils;
     #[test]
     fn test_encoder_sync() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
         let encoder = Encoder::new(model, 1024);
 
@@ -204,7 +203,6 @@ mod tests {
 
     #[test]
     fn test_encoder_worker_direct() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
 
         let mut worker = Worker::new_encoder_worker(&model, 1024)?;
@@ -250,7 +248,6 @@ mod tests {
     #[test]
     fn test_encoder_batch_matches_individual_embeddings() -> Result<(), Box<dyn std::error::Error>>
     {
-        test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
         let encoder = Encoder::new(model, 20);
         let texts = vec![
@@ -278,7 +275,6 @@ mod tests {
 
     #[test]
     fn test_deterministic_encoder() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
         let encoder = Encoder::new(model, 1024);
 
@@ -298,7 +294,6 @@ mod tests {
 
     #[test]
     fn test_oversized_input_keeps_encoder_alive() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_embeddings_model();
         let encoder = Encoder::new(model, 64);
 

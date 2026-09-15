@@ -66,14 +66,24 @@ impl ToolFormatHandler for FunctionGemmaHandler {
     }
 
     fn extract_tool_calls(&self, input: &str) -> Option<Vec<ToolCall>> {
+        // The `(?s)` flag lets `.` match newlines. The grammar's value rule
+        // (`value: <escape> /[^<>{},:]+/ <escape>` in `to_lark`) accepts any
+        // byte but the structural delimiters, so a value may legally span
+        // multiple lines (a file body, a code snippet). Without `(?s)`, `.`
+        // stops at `\n`, so the outer regex fails to match and the whole tool
+        // call is silently dropped. The sibling handlers already do this:
+        // Qwen3 with `[\s\S]*?`, Qwen3.5/3.6 with `(?s)`.
+
         // Regex to capture the entire FunctionGemma structure:
         // <start_function_call>call:function_name{params}<end_function_call>
-        let tool_call_regex =
-            regex::Regex::new(r"<start_function_call>\s*call:(\w+)\{(.*?)\}\s*<end_function_call>")
-                .expect("Invalid regex");
+        let tool_call_regex = regex::Regex::new(
+            r"(?s)<start_function_call>\s*call:(\w+)\{(.*?)\}\s*<end_function_call>",
+        )
+        .expect("Invalid regex");
 
         // Regex to capture individual parameters: param_name:<escape>value<escape>
-        let param_regex = regex::Regex::new(r"(\w+):<escape>(.*?)<escape>").expect("Invalid regex");
+        let param_regex =
+            regex::Regex::new(r"(?s)(\w+):<escape>(.*?)<escape>").expect("Invalid regex");
 
         let tool_calls: Vec<ToolCall> = tool_call_regex
             .captures_iter(input)
@@ -160,6 +170,27 @@ mod tests {
         assert_eq!(tool_calls.len(), 1);
         assert_eq!(tool_calls[0].name, "get_time");
         assert_eq!(tool_calls[0].arguments, json!({}));
+    }
+
+    /// Regression: a multi-line argument value must round-trip. The grammar's
+    /// value rule `/[^<>{},:]+/` matches any byte but the structural delimiters,
+    /// so `\n` is allowed and a model can emit a value spanning several lines
+    /// (a file body, a code snippet). The extractor's regexes used `.`, which
+    /// skips `\n` without the `s` flag, so such a call was matched by nothing
+    /// and the whole tool call was dropped (`extract_tool_calls` returned
+    /// `None`). With `(?s)` the value is recovered verbatim.
+    #[test]
+    fn test_functiongemma_extract_multiline_value() {
+        let handler = FunctionGemmaHandler;
+        let input = "<start_function_call>call:write_file{content:<escape>line1\nline2<escape>}<end_function_call>";
+
+        let result = handler.extract_tool_calls(input);
+        assert!(result.is_some(), "multi-line value should still parse");
+
+        let tool_calls = result.unwrap();
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].name, "write_file");
+        assert_eq!(tool_calls[0].arguments["content"], json!("line1\nline2"));
     }
 
     #[test]

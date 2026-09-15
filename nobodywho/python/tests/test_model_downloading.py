@@ -1,7 +1,15 @@
 """Tests for model downloading via the hf:// prefix."""
 
-import pytest
+import http.server
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+
 import nobodywho
+import pytest
 
 # The model used for all download tests.
 # This translates to: https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf
@@ -101,6 +109,67 @@ def test_hf_invalid_format_gives_parse_error():
     """
     with pytest.raises(RuntimeError, match="Failed parsing model path"):
         nobodywho.Model(HF_INVALID_ID)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="uses POSIX SIGINT semantics")
+def test_ctrl_c_cancels_download_and_removes_partial_file(tmp_path):
+    download_started = threading.Event()
+
+    class SlowDownloadHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Length", str(16 * 1024 * 1024))
+            self.end_headers()
+            for _ in range(256):
+                try:
+                    self.wfile.write(bytes(64 * 1024))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+                download_started.set()
+                time.sleep(0.01)
+
+        def log_message(self, format, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), SlowDownloadHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    url = f"http://127.0.0.1:{server.server_port}/model.gguf"
+    script = """
+import sys
+from nobodywho import download_model
+
+try:
+    download_model(sys.argv[1])
+except KeyboardInterrupt:
+    raise SystemExit(42)
+except BaseException as error:
+    print(repr(error), file=sys.stderr)
+    raise SystemExit(1)
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", script, url],
+        env={**os.environ, "XDG_CACHE_HOME": str(tmp_path)},
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    try:
+        assert download_started.wait(timeout=5)
+        process.send_signal(signal.SIGINT)
+        _, stderr = process.communicate(timeout=5)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        server.shutdown()
+        server.server_close()
+        server_thread.join()
+
+    assert process.returncode == 42, stderr
+    assert not list(tmp_path.rglob("*.part"))
+    assert not list(tmp_path.rglob("*.gguf"))
 
 
 # ---------------------------------------------------------------------------

@@ -656,11 +656,6 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dry(uint64_t ptr, floa
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_dynamic_temperature(uint64_t ptr, float temperature, float delta, float exponent, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GRAMMAR
-#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GRAMMAR
-uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_grammar(uint64_t ptr, RustBuffer grammar, RustBuffer trigger_on, RustBuffer root, RustCallStatus *_Nonnull out_status
-);
-#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GREEDY
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_SAMPLERBUILDER_GREEDY
 uint64_t uniffi_nobodywho_uniffi_fn_method_samplerbuilder_greedy(uint64_t ptr, RustCallStatus *_Nonnull out_status
@@ -822,11 +817,6 @@ uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_default(RustCallStatus *
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_DRY
 uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_dry(RustCallStatus *_Nonnull out_status
     
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_GRAMMAR
-#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_GRAMMAR
-uint64_t uniffi_nobodywho_uniffi_fn_func_sampler_preset_grammar(RustBuffer grammar, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_FUNC_SAMPLER_PRESET_GREEDY
@@ -1188,12 +1178,6 @@ uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_dry(void
     
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_SAMPLER_PRESET_GRAMMAR
-#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_SAMPLER_PRESET_GRAMMAR
-uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_grammar(void
-    
-);
-#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_SAMPLER_PRESET_GREEDY
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_FUNC_SAMPLER_PRESET_GREEDY
 uint16_t uniffi_nobodywho_uniffi_checksum_func_sampler_preset_greedy(void
@@ -1491,12 +1475,6 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dry(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DYNAMIC_TEMPERATURE
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_DYNAMIC_TEMPERATURE
 uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_dynamic_temperature(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_GRAMMAR
-#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_SAMPLERBUILDER_GRAMMAR
-uint16_t uniffi_nobodywho_uniffi_checksum_method_samplerbuilder_grammar(void
     
 );
 #endif

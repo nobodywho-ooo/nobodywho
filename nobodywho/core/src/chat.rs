@@ -59,8 +59,8 @@ pub enum Message {
         content: MessageContent,
     },
     // The optional tool_calls field distinguishes a plain assistant response
-    // from one that includes tool calls. When tool_calls is Some, the content
-    // field is typically empty (required by qwen3 chat templates).
+    // from one that includes tool calls. When tool_calls is Some, content holds
+    // whatever the model said before the first call.
     // https://github.com/QwenLM/Qwen3/blob/e5a1d326/docs/source/framework/function_call.md
     Assistant {
         content: MessageContent,
@@ -1984,9 +1984,13 @@ impl<'a> Chat<'a> {
         });
     }
 
-    pub fn add_tool_calls(&mut self, tool_calls: Vec<ToolCall>) {
+    pub fn add_tool_calls(
+        &mut self,
+        content: impl Into<MessageContent>,
+        tool_calls: Vec<ToolCall>,
+    ) {
         self.messages.push(Message::Assistant {
-            content: "".into(),
+            content: content.into(),
             tool_calls: Some(tool_calls),
         });
     }
@@ -2261,13 +2265,16 @@ impl<'a> Chat<'a> {
         if let Some(tool_format) = self.tool_format.clone() {
             while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
                 debug!(?tool_calls, "Got tool calls:");
-                self.add_tool_calls(tool_calls.clone());
+
+                // Whatever the model said before the call is part of the turn,
+                // so it goes into the history message alongside the calls.
+                let content = response
+                    .split_once(tool_format.begin_token())
+                    .map_or("", |(content, _)| content);
+                self.add_tool_calls(content, tool_calls.clone());
 
                 if skip_calling_tools {
-                    let content = response
-                        .split_once(tool_format.begin_token())
-                        .map(|(content, _)| content.to_string())
-                        .unwrap_or_default();
+                    let content = content.to_string();
                     self.context.chunks = self.render_as_chunks(&self.messages, true)?;
                     return Ok(AssistantResponse {
                         content,
@@ -2713,7 +2720,6 @@ mod tests {
 
     #[test]
     fn test_chat_worker() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let mut worker = Chat::new_chat_worker(
@@ -2754,35 +2760,13 @@ mod tests {
     /// env vars are set to existing files.
     #[test]
     fn test_mtp_gemma4_smoke() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-
-        let (Some(target_path), Some(draft_path)) = (
-            test_utils::test_mtp_target_model_path(),
-            test_utils::test_mtp_draft_model_path(),
-        ) else {
+        let Some(model) = test_utils::load_mtp_models() else {
             eprintln!(
                 "skipping test_mtp_gemma4_smoke: \
                  set TEST_MTP_TARGET_MODEL and TEST_MTP_DRAFT_MODEL to enable"
             );
             return Ok(());
         };
-        if !std::path::Path::new(&target_path).exists()
-            || !std::path::Path::new(&draft_path).exists()
-        {
-            eprintln!(
-                "skipping test_mtp_gemma4_smoke: file missing at {} or {}",
-                target_path, draft_path
-            );
-            return Ok(());
-        }
-
-        let model = Arc::new(crate::llm::get_model(
-            &target_path,
-            true,
-            None,
-            Some(&draft_path),
-            None,
-        )?);
 
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -2821,7 +2805,6 @@ mod tests {
 
     #[test]
     fn test_reset_chat() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -2863,7 +2846,6 @@ mod tests {
 
     #[test]
     fn test_stop_mid_write() -> Result<(), Box<dyn std::error::Error>> {
-        // test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -2975,7 +2957,6 @@ mod tests {
     #[test]
     #[ignore = "manual perf benchmark — run with `cargo test bench_pre_built_sampler_amortization -- --ignored --nocapture`"]
     fn bench_pre_built_sampler_amortization() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let setup_start = std::time::Instant::now();
         let mut worker = Chat::new_chat_worker(
@@ -3035,7 +3016,6 @@ mod tests {
     #[test]
     #[ignore = "manual perf benchmark — run with `cargo test bench_tool_grammar_rebuild -- --ignored --nocapture`"]
     fn bench_tool_grammar_rebuild() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let setup_start = std::time::Instant::now();
@@ -3072,7 +3052,6 @@ mod tests {
     /// drive a real tool call, so exercise one on each side of the change.
     #[test]
     fn tool_calling_survives_a_sampler_config_change() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -3117,7 +3096,6 @@ mod tests {
 
     #[test]
     fn test_tool_chat() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -3150,11 +3128,30 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("42.69"));
+
+        // The history splits the response at the begin token: the preamble is
+        // kept as content, the call block itself never is.
+        let begin_token = worker
+            .tool_format
+            .as_ref()
+            .expect("the test model has a tool format")
+            .begin_token();
+        for message in &worker.messages {
+            if let Message::Assistant {
+                content,
+                tool_calls: Some(_),
+            } = message
+            {
+                assert!(
+                    !content.to_string().contains(begin_token),
+                    "raw call block stored as content: {content}"
+                );
+            }
+        }
     }
 
     #[test]
     fn test_multi_tool_call() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let mut worker = Chat::new_chat_worker(
             &model,
@@ -3184,6 +3181,60 @@ mod tests {
         println!("{}", result);
         assert!(result.contains("13.37"));
         assert!(result.contains("0.15"));
+    }
+
+    /// A tool-calling turn keeps whatever the model wrote before the call, so
+    /// the next turn sees its own reasoning instead of a bare call.
+    #[test]
+    fn tool_call_preamble_is_kept_in_history() {
+        test_utils::init_test_tracing();
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("Failed making worker");
+
+        let preamble = "Let me look up the temperature in Copenhagen.";
+        worker.add_user_message("What is the temperature in Copenhagen?");
+        worker.add_tool_calls(
+            preamble,
+            vec![ToolCall {
+                name: "get_current_temperature".into(),
+                arguments: serde_json::json!({"location": "Copenhagen"}),
+            }],
+        );
+
+        let Some(Message::Assistant {
+            content,
+            tool_calls: Some(_),
+        }) = worker.messages.last()
+        else {
+            panic!("expected an assistant message with tool calls");
+        };
+        assert_eq!(content.to_string(), preamble);
+
+        // Keeping it in the history is only worth anything if the template puts
+        // it back into the prompt next to the call.
+        let rendered = worker
+            .chat_template
+            .render(
+                &worker.with_system_prompt(&worker.messages),
+                &ChatTemplateContext::new(
+                    worker.template_variables.clone(),
+                    Some(worker.tools.clone()),
+                ),
+            )
+            .expect("rendering a history with a tool call");
+        assert!(
+            rendered.contains(preamble),
+            "preamble missing from the rendered prompt: {rendered}"
+        );
     }
 
     #[test]
@@ -3228,7 +3279,6 @@ mod tests {
 
     #[test]
     fn test_context_shift() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         // Use a very small context size to force shifting
@@ -3505,7 +3555,6 @@ mod tests {
 
     #[test]
     fn test_context_shift_with_tool_calls() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         // Use a very small context size to force shifting
@@ -3529,10 +3578,13 @@ mod tests {
             // Add a tool call every other message
             // Pattern: User -> Assistant (with tool call) -> Tool response -> Assistant
             if i % 2 == 0 {
-                worker.add_tool_calls(vec![ToolCall {
-                    name: "get_current_temperature".into(),
-                    arguments: serde_json::json!({"location": "Copenhagen"}),
-                }]);
+                worker.add_tool_calls(
+                    "",
+                    vec![ToolCall {
+                        name: "get_current_temperature".into(),
+                        arguments: serde_json::json!({"location": "Copenhagen"}),
+                    }],
+                );
                 worker.add_tool_resp("get_current_temperature".into(), "13.37°C".into());
                 worker.add_assistant_message(format!(
                     "The temperature is 13.37°C and {} * {} = {}.",
@@ -3613,7 +3665,6 @@ mod tests {
 
     #[test]
     fn test_context_shift_on_say() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let n_messages = 14;
@@ -3691,7 +3742,6 @@ mod tests {
 
     #[test]
     fn test_context_while_writing() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let n_messages = 19;
@@ -3768,7 +3818,6 @@ mod tests {
 
     #[test]
     fn test_chat_worker_multiple_contexts() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         // Create two separate chat handles that will run in parallel
@@ -3817,7 +3866,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_enable_thinking() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .build_async()
@@ -3851,7 +3899,6 @@ mod tests {
 
     #[test]
     fn test_greedy_sampler_produces_deterministic_output() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
 
         let chat = ChatBuilder::new(model)
@@ -3878,7 +3925,6 @@ mod tests {
 
     #[test]
     fn test_reset_chat_with_no_system_prompt() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -3907,7 +3953,6 @@ mod tests {
     /// The supplied messages become the history, and the reply is appended to them.
     #[test]
     fn test_complete_replaces_history() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -3947,7 +3992,6 @@ mod tests {
     /// leave out is kept — so a later `complete` need not repeat them.
     #[test]
     fn test_complete_options_stick() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -3955,7 +3999,7 @@ mod tests {
             .build()
             .expect("chat build failed in test");
 
-        let greedy = SamplerConfig::new(vec![], crate::sampler::SampleStep::Greedy, 1234);
+        let greedy = SamplerPresets::greedy();
         chat.complete(
             vec![user("Say hi.")],
             Options::new()
@@ -3994,7 +4038,6 @@ mod tests {
     /// without one keeps the prompt the chat already had.
     #[test]
     fn test_complete_replaces_system_prompt() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -4041,7 +4084,6 @@ mod tests {
 
     #[test]
     fn test_ask_after_complete_continues_completion() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
@@ -4081,7 +4123,6 @@ mod tests {
 
     #[test]
     fn test_complete_with_tools() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(4096)
@@ -4112,7 +4153,6 @@ mod tests {
     /// that cannot produce a grammar leaves the sampler config alone too.
     #[test]
     fn apply_options_is_atomic_on_failure() {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(512)
@@ -4320,11 +4360,7 @@ mod tests {
     /// to be re-registered from the part paths.
     #[test]
     fn test_set_chat_history_reloads_media() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_set_chat_history_reloads_media: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4332,13 +4368,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
@@ -4373,11 +4402,7 @@ mod tests {
     /// of parts, with an image interleaved between two runs of text.
     #[test]
     fn test_complete_with_content_parts_from_json() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_complete_with_content_parts_from_json: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4385,13 +4410,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
@@ -4456,11 +4474,7 @@ mod tests {
     /// mean nothing to this worker.
     #[test]
     fn test_complete_reloads_media_from_part_paths() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_complete_reloads_media_from_part_paths: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4468,13 +4482,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
@@ -4561,11 +4568,7 @@ mod tests {
     /// An unregistered part would flatten to a marker with no bitmap behind it.
     #[test]
     fn test_reload_media_covers_every_non_system_role() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
-        let (Ok(vision_path), Ok(mmproj_path)) = (
-            std::env::var("TEST_VISION_MODEL"),
-            std::env::var("TEST_MMPROJ_MODEL"),
-        ) else {
+        let Some(model) = test_utils::load_mtmd_models() else {
             eprintln!(
                 "skipping test_reload_media_covers_every_non_system_role: \
                  set TEST_VISION_MODEL and TEST_MMPROJ_MODEL to enable"
@@ -4573,13 +4576,6 @@ mod tests {
             return Ok(());
         };
 
-        let model = Arc::new(llm::get_model(
-            &vision_path,
-            true,
-            Some(&mmproj_path),
-            None,
-            None,
-        )?);
         let mut worker = Chat::new_chat_worker(
             &model,
             ChatConfig {
@@ -4646,7 +4642,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_async() -> Result<(), Box<dyn std::error::Error>> {
-        test_utils::init_test_tracing();
         let model = test_utils::load_test_model();
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)

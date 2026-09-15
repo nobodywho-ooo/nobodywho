@@ -29,6 +29,18 @@ use tracing::{info, warn};
 /// synchronization (hence the `Sync` bound).
 pub type DownloadProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
+/// Callback checked between download chunks. Returning `true` stops the download.
+pub type DownloadCancellationCallback = Arc<dyn Fn() -> bool + Send + Sync>;
+
+fn check_download_cancellation(
+    cancellation: Option<&DownloadCancellationCallback>,
+) -> Result<(), LoadModelError> {
+    if cancellation.is_some_and(|is_cancelled| is_cancelled()) {
+        return Err(LoadModelError::DownloadCancelled);
+    }
+    Ok(())
+}
+
 /// Default terminal progress bar shown when the user doesn't pass their own callback,
 /// labeled with the last path segment of `path` — e.g. `"hf://owner/repo/model.gguf"`
 /// shows as `"model.gguf"`.
@@ -184,8 +196,10 @@ impl ModelCache {
         target_path: &Path,
         progress: &DownloadProgressCallback,
         headers: &[(String, String)],
+        cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<(), LoadModelError> {
         Self::validate_no_traversal(target_path)?;
+        check_download_cancellation(cancellation)?;
 
         if target_path.exists() {
             info!("Using cached file: {}", target_path.display());
@@ -206,6 +220,7 @@ impl ModelCache {
             &tmp_path,
             content_length,
             progress,
+            cancellation,
         )?;
 
         tmp_file
@@ -307,12 +322,14 @@ impl ModelCache {
         tmp_path: &Path,
         content_length: u64,
         progress: &DownloadProgressCallback,
+        cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<(), LoadModelError> {
         let mut downloaded: u64 = 0;
         let mut last_logged_pct: u64 = 0;
         let mut buf = vec![0u8; 256 * 1024];
 
         loop {
+            check_download_cancellation(cancellation)?;
             let n = reader
                 .read(&mut buf)
                 .map_err(|source| LoadModelError::ReadDownload {
@@ -330,6 +347,7 @@ impl ModelCache {
             downloaded += n as u64;
 
             progress(downloaded, content_length);
+            check_download_cancellation(cancellation)?;
 
             if let Some(pct) = (downloaded * 100).checked_div(content_length) {
                 if pct >= last_logged_pct + 5 {
@@ -421,6 +439,7 @@ impl ModelCache {
         source: &GgufSource,
         progress: &DownloadProgressCallback,
         headers: &[(String, String)],
+        cancellation: Option<&DownloadCancellationCallback>,
     ) -> Result<PathBuf, LoadModelError> {
         let (url, target) = match source {
             GgufSource::HuggingFace { repo, filename } => (
@@ -435,7 +454,7 @@ impl ModelCache {
             }
         };
 
-        self.fetch_to_path(&url, &target, progress, headers)?;
+        self.fetch_to_path(&url, &target, progress, headers, cancellation)?;
         Ok(target)
     }
 
@@ -471,17 +490,48 @@ pub fn get_cached_models() -> Result<Vec<(PathBuf, usize)>, GetCachedModelsError
     ModelCache::open()?.list_cached()
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct LlamaCppUrl {
+    owner: String,
+    /// The repo name without the `-GGUF` suffix, which is added back in `resolve_source`.
+    repo: String,
+    /// The GGUF suffix of the repo. We store it to remember capitalization.
+    gguf: String,
+    quantization: String,
+}
+
+impl LlamaCppUrl {
+    fn resolve_source(&self) -> GgufSource {
+        let Self {
+            owner,
+            repo,
+            gguf,
+            quantization,
+        } = self;
+        // In the models Llama CPP supports with this format, the repo name always ends with `-GGUF`,
+        // but that was removed during parsing.
+        let filename = format!("{repo}-{quantization}.gguf");
+        let repo = format!("{repo}{gguf}");
+        GgufSource::HuggingFace {
+            repo: HfRepo::main(owner, repo),
+            filename,
+        }
+    }
+}
+
 /// A parsed `model_path` string, before it's resolved to somewhere on disk.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum ParsedModelPath {
     HuggingFaceUrl(String, String, String), // e.g. hf://owner/repo/model.gguf -> (owner, repo, filename)
-    HttpUrl(String),                        // e.g. https://example.com/lol/qwen3.gguf
-    FilesystemPath(PathBuf),                // e.g. ./qwen3.gguf
+    LlamaCppUrl(LlamaCppUrl), // e.g. owner/repo:quantization -> (owner, repo, quantization)
+    HttpUrl(String),          // e.g. https://example.com/lol/qwen3.gguf
+    FilesystemPath(PathBuf),  // e.g. ./qwen3.gguf
 }
 
 pub(crate) fn parse_model_path(
     model_path: &str,
 ) -> Result<ParsedModelPath, nom::Err<nom::error::Error<String>>> {
+    const GGUF_SUFFIX_LOWER_CASE: &str = "-gguf";
     let mut parser = alt((
         // hf://owner/repo/filename.gguf (also hf:, huggingface:, huggingface://)
         map(
@@ -507,6 +557,29 @@ pub(crate) fn parse_model_path(
             (alt((tag_no_case("https://"), tag_no_case("http://"))), rest),
             |(scheme, path): (&str, &str)| ParsedModelPath::HttpUrl(format!("{}{}", scheme, path)),
         ),
+        map(
+            (
+                terminated(
+                    verify(take_until("/"), |s: &str| !s.is_empty() && !s.contains('/')),
+                    tag("/"),
+                ),
+                terminated(
+                    verify(take_until(":"), |s: &str| {
+                        s.to_lowercase().ends_with(GGUF_SUFFIX_LOWER_CASE) && !s.contains('/')
+                    }),
+                    tag(":"),
+                ),
+                verify(rest, |s: &str| !s.is_empty() && !s.contains('/')),
+            ),
+            |(owner, repo, quantization): (&str, &str, &str)| {
+                ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
+                    owner: owner.into(),
+                    repo: repo[..repo.len() - GGUF_SUFFIX_LOWER_CASE.len()].into(),
+                    gguf: repo[repo.len() - GGUF_SUFFIX_LOWER_CASE.len()..].into(),
+                    quantization: quantization.into(),
+                })
+            },
+        ),
         // Anything else is a filesystem path (expand leading ~ on non-Android)
         map(rest, |p: &str| {
             ParsedModelPath::FilesystemPath(PathBuf::from(p))
@@ -524,7 +597,9 @@ pub(crate) fn download_gguf(
     parsed_path: ParsedModelPath,
     progress: &DownloadProgressCallback,
     headers: &[(String, String)],
+    cancellation: Option<&DownloadCancellationCallback>,
 ) -> Result<PathBuf, LoadModelError> {
+    check_download_cancellation(cancellation)?;
     let cache = ModelCache::open()?;
     let fs_model_path = match parsed_path {
         ParsedModelPath::HuggingFaceUrl(owner, repo, filename) => {
@@ -532,11 +607,17 @@ pub(crate) fn download_gguf(
                 repo: HfRepo::main(owner, repo),
                 filename,
             };
-            cache.download_file(&source, progress, headers)?
+            cache.download_file(&source, progress, headers, cancellation)?
         }
+        ParsedModelPath::LlamaCppUrl(llama_cpp_url) => cache.download_file(
+            &llama_cpp_url.resolve_source(),
+            progress,
+            headers,
+            cancellation,
+        )?,
         ParsedModelPath::FilesystemPath(path) => path,
         ParsedModelPath::HttpUrl(url) => {
-            cache.download_file(&GgufSource::Url(url), progress, headers)?
+            cache.download_file(&GgufSource::Url(url), progress, headers, cancellation)?
         }
     };
 
@@ -754,7 +835,7 @@ impl ModelCache {
                 named(downloaded, total);
                 progress(downloaded, total);
             });
-            self.fetch_to_path(&url, &target, &file_progress, headers)
+            self.fetch_to_path(&url, &target, &file_progress, headers, None)
                 .map_err(|source| HuggingFaceError::DownloadEntry {
                     path: path.clone(),
                     source: Box::new(source),
@@ -852,6 +933,139 @@ pub(crate) fn download_onnx(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[test]
+    fn cancelled_download_removes_partial_file() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = stream.read(&mut request);
+            let body = vec![0; 512 * 1024];
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(header.as_bytes());
+            let _ = stream.write_all(&body);
+        });
+
+        let directory = tempfile::tempdir().unwrap();
+        let target = directory.path().join("model.gguf");
+        let cache = ModelCache {
+            root: directory.path().to_path_buf(),
+        };
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let progress_cancelled = Arc::clone(&cancelled);
+        let progress: DownloadProgressCallback = Arc::new(move |_, _| {
+            progress_cancelled.store(true, Ordering::Relaxed);
+        });
+        let cancellation: DownloadCancellationCallback =
+            Arc::new(move || cancelled.load(Ordering::Relaxed));
+
+        let result = cache.fetch_to_path(
+            &format!("http://{address}/model.gguf"),
+            &target,
+            &progress,
+            &[],
+            Some(&cancellation),
+        );
+
+        assert!(matches!(result, Err(LoadModelError::DownloadCancelled)));
+        assert!(!target.exists());
+        assert!(std::fs::read_dir(directory.path())
+            .unwrap()
+            .all(|entry| !entry.unwrap().path().to_string_lossy().ends_with(".part")));
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn parses_gguf_hf_scheme() {
+        let ParsedModelPath::HuggingFaceUrl(owner, repo, filename) =
+            parse_model_path("hf://owner/repo/filename.gguf").unwrap()
+        else {
+            panic!("expected HuggingFaceUrl");
+        };
+        assert_eq!(owner, "owner");
+        assert_eq!(repo, "repo");
+        assert_eq!(filename, "filename.gguf");
+    }
+
+    #[test]
+    fn parses_gguf_llama_scheme_with_quant() {
+        let ParsedModelPath::LlamaCppUrl(LlamaCppUrl {
+            owner,
+            repo,
+            gguf,
+            quantization,
+        }) = parse_model_path("owner/repo-GGuF:quantization").unwrap()
+        else {
+            panic!("expected LlamaCppUrl");
+        };
+        assert_eq!(owner, "owner");
+        assert_eq!(repo, "repo");
+        assert_eq!(gguf, "-GGuF");
+        assert_eq!(quantization, "quantization");
+    }
+
+    #[test]
+    fn parses_gguf_llama_scheme_without_quant_as_file_path() {
+        // Bare `owner/repo` is not auto-interpreted as a LlamaCppUrl.
+        let ParsedModelPath::FilesystemPath(path) = parse_model_path("owner/repo").unwrap() else {
+            panic!("expected FilesystemPath");
+        };
+        assert_eq!(path, PathBuf::from("owner/repo"));
+    }
+
+    #[test]
+    fn resolves_url_of_llama_scheme_model() {
+        let cases = [(
+            "ggml-org/Qwen3.8-27B-GGUF:Q8_0",
+            "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-Q8_0.gguf",
+        ),
+        (
+            "ggml-org/Qwen3.8-27B-GGUF:Q4_K_M",
+            "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-Q4_K_M.gguf"
+        ),
+        (
+            "ggml-org/Laguna-XS-2.1-GGUF:Q8_0",
+            "https://huggingface.co/ggml-org/Laguna-XS-2.1-GGUF/resolve/main/Laguna-XS-2.1-Q8_0.gguf"
+        ),
+        (
+            "ggml-org/Laguna-XS-2.1-GGUF:Q4_K_M",
+            "https://huggingface.co/ggml-org/Laguna-XS-2.1-GGUF/resolve/main/Laguna-XS-2.1-Q4_K_M.gguf"
+        ),
+        (
+            "XHToken/Spark-X2.5-4B-GGUF:Q8_0",
+            "https://huggingface.co/XHToken/Spark-X2.5-4B-GGUF/resolve/main/Spark-X2.5-4B-Q8_0.gguf"
+        ),
+        (
+            "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF:UD-IQ3_XXS",
+            "https://huggingface.co/peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF/resolve/main/Tiel-Coder-35B-A3B-UD-IQ3_XXS.gguf"
+        ),
+        (
+            "microsoft/Phi-3-mini-4k-instruct-gguf:q4",
+            "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf"
+        )];
+
+        for (input, expected_url) in cases {
+            let parsed = parse_model_path(input).unwrap();
+            let source = if let ParsedModelPath::LlamaCppUrl(llama_cpp_url) = parsed {
+                llama_cpp_url.resolve_source()
+            } else {
+                panic!("Expected LlamaCppUrl")
+            };
+            if let GgufSource::HuggingFace { repo, filename } = source {
+                let url = repo.resolve_url(&filename);
+                assert_eq!(url, expected_url, "Failed for input: {input}");
+            } else {
+                unreachable!("Expected GgufSource::HuggingFace");
+            }
+        }
+    }
 
     #[test]
     fn parses_hf_scheme() {

@@ -5,7 +5,6 @@ import uniffi.nobodywho.samplerPresetConstrainWithJsonSchema
 import uniffi.nobodywho.samplerPresetConstrainWithRegex
 import uniffi.nobodywho.samplerPresetDefault
 import uniffi.nobodywho.samplerPresetDry
-import uniffi.nobodywho.samplerPresetGrammar
 import uniffi.nobodywho.samplerPresetGreedy
 import uniffi.nobodywho.samplerPresetJson
 import uniffi.nobodywho.samplerPresetTemperature
@@ -14,6 +13,10 @@ import uniffi.nobodywho.samplerPresetTopP
 
 /**
  * Factory methods for common sampler configurations.
+ *
+ * Every preset builds on [default] and adds its own step on top, replacing the
+ * default step of the same kind if there is one. [greedy] is the exception: it
+ * always picks the most probable token, so it needs no steps.
  *
  * ```kotlin
  * val sampler = SamplerPresets.temperature(0.7f)
@@ -31,6 +34,4 @@ object SamplerPresets {
     fun constrainWithJsonSchema(schema: String): SamplerConfig = samplerPresetConstrainWithJsonSchema(schema)
     fun constrainWithRegex(pattern: String): SamplerConfig = samplerPresetConstrainWithRegex(pattern)
     fun constrainWithGrammar(grammar: String): SamplerConfig = samplerPresetConstrainWithGrammar(grammar)
-    @Deprecated("Use constrainWithGrammar() instead", ReplaceWith("constrainWithGrammar(grammar)"))
-    fun grammar(grammar: String): SamplerConfig = samplerPresetGrammar(grammar)
 }

@@ -7,7 +7,12 @@ The model does not produce tokens directly but rather a probability distribution
 
 ## Sampler Presets
 
-NobodyWho offers several built-in presets you can apply to your `NobodyWhoChat` node:
+NobodyWho offers several built-in presets you can apply to your `NobodyWhoChat` node.
+
+All presets have top-k, top-p, temperature and dist steps, and change or add just the one thing
+they are named for: the top-k, top-p and temperature presets each override their counterpart,
+while the others add a step and leave the three defaults alone. `set_sampler_preset_greedy()`
+is the exception — it always picks the most probable token, so it needs no other steps.
 
 ### JSON Output
 
@@ -90,6 +95,10 @@ Shift steps — add as many as you want, applied in order:
 - `.logit_bias({1: -1.0, 2: 3.0})` — token 1 less probable, token 2 is more probable
 - `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, penalty_last_n, seq_breakers`
 - `.seed(42)` — fix the RNG for reproducible output
+
+The order you chain them matters: `.penalties(...)`, `.logit_bias(...)` and `.dry(...)` reweigh
+whatever distribution reaches them, so put them *before* any grammar/constraining step
+if you want them to see the whole vocabulary.
 
 Constraining steps — the same formats as the `set_sampler_preset_constrain_with_*` methods, but chainable with the rest:
 

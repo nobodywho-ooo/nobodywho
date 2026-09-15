@@ -5,7 +5,6 @@ import {
   samplerPresetConstrainWithRegex,
   samplerPresetDefault,
   samplerPresetDry,
-  samplerPresetGrammar,
   samplerPresetGreedy,
   samplerPresetJson,
   samplerPresetTemperature,
@@ -15,6 +14,10 @@ import {
 
 /**
  * Static factory methods for common sampler configurations.
+ *
+ * Every preset builds on the default configuration and adds its own step on top,
+ * replacing the default step of the same kind if there is one. `greedy()` is the
+ * exception: it always picks the most probable token, so it needs no steps.
  *
  * @example
  * ```typescript
@@ -30,12 +33,12 @@ export class SamplerPresets {
     return samplerPresetDefault() as SamplerConfig;
   }
 
-  /** Create a sampler with top-k filtering only. */
+  /** Create a sampler with the default steps, but top-k overridden. */
   static topK(topK: number): SamplerConfig {
     return samplerPresetTopK(topK) as SamplerConfig;
   }
 
-  /** Create a sampler with nucleus (top-p) sampling. */
+  /** Create a sampler with the default steps, but nucleus (top-p) overridden. */
   static topP(topP: number): SamplerConfig {
     return samplerPresetTopP(topP) as SamplerConfig;
   }
@@ -55,7 +58,7 @@ export class SamplerPresets {
     return samplerPresetDry() as SamplerConfig;
   }
 
-  /** Create a sampler configured for JSON output generation (any valid JSON, GBNF-based). */
+  /** Constrain output to a JSON object of any shape. */
   static json(): SamplerConfig {
     return samplerPresetJson() as SamplerConfig;
   }
@@ -79,12 +82,5 @@ export class SamplerPresets {
    */
   static constrainWithGrammar(grammar: string): SamplerConfig {
     return samplerPresetConstrainWithGrammar(grammar) as SamplerConfig;
-  }
-
-  /**
-   * @deprecated Use {@link constrainWithGrammar} instead. It accepts both Lark and GBNF strings.
-   */
-  static grammar(grammar: string): SamplerConfig {
-    return samplerPresetGrammar(grammar) as SamplerConfig;
   }
 }

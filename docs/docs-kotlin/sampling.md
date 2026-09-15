@@ -41,6 +41,11 @@ object SamplerPresets {
 }
 ```
 
+All presets have top-k, top-p, temperature and dist steps, and change or add just the one thing
+they are named for: the top-k, top-p and temperature presets each override their counterpart,
+while the others add a step and leave the three defaults alone. `greedy()` is the exception —
+it always picks the most probable token, so it needs no other steps.
+
 ## Structured output
 
 One of the most useful features is constraining the model to produce structured output — this gives you a hard guarantee that the output matches a specific format.
@@ -118,12 +123,6 @@ val sampler = SamplerPresets.constrainWithGrammar("""
 """)
 ```
 
-:::info
-The older `SamplerPresets.grammar()` method is deprecated. Use
-`SamplerPresets.constrainWithGrammar()` instead — it accepts both Lark and GBNF strings.
-
-:::
-
 ## Building custom samplers with the DSL
 
 Sampler presets abstract away some control. For more advanced configurations — chaining samplers, tuning parameters — use the `buildSampler` DSL:
@@ -162,7 +161,10 @@ Shift steps — call as many as you want, in order:
 - `logitBias(biases = mapOf(1 to -1.0, 2 to 3.0))` — token 1 less probable, token 2 is more probable
 - `dry()` — penalty for repeated *phrases* (its defaults are a good start)
 - `seed(42)` — fix the RNG for reproducible output
-- `grammar(...)` — deprecated; use `constrainWithGrammar(...)` below
+
+The order you call them matters: `penalties(...)`, `logitBias(...)` and `dry(...)` reweigh
+whatever distribution reaches them, so put them *before* any grammar/constraining step
+if you want them to see the whole vocabulary.
 
 Constraining steps — the same formats as the presets above, but chainable with the rest:
 

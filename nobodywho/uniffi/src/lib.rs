@@ -1787,28 +1787,6 @@ impl SamplerBuilder {
         })
     }
 
-    /// Deprecated: Use `sampler_preset_constrain_with_grammar()` instead. It accepts both Lark and GBNF strings.
-    #[deprecated(
-        note = "Use sampler_preset_constrain_with_grammar() instead. It accepts both Lark and GBNF strings."
-    )]
-    pub fn grammar(
-        &self,
-        grammar: String,
-        trigger_on: Option<String>,
-        root: String,
-    ) -> Arc<SamplerBuilder> {
-        Arc::new(SamplerBuilder {
-            inner: self
-                .inner
-                .clone()
-                .shift(nobodywho::sampler::ShiftStep::Grammar {
-                    grammar,
-                    trigger_on,
-                    root,
-                }),
-        })
-    }
-
     /// DRY (Don't Repeat Yourself) sampler to reduce repetition.
     pub fn dry(
         &self,
@@ -1954,6 +1932,10 @@ impl SamplerBuilder {
 // ---------- SamplerPresets ----------
 // Free functions for uniffi-bindgen-react-native compatibility.
 // The TypeScript wrapper collects these into a static SamplerPresets class.
+//
+// Every preset builds on the default configuration and adds its own step on top,
+// replacing the default step of the same kind if there is one. Greedy is the
+// exception: it always picks the most probable token, so it needs no steps.
 
 /// Get the default sampler configuration.
 #[uniffi::export]
@@ -1963,7 +1945,7 @@ pub fn sampler_preset_default() -> Arc<SamplerConfig> {
     })
 }
 
-/// Create a sampler with top-k filtering only.
+/// Create a sampler with the default steps, but top-k overridden.
 #[uniffi::export]
 pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
@@ -1971,7 +1953,7 @@ pub fn sampler_preset_top_k(top_k: i32) -> Arc<SamplerConfig> {
     })
 }
 
-/// Create a sampler with nucleus (top-p) sampling.
+/// Create a sampler with the default steps, but nucleus (top-p) overridden.
 #[uniffi::export]
 pub fn sampler_preset_top_p(top_p: f32) -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
@@ -2027,17 +2009,10 @@ pub fn sampler_preset_constrain_with_grammar(grammar: String) -> Arc<SamplerConf
     })
 }
 
+/// Constrain output to a JSON object of any shape.
 #[uniffi::export]
 pub fn sampler_preset_json() -> Arc<SamplerConfig> {
     Arc::new(SamplerConfig {
         inner: nobodywho::sampler::SamplerPresets::json(),
-    })
-}
-
-/// Create a sampler with a custom grammar constraint.
-#[uniffi::export]
-pub fn sampler_preset_grammar(grammar: String) -> Arc<SamplerConfig> {
-    Arc::new(SamplerConfig {
-        inner: nobodywho::sampler::SamplerPresets::grammar(grammar),
     })
 }

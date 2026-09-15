@@ -554,6 +554,8 @@ pub fn detect_tool_format(model: &LlamaModel) -> Result<ToolFormat, ToolFormatEr
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils;
+
     use super::*;
     use serde_json::json;
     use std::sync::Arc;
@@ -904,12 +906,10 @@ mod tests {
     /// Requires a Gemma4 GGUF — set `GEMMA4_MODEL`; skipped otherwise.
     #[test]
     fn gemma4_string_value_allows_left_angle_bracket() {
-        let Ok(path) = std::env::var("GEMMA4_MODEL") else {
+        let Some(model) = test_utils::gemma4_model() else {
             eprintln!("skipping: set GEMMA4_MODEL to a Gemma4 GGUF to run this test");
             return;
         };
-        let model = crate::llm::get_model(&path, true, None, None, None)
-            .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e:?}"));
         let grammar = ToolFormat::Gemma4(Gemma4Handler)
             .to_lark(&[weather_tool()], Some(&model.language_model))
             .unwrap();
@@ -1035,10 +1035,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires QWEN36_MODEL env var pointing at a Qwen3.6 GGUF"]
     fn diagnose_qwen36_detection() {
-        let path = std::env::var("QWEN36_MODEL").expect("set QWEN36_MODEL");
-        let model = crate::llm::get_model(&path, false, None, None, None).expect("load model");
+        let Some(model) = test_utils::qwen36_model() else {
+            eprintln!("skipping: set QWEN36_MODEL");
+            return;
+        };
 
         let name = model
             .language_model
