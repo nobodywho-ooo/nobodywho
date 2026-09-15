@@ -8,7 +8,7 @@ use llguidance::{api::TopLevelGrammar, Matcher, ParserFactory};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use crate::errors::SamplerError;
+use crate::errors::{SamplerError, SamplingOverrideError};
 
 // ---- Presets ----
 
@@ -189,6 +189,48 @@ impl SamplerConfig {
             sample_step,
             seed,
         }
+    }
+
+    pub fn with_sampling_overrides(
+        mut self,
+        temperature: Option<f32>,
+        top_p: Option<f32>,
+        seed: Option<u32>,
+    ) -> Result<Self, SamplingOverrideError> {
+        if temperature.is_some_and(|value| !(0.0..=2.0).contains(&value)) {
+            return Err(SamplingOverrideError::InvalidTemperature);
+        }
+        if top_p.is_some_and(|value| !(0.0..=1.0).contains(&value)) {
+            return Err(SamplingOverrideError::InvalidTopP);
+        }
+        if let Some(seed) = seed {
+            self.seed = seed;
+        }
+        if temperature == Some(0.0) {
+            self.sample_step = SampleStep::Greedy;
+            self.steps
+                .retain(|step| !matches!(step, ShiftStep::Temperature { .. }));
+        } else if let Some(temperature) = temperature {
+            if matches!(&self.sample_step, SampleStep::Greedy) {
+                self.sample_step = SampleStep::Dist;
+            }
+            replace_or_push_sampling_step(
+                &mut self.steps,
+                |step| matches!(step, ShiftStep::Temperature { .. }),
+                ShiftStep::Temperature { temperature },
+            );
+        }
+        if let Some(top_p) = top_p {
+            if temperature != Some(0.0) && matches!(&self.sample_step, SampleStep::Greedy) {
+                self.sample_step = SampleStep::Dist;
+            }
+            replace_or_push_sampling_step(
+                &mut self.steps,
+                |step| matches!(step, ShiftStep::TopP { .. }),
+                ShiftStep::TopP { top_p, min_keep: 1 },
+            );
+        }
+        Ok(self)
     }
 
     pub fn build_sampler(&self, model: &LlamaModel) -> Result<LlamaSampler, SamplerError> {
@@ -380,6 +422,18 @@ impl GrammarFactory {
             .create_parser(tlg)
             .map_err(|e| SamplerError::LlguidanceGrammarError(e.to_string()))?;
         Ok(LlamaSampler::from(Matcher::new(Ok(parser))))
+    }
+}
+
+fn replace_or_push_sampling_step(
+    steps: &mut Vec<ShiftStep>,
+    matches: impl Fn(&ShiftStep) -> bool,
+    replacement: ShiftStep,
+) {
+    if let Some(step) = steps.iter_mut().find(|step| matches(step)) {
+        *step = replacement;
+    } else {
+        steps.push(replacement);
     }
 }
 
@@ -861,6 +915,40 @@ mod tests {
         assert!(*multiplier > 0.0, "DRY is disabled by a zero multiplier");
         assert!(*base >= 1.0, "DRY is disabled by a base below 1");
         assert!(*penalty_last_n != 0, "DRY is disabled by a zero last_n");
+    }
+
+    #[test]
+    fn sampling_overrides_update_config() -> Result<(), SamplingOverrideError> {
+        let sampler =
+            SamplerPresets::greedy().with_sampling_overrides(Some(0.7), Some(0.8), Some(42))?;
+
+        assert_eq!(sampler.seed, 42);
+        assert!(matches!(sampler.sample_step, SampleStep::Dist));
+        assert!(sampler.steps.iter().any(
+            |step| matches!(step, ShiftStep::Temperature { temperature } if *temperature == 0.7)
+        ));
+        assert!(sampler
+            .steps
+            .iter()
+            .any(|step| matches!(step, ShiftStep::TopP { top_p, .. } if *top_p == 0.8)));
+        assert!(SamplerConfig::default()
+            .with_sampling_overrides(Some(f32::NAN), None, None)
+            .is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn zero_temperature_uses_greedy_sampling() -> Result<(), SamplingOverrideError> {
+        let sampler =
+            SamplerConfig::default().with_sampling_overrides(Some(0.0), None, Some(42))?;
+
+        assert_eq!(sampler.seed, 42);
+        assert!(matches!(sampler.sample_step, SampleStep::Greedy));
+        assert!(!sampler
+            .steps
+            .iter()
+            .any(|step| matches!(step, ShiftStep::Temperature { .. })));
+        Ok(())
     }
 
     /// A matching slice set reuses the held factory; a different one needs a new
