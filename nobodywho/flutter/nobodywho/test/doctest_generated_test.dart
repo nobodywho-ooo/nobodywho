@@ -115,14 +115,14 @@ void main() {
       await chat.complete([nobodywho.userMessage("Name another.")]).completed();
     });
 
-    test('chat.md:123', () async {
+    test('chat.md:125', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         systemPrompt: "You are a mischievous assistant!"
       );
     });
 
-    test('chat.md:139', () async {
+    test('chat.md:141', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096
@@ -132,22 +132,22 @@ void main() {
       print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
     });
 
-    test('chat.md:175', () async {
+    test('chat.md:177', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         threadCount: 4
       );
     });
 
-    test('chat.md:205', () async {
+    test('chat.md:207', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:209', () async {
+    test('chat.md:211', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:235', () async {
+    test('chat.md:237', () async {
       if (Platform.environment['TEST_MTP_MODEL'] == null) return;
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./gemma-4-e2b.gguf",
@@ -156,7 +156,7 @@ void main() {
       );
     });
 
-    test('chat.md:257', () async {
+    test('chat.md:259', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -175,7 +175,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:309', () async {
+    test('chat.md:311', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
