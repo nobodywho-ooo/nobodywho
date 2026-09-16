@@ -39,6 +39,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.
 - **React Native:** Logs are now visible in Xcode on iOS.
 - **Swift:** Logs are now visible in Xcode on iOS.
+- **Flutter:** Logs are now forwarded to Dart's `package:logging`. Configure it as described in their documentation.
 
 ### Removed
 - **Breaking:** the deprecated `SamplerPresets.grammar()` preset and `SamplerBuilder.grammar()` step are gone, along with the `{"type": "grammar"}` entry in a serialized config. Both have been deprecated since June 2026 in favour of `constrain_with_grammar()`, which accepts the same GBNF as well as Lark and takes the faster llguidance path — switch to it and drop the `root` argument, which was always `"root"` in practice. The one thing it cannot express is a lazy grammar: `trigger_on`, which let the model write freely until a marker before the grammar took effect, has no llguidance equivalent and is removed with no replacement. Affects all bindings; Godot's method was `set_sampler_preset_grammar()`.

@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:logging/logging.dart';
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 import 'package:test/test.dart';
 
@@ -334,6 +335,10 @@ void main() {
       print(msg); // Yes, indeed, water is wet!
     });
 
+    test('logging-and-troubleshooting.md:13', () async {
+      await _doctest_25();
+    });
+
     test('sampling.md:14', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
@@ -593,4 +598,16 @@ Future<void> _doctest_20() async {
   for (final (doc, score) in ranked) {
     print("[${score.toStringAsFixed(3)}] $doc");
   }
+}
+
+// Extracted from logging-and-troubleshooting.md:13
+Future<void> _doctest_25() async {
+  // Initialize logger.
+  Logger.root.level = Level.ALL;
+  Logger.root.onRecord.listen((record) {
+    print('${record.level.name}: ${record.time}: ${record.message}');
+  });
+
+  // Initialize NobodyWho
+// Rest of application here.
 }
