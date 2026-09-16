@@ -28,6 +28,7 @@ inputs:
     required: false
     default: "nobodywho-android-ci-ftl-results"
   project-id:
+    description: "Google Cloud project that owns the Test Lab runs and the results bucket"
     required: true
   workload-identity-provider:
     required: true
@@ -37,6 +38,14 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: "Check the project id is set"
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.project-id }}" ]; then
+          echo "::error::project-id is empty. Set the GCP_PROJECT_ID repository variable under Settings > Secrets and variables > Actions > Variables."
+          exit 1
+        fi
+
     - name: "Verify the packaged native library can load"
       shell: bash
       run: |
@@ -106,6 +115,11 @@ runs:
                             exit 1 ;;
         esac
 
+        # Non-default name for better browsing in GCP
+        RESULTS_DIR="$(date -u +%Y-%m-%d_%H:%M:%S)_$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$GITHUB_JOB"
+
+        echo "Running instrumentation tests on Firebase Test Lab."
+        echo "The GCP bucket is generally a much better source of information than the Firebase console."
         gcloud firebase test android run \
           --project "${{ inputs.project-id }}" \
           --type instrumentation \
@@ -113,4 +127,5 @@ runs:
           --test "${{ inputs.test-apk }}" \
           "${DEVICES[@]}" \
           --results-bucket "${{ inputs.results-bucket }}" \
+          --results-dir "$RESULTS_DIR" \
           --timeout "${{ inputs.test-timeout }}"
