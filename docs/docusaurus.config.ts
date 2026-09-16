@@ -6,12 +6,12 @@ import type * as Preset from '@docusaurus/preset-classic';
 // at /<binding>/. Bumping this requires a matching snapshot in
 // `<binding>_versioned_docs/` (see docs/README.md).
 const latestReleases: Record<string, string> = {
-  kotlin: '3.0.0',
-  python: '2.0.0',
-  swift: '3.0.0',
-  'react-native': '3.0.0',
-  flutter: '3.0.0',
-  godot: '10.0.0',
+  kotlin: '4.0.0',
+  python: '3.0.0',
+  swift: '4.0.0',
+  'react-native': '4.0.0',
+  flutter: '4.0.0',
+  godot: '11.0.0',
 };
 
 // `current` reflects the `main` branch — possibly ahead of the latest tag.
