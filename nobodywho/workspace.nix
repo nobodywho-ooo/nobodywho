@@ -90,6 +90,11 @@ let
         # `pyo3-ffi`". We bridge the names by appending an alias to the `env` file
         # that each crate installs and its dependents source.
         pyo3-ffi = attrs: {
+          # Stands in for the removed `pyo3/extension-module` cargo feature, which
+          # maturin now sets through this variable instead: without it pyo3 links
+          # libpython and demands an interpreter that isn't in the nix sandbox.
+          env.PYO3_BUILD_EXTENSION_MODULE = "1";
+
           postConfigure = ''
             if [ -f target/env ]; then
               echo '[ -n "$DEP_PYO3_FFI_PYO3_CONFIG" ] && export DEP_PYTHON_PYO3_CONFIG="$DEP_PYO3_FFI_PYO3_CONFIG"' >> target/env
@@ -98,6 +103,8 @@ let
         };
 
         pyo3 = attrs: {
+          env.PYO3_BUILD_EXTENSION_MODULE = "1";
+
           postConfigure = ''
             if [ -f target/env ]; then
               echo '[ -n "$DEP_PYO3_PYO3_CONFIG" ] && export DEP_PYO3_PYTHON_PYO3_CONFIG="$DEP_PYO3_PYO3_CONFIG"' >> target/env
