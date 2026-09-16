@@ -68,6 +68,9 @@ class Model internal constructor(
         }
     }
 
+    /** The identifier used to load this model. */
+    val source: String get() = inner.source()
+
     /** The maximum context size this model was trained with.
      *  Use this to avoid setting `contextSize` above what the model supports. */
     val maxCtx: UInt get() = inner.maxCtx()

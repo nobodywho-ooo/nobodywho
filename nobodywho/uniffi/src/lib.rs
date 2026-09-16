@@ -395,6 +395,10 @@ pub async fn download_model(
 
 #[uniffi::export]
 impl RustModel {
+    pub fn source(&self) -> String {
+        self.inner.source().to_string()
+    }
+
     pub fn max_ctx(&self) -> u32 {
         self.inner.max_ctx()
     }

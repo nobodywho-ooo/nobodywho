@@ -769,6 +769,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustmodel_source(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm(
@@ -955,6 +957,8 @@ external fun uniffi_nobodywho_uniffi_fn_free_rustmodel(`handle`: Long,uniffi_out
 ): Unit
 external fun uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Int
+external fun uniffi_nobodywho_uniffi_fn_method_rustmodel_source(`ptr`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1352,6 +1356,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustmodel_source() != 39358.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file() != 59975.toShort()) {
@@ -3493,6 +3500,8 @@ public interface RustModelInterface {
     
     fun `maxCtx`(): kotlin.UInt
     
+    fun `source`(): kotlin.String
+    
     companion object
 }
 
@@ -3597,6 +3606,19 @@ open class RustModel: Disposable, AutoCloseable, RustModelInterface
     callWithHandle {
     uniffiRustCall() { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
+        it,
+        _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `source`(): kotlin.String {
+            return FfiConverterString.lift(
+    callWithHandle {
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustmodel_source(
         it,
         _status)
 }

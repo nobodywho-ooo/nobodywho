@@ -313,6 +313,12 @@ impl Model {
         self.model.max_ctx()
     }
 
+    /// The identifier used to load this model.
+    #[flutter_rust_bridge::frb(sync, getter)]
+    pub fn source(&self) -> String {
+        self.model.source().to_string()
+    }
+
     #[flutter_rust_bridge::frb]
     pub fn load(
         model_path: &str,

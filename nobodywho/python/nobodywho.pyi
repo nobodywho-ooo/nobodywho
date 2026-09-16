@@ -871,6 +871,11 @@ class Model:
         """
         The maximum context size this model was trained with.
         """
+    @property
+    def source(self, /) -> str:
+        """
+        The identifier used to load this model.
+        """
 
 @final
 class MtpConfig:

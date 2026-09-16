@@ -1546,6 +1546,8 @@ public protocol RustModelProtocol: AnyObject, Sendable {
     
     func maxCtx()  -> UInt32
     
+    func source()  -> String
+    
 }
 open class RustModel: RustModelProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -1598,6 +1600,14 @@ open class RustModel: RustModelProtocol, @unchecked Sendable {
 open func maxCtx() -> UInt32  {
     return try!  FfiConverterUInt32.lift(try! rustCall() {
     uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+open func source() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_nobodywho_uniffi_fn_method_rustmodel_source(
             self.uniffiCloneHandle(),$0
     )
 })
@@ -5501,6 +5511,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() != 52004) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustmodel_source() != 39358) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file() != 59975) {

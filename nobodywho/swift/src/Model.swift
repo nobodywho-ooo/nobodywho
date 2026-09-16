@@ -44,6 +44,11 @@ public class Model {
         return Model(inner: inner)
     }
 
+    /// The identifier used to load this model.
+    public var source: String {
+        inner.source()
+    }
+
     /// The maximum context size this model was trained with.
     /// Use this to avoid setting `contextSize` above what the model supports.
     public var maxCtx: UInt32 {

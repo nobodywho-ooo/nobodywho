@@ -2917,6 +2917,7 @@ const FfiConverterTypeRustEncoder =  new FfiConverterObject(uniffiTypeRustEncode
 export interface RustModelInterface {
     
     maxCtx() : /*u32*/number;
+    source() : string;
 }
 
 
@@ -2939,6 +2940,16 @@ private constructor(pointer: UniffiHandle) {
     return FfiConverterUInt32.lift(uniffiCaller.rustCall(
             /*caller:*/ (callStatus) => {
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(uniffiTypeRustModelObjectFactory.clonePointer(this), 
+                callStatus);
+            },
+            /*liftString:*/ FfiConverterString.lift,
+    ));
+    }
+    
+ source(): string {
+    return FfiConverterString.lift(uniffiCaller.rustCall(
+            /*caller:*/ (callStatus) => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_source(uniffiTypeRustModelObjectFactory.clonePointer(this), 
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -4987,6 +4998,9 @@ function uniffiEnsureInitialized() {
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx() !== 52004) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx");
+    }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_source() !== 39358) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustmodel_source");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file() !== 59975) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file");

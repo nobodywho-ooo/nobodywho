@@ -282,6 +282,12 @@ impl Model {
         }
     }
 
+    /// The identifier used to load this model.
+    #[getter]
+    pub fn source(&self) -> String {
+        self.model.source().to_string()
+    }
+
     /// The maximum context size this model was trained with.
     #[getter]
     pub fn max_ctx(&self) -> u32 {

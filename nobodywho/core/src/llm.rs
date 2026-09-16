@@ -43,12 +43,18 @@ const MAX_EMBEDDING_SEQUENCES: u32 = 256;
 
 #[derive(Debug)]
 pub struct Model {
+    source: String,
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
     pub(crate) draft_model: Option<LlamaModel>,
 }
 
 impl Model {
+    /// The identifier used to load the model.
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
     /// Returns true if this model can generate text (i.e. is an autoregressive decoder).
     ///
     /// Generative models never pool token representations, so `<arch>.pooling_type` is absent
@@ -147,6 +153,7 @@ pub fn get_model_cancellable(
         ));
     }
 
+    let source = model_path.to_owned();
     let use_gpu = use_gpu_if_available && has_gpu_backend();
     let model_path = model_selection::resolve_model_path(model_path, use_gpu)?;
     let model_progress = progress
@@ -244,6 +251,7 @@ pub fn get_model_cancellable(
         .transpose()?;
 
     Ok(Model {
+        source,
         language_model,
         projection_model,
         draft_model,
@@ -547,6 +555,13 @@ impl<T> Drop for WorkerGuard<T> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn model_keeps_its_source() {
+        let model = crate::test_utils::load_test_model();
+        let source = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
+        assert_eq!(model.source(), source);
+    }
 
     #[test]
     fn rejects_projection_model_with_auto_selection() {

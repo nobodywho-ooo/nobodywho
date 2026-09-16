@@ -4,7 +4,9 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import 'dart:convert';
+
 import 'frb_generated.dart';
+
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
@@ -205,6 +207,9 @@ abstract class Model implements RustOpaqueInterface {
   ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
   ///         chats built from this model opt into MTP speculative decoding.
   Future<int> maxCtx();
+
+  /// The identifier used to load this model.
+  String get source;
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RustChat>>
