@@ -15,8 +15,10 @@ name: "Mobile Device Tests"
 #                        never in the test app, which is deliberately kept as
 #                        simple as any consumer's app.
 #
-# Auth is keyless via Workload Identity Federation. Requires three repo secrets:
-#   GCP_PROJECT_ID, GCP_SERVICE_ACCOUNT, GCP_WORKLOAD_IDENTITY_PROVIDER
+# Auth is keyless via Workload Identity Federation. Requires two repo secrets:
+#   GCP_SERVICE_ACCOUNT, GCP_WORKLOAD_IDENTITY_PROVIDER.
+# The project id is the GCP_PROJECT_ID repo variable, not a secret: a secret
+# would be redacted out of the result links the run prints.
 on:
   # Nightly. GitHub only runs scheduled workflows on the default branch, so this
   # is the canonical "does main still work on real hardware" run.
@@ -67,8 +69,6 @@ on:
         type: string
         default: "30m"
     secrets:
-      GCP_PROJECT_ID:
-        required: true
       GCP_SERVICE_ACCOUNT:
         required: true
       GCP_WORKLOAD_IDENTITY_PROVIDER:
@@ -223,7 +223,7 @@ jobs:
           native-lib: libnobodywho_uniffi.so
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          project-id: ${{ vars.GCP_PROJECT_ID }}
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
@@ -293,7 +293,7 @@ jobs:
           native-lib: libnobodywho_uniffi.so
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          project-id: ${{ vars.GCP_PROJECT_ID }}
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
@@ -398,7 +398,7 @@ jobs:
           native-lib: libnobodywho_flutter.so
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          project-id: ${{ vars.GCP_PROJECT_ID }}
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
@@ -456,7 +456,7 @@ jobs:
           native-lib: libnobodywho_flutter.so
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          project-id: ${{ vars.GCP_PROJECT_ID }}
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
@@ -576,7 +576,7 @@ jobs:
           native-lib: libnobodywho_uniffi.so
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          project-id: ${{ vars.GCP_PROJECT_ID }}
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
@@ -641,6 +641,6 @@ jobs:
           native-lib: libnobodywho_uniffi.so
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
-          project-id: ${{ secrets.GCP_PROJECT_ID }}
+          project-id: ${{ vars.GCP_PROJECT_ID }}
           workload-identity-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service-account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
