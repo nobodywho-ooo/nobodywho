@@ -12,6 +12,7 @@ const sidebars: SidebarsConfig = {
     'voice-activity-detection',
     'sampling',
     'embeddings-and-rag',
+    'logging-and-troubleshooting',
   ],
 };
 
