@@ -39,3 +39,48 @@ jobs:
         # reachable only from tests is never type-checked on any platform in a normal PR
         # (lib tests themselves only run under `nix flake check`, which is opt-in).
         run: cargo clippy --no-deps --all-targets -- -D warnings
+
+  # Dart and TypeScript static checks, ungated because they are seconds of work.
+  flutter-analyze:
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup Flutter SDK"
+        # Same pin as the device jobs, so the analyzer here matches the SDK the
+        # apps are built with.
+        uses: flutter-actions/setup-flutter@v4
+        with:
+          channel: stable
+          version: 3.35.5
+
+      - name: "Analyze the Flutter binding"
+        working-directory: ./nobodywho/flutter/nobodywho
+        run: flutter analyze lib/
+
+      - name: "Analyze the Flutter device-test app"
+        working-directory: ./nobodywho/testing-apps/flutter
+        run: flutter analyze
+
+  react-native-testapp:
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: nobodywho/testing-apps/react-native/package-lock.json
+
+      - name: "Install app dependencies"
+        working-directory: ./nobodywho/testing-apps/react-native
+        run: npm ci
+
+      - name: "Type-check the React Native device-test app"
+        # Type checks both the app and, indirectly, the binding.
+        # Nothing else covers the binding. 
+        # FIXME(albertsgarde): The package should check itself. Just requires adding a `tsconfig.json`.
+        working-directory: ./nobodywho/testing-apps/react-native
+        run: npm run typecheck

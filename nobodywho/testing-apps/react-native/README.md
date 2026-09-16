@@ -76,3 +76,11 @@ what we *shipped* works.
 CI does exactly this in the `react-native-released` job, resolving the newest
 published version rather than hardcoding one, and skips it in the
 `react-native-source` job. See `.github/workflows/mobile-device-tests.yml`.
+
+## Static checks
+
+```bash
+just testapp-react-native
+```
+
+It is part of `just check`, and CI runs it on every event from `linting.yml`.

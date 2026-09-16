@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-recipes=(fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze godot-build)
+recipes=(fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze testing-apps godot-build)
 pids=()
 logs=()
 start=$SECONDS

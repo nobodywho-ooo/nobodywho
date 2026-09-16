@@ -171,7 +171,7 @@ jobs:
           contains '^nobodywho/godot/'       && out godot        true || out godot        false
           contains '^nobodywho/flutter/'     && out flutter      true || out flutter      false
           contains '^nobodywho/swift/'       && out swift        true || out swift        false
-          contains '^nobodywho/kotlin/'      && out kotlin       true || out kotlin       false
+          contains '^nobodywho/(kotlin|testing-apps/kotlin)/' && out kotlin true || out kotlin false
           contains '^nobodywho/react-native/' && out react_native true || out react_native false
           contains '^docs/'                  && out docs         true || out docs         false
           # regen-drift surface: anything that can change generated bindings/stubs.

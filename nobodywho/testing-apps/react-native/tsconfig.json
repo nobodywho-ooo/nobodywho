@@ -1,5 +1,10 @@
 {
   "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "types": [],
+    // The way we depend on the local nobodywho package makes tsc look for react-native in the wrong place, so we have to override it here.
+    "paths": { "react-native": ["./node_modules/react-native"] }
+  },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["**/node_modules", "**/Pods"]
 }

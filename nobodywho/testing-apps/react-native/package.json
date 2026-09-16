@@ -5,7 +5,8 @@
   "scripts": {
     "android": "react-native run-android",
     "lint": "eslint .",
-    "start": "react-native start"
+    "start": "react-native start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "react": "19.2.3",
