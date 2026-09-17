@@ -10184,6 +10184,12 @@ rec {
             features = [ "android-static-stdcxx" ];
           }
           {
+            name = "llama-cpp-sys-2";
+            packageId = "llama-cpp-sys-2";
+            usesDefaultFeatures = false;
+            features = [ "mtmd" ];
+          }
+          {
             name = "llguidance";
             packageId = "llguidance";
           }

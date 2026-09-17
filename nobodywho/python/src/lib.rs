@@ -32,6 +32,16 @@ fn py_completion_options(
 /// handler before `Py_FinalizeEx` runs. This prevents worker threads from
 /// calling into a partially-destroyed interpreter during shutdown.
 static PYTHON_LOGGING_AVAILABLE: AtomicBool = AtomicBool::new(false);
+static LOG_FORWARDING_ENABLED: AtomicBool = AtomicBool::new(true);
+
+/// Enable or disable NobodyWho and llama.cpp logs.
+///
+/// This setting is process-wide and enabled by default. Set it before loading or using models.
+#[pyfunction]
+fn set_logging(enabled: bool) {
+    nobodywho::set_multimodal_logging(enabled);
+    LOG_FORWARDING_ENABLED.store(enabled, Ordering::Release);
+}
 
 /// `Model` objects contain a GGUF model. It is primarily useful for sharing a single model instance
 /// between multiple `Chat`, `Encoder`, or `CrossEncoder` instances.
@@ -3591,7 +3601,9 @@ pub mod nobodywhopython {
             event: &tracing::Event<'_>,
             _ctx: tracing_subscriber::layer::Context<'_, S>,
         ) {
-            if !crate::PYTHON_LOGGING_AVAILABLE.load(std::sync::atomic::Ordering::Acquire) {
+            if !crate::PYTHON_LOGGING_AVAILABLE.load(std::sync::atomic::Ordering::Acquire)
+                || !crate::LOG_FORWARDING_ENABLED.load(std::sync::atomic::Ordering::Acquire)
+            {
                 return;
             }
 
@@ -3737,6 +3749,8 @@ pub mod nobodywhopython {
     use super::get_cached_models;
     #[pymodule_export]
     use super::python_tool;
+    #[pymodule_export]
+    use super::set_logging;
     #[pymodule_export]
     use super::tool;
     #[pymodule_export]

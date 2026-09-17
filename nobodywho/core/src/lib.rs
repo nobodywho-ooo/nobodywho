@@ -44,6 +44,26 @@ pub fn send_llamacpp_logs_to_tracing() {
     llama_cpp_2::send_logs_to_tracing(llama_cpp_2::LogOptions::default().with_logs_enabled(true));
 }
 
+// MTMD defaults to stderr and requires a callback to suppress its logs.
+extern "C" fn discard_multimodal_log(
+    _level: llama_cpp_sys_2::ggml_log_level,
+    _text: *const std::ffi::c_char,
+    _user_data: *mut std::ffi::c_void,
+) {
+}
+
+/// Enable or disable llama.cpp multimodal logs written directly to stderr.
+pub fn set_multimodal_logging(enabled: bool) {
+    let callback: llama_cpp_sys_2::ggml_log_callback = if enabled {
+        None
+    } else {
+        Some(discard_multimodal_log)
+    };
+
+    // SAFETY: the callback has static lifetime, the expected ABI, and ignores user data.
+    unsafe { llama_cpp_sys_2::mtmd_helper_log_set(callback, std::ptr::null_mut()) }
+}
+
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::llm::{get_model, Model};

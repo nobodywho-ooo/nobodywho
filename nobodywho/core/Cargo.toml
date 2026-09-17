@@ -23,6 +23,9 @@ llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "mai
     "llguidance",
     "common",
 ] }
+llama-cpp-sys-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
+    "mtmd",
+] }
 lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = [
     "sync",

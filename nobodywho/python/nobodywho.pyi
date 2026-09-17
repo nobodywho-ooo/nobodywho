@@ -1604,6 +1604,13 @@ def python_tool(
         A Tool instance ready to pass to Chat or ChatAsync.
     """
 
+def set_logging(enabled: bool) -> None:
+    """
+    Enable or disable NobodyWho and llama.cpp logs.
+
+    This setting is process-wide and enabled by default. Set it before loading or using models.
+    """
+
 def tool(
     description: "str", params: "dict[str, str] | None" = None
 ) -> "typing.Callable[[typing.Callable[..., T]], Tool[T]]":

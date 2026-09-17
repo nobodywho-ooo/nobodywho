@@ -27,6 +27,59 @@ def multimodal_chat(multimodal_model):
     )
 
 
+def test_logging_can_be_disabled(capfd, caplog):
+    model_path = os.environ.get("TEST_VISION_MODEL")
+    projection_model_path = os.environ.get("TEST_MMPROJ_MODEL")
+    if not model_path or not projection_model_path:
+        raise ValueError("Multimodal model environment variables are not set")
+
+    image_path = os.path.join(os.path.dirname(__file__), "img/dog.png")
+    prompt = nobodywho.Prompt(
+        [nobodywho.Text("Describe this image."), nobodywho.Image(image_path)]
+    )
+
+    def load_model_and_tokenize_image():
+        model = nobodywho.Model(
+            model_path,
+            projection_model_path=projection_model_path,
+        )
+        chat = nobodywho.Chat(model)
+        chat.tokenize(prompt)
+        return model, chat
+
+    def native_logs_were_captured():
+        return any(
+            record.name == "llama-cpp-2" or record.name.startswith("nobodywho")
+            for record in caplog.records
+        )
+
+    with caplog.at_level(1):
+        nobodywho.set_logging(enabled=True)
+        capfd.readouterr()
+        caplog.clear()
+        enabled_model, enabled_chat = load_model_and_tokenize_image()
+        enabled_stderr = capfd.readouterr().err
+        enabled_logs_captured = native_logs_were_captured()
+
+        del enabled_chat, enabled_model
+        capfd.readouterr()
+        caplog.clear()
+
+        try:
+            nobodywho.set_logging(enabled=False)
+            disabled_model, disabled_chat = load_model_and_tokenize_image()
+            disabled_stderr = capfd.readouterr().err
+            disabled_logs_captured = native_logs_were_captured()
+            del disabled_chat, disabled_model
+        finally:
+            nobodywho.set_logging(enabled=True)
+
+    assert enabled_logs_captured
+    assert "add_media:" in enabled_stderr
+    assert not disabled_logs_captured
+    assert "add_media:" not in disabled_stderr
+
+
 def test_image_description(multimodal_chat):
     """Test that the model can describe an image"""
     image_path = os.path.join(os.path.dirname(__file__), "img/penguin.png")

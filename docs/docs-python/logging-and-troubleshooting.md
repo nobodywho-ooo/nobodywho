@@ -16,5 +16,16 @@ logging.basicConfig(level=logging.DEBUG)
 # logging.basicConfig(level=1)
 ```
 
-This can be useful for getting some insight into what the model is choosing to do and when.
-For example when tool calls are made, when context shifting happens, etc.
+This can be useful for seeing when the model makes tool calls or shifts its context.
+
+## Disable logging
+
+Disable NobodyWho and llama.cpp logs before loading or using a model:
+
+```python
+import nobodywho
+
+nobodywho.set_logging(enabled=False)
+```
+
+This works for text-only and multimodal models, including multimodal logs written directly to stderr. The setting applies to the whole process. Call `set_logging(enabled=True)` to restore the default.
