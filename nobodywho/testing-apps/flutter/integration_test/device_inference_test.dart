@@ -24,7 +24,7 @@ void main() {
       // Ask for the GPU like a real app would. Android has no GPU backend yet,
       // so this falls back to CPU today and starts exercising the GPU path
       // automatically once one lands.
-      final chat = await nobodywho.Chat.fromPath(
+      final nobodywho.Chat chat = await nobodywho.Chat.fromPath(
         modelPath: modelUrl,
         systemPrompt: 'Reply with one word only.',
         templateVariables: const {'enable_thinking': false},
@@ -32,22 +32,25 @@ void main() {
       );
 
       // Completion
-      final response = await chat.ask('Say hello').completed();
+      final String response = await chat.ask('Say hello').completed();
       expect(response, isNotEmpty, reason: 'completion should be non-empty');
 
       // Streaming
       await chat.resetContext(systemPrompt: 'Reply briefly.', tools: []);
-      var tokenCount = 0;
-      await for (final _ in chat.ask('Say hi')) {
+      int tokenCount = 0;
+      await for (final String _ in chat.ask('Say hi')) {
         tokenCount++;
       }
-      expect(tokenCount, greaterThan(0),
-          reason: 'streaming should yield at least one token');
+      expect(
+        tokenCount,
+        greaterThan(0),
+        reason: 'streaming should yield at least one token',
+      );
 
       // Tool calling. The Tool is constructed here rather than up front because
       // handing one to the Rust side consumes it — reusing a Tool across calls
       // currently throws DroppableDisposedException (NOB-168).
-      final pingTool = nobodywho.Tool(
+      final nobodywho.Tool pingTool = nobodywho.Tool(
         function: ping,
         name: 'ping',
         description: 'Ping the server',
@@ -58,11 +61,15 @@ void main() {
       );
       await chat.ask('Ping the server').completed();
 
-      final toolMessages =
+      final Iterable<nobodywho.Message_Tool> toolMessages =
           (await chat.getChatHistory()).whereType<nobodywho.Message_Tool>();
-      expect(toolMessages, isNotEmpty,
-          reason: 'expected a tool response in chat history');
-      expect(toolMessages.first.content.text, 'pong');
+      expect(
+        toolMessages,
+        isNotEmpty,
+        reason: 'expected a tool response in chat history',
+      );
+      final String toolText = toolMessages.first.content.text;
+      expect(toolText, 'pong');
     },
     // Generous: the first run downloads the model before any inference starts.
     timeout: const Timeout(Duration(minutes: 20)),
