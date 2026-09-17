@@ -1,11 +1,25 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
-/// The model is downloaded on-device into the app's own cache on first run —
-/// no permissions and no shared storage involved.
 const modelUrl =
     'hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf';
+
+/// Directory holding the test model if Test Lab pushed one.
+final obbDir = Directory('/sdcard/Android/obb/ooo.nobodywho.nobodywho_testapp');
+
+/// The preloaded copy if Test Lab pushed one. For local runs there won't be one,
+/// so we fall back on a URL. The .obb file is matched by extension
+/// rather than by name, so a versionCode bump cannot silently miss it.
+String selectModelPath() {
+  if (!obbDir.existsSync()) return modelUrl;
+  final preloaded = obbDir.listSync().whereType<File>().where(
+    (f) => f.path.endsWith('.obb'),
+  );
+  return preloaded.isEmpty ? modelUrl : preloaded.first.path;
+}
 
 String ping() => 'pong';
 
@@ -25,7 +39,7 @@ void main() {
       // so this falls back to CPU today and starts exercising the GPU path
       // automatically once one lands.
       final nobodywho.Chat chat = await nobodywho.Chat.fromPath(
-        modelPath: modelUrl,
+        modelPath: selectModelPath(),
         systemPrompt: 'Reply with one word only.',
         templateVariables: const {'enable_thinking': false},
         useGpu: true,
@@ -71,7 +85,9 @@ void main() {
       final String toolText = toolMessages.first.content.text;
       expect(toolText, 'pong');
     },
-    // Generous: the first run downloads the model before any inference starts.
-    timeout: const Timeout(Duration(minutes: 20)),
+    // The model is preloaded, so this covers inference only. Kept well clear
+    // of the ~10s a passing run takes, but short enough that a fallback to
+    // downloading on-device fails loudly instead of eating the FTL budget.
+    timeout: const Timeout(Duration(minutes: 5)),
   );
 }

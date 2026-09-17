@@ -11,12 +11,16 @@ import React, {useEffect, useState} from 'react';
 import {SafeAreaView, StyleSheet, Text} from 'react-native';
 import {Chat, Tool, type Content} from 'react-native-nobodywho';
 
-/**
- * Downloaded on-device into the app's own storage on first run — no
- * permissions and no shared storage involved.
- */
 const MODEL_URL =
   'hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf';
+
+/**
+ * Directory holding the test model if Test Lab pushed one.
+ * React Native has no filesystem API to glob with, so the applicationId and
+ * versionCode are spelled out and must match android/app/build.gradle.
+ */
+const PRELOADED_MODEL_PATH =
+  '/sdcard/Android/obb/com.nobodywhotestapp/main.1.com.nobodywhotestapp.obb';
 
 const ping = () => 'pong';
 
@@ -32,16 +36,33 @@ function assertEquals<T>(actual: T, expected: T, what: string): void {
   }
 }
 
-async function runChecks(): Promise<void> {
-  // Ask for the GPU like a real app would. Android has no GPU backend yet, so
-  // this falls back to CPU today and starts exercising the GPU path
-  // automatically once one lands.
-  const chat = await Chat.fromPath({
-    modelPath: MODEL_URL,
+/**
+ * The preloaded model if Test Lab pushed one, else the URL for the binding to
+ * download on-device, which is what a local run does. React Native has no
+ * filesystem API to probe with, so the fallback hangs off the load failing.
+ */
+async function openChat(): Promise<Chat> {
+  const options = {
     systemPrompt: 'Reply with one word only.',
     templateVariables: {enable_thinking: false},
+    // Ask for the GPU like a real app would. Android has no GPU backend yet,
+    // so this falls back to CPU today and starts exercising the GPU path
+    // automatically once one lands.
     useGpu: true,
-  });
+  };
+  try {
+    return await Chat.fromPath({modelPath: PRELOADED_MODEL_PATH, ...options});
+  } catch (e) {
+    console.warn(
+      `no preloaded model at ${PRELOADED_MODEL_PATH} (${String(e)}); ` +
+        `downloading ${MODEL_URL} instead`,
+    );
+    return await Chat.fromPath({modelPath: MODEL_URL, ...options});
+  }
+}
+
+async function runChecks(): Promise<void> {
+  const chat = await openChat();
 
   // Completion
   const response = await chat.ask('Say hello').completed();

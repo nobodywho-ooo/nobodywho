@@ -88,6 +88,7 @@ android {
         applicationId "com.nobodywhotestapp"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // Embedded in the OBB path App.tsx loads the preloaded model from.
         versionCode 1
         versionName "1.0"
         // Required so assembleAndroidTest produces the instrumentation APK that

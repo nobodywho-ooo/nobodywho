@@ -25,16 +25,14 @@ fun ping(): String = "pong"
  * Mirrors the chat / streaming / tool-calling assertions from the host-JVM
  * `IntegrationTest`, but exercises the arm64 Android `.so` on a physical phone.
  *
- * The model is fetched on-device by the binding itself: `Model.load(url)`
- * downloads the GGUF into the app's cache dir (app-writable, no permission,
- * no scoped-storage handling) and loads it. If the download or load fails the
- * test throws and the run goes red — the intended loud failure.
+ * CI points `-e modelUrl` at an OBB it preloaded, so the device never downloads
+ * the model. A local run takes the default and fetches it from Hugging Face.
  */
 @RunWith(AndroidJUnit4::class)
 class DeviceInferenceTest {
 
-    // Overridable via `-e modelUrl <url>` so the workflow can swap models
-    // without recompiling; defaults to the same small model the JVM tests use.
+    // Overridable via `-e modelUrl <url-or-path>` so the workflow can point at a
+    // preloaded model without recompiling; defaults to what the JVM tests use.
     private fun modelUrl(): String =
         InstrumentationRegistry.getArguments().getString("modelUrl")
             ?: "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"

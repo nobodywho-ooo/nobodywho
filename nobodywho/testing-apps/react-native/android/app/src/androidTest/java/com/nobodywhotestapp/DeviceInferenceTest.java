@@ -27,8 +27,13 @@ import org.junit.runner.RunWith;
 @LargeTest
 public class DeviceInferenceTest {
 
-  /** Generous: the first run downloads the model before any inference starts. */
-  private static final long TIMEOUT_MS = 20 * 60 * 1000L;
+  /**
+   * The model is preloaded by .github/actions/run-ftl, so this covers inference
+   * only. Kept well clear of the ~10s a passing run takes, but short enough
+   * that a fallback to downloading on-device fails loudly instead of eating the
+   * Test Lab budget.
+   */
+  private static final long TIMEOUT_MS = 5 * 60 * 1000L;
 
   private static final long POLL_MS = 2000L;
 
