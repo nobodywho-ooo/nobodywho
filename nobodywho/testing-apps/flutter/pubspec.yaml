@@ -12,10 +12,11 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Resolved from pub.dev by default, which is what a consumer does. The
-  # local-source CI job writes a pubspec_overrides.yaml pointing at
-  # ../../flutter/nobodywho instead (see README).
-  nobodywho: ^2.5.0
+  # The bindings in this repo by default, so a change on a branch gets device
+  # coverage before it ships. The released-package CI job writes a
+  # pubspec_overrides.yaml pinning the published version instead (see README).
+  nobodywho:
+    path: ../../flutter/nobodywho
 
 dev_dependencies:
   flutter_test:
