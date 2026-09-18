@@ -87,8 +87,6 @@ impl IRefCounted for NobodyWhoSamplerBuilder {
 
 #[godot_api]
 impl NobodyWhoSamplerBuilder {
-    // --- shift steps (chainable, return new Gd<Self>) ---
-
     /// Keep only the top K most probable tokens. Typical: 40-50.
     #[func]
     fn top_k(&self, top_k: i32) -> Gd<Self> {
@@ -257,8 +255,6 @@ impl NobodyWhoSamplerBuilder {
     fn seed(&self, seed: u32) -> Gd<Self> {
         self.rebuild(|b| b.seed(seed))
     }
-
-    // --- sampling steps (terminals, return Gd<NobodyWhoSamplerConfig>) ---
 
     /// Finish: weighted-random sampling from the distribution.
     #[func]

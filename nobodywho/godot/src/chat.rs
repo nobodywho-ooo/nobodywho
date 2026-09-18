@@ -632,8 +632,6 @@ fn build_core_tools(
         .collect()
 }
 
-// --- NobodyWhoTokenStream ---------------------------------------------------
-
 /// A per-call token stream from `NobodyWhoChat.ask` or
 /// `NobodyWhoSpeechToText.transcribe_*_stream`. One object per call,
 /// isolating concurrent generations and their errors.

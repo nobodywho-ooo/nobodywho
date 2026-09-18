@@ -23,8 +23,6 @@ func run(runner: Node) -> void:
 	await _test_from_json_error(runner)
 	await _test_vision(runner)
 
-# --- Tier 1: model-less ------------------------------------------------------
-
 func _test_part_factories(runner: Node) -> void:
 	var t := NobodyWhoPrompt.text("hello")
 	if t is Dictionary and t.get("type") == "text" and t.get("value") == "hello":
@@ -97,8 +95,6 @@ func _test_from_json_error(runner: Node) -> void:
 		runner.ok("prompt: from_json(non-JSON-representable) returns null")
 	else:
 		runner.fail("prompt: from_json(non-JSON) returned non-null %s" % str(p))
-
-# --- Tier 2: vision (self-skips) ---------------------------------------------
 
 func _test_vision(runner: Node) -> void:
 	var model_path: String = OS.get_environment("TEST_VISION_MODEL")

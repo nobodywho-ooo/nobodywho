@@ -119,7 +119,6 @@ pub fn collect_strings(values: &VarArray, name: &str) -> Result<Vec<String>, Str
         .collect()
 }
 
-// --- JSON <-> Variant bridge -----------------------------------------------
 // Recursive converters between serde_json::Value and Godot Variant. Used for
 // chat history (Vec<Message> serializes to a JSON array of role/content dicts).
 // Godot has no pythonize equivalent, so we hand-roll the mapping.

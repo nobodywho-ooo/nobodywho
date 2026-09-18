@@ -16,8 +16,6 @@ mod text_to_speech;
 mod tools;
 mod vad;
 
-// --- Logging -----------------------------------------------------------------
-
 /// Routes tracing lines to the Godot console.
 struct GodotWriter;
 
@@ -115,8 +113,6 @@ pub fn set_log_level(level_str: &str) {
     }
 }
 
-// --- NobodyWho namespace class ---------------------------------------------
-
 /// Global entry point for NobodyWho utilities.
 ///
 /// A pure namespace class: not instantiable (`no_init`), exists only to host
@@ -142,8 +138,6 @@ impl NobodyWho {
         set_log_level(&level.to_string());
     }
 }
-
-// --- Extension entry ---------------------------------------------------------
 
 struct NobodyWhoExtension;
 
