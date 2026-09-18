@@ -43,27 +43,14 @@ fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
     memory_free.min(memory_total)
 }
 
-/// Enumerate ggml backend devices. Always go through here rather than calling
-/// `llama_cpp_2::list_llama_ggml_backend_devices` directly: the first
-/// enumeration initialises the backends, and some of them read their
-/// configuration from the environment at that moment.
+/// Configure diagnostics before the first backend enumeration.
 pub(crate) fn backend_devices() -> Vec<llama_cpp_2::LlamaBackendDevice> {
     crate::logging::enable_native_traces();
     llama_cpp_2::list_llama_ggml_backend_devices()
 }
 
-/// GPUs that ggml lists but that we refuse to run on when the Android
-/// backend preference applies.
-///
-/// The Qualcomm proprietary Vulkan driver (Adreno 7xx, observed on driver
-/// 0762.12) reports every feature ggml-vulkan asks for and then fails
-/// `vkCreateComputePipelines` for `mul_mat_vec_q4_k_f32_f32` with
-/// `ErrorUnknown` ("Failed to link shaders"), which aborts the process on the
-/// first decode of any K-quant model. Upstream tracks this as
-/// ggml-org/llama.cpp#12421 / #6843 with no fix; Qualcomm's supported path
-/// for llama.cpp on Adreno is the OpenCL backend. Mesa's Turnip driver for the
-/// same GPUs has a different compiler and is not affected.
-pub(crate) fn is_unusable_android_gpu(device: &llama_cpp_2::LlamaBackendDevice) -> bool {
+/// Avoid the observed Adreno Q4_K shader abort (llama.cpp#12421), except Turnip.
+fn is_unusable_android_gpu(device: &llama_cpp_2::LlamaBackendDevice) -> bool {
     if device.backend != "Vulkan" {
         return false;
     }
@@ -76,10 +63,10 @@ pub(crate) fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
     select_gpu_from(backend_devices(), cfg!(target_os = "android"))
 }
 
-fn select_gpu_from(
+fn usable_gpus(
     devices: Vec<llama_cpp_2::LlamaBackendDevice>,
     prefer_android_backends: bool,
-) -> Option<llama_cpp_2::LlamaBackendDevice> {
+) -> impl Iterator<Item = llama_cpp_2::LlamaBackendDevice> {
     devices
         .into_iter()
         .filter(|d| {
@@ -89,34 +76,34 @@ fn select_gpu_from(
                     | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
             )
         })
-        .filter(|d| {
+        .filter(move |d| {
             let skip = prefer_android_backends && is_unusable_android_gpu(d);
             if skip {
-                warn!(
-                    backend = %d.backend,
-                    device = %d.name,
-                    description = %d.description,
-                    "Skipping GPU: the Qualcomm proprietary Vulkan driver cannot compile \
-                     ggml's Q4_K shaders (see ggml-org/llama.cpp#12421); using OpenCL or CPU instead"
-                );
+                warn!(device = %d.description, "Skipping Adreno Vulkan shader failure; using OpenCL or CPU");
             }
             !skip
         })
-        .max_by_key(|d| {
-            let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
-            // Android can expose the same GPU through two APIs. Prefer OpenCL,
-            // then Vulkan; use this same choice for model loading and planning.
-            let backend_priority = if prefer_android_backends {
-                match d.backend.as_str() {
-                    "OpenCL" => 2,
-                    "Vulkan" => 1,
-                    _ => 0,
-                }
-            } else {
-                0
-            };
-            (backend_priority, is_gpu, device_free(d))
-        })
+}
+
+fn select_gpu_from(
+    devices: Vec<llama_cpp_2::LlamaBackendDevice>,
+    prefer_android_backends: bool,
+) -> Option<llama_cpp_2::LlamaBackendDevice> {
+    usable_gpus(devices, prefer_android_backends).max_by_key(|d| {
+        let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
+        // Android can expose the same GPU through two APIs. Prefer OpenCL,
+        // then Vulkan; use this same choice for model loading and planning.
+        let backend_priority = if prefer_android_backends {
+            match d.backend.as_str() {
+                "OpenCL" => 2,
+                "Vulkan" => 1,
+                _ => 0,
+            }
+        } else {
+            0
+        };
+        (backend_priority, is_gpu, device_free(d))
+    })
 }
 
 fn gpu_shares_host_memory(
@@ -161,16 +148,7 @@ pub(crate) fn available_model_memory(
     use_gpu: bool,
 ) -> Result<AvailableMemory, MemoryDetectionError> {
     let host = host_memory::available()?;
-    let gpus = backend_devices()
-        .into_iter()
-        .filter(|device| {
-            matches!(
-                device.device_type,
-                llama_cpp_2::LlamaBackendDeviceType::Gpu
-                    | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
-            )
-        })
-        .filter(|device| !(cfg!(target_os = "android") && is_unusable_android_gpu(device)))
+    let gpus = usable_gpus(backend_devices(), cfg!(target_os = "android"))
         .map(|device| GpuMemory {
             free_bytes: device_free(&device),
             total_bytes: device.memory_total as u64,
@@ -384,7 +362,7 @@ mod tests {
     #[test]
     fn android_backend_order_and_cpu_fallback() {
         use llama_cpp_2::{LlamaBackendDevice, LlamaBackendDeviceType::Cpu};
-        let described =
+        let device =
             |backend: &str, description: &str, device_type, memory_free| LlamaBackendDevice {
                 index: 0,
                 name: backend.into(),
@@ -394,55 +372,28 @@ mod tests {
                 memory_free,
                 device_type,
             };
-        let device = |backend: &str, device_type, memory_free| {
-            described(backend, "", device_type, memory_free)
-        };
-        let cpu = device("CPU", Cpu, 8);
-        let vulkan = device("Vulkan", Gpu, 4);
-        let opencl = device("OpenCL", IntegratedGpu, 2);
-        // API priority wins even if Vulkan reports more memory or a discrete GPU.
-        for devices in [
-            vec![cpu.clone(), opencl.clone(), vulkan.clone()],
-            vec![vulkan.clone(), opencl, cpu.clone()],
+        let cpu = device("CPU", "", Cpu, 8);
+        let vk = device("Vulkan", "Mali-G715-Immortalis MC11", Gpu, 4);
+        let cl = device("OpenCL", "QUALCOMM Adreno(TM) 750", IntegratedGpu, 2);
+        let adreno = device("Vulkan", "Adreno (TM) 750", IntegratedGpu, 15);
+        let turnip = device("Vulkan", "Turnip Adreno (TM) 750", IntegratedGpu, 4);
+        // Priority beats enumeration order, GPU type and reported free memory.
+        // Missing GPUs and excluded drivers must leave the caller on CPU.
+        for (devices, android, expected) in [
+            (vec![&cpu, &cl, &vk], true, Some("OpenCL")),
+            (vec![&vk, &cl, &cpu], true, Some("OpenCL")),
+            (vec![&cpu, &vk], true, Some("Vulkan")),
+            (vec![&cpu], true, None),
+            (vec![], true, None),
+            (vec![&cpu, &adreno], true, None),
+            (vec![&cpu, &adreno, &cl], true, Some("OpenCL")),
+            (vec![&cpu, &turnip], true, Some("Vulkan")),
+            (vec![&cpu, &adreno], false, Some("Vulkan")),
         ] {
-            assert_eq!(select_gpu_from(devices, true).unwrap().backend, "OpenCL");
+            let devices = devices.into_iter().cloned().collect();
+            let selected = select_gpu_from(devices, android);
+            assert_eq!(selected.as_ref().map(|d| d.backend.as_str()), expected);
         }
-        assert_eq!(
-            select_gpu_from(vec![cpu.clone(), vulkan], true)
-                .unwrap()
-                .backend,
-            "Vulkan"
-        );
-        // No GPU means the caller uses an empty device list (CPU).
-        assert!(select_gpu_from(vec![cpu.clone()], true).is_none());
-        assert!(select_gpu_from(vec![], true).is_none());
-
-        // The Qualcomm proprietary Vulkan driver is never selected on Android,
-        // even when it is the only GPU: OpenCL if present, otherwise CPU.
-        let adreno = described("Vulkan", "Adreno (TM) 750", IntegratedGpu, 15);
-        let opencl_adreno = described("OpenCL", "QUALCOMM Adreno(TM) 750", IntegratedGpu, 2);
-        assert!(select_gpu_from(vec![cpu.clone(), adreno.clone()], true).is_none());
-        assert_eq!(
-            select_gpu_from(vec![cpu.clone(), adreno.clone(), opencl_adreno], true)
-                .unwrap()
-                .backend,
-            "OpenCL"
-        );
-        // Other Vulkan drivers, including Mesa Turnip on Adreno, stay usable.
-        for description in ["Mali-G715-Immortalis MC11", "Turnip Adreno (TM) 750"] {
-            let vk = described("Vulkan", description, IntegratedGpu, 4);
-            assert_eq!(
-                select_gpu_from(vec![cpu.clone(), vk], true)
-                    .unwrap()
-                    .backend,
-                "Vulkan"
-            );
-        }
-        // Off Android the description is not consulted.
-        assert_eq!(
-            select_gpu_from(vec![cpu, adreno], false).unwrap().backend,
-            "Vulkan"
-        );
     }
 
     fn host(available: u64, total: u64) -> HostMemory {

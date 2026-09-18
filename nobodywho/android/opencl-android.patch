@@ -21,3 +21,31 @@
  #if defined(CL_ENABLE_LAYERS)
      // system layers should be closer to the driver
      khrIcdOsDirEnumerate(LAYER_PATH, "OPENCL_LAYER_PATH", ".lay", khrIcdLayerAdd, 1);
+
+--- a/loader/icd.c
++++ b/loader/icd.c
+@@ -102,6 +102,24 @@
+ 
+     // use that function to get the clIcdGetPlatformIDsKHR function pointer
+     p_clIcdGetPlatformIDs = (pfn_clIcdGetPlatformIDs)(size_t)p_clGetExtensionFunctionAddress("clIcdGetPlatformIDsKHR");
++#if defined(__ANDROID__)
++    // Some vendors ship libOpenCL.so as a Khronos ICD loader in front of the
++    // real ICD (Qualcomm: libOpenCL_adreno.so). A loader answers
++    // clGetPlatformIDs but not clIcdGetPlatformIDsKHR, and the ICD behind it
++    // is not reachable from an app's linker namespace. The platform handles a
++    // loader returns are the ICD's own objects, whose first member is the
++    // ICD's dispatch table, so they dispatch like any cl_khr_icd platform.
++    // Enumerate through clGetPlatformIDs and let the per-platform checks
++    // below (dispatchable, CL_PLATFORM_ICD_SUFFIX_KHR) accept or reject them.
++    if (!p_clIcdGetPlatformIDs)
++    {
++        p_clIcdGetPlatformIDs = (pfn_clIcdGetPlatformIDs)(size_t)khrIcdOsLibraryGetFunctionAddress(library, "clGetPlatformIDs");
++        if (p_clIcdGetPlatformIDs)
++        {
++            KHR_ICD_TRACE("%s does not implement clIcdGetPlatformIDsKHR, treating it as an ICD loader and enumerating through clGetPlatformIDs\n", libraryName);
++        }
++    }
++#endif
+     if (!p_clIcdGetPlatformIDs)
+     {
+         KHR_ICD_TRACE("failed to get extension function address clIcdGetPlatformIDsKHR\n");

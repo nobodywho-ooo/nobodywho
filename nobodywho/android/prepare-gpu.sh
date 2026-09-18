@@ -33,16 +33,14 @@ fetch_source() {
   if [[ ! -d "$destination" ]]; then
     local staging
     staging="$(mktemp -d "$deps_dir/download.XXXXXX")"
-    curl --fail --location --retry 3 \
-      "https://codeload.github.com/KhronosGroup/$repo/tar.gz/$revision" \
-      -o "$staging/source.tar.gz"
     mkdir "$staging/source"
-    tar -xzf "$staging/source.tar.gz" -C "$staging/source" --strip-components=1
+    curl --fail --location --retry 3 \
+      "https://codeload.github.com/KhronosGroup/$repo/tar.gz/$revision" |
+      tar -xz -C "$staging/source" --strip-components=1
     if [[ "$repo" == OpenCL-ICD-Loader ]]; then
       patch -d "$staging/source" -p1 < "$script_dir/opencl-android.patch"
     fi
     mv "$staging/source" "$destination"
-    rm "$staging/source.tar.gz"
     rmdir "$staging"
   fi
 }
@@ -74,17 +72,18 @@ cmake -S "$spirv" -B "$deps_dir/spirv-build" \
   -DCMAKE_INSTALL_PREFIX="$deps_dir/spirv-install" >&2
 cmake --install "$deps_dir/spirv-build" >&2
 
+env_mode="${2-}"
 emit() {
-  if [[ "${2-}" == --github-env ]]; then
-    printf '%s=%s\n' "$1" "$3"
+  if [[ "$env_mode" == --github-env ]]; then
+    printf '%s=%s\n' "$1" "$2"
   else
-    printf 'export %s=%q\n' "$1" "$3"
+    printf 'export %s=%q\n' "$1" "$2"
   fi
 }
-emit OPENCL_INCLUDE_DIR "${2-}" "$headers"
-emit OPENCL_LIBRARY "${2-}" "$build_dir/libOpenCL.a"
-emit VULKAN_INCLUDE_DIR "${2-}" "$vulkan/include"
-emit VULKAN_GLSLC "${2-}" "$glslc"
-emit SPIRV_HEADERS_DIR "${2-}" "$deps_dir/spirv-install/share/cmake/SPIRV-Headers"
-emit SPIRV_HEADERS_INCLUDE_DIR "${2-}" "$deps_dir/spirv-install/include"
-emit CMAKE_PROJECT_INCLUDE "${2-}" "$script_dir/llama-static.cmake"
+emit OPENCL_INCLUDE_DIR "$headers"
+emit OPENCL_LIBRARY "$build_dir/libOpenCL.a"
+emit VULKAN_INCLUDE_DIR "$vulkan/include"
+emit VULKAN_GLSLC "$glslc"
+emit SPIRV_HEADERS_DIR "$deps_dir/spirv-install/share/cmake/SPIRV-Headers"
+emit SPIRV_HEADERS_INCLUDE_DIR "$deps_dir/spirv-install/include"
+emit CMAKE_PROJECT_INCLUDE "$script_dir/llama-static.cmake"
