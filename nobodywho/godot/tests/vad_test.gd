@@ -119,8 +119,6 @@ func _test_segment(runner: Node, audio: Dictionary) -> void:
 
 	vad = null
 
-# --- test helpers -----------------------------------------------------------
-
 ## Parse a PCM WAV into mono LE-i16 samples. Downmixes multi-channel by
 ## averaging channels per frame (mirrors python's _read_wav_mono_i16).
 func _read_wav_mono_i16(path: String) -> Dictionary:

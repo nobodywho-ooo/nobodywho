@@ -40,8 +40,6 @@ func _make_chat(tools: Array) -> Variant:
 	var cfg: Dictionary = {"tools": tools}
 	return await NobodyWhoChat.create(_model_path, cfg)
 
-# --- built-in python tool ---
-
 func _test_python_tool(runner: Node) -> void:
 	var tool = NobodyWhoTool.python(0, 0, 0)
 	var chat = await _make_chat([tool])
@@ -56,8 +54,6 @@ func _test_python_tool(runner: Node) -> void:
 	runner.ok("tools: python tool registered, chat did not hang (built-in mechanism OK)")
 
 	chat = null
-
-# --- manual schema + lambda (the escape hatch) ---
 
 func _test_schema_lambda_tool(runner: Node) -> void:
 	_lambda_arg = null
@@ -90,8 +86,6 @@ func _test_schema_lambda_tool(runner: Node) -> void:
 
 	chat = null
 
-# --- re-entrancy guard: calling back into the same chat fails fast ---
-
 func naughty_tool(box_name: String) -> String:
 	# Forbidden: call back into the chat this tool belongs to. Must resolve
 	# null instantly (guard) instead of hanging the worker forever.
@@ -116,8 +110,6 @@ func _test_reentrancy_guard(runner: Node) -> void:
 		runner.ok("tools: reentrancy guard fired, no hang, generation completed")
 
 	_reentrant_chat = null
-
-# --- sync GDScript tool (auto-schema) ---
 
 func get_magic_word(box_name: String) -> String:
 	_sync_tool_called = true
@@ -147,8 +139,6 @@ func _test_sync_tool(runner: Node) -> void:
 		runner.ok("tools: sync GDScript tool called with correct arg, result reached the model")
 
 	chat = null
-
-# --- async GDScript tool (coroutine awaited from Rust) ---
 
 func get_oracle_answer(question: String) -> String:
 	_async_tool_called = true
