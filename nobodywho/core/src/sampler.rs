@@ -315,6 +315,7 @@ impl SamplerConfig {
                 penalty_freq,
                 penalty_present,
             } => Ok(LlamaSampler::penalties(
+                model.n_vocab(),
                 penalty_last_n,
                 penalty_repeat,
                 penalty_freq,
