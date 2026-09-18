@@ -33,8 +33,10 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
-    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    crate::logging::enable_native_traces();
+    LlamaBackend::init().expect("Failed to initialize llama backend")
+});
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
@@ -91,7 +93,10 @@ pub fn has_gpu_backend() -> bool {
         return false;
     }
 
-    for backend_device in llama_cpp_2::list_llama_ggml_backend_devices() {
+    for backend_device in memory::backend_devices() {
+        if cfg!(target_os = "android") && memory::is_unusable_android_gpu(&backend_device) {
+            continue;
+        }
         // TODO: account for memory available on backend device - .memory_total and .memory free
         //       we might use these with GGUF model metadata, to decide on a number of layers to offload
         match backend_device.device_type {
