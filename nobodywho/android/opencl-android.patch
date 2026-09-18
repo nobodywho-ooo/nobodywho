@@ -1,0 +1,23 @@
+--- a/loader/linux/icd_linux.c
++++ b/loader/linux/icd_linux.c
+@@ -250,6 +250,20 @@
+ 
+     khrIcdOsDirEnumerate(ICD_VENDOR_PATH, "OCL_ICD_VENDORS", ".icd", khrIcdVendorAdd, 0);
+ 
++#if defined(__ANDROID__)
++    // Android vendors may expose an ICD without shipping readable .icd files.
++    // The app requests this library with uses-native-library required=false.
++    // Honour explicit discovery overrides (also used to test absent drivers).
++    char *filenames = khrIcd_secure_getenv("OCL_ICD_FILENAMES");
++    char *vendors = khrIcd_secure_getenv("OCL_ICD_VENDORS");
++    if (!khrIcdVendors && !filenames && !vendors)
++    {
++        khrIcdVendorAdd("libOpenCL.so");
++    }
++    if (filenames) khrIcd_free_getenv(filenames);
++    if (vendors) khrIcd_free_getenv(vendors);
++#endif
++
+ #if defined(CL_ENABLE_LAYERS)
+     // system layers should be closer to the driver
+     khrIcdOsDirEnumerate(LAYER_PATH, "OPENCL_LAYER_PATH", ".lay", khrIcdLayerAdd, 1);

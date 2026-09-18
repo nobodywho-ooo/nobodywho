@@ -158,6 +158,11 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: aarch64-linux-android
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
+
       # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
       # a device run needs just the arm64-v8a .so.
       - name: "Build uniffi .so (aarch64-linux-android)"
@@ -221,6 +226,7 @@ jobs:
           app-apk: ${{ steps.apks.outputs.app }}
           test-apk: ${{ steps.apks.outputs.test }}
           native-lib: libnobodywho_uniffi.so
+          test-missing-opencl: "true"
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
           project-id: ${{ vars.GCP_PROJECT_ID }}
@@ -344,6 +350,11 @@ jobs:
         with:
           ndk-version: r28
           add-to-path: false
+
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: aarch64-linux-android
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       # Without this the plugin's resolve_binary.dart silently downloads the
       # last *released* .so, so the job would test a stale binary instead of the
@@ -507,6 +518,11 @@ jobs:
         with:
           ndk-version: r28
           add-to-path: false
+
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: aarch64-linux-android
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       - name: "Build uniffi .so (aarch64-linux-android)"
         working-directory: ./nobodywho
