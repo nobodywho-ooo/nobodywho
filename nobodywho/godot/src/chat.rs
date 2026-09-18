@@ -146,11 +146,14 @@ impl NobodyWhoChat {
     /// (with a `godot_error!`).
     ///
     /// `messages` is an Array of message dicts (`{role, content, ...}`). The
-    /// list is the whole conversation: it must be non-empty, end in a user or
-    /// tool message, and carry a system message only in front. `res://` and
-    /// `user://` paths in image/audio parts are globalized before loading. A
-    /// leading system message becomes the chat's system prompt; a list without one
-    /// keeps the prompt the chat already had. The response is appended, so a
+    /// list is the whole conversation: it must be non-empty and end in a user
+    /// or tool message. A leading system message becomes the chat's system
+    /// prompt; a list without one keeps the prompt the chat already had. A
+    /// system message further in stays in the history, for the chat template
+    /// to render in place (models without a system role can only fold a
+    /// leading one into the first user message). `res://` and
+    /// `user://` paths in image/audio parts are globalized before loading.
+    /// The response is appended, so a
     /// following `ask()` continues that same conversation.
     ///
     /// `config` holds per-turn settings, following the same rule: what you
