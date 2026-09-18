@@ -9,6 +9,124 @@ In the following sections, we talk about which configuration options it has, and
 
 You can pass `"auto"` as the model path to select a chat model based on available memory.
 
+## OpenAI API compatibility
+
+`NobodyWho` provides local Python APIs that follow the main request and response shapes from OpenAI's Chat Completions and Responses APIs. You use `client.chat.completions.create()` or `client.responses.create()` with a local model. These APIs implement compatible subsets of the OpenAI APIs. They are not complete replacements for the OpenAI Python SDK.
+
+Both APIs are stateless. Pass the full conversation on every call. The client caches the last model source, but each request gets a new context and new settings.
+
+### OpenAI Chat Completions API compatibility
+
+NobodyWho supports the main Chat Completions flow with `model`, a full `messages` list, one returned choice, usage, local tools, request sampling, and optional streaming.
+
+```python notest
+from nobodywho import NobodyWho
+
+client = NobodyWho()
+model = "hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
+messages = [{"role": "user", "content": "My name is Duarte."}]
+
+first = client.chat.completions.create(
+   model=model,
+   messages=messages,
+   thinking=False,
+)
+messages.extend([
+   {"role": "assistant", "content": first.choices[0].message.content},
+   {"role": "user", "content": "What is my name?"},
+])
+second = client.chat.completions.create(
+   model=model,
+   messages=messages,
+   thinking=False,
+)
+print(second.choices[0].message.content)
+```
+
+#### Local tool calling
+
+NobodyWho tools contain Python callbacks. When the model requests a tool, NobodyWho calls it and continues generation before returning the final completion.
+
+```python notest
+from nobodywho import NobodyWho, tool
+
+
+@tool(description="Gets the current weather for a city")
+def get_weather(city: str) -> str:
+   if city == "Copenhagen":
+      return "The weather in Copenhagen is 12°C and cloudy."
+   return f"Weather data is unavailable for {city}."
+
+
+client = NobodyWho()
+completion = client.chat.completions.create(
+   model="hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+   messages=[{"role": "user", "content": "What is the weather in Copenhagen?"}],
+   tools=[get_weather],
+   thinking=False,
+)
+print(completion.choices[0].message.content)
+```
+
+NobodyWho does not implement every OpenAI option or response field. Missing features include multiple choices, structured output through `response_format`, log probabilities, penalties, stop sequences, audio output, OpenAI hosted tools, and OpenAI storage and service metadata. Streaming returns local Python objects rather than OpenAI SDK stream objects.
+
+See the [OpenAI Chat Completions API reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+
+### OpenAI Responses API compatibility
+
+NobodyWho supports the main Responses text flow with `input`, `instructions`, `output`, `output_text`, usage, and optional streaming. A string `input` becomes one user message. A list `input` contains the full conversation, and `instructions` becomes its leading system message.
+
+```python notest
+first = client.responses.create(
+   model=model,
+   instructions="Answer concisely.",
+   input="My name is Duarte.",
+   thinking=False,
+)
+second = client.responses.create(
+   model=model,
+   instructions="Answer concisely.",
+   input=[
+      {"role": "user", "content": "My name is Duarte."},
+      *first.output,
+      {"role": "user", "content": "What is my name?"},
+   ],
+   thinking=False,
+)
+print(second.output_text)
+```
+
+#### Local tool calling
+
+Responses uses the same local tool loop as Chat Completions. NobodyWho executes the callback and returns the model's final text.
+
+```python notest
+from nobodywho import NobodyWho, tool
+
+
+@tool(description="Gets the current weather for a city")
+def get_weather(city: str) -> str:
+   if city == "Copenhagen":
+      return "The weather in Copenhagen is 12°C and cloudy."
+   return f"Weather data is unavailable for {city}."
+
+
+client = NobodyWho()
+response = client.responses.create(
+   model="hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf",
+   input="What is the weather in Copenhagen?",
+   tools=[get_weather],
+   thinking=False,
+)
+print(response.output_text)
+```
+
+Responses reuses Chat Completions and runs local tools without exposing OpenAI function call items.
+
+The current subset does not support `previous_response_id`, typed Responses items, structured output, background responses, hosted tools, or the full streaming event set. See the [OpenAI Responses API reference](https://developers.openai.com/api/reference/resources/responses/methods/create) and [migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses).
+
+Pass `stream=True` to either API. Other options use NobodyWho defaults unless provided.
+
 ## Prompts and responses
 
 The `Chat.ask()` function is central to NobodyWho. This function sends your message to the LLM, which then starts generating a response.
