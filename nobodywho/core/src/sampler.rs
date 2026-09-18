@@ -80,7 +80,8 @@ impl SamplerPresets {
                     multiplier: 0.8,
                     base: 1.75,
                     allowed_length: 2,
-                    penalty_last_n: -1,
+                    // https://github.com/ggml-org/llama.cpp/pull/26524#issuecomment-5630237905
+                    penalty_last_n: 1024,
                     seq_breakers: vec![
                         "\n".to_string(),
                         ":".to_string(),
@@ -742,6 +743,7 @@ pub(crate) fn read_sampler_from_metadata(model: &LlamaModel) -> Option<SamplerCo
             "penalties" | "repeat_penalty" => {
                 if penalty_last_n.is_some() || penalty_repeat.is_some() {
                     steps.push(ShiftStep::Penalties {
+                        // Same default as llama.cpp
                         penalty_last_n: penalty_last_n.unwrap_or(64),
                         penalty_repeat: penalty_repeat.unwrap_or(1.0),
                         penalty_freq: penalty_freq.unwrap_or(0.0),
@@ -1039,7 +1041,7 @@ mod tests {
                 multiplier: 0.8,
                 base: 1.75,
                 allowed_length: 2,
-                penalty_last_n: -1,
+                penalty_last_n: 1024,
                 seq_breakers: vec!["\n".to_string()],
             })
             .shift(ShiftStep::LogitBias {
