@@ -143,6 +143,29 @@ pub fn forward_to_log() {
     });
 }
 
+/// Turn on the native libraries' own trace output where it is cheap and only
+/// reachable through the environment. Must run before the first ggml backend
+/// enumeration: the OpenCL ICD loader reads its variables once and caches the
+/// result for the lifetime of the process. Idempotent; never overrides a value
+/// the host already set.
+///
+/// Currently Android-only: `OCL_ICD_ENABLE_TRACE=1` makes the statically linked
+/// Khronos ICD loader report on stderr which vendor library it tried, whether
+/// `dlopen` succeeded and why a platform was rejected. Together with
+/// [`capture_native_stdio`] that explains an `ggml_opencl: platform IDs not
+/// available` in a few lines instead of guesswork.
+pub fn enable_native_traces() {
+    #[cfg(target_os = "android")]
+    {
+        static INSTALL: Once = Once::new();
+        INSTALL.call_once(|| {
+            if std::env::var_os("OCL_ICD_ENABLE_TRACE").is_none() {
+                std::env::set_var("OCL_ICD_ENABLE_TRACE", "1");
+            }
+        });
+    }
+}
+
 /// Redirect the process's stdout and stderr into `tracing` (targets
 /// `native::stdout` at INFO and `native::stderr` at WARN).
 ///

@@ -14,6 +14,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Fixed
 
+- Android: the Qualcomm proprietary Vulkan driver is no longer selected, even when it is the only GPU ggml lists. On Adreno 7xx it fails to compile ggml's Q4_K shader and aborts the process on the first decode. Adreno runs on OpenCL or CPU instead. The OpenCL ICD loader trace is also enabled on Android so a missing OpenCL platform is explained in the log.
 - Flutter, Kotlin: llama.cpp/ggml native log lines (model loader, backend selection, GPU driver errors) now reach the app's logging. They were silently dropped before because they bypassed the `tracing` → `log` bridge. On Android the library also captures native stdout/stderr, so e.g. Vulkan shader-compilation failures are logged instead of lost.
 - Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.
 

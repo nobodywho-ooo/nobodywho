@@ -51,11 +51,20 @@ Android build manifest to access vendor OpenCL on Android 12+. Without it,
 Vulkan/CPU fallback remains available. The vendor must expose an ICD-compatible
 library accessible to the app; private driver paths are not bypassed.
 
+The library sets `OCL_ICD_ENABLE_TRACE=1` before the first enumeration unless
+the host already set it. The loader then reports each vendor library it tried
+and why it was rejected on stderr, which the Flutter and Kotlin bindings
+forward to the app log (target `native::stderr`).
+
 ## Runtime selection
 
 With the existing `use_gpu` / `useGpu` flag enabled, Android selects one device:
 OpenCL first, then Vulkan, then CPU. This is a deterministic preference, not a
-claim that OpenCL is fastest on every device. The model, draft model, and memory
+claim that OpenCL is fastest on every device. The Qualcomm proprietary Vulkan
+driver is excluded even when ggml lists it: on Adreno 7xx it fails to compile
+ggml's Q4_K mat-vec shader and aborts the process on the first decode
+(ggml-org/llama.cpp#12421). Adreno therefore runs on OpenCL or CPU. Mesa Turnip
+and other vendors' Vulkan drivers are unaffected. The model, draft model, and memory
 planner use the same device. Android vision/audio projection stays on CPU
 because the current mtmd Rust API cannot select a specific GPU.
 
