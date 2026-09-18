@@ -15,16 +15,7 @@ pub fn init_logging() {
 
     static INIT: Once = Once::new();
 
-    // Configure a sensible global logger, then forward all `tracing` events
-    // (including llama.cpp/ggml native log lines) into it. llama-cpp-2
-    // dispatches its events directly, so the `tracing/log` feature alone never
-    // forwarded them; `nobodywho::logging` installs a tracing subscriber whose
-    // only job is to hand every event to the `log` crate.
-    //
-    // NOTE: Ideally, we'd probably want to make this use `tracing` instead,
-    // and set up a `tracing_log::LogTracer` for catching `log` events. But
-    // the ecosystem for Android and WASM logging crates is a bit immature, so
-    // we'd rather depend on more well-tested crates.
+    // Install the platform logger before forwarding native diagnostics to it.
     INIT.call_once(|| {
         // Android logs to `adb logcat`.
         #[cfg(target_os = "android")]
@@ -65,8 +56,6 @@ pub fn init_logging() {
 
         nobodywho::logging::forward_to_log();
 
-        // Android drops an app's stdout/stderr; capture them so e.g.
-        // ggml-vulkan's shader pipeline failures (stderr only) reach logcat.
         #[cfg(target_os = "android")]
         nobodywho::logging::capture_native_stdio();
     });

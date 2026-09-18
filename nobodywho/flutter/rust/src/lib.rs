@@ -1908,15 +1908,9 @@ pub fn frb_internal_logging_setup_dart_logging_output() -> bool {
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
-    // Route every `tracing` event, including llama.cpp/ggml native log lines,
-    // into the `log` crate, where `enable_frb_rust_to_dart_logging!` above
-    // picks them up. llama-cpp-2 dispatches its events directly, so tracing's
-    // `log` feature alone never forwarded them; the layer installed here is
-    // the only tracing subscriber and hands everything to `log`.
+    // Include llama.cpp's direct tracing events in FRB's log stream.
     nobodywho::logging::forward_to_log();
 
-    // Android drops an app's stdout/stderr; capture them so e.g. ggml-vulkan's
-    // shader pipeline failures (printed to stderr only) reach the logs.
     #[cfg(target_os = "android")]
     nobodywho::logging::capture_native_stdio();
 

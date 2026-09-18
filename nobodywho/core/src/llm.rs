@@ -88,34 +88,7 @@ pub fn has_gpu_backend() -> bool {
         return false;
     }
 
-    for backend_device in memory::backend_devices() {
-        if cfg!(target_os = "android") && memory::is_unusable_android_gpu(&backend_device) {
-            continue;
-        }
-        // TODO: account for memory available on backend device - .memory_total and .memory free
-        //       we might use these with GGUF model metadata, to decide on a number of layers to offload
-        match backend_device.device_type {
-            llama_cpp_2::LlamaBackendDeviceType::Unknown => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Cpu => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Accelerator => {
-                // Accelerator devices (e.g. NPUs) are auto-initialized by llama.cpp during
-                // context creation regardless of n_gpu_layers — no explicit handling needed.
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu => {
-                return true;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Gpu => {
-                return true;
-            }
-        }
-    }
-
-    false
+    memory::select_best_gpu().is_some()
 }
 
 #[tracing::instrument(level = "info", skip(progress))]

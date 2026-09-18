@@ -1,19 +1,10 @@
-# Static Android GPU backends
+# Android GPU builds
 
-Each binding embeds llama.cpp, GGML's CPU/Vulkan/OpenCL backends, the Khronos
-OpenCL ICD loader, and the C++ runtime into its native `.so`. Vulkan uses
-Android's public `libvulkan.so`. The ICD loader discovers the vendor OpenCL
-implementation at runtime; the driver is not required to load NobodyWho.
-The existing x86_64 ONNX Runtime companion library is still required.
+The binding `.so` embeds GGML's CPU/OpenCL/Vulkan backends, the OpenCL ICD
+loader and C++ runtime. Android supplies `libvulkan.so` and optional OpenCL
+drivers. The existing x86_64 ONNX Runtime companion library is still required.
 
-We build one baseline CPU implementation per ABI (`arm64-v8a`, `x86_64`), not
-separate optimized CPU variants. Existing binding package formats are unchanged.
-
-## Build locally
-
-Install CMake, a C/C++ compiler, curl, patch, and Android NDK r28. The helper
-uses the NDK's host `glslc`; `VULKAN_GLSLC` can override it. From `nobodywho/`,
-in Bash:
+With NDK r28, CMake, curl and patch installed, run from `nobodywho/` in Bash:
 
 ```bash
 export ANDROID_NDK=/absolute/path/to/android-ndk
@@ -23,64 +14,24 @@ export ORT_CXX_STDLIB=c++_static
 cargo ndk -t arm64-v8a -p 28 build -p nobodywho-uniffi --release --locked
 ```
 
-Alternatively configure Rust's Android linker / CC / CXX / AR as in build.yml.
-The helper downloads immutable Khronos revisions into `target/android-gpu`,
-builds a PIC `libOpenCL.a`, and prints shell exports. `--github-env` prints
-assignments for GitHub Actions. Explicit header/archive paths avoid modifying
-the NDK installation. `core/build.rs` links the loader into the Rust output;
-CMake linking alone does not propagate it to Cargo's final link.
+The helper caches pinned dependencies in `target/android-gpu`; `--github-env`
+prints CI environment assignments. `VULKAN_GLSLC` overrides the NDK compiler.
+The loader patch tries `libOpenCL.so` when `.icd` discovery finds no vendors,
+unless `OCL_ICD_FILENAMES` or `OCL_ICD_VENDORS` explicitly overrides discovery.
+It also accepts a `libOpenCL.so` that is itself an ICD loader (Qualcomm's wraps
+`libOpenCL_adreno.so`, which apps cannot load): such a library lacks
+`clIcdGetPlatformIDsKHR`, so the patch enumerates it through `clGetPlatformIDs`.
+The platforms it returns are the ICD's own objects and dispatch normally.
+Flutter/Kotlin/React Native declare it optional; Godot custom Android exports
+must add `<uses-native-library android:name="libOpenCL.so" android:required="false" />`
+inside `<application>` to access public vendor drivers on Android 12+.
 
-## OpenCL discovery
+Selection is OpenCL → Vulkan → CPU; `useGpu=false` forces CPU. The current
+Adreno Vulkan exclusion avoids observed shader crashes (llama.cpp#12421),
+while Turnip remains eligible. Vision/audio projection stays on CPU because
+mtmd cannot select its GPU. Selection does not recover from native driver crashes.
 
-The ICD loader first uses normal `.icd` discovery. An Android-only patch tries
-`libOpenCL.so` if no platform was discovered and neither `OCL_ICD_FILENAMES`
-nor `OCL_ICD_VENDORS` was supplied. This supports vendors that expose a public
-ICD without readable `.icd` files. No driver is packaged. Loader symbols are
-hidden so they cannot interpose calls inside the vendor implementation.
-
-Flutter, Kotlin, and React Native library manifests declare:
-
-```xml
-<application>
-    <uses-native-library android:name="libOpenCL.so" android:required="false" />
-</application>
-```
-
-Godot Android exports must include this optional declaration in their custom
-Android build manifest to access vendor OpenCL on Android 12+. Without it,
-Vulkan/CPU fallback remains available. The vendor must expose an ICD-compatible
-library accessible to the app; private driver paths are not bypassed.
-
-The library sets `OCL_ICD_ENABLE_TRACE=1` before the first enumeration unless
-the host already set it. The loader then reports each vendor library it tried
-and why it was rejected on stderr, which the Flutter and Kotlin bindings
-forward to the app log (target `native::stderr`).
-
-## Runtime selection
-
-With the existing `use_gpu` / `useGpu` flag enabled, Android selects one device:
-OpenCL first, then Vulkan, then CPU. This is a deterministic preference, not a
-claim that OpenCL is fastest on every device. The Qualcomm proprietary Vulkan
-driver is excluded even when ggml lists it: on Adreno 7xx it fails to compile
-ggml's Q4_K mat-vec shader and aborts the process on the first decode
-(ggml-org/llama.cpp#12421). Adreno therefore runs on OpenCL or CPU. Mesa Turnip
-and other vendors' Vulkan drivers are unaffected. The model, draft model, and memory
-planner use the same device. Android vision/audio projection stays on CPU
-because the current mtmd Rust API cannot select a specific GPU.
-
-`useGpu=false` selects an empty GPU device list and zero GPU layers. Selection
-occurs at model load. An unavailable driver is recoverable; a native
-driver crash is not. Configure ICD environment overrides before the first
-enumeration, which the loader caches for the lifetime of the process.
-
-## CI validation
-
-`build.yml` inspects the linked `.so` for unwanted shared dependencies and
-unresolved/exported OpenCL API symbols for both ABIs. Firebase's existing
-Pixel 8 (Mali) and Galaxy S24 Ultra (Adreno) jobs test the packaged bindings.
-Kotlin source tests repeat in a fresh instrumentation process with both ICD
-filenames and the discovery directory pointing to nonexistent entries. That
-run must still load the binding and complete inference through Vulkan/CPU.
-Both runs also exercise explicit CPU inference. Released-package tests retain
-their normal smoke-test coverage. Inspect the native backend/offload logs to
-confirm GPU use: successful inference alone can also mean CPU fallback.
+CI checks shared dependencies and runs Firebase inference with normal and
+missing OpenCL discovery, plus explicit CPU mode. Unit tests cover selection
+order and the Adreno exclusion. Flutter/Kotlin forward native diagnostics;
+ICD tracing defaults on unless the host sets `OCL_ICD_ENABLE_TRACE` itself.
