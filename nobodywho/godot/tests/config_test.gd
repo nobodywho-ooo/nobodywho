@@ -19,6 +19,21 @@ func run(runner: Node) -> void:
 	)
 	_expect_null(
 		runner,
+		NobodyWhoChat.create("unused.gguf", {"mtp": "yes"}),
+		"config: chat rejects non-bool/dict mtp",
+	)
+	_expect_null(
+		runner,
+		NobodyWhoChat.create("unused.gguf", {"mtp": {"bogus": 1}}),
+		"config: chat rejects unknown mtp tuning keys",
+	)
+	_expect_null(
+		runner,
+		NobodyWhoChat.create("unused.gguf", {"mtp": {"p_min": 1.5}}),
+		"config: chat rejects out-of-range mtp p_min",
+	)
+	_expect_null(
+		runner,
 		NobodyWhoEncoder.create("unused.gguf", {"n_ctx": -1}),
 		"config: encoder rejects negative n_ctx",
 	)
