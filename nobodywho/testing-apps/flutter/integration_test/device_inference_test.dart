@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:logging/logging.dart';
 import 'package:nobodywho/nobodywho.dart' as nobodywho;
 
 /// The model is downloaded on-device into the app's own cache on first run —
@@ -19,6 +20,22 @@ void main() {
   testWidgets(
     'chat completes, streams and calls tools',
     (tester) async {
+      // FRB forwards Rust/llama.cpp logs to Dart logging, but the library
+      // intentionally leaves output to its host. Print them into FTL logcat.
+      final previousLogLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      final logSubscription = Logger.root.onRecord.listen((record) {
+        // ignore: avoid_print
+        print(
+          '[${record.level.name}] ${record.loggerName}: ${record.message}'
+          '${record.error == null ? '' : '\n${record.error}'}'
+          '${record.stackTrace == null ? '' : '\n${record.stackTrace}'}',
+        );
+      });
+      addTearDown(() async {
+        await logSubscription.cancel();
+        Logger.root.level = previousLogLevel;
+      });
       await nobodywho.NobodyWho.init();
 
       // Exercise automatic OpenCL/Vulkan selection with CPU fallback.
