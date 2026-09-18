@@ -165,7 +165,7 @@ jobs:
           out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
 
           # Emit one p_* per filter, mirroring the names the decide step reads.
-          contains '^nobodywho/core/'        && out core         true || out core         false
+          contains '^nobodywho/(core/|android/)' && out core       true || out core         false
           contains '^nobodywho/uniffi/'      && out uniffi       true || out uniffi       false
           contains '^nobodywho/python/'      && out python       true || out python       false
           contains '^nobodywho/godot/'       && out godot        true || out godot        false
