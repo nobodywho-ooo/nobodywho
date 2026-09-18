@@ -7,10 +7,11 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use clap::Parser;
 use nobodywho::chat::{
-    AssistantResponse, ChatBuilder, ChatHandleAsync, CompletionChunk, Message, Options,
+    ChatBuilder, ChatHandleAsync, CompletionChunk, CompletionResponse, CompletionStreamAsync,
+    Message, Options,
 };
 use nobodywho::llm;
-use nobodywho::sampler::{SampleStep, SamplerConfig, ShiftStep};
+use nobodywho::sampler::SamplerConfig;
 use nobodywho::tool_calling::{Tool, ToolCall};
 use serde::{Deserialize, Deserializer};
 use serde_json::{json, Value};
@@ -82,7 +83,6 @@ struct ServerConfig {
 #[derive(Clone)]
 struct AppState {
     chat: ChatHandleAsync,
-    default_sampler: SamplerConfig,
     model: ModelInfo,
     request_lock: Arc<Mutex<()>>,
     request_ids: Arc<AtomicU64>,
@@ -269,12 +269,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         builder = builder.with_n_threads(threads);
     }
     let chat = builder.build_async()?;
-    let default_sampler = chat.get_sampler_config().await?;
     let model_id = config.name.unwrap_or_else(|| model_id_for(&config.model));
 
     let state = AppState {
         chat,
-        default_sampler,
         model: ModelInfo {
             id: model_id,
             context_window,
@@ -373,7 +371,8 @@ async fn start_completion(
     let messages = convert_messages(messages)?;
     let tools = select_tools(tools, tool_choice)?;
     let has_tools = !tools.is_empty();
-    let sampler = sampler_for(&state.default_sampler, temperature, top_p, seed)?;
+    let sampler = SamplerConfig::from_openai_parameters(temperature, top_p, seed)
+        .map_err(|error| bad_request(error.to_string()))?;
     let max_tokens = output_limit.unwrap_or(state.model.max_tokens);
     if max_tokens == 0 || max_tokens > state.model.max_tokens {
         return Err((
@@ -410,12 +409,11 @@ async fn start_completion(
             id,
             response_model,
             created,
-            max_tokens,
             has_tools,
         ));
     }
 
-    let response = buffered_response(stream, id, response_model, created, max_tokens).await?;
+    let response = buffered_response(stream, id, response_model, created).await?;
     Ok(Json(response).into_response())
 }
 
@@ -543,70 +541,22 @@ fn select_tools(
     }
 }
 
-fn sampler_for(
-    default: &SamplerConfig,
-    temperature: Option<f32>,
-    top_p: Option<f32>,
-    seed: Option<u32>,
-) -> Result<SamplerConfig, (StatusCode, String)> {
-    if temperature.is_some_and(|value| !(0.0..=2.0).contains(&value)) {
-        return Err(bad_request("temperature must be between 0 and 2"));
-    }
-    if top_p.is_some_and(|value| !(0.0..=1.0).contains(&value)) {
-        return Err(bad_request("top_p must be between 0 and 1"));
-    }
-
-    let mut sampler = default.clone();
-    if let Some(seed) = seed {
-        sampler.seed = seed;
-    }
-    if temperature == Some(0.0) {
-        sampler.sample_step = SampleStep::Greedy;
-        sampler
-            .steps
-            .retain(|step| !matches!(step, ShiftStep::Temperature { .. }));
-    } else if let Some(temperature) = temperature {
-        replace_or_push(
-            &mut sampler.steps,
-            |step| matches!(step, ShiftStep::Temperature { .. }),
-            ShiftStep::Temperature { temperature },
-        );
-    }
-    if let Some(top_p) = top_p {
-        replace_or_push(
-            &mut sampler.steps,
-            |step| matches!(step, ShiftStep::TopP { .. }),
-            ShiftStep::TopP { top_p, min_keep: 1 },
-        );
-    }
-    Ok(sampler)
-}
-
-fn replace_or_push(
-    steps: &mut Vec<ShiftStep>,
-    matches: impl Fn(&ShiftStep) -> bool,
-    replacement: ShiftStep,
-) {
-    if let Some(step) = steps.iter_mut().find(|step| matches(step)) {
-        *step = replacement;
-    } else {
-        steps.push(replacement);
-    }
-}
-
 async fn buffered_response(
-    mut stream: nobodywho::chat::CompletionStreamAsync,
+    mut stream: CompletionStreamAsync,
     id: String,
     model: String,
     created: u64,
-    max_tokens: usize,
 ) -> Result<Value, (StatusCode, String)> {
-    let mut token_count = 0;
     while let Some(chunk) = stream.next().await.map_err(internal_error)? {
         match chunk {
-            CompletionChunk::Token(_) => token_count += 1,
+            CompletionChunk::Token(_) => {}
             CompletionChunk::Done(response) => {
-                let finish_reason = finish_reason(&response, token_count, max_tokens);
+                let finish_reason = response.finish_reason.as_str();
+                let usage = json!({
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens(),
+                });
                 let message = response_message(response, &id);
                 return Ok(json!({
                     "id": id,
@@ -617,7 +567,8 @@ async fn buffered_response(
                         "index": 0,
                         "message": message,
                         "finish_reason": finish_reason,
-                    }]
+                    }],
+                    "usage": usage,
                 }));
             }
         }
@@ -749,11 +700,10 @@ impl ResponseStreamParser {
 }
 
 fn streaming_response(
-    mut stream: nobodywho::chat::CompletionStreamAsync,
+    mut stream: CompletionStreamAsync,
     id: String,
     model: String,
     created: u64,
-    max_tokens: usize,
     has_tools: bool,
 ) -> Response {
     let (sender, receiver) = mpsc::channel(32);
@@ -768,12 +718,10 @@ fn streaming_response(
             return;
         }
 
-        let mut token_count = 0;
         let mut parser = ResponseStreamParser::new(has_tools);
         loop {
             match stream.next().await {
                 Ok(Some(CompletionChunk::Token(token))) => {
-                    token_count += 1;
                     for delta in parser.push(&token) {
                         let chunk =
                             completion_chunk(&id, &model, created, parsed_delta_value(delta), None);
@@ -803,7 +751,7 @@ fn streaming_response(
                             return;
                         }
                     }
-                    let reason = finish_reason(&response, token_count, max_tokens);
+                    let reason = response.finish_reason.as_str();
                     let final_chunk =
                         completion_chunk(&id, &model, created, json!({}), Some(reason));
                     if send_event(&sender, final_chunk).await.is_err() {
@@ -864,7 +812,7 @@ fn completion_chunk(
     })
 }
 
-fn response_message(response: AssistantResponse, id: &str) -> Value {
+fn response_message(response: CompletionResponse, id: &str) -> Value {
     let (content, reasoning) = split_response_content(&response.content);
     let mut message = if response.tool_calls.is_empty() {
         json!({"role": "assistant", "content": content})
@@ -912,20 +860,6 @@ fn response_tool_calls(tool_calls: &[ToolCall], response_id: &str) -> Vec<Value>
             })
         })
         .collect()
-}
-
-fn finish_reason(
-    response: &AssistantResponse,
-    token_count: usize,
-    max_tokens: usize,
-) -> &'static str {
-    if !response.tool_calls.is_empty() {
-        "tool_calls"
-    } else if token_count >= max_tokens {
-        "length"
-    } else {
-        "stop"
-    }
 }
 
 fn model_id_for(source: &str) -> String {
@@ -1153,17 +1087,6 @@ mod tests {
     }
 
     #[test]
-    fn zero_temperature_uses_greedy_sampling() {
-        let sampler = sampler_for(&SamplerConfig::default(), Some(0.0), None, Some(42)).unwrap();
-        assert!(matches!(sampler.sample_step, SampleStep::Greedy));
-        assert_eq!(sampler.seed, 42);
-        assert!(!sampler
-            .steps
-            .iter()
-            .any(|step| matches!(step, ShiftStep::Temperature { .. })));
-    }
-
-    #[test]
     fn streams_thinking_separately_across_split_markers() {
         let mut parser = ResponseStreamParser::new(false);
         let mut deltas = Vec::new();
@@ -1212,9 +1135,11 @@ mod tests {
     #[test]
     fn returns_buffered_thinking_separately() {
         let message = response_message(
-            AssistantResponse {
+            CompletionResponse {
                 content: "<think>plan</think>answer".into(),
                 tool_calls: Vec::new(),
+                finish_reason: nobodywho::chat::FinishReason::Stop,
+                usage: nobodywho::chat::CompletionUsage::default(),
             },
             "chatcmpl-1",
         );
