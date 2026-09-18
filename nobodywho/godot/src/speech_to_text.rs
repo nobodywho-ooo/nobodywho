@@ -172,8 +172,16 @@ fn parse_stt_config(
         // `fp16`/`q4f16` are deliberately excluded: the bundled ONNX Runtime
         // cannot load those graphs (upstream fp16 graph-loading bug), so they
         // can only ever fail — reject them up front instead.
-        if !["default", "fp32", "int8", "uint8", "bnb4", "q4", "quantized"]
-            .contains(&q.as_str())
+        if ![
+            "default",
+            "fp32",
+            "int8",
+            "uint8",
+            "bnb4",
+            "q4",
+            "quantized",
+        ]
+        .contains(&q.as_str())
         {
             return Err(format!(
                 "quantization must be 'default', 'fp32', 'int8', 'uint8', 'bnb4', 'q4', or 'quantized', got '{q}'"
