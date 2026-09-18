@@ -581,8 +581,7 @@ impl NobodyWhoChat {
         if let Ok(tuning) = value.try_to::<VarDictionary>() {
             validate_config_keys(&tuning, &["k_max", "p_min"])?;
             let defaults = nobodywho::chat::MtpConfig::default();
-            let p_min = dict_get::<f64>(&tuning, "p_min")?
-                .map_or(defaults.p_min, |v| v as f32);
+            let p_min = dict_get::<f64>(&tuning, "p_min")?.map_or(defaults.p_min, |v| v as f32);
             if !(0.0..=1.0).contains(&p_min) {
                 return Err(format!(
                     "config key \"p_min\" must be between 0.0 and 1.0, got {p_min}"
@@ -593,7 +592,10 @@ impl NobodyWhoChat {
                 p_min,
             }));
         }
-        Err("config key \"mtp\" must be a bool or a Dictionary with optional \"k_max\"/\"p_min\"".into())
+        Err(
+            "config key \"mtp\" must be a bool or a Dictionary with optional \"k_max\"/\"p_min\""
+                .into(),
+        )
     }
 }
 
