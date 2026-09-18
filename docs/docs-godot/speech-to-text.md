@@ -51,8 +51,8 @@ to pick a size that fits your accuracy and speed needs.
 
 You can also pick a `quantization` variant of the model to download and load. Lower-precision
 variants are smaller and faster, but can lose some transcription accuracy. Supported values are
-`default`, `fp16`, `int8`, `uint8`, `bnb4`, `q4`, `q4f16`, and `quantized`. Defaults to `q4`,
-falling back to `default` when the variant isn't in the repo.
+`default` (fp32), `fp32`, `int8`, `uint8`, `bnb4`, `q4`, and `quantized`. Defaults to `q4`,
+falling back to `default` when the repo doesn't ship a `q4` variant.
 
 ```gdscript
 var stt = await NobodyWhoSpeechToText.create("hf://onnx-community/whisper-base", {
