@@ -575,6 +575,11 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: ${{ matrix.target }}
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
+
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
         uses: flutter-actions/setup-flutter@v4
@@ -627,6 +632,13 @@ jobs:
           CC_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang"
           CXX_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android31-clang++"
           AR_x86_64_linux_android: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+
+      - name: Verify static Android backends
+        env:
+          READELF: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
+          GPU_TARGET: ${{ matrix.target }}
+          GPU_INTEGRATION: ${{ matrix.integration }}
+        run: bash nobodywho/android/check-static.sh "nobodywho/target/$GPU_TARGET/release/libnobodywho_$GPU_INTEGRATION.so"
 
         # XXX: .so files for android in godot MUST start with "lib"
       - name: "Rename built file"

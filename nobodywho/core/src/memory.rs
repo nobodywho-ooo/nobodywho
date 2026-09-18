@@ -43,8 +43,18 @@ fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
     memory_free.min(memory_total)
 }
 
-fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
-    llama_cpp_2::list_llama_ggml_backend_devices()
+pub(crate) fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
+    select_gpu_from(
+        llama_cpp_2::list_llama_ggml_backend_devices(),
+        cfg!(target_os = "android"),
+    )
+}
+
+fn select_gpu_from(
+    devices: Vec<llama_cpp_2::LlamaBackendDevice>,
+    prefer_android_backends: bool,
+) -> Option<llama_cpp_2::LlamaBackendDevice> {
+    devices
         .into_iter()
         .filter(|d| {
             matches!(
@@ -55,7 +65,18 @@ fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
         })
         .max_by_key(|d| {
             let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
-            (is_gpu, device_free(d))
+            // Android can expose the same GPU through two APIs. Prefer OpenCL,
+            // then Vulkan; use this same choice for model loading and planning.
+            let backend_priority = if prefer_android_backends {
+                match d.backend.as_str() {
+                    "OpenCL" => 2,
+                    "Vulkan" => 1,
+                    _ => 0,
+                }
+            } else {
+                0
+            };
+            (backend_priority, is_gpu, device_free(d))
         })
 }
 
@@ -319,6 +340,39 @@ mod tests {
     use llama_cpp_2::LlamaBackendDeviceType::{Gpu, IntegratedGpu};
 
     const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn android_backend_order_and_cpu_fallback() {
+        use llama_cpp_2::{LlamaBackendDevice, LlamaBackendDeviceType::Cpu};
+        let device = |backend: &str, device_type, memory_free| LlamaBackendDevice {
+            index: 0,
+            name: backend.into(),
+            description: String::new(),
+            backend: backend.into(),
+            memory_total: memory_free,
+            memory_free,
+            device_type,
+        };
+        let cpu = device("CPU", Cpu, 8);
+        let vulkan = device("Vulkan", Gpu, 4);
+        let opencl = device("OpenCL", IntegratedGpu, 2);
+        // API priority wins even if Vulkan reports more memory or a discrete GPU.
+        for devices in [
+            vec![cpu.clone(), opencl.clone(), vulkan.clone()],
+            vec![vulkan.clone(), opencl, cpu.clone()],
+        ] {
+            assert_eq!(select_gpu_from(devices, true).unwrap().backend, "OpenCL");
+        }
+        assert_eq!(
+            select_gpu_from(vec![cpu.clone(), vulkan], true)
+                .unwrap()
+                .backend,
+            "Vulkan"
+        );
+        // No GPU means the caller uses an empty device list (CPU).
+        assert!(select_gpu_from(vec![cpu], true).is_none());
+        assert!(select_gpu_from(vec![], true).is_none());
+    }
 
     fn host(available: u64, total: u64) -> HostMemory {
         HostMemory {

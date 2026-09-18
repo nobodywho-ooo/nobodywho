@@ -8,6 +8,10 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Added
+
+- Android (Godot, Flutter, Kotlin, React Native): statically linked OpenCL and Vulkan backends with automatic OpenCL → Vulkan → CPU selection. The embedded ICD loader allows inference when the vendor OpenCL driver is absent. Vision/audio projection remains on CPU.
+
 ### Fixed
 
 - Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.

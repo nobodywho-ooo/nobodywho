@@ -8861,7 +8861,7 @@ rec {
           "system-ggml-static" = [ "llama-cpp-sys-2/system-ggml-static" ];
           "vulkan" = [ "llama-cpp-sys-2/vulkan" ];
         };
-        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "openmp" "vulkan" ];
+        resolvedDefaultFeatures = [ "android-static-stdcxx" "common" "llguidance" "mtmd" "opencl" "openmp" "vulkan" ];
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
@@ -8909,7 +8909,7 @@ rec {
           "static-openmp" = [ "openmp" ];
           "system-ggml-static" = [ "system-ggml" ];
         };
-        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "openmp" "static-stdcxx" "vulkan" ];
+        resolvedDefaultFeatures = [ "common" "default" "metal" "mtmd" "opencl" "openmp" "static-stdcxx" "vulkan" ];
       };
       "llguidance" = rec {
         crateName = "llguidance";
@@ -10181,7 +10181,7 @@ rec {
             packageId = "llama-cpp-2";
             usesDefaultFeatures = false;
             target = { target, features }: ("android" == target."os" or null);
-            features = [ "android-static-stdcxx" ];
+            features = [ "android-static-stdcxx" "vulkan" "opencl" ];
           }
           {
             name = "llguidance";
@@ -22534,4 +22534,3 @@ rec {
   #
   };
 }
-
