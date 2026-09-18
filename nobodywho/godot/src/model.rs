@@ -69,6 +69,13 @@ impl NobodyWhoModel {
         .bind()
         .wait()
     }
+
+    /// The identifier this model was loaded from (path or URL), as given to
+    /// `create`. Resolves to a String.
+    #[func]
+    fn get_source(&self) -> GString {
+        GString::from(self.inner.source())
+    }
 }
 
 impl NobodyWhoModel {

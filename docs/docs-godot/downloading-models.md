@@ -18,6 +18,11 @@ on — and all of them accept the same set of formats.
   on first use. Examples:
   - `"hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF"` (chat, GGUF)
   - `"hf://onnx-community/whisper-base"` (speech to text, ONNX)
+- **llama.cpp-style references**: `"owner/repo:quantization"` — no prefix, and the repo name
+  must end in `-GGUF`, which is how the model file is worked out. `"ggml-org/gemma-3-1b-it-GGUF:Q8_0"`
+  fetches `gemma-3-1b-it-Q8_0.gguf`. Both the `-GGUF` suffix and the quantization are required;
+  without them the string is read as a local path. Unlike llama.cpp, NobodyWho fails with an
+  error when the quantization isn't in the repo instead of taking the first file it finds.
 - **`"auto"`**: pick a chat model that fits the machine's available memory.
 
 ```gdscript

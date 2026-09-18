@@ -91,8 +91,10 @@ await chat.set_chat_history([
 ])
 ```
 
-A leading system message sets the chat's system prompt. The list must not be empty, must end in
-a user or tool message, and may only have a system message first. To clear the conversation but
+A leading system message sets the chat's system prompt. A system message further in stays
+in the history, for the chat template to render in place — not every model has a system role,
+and those can only fold a leading one into the first user message. The list must not be empty
+and must end in a user or tool message. To clear the conversation but
 keep the system prompt and tools, use `reset_history()`.
 
 ## Chat completion
@@ -116,8 +118,10 @@ token.
 The list you pass **becomes** the chat history, replacing whatever was there, and the response is
 added to it — so `ask()` continues that same conversation. A system message at the front sets the
 chat's system prompt (it doesn't stay in the history); leave it out and the prompt already on the
-chat is kept. The same validity rules as `set_chat_history()` apply — anything else resolves to
-`null` with an error.
+chat is kept. A system message further in stays in the history, for the chat template to render
+in place — not every model has a system role, and those can only fold a leading one into the
+first user message. The same validity rules as `set_chat_history()` apply — anything else
+resolves to `null` with an error.
 
 ### Per-turn settings
 
@@ -182,8 +186,9 @@ Choosing the right context size is quite important and depends heavily on your u
 
 Even with a properly selected context size it might happen that you fill up the entire context
 during a conversation. When this happens, NobodyWho will shrink the context for you. Currently
-this is done by removing old messages (apart from the system prompt and the first user message)
-from the chat history, until the size reaches `n_ctx / 2`. The KV cache is also updated
+this is done by removing the oldest turns from the chat history — keeping the first turn, the
+most recent turns, and any system messages in the history (they are instructions for the whole
+conversation) — until the size reaches `n_ctx / 2`. The KV cache is also updated
 automatically. In the future we plan on adding more advanced methods of context shrinking.
 
 `n_ctx` is fixed to the chat instance. To reset the current context content, call
