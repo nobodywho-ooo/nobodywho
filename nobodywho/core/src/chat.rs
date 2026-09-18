@@ -3396,7 +3396,7 @@ mod tests {
 
         // Rebuilds the tool sampler, reusing the factory built at construction.
         worker
-            .set_sampler_config(SamplerPresets::greedy())
+            .set_sampler_config(SamplerPresets::dry())
             .expect("setting a sampler config");
 
         let after = ask(&mut worker, "And what is the temperature in Beijing?");
