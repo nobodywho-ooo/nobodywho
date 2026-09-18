@@ -56,6 +56,11 @@ impl NobodyWhoChat {
     ///   core default (top_k=20, top_p=0.95, temperature=0.6, dist).
     /// - `"template_variables"` (Dictionary String->bool): chat-template vars.
     /// - `"tools"` (Array of NobodyWhoTool): tools the model can call.
+    /// - `"mtp"` (bool or Dictionary): enable MTP speculative decoding.
+    ///   `true` uses the core drafter defaults; a Dictionary tunes them with
+    ///   optional `"k_max"` (int, default 3) and `"p_min"` (float in [0, 1],
+    ///   default 0.0). Requires the model to have been loaded with a
+    ///   `"draft_path"`, or `create` fails.
     ///
     /// Pass `{}` for defaults. Unknown keys and invalid values are errors
     /// (resolve to null).
@@ -536,6 +541,7 @@ impl NobodyWhoChat {
                 "sampler",
                 "template_variables",
                 "tools",
+                "mtp",
             ],
         )?;
         let defaults = nobodywho::chat::ChatConfig::default();
@@ -555,10 +561,39 @@ impl NobodyWhoChat {
                 .transpose()?
                 .unwrap_or_default(),
             tools,
+            mtp: Self::parse_mtp(config)?,
             ..defaults
         };
         let use_gpu = dict_get::<bool>(config, "use_gpu")?.unwrap_or(true);
         Ok((chat_config, use_gpu))
+    }
+
+    /// Parse the optional `"mtp"` config value: `true` enables MTP with the
+    /// core's default drafter tuning; a Dictionary tunes it with optional
+    /// `"k_max"` and `"p_min"`; `false`/omitted keeps the solo decode path.
+    fn parse_mtp(config: &VarDictionary) -> Result<Option<nobodywho::chat::MtpConfig>, String> {
+        let Some(value) = config.get("mtp") else {
+            return Ok(None);
+        };
+        if let Ok(enabled) = value.try_to::<bool>() {
+            return Ok(enabled.then(nobodywho::chat::MtpConfig::default));
+        }
+        if let Ok(tuning) = value.try_to::<VarDictionary>() {
+            validate_config_keys(&tuning, &["k_max", "p_min"])?;
+            let defaults = nobodywho::chat::MtpConfig::default();
+            let p_min = dict_get::<f64>(&tuning, "p_min")?
+                .map_or(defaults.p_min, |v| v as f32);
+            if !(0.0..=1.0).contains(&p_min) {
+                return Err(format!(
+                    "config key \"p_min\" must be between 0.0 and 1.0, got {p_min}"
+                ));
+            }
+            return Ok(Some(nobodywho::chat::MtpConfig {
+                k_max: dict_get_positive_u32(&tuning, "k_max")?.unwrap_or(defaults.k_max),
+                p_min,
+            }));
+        }
+        Err("config key \"mtp\" must be a bool or a Dictionary with optional \"k_max\"/\"p_min\"".into())
     }
 }
 

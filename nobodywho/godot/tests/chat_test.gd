@@ -28,6 +28,7 @@ func run(runner: Node) -> void:
 	await _test_sampler_config(runner, chat)
 	await _test_sampler_constraints(runner, chat)
 	await _test_stats(runner, chat)
+	await _test_mtp_config(runner)
 	await _test_tokenize(runner, chat)
 	await _test_chat_history(runner, chat)
 	await _test_complete(runner, chat)
@@ -36,6 +37,17 @@ func run(runner: Node) -> void:
 
 func _make_chat(runner: Node):
 	return await NobodyWhoChat.create(_model_path, {})
+
+func _test_mtp_config(runner: Node) -> void:
+	# "mtp": true must reach the core: the test model has no draft heads, so
+	# worker init has to fail with MtpDraftModelNotLoaded. If the key were
+	# dropped, create would succeed instead.
+	var chat = await NobodyWhoChat.create(_model_path, {"mtp": true})
+	if chat == null:
+		runner.ok("mtp: 'true' reaches worker init (no draft heads on test model)")
+	else:
+		runner.fail("mtp: 'true' was ignored — chat created without draft heads")
+		chat = null
 
 func _test_system_prompt(runner: Node, chat) -> void:
 	# Initially no system prompt (we created with {}).

@@ -263,13 +263,16 @@ verify several candidate tokens per forward pass. See
 [LLM Basics](/docs/llm-basics#speculative-decoding-mtp) for the underlying idea.
 
 Load the model with a compatible draft-heads gguf (e.g. `mtp-gemma-4-E2B-it.gguf` for
-Gemma-4-E2B) via `NobodyWhoModel.create`, and pass that model to the chat:
+Gemma-4-E2B) via `NobodyWhoModel.create`, then enable MTP on the chat with the `"mtp"` config
+key — `true` uses the default drafter tuning, or pass a Dictionary with `"k_max"` and `"p_min"`:
 
 ```gdscript
 var model = await NobodyWhoModel.create("./gemma-4-e2b.gguf", {
     "draft_path": "./mtp-gemma-4-e2b.gguf",
 })
-var chat = await NobodyWhoChat.create(model, {})
+var chat = await NobodyWhoChat.create(model, {
+    "mtp": true,  # or {"k_max": 4, "p_min": 0.1} to tune the drafter
+})
 ```
 
 Loading the draft heads adds around 5% to VRAM usage. Check how often the drafts are being
