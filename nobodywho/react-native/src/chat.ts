@@ -180,12 +180,12 @@ export class Chat {
   }
 
   /** Tokenize a text message or multimodal prompt and return the token IDs.
-   * Each element is a token ID (number) for text, or null for image/audio embedding slots. */
-  async tokenize(message: string | Prompt): Promise<(number | null)[]> {
+   * Each element is a token ID (number) for text, or undefined for image/audio embedding slots. */
+  async tokenize(message: string | Prompt): Promise<(number | undefined)[]> {
     if (typeof message === "string") {
       return this._inner.tokenize(message);
     }
-    return this._inner.tokenizeWithPrompt(message._parts);
+    return this._inner.tokenizeWithPrompt(message._parts!);
   }
 
   /** Set the system prompt. */

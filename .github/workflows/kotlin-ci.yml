@@ -21,7 +21,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('nobodywho/kotlin/**/*.gradle*', 'nobodywho/kotlin/**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('nobodywho/kotlin/**/*.gradle*', 'nobodywho/kotlin/**/gradle-wrapper.properties', 'nobodywho/testing-apps/kotlin/**/*.gradle*', 'nobodywho/testing-apps/kotlin/**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -56,6 +56,10 @@ jobs:
       - name: "Compile Kotlin modules"
         working-directory: ./nobodywho/kotlin
         run: ./gradlew :nobodywho-core:compileKotlin :android:compileDebugKotlin :jvm:compileKotlin
+
+      - name: "Compile the device-test app"
+        working-directory: ./nobodywho/testing-apps/kotlin
+        run: ./gradlew --console=plain compileDebugKotlin compileDebugAndroidTestKotlin
 
       - name: "Download test model"
         run: |

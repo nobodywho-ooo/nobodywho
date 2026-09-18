@@ -44,7 +44,7 @@ class DeviceInferenceTest {
         // Ask for the GPU like a real app would. Android has no GPU backend
         // yet, so this falls back to CPU today and starts exercising the GPU
         // path automatically once one lands.
-        val model = Model.load(modelUrl(), useGpu = true)
+        val model: Model = Model.load(modelUrl(), useGpu = true)
 
         // Completion
         val chat = Chat(
@@ -52,16 +52,16 @@ class DeviceInferenceTest {
             systemPrompt = "Reply with one word only.",
             templateVariables = mapOf("enable_thinking" to false),
         )
-        val response = chat.ask("Say hello").completed()
+        val response: String = chat.ask("Say hello").completed()
         assertFalse("Completion should be non-empty", response.isEmpty())
 
         // Streaming
         chat.resetContext(systemPrompt = "Reply briefly.")
-        val tokens = chat.ask("Say hi").asFlow().toList()
+        val tokens: List<String> = chat.ask("Say hi").asFlow().toList()
         assertFalse("Streaming should yield at least one token", tokens.isEmpty())
 
         // Tool calling
-        val pingTool = Tool(
+        val pingTool: Tool = Tool(
             name = "ping",
             description = "Ping the server",
             function = ::ping,
@@ -71,8 +71,10 @@ class DeviceInferenceTest {
             tools = listOf(pingTool),
         )
         chat.ask("Ping the server").completed()
-        val toolResponse = chat.getChatHistory().firstOrNull { it is Message.Tool }
+        val toolResponse: Message.Tool? =
+            chat.getChatHistory().filterIsInstance<Message.Tool>().firstOrNull()
         assertNotNull("Expected a tool response in chat history", toolResponse)
-        assertEquals("pong", (toolResponse as Message.Tool).content.text)
+        val toolText: String = toolResponse!!.content.text
+        assertEquals("pong", toolText)
     }
 }

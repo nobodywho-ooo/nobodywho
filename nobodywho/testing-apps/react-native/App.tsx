@@ -9,7 +9,7 @@
  */
 import React, {useEffect, useState} from 'react';
 import {SafeAreaView, StyleSheet, Text} from 'react-native';
-import {Chat, Tool} from 'react-native-nobodywho';
+import {Chat, Tool, type Content} from 'react-native-nobodywho';
 
 /**
  * Downloaded on-device into the app's own storage on first run — no
@@ -19,6 +19,18 @@ const MODEL_URL =
   'hf://NobodyWho/Qwen_Qwen3-0.6B-GGUF/Qwen_Qwen3-0.6B-Q4_K_M.gguf';
 
 const ping = () => 'pong';
+
+/** Equality assert whose pair is type-checked, so a binding change that alters
+ *  either side fails `npm run typecheck` instead of the device run. */
+function assertEquals<T>(actual: T, expected: T, what: string): void {
+  if (actual !== expected) {
+    throw new Error(
+      `${what}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(
+        actual,
+      )}`,
+    );
+  }
+}
 
 async function runChecks(): Promise<void> {
   // Ask for the GPU like a real app would. Android has no GPU backend yet, so
@@ -65,9 +77,12 @@ async function runChecks(): Promise<void> {
   if (!toolMessage) {
     throw new Error('no tool response in chat history');
   }
-  if (toolMessage.content !== 'pong') {
-    throw new Error(`tool returned "${toolMessage.content}", expected "pong"`);
+  
+  const content: Content = toolMessage.content;
+  if (typeof content !== 'string') {
+    throw new Error(`tool response was not text: ${JSON.stringify(content)}`);
   }
+  assertEquals(content, 'pong', 'tool response');
 
   // Completion options stick, and are kept by a call that omits them
   await chat
@@ -75,13 +90,17 @@ async function runChecks(): Promise<void> {
       templateVariables: {enable_thinking: true},
     })
     .completed();
-  if ((await chat.getTemplateVariables()).enable_thinking !== true) {
-    throw new Error('complete() options did not set the template variable');
-  }
+  assertEquals(
+    (await chat.getTemplateVariables()).enable_thinking,
+    true,
+    'complete() options did not set the template variable',
+  );
   await chat.complete([{role: 'user', content: 'Say hi again.'}]).completed();
-  if ((await chat.getTemplateVariables()).enable_thinking !== true) {
-    throw new Error('complete() without options should keep them');
-  }
+  assertEquals(
+    (await chat.getTemplateVariables()).enable_thinking,
+    true,
+    'complete() without options should keep them',
+  );
 }
 
 export default function App(): React.JSX.Element {

@@ -57,3 +57,13 @@ CI runs the suite on pinned physical devices through the `mobile-device-tests`
 workflow: nightly on `main`, on a `nobodywho-kotlin-v*` release tag, and on
 demand via a `/kotlin-device-source-ci` or `/kotlin-device-released-ci` comment
 on a PR. See `.github/workflows/mobile-device-tests.yml`.
+
+## Static checks
+
+```bash
+nix develop .#android    # the Android SDK lives in this shell
+just testapp-kotlin
+```
+
+Outside that shell, `just check` skips this check. In CI it's a step in
+`kotlin-ci.yml`, which already installs an SDK.

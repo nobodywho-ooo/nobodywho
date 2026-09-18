@@ -3,7 +3,7 @@ LIB_EXT := if os() == "macos" { "dylib" } else { "so" }
 GODOT := env("GODOT", "godot")
 GODOT_PROJECT := "nobodywho/godot/integration-test"
 
-check: fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze godot-build
+check: fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze testing-apps godot-build
 
 fmt:
     cd nobodywho && cargo fmt --all
@@ -26,6 +26,32 @@ ruff:
 
 flutter-analyze:
     cd nobodywho/flutter/nobodywho && flutter analyze lib/
+
+testing-apps: testapp-flutter testapp-react-native testapp-kotlin
+
+testapp-flutter:
+    cd nobodywho/testing-apps/flutter && flutter analyze
+
+testapp-react-native: regen-uniffi
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd nobodywho/testing-apps/react-native
+    # npm's hidden lockfile mirrors the installed tree; if it predates
+    # package-lock.json the install is missing or stale (same guard as
+    # regen-uniffi).
+    [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci
+    npm run typecheck
+
+testapp-kotlin:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${ANDROID_HOME:-}${ANDROID_SDK_ROOT:-}" ]]; then
+        echo "⏭  skipping Kotlin test app: no Android SDK in this shell."
+        echo "   Run \`just testapp-kotlin\` under \`nix develop .#android\` to include it."
+        exit 0
+    fi
+    cd nobodywho/testing-apps/kotlin
+    ./gradlew --console=plain compileDebugKotlin compileDebugAndroidTestKotlin
 
 godot-build:
     cd nobodywho && cargo build -p nobodywho-godot
