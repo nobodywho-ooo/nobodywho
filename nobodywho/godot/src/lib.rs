@@ -186,6 +186,10 @@ struct NobodyWhoModel {
     #[export]
     use_gpu_if_available: bool,
 
+    #[export]
+    #[var(get = get_source)]
+    source: GString,
+
     model: Option<Arc<llm::Model>>,
     /// Serializes concurrent `load_model_detached` calls on this node so the model
     /// is loaded into memory/GPU exactly once even when multiple consumer nodes
@@ -205,6 +209,7 @@ impl INode for NobodyWhoModel {
             projection_model_path: GString::from(""),
             draft_model_path: GString::from(""),
             use_gpu_if_available: true,
+            source: GString::new(),
             model: None,
             load_lock: Arc::new(tokio::sync::Mutex::new(())),
             base,
@@ -320,8 +325,18 @@ impl NobodyWhoModel {
         let model = Arc::new(model);
 
         // Rebind briefly to memoize.
-        gd.bind_mut().model = Some(Arc::clone(&model));
+        {
+            let mut bound = gd.bind_mut();
+            bound.source = GString::from(model.source());
+            bound.model = Some(Arc::clone(&model));
+        }
         Ok(model)
+    }
+
+    #[func]
+    /// Returns the identifier used to load this model.
+    fn get_source(&mut self) -> GString {
+        self.source.clone()
     }
 
     #[func]

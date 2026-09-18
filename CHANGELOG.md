@@ -8,6 +8,10 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+### Added
+
+- Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
+
 ### Fixed
 
 - **React Native:** Type errors in `Chat.tokenize`. Changed `async tokenize(message: string | Prompt): Promise<(number | null)[]>` to `async tokenize(message: string | Prompt): Promise<(number | undefined)[]>`. The `null` type was incorrect, as the embedding slots are represented by `undefined` in the TypeScript binding.

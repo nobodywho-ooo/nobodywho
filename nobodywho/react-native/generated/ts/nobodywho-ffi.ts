@@ -54,6 +54,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustmodel(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): number;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_source(ptr: bigint, uniffi_out_err: UniffiRustCallStatus): Uint8Array;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
     ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustspeechtotext_new(source: Uint8Array, language: Uint8Array, quantization: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -221,6 +222,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_source(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_pcm(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotextstream_completed(): number;

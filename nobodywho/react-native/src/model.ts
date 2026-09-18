@@ -65,6 +65,11 @@ export class Model {
     return new Model(inner);
   }
 
+  /** The identifier used to load this model. */
+  get source(): string {
+    return this._inner.source();
+  }
+
   /**
    * The maximum context size this model was trained with.
    * Use this to avoid setting `contextSize` above what the model supports.

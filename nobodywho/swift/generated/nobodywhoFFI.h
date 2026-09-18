@@ -455,6 +455,11 @@ void uniffi_nobodywho_uniffi_fn_free_rustmodel(uint64_t handle, RustCallStatus *
 uint32_t uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(uint64_t ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTMODEL_SOURCE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTMODEL_SOURCE
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rustmodel_source(uint64_t ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTSPEECHTOTEXT
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CLONE_RUSTSPEECHTOTEXT
 uint64_t uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(uint64_t handle, RustCallStatus *_Nonnull out_status
@@ -1355,6 +1360,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTMODEL_MAX_CTX
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTMODEL_MAX_CTX
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTMODEL_SOURCE
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTMODEL_SOURCE
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustmodel_source(void
     
 );
 #endif

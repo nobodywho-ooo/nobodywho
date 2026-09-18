@@ -201,6 +201,8 @@ void uniffi_nobodywho_uniffi_fn_free_rustmodel(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 uint32_t uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
     /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
+RustBuffer uniffi_nobodywho_uniffi_fn_method_rustmodel_source(
+    /*handle*/ uint64_t ptr, RustCallStatus *uniffi_out_err);
 /*handle*/ uint64_t uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(
     /*handle*/ uint64_t handle, RustCallStatus *uniffi_out_err);
 void uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(
@@ -577,6 +579,7 @@ uniffi_nobodywho_uniffi_checksum_method_rustcrossencoder_rank_and_sort_json();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustencoder_encode_batch();
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx();
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustmodel_source();
 uint16_t
 uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_transcribe_file();
 uint16_t
@@ -3217,6 +3220,17 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_source"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt, "ubrn_uniffi_nobodywho_uniffi_fn_method_rustmodel_source"),
+          1,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_nobodywho_uniffi_fn_method_rustmodel_source(
+                rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext"] =
       jsi::Function::createFromHostFunction(
           rt,
@@ -5183,6 +5197,19 @@ NativeNobodywho::NativeNobodywho(
                 ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
                     rt, thisVal, args, count);
           });
+  props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_source"] =
+      jsi::Function::createFromHostFunction(
+          rt,
+          jsi::PropNameID::forAscii(
+              rt,
+              "ubrn_uniffi_nobodywho_uniffi_checksum_method_rustmodel_source"),
+          0,
+          [this](jsi::Runtime &rt, const jsi::Value &thisVal,
+                 const jsi::Value *args, size_t count) -> jsi::Value {
+            return this
+                ->cpp_uniffi_nobodywho_uniffi_checksum_method_rustmodel_source(
+                    rt, thisVal, args, count);
+          });
   props["ubrn_uniffi_nobodywho_uniffi_checksum_method_rustspeechtotext_"
         "transcribe_file"] = jsi::Function::createFromHostFunction(
       rt,
@@ -6691,6 +6718,21 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustmodel_max_ctx(
       rt, callInvoker, status, args[count - 1]);
 
   return uniffi_jsi::Bridging<uint32_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_method_rustmodel_source(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  RustCallStatus status =
+      uniffi::nobodywho::Bridging<RustCallStatus>::rustSuccess(rt);
+  auto value = uniffi_nobodywho_uniffi_fn_method_rustmodel_source(
+      uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker,
+                                                        args[0]),
+      &status);
+  uniffi::nobodywho::Bridging<RustCallStatus>::copyIntoJs(
+      rt, callInvoker, status, args[count - 1]);
+
+  return uniffi::nobodywho::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
 }
 jsi::Value
 NativeNobodywho::cpp_uniffi_nobodywho_uniffi_fn_clone_rustspeechtotext(
@@ -8823,6 +8865,14 @@ NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx(
     jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
     size_t count) {
   auto value = uniffi_nobodywho_uniffi_checksum_method_rustmodel_max_ctx();
+
+  return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value
+NativeNobodywho::cpp_uniffi_nobodywho_uniffi_checksum_method_rustmodel_source(
+    jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args,
+    size_t count) {
+  auto value = uniffi_nobodywho_uniffi_checksum_method_rustmodel_source();
 
   return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
