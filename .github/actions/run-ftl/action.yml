@@ -15,6 +15,10 @@ inputs:
   native-lib:
     description: "Name of the binding's .so inside the APK, e.g. libnobodywho_uniffi.so"
     required: true
+  model-url:
+    description: "Model the device tests run against, fetched here rather than on the device."
+    required: false
+    default: "https://huggingface.co/NobodyWho/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen_Qwen3-0.6B-Q4_K_M.gguf"
   devices:
     description: "both | pixel8-mali | s24ultra-adreno"
     required: false
@@ -100,6 +104,52 @@ runs:
     - name: "Setup gcloud"
       uses: google-github-actions/setup-gcloud@v2
 
+    # Needed to construct the path to the OBB file with the test model.
+    - name: "Read the app's package and versionCode from the APK"
+      id: apk
+      shell: bash
+      run: |
+        set -euo pipefail
+        SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+        if [ -z "$SDK" ]; then
+          echo "::error::neither ANDROID_HOME nor ANDROID_SDK_ROOT is set"
+          exit 1
+        fi
+        # || true: find exits non-zero when build-tools is missing entirely,
+        # which under set -e would skip the error message below.
+        AAPT2="$(find "$SDK/build-tools" -name aapt2 -type f 2>/dev/null | sort -V | tail -1 || true)"
+        if [ -z "$AAPT2" ]; then
+          echo "::error::no aapt2 under $SDK/build-tools; run-ftl needs it to name the OBB"
+          exit 1
+        fi
+        BADGING="$("$AAPT2" dump badging "${{ inputs.app-apk }}")"
+        PKG="$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<<"$BADGING")"
+        CODE="$(sed -n "s/^package:.* versionCode='\([^']*\)'.*/\1/p" <<<"$BADGING")"
+        if [ -z "$PKG" ] || [ -z "$CODE" ]; then
+          echo "::error::could not read package/versionCode from ${{ inputs.app-apk }}"
+          exit 1
+        fi
+        echo "  OK  $PKG versionCode $CODE"
+        echo "package=$PKG" >> "$GITHUB_OUTPUT"
+        echo "version-code=$CODE" >> "$GITHUB_OUTPUT"
+
+    # Downloading the model during test execution caused flakiness,
+    # so download it here and transfer it along with the APK instead.
+    - name: "Fetch the model and stage it as an OBB"
+      id: model
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -L --fail --retry 3 --retry-all-errors --progress-bar \
+          "${{ inputs.model-url }}" -o model.gguf
+        # gcloud derives the destination from the name, so it has to be exactly
+        # main.<versionCode>.<package>.obb.
+        OBB="main.${{ steps.apk.outputs.version-code }}.${{ steps.apk.outputs.package }}.obb"
+        mv model.gguf "$OBB"
+        ls -lh "$OBB"
+        echo "obb=$OBB" >> "$GITHUB_OUTPUT"
+        echo "device-path=/sdcard/Android/obb/${{ steps.apk.outputs.package }}/$OBB" >> "$GITHUB_OUTPUT"
+
     - name: "Run instrumentation tests on Firebase Test Lab"
       shell: bash
       run: |
@@ -128,4 +178,6 @@ runs:
           "${DEVICES[@]}" \
           --results-bucket "${{ inputs.results-bucket }}" \
           --results-dir "$RESULTS_DIR" \
+          --obb-files "${{ steps.model.outputs.obb }}" \
+          --environment-variables "modelUrl=${{ steps.model.outputs.device-path }}" \
           --timeout "${{ inputs.test-timeout }}"
