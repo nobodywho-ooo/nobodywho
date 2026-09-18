@@ -14,6 +14,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Fixed
 
+- Flutter, Kotlin: llama.cpp/ggml native log lines (model loader, backend selection, GPU driver errors) now reach the app's logging. They were silently dropped before because they bypassed the `tracing` → `log` bridge. On Android the library also captures native stdout/stderr, so e.g. Vulkan shader-compilation failures are logged instead of lost.
 - Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.
 
 

@@ -10188,6 +10188,10 @@ rec {
             packageId = "llguidance";
           }
           {
+            name = "log";
+            packageId = "log";
+          }
+          {
             name = "mel_spec";
             packageId = "mel_spec";
           }

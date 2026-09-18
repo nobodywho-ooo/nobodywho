@@ -33,6 +33,7 @@ tokio = { version = "1.43.0", features = [
 tokio-stream = "0.1.17"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
+log = "0.4"
 regex = "1.11.1"
 serde_json = "1.0.140"
 nom = "8.0.0"
