@@ -93,7 +93,7 @@ Shift steps — add as many as you want, applied in order:
 - `.penalties(64, 1.1, 0.0, 0.0)` — per-token repetition penalty: `penalty_last_n, penalty_repeat, penalty_freq, penalty_present` (`penalty_repeat` 1.0 = off)
 - `.top_n_sigma(2.0)` — keep only the tokens within 2 standard deviations of the most probable token
 - `.logit_bias({1: -1.0, 2: 3.0})` — token 1 less probable, token 2 is more probable
-- `.dry(0.8, 1.75, 2, -1, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, penalty_last_n, seq_breakers`
+- `.dry(0.8, 1.75, 2, 1024, ["\n"])` — penalty for repeated *phrases*: `multiplier, base, allowed_length, penalty_last_n, seq_breakers`
 - `.seed(42)` — fix the RNG for reproducible output
 
 The order you chain them matters: `.penalties(...)`, `.logit_bias(...)` and `.dry(...)` reweigh
