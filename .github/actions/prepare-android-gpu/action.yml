@@ -1,5 +1,5 @@
 name: Prepare static Android GPU backends
-description: Build a pinned static OpenCL ICD loader and provide Vulkan build headers.
+description: Build the static Android OpenCL forwarding shim and provide GPU headers.
 inputs:
   target:
     required: true

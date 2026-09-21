@@ -177,10 +177,7 @@ runs:
 
         echo "Running instrumentation tests on Firebase Test Lab."
         echo "The GCP bucket is generally a much better source of information than the Firebase console."
-        run_tests() {
-          local scenario="$1"
-          shift
-          gcloud firebase test android run \
+        gcloud firebase test android run \
           --project "${{ inputs.project-id }}" \
           --type instrumentation \
           --app "${{ inputs.app-apk }}" \

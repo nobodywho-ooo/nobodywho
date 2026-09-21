@@ -5,10 +5,10 @@ fn main() {
     }
 
     // llama-cpp-sys builds ggml-opencl but leaves the OpenCL link to us.
-    // Bundle the ICD loader, never a mandatory dependency on a vendor .so.
+    // Bundle the forwarding shim, never a mandatory dependency on a vendor .so.
     let library =
         std::path::PathBuf::from(std::env::var("OPENCL_LIBRARY").expect(
-            "Android builds require the static ICD loader; run android/prepare-gpu.sh first",
+            "Android builds require the static OpenCL shim; run android/prepare-gpu.sh first",
         ));
     assert!(library.is_absolute() && library.is_file());
     assert_eq!(library.file_name().unwrap(), "libOpenCL.a");

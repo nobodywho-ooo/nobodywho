@@ -10,7 +10,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
-- Android (Godot, Flutter, Kotlin, React Native): statically linked OpenCL and Vulkan backends with automatic OpenCL → Vulkan → CPU selection. The embedded ICD loader allows inference when the vendor OpenCL driver is absent. Vision/audio projection remains on CPU.
+- Android (Godot, Flutter, Kotlin, React Native): statically linked OpenCL and Vulkan backends with automatic OpenCL → Vulkan → CPU selection. The embedded forwarding shim allows inference when the vendor OpenCL driver is absent. Vision/audio projection remains on CPU.
 - **Python:** Added OpenAI-compatible `chat.completions` and `responses` APIs with streaming, usage metadata, tool support, and request-level sampling.
 - Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
 - `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered. Available for all bindings.
@@ -23,14 +23,13 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - `SamplerPresets.dry()` now actually applies the DRY penalty. Its multiplier was 0.0, which llama.cpp reads as "disabled", so the preset was a no-op that sampled exactly like the default one. It is now 0.8, the value the preset's other numbers (base 1.75, allowed length 2) are tuned for. The preset leads with its DRY step, so the penalty sees the whole vocabulary rather than what survived truncation. Affects all bindings.
 - `penalty_last_n` no longer accepts `-1`, use a positive value instead (good defaults are 64 for penalties sampling and 1024 for DRY sampling).
 
-### Changed
-
 - Updated llama.cpp from b10200 to b11074 (2026-09-21). Among other things this brings the OpenCL backend fixes for Qualcomm Adreno 7xx (Snapdragon 8 Gen 3): out-of-bounds reads in the Adreno image kernels, wrong results for unaligned K-quant weights, several aborts, and the K-quant lm_head is kept on the CPU on that generation to work around a driver compiler issue.
 
 ### Fixed
 
 - Android (Kotlin, Flutter, React Native, Godot): OpenCL now works on Qualcomm Adreno devices.
 - Android: the Qualcomm proprietary Vulkan driver is no longer selected; Adreno uses OpenCL or CPU instead.
+- Android (Godot, Flutter, Kotlin, React Native): OpenCL calls resolve by name through the device's public `libOpenCL.so`, avoiding incompatible vendor ICD dispatch tables. Missing drivers or required functions leave OpenCL unavailable for fallback selection.
 - A FunctionGemma tool call whose argument value spans multiple lines is no longer dropped. The tool-call grammar lets a value contain newlines (a file body, a code snippet), but the extractor stopped at the first newline and discarded the whole call, so no tool ran. Multi-line values are now parsed. Affects all bindings.
 - **Python:** Pressing Ctrl+C during a synchronous GGUF model download now cancels the download, raises `KeyboardInterrupt`, and removes the incomplete temporary file.
 - **React Native:** Type errors in `Chat.tokenize`. Changed `async tokenize(message: string | Prompt): Promise<(number | null)[]>` to `async tokenize(message: string | Prompt): Promise<(number | undefined)[]>`. The `null` type was incorrect, as the embedding slots are represented by `undefined` in the TypeScript binding.

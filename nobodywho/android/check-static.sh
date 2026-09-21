@@ -14,9 +14,9 @@ if printf '%s\n' "$symbols" | grep -E '[[:space:]]UND[[:space:]]+cl[A-Z]' ; then
   echo "Unresolved OpenCL API calls in $library" >&2
   exit 1
 fi
-# The embedded loader must not interpose the vendor driver's own cl* calls.
+# The embedded shim must not interpose the vendor driver's own cl* calls.
 if printf '%s\n' "$symbols" | grep -E '(GLOBAL|WEAK) +(DEFAULT|PROTECTED) +[0-9]+ +cl[A-Z]' ; then
-  echo "Embedded OpenCL loader symbols must be hidden in $library" >&2
+  echo "Embedded OpenCL shim symbols must be hidden in $library" >&2
   exit 1
 fi
 echo "Static Android backend linkage verified: $library"

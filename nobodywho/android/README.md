@@ -1,10 +1,10 @@
 # Android GPU builds
 
-The binding `.so` embeds GGML's CPU/OpenCL/Vulkan backends, the OpenCL ICD
-loader and C++ runtime. Android supplies `libvulkan.so` and optional OpenCL
+The binding `.so` embeds GGML's CPU/OpenCL/Vulkan backends, a small OpenCL
+forwarding shim and C++ runtime. Android supplies `libvulkan.so` and optional OpenCL
 drivers. The existing x86_64 ONNX Runtime companion library is still required.
 
-With NDK r28, CMake, curl and patch installed, run from `nobodywho/` in Bash:
+With NDK r28, CMake and curl installed, run from `nobodywho/` in Bash:
 
 ```bash
 export ANDROID_NDK=/absolute/path/to/android-ndk
@@ -16,12 +16,13 @@ cargo ndk -t arm64-v8a -p 28 build -p nobodywho-uniffi --release --locked
 
 The helper caches pinned dependencies in `target/android-gpu`; `--github-env`
 prints CI environment assignments. `VULKAN_GLSLC` overrides the NDK compiler.
-The loader patch tries `libOpenCL.so` when `.icd` discovery finds no vendors,
-unless `OCL_ICD_FILENAMES` or `OCL_ICD_VENDORS` explicitly overrides discovery.
-It also accepts a `libOpenCL.so` that is itself an ICD loader (Qualcomm's wraps
-`libOpenCL_adreno.so`, which apps cannot load): such a library lacks
-`clIcdGetPlatformIDsKHR`, so the patch enumerates it through `clGetPlatformIDs`.
-The platforms it returns are the ICD's own objects and dispatch normally.
+The shim opens the device's public `libOpenCL.so` once and resolves functions
+by name. It never reads vendor objects' ICD dispatch tables. This path is
+vendor-neutral, including Qualcomm and Mali; device testing is still required.
+Missing libraries or required OpenCL 1.2 entry points disable OpenCL discovery.
+The newer buffer-with-properties and subgroup-info APIs are optional.
+For diagnostics, set `NOBODYWHO_OPENCL_LIBRARY` before the first OpenCL call
+to override the library name. A nonexistent name exercises missing-driver fallback.
 Flutter/Kotlin/React Native declare it optional; Godot custom Android exports
 must add `<uses-native-library android:name="libOpenCL.so" android:required="false" />`
 inside `<application>` to access public vendor drivers on Android 12+.
@@ -34,4 +35,4 @@ mtmd cannot select its GPU. Selection does not recover from native driver crashe
 CI checks shared dependencies and runs Firebase inference with normal and
 missing OpenCL discovery, plus explicit CPU mode. Unit tests cover selection
 order and the Adreno exclusion. Flutter/Kotlin forward native diagnostics;
-ICD tracing defaults on unless the host sets `OCL_ICD_ENABLE_TRACE` itself.
+Vendor ICD tracing defaults on unless the host sets `OCL_ICD_ENABLE_TRACE` itself.
