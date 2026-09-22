@@ -6285,6 +6285,19 @@ rec {
             optional = true;
             usesDefaultFeatures = false;
           }
+          {
+            name = "serde";
+            packageId = "serde";
+            optional = true;
+            usesDefaultFeatures = false;
+            target = { target, features }: false;
+          }
+          {
+            name = "serde_core";
+            packageId = "serde_core";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
         ];
         features = {
           "alloc" = [ "dep:alloc" ];
@@ -6298,7 +6311,7 @@ rec {
           "rustc-dep-of-std" = [ "nightly" "core" "alloc" "rustc-internal-api" ];
           "serde" = [ "dep:serde_core" "dep:serde" ];
         };
-        resolvedDefaultFeatures = [ "allocator-api2" "default" "default-hasher" "equivalent" "inline-more" "raw-entry" ];
+        resolvedDefaultFeatures = [ "allocator-api2" "default" "default-hasher" "equivalent" "inline-more" "raw-entry" "serde" ];
       };
       "hashbrown 0.17.1" = rec {
         crateName = "hashbrown";
@@ -14455,27 +14468,41 @@ rec {
       };
       "safetensors" = rec {
         crateName = "safetensors";
-        version = "0.5.3";
+        version = "0.8.0";
         edition = "2021";
-        sha256 = "1s50s455akpz4s8sri6h271i4m0prd1fz3yzyq8s2f6pk1qxn36c";
+        sha256 = "0ipqsw5i8v2pxqn54d4hhc62r2rfxm2i6d3lqg1s29yb56w7kc3r";
         dependencies = [
+          {
+            name = "hashbrown";
+            packageId = "hashbrown 0.16.1";
+            features = [ "serde" ];
+          }
+          {
+            name = "libc";
+            packageId = "libc";
+            target = { target, features }: ("macos" == target."os" or null);
+          }
           {
             name = "serde";
             packageId = "serde";
             usesDefaultFeatures = false;
-            features = [ "derive" ];
+            features = [ "derive" "alloc" ];
           }
           {
             name = "serde_json";
             packageId = "serde_json";
             usesDefaultFeatures = false;
+            features = [ "alloc" ];
+          }
+          {
+            name = "tempfile";
+            packageId = "tempfile";
+            optional = true;
           }
         ];
         features = {
-          "alloc" = [ "serde/alloc" "serde_json/alloc" "hashbrown" ];
           "default" = [ "std" ];
-          "hashbrown" = [ "dep:hashbrown" ];
-          "std" = [ "serde/default" "serde_json/default" ];
+          "std" = [ "serde/default" "serde_json/default" "dep:tempfile" ];
         };
         resolvedDefaultFeatures = [ "default" "std" ];
       };
