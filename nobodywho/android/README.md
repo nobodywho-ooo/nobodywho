@@ -30,7 +30,5 @@ Adreno Vulkan exclusion avoids observed shader crashes (llama.cpp#12421),
 while Turnip remains eligible. Vision/audio projection stays on CPU because
 mtmd cannot select its GPU. Selection does not recover from native driver crashes.
 
-CI checks shared dependencies and runs Firebase inference on Mali and Adreno.
-Unit tests cover selection order and the Adreno exclusion. See
-[`OPENCL_LINKING.md`](OPENCL_LINKING.md) for the difference between link-time
-and packaged OpenCL libraries.
+See [`OPENCL_LINKING.md`](OPENCL_LINKING.md) for the difference between
+link-time and packaged OpenCL libraries.

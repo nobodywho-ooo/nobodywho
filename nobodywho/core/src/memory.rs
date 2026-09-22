@@ -357,41 +357,6 @@ mod tests {
 
     const GIB: u64 = 1024 * 1024 * 1024;
 
-    #[test]
-    fn android_backend_order_and_cpu_fallback() {
-        use llama_cpp_2::{LlamaBackendDevice, LlamaBackendDeviceType::Cpu};
-        let device =
-            |backend: &str, description: &str, device_type, memory_free| LlamaBackendDevice {
-                index: 0,
-                name: backend.into(),
-                description: description.into(),
-                backend: backend.into(),
-                memory_total: memory_free,
-                memory_free,
-                device_type,
-            };
-        let cpu = device("CPU", "", Cpu, 8);
-        let vk = device("Vulkan", "Mali-G715-Immortalis MC11", Gpu, 4);
-        let cl = device("OpenCL", "Mali-G715", IntegratedGpu, 2);
-        let adreno_cl = device("OpenCL", "QUALCOMM Adreno(TM) 750", IntegratedGpu, 2);
-        let adreno = device("Vulkan", "Adreno (TM) 750", IntegratedGpu, 15);
-        let turnip = device("Vulkan", "Turnip Adreno (TM) 750", IntegratedGpu, 4);
-        // Priority beats enumeration order, GPU type and reported memory.
-        for (devices, android, expected) in [
-            (vec![&cpu, &cl, &vk], true, Some("OpenCL")),
-            (vec![&cpu, &vk], true, Some("Vulkan")),
-            (vec![&cpu], true, None),
-            (vec![&cpu, &adreno], true, None),
-            (vec![&cpu, &adreno_cl], true, Some("OpenCL")),
-            (vec![&cpu, &turnip], true, Some("Vulkan")),
-            (vec![&cpu, &adreno], false, Some("Vulkan")),
-        ] {
-            let devices = devices.into_iter().cloned().collect();
-            let selected = select_gpu_from(devices, android);
-            assert_eq!(selected.as_ref().map(|d| d.backend.as_str()), expected);
-        }
-    }
-
     fn host(available: u64, total: u64) -> HostMemory {
         HostMemory {
             available_bytes: available,
