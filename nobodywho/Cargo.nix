@@ -3386,9 +3386,9 @@ rec {
       };
       "dirs" = rec {
         crateName = "dirs";
-        version = "6.0.0";
+        version = "7.0.0";
         edition = "2015";
-        sha256 = "0knfikii29761g22pwfrb8d0nqpbgw77sni9h2224haisyaams63";
+        sha256 = "13yd3nyg81jrqqk8vlnvdsi5dx31xqghk8sclawqjbn8ncix8mwd";
         authors = [
           "Simon Ochsenreither <simon@ochsenreither.de>"
         ];
