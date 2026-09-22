@@ -6844,6 +6844,13 @@ rec {
             usesDefaultFeatures = false;
           }
           {
+            name = "serde";
+            packageId = "serde";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "derive" ];
+          }
+          {
             name = "tinystr";
             packageId = "tinystr";
             usesDefaultFeatures = false;
@@ -6867,6 +6874,12 @@ rec {
             usesDefaultFeatures = false;
             features = [ "testing" ];
           }
+          {
+            name = "serde";
+            packageId = "serde";
+            usesDefaultFeatures = false;
+            features = [ "derive" ];
+          }
         ];
         features = {
           "alloc" = [ "litemap/alloc" "tinystr/alloc" "writeable/alloc" "serde?/alloc" ];
@@ -6874,7 +6887,72 @@ rec {
           "serde" = [ "dep:serde" "tinystr/serde" ];
           "zerovec" = [ "dep:zerovec" "tinystr/zerovec" ];
         };
-        resolvedDefaultFeatures = [ "zerovec" ];
+        resolvedDefaultFeatures = [ "alloc" "zerovec" ];
+      };
+      "icu_locale_fallback" = rec {
+        crateName = "icu_locale_fallback";
+        version = "2.3.0";
+        edition = "2024";
+        sha256 = "1a9gdzpcqf1wj8pn7kzlzmj2laqmn6wfabr4b3my604lgkjzh6i5";
+        authors = [
+          "The ICU4X Project Developers"
+        ];
+        dependencies = [
+          {
+            name = "icu_locale_core";
+            packageId = "icu_locale_core";
+            usesDefaultFeatures = false;
+            features = [ "alloc" "zerovec" ];
+          }
+          {
+            name = "icu_locale_fallback_data";
+            packageId = "icu_locale_fallback_data";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "icu_provider";
+            packageId = "icu_provider";
+            usesDefaultFeatures = false;
+            features = [ "alloc" ];
+          }
+          {
+            name = "potential_utf";
+            packageId = "potential_utf";
+            usesDefaultFeatures = false;
+            features = [ "alloc" "zerovec" ];
+          }
+          {
+            name = "tinystr";
+            packageId = "tinystr";
+            usesDefaultFeatures = false;
+            features = [ "alloc" "zerovec" ];
+          }
+          {
+            name = "zerovec";
+            packageId = "zerovec";
+            usesDefaultFeatures = false;
+            features = [ "alloc" "yoke" ];
+          }
+        ];
+        features = {
+          "compiled_data" = [ "dep:icu_locale_fallback_data" "icu_provider/baked" ];
+          "datagen" = [ "serde" "dep:databake" "zerovec/databake" "icu_locale_core/databake" "tinystr/databake" "icu_provider/export" ];
+          "default" = [ "compiled_data" ];
+          "serde" = [ "dep:serde" "icu_locale_core/serde" "tinystr/serde" "zerovec/serde" "icu_provider/serde" "potential_utf/serde" ];
+          "std" = [ "icu_provider/std" ];
+        };
+        resolvedDefaultFeatures = [ "compiled_data" ];
+      };
+      "icu_locale_fallback_data" = rec {
+        crateName = "icu_locale_fallback_data";
+        version = "2.3.0";
+        edition = "2024";
+        sha256 = "1a639lmgd6ddivlwp74b9v18p3rzb3wa6a8i1hd8z9lgxhi2mkyy";
+        authors = [
+          "The ICU4X Project Developers"
+        ];
+
       };
       "icu_normalizer" = rec {
         crateName = "icu_normalizer";
@@ -7031,6 +7109,19 @@ rec {
             usesDefaultFeatures = false;
           }
           {
+            name = "serde";
+            packageId = "serde";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "derive" ];
+          }
+          {
+            name = "stable_deref_trait";
+            packageId = "stable_deref_trait";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
             name = "writeable";
             packageId = "writeable";
             optional = true;
@@ -7072,7 +7163,81 @@ rec {
           "serde" = [ "dep:serde" "yoke/serde" ];
           "std" = [ "alloc" ];
         };
-        resolvedDefaultFeatures = [ "baked" ];
+        resolvedDefaultFeatures = [ "alloc" "baked" ];
+      };
+      "icu_segmenter" = rec {
+        crateName = "icu_segmenter";
+        version = "2.3.0";
+        edition = "2024";
+        sha256 = "1nxkdl0i9yif3m3rpsgj03nwbywnb3gnlaji09fz2ynnrjppml42";
+        authors = [
+          "The ICU4X Project Developers"
+        ];
+        dependencies = [
+          {
+            name = "icu_collections";
+            packageId = "icu_collections";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "icu_locale_fallback";
+            packageId = "icu_locale_fallback";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "icu_provider";
+            packageId = "icu_provider";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "icu_segmenter_data";
+            packageId = "icu_segmenter_data";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "potential_utf";
+            packageId = "potential_utf";
+            usesDefaultFeatures = false;
+            features = [ "alloc" "zerovec" ];
+          }
+          {
+            name = "smallvec";
+            packageId = "smallvec";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "utf8_iter";
+            packageId = "utf8_iter";
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "zerovec";
+            packageId = "zerovec";
+            usesDefaultFeatures = false;
+            features = [ "alloc" "yoke" ];
+          }
+        ];
+        features = {
+          "auto" = [ "lstm" ];
+          "compiled_data" = [ "dep:icu_segmenter_data" "dep:icu_locale_fallback" "icu_locale_fallback?/compiled_data" "icu_provider/baked" ];
+          "datagen" = [ "serde" "dep:databake" "potential_utf/databake" "zerovec/databake" "icu_collections/databake" "icu_provider/export" ];
+          "default" = [ "compiled_data" "auto" ];
+          "lstm" = [ "dep:core_maths" ];
+          "serde" = [ "dep:serde" "potential_utf/serde" "zerovec/serde" "icu_collections/serde" "icu_provider/serde" ];
+        };
+        resolvedDefaultFeatures = [ "compiled_data" ];
+      };
+      "icu_segmenter_data" = rec {
+        crateName = "icu_segmenter_data";
+        version = "2.3.0";
+        edition = "2024";
+        sha256 = "1bcqkr53p7s0lv4lk2v3hqa0b8karqlqvy8af48fry90j01kqadf";
+        authors = [
+          "The ICU4X Project Developers"
+        ];
+
       };
       "ident_case" = rec {
         crateName = "ident_case";
@@ -8477,6 +8642,7 @@ rec {
           "testing" = [ "alloc" ];
           "yoke" = [ "dep:yoke" ];
         };
+        resolvedDefaultFeatures = [ "alloc" ];
       };
       "litrs" = rec {
         crateName = "litrs";
@@ -9078,9 +9244,9 @@ rec {
       };
       "miette" = rec {
         crateName = "miette";
-        version = "5.10.0";
+        version = "7.6.0";
         edition = "2018";
-        sha256 = "0vl5qvl3bgha6nnkdl7kiha6v4ypd6d51wyc4q1bvdpamr75ifsr";
+        sha256 = "1dwjnnpcff4jzpf5ns1m19di2p0n5j31zmjv5dskrih7i3nfz62z";
         authors = [
           "Kat Marchán <kzm@zkat.tech>"
         ];
@@ -9096,17 +9262,13 @@ rec {
             optional = true;
           }
           {
-            name = "is-terminal";
-            packageId = "is-terminal";
-            optional = true;
+            name = "cfg-if";
+            packageId = "cfg-if";
           }
           {
             name = "miette-derive";
             packageId = "miette-derive";
-          }
-          {
-            name = "once_cell";
-            packageId = "once_cell";
+            optional = true;
           }
           {
             name = "owo-colors";
@@ -9135,12 +9297,10 @@ rec {
           }
           {
             name = "textwrap";
-            packageId = "textwrap 0.15.2";
+            packageId = "textwrap";
             optional = true;
-          }
-          {
-            name = "thiserror";
-            packageId = "thiserror 1.0.69";
+            usesDefaultFeatures = false;
+            features = [ "unicode-linebreak" "unicode-width" ];
           }
           {
             name = "unicode-width";
@@ -9148,26 +9308,22 @@ rec {
           }
         ];
         features = {
-          "backtrace" = [ "dep:backtrace" ];
-          "backtrace-ext" = [ "dep:backtrace-ext" ];
-          "fancy" = [ "fancy-no-backtrace" "backtrace" "backtrace-ext" ];
-          "fancy-no-backtrace" = [ "owo-colors" "is-terminal" "textwrap" "terminal_size" "supports-hyperlinks" "supports-color" "supports-unicode" ];
-          "is-terminal" = [ "dep:is-terminal" ];
-          "owo-colors" = [ "dep:owo-colors" ];
+          "default" = [ "derive" ];
+          "derive" = [ "dep:miette-derive" ];
+          "fancy" = [ "fancy-no-backtrace" "dep:backtrace" "dep:backtrace-ext" ];
+          "fancy-base" = [ "dep:owo-colors" "dep:textwrap" ];
+          "fancy-no-backtrace" = [ "fancy-base" "dep:terminal_size" "dep:supports-hyperlinks" "dep:supports-color" "dep:supports-unicode" ];
+          "fancy-no-syscall" = [ "fancy-base" ];
           "serde" = [ "dep:serde" ];
-          "supports-color" = [ "dep:supports-color" ];
-          "supports-hyperlinks" = [ "dep:supports-hyperlinks" ];
-          "supports-unicode" = [ "dep:supports-unicode" ];
-          "terminal_size" = [ "dep:terminal_size" ];
-          "textwrap" = [ "dep:textwrap" ];
+          "syntect-highlighter" = [ "fancy-no-backtrace" "dep:syntect" ];
         };
-        resolvedDefaultFeatures = [ "backtrace" "backtrace-ext" "default" "fancy" "fancy-no-backtrace" "is-terminal" "owo-colors" "supports-color" "supports-hyperlinks" "supports-unicode" "terminal_size" "textwrap" ];
+        resolvedDefaultFeatures = [ "default" "derive" "fancy" "fancy-base" "fancy-no-backtrace" ];
       };
       "miette-derive" = rec {
         crateName = "miette-derive";
-        version = "5.10.0";
+        version = "7.6.0";
         edition = "2018";
-        sha256 = "0p33msrngkxlp5ajm8nijamii9vcwwpy8gfh4m53qnmrc0avrrs9";
+        sha256 = "12w13a67n2cc37nzidvv0v0vrvf4rsflzxz6slhbn3cm9rqjjnyv";
         procMacro = true;
         libName = "miette_derive";
         authors = [
@@ -11391,16 +11547,16 @@ rec {
       };
       "owo-colors" = rec {
         crateName = "owo-colors";
-        version = "3.5.0";
-        edition = "2018";
-        sha256 = "0vyvry6ba1xmpd45hpi6savd8mbx09jpmvnnwkf6z62pk6s4zc61";
+        version = "4.4.0";
+        edition = "2021";
+        sha256 = "1n59zda1s3q2md3i9gpv3vq51ssm6jfyzc8313n804mflss5pi0k";
         libName = "owo_colors";
         authors = [
           "jam1garner <8260240+jam1garner@users.noreply.github.com>"
         ];
         features = {
           "supports-color" = [ "dep:supports-color" ];
-          "supports-colors" = [ "supports-color" ];
+          "supports-colors" = [ "dep:supports-color-2" "supports-color" ];
         };
       };
       "parking_lot" = rec {
@@ -11936,6 +12092,18 @@ rec {
         ];
         dependencies = [
           {
+            name = "serde_core";
+            packageId = "serde_core";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "writeable";
+            packageId = "writeable";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
             name = "zerovec";
             packageId = "zerovec";
             optional = true;
@@ -11950,7 +12118,7 @@ rec {
           "writeable" = [ "dep:writeable" ];
           "zerovec" = [ "dep:zerovec" ];
         };
-        resolvedDefaultFeatures = [ "zerovec" ];
+        resolvedDefaultFeatures = [ "alloc" "writeable" "zerovec" ];
       };
       "ppv-lite86" = rec {
         crateName = "ppv-lite86";
@@ -13994,7 +14162,7 @@ rec {
           "thread" = [ "linux-raw-sys/prctl" ];
           "use-libc" = [ "libc_errno" "libc" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "default" "fs" "std" ];
+        resolvedDefaultFeatures = [ "alloc" "default" "fs" "std" "termios" ];
       };
       "rustls" = rec {
         crateName = "rustls";
@@ -15255,6 +15423,7 @@ rec {
           "default" = [ "std" ];
           "std" = [ "alloc" ];
         };
+        resolvedDefaultFeatures = [ "alloc" ];
       };
       "static_assertions" = rec {
         crateName = "static_assertions";
@@ -15459,18 +15628,14 @@ rec {
       };
       "supports-color" = rec {
         crateName = "supports-color";
-        version = "2.1.0";
+        version = "3.0.2";
         edition = "2018";
-        sha256 = "12csf7chawxinaapm9rh718nha9hggk6ra86fdaw9hxdagg8qffn";
+        sha256 = "1mk7r2j6l7zmqk3pg7av0l6viq413lmk1vz4bjnf9lnq5liwfky6";
         libName = "supports_color";
         authors = [
           "Kat Marchán <kzm@zkat.tech>"
         ];
         dependencies = [
-          {
-            name = "is-terminal";
-            packageId = "is-terminal";
-          }
           {
             name = "is_ci";
             packageId = "is_ci";
@@ -15480,35 +15645,23 @@ rec {
       };
       "supports-hyperlinks" = rec {
         crateName = "supports-hyperlinks";
-        version = "2.1.0";
+        version = "3.2.0";
         edition = "2021";
-        sha256 = "0g93nh1db3f9lyd0ry35bqjrxkg6sbysn36x9hgd9m5h5rlk2hpq";
+        sha256 = "14byz5m3mcfz8jcg3vd639sp5qvd6svs05di40qvik0i7d9bd5p3";
         libName = "supports_hyperlinks";
         authors = [
           "Kat Marchán <kzm@zkat.tech>"
-        ];
-        dependencies = [
-          {
-            name = "is-terminal";
-            packageId = "is-terminal";
-          }
         ];
 
       };
       "supports-unicode" = rec {
         crateName = "supports-unicode";
-        version = "2.1.0";
+        version = "3.0.0";
         edition = "2018";
-        sha256 = "0yp703pvpzpmaw9mpncvwf0iqis4xmhs569ii1g20jhqvngc2l7q";
+        sha256 = "1qpc344453x3ai4k9iygxnbk6lr2nw5jflj8ns5q3dbcmwq1lh5p";
         libName = "supports_unicode";
         authors = [
           "Kat Marchán <kzm@zkat.tech>"
-        ];
-        dependencies = [
-          {
-            name = "is-terminal";
-            packageId = "is-terminal";
-          }
         ];
 
       };
@@ -15823,68 +15976,41 @@ rec {
       };
       "terminal_size" = rec {
         crateName = "terminal_size";
-        version = "0.1.17";
-        edition = "2018";
-        sha256 = "1pq60ng1a7fjp597ifk1cqlz8fv9raz9xihddld1m1pfdia1lg33";
+        version = "0.4.4";
+        edition = "2021";
+        sha256 = "0x4839vhhpzacc42rqj2wjhivlhlggzz3890b0c5pmyb3j11n2i3";
         authors = [
           "Andrew Chin <achin@eminence32.net>"
         ];
         dependencies = [
           {
-            name = "libc";
-            packageId = "libc";
-            target = { target, features }: (!(target."windows" or false));
+            name = "rustix";
+            packageId = "rustix";
+            target = { target, features }: (target."unix" or false);
+            features = [ "termios" ];
           }
           {
-            name = "winapi";
-            packageId = "winapi";
+            name = "windows-sys";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
-            features = [ "handleapi" "processenv" "winbase" "wincon" "winnt" ];
+            features = [ "Win32_Foundation" "Win32_System_Console" ];
           }
         ];
 
       };
-      "textwrap 0.15.2" = rec {
-        crateName = "textwrap";
-        version = "0.15.2";
-        edition = "2018";
-        sha256 = "0galmidi6gpn308b1kv3r4qbb48j2926lcj0idwhdhlylhjybcxp";
-        authors = [
-          "Martin Geisler <martin@geisler.net>"
-        ];
-        dependencies = [
-          {
-            name = "smawk";
-            packageId = "smawk";
-            optional = true;
-          }
-          {
-            name = "unicode-linebreak";
-            packageId = "unicode-linebreak";
-            optional = true;
-          }
-          {
-            name = "unicode-width";
-            packageId = "unicode-width 0.1.14";
-            optional = true;
-          }
-        ];
-        features = {
-          "default" = [ "unicode-linebreak" "unicode-width" "smawk" ];
-          "hyphenation" = [ "dep:hyphenation" ];
-          "smawk" = [ "dep:smawk" ];
-          "terminal_size" = [ "dep:terminal_size" ];
-          "unicode-linebreak" = [ "dep:unicode-linebreak" ];
-          "unicode-width" = [ "dep:unicode-width" ];
-        };
-        resolvedDefaultFeatures = [ "default" "smawk" "unicode-linebreak" "unicode-width" ];
-      };
-      "textwrap 0.16.4" = rec {
+      "textwrap" = rec {
         crateName = "textwrap";
         version = "0.16.4";
         edition = "2021";
         sha256 = "0jfdxds0k50c3cy5a2s31l37lzp55r0iw75ry9vsb05w79navkvf";
         dependencies = [
+          {
+            name = "icu_segmenter";
+            packageId = "icu_segmenter";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "compiled_data" ];
+          }
           {
             name = "smawk";
             packageId = "smawk";
@@ -15908,7 +16034,7 @@ rec {
           "unicode-linebreak-complex" = [ "unicode-linebreak" "icu_segmenter/auto" ];
           "unicode-width" = [ "dep:unicode-width" ];
         };
-        resolvedDefaultFeatures = [ "smawk" "std" ];
+        resolvedDefaultFeatures = [ "icu_segmenter" "smawk" "std" "unicode-linebreak" "unicode-width" ];
       };
       "thiserror 1.0.69" = rec {
         crateName = "thiserror";
@@ -16073,6 +16199,12 @@ rec {
             usesDefaultFeatures = false;
           }
           {
+            name = "serde_core";
+            packageId = "serde_core";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
             name = "zerovec";
             packageId = "zerovec";
             optional = true;
@@ -16086,7 +16218,7 @@ rec {
           "serde" = [ "dep:serde_core" ];
           "zerovec" = [ "dep:zerovec" ];
         };
-        resolvedDefaultFeatures = [ "zerovec" ];
+        resolvedDefaultFeatures = [ "alloc" "zerovec" ];
       };
       "tinyvec" = rec {
         crateName = "tinyvec";
@@ -17265,17 +17397,6 @@ rec {
         ];
 
       };
-      "unicode-linebreak" = rec {
-        crateName = "unicode-linebreak";
-        version = "0.1.5";
-        edition = "2021";
-        sha256 = "07spj2hh3daajg335m4wdav6nfkl0f6c0q72lc37blr97hych29v";
-        libName = "unicode_linebreak";
-        authors = [
-          "Axel Forsman <axelsfor@gmail.com>"
-        ];
-
-      };
       "unicode-normalization" = rec {
         crateName = "unicode-normalization";
         version = "0.1.25";
@@ -17557,7 +17678,7 @@ rec {
           }
           {
             name = "textwrap";
-            packageId = "textwrap 0.16.4";
+            packageId = "textwrap";
             usesDefaultFeatures = false;
             features = [ "smawk" ];
           }
@@ -17768,7 +17889,7 @@ rec {
           }
           {
             name = "textwrap";
-            packageId = "textwrap 0.16.4";
+            packageId = "textwrap";
             usesDefaultFeatures = false;
             features = [ "smawk" ];
           }
@@ -18952,7 +19073,7 @@ rec {
         features = {
           "debug" = [ "impl-debug" ];
         };
-        resolvedDefaultFeatures = [ "consoleapi" "handleapi" "processenv" "winbase" "wincon" "winnt" "winsock2" ];
+        resolvedDefaultFeatures = [ "consoleapi" "processenv" "winbase" "winsock2" ];
       };
       "winapi-i686-pc-windows-gnu" = rec {
         crateName = "winapi-i686-pc-windows-gnu";
@@ -20266,6 +20387,7 @@ rec {
           "default" = [ "alloc" ];
           "either" = [ "dep:either" ];
         };
+        resolvedDefaultFeatures = [ "alloc" ];
       };
       "yoke" = rec {
         crateName = "yoke";
@@ -20300,7 +20422,7 @@ rec {
           "derive" = [ "dep:yoke-derive" "zerofrom/derive" ];
           "zerofrom" = [ "dep:zerofrom" ];
         };
-        resolvedDefaultFeatures = [ "derive" "zerofrom" ];
+        resolvedDefaultFeatures = [ "alloc" "derive" "zerofrom" ];
       };
       "yoke-derive" = rec {
         crateName = "yoke-derive";
@@ -20416,7 +20538,7 @@ rec {
           "default" = [ "alloc" ];
           "derive" = [ "dep:zerofrom-derive" ];
         };
-        resolvedDefaultFeatures = [ "derive" ];
+        resolvedDefaultFeatures = [ "alloc" "derive" ];
       };
       "zerofrom-derive" = rec {
         crateName = "zerofrom-derive";
@@ -20493,6 +20615,12 @@ rec {
             optional = true;
             usesDefaultFeatures = false;
           }
+          {
+            name = "zerovec";
+            packageId = "zerovec";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
         ];
         features = {
           "alloc" = [ "zerovec?/alloc" ];
@@ -20504,7 +20632,7 @@ rec {
           "zerofrom" = [ "dep:zerofrom" ];
           "zerovec" = [ "dep:zerovec" ];
         };
-        resolvedDefaultFeatures = [ "yoke" "zerofrom" ];
+        resolvedDefaultFeatures = [ "alloc" "yoke" "zerofrom" ];
       };
       "zerovec" = rec {
         crateName = "zerovec";
@@ -20515,6 +20643,13 @@ rec {
           "The ICU4X Project Developers"
         ];
         dependencies = [
+          {
+            name = "serde";
+            packageId = "serde";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "derive" ];
+          }
           {
             name = "yoke";
             packageId = "yoke";
@@ -20535,6 +20670,12 @@ rec {
         ];
         devDependencies = [
           {
+            name = "serde";
+            packageId = "serde";
+            usesDefaultFeatures = false;
+            features = [ "derive" ];
+          }
+          {
             name = "yoke";
             packageId = "yoke";
             usesDefaultFeatures = false;
@@ -20550,7 +20691,7 @@ rec {
           "serde" = [ "dep:serde" ];
           "yoke" = [ "dep:yoke" ];
         };
-        resolvedDefaultFeatures = [ "derive" "yoke" ];
+        resolvedDefaultFeatures = [ "alloc" "derive" "yoke" ];
       };
       "zerovec-derive" = rec {
         crateName = "zerovec-derive";
