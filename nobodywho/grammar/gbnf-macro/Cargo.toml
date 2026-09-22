@@ -8,6 +8,6 @@ proc-macro = true
 
 [dependencies]
 gbnf = { path = "../gbnf" }
-syn = { version = "2.0", features = ["full"] }
+syn = { version = "3.0.6", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
