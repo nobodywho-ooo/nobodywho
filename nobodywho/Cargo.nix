@@ -5345,7 +5345,7 @@ rec {
           }
           {
             name = "syn";
-            packageId = "syn 2.0.119";
+            packageId = "syn 3.0.6";
             features = [ "full" ];
           }
         ];
