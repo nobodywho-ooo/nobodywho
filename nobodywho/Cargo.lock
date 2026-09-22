@@ -2668,7 +2668,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-2"
 version = "0.1.156"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#63e549708237b16b39018288582655539e0a9d5b"
+source = "git+https://github.com/utilityai/llama-cpp-rs?tag=0.1.156#63e549708237b16b39018288582655539e0a9d5b"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2683,7 +2683,7 @@ dependencies = [
 [[package]]
 name = "llama-cpp-sys-2"
 version = "0.1.156"
-source = "git+https://github.com/utilityai/llama-cpp-rs?branch=main#63e549708237b16b39018288582655539e0a9d5b"
+source = "git+https://github.com/utilityai/llama-cpp-rs?tag=0.1.156#63e549708237b16b39018288582655539e0a9d5b"
 dependencies = [
  "bindgen",
  "cc",
@@ -2941,7 +2941,7 @@ dependencies = [
 [[package]]
 name = "misaki-rs"
 version = "0.3.0"
-source = "git+https://github.com/MicheleYin/misaki-rs?branch=main#7bbe06cacd9102d8a0d9e338a3711ae7208de0ad"
+source = "git+https://github.com/MicheleYin/misaki-rs?rev=7bbe06cacd9102d8a0d9e338a3711ae7208de0ad#7bbe06cacd9102d8a0d9e338a3711ae7208de0ad"
 dependencies = [
  "fancy-regex 0.13.0",
  "language-tokenizer",
