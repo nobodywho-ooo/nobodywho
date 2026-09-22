@@ -8,7 +8,7 @@ serde_json = "1"
 # Disable resolving, it's hard to get working on WASM, and we don't really
 # want to do network calls and file system operations when validating the
 # user's schema; instead, the user should inline the whole schema.
-jsonschema = { version = "0.41.0", default-features = false }
+jsonschema = { version = "0.57.0", default-features = false }
 
 [dev-dependencies]
 insta = "1.46.1"
