@@ -32,6 +32,47 @@
 
 ## ⚡️ Under the Hood
 
+```mermaid
+flowchart TD
+    FL["Flutter"]:::lang
+    PY["Python"]:::lang
+    GO["Godot"]:::lang
+    K["Kotlin"]:::lang
+    S["Swift"]:::lang
+    RN["React Native"]:::lang
+
+    FRB["flutter_rust_bridge"]:::glue
+    P3["PyO3"]:::glue
+    GX["gdext"]:::glue
+    U["UniFFI"]:::glue
+
+    FL --> FRB
+    PY --> P3
+    GO --> GX
+    K --> U
+    S --> U
+    RN --> U
+
+    CORE["nobodywho core · Rust<br/>chat · templates · grammars · sampling · context shifting"]:::core
+
+    FRB --> CORE
+    P3 --> CORE
+    GX --> CORE
+    U --> CORE
+
+    CORE --> LCPP["llama.cpp<br/>text · vision · embeddings · reranking"]:::engine
+    CORE --> ORT["ONNX Runtime<br/>speech-to-text · text-to-speech · VAD"]:::engine
+
+    LCPP --> HW1["Vulkan · Metal · GPU"]:::hw
+    ORT --> HW2["CUDA · CPU"]:::hw
+
+    classDef lang fill:#e8eefc,stroke:#5b7bd5,color:#11204a
+    classDef glue fill:#f3f0fb,stroke:#8b7bd5,color:#2a1f4a
+    classDef core fill:#fdf0e3,stroke:#d58f3b,color:#4a2d0b
+    classDef engine fill:#eaf6ee,stroke:#4fa46a,color:#0f3b1f
+    classDef hw fill:#f2f2f2,stroke:#999,color:#222
+```
+
 * GPU-accelerated inference via Vulkan or Metal — runs fast on any OS
 * Conversation-aware preemptive context shifting — retain full conversation memory without any message length limits
 * Compatible with thousands of pre-trained LLMs — use any LLM in the GGUF format
@@ -246,54 +287,6 @@ uvx --from 'git+https://github.com/nobodywho-ooo/nobodywho.git#subdirectory=nobo
 It listens on `http://127.0.0.1:8888` and serves `/v1/models` and `/v1/chat/completions`. 
 See the [docs](https://docs.nobodywho.ooo/docs/server) for more info.
 </details>
-
----
-
-## Under the hood
-
-```mermaid
-flowchart TD
-    FL["Flutter"]:::lang
-    PY["Python"]:::lang
-    GO["Godot"]:::lang
-    K["Kotlin"]:::lang
-    S["Swift"]:::lang
-    RN["React Native"]:::lang
-
-    FRB["flutter_rust_bridge"]:::glue
-    P3["PyO3"]:::glue
-    GX["gdext"]:::glue
-    U["UniFFI"]:::glue
-
-    FL --> FRB
-    PY --> P3
-    GO --> GX
-    K --> U
-    S --> U
-    RN --> U
-
-    CORE["nobodywho core · Rust<br/>chat · templates · grammars · sampling · context shifting"]:::core
-
-    FRB --> CORE
-    P3 --> CORE
-    GX --> CORE
-    U --> CORE
-
-    CORE --> LCPP["llama.cpp<br/>text · vision · embeddings · reranking"]:::engine
-    CORE --> ORT["ONNX Runtime<br/>speech-to-text · text-to-speech · VAD"]:::engine
-
-    LCPP --> HW1["Vulkan · Metal · GPU"]:::hw
-    ORT --> HW2["CUDA · CPU"]:::hw
-
-    classDef lang fill:#e8eefc,stroke:#5b7bd5,color:#11204a
-    classDef glue fill:#f3f0fb,stroke:#8b7bd5,color:#2a1f4a
-    classDef core fill:#fdf0e3,stroke:#d58f3b,color:#4a2d0b
-    classDef engine fill:#eaf6ee,stroke:#4fa46a,color:#0f3b1f
-    classDef hw fill:#f2f2f2,stroke:#999,color:#222
-```
-
-One Rust core does the work; each binding is a thin, idiomatic surface over it. That is why a
-feature lands everywhere at once, and why behaviour doesn't drift between platforms.
 
 ---
 
