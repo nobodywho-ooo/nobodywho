@@ -1331,9 +1331,9 @@ checksum = "d817e038c30374a4bcb22f94d0a8a0e216958d4c3dcde369b1439fec4bdda6e6"
 
 [[package]]
 name = "espeak-ng"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b851fdeabbf4ddb1a212bb542716b42fee095a49f74bbf34de297ae5deb26158"
+checksum = "213ed87669515192b61f34dc6d6c36adeb75ae424b63e32612a65a1e21e9bee3"
 dependencies = [
  "bitflags 2.13.2",
  "espeak-ng-data-dict-en",
@@ -1347,39 +1347,39 @@ dependencies = [
 
 [[package]]
 name = "espeak-ng-data-dict-en"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca161ecc2d9398ca60142f9eb8d8174d24b3a03b90372734f9580cad0b4b7006"
+checksum = "3f231805f816e50caa02fc9266ba9e7ba842bc1439ed5dc4adc8aa09a745aa4a"
 
 [[package]]
 name = "espeak-ng-data-dict-es"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef7d78e746f7cab4f31e6d1c82c1a5b7ee207e99d4642e489016c824f6227dd8"
+checksum = "e125e5571d38d2e3ac752fd72d4bcf2119a4d9af95cb0cd97a4d8d2692567c5f"
 
 [[package]]
 name = "espeak-ng-data-dict-fr"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78b81c90f17d41a7704fe7790bb69564667bd2a1136b2053d3a4a489e9659130"
+checksum = "22bfa135ac45c5c58e0f254144845add795bdab2d4aea094c70f9d5352e15684"
 
 [[package]]
 name = "espeak-ng-data-dict-it"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8a3561e4734ed1d605774350f9ca043da692b549d5e55ffe4e439d4cbe23288"
+checksum = "28d10cde865ed26b37f96652dd8b9a42170facc3bea8a0272fd5f197fb693d50"
 
 [[package]]
 name = "espeak-ng-data-dict-pt"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d06dfb0b75c32f1ed76059411c1c1189a4b7b011a93cc3e12dd554a4e4ffe0"
+checksum = "4ebda03d7c45f5536bb4d186a269eddf3d884162bea6f93f29ccc34c5a1623af"
 
 [[package]]
 name = "espeak-ng-data-phonemes"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d65418fdbf64db690f177ae55b6cb0f01eec5ffd46f5e1cba6f841ae3f214ec0"
+checksum = "73639acc81fa0d350dd6fef933d4a935b6f8b93ef74455c9eebf1f3873253e0d"
 
 [[package]]
 name = "exr"
