@@ -135,9 +135,9 @@ jobs:
             ~/.cargo
             ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -348,9 +348,9 @@ jobs:
             ~/.cargo
             ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-ort-dist-v1-
+            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -561,9 +561,9 @@ jobs:
             ~/.cargo
             ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |

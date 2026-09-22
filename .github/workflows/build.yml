@@ -555,9 +555,9 @@ jobs:
             ~/.cargo
             ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-ort-dist-v1-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-ort-dist-v1-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
