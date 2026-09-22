@@ -8,7 +8,9 @@
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg?style=flat-square)](CODE_OF_CONDUCT.md)
 [![Docs](https://img.shields.io/badge/Docs-lightblue?style=flat-square)](https://docs.nobodywho.ooo)
 
-<h1 align="center">NobodyWho</h1>
+<p align="center">
+  <img src="assets/intro.webp" alt="NobodyWho" width="800">
+</p>
 
 <p align="center">
   <strong> On-device AI for any device.</strong><br/>
