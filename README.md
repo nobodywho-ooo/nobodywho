@@ -53,7 +53,7 @@ flowchart TD
     S --> U
     RN --> U
 
-    CORE["nobodywho core · Rust<br/>chat · templates · grammars · sampling · context shifting"]:::core
+    CORE["NobodyWho · Rust<br/>chat · templates · grammars · sampling · context shifting"]:::core
 
     FRB --> CORE
     P3 --> CORE
@@ -63,14 +63,14 @@ flowchart TD
     CORE --> LCPP["llama.cpp<br/>text · vision · embeddings · reranking"]:::engine
     CORE --> ORT["ONNX Runtime<br/>speech-to-text · text-to-speech · VAD"]:::engine
 
-    LCPP --> HW1["Vulkan · Metal · GPU"]:::hw
-    ORT --> HW2["CUDA · CPU"]:::hw
+    LCPP --> HW["Hardware<br/>Vulkan · Metal · CUDA · GPU · CPU"]:::hw
+    ORT --> HW
 
     classDef lang fill:#e8eefc,stroke:#5b7bd5,color:#11204a
     classDef glue fill:#f3f0fb,stroke:#8b7bd5,color:#2a1f4a
-    classDef core fill:#fdf0e3,stroke:#d58f3b,color:#4a2d0b
-    classDef engine fill:#eaf6ee,stroke:#4fa46a,color:#0f3b1f
-    classDef hw fill:#f2f2f2,stroke:#999,color:#222
+    classDef core fill:#eaf6ee,stroke:#4fa46a,color:#0f3b1f
+    classDef engine fill:#fdf0e3,stroke:#d58f3b,color:#4a2d0b
+    classDef hw fill:#f0eeea,stroke:#a09a90,color:#3a352e
 ```
 
 * GPU-accelerated inference via Vulkan or Metal — runs fast on any OS
