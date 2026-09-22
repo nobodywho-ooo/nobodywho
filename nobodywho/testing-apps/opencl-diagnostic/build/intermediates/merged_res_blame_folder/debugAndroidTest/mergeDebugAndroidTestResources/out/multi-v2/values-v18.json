@@ -1,0 +1,28 @@
+{
+    "logs": [
+        {
+            "outputFile": "ai.nobodywho.opencl.test-mergeDebugAndroidTestResources-3:/values-v18/values-v18.xml",
+            "map": [
+                {
+                    "source": "/Users/krebso/.gradle/caches/8.11/transforms/e8dd1c80e1546319ec7b9b70698bead3/transformed/core-1.6.1/res/values-v18/values.xml",
+                    "from": {
+                        "startLines": "4,12",
+                        "startColumns": "0,0",
+                        "startOffsets": "146,562",
+                        "endLines": "11,19",
+                        "endColumns": "8,8",
+                        "endOffsets": "561,975"
+                    },
+                    "to": {
+                        "startLines": "2,10",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,475",
+                        "endLines": "9,17",
+                        "endColumns": "8,8",
+                        "endOffsets": "470,888"
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,100 @@
+{
+    "logs": [
+        {
+            "outputFile": "ai.nobodywho.opencl.test-debugAndroidTest-5:/values-v28_values-v28.arsc.flat",
+            "map": [
+                {
+                    "source": "/Users/krebso/.gradle/caches/8.11/transforms/e8dd1c80e1546319ec7b9b70698bead3/transformed/core-1.6.1/res/values-v28/values.xml",
+                    "from": {
+                        "startLines": "4,13",
+                        "startColumns": "0,0",
+                        "startOffsets": "146,625",
+                        "endLines": "12,21",
+                        "endColumns": "8,8",
+                        "endOffsets": "624,1101"
+                    },
+                    "to": {
+                        "startLines": "2,11",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,538",
+                        "endLines": "10,19",
+                        "endColumns": "8,8",
+                        "endOffsets": "533,1014"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "ai.nobodywho.opencl.test-debugAndroidTest-5:/values_values.arsc.flat",
+            "map": [
+                {
+                    "source": "/Users/krebso/.gradle/caches/8.11/transforms/e8dd1c80e1546319ec7b9b70698bead3/transformed/core-1.6.1/res/values/values.xml",
+                    "from": {
+                        "startLines": "4,11",
+                        "startColumns": "0,0",
+                        "startOffsets": "142,510",
+                        "endLines": "10,17",
+                        "endColumns": "8,8",
+                        "endOffsets": "509,875"
+                    },
+                    "to": {
+                        "startLines": "2,9",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,427",
+                        "endLines": "8,15",
+                        "endColumns": "8,8",
+                        "endOffsets": "422,792"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "ai.nobodywho.opencl.test-debugAndroidTest-5:/values-v18_values-v18.arsc.flat",
+            "map": [
+                {
+                    "source": "/Users/krebso/.gradle/caches/8.11/transforms/e8dd1c80e1546319ec7b9b70698bead3/transformed/core-1.6.1/res/values-v18/values.xml",
+                    "from": {
+                        "startLines": "4,12",
+                        "startColumns": "0,0",
+                        "startOffsets": "146,562",
+                        "endLines": "11,19",
+                        "endColumns": "8,8",
+                        "endOffsets": "561,975"
+                    },
+                    "to": {
+                        "startLines": "2,10",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,475",
+                        "endLines": "9,17",
+                        "endColumns": "8,8",
+                        "endOffsets": "470,888"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "ai.nobodywho.opencl.test-debugAndroidTest-5:/values-v21_values-v21.arsc.flat",
+            "map": [
+                {
+                    "source": "/Users/krebso/.gradle/caches/8.11/transforms/e8dd1c80e1546319ec7b9b70698bead3/transformed/core-1.6.1/res/values-v21/values.xml",
+                    "from": {
+                        "startLines": "4,13",
+                        "startColumns": "0,0",
+                        "startOffsets": "146,621",
+                        "endLines": "12,21",
+                        "endColumns": "8,8",
+                        "endOffsets": "620,1093"
+                    },
+                    "to": {
+                        "startLines": "2,11",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,534",
+                        "endLines": "10,19",
+                        "endColumns": "8,8",
+                        "endOffsets": "529,1006"
+                    }
+                }
+            ]
+        }
+    ]
+}

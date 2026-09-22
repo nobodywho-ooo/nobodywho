@@ -43,9 +43,7 @@ fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
     memory_free.min(memory_total)
 }
 
-/// Configure diagnostics before the first backend enumeration.
-pub(crate) fn backend_devices() -> Vec<llama_cpp_2::LlamaBackendDevice> {
-    crate::logging::enable_native_traces();
+fn backend_devices() -> Vec<llama_cpp_2::LlamaBackendDevice> {
     llama_cpp_2::list_llama_ggml_backend_devices()
 }
 

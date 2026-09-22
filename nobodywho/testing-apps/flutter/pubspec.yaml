@@ -19,7 +19,6 @@ dependencies:
     path: ../../flutter/nobodywho
 
 dev_dependencies:
-  logging: ^1.3.0
   flutter_test:
     sdk: flutter
   integration_test:

@@ -27,10 +27,6 @@ inputs:
     description: "Per-device timeout passed to gcloud"
     required: false
     default: "30m"
-  test-missing-opencl:
-    description: "Also run Kotlin source tests with OpenCL driver discovery disabled"
-    required: false
-    default: "false"
   results-bucket:
     description: "Cloud Storage bucket for results"
     required: false
@@ -74,9 +70,6 @@ runs:
           exit 1
         fi
         echo "  OK  $LIB is packaged"
-        if [[ "${{ inputs.test-missing-opencl }}" == true ]]; then
-          bash nobodywho/android/check-static.sh "$SO"
-        fi
 
         # The library loads iff every non-system dependency sits next to it in
         # the APK. That holds both for a self-contained build and for an older

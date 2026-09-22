@@ -33,10 +33,8 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
-    crate::logging::enable_native_traces();
-    LlamaBackend::init().expect("Failed to initialize llama backend")
-});
+static LLAMA_BACKEND: LazyLock<LlamaBackend> =
+    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.

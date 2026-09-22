@@ -228,7 +228,6 @@ jobs:
           app-apk: ${{ steps.apks.outputs.app }}
           test-apk: ${{ steps.apks.outputs.test }}
           native-lib: libnobodywho_uniffi.so
-          test-missing-opencl: "true"
           devices: ${{ inputs.device || 'both' }}
           test-timeout: ${{ inputs.test_timeout || '30m' }}
           project-id: ${{ vars.GCP_PROJECT_ID }}

@@ -1,0 +1,7 @@
+#Mon Sep 21 15:19:32 CEST 2026
+base.0=/Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
+base.1=/Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/dex/debug/mergeProjectDexDebug/12/classes.dex
+path.0=0/classes.dex
+path.1=12/classes.dex
+renamed.0=classes.dex
+renamed.1=classes2.dex

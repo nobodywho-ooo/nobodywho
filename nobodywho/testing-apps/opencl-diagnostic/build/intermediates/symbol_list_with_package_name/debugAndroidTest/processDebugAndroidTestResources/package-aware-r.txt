@@ -1,0 +1,3 @@
+ai.nobodywho.opencl.test
+style WhiteBackgroundDialogTheme
+style WhiteBackgroundTheme

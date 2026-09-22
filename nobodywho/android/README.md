@@ -21,8 +21,6 @@ by name. It never reads vendor objects' ICD dispatch tables. This path is
 vendor-neutral, including Qualcomm and Mali; device testing is still required.
 Missing libraries or required OpenCL 1.2 entry points disable OpenCL discovery.
 The newer buffer-with-properties and subgroup-info APIs are optional.
-For diagnostics, set `NOBODYWHO_OPENCL_LIBRARY` before the first OpenCL call
-to override the library name. A nonexistent name exercises missing-driver fallback.
 Flutter/Kotlin/React Native declare it optional; Godot custom Android exports
 must add `<uses-native-library android:name="libOpenCL.so" android:required="false" />`
 inside `<application>` to access public vendor drivers on Android 12+.
@@ -32,7 +30,7 @@ Adreno Vulkan exclusion avoids observed shader crashes (llama.cpp#12421),
 while Turnip remains eligible. Vision/audio projection stays on CPU because
 mtmd cannot select its GPU. Selection does not recover from native driver crashes.
 
-CI checks shared dependencies and runs Firebase inference with normal and
-missing OpenCL discovery, plus explicit CPU mode. Unit tests cover selection
-order and the Adreno exclusion. Flutter/Kotlin forward native diagnostics;
-Vendor ICD tracing defaults on unless the host sets `OCL_ICD_ENABLE_TRACE` itself.
+CI checks shared dependencies and runs Firebase inference on Mali and Adreno.
+Unit tests cover selection order and the Adreno exclusion. See
+[`OPENCL_LINKING.md`](OPENCL_LINKING.md) for the difference between link-time
+and packaged OpenCL libraries.

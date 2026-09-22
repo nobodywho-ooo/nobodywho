@@ -1,0 +1,6 @@
+ai.nobodywho.opencl.test-tracing-1.1.0-0 /Users/krebso/.gradle/caches/8.11/transforms/cbef5e7d132a30d17101d428a0d52e6a/transformed/tracing-1.1.0/res
+ai.nobodywho.opencl.test-core-1.6.1-1 /Users/krebso/.gradle/caches/8.11/transforms/e8dd1c80e1546319ec7b9b70698bead3/transformed/core-1.6.1/res
+ai.nobodywho.opencl.test-androidTest-2 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/generated/res/resValues/androidTest/debug
+ai.nobodywho.opencl.test-mergeDebugAndroidTestResources-3 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/incremental/debugAndroidTest/mergeDebugAndroidTestResources/merged.dir
+ai.nobodywho.opencl.test-mergeDebugAndroidTestResources-4 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/incremental/debugAndroidTest/mergeDebugAndroidTestResources/stripped.dir
+ai.nobodywho.opencl.test-debugAndroidTest-5 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/merged_res/debugAndroidTest/mergeDebugAndroidTestResources
