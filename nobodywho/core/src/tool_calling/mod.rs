@@ -203,13 +203,13 @@ impl Tool {
 
                         match bash.exec(commands).await {
                             Ok(result) => {
-                                let mut output = result.stdout;
+                                let mut output = result.stdout.text_lossy().to_string();
                                 if !result.stderr.is_empty() {
                                     if !output.is_empty() {
                                         output.push('\n');
                                     }
                                     output.push_str("STDERR: ");
-                                    output.push_str(&result.stderr);
+                                    output.push_str(&result.stderr.text_lossy());
                                 }
                                 output
                             }

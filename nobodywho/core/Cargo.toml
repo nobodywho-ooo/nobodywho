@@ -12,7 +12,7 @@ minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 monty = "0.0.23"
 monty-types = "0.0.23"
-bashkit = { git = "https://github.com/everruns/bashkit", tag = "v0.1.10" }
+bashkit = "0.18.1"
 serde = { version = "1.0.215", features = ["derive"] }
 chrono = "0.4.39"
 gbnf = { path = "../grammar/gbnf" }
