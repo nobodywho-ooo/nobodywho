@@ -239,7 +239,7 @@ void main() async {
 
 </details>
 
-<details>
+<details open>
 <summary><b>Python</b></summary>
 
 ```bash
