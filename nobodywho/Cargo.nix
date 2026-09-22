@@ -3913,10 +3913,10 @@ rec {
       };
       "espeak-ng" = rec {
         crateName = "espeak-ng";
-        version = "0.1.3";
+        version = "0.2.0";
         edition = "2021";
         crateBin = [];
-        sha256 = "0n31nbgfayi9vqsbyjzp95d0kvignhb2fm5v2aib3pglpgmgsldq";
+        sha256 = "1qxyx4hiwnm628kf6qsb8ap7bsxd6rn6vp1l3yv94laid5vdhgi1";
         libName = "espeak_ng";
         authors = [
           "Eugene Hauptmann"
@@ -3962,7 +3962,8 @@ rec {
           }
         ];
         features = {
-          "bundled-data" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ru" "dep:espeak-ng-data-dicts" ];
+          "bundled-data" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ru" "dep:espeak-ng-data-dict-fo" "dep:espeak-ng-data-dict-ps" "dep:espeak-ng-data-dicts" ];
+          "bundled-data-ab" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ab" ];
           "bundled-data-af" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-af" ];
           "bundled-data-am" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-am" ];
           "bundled-data-an" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-an" ];
@@ -3978,6 +3979,7 @@ rec {
           "bundled-data-ca" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ca" ];
           "bundled-data-chr" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-chr" ];
           "bundled-data-cmn" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-cmn" ];
+          "bundled-data-crh" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-crh" ];
           "bundled-data-cs" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-cs" ];
           "bundled-data-cv" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-cv" ];
           "bundled-data-cy" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-cy" ];
@@ -3991,6 +3993,7 @@ rec {
           "bundled-data-eu" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-eu" ];
           "bundled-data-fa" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-fa" ];
           "bundled-data-fi" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-fi" ];
+          "bundled-data-fo" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-fo" ];
           "bundled-data-fr" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-fr" ];
           "bundled-data-ga" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ga" ];
           "bundled-data-gd" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-gd" ];
@@ -4013,6 +4016,7 @@ rec {
           "bundled-data-ja" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ja" ];
           "bundled-data-jbo" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-jbo" ];
           "bundled-data-ka" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ka" ];
+          "bundled-data-kaa" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-kaa" ];
           "bundled-data-kk" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-kk" ];
           "bundled-data-kl" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-kl" ];
           "bundled-data-kn" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-kn" ];
@@ -4023,11 +4027,13 @@ rec {
           "bundled-data-la" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-la" ];
           "bundled-data-lb" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-lb" ];
           "bundled-data-lfn" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-lfn" ];
+          "bundled-data-lij" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-lij" ];
           "bundled-data-lt" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-lt" ];
           "bundled-data-lv" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-lv" ];
           "bundled-data-mi" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-mi" ];
           "bundled-data-mk" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-mk" ];
           "bundled-data-ml" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ml" ];
+          "bundled-data-mn" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-mn" ];
           "bundled-data-mr" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-mr" ];
           "bundled-data-ms" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ms" ];
           "bundled-data-mt" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-mt" ];
@@ -4044,6 +4050,7 @@ rec {
           "bundled-data-pap" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-pap" ];
           "bundled-data-piqd" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-piqd" ];
           "bundled-data-pl" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-pl" ];
+          "bundled-data-ps" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ps" ];
           "bundled-data-pt" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-pt" ];
           "bundled-data-py" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-py" ];
           "bundled-data-qdb" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-qdb" ];
@@ -4052,6 +4059,7 @@ rec {
           "bundled-data-qya" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-qya" ];
           "bundled-data-ro" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ro" ];
           "bundled-data-ru" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ru" ];
+          "bundled-data-rup" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-rup" ];
           "bundled-data-sd" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-sd" ];
           "bundled-data-shn" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-shn" ];
           "bundled-data-si" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-si" ];
@@ -4076,17 +4084,20 @@ rec {
           "bundled-data-ur" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-ur" ];
           "bundled-data-uz" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-uz" ];
           "bundled-data-vi" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-vi" ];
+          "bundled-data-xex" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-xex" ];
           "bundled-data-yue" = [ "dep:espeak-ng-data-phonemes" "dep:espeak-ng-data-dict-yue" ];
           "c-oracle" = [ "dep:libc" ];
           "default" = [ "install-espeak-ng-shim" ];
+          "parallel" = [ "dep:rayon" ];
+          "tokio-runtime" = [ "dep:tokio" ];
         };
         resolvedDefaultFeatures = [ "bundled-data-en" "bundled-data-es" "bundled-data-fr" "bundled-data-it" "bundled-data-pt" ];
       };
       "espeak-ng-data-dict-en" = rec {
         crateName = "espeak-ng-data-dict-en";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "01kh9c5ss32qz4s2fdwh7fhb692d2zcbi7ig2ihcm64k5p61w5na";
+        sha256 = "0jma8nkhkan8mp25vv9r2jy45a3vksx6d4pw0am0rr8nz02ih8rz";
         libName = "espeak_ng_data_dict_en";
         authors = [
           "Eugene Hauptmann"
@@ -4095,9 +4106,9 @@ rec {
       };
       "espeak-ng-data-dict-es" = rec {
         crateName = "espeak-ng-data-dict-es";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "1n3x4bv29j0nj142wr6lk5z21vmplp0q473d3vrv9jpp8vkphzgg";
+        sha256 = "0pvwas92d3adgbchrjwmmzcs8691rx5jvmrgfnnf7liq3mbya9g1";
         libName = "espeak_ng_data_dict_es";
         authors = [
           "Eugene Hauptmann"
@@ -4106,9 +4117,9 @@ rec {
       };
       "espeak-ng-data-dict-fr" = rec {
         crateName = "espeak-ng-data-dict-fr";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "0c4icplqk954sd9j0sqkl797nrk4jnv0nyg79xqafhbxy681rf3q";
+        sha256 = "112nw595778gqyaa1bnlnbd5nyfxba248h951y7cbia5mhss3gr2";
         libName = "espeak_ng_data_dict_fr";
         authors = [
           "Eugene Hauptmann"
@@ -4117,9 +4128,9 @@ rec {
       };
       "espeak-ng-data-dict-it" = rec {
         crateName = "espeak-ng-data-dict-it";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "121jwb5x8fg4wkzmaplxahmnknj3l2f0ydblaxh1vv9l8wg5d8yq";
+        sha256 = "0l1xd7xrgwfm5wks1a5yqfn0y5s2ka5xslk6z4vnpljyhvg0rl98";
         libName = "espeak_ng_data_dict_it";
         authors = [
           "Eugene Hauptmann"
@@ -4128,9 +4139,9 @@ rec {
       };
       "espeak-ng-data-dict-pt" = rec {
         crateName = "espeak-ng-data-dict-pt";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "1q7zwjj59m9dw71kra8in2vs928i3hf42nb0swg2zhvm1gxnvl0n";
+        sha256 = "1br32rd4rhyc54zzk9myc90qhgfzxmls51ninimm7xa5ghys1gaf";
         libName = "espeak_ng_data_dict_pt";
         authors = [
           "Eugene Hauptmann"
@@ -4139,9 +4150,9 @@ rec {
       };
       "espeak-ng-data-phonemes" = rec {
         crateName = "espeak-ng-data-phonemes";
-        version = "0.1.0";
+        version = "0.2.0";
         edition = "2021";
-        sha256 = "1h2f44zswhgqlv5y3xa6zmgyq7phn1n5prbs2w7nknv4pzyihm6n";
+        sha256 = "039y4mrkh7xzxv4mai7p7swzidimm7a37ygysq6ka3gsh769lqvk";
         libName = "espeak_ng_data_phonemes";
         authors = [
           "Eugene Hauptmann"
