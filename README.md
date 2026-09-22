@@ -103,7 +103,7 @@ Desktop means Linux, macOS and Windows throughout. Three gaps worth knowing befo
 
 ## Requirements
 
-Inference uses Vulkan or Metal where available and CPU where not. The real constraint is memory.
+Inference uses the GPU where available and CPU where not. The real constraint is memory.
 
 ### Desktop
 
