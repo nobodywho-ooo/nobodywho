@@ -2843,6 +2843,20 @@ rec {
         };
         resolvedDefaultFeatures = [ "std" ];
       };
+      "daachorse" = rec {
+        crateName = "daachorse";
+        version = "3.0.3";
+        edition = "2021";
+        sha256 = "0gas8mv4mslk8izw7v4fnq9c0jlh1d2acsl0l83wqcxwxd7j052n";
+        authors = [
+          "Koichi Akabe <vbkaisetsu@gmail.com>"
+          "Shunsuke Kanda <shnsk.knd@gmail.com>"
+        ];
+        features = {
+          "default" = [ "alloc" ];
+        };
+        resolvedDefaultFeatures = [ "alloc" "default" ];
+      };
       "darling" = rec {
         crateName = "darling";
         version = "0.20.11";
@@ -16422,9 +16436,9 @@ rec {
       };
       "tokenizers" = rec {
         crateName = "tokenizers";
-        version = "0.21.4";
+        version = "0.23.2";
         edition = "2018";
-        sha256 = "0xilw396nf36z735hisi19ns6d7aa61gsbgsqa2f2nba26bbj856";
+        sha256 = "1z4wjq8bdbm3p3c975yfnb1vn785qg6dc0ddic9wrbqqhzlgdyvs";
         authors = [
           "Anthony MOI <m.anthony.moi@gmail.com>"
           "Nicolas Patry <patry.nicolas@protonmail.com>"
@@ -16436,13 +16450,13 @@ rec {
             features = [ "serde" ];
           }
           {
-            name = "aho-corasick";
-            packageId = "aho-corasick";
-          }
-          {
             name = "compact_str";
             packageId = "compact_str";
             features = [ "serde" ];
+          }
+          {
+            name = "daachorse";
+            packageId = "daachorse";
           }
           {
             name = "dary_heap";
