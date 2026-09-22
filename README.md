@@ -78,7 +78,7 @@ flowchart TD
 * Compatible with thousands of pre-trained LLMs — use any LLM in the GGUF format
 * Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
-You can test our inference engine on [iOS](https://apps.apple.com/us/app/nobodywho-chat/id6781001350), [Android](https://play.google.com/store/apps/details?id=ai.nobodywho.mobile), [Vision Pro](https://example.com/nobodywho-eyes) and [Apple Watch](https://example.com/nobodywho-wrist).
+You can test our inference engine on [iOS](https://apps.apple.com/us/app/nobodywho-chat/id6781001350), [Android](https://play.google.com/store/apps/details?id=ai.nobodywho.mobile), [Vision Pro](https://apps.apple.com/us/app/nobodywho-eyes/id6771770762) and [Apple Watch](https://apps.apple.com/us/app/nobodywho-wrist/id6762020355?platform=watch).
 
 ---
 
@@ -134,6 +134,25 @@ small enough for any phone and good enough to tell whether the integration works
 ---
 
 ## Quick Start
+
+<details open>
+<summary><b>Python</b></summary>
+
+```bash
+pip install nobodywho
+```
+
+```python
+from nobodywho import Chat
+
+chat = Chat('hf:NobodyWho/Qwen_Qwen3-0.6B-GGUF:Q4_K_M')
+response = chat.ask('Is water wet?')
+print(response.completed()) // The capital of Denmark is Copenhagen.
+```
+
+[Python documentation](https://docs.nobodywho.ooo/python/) · [PyPI](https://pypi.org/project/nobodywho/)
+
+</details>
 
 <details>
 <summary><b>Kotlin</b></summary>
@@ -236,25 +255,6 @@ void main() async {
 ```
 
 [Flutter documentation](https://docs.nobodywho.ooo/flutter/) · [pub.dev](https://pub.dev/packages/nobodywho) · [starter app](https://github.com/nobodywho-ooo/flutter-starter-example)
-
-</details>
-
-<details open>
-<summary><b>Python</b></summary>
-
-```bash
-pip install nobodywho
-```
-
-```python
-from nobodywho import Chat
-
-chat = Chat('hf:NobodyWho/Qwen_Qwen3-0.6B-GGUF:Q4_K_M')
-response = chat.ask('Is water wet?')
-print(response.completed()) // The capital of Denmark is Copenhagen.
-```
-
-[Python documentation](https://docs.nobodywho.ooo/python/) · [PyPI](https://pypi.org/project/nobodywho/)
 
 </details>
 
