@@ -261,7 +261,7 @@ print(response.completed()) // The capital of Denmark is Copenhagen.
 <details>
 <summary><b>Godot</b></summary>
 
-There is no terminal command for Godot — install it from inside the editor:
+Install NobodyWho from inside the editor:
 
 1. In Godot 4.5+, open the **AssetLib** tab and search for **NobodyWho**.
 2. Download and import it, making sure **Ignore asset root** is ticked in the import dialogue.
