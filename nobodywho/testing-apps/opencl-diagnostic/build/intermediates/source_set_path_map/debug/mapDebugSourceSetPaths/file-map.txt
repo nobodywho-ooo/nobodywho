@@ -1,7 +1,0 @@
-ai.nobodywho.opencl-pngs-0 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/generated/res/pngs/debug
-ai.nobodywho.opencl-resValues-1 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/generated/res/resValues/debug
-ai.nobodywho.opencl-packageDebugResources-2 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/incremental/debug/packageDebugResources/merged.dir
-ai.nobodywho.opencl-packageDebugResources-3 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/incremental/debug/packageDebugResources/stripped.dir
-ai.nobodywho.opencl-debug-4 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/build/intermediates/merged_res/debug/mergeDebugResources
-ai.nobodywho.opencl-debug-5 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/src/debug/res
-ai.nobodywho.opencl-main-6 /Users/krebso/work/nobodywho/nobodywho/testing-apps/opencl-diagnostic/src/main/res

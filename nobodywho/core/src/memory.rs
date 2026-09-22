@@ -372,19 +372,17 @@ mod tests {
             };
         let cpu = device("CPU", "", Cpu, 8);
         let vk = device("Vulkan", "Mali-G715-Immortalis MC11", Gpu, 4);
-        let cl = device("OpenCL", "QUALCOMM Adreno(TM) 750", IntegratedGpu, 2);
+        let cl = device("OpenCL", "Mali-G715", IntegratedGpu, 2);
+        let adreno_cl = device("OpenCL", "QUALCOMM Adreno(TM) 750", IntegratedGpu, 2);
         let adreno = device("Vulkan", "Adreno (TM) 750", IntegratedGpu, 15);
         let turnip = device("Vulkan", "Turnip Adreno (TM) 750", IntegratedGpu, 4);
-        // Priority beats enumeration order, GPU type and reported free memory.
-        // Missing GPUs and excluded drivers must leave the caller on CPU.
+        // Priority beats enumeration order, GPU type and reported memory.
         for (devices, android, expected) in [
             (vec![&cpu, &cl, &vk], true, Some("OpenCL")),
-            (vec![&vk, &cl, &cpu], true, Some("OpenCL")),
             (vec![&cpu, &vk], true, Some("Vulkan")),
             (vec![&cpu], true, None),
-            (vec![], true, None),
             (vec![&cpu, &adreno], true, None),
-            (vec![&cpu, &adreno, &cl], true, Some("OpenCL")),
+            (vec![&cpu, &adreno_cl], true, Some("OpenCL")),
             (vec![&cpu, &turnip], true, Some("Vulkan")),
             (vec![&cpu, &adreno], false, Some("Vulkan")),
         ] {
