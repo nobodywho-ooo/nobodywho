@@ -18,7 +18,11 @@ mod qwen35_36;
 
 use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
-use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
+use monty::MontyRun;
+use monty_types::{
+    CompileOptions, PrintWriter, ResourceLimits, ResourceTracker, DEFAULT_MAX_RECURSION_DEPTH,
+    DEFAULT_MAX_SUSPENSIONS,
+};
 use serde::{ser::Serializer, Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 use tracing::debug;
@@ -133,22 +137,22 @@ impl Tool {
                         return "ERROR: Code parameter could not be extracted".to_string();
                     };
 
-                    let runner = match MontyRun::new(code.to_string(), "script.py", vec![], vec![]) {
+                    let runner = match MontyRun::new(code.to_string(), "script.py", vec![], CompileOptions::default()) {
                         Ok(runner) => runner,
                         Err(e) => return format!("ERROR: Failed to create Python runner: {e}"),
                     };
 
-                    let mut output = PrintWriter::Collect(String::new());
+                    let mut output = String::new();
                     let limits = ResourceLimits {
                         max_duration,
                         max_memory,
                         gc_interval: None, // we dont let the user configure this
-                        max_allocations: None, // we dont let the user configure this
-                        max_recursion_depth,
+                        max_recursion_depth: max_recursion_depth.unwrap_or(DEFAULT_MAX_RECURSION_DEPTH),
+                        max_suspensions: DEFAULT_MAX_SUSPENSIONS, // we dont let the user configure this
                     };
 
-                    match runner.run(vec![], LimitedTracker::new(limits), &mut output) {
-                        Ok(_) => output.collected_output().unwrap_or_default().to_string(),
+                    match runner.run(vec![], ResourceTracker::new(limits), PrintWriter::collect_string(&mut output)) {
+                        Ok(_) => output,
                         Err(e) => format!("ERROR: Failed to run Python code: {e}"),
                     }
                 }
