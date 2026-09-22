@@ -87,7 +87,7 @@ You can test our inference engine on [iOS](https://apps.apple.com/us/app/nobodyw
 | Binding | Install | Runs on | Documentation |
 |---------|---------|---------|---------------|
 | **Kotlin** | [Maven Central](#quick-start) | Desktop, Android | [docs.nobodywho.ooo/kotlin](https://docs.nobodywho.ooo/kotlin/) |
-| **Swift** | [SPM](#quick-start) | Desktop, iOS, visionOS, watchOS | [docs.nobodywho.ooo/swift](https://docs.nobodywho.ooo/swift/) |
+| **Swift** | [SPM](#quick-start) | macOS, iOS, visionOS, watchOS | [docs.nobodywho.ooo/swift](https://docs.nobodywho.ooo/swift/) |
 | **React Native / Expo** | [npm](#quick-start) | Desktop, Android, iOS | [docs.nobodywho.ooo/react-native](https://docs.nobodywho.ooo/react-native/) |
 | **Flutter** | [pub.dev](#quick-start) | Desktop, Android, iOS | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [PyPI](#quick-start) | Desktop | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
