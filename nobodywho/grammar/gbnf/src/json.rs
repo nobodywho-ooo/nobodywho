@@ -1380,4 +1380,14 @@ mod tests {
         // Should have json-null for nullable types
         assert!(gbnf.contains("json-null"));
     }
+
+    #[test]
+    #[should_panic = "Resource '/schema' is not present in a registry and retrieving it failed"]
+    fn validation_does_not_resolve() {
+        let schema = r#"
+        {"$schema": "/schema", "type": "string"}
+        "#;
+
+        let _grammar = json_schema_to_grammar(schema, "root").unwrap();
+    }
 }
