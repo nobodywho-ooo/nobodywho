@@ -4168,11 +4168,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "perf" "std" "unicode" ];
       };
-      "fancy-regex 0.17.0" = rec {
+      "fancy-regex 0.19.2" = rec {
         crateName = "fancy-regex";
-        version = "0.17.0";
+        version = "0.19.2";
         edition = "2018";
-        sha256 = "1f314z64ilbbnn17ic1hghpq9dm2sqyn8gspvjvjp1jwhqgldkvj";
+        sha256 = "04hryammpy62r9iiq5bbbz6br81pa23x6s34rrgjjg3v32zza0fk";
         libName = "fancy_regex";
         authors = [
           "Raph Levien <raph@google.com>"
@@ -4189,7 +4189,7 @@ rec {
             name = "regex-automata";
             packageId = "regex-automata";
             usesDefaultFeatures = false;
-            features = [ "alloc" "syntax" "meta" "nfa" "dfa" "hybrid" ];
+            features = [ "alloc" "syntax" "meta" "nfa" "dfa-onepass" "dfa-search" "hybrid" ];
           }
           {
             name = "regex-syntax";
@@ -4200,6 +4200,7 @@ rec {
         features = {
           "default" = [ "unicode" "perf" "std" "variable-lookbehinds" ];
           "perf" = [ "regex-automata/perf" ];
+          "perf-dfa-full" = [ "regex-automata/dfa-build" ];
           "std" = [ "regex-automata/std" "regex-syntax/std" "bit-set/std" ];
           "unicode" = [ "regex-automata/unicode" "regex-syntax/unicode" ];
           "variable-lookbehinds" = [ "regex-automata/dfa-search" ];
@@ -4861,22 +4862,22 @@ rec {
       };
       "fraction" = rec {
         crateName = "fraction";
-        version = "0.15.4";
+        version = "0.17.0";
         edition = "2015";
-        sha256 = "0wmqlp84vn9q4vmjvbhd3min6x2wyg508pzd6d9l7b1xnidh8xp0";
+        sha256 = "002m55m7v92il8lq1hif0gjnhkyf0v263cj3r6yfps6xhhh5cip2";
         authors = [
           "dnsl48 <dnsl48@gmail.com>"
         ];
         dependencies = [
           {
-            name = "lazy_static";
-            packageId = "lazy_static";
-            optional = true;
-          }
-          {
             name = "num";
             packageId = "num";
             usesDefaultFeatures = false;
+          }
+          {
+            name = "num-bigint";
+            packageId = "num-bigint";
+            optional = true;
           }
         ];
         features = {
@@ -4884,17 +4885,17 @@ rec {
           "bytes" = [ "dep:bytes" ];
           "default" = [ "with-bigint" "with-decimal" "with-dynaint" ];
           "juniper" = [ "dep:juniper" ];
-          "lazy_static" = [ "dep:lazy_static" ];
+          "num-bigint" = [ "dep:num-bigint" ];
           "postgres-types" = [ "dep:postgres-types" ];
           "serde" = [ "dep:serde" ];
           "serde_derive" = [ "dep:serde_derive" ];
           "with-approx" = [ "with-bigint" ];
-          "with-bigint" = [ "num/num-bigint" "num/std" "lazy_static" ];
+          "with-bigint" = [ "num/num-bigint" "num/std" "num-bigint" ];
           "with-juniper-support" = [ "juniper" ];
           "with-postgres-support" = [ "postgres-types" "byteorder" "bytes" ];
           "with-serde-support" = [ "serde" "serde_derive" "num/serde" ];
         };
-        resolvedDefaultFeatures = [ "lazy_static" "with-bigint" ];
+        resolvedDefaultFeatures = [ "num-bigint" "with-bigint" ];
       };
       "fs-err" = rec {
         crateName = "fs-err";
@@ -6228,6 +6229,27 @@ rec {
         version = "0.17.1";
         edition = "2024";
         sha256 = "0jmqz7i4yl6cm7rbn0i2ffkfrmwi6xkmzkaldr2v8bcsx2v0jngd";
+        dependencies = [
+          {
+            name = "allocator-api2";
+            packageId = "allocator-api2";
+            optional = true;
+            usesDefaultFeatures = false;
+            features = [ "alloc" ];
+          }
+          {
+            name = "equivalent";
+            packageId = "equivalent";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+          {
+            name = "foldhash";
+            packageId = "foldhash 0.2.0";
+            optional = true;
+            usesDefaultFeatures = false;
+          }
+        ];
         features = {
           "alloc" = [ "dep:alloc" ];
           "allocator-api2" = [ "dep:allocator-api2" ];
@@ -6240,6 +6262,7 @@ rec {
           "rustc-dep-of-std" = [ "nightly" "core" "alloc" "rustc-internal-api" ];
           "serde" = [ "dep:serde_core" "dep:serde" ];
         };
+        resolvedDefaultFeatures = [ "allocator-api2" "default" "default-hasher" "equivalent" "inline-more" "raw-entry" ];
       };
       "heapless" = rec {
         crateName = "heapless";
@@ -7100,7 +7123,7 @@ rec {
           "default" = [ "std" "compiled_data" ];
           "std" = [ "alloc" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "compiled_data" "default" "std" ];
+        resolvedDefaultFeatures = [ "alloc" "compiled_data" "std" ];
       };
       "idna_adapter" = rec {
         crateName = "idna_adapter";
@@ -8030,9 +8053,9 @@ rec {
       };
       "jsonschema" = rec {
         crateName = "jsonschema";
-        version = "0.41.0";
+        version = "0.57.0";
         edition = "2021";
-        sha256 = "0f44p0ah4zjnypgjjig97bj1ys0m0pkn2gcm8jnkljm8pn53c84k";
+        sha256 = "1ymf94s92n4lsjp0yd3ghv99k6p07sh4r7z7dcnnmqyvyvahw5ki";
         authors = [
           "Dmitry Dygalo <dmitry@dygalo.dev>"
         ];
@@ -8057,7 +8080,7 @@ rec {
           }
           {
             name = "fancy-regex";
-            packageId = "fancy-regex 0.17.0";
+            packageId = "fancy-regex 0.19.2";
           }
           {
             name = "fraction";
@@ -8072,12 +8095,16 @@ rec {
             features = [ "wasm_js" ];
           }
           {
-            name = "idna";
-            packageId = "idna";
-          }
-          {
             name = "itoa";
             packageId = "itoa";
+          }
+          {
+            name = "jsonschema-regex";
+            packageId = "jsonschema-regex";
+          }
+          {
+            name = "jsonschema-value";
+            packageId = "jsonschema-value";
           }
           {
             name = "num-cmp";
@@ -8093,15 +8120,11 @@ rec {
           }
           {
             name = "referencing";
-            packageId = "referencing 0.41.0";
+            packageId = "referencing 0.57.0";
           }
           {
             name = "regex";
             packageId = "regex";
-          }
-          {
-            name = "regex-syntax";
-            packageId = "regex-syntax";
           }
           {
             name = "serde";
@@ -8111,6 +8134,12 @@ rec {
           {
             name = "serde_json";
             packageId = "serde_json";
+            features = [ "float_roundtrip" ];
+          }
+          {
+            name = "strum";
+            packageId = "strum 0.28.0";
+            features = [ "derive" ];
           }
           {
             name = "unicode-general-category";
@@ -8124,13 +8153,98 @@ rec {
           }
         ];
         features = {
-          "arbitrary-precision" = [ "serde_json/arbitrary_precision" "dep:num-bigint" ];
-          "default" = [ "resolve-http" "resolve-file" ];
+          "arbitrary-precision" = [ "serde_json/arbitrary_precision" "dep:num-bigint" "jsonschema-macros?/arbitrary-precision" "jsonschema-value/arbitrary-precision" ];
+          "conformance" = [ "jsonschema-value/conformance" ];
+          "default" = [ "resolve-http" "resolve-file" "tls-aws-lc-rs" "idna" ];
+          "idna" = [ "dep:idna" ];
+          "macros" = [ "dep:jsonschema-macros" "jsonschema-macros/float-roundtrip" "jsonschema-value/macros" ];
+          "magnus" = [ "jsonschema-value/magnus" ];
+          "pyo3" = [ "jsonschema-value/pyo3" ];
           "reqwest" = [ "dep:reqwest" ];
-          "resolve-async" = [ "referencing/retrieve-async" "reqwest/default" "dep:async-trait" "dep:tokio" ];
-          "resolve-http" = [ "reqwest" "rustls" ];
-          "rustls" = [ "dep:rustls" ];
+          "resolve-async" = [ "referencing/retrieve-async" "reqwest" "dep:async-trait" "dep:tokio" ];
+          "resolve-http" = [ "reqwest" "dep:rustls" ];
+          "tls-aws-lc-rs" = [ "rustls/aws-lc-rs" ];
+          "tls-ring" = [ "rustls/ring" ];
         };
+      };
+      "jsonschema-regex" = rec {
+        crateName = "jsonschema-regex";
+        version = "0.57.0";
+        edition = "2021";
+        sha256 = "18sy8s7zz6pg3spv3c89dddvz4ci1vzqhjxyng0wvzv6hh6i5lj8";
+        libName = "jsonschema_regex";
+        authors = [
+          "Dmitry Dygalo <dmitry@dygalo.dev>"
+        ];
+        dependencies = [
+          {
+            name = "regex-syntax";
+            packageId = "regex-syntax";
+          }
+        ];
+
+      };
+      "jsonschema-value" = rec {
+        crateName = "jsonschema-value";
+        version = "0.57.0";
+        edition = "2021";
+        sha256 = "0i2ggihm5mplh22kxmq4mkqz36c0w0y8z15k83cnjls1885a9grz";
+        libName = "jsonschema_value";
+        authors = [
+          "Dmitry Dygalo <dmitry@dygalo.dev>"
+        ];
+        dependencies = [
+          {
+            name = "ahash";
+            packageId = "ahash";
+            features = [ "serde" ];
+          }
+          {
+            name = "bytecount";
+            packageId = "bytecount";
+            optional = true;
+            features = [ "runtime-dispatch-simd" ];
+          }
+          {
+            name = "fraction";
+            packageId = "fraction";
+            usesDefaultFeatures = false;
+            features = [ "with-bigint" ];
+          }
+          {
+            name = "getrandom";
+            packageId = "getrandom 0.3.4";
+            target = { target, features }: ("wasm32" == target."arch" or null);
+            features = [ "wasm_js" ];
+          }
+          {
+            name = "num-cmp";
+            packageId = "num-cmp";
+          }
+          {
+            name = "num-traits";
+            packageId = "num-traits";
+          }
+          {
+            name = "serde_json";
+            packageId = "serde_json";
+            features = [ "float_roundtrip" ];
+          }
+          {
+            name = "zmij";
+            packageId = "zmij";
+          }
+        ];
+        features = {
+          "arbitrary-precision" = [ "serde_json/arbitrary_precision" "dep:num-bigint" ];
+          "default" = [ "serde_json" ];
+          "magnus" = [ "dep:magnus" "dep:rb-sys" ];
+          "magnus-tests" = [ "magnus" "magnus/embed" ];
+          "pyo3" = [ "dep:pyo3" ];
+          "pyo3-tests" = [ "pyo3" "pyo3/auto-initialize" ];
+          "serde_json" = [ "dep:bytecount" ];
+        };
+        resolvedDefaultFeatures = [ "default" "serde_json" ];
       };
       "kqueue" = rec {
         crateName = "kqueue";
@@ -8962,6 +9076,16 @@ rec {
           "Armin Ronacher <armin.ronacher@active-4.com>"
         ];
 
+      };
+      "micromap" = rec {
+        crateName = "micromap";
+        version = "0.3.0";
+        edition = "2021";
+        sha256 = "0x4xsjpl9fzhchp7h83k8lbrcjrlcik4yh9wj6srafgd8qqnva62";
+        features = {
+          "serde" = [ "dep:serde" ];
+        };
+        resolvedDefaultFeatures = [ "default" ];
       };
       "miette" = rec {
         crateName = "miette";
@@ -13148,11 +13272,11 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" ];
       };
-      "referencing 0.41.0" = rec {
+      "referencing 0.57.0" = rec {
         crateName = "referencing";
-        version = "0.41.0";
+        version = "0.57.0";
         edition = "2021";
-        sha256 = "0klm7plq1dgq3y4hf98n85cjrik1n1s3dprqxz3ah038a1ck4xym";
+        sha256 = "0gkvc9mhq343n6zgx8vsq666p77m1jwiz2yzfig31vagpsc6fvxh";
         authors = [
           "Dmitry Dygalo <dmitry@dygalo.dev>"
         ];
@@ -13175,7 +13299,16 @@ rec {
           }
           {
             name = "hashbrown";
-            packageId = "hashbrown 0.16.1";
+            packageId = "hashbrown 0.17.1";
+            features = [ "equivalent" ];
+          }
+          {
+            name = "itoa";
+            packageId = "itoa";
+          }
+          {
+            name = "micromap";
+            packageId = "micromap";
           }
           {
             name = "parking_lot";
@@ -14499,7 +14632,7 @@ rec {
           "preserve_order" = [ "indexmap" "std" ];
           "std" = [ "memchr/std" "serde_core/std" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "default" "indexmap" "preserve_order" "raw_value" "std" "unbounded_depth" ];
+        resolvedDefaultFeatures = [ "alloc" "default" "float_roundtrip" "indexmap" "preserve_order" "raw_value" "std" "unbounded_depth" ];
       };
       "serde_path_to_error" = rec {
         crateName = "serde_path_to_error";
