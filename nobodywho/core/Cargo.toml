@@ -4,7 +4,7 @@ version = "2.4.0"
 edition = "2021"
 
 [dependencies]
-misaki-rs = { git = "https://github.com/MicheleYin/misaki-rs", rev = "7bbe06cacd9102d8a0d9e338a3711ae7208de0ad", default-features = false }
+misaki-rs = { version = "0.6.0", default-features = false }
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
 miette = { version = "7.6.0", features = ["fancy"] }

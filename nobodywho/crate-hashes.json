@@ -1,5 +1,4 @@
 {
-  "git+https://github.com/MicheleYin/misaki-rs?rev=7bbe06cacd9102d8a0d9e338a3711ae7208de0ad#0.3.0": "1ca5d875jd4cgpq6in482d8bix60r2n2ss33jc1f78ra2n90b359",
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_ast@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_parser@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_trivia@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",

@@ -9729,14 +9729,9 @@ rec {
       };
       "misaki-rs" = rec {
         crateName = "misaki-rs";
-        version = "0.3.0";
+        version = "0.6.0";
         edition = "2024";
-        workspace_member = null;
-        src = pkgs.fetchgit {
-          url = "https://github.com/MicheleYin/misaki-rs";
-          rev = "7bbe06cacd9102d8a0d9e338a3711ae7208de0ad";
-          sha256 = "1ca5d875jd4cgpq6in482d8bix60r2n2ss33jc1f78ra2n90b359";
-        };
+        sha256 = "017z06y6vglz9f7lqidgn6mvyvjfmap4rj20dkf60na2f38djs78";
         libName = "misaki_rs";
         dependencies = [
           {
