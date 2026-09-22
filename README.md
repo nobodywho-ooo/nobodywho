@@ -282,7 +282,7 @@ flowchart TD
     CORE --> LCPP["llama.cpp<br/>text · vision · embeddings · reranking"]:::engine
     CORE --> ORT["ONNX Runtime<br/>speech-to-text · text-to-speech · VAD"]:::engine
 
-    LCPP --> HW1["Vulkan · Metal · CPU"]:::hw
+    LCPP --> HW1["Vulkan · Metal · GPU"]:::hw
     ORT --> HW2["CUDA · CPU"]:::hw
 
     classDef lang fill:#e8eefc,stroke:#5b7bd5,color:#11204a
