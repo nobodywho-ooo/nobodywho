@@ -74,7 +74,6 @@ flowchart TD
 ```
 
 * GPU-accelerated inference via Vulkan or Metal — runs fast on any OS
-* Conversation-aware preemptive context shifting — retain full conversation memory without any message length limits
 * Compatible with thousands of pre-trained LLMs — use any LLM in the GGUF format
 * Powered by the wonderful [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
