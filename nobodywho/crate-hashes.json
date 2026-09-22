@@ -1,4 +1,1 @@
-{
-  "git+https://github.com/utilityai/llama-cpp-rs?tag=0.1.156#llama-cpp-2@0.1.156": "06x37szb6pq8asnrrzm4kd7wqv3ps4fn3basr1758z7hps368h8y",
-  "git+https://github.com/utilityai/llama-cpp-rs?tag=0.1.156#llama-cpp-sys-2@0.1.156": "06x37szb6pq8asnrrzm4kd7wqv3ps4fn3basr1758z7hps368h8y"
-}
+{}
