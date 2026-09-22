@@ -122,7 +122,7 @@ Inference uses the GPU where available and CPU where not. The real constraint is
 - **Android** — Snapdragon 855 / Adreno 640 / 6 GB RAM or better.
 - **Rule of thumb** — the device needs roughly twice the model file size in *available* RAM. iOS
   reserves around 2 GB, Android 2 to 4 GB depending on vendor. Models under 1 GB run smoothly on
-  any mobile.
+  any phone.
 
 ## Models
 
