@@ -145,8 +145,8 @@ pip install nobodywho
 from nobodywho import Chat
 
 chat = Chat('hf:NobodyWho/Qwen_Qwen3-0.6B-GGUF:Q4_K_M')
-response = chat.ask('Is water wet?')
-print(response.completed()) // The capital of Denmark is Copenhagen.
+response = chat.ask('What is the capital of Denmark?')
+print(response.completed()) # The capital of Denmark is Copenhagen.
 ```
 
 [Python documentation](https://docs.nobodywho.ooo/python/) · [PyPI](https://pypi.org/project/nobodywho/)
