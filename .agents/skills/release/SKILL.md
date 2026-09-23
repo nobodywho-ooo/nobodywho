@@ -1,192 +1,184 @@
 ---
 name: release
-description: Prepare a release of one or more nobodywho language bindings — draft per-binding changelogs from git history, propose semver bumps with rationale for approval, bump all version files and lockfiles, snapshot Docusaurus docs, and stage everything for the user to tag and push. Use when the user asks to release, publish, cut a release, or bump versions for any binding (Python, Godot, Flutter, Kotlin, Swift, React Native).
-compatibility: Designed for Claude Code. Requires cargo, nix, uv, and a Node.js toolchain on PATH; Flutter/Dart toolchain needed for pubspec.lock sync. On a pure Nix setup these are all provided by the flake's devShell (`nix develop`), so enter the devShell before running the Step 6 commands rather than invoking the tools ad hoc.
+description: Release the nobodywho language bindings — audit the pending `.changeset/` files against the merged PRs, get the computed versions and changelog approved, run `just prepare-release` on a release branch, regenerate Nix and lock files, snapshot Docusaurus docs, then give the user the exact commands to commit, open the release PR and push the tags. Use when the user asks to release, publish, cut a release, or bump versions for any binding (Python, Godot, Flutter, Kotlin, Swift, React Native).
+compatibility: Designed for Claude Code. Requires python3, git, gh, cargo, nix and a Node.js toolchain on PATH; the Flutter toolchain is needed for the pubspec.lock sync. On a pure Nix setup these are all provided by the flake's devShell (`nix develop`), so enter the devShell before running the Step 4 commands rather than invoking the tools ad hoc.
 ---
 
-Prepare a release of one or more nobodywho bindings for the user to review, commit, and tag. Each binding is versioned **independently** and tagged separately (`nobodywho-<binding>-vX.Y.Z`). Publishing itself is done by GitHub Actions (`.github/workflows/release.yml`) triggered by pushing those tags — this skill only stages the changes; it never commits, tags, or pushes without explicit user approval (see `AGENTS.md` Git Policy).
+Release the nobodywho bindings. Each binding is versioned **independently** and tagged separately (`nobodywho-<binding>-vX.Y.Z`). Publishing is done by GitHub Actions (`.github/workflows/release.yml`), triggered by pushing those tags.
 
-The six bindings are: **python, godot, flutter, kotlin, react-native, swift**. The `uniffi` and `core` Rust crates are not independently released but their `Cargo.toml` versions still feed into `Cargo.lock` / `Cargo.nix`.
+**Don't change repository state or anything on GitHub unless the user explicitly asks you to.** That covers creating branches, committing, pushing, opening or merging PRs, creating or pushing tags, and editing GitHub Releases. You run the checks and scripts and edit files in the working copy. At each point where the repository or GitHub has to change (Steps 0, 7 and 8), tell the user exactly what to run, then wait for them to say it's done. Run it yourself only if they ask you to, and only for that step.
+
+**Fail loudly.** Every check in this skill is a stop condition. When one fails, stop and tell the user exactly what failed. Don't work around it, don't repair it quietly, and don't carry on.
+
+The six bindings are **python, godot, flutter, kotlin, react-native, swift**. The `uniffi` and `core` Rust crates are not released on their own, but their `Cargo.toml` versions still feed into `Cargo.lock` / `Cargo.nix`.
+
+## How a release flows
+
+Pending user-facing changes live as one file each in `.changeset/` (format in [CONTRIBUTING.md](../../../CONTRIBUTING.md#changelog-entries)). Each file names the bindings it affects, a bump per binding, and a Keep a Changelog section. **The change files are the single source of truth for both the next versions and the changelog text.** PR checks keep them valid, so they should already be in order at release time. Don't add, edit or delete a change file unless the user asks you to, and never hand-edit what the script writes from them. If something looks wrong, report it; whether and how to fix it is up to the user (Step 1).
+
+`.github/scripts/changesets.py` does the mechanical work:
+
+- `just next-versions` previews the `CHANGELOG.md` entry, including the version each binding would get. It reads only.
+- `just prepare-release` publishes nothing. It only edits files in the working copy, preparing the release commit. Every binding named in any change file gets a new version, bumped by the highest level any file gives it. Bindings that no change file names are left alone. It:
+  - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, both `package-lock.json` fields, the binding entries in `Cargo.lock` and `uv.lock`, and the Kotlin/Swift install snippets in the docs and README;
+  - adds the release's entry to the top of the root `CHANGELOG.md`, covering all released bindings;
+  - if Flutter is released, also adds a Flutter-only `## X.Y.Z` section to `nobodywho/flutter/nobodywho/CHANGELOG.md`. That is a separate file: it ships inside the Flutter package, and pub.dev shows it;
+  - writes per-binding GitHub release notes to the gitignored `nobodywho/changelogs/<binding>-<version>.md`;
+  - deletes the consumed change files.
+- `just release-tags` lists the `nobodywho-<binding>-vX.Y.Z` tags for the newest `CHANGELOG.md` heading that don't exist yet. `just push-release-tags` creates and pushes them in Step 8.
+
+Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `npmDepsHash`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR, tags and release notes are the user's.
+
+Releases are cut on a **release branch**, named `release-all-bindings-YYYY-MM-DD` by convention, off `origin/main`.
+
+- **The branch fixes the contents.** Creating it decides what the release contains. The branch then gets the release commit and nothing else: no fixes and no merges from `main`.
+- **Tags go on the branch head.** The packages are published from there, and a person squash-merges the PR into `main` on GitHub afterwards.
+- **It shouldn't conflict with `main`.** The release commit only touches version files, lock and generated files, the changelogs, the consumed change files and the docs snapshot. PRs merged into `main` meanwhile add new change files and never edit `CHANGELOG.md`.
 
 Run the steps in order. Do not skip the approval gates.
 
 ---
 
-## Step 0 — Pre-flight: clean tree, green CI
+## Step 0 — Pre-flight
 
-Before drafting anything, confirm the release is being cut from a healthy state:
+The release must start from a healthy `main`:
 
 ```bash
-git status --short        # must be empty — no uncommitted changes
-git branch --show-current # should be main
+git fetch origin
+git status --short        # must be empty
+git log -1 --format='%h %s' origin/main
 ```
 
-Then check that CI on `main` is fully green. Open the latest `Build and test` run on the `main` branch in GitHub (the `build-and-test.yml` workflow) and confirm every job passed — including `build.yml` (all platforms), `regen-checks`, `python-ci`, `kotlin-ci`, `swift-ci`, and `linting`. **Do not cut a release from a red `main`** — the release workflow reuses these same build jobs and will publish broken artifacts. If any job is failing or pending, stop and tell the user.
+Check that the latest `Build and test` run on `main` (`build-and-test.yml`, which runs the full matrix on `main`) is fully green: `build.yml` on all platforms, `regen-checks`, `python-ci`, `kotlin-ci`, `swift-ci` and `linting`. **Do not cut a release from a red `main`.** The tag runs rerun the same jobs, and the release job only runs if they all pass, so a red `main` publishes nothing. Instead, each tag run fails, often hours in, and leaves behind a pushed tag that published nothing. If any job is failing or pending, stop and tell the user.
+
+Then check that the change files are valid and that nothing was written to `CHANGELOG.md` the old way:
+
+```bash
+just check-changesets                       # must pass
+grep -n '^## \[Unreleased\]' CHANGELOG.md   # must print nothing
+ls .changeset/*.md                          # must list at least one file
+git ls-remote --heads origin 'release-*'    # check today's branch name isn't taken
+```
+
+Stop if any of these fails:
+
+- **An invalid change file** means a PR merged one that CI should have rejected.
+- **An `Unreleased` section** means someone edited `CHANGELOG.md` directly. `prepare-release` would put the release above those entries and leave them unreleased. They have to become change files in a PR to `main` first.
+- **No change files** means there is nothing to release.
+
+Then ask the user to create the release branch off `origin/main` (fill in today's date), and wait until they have:
+
+```bash
+git switch -c release-all-bindings-YYYY-MM-DD origin/main
+# or with jj:
+jj new main@origin
+```
+
+With jj the branch is a bookmark, so it is only created at commit time in Step 7. Do all remaining work in this working copy.
 
 ---
 
-## Step 1 — Find the last release tag for each binding
+## Step 1 — Audit the pending change files
+
+Show what would be released:
 
 ```bash
-for b in python godot flutter kotlin react-native swift; do
-  echo "$b: $(git tag --list "nobodywho-${b}-v*" --sort=-creatordate | head -1)"
-done
+just next-versions
 ```
 
-Record the latest tag per binding. Only prepare a release for bindings the user asked about. For each such binding, the diff base is its last tag:
+Change files are written by many contributors and reviewed one PR at a time. This step is the only time anyone reads them all together, so check them carefully before showing the user anything.
+
+**Coverage: every user-facing change has a file.** List what was merged since the last release, and which PR added each change file:
 
 ```bash
-git log --oneline <last-tag>..HEAD -- <binding path(s)>
+last=$(git tag --list 'nobodywho-*' --sort=-creatordate | head -1)
+git log --format='%h %s' "$last..origin/main"
+for f in .changeset/*.md; do echo "$f  <-  $(git log --diff-filter=A --format=%s -1 -- "$f")"; done
 ```
 
-Binding source paths (for filtering the log):
-- python → `nobodywho/python/`, `nobodywho/core/`, `nobodywho/uniffi/`
-- godot → `nobodywho/godot/`, `nobodywho/core/`
-- flutter → `nobodywho/flutter/`, `nobodywho/core/`
-- kotlin → `nobodywho/kotlin/`, `nobodywho/uniffi/`, `nobodywho/core/`
-- react-native → `nobodywho/react-native/`, `nobodywho/uniffi/`, `nobodywho/core/`
-- swift → `nobodywho/swift/`, `nobodywho/uniffi/`, `nobodywho/core/`
+Tags usually sit on the previous release branch rather than on `main`. `$last..origin/main` then lists everything merged into `main` since that branch was cut, which is exactly what this release ships. For each PR without its own change file:
 
-Also scan the full `<last-tag>..HEAD` log (not path-filtered) for PRs whose title names a feature affecting that binding — core changes (e.g. a new sampler option, a new model family) often touch only `core/` but still land in every binding's changelog. Cross-reference each merged PR number against the diff to decide which bindings it affects.
+- Some are internal: CI, refactors, docs, tests. Leave those out.
+- Others may be covered by a change file added in another PR.
+- The rest are user-facing changes merged with the `no-changelog` label, or a file was lost. Report them.
+
+**Bumps: each binding's level is right.**
+
+- `major` only for changes that can break existing code: removed or renamed API, changed signature or behaviour, newly rejected input. Also look for the reverse: a breaking change marked `minor` or `patch` is the costly mistake. Read the PR diff when the wording leaves it unclear.
+- The binding list matches what users of each binding see. A change in `core/` usually reaches all six. A binding-specific API usually reaches one.
+- If one binding needs different wording, that is two change files, not one.
+
+**Wording: the entry reads well as a whole.**
+
+- Merge duplicates, for example two PRs that fixed the same bug.
+- The text must not name bindings or say "Breaking". The script adds both from the frontmatter.
+- Check that the entries are in sensible sections.
+
+Report every finding to the user, with the change file or PR it concerns and why it looks wrong, and stop there. Don't edit, add or delete change files to fix them unless the user asks you to. The user decides whether something needs fixing and how. Once they say it's settled, re-run `just next-versions` and continue.
 
 ---
 
-## Step 2 — Draft per-binding changelogs
+## Step 2 — Get the versions and the changelog approved
 
-Write one changelog markdown file per binding being released. Use the existing tracked Flutter changelog as the **style template**:
+Present the version table built from the `just next-versions` output and the change files:
 
-```
-nobodywho/flutter/nobodywho/CHANGELOG.md
-```
-
-Each new version section is a `## X.Y.Z` header followed by `### <Feature> (#PR)` subsections, with a short prose line. Match that heading style and tone exactly. Group fixes under a `### Fixes` subsection.
-
-Curate the file [`CHANGELOG.md`](../../../CHANGELOG.md): move relevant entries from `Unreleased` into a dated heading that lists every package's semantic version in the release. This is written by the release maintainer, not generated from commit messages. Don't add PR links.
-
-Use these sections when applicable (don't create new ones):
-
-- `Added` — new functionality.
-- `Changed` — changed behaviour.
-- `Deprecated` — functionality that will be removed in a future release.
-- `Removed` — removed functionality.
-- `Fixed` — bug fixes.
-- `Security` — vulnerability fixes.
-
-**The per-binding changelog files are NOT tracked in version control.** Write them into the gitignored directory `nobodywho/changelogs/` (already in `.gitignore`), one file per binding, **with the version number in the filename** so they can't be confused with each other or with a previous release's drafts:
-
-```
-nobodywho/changelogs/python-1.6.0.md
-nobodywho/changelogs/godot-9.5.0.md
-nobodywho/changelogs/flutter-2.4.0.md
-nobodywho/changelogs/kotlin-2.1.0.md
-nobodywho/changelogs/react-native-2.4.0.md
-nobodywho/changelogs/swift-2.2.0.md
-```
-
-These drafts exist only so the user can copy-paste them into the GitHub Release notes after CI completes. They are intentionally not committed.
-
-Do **not** `git add` anything under `nobodywho/changelogs/`. Verify with `git status` that the directory stays untracked (it should not even appear, since it's gitignored).
-
-> Exception: Flutter's `nobodywho/flutter/nobodywho/CHANGELOG.md` **is** tracked and **is** committed — pub.dev requires a changelog inside the published package. That file is handled in Step 5, not here.
-
----
-
-## Step 3 — Propose semver bumps and get approval
-
-For each binding, read the changelog drafted in Step 2 and propose a version bump. Present a table:
-
-| Binding | Current | Proposed | Bump | Reason |
+| Binding | Current | Next | Bump | Driven by |
 | --- | --- | --- | --- | --- |
 
-Apply standard semver **to the binding's public API** (not the Rust core):
+For "Driven by", name the change file or files that set the binding's highest bump. Then show the preview entry itself.
 
-- **Major** — any breaking change to the binding's public surface: removed/renamed methods, changed signatures, thrown errors where none were before, changed behavior. (Example: Swift `Chat` constructor becoming `throws` → `nobodywho-swift-v2.0.0`; Kotlin restructuring → `nobodywho-kotlin-v2.0.0`.)
-- **Minor** — new features added backward-compatibly (new methods, new optional parameters, new model-family support, new exported functions).
-- **Patch** — bug fixes and internal improvements with no API change.
+- A binding that no change file names is **not** released. Say so explicitly for each such binding.
+- A different version means different bumps in the change files, never edited version files. That change is the user's to make; once they have, re-run the preview and show the table again.
+- `prepare-release` has no option to release only some of the pending bindings. If the user wants to hold a binding back, stop and work out with them how to handle its change files before going on.
+- Godot's major version is offset from the others (currently `11.x`). Keep its own cadence; do not align it.
 
-Notes from past releases:
-- Godot's version is offset (currently `9.x`) — keep its own major/minor cadence; do not try to align it with the others.
-- The `uniffi` crate version (`nobodywho/uniffi/Cargo.toml`) is **decoupled** from the kotlin/swift/react-native tag versions. Bump it only when the UniFFI surface itself changes meaningfully; it is otherwise optional. If bumped, `Cargo.lock` and `Cargo.nix` must be regenerated (Step 6).
-- `nobodywho/core/Cargo.toml` was bumped in past all-bindings releases even though core is not published standalone. The user has said the core crate version bump is "not necessary" — **ask before bumping core**; if the user declines, skip it (but still regenerate `Cargo.lock`/`Cargo.nix` if any *other* `Cargo.toml` changed).
+Also ask about the two crates that change files don't cover:
 
-**Stop and get the user's approval on the proposed versions and reasons before proceeding.** Do not edit any version files until approved.
+- `nobodywho/uniffi/Cargo.toml` is versioned separately from the kotlin/swift/react-native tags. Past releases bumped its minor along with them (0.4.0 → 0.5.0). Propose a bump if the UniFFI surface changed.
+- `nobodywho/core/Cargo.toml` (package name `nobodywho`). The user has said a core bump is "not necessary", so **ask before bumping core**.
 
----
-
-## Step 4 — Get changelog approval, then sync Flutter's tracked changelog
-
-Show the drafted changelogs to the user and get approval of the wording.
-
-Once approved, update the tracked root file `CHANGELOG.md` with the curated dated version heading. Keep a fresh empty `Unreleased` section at the top; any post-release entries stay there.
-
-For Flutter **only**, also prepend the approved `## X.Y.Z` section to the top of the tracked file:
-
-```
-nobodywho/flutter/nobodywho/CHANGELOG.md
-```
-
-This file ships inside the pub.dev package and must be committed. The scratch changelogs for the other bindings (and for Flutter's GitHub release notes — same text) remain untracked.
+**Stop and get the user's approval of the versions, the uniffi/core decision and the changelog wording before going on.**
 
 ---
 
-## Step 5 — Bump version files per binding
-
-Edit each released binding's version file(s) to the approved version. The exact files per binding:
-
-**Python** (two files + lockfile in Step 6):
-- `nobodywho/python/Cargo.toml` → `version = "..."`
-- `nobodywho/python/pyproject.toml` → `version = "..."`
-
-**Godot:**
-- `nobodywho/godot/Cargo.toml` → `version = "..."`
-
-**Flutter** (two files; pubspec.lock handled in Step 6):
-- `nobodywho/flutter/rust/Cargo.toml` → `version = "..."`
-- `nobodywho/flutter/nobodywho/pubspec.yaml` → `version: ...`
-
-> These two versions **must be identical** — they have been in every past release (2.1.0/2.1.0, 2.2.0/2.2.0, 2.3.0/2.3.0). They track the same published Flutter package. Do not bump them independently.
-
-**Kotlin:**
-- `nobodywho/kotlin/build.gradle.kts` → root `version = "..."` (under `allprojects {}`). The subproject `build.gradle.kts` files read `project.version` from this — do not edit them.
-
-**React Native** (two files, including the lockfile):
-- `nobodywho/react-native/package.json` → `"version": "..."`
-- `nobodywho/react-native/package-lock.json` → **two** `"version"` fields: the top-level one and `packages[""].version`. (The v2.2.0 release forgot the lockfile and v2.3.0 had to catch it up — always bump both.)
-
-**Swift:**
-- No version file in the repo. The Swift version comes entirely from the git tag (`nobodywho-swift-vX.Y.Z`); `release.yml` strips the tag prefix and passes `-Pversion`/`VERSION` to the build. There is nothing to edit for Swift beyond tagging.
-
-**uniffi** (if approved in Step 3):
-- `nobodywho/uniffi/Cargo.toml` → `version = "..."`
-
-**core** (only if the user approved it in Step 3):
-- `nobodywho/core/Cargo.toml` → `version = "..."`
-
----
-
-## Step 6 — Bump lockfiles and generated files
-
-Every lockfile / generated file that pins a version must be brought in sync. Missing one is the most common release bug. Run the sub-steps **in order**: 6a (`Cargo.lock`) must complete before 6b (`crate2nix`), because `crate2nix` reads `Cargo.lock` — running them out of order produces a `Cargo.nix` that still references the old versions.
-
-### 6a. `nobodywho/Cargo.lock`
-
-If **any** `Cargo.toml` version changed (python, godot, flutter, uniffi, and/or core), update the lock:
+## Step 3 — Run the release
 
 ```bash
-cd nobodywho
-cargo update -p <crate-name> --precise <new-version>
-# repeat per changed crate, e.g.:
-cargo update -p nobodywho-python --precise 1.6.0
-cargo update -p nobodywho-flutter --precise 2.4.0
+just prepare-release
 ```
 
-Note: the `core` crate's package name is `nobodywho` (not `nobodywho-core` — the directory is `core/` but `Cargo.toml` names the package `nobodywho`), so update it with `cargo update -p nobodywho --precise <v>`.
+If it stops with `<binding> version files disagree`, stop and tell the user. One of the binding's version locations drifted on `main` since the last release; `git show "nobodywho-<binding>-v<current>:<path>"` shows the released value. The fix belongs in its own PR to `main`, and the release starts again from Step 0 after it lands.
 
-Verify with `git diff nobodywho/Cargo.lock` — only the bumped crate's `version` lines should change.
+Check the result, and stop if anything differs from this list:
 
-### 6b. `nobodywho/Cargo.nix` and `nobodywho/crate-hashes.json`
+```bash
+git status --short
+```
 
-Required whenever `Cargo.toml` or `Cargo.lock` changed (the Nix CI build breaks with "unresolved crate" if this is skipped). Run from `nobodywho/`:
+- **Expected changes:**
+  - every released binding's version files;
+  - `nobodywho/Cargo.lock` (python, godot and flutter only) and `nobodywho/python/uv.lock` (python only);
+  - `CHANGELOG.md` with one new dated entry at the top;
+  - `nobodywho/flutter/nobodywho/CHANGELOG.md` if Flutter is released;
+  - every `.changeset/*.md` deleted.
+- **Release notes:** `nobodywho/changelogs/` must not appear at all. It is gitignored and holds the GitHub release notes, which are never committed.
+
+If uniffi or core was approved in Step 2, bump them now and update the lock (run from `nobodywho/`):
+
+```bash
+# after editing version = "..." in uniffi/Cargo.toml and/or core/Cargo.toml
+cargo update -p nobodywho-uniffi --precise <new-version>
+cargo update -p nobodywho --precise <new-version>        # core's package name is `nobodywho`
+git diff Cargo.lock    # only those crates' version lines should change
+```
+
+---
+
+## Step 4 — Regenerate generated files
+
+### 4a. `nobodywho/Cargo.nix` and `nobodywho/crate-hashes.json`
+
+Required whenever any `Cargo.toml` or `Cargo.lock` changed. Without it the Nix CI build fails with "unresolved crate". `crate2nix` reads `Cargo.lock`, so all of Step 3 must be done first. From `nobodywho/`:
 
 ```bash
 nix run github:nix-community/crate2nix -- generate -h crate-hashes.json
@@ -197,183 +189,164 @@ If `nix` is not on PATH:
 /nix/var/nix/profiles/default/bin/nix --extra-experimental-features 'nix-command flakes' run github:nix-community/crate2nix -- generate -h crate-hashes.json
 ```
 
-Both `Cargo.nix` and `crate-hashes.json` must be committed together.
+Commit both files together. The `Cargo.nix` diff can be larger than the version bumps, for example when a prior PR changed `Cargo.lock` without regenerating `Cargo.nix`. That is legitimate; `git log --oneline -- nobodywho/Cargo.lock` shows where it came from.
 
-The `Cargo.nix` diff may include more than the nobodywho version bumps — e.g. git dependency URL/rev changes from prior PRs whose `Cargo.nix` wasn't regenerated, or transitive crate version resolution picks. These are legitimate. If the diff looks unexpectedly large, `git log --oneline -- nobodywho/Cargo.lock` can confirm whether a prior commit changed a git dependency without regenerating `Cargo.nix`.
+### 4b. `flake.nix` `npmDepsHash`
 
-### 6c. `nobodywho/python/uv.lock`
+Whenever React Native is released, the version change in `package-lock.json` invalidates the `npmDepsHash` of the `react-native-jest` check in `flake.nix`. It changed in every past React Native release. It only surfaces in `nix flake check` (4d), as `npmDepsHash is out of date`. To fix it:
 
-The lockfile has an editable `[[package]] name = "nobodywho" version = "..."` entry that must match `pyproject.toml`. Update from `nobodywho/python/`:
+1. In `flake.nix`, replace the `npmDepsHash` value with the literal `sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`. Do **not** use `lib.fakeHash`, because `lib` is not bound in this flake's `outputs` args.
+2. Build to get a hash mismatch: `nix build .#checks.x86_64-linux.react-native-jest`
+3. Copy the `got: sha256-...` value into `npmDepsHash`.
+4. Build again to confirm it succeeds.
 
-```bash
-cd nobodywho/python
-uv lock
-```
+### 4c. `nobodywho/flutter/nobodywho/pubspec.lock`
 
-Verify: `rg -n -A2 'name = "nobodywho"' uv.lock` shows the new version.
-
-### 6d. `nobodywho/flutter/nobodywho/pubspec.lock`
-
-`pubspec.lock` does **not** record the package's own version (only its dependencies), so a pure version bump does not change it. Run from `nobodywho/flutter/nobodywho/` to make sure the lockfile is in sync with any dependency changes that landed on `main` since the last release:
+`pubspec.lock` does not record the package's own version. Still, sync it with any dependency changes that landed since the last release. From `nobodywho/flutter/nobodywho/`:
 
 ```bash
-cd nobodywho/flutter/nobodywho
 flutter pub get
 ```
 
-Use `flutter pub get` rather than `dart pub get` — this package depends on the Flutter SDK, so `dart pub get` fails with "Because nobodywho requires the Flutter SDK, version solving failed."
+Use `flutter pub get`, not `dart pub get`, which fails with "Because nobodywho requires the Flutter SDK". An empty diff is normal.
 
-If the diff is empty, that's expected — nothing to commit for pubspec.lock this release. If deps changed, the lockfile diff will appear; commit it.
+### 4d. Verify the Nix workspace
 
-### 6e. `nobodywho/react-native/package-lock.json`
-
-Already handled in Step 5 (edit the two `"version"` fields to match `package.json`). To regenerate rather than hand-edit, from `nobodywho/react-native/`:
-
-```bash
-npm install --package-lock-only
-```
-
-Either way, confirm `git diff` shows both the top-level `version` and `packages[""].version` updated to the new value.
-
-### 6f. Kotlin / Swift lockfiles
-
-There is no Gradle or SwiftPM lockfile tracked for the Kotlin / Swift bindings — nothing to bump.
-
-### 6g. `flake.nix` `npmDepsHash`
-
-Whenever `react-native/package-lock.json` changed (Step 5/6e), the `npmDepsHash` pinned in `flake.nix` (the `react-native-jest` check derivation) is invalidated. This only surfaces during `nix flake check` (Step 6h), where it fails with `npmDepsHash is out of date`. Fix it before running the check:
-
-1. In `flake.nix`, replace the `npmDepsHash` value with the literal sentinel `sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=` (do **not** use `lib.fakeHash` — `lib` is not bound in this flake's `outputs` args).
-2. Build the derivation to trigger a hash mismatch:
-   ```bash
-   nix build .#checks.x86_64-linux.react-native-jest
-   ```
-3. Copy the `got: sha256-...` value from the mismatch error back into `npmDepsHash`.
-4. Rebuild to confirm it succeeds.
-
-This must be done before Step 6h.
-
-### 6h. Verify the Nix workspace
-
-After 6a–6g, the generated `Cargo.nix` / `crate-hashes.json` and the `npmDepsHash` must actually evaluate. **Have the user run this in a separate terminal** — `nix flake check -L` takes a long time and its verbose output will bloat the LLM context if run in this session:
+**Have the user run this in a separate terminal.** It takes a long time and its output would flood this session:
 
 ```bash
 nix flake check -L
 ```
 
-On macOS this only evaluates `aarch64-darwin` derivations locally (Linux-only checks are invisible until CI — see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes before moving on. If it fails, the usual causes are a stale `Cargo.nix` (re-run 6b) or a stale `npmDepsHash` (re-run 6g).
+On macOS this only evaluates `aarch64-darwin` derivations; Linux-only checks surface in CI (see the build-integrations skill's "Local Nix blind spot" note). Wait for the user to confirm it passes. The usual failures are a stale `Cargo.nix` (re-run 4a) or a stale `npmDepsHash` (re-run 4b).
 
 ---
 
-## Step 7 — Snapshot Docusaurus docs
+## Step 5 — Snapshot the Docusaurus docs
 
-For each binding being released, freeze the current `main`-branch docs as the new release version. From `docs/`:
+For each released binding, freeze the current docs as the new version. From `docs/`:
 
 ```bash
 cd docs
 npx docusaurus docs:version:<binding> <new-version>
-# e.g. npx docusaurus docs:version:python 1.6.0
+# e.g. npx docusaurus docs:version:python 4.0.0
 ```
 
-This creates `docs/<binding>_versioned_docs/version-<v>/`, `docs/<binding>_versioned_sidebars/version-<v>-sidebars.json`, and prepends the version to `docs/<binding>_versions.json`. Repeat for every released binding. (See `docs/README.md` → "Cutting docs for a new release".)
+This creates `docs/<binding>_versioned_docs/version-<v>/` and `docs/<binding>_versioned_sidebars/version-<v>-sidebars.json`, and prepends the version to `docs/<binding>_versions.json` (see `docs/README.md` → "Cutting docs for a new release").
 
-Then update the `latestReleases` map at the top of `docs/docusaurus.config.ts` so the new version becomes the default (no banner) and the previous one gets the "unmaintained" banner automatically:
+Then set each released binding's entry in the `latestReleases` map at the top of `docs/docusaurus.config.ts` to its new version. That makes it the default and gives the previous version the "unmaintained" banner.
 
-```ts
-const latestReleases: Record<string, string> = {
-  python: '1.6.0',   // was '1.5.0'
-  // ...update each released binding
-};
-```
-
-Commit the versioned folders, the `*_versions.json` files, and the config change. These are tracked. The new files under `docs/<binding>_versioned_docs/version-<v>/` and `docs/<binding>_versioned_sidebars/version-<v>-sidebars.json` are **untracked**, so `git add -u` will not pick them up — `git add` them explicitly (e.g. `git add 'docs/*_versioned_docs/' 'docs/*_versioned_sidebars/'`) before committing.
-
-> Not every past release snapshotted docs, but the most recent all-bindings release (`#569`) did. Snapshotting is the correct step and should be done for every released binding that has docs.
+The new versioned files are untracked with git, so the Step 7 commands use `git add -A` rather than `git add -u`.
 
 ---
 
-## Step 8 — Verify
+## Step 6 — Verify
 
-Run from `nobodywho/`:
+```bash
+just check-changesets      # passes with no change files left
+just next-versions         # "No change files in .changeset/, nothing to release."
+python3 -B -c 'import sys; sys.path.insert(0, ".github/scripts"); import changesets as c; [print(p, c.current_version(p)) for p in c.BINDINGS]'
+just release-tags          # exactly one new tag per released binding
+```
+
+The `python3` line reads every version location and fails if any of a binding's locations disagree. Check that it prints the approved versions. Also check that `uniffi/Cargo.toml` and `core/Cargo.toml` match what was approved in Step 2.
+
+From `nobodywho/`:
 
 ```bash
 cargo fmt --all --check
-cargo check   # confirms Cargo.lock versions resolve (cheaper than cargo build; no cross-compile targets needed)
+cargo check   # confirms Cargo.lock resolves; cheaper than cargo build
 ```
-
-Spot-check that no version file was missed — confirm each released binding's files show the approved version:
-
-```bash
-# Rust crates (only the ones you bumped):
-rg -n '^version' nobodywho/python/Cargo.toml nobodywho/godot/Cargo.toml \
-        nobodywho/flutter/rust/Cargo.toml nobodywho/uniffi/Cargo.toml nobodywho/core/Cargo.toml
-
-# Python: pyproject + uv.lock agree
-rg -n '^version' nobodywho/python/pyproject.toml
-rg -n -A2 'name = "nobodywho"' nobodywho/python/uv.lock
-
-# Flutter: pubspec.yaml matches flutter/rust/Cargo.toml
-rg -n '^version:' nobodywho/flutter/nobodywho/pubspec.yaml
-
-# Kotlin
-rg -n 'version = ' nobodywho/kotlin/build.gradle.kts
-
-# React Native: package.json + both package-lock.json fields
-rg -n '"version"' nobodywho/react-native/package.json
-rg -n '"version"' nobodywho/react-native/package-lock.json | head -3
-```
-
-Confirm the scratch changelogs are still untracked:
-
-```bash
-git status --short   # nobodywho/CHANGELOGS.md (or your scratch path) must show as ??, never staged
-```
-
-If a Flutter release was done, confirm `nobodywho/flutter/nobodywho/CHANGELOG.md` is modified (tracked) and contains the new `## X.Y.Z` section at the top.
 
 ---
 
-## Step 9 — Report and hand off for tagging
+## Step 7 — Have the user commit and open the release PR
 
 Summarize for the user:
-- The approved version per binding and its semver rationale.
-- The list of files changed (version files, lockfiles, `Cargo.nix`/`crate-hashes.json`, Flutter `CHANGELOG.md`, docs snapshots, `docusaurus.config.ts`).
-- The scratch changelog file paths (untracked) and a reminder to copy-paste each into the corresponding GitHub Release notes after CI completes.
-- The exact tag commands the user should run once they've committed and pushed:
+
+- the version per binding and what drove each bump;
+- the files changed: version files, lockfiles, `Cargo.nix`/`crate-hashes.json`, `flake.nix`, both changelogs, the deleted change files, the docs snapshots and `docusaurus.config.ts`;
+- the release-note drafts in `nobodywho/changelogs/` (untracked).
+
+Then give them the commands to run, filled in with the branch name and with the bracketed list from the new `CHANGELOG.md` heading as the title:
 
 ```bash
-git tag nobodywho-python-v1.6.0
-git tag nobodywho-godot-v9.5.0
-git tag nobodywho-flutter-v2.4.0
-git tag nobodywho-kotlin-v2.1.0
-git tag nobodywho-react-native-v2.4.0
-git tag nobodywho-swift-v2.2.0
-# then: git push origin main --tags
+git add -A
+git commit -m "Release: Python v4.0.0, Flutter v5.0.0, …"
+git push -u origin release-all-bindings-YYYY-MM-DD
+# or with jj:
+jj commit -m "Release: Python v4.0.0, Flutter v5.0.0, …"
+jj bookmark create release-all-bindings-YYYY-MM-DD -r @-
+jj git push --bookmark release-all-bindings-YYYY-MM-DD   # older jj may also need --allow-new
+
+gh pr create --base main --head release-all-bindings-YYYY-MM-DD \
+  --title "Release: Python v4.0.0, Flutter v5.0.0, …" \
+  --body "Version bumps, changelogs and docs snapshots for this release." \
+  --label no-changelog --label edit-changelog --label full-ci
 ```
 
-Tag format **must** be `nobodywho-<binding>-vX.Y.Z` — `.github/workflows/build-and-test.yml` triggers `release.yml` on `tags: ['nobodywho-*']`, and each release job gates on `startsWith(github.ref, 'refs/tags/nobodywho-<binding>-...')`. A malformed tag silently publishes nothing.
+Explain the three labels:
 
-**Do not commit, tag, or push.** Per `AGENTS.md`, wait for the user to do it (or to explicitly instruct you to).
+- **`no-changelog`:** the changesets check fails any PR that adds no change file, unless the PR has this label. A release PR deletes change files and adds none.
+- **`edit-changelog`:** the same check fails any PR that edits `CHANGELOG.md` or Flutter's changelog, unless the PR has this label. A release PR writes both.
+- **`full-ci`:** PR CI only runs the jobs for the paths a PR touches. This label runs the full matrix on the release commit before any tag is pushed, so a failure is caught before anything is published.
+
+Once the user has opened the PR, watch its checks (`gh pr checks <number>` only reads). **Stop if any check fails.** The release branch takes no fixes, so tell the user what failed. The fix goes to `main` in its own PR, and the release starts again from Step 0 after it lands.
 
 ---
 
-## Checklist (quick reference)
+## Step 8 — Tag and publish
 
-- [ ] Working tree clean, on `main`, CI fully green (Step 0)
-- [ ] Per-binding changelog drafted in `nobodywho/changelogs/<binding>-<v>.md` (gitignored, untracked)
-- [ ] Semver proposal per binding with rationale → **user approval**
-- [ ] Changelog wording → **user approval**
-- [ ] Root `CHANGELOG.md` moved from `Unreleased` into a dated package-version heading
-- [ ] Flutter `CHANGELOG.md` (tracked) prepended with new section
-- [ ] Version files bumped per binding (Step 5 table); Flutter's two files identical
-- [ ] `Cargo.lock` updated (`cargo update -p ... --precise ...`) — before `crate2nix`
-- [ ] `Cargo.nix` + `crate-hashes.json` regenerated (`crate2nix`)
-- [ ] `nix flake check -L` passes (user runs in separate terminal)
-- [ ] `python/uv.lock` updated (`uv lock`)
-- [ ] `flutter/.../pubspec.lock` synced (`dart pub get`)
-- [ ] `react-native/package-lock.json` — **both** version fields bumped
-- [ ] `flake.nix` `npmDepsHash` updated (Step 6g)
-- [ ] Docusaurus docs snapshotted per released binding + `latestReleases` updated
-- [ ] `cargo fmt --check` + `cargo check` pass
-- [ ] `nobodywho/changelogs/` confirmed untracked
-- [ ] Tag commands handed to the user (no commit/tag/push by the assistant)
+Tags go on the **release branch head**, the commit from Step 7. A person squash-merges the PR afterwards, so the tagged commit never lands on `main` itself.
+
+Once the PR is green, have the user run this with the release commit checked out:
+
+```bash
+just push-release-tags
+```
+
+Their checkout is right in both cases: with git, the release branch is checked out after Step 7, and with jj, git's `HEAD` is the commit `jj commit` just made. The command:
+
+- creates each missing tag on `HEAD`;
+- pushes the tags one at a time, waiting for each tag's `Build and test` run to start before pushing the next;
+- stops with an error if a run ends without success, or if a tag already exists on another commit.
+
+Two GitHub behaviours force the one-at-a-time pushing:
+
+- GitHub creates no workflow runs at all when more than three tags are pushed at once.
+- Tag runs on the same commit share a concurrency group (`build-and-test.yml`, keyed on the SHA). A group holds one running and one pending run, so a third push cancels the pending one.
+
+The runs therefore execute one after another and the command takes hours. If it is interrupted, running it again skips the tags already pushed. Tell the user all of this when you hand it over.
+
+**If it reports a failed run, stop and tell the user.** No fixes go to the release branch, and no tag is moved or re-pushed, since a published version can't be replaced. Whether to rerun the job or to fix it on `main` and cut a patch release is the user's call.
+
+Each binding's release job creates its GitHub Release with the build artifacts but no notes. The notes come from the `nobodywho/changelogs/<binding>-<version>.md` files that `prepare-release` wrote. As each release appears, give the user both ways to add them:
+
+- **From the terminal**, one command per released binding, filled in:
+  ```bash
+  gh release edit nobodywho-python-v4.0.0 --notes-file nobodywho/changelogs/python-4.0.0.md
+  ```
+- **In the GitHub web UI:** open the release (`https://github.com/nobodywho-ooo/nobodywho/releases/tag/<tag>`), click edit, and paste the file's contents into the description.
+
+When every binding is published, tell the user the PR is ready to squash-merge on GitHub. The release branch never gets `main` merged into it.
+
+The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` and new change files don't overlap the deleted ones. If GitHub still reports a conflict, stop and ask the user. It can happen when `main` edited a consumed change file, or a lockfile or `Cargo.nix`, since the branch was cut.
+
+---
+
+## Checklist
+
+- [ ] `main` clean and fully green; `just check-changesets` passes; change files present; no `Unreleased` section in `CHANGELOG.md` (Step 0)
+- [ ] Release branch created off `origin/main` by the user
+- [ ] Change files audited: coverage, bumps, wording (Step 1)
+- [ ] Version table, uniffi/core decision and changelog preview → **user approval** (Step 2)
+- [ ] `just prepare-release` run; diff matches expectations; `nobodywho/changelogs/` untracked (Step 3)
+- [ ] uniffi/core bumped and `cargo update -p ... --precise` run, if approved
+- [ ] `Cargo.nix` + `crate-hashes.json` regenerated after `Cargo.lock` (4a)
+- [ ] `npmDepsHash` updated if React Native is released (4b)
+- [ ] `pubspec.lock` synced with `flutter pub get` (4c)
+- [ ] `nix flake check -L` passes; the user runs it (4d)
+- [ ] Docs snapshotted per released binding, `latestReleases` updated (Step 5)
+- [ ] Step 6 checks pass
+- [ ] User committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)
+- [ ] User ran `just push-release-tags` and added the GitHub release notes; told the PR is ready to squash-merge (Step 8)

@@ -35,8 +35,8 @@ regen-flutter clean="false":
 
 [arg("clean", long="require-clean", value="true")]
 ruff clean="false":
-    cd nobodywho/python && uv run ruff format && uv run ruff check
-    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/python/ || (echo "ruff format made changes — commit them before pushing" && exit 1)
+    cd nobodywho/python && uv run ruff format . ../../.github/scripts && uv run ruff check . ../../.github/scripts
+    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/python/ .github/scripts/ || (echo "ruff format made changes — commit them before pushing" && exit 1)
 
 flutter-analyze:
     cd nobodywho/flutter/nobodywho && flutter analyze lib/
@@ -101,3 +101,27 @@ regen-uniffi clean="false":
     cd nobodywho/react-native && { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci; }
     cd nobodywho && npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp $(pwd)/target/debug/libnobodywho_uniffi.{{LIB_EXT}}
     [ "{{clean}}" != true ] || git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/react-native/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
+
+# Add a user-facing change for the next release notes.
+change:
+    python3 .github/scripts/changesets.py new
+
+# Validate the pending change files in .changeset/ for correctness.
+check-changesets:
+    python3 .github/scripts/changesets.py check
+
+# Show the CHANGELOG.md entry and versions the pending change files would produce.
+next-versions:
+    python3 .github/scripts/changesets.py preview
+
+# Bump versions, write CHANGELOG.md and consume .changeset/
+prepare-release:
+    python3 .github/scripts/changesets.py release
+
+# List the tags the newest CHANGELOG.md release is missing; --create makes them on HEAD.
+release-tags *args:
+    python3 .github/scripts/changesets.py tag {{args}}
+
+# Tag HEAD with the newest release's tags and push them one at a time, waiting for each CI run to start.
+push-release-tags:
+    python3 .github/scripts/changesets.py push-tags

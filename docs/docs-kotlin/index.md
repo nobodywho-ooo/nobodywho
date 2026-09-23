@@ -10,10 +10,10 @@ First, add NobodyWho to your `build.gradle.kts`:
 
 ```kotlin
 // Android
-implementation("ai.nobodywho:nobodywho-android:2.2.0")
+implementation("ai.nobodywho:nobodywho-android:4.0.0")
 
 // Desktop JVM (Linux, macOS, Windows)
-implementation("ai.nobodywho:nobodywho:2.2.0")
+implementation("ai.nobodywho:nobodywho:4.0.0")
 ```
 
 Next, pick a model. NobodyWho can download GGUF models directly from Hugging Face — just pass an `hf://` path. See [model selection](/docs/model-selection) for recommendations.
