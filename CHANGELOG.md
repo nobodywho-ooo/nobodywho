@@ -21,6 +21,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Breaking:** every `SamplerPresets` entry now builds on the default sampler (top-k 20, top-p 0.95, temperature 0.6) and changes one thing, instead of producing a chain holding only its own step: enabling a constraint no longer drops the truncation and temperature you would otherwise be sampling with, and `top_k`, `top_p` and `temperature` each override their counterpart and leave the rest alone. Constrained output is valid as before but less random within the constrained set. `greedy` is unaffected — it needs no shift steps. Affects all bindings.
 - `SamplerPresets.dry()` now actually applies the DRY penalty. Its multiplier was 0.0, which llama.cpp reads as "disabled", so the preset was a no-op that sampled exactly like the default one. It is now 0.8, the value the preset's other numbers (base 1.75, allowed length 2) are tuned for. The preset leads with its DRY step, so the penalty sees the whole vocabulary rather than what survived truncation. Affects all bindings.
 - `penalty_last_n` no longer accepts `-1`, use a positive value instead (good defaults are 64 for penalties sampling and 1024 for DRY sampling).
+- Context shifting now forgets the fewest turns needed to shrink the chat to half the context size. Previously it could forget up to twice as many. Affects all bindings.
 
 ### Fixed
 

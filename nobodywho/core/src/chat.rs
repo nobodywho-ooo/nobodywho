@@ -45,7 +45,6 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
-use std::cmp::min;
 use std::collections::HashSet;
 use std::hash::Hasher;
 use std::sync::atomic::AtomicBool;
@@ -306,10 +305,6 @@ fn check_answerable(messages: &History) -> Result<(), InvalidHistoryError> {
     Ok(())
 }
 
-/// Turns kept at the end of the history during a context shift; the first turn
-/// is always kept too.
-const PRESERVED_RECENT_TURNS: usize = 2;
-
 /// Indices of the user messages, i.e. the start of each conversational turn.
 /// Anything before the first index is a prefix that a context shift never touches.
 fn user_message_indices(messages: &[Message]) -> Vec<usize> {
@@ -389,6 +384,69 @@ impl Default for MtpConfig {
     }
 }
 
+/// How a chat forgets old turns when its context is full.
+///
+/// A turn is a user message and everything up to the next one. System messages
+/// and anything before the first user message are always kept.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContextShiftOptions {
+    /// Turns always kept at the start of the history.
+    pub keep_first_turns: usize,
+    /// Turns always kept at the end of the history. Must be at least 1, so the
+    /// message being answered survives.
+    pub keep_last_turns: usize,
+    /// Size the rendered history is shrunk to.
+    pub target: ShiftTarget,
+}
+
+impl Default for ContextShiftOptions {
+    fn default() -> Self {
+        Self {
+            keep_first_turns: 1,
+            keep_last_turns: 2,
+            target: ShiftTarget::Fraction(0.5),
+        }
+    }
+}
+
+/// Size a context shift shrinks the rendered history to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ShiftTarget {
+    /// A fraction of the context size, in `(0, 1)`.
+    Fraction(f32),
+    /// A number of tokens, below the context size.
+    Tokens(u32),
+}
+
+impl ShiftTarget {
+    fn resolve(self, n_ctx: u32) -> usize {
+        match self {
+            ShiftTarget::Fraction(fraction) => (n_ctx as f32 * fraction) as usize,
+            ShiftTarget::Tokens(tokens) => tokens as usize,
+        }
+    }
+}
+
+impl ContextShiftOptions {
+    // TODO: consider doing this in a "parse, don't validate" fashion, so a user
+    // doesn't need to remember the validation.
+    fn validate(&self, n_ctx: u32) -> Result<(), InitWorkerError> {
+        let invalid = |reason: String| Err(InitWorkerError::InvalidContextShiftOptions(reason));
+        if self.keep_last_turns == 0 {
+            return invalid("keep_last_turns must be at least 1".into());
+        }
+        match self.target {
+            ShiftTarget::Fraction(f) if !(f > 0.0 && f < 1.0) => {
+                invalid(format!("target fraction {f} is not in (0, 1)"))
+            }
+            ShiftTarget::Tokens(t) if t == 0 || t >= n_ctx => {
+                invalid(format!("target of {t} tokens is not in (0, {n_ctx})"))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 /// Configuration for chat sessions.
 ///
 /// This struct groups all the settings needed to initialize a chat worker.
@@ -415,6 +473,9 @@ pub struct ChatConfig {
     /// efficiency cores slow down ggml's per-node thread barrier. Set it lower to leave CPU
     /// headroom for other work. Values are clamped to the logical CPU count.
     pub n_threads: Option<u32>,
+    /// How old turns are forgotten when the context is full. `None` disables
+    /// shifting, so a full context is an error instead.
+    pub context_shift: Option<ContextShiftOptions>,
 }
 
 impl Default for ChatConfig {
@@ -427,6 +488,7 @@ impl Default for ChatConfig {
             sampler_config: None,
             mtp: None,
             n_threads: None,
+            context_shift: Some(ContextShiftOptions::default()),
         }
     }
 }
@@ -543,6 +605,12 @@ impl ChatBuilder {
     /// work. The value is clamped to the logical CPU count.
     pub fn with_n_threads(mut self, n_threads: u32) -> Self {
         self.config.n_threads = Some(n_threads);
+        self
+    }
+
+    /// Set how old turns are forgotten when the context is full; `None` disables it.
+    pub fn with_context_shift(mut self, options: Option<ContextShiftOptions>) -> Self {
+        self.config.context_shift = options;
         self
     }
 
@@ -2158,6 +2226,7 @@ struct Chat<'a> {
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
     context: ChatContext,
+    context_shift_options: Option<ContextShiftOptions>,
 }
 
 impl<'a> Chat<'a> {
@@ -2172,6 +2241,10 @@ impl<'a> Chat<'a> {
                 .meta_val_str("general.architecture")
                 .unwrap_or_else(|_| "unknown".into());
             return Err(InitWorkerError::NotAnLLM { architecture });
+        }
+
+        if let Some(options) = &config.context_shift {
+            options.validate(config.n_ctx)?;
         }
 
         let template = select_template(&model.language_model, !config.tools.is_empty())?;
@@ -2227,6 +2300,7 @@ impl<'a> Chat<'a> {
             template_variables: config.template_variables,
             tools: config.tools,
             context: ChatContext::new(),
+            context_shift_options: config.context_shift,
         })
     }
 
@@ -2262,10 +2336,10 @@ impl<'a> Chat<'a> {
         &mut self,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let mut chunks = self.render_as_chunks(&self.messages, true)?;
+        let mut chunks = self.render_as_chunks(&self.messages)?;
         if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
-            self.context_shift()?;
-            chunks = self.render_as_chunks(&self.messages, true)?;
+            self.context_shift(0)?;
+            chunks = self.render_as_chunks(&self.messages)?;
         }
 
         // We should never try to sync with an empty render
@@ -2282,62 +2356,74 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Drop whole turns from the middle of the history until the render fits
-    /// `n_ctx / 2`. A turn starts at a user message and runs until just before
-    /// the next one; the first turn, the last [`PRESERVED_RECENT_TURNS`] turns,
-    /// and any messages preceding the first user message are always kept. System
-    /// messages are kept too, wherever they sit: they are instructions for the
-    /// rest of the conversation, not part of the exchange being forgotten.
-    ///
-    /// With three or fewer turns there is nothing deletable, so the history
-    /// comes back as-is even if it is still too large.
-    fn context_shift(&mut self) -> Result<(), ShiftError> {
+    /// Drop the fewest whole turns after the kept first ones for the render, plus
+    /// `reserved` tokens, to fit the target. System messages are always kept.
+    fn context_shift(&mut self, reserved: usize) -> Result<(), ShiftError> {
         info!("Context shift happens!");
-        let target_token_size = (self.engine.ctx.n_ctx() / 2) as usize;
-        let mut messages = self.messages.clone();
+        let Some(options) = self.context_shift_options else {
+            return Err(ShiftError::Disabled);
+        };
+        let target_token_size = options
+            .target
+            .resolve(self.engine.ctx.n_ctx())
+            .saturating_sub(reserved);
 
-        match user_message_indices(&self.messages).len() {
+        let turn_starts = user_message_indices(&self.messages);
+        match turn_starts.len() {
             0 => return Err(ShiftError::NoUserMessages),
             1 => return Err(ShiftError::TooFewMessages),
             _ => {}
         }
 
-        // Delete messages until context is small enough or only essential messages are left.
-        // Double the number of messages to delete each iteration. This is a simple and kind of stupid solution, as it might overshoot by a lot.
-        // Plenty of optimization options here.
-        let mut turns_to_delete = 1;
-
-        loop {
-            let n_tokens = self.render_as_chunks(&messages, false)?.n_tokens();
-            if n_tokens <= target_token_size {
-                break;
+        let first = options.keep_first_turns;
+        let deletable = turn_starts
+            .len()
+            .saturating_sub(first + options.keep_last_turns);
+        // keep_last_turns >= 1, so `first + k` always indexes a kept turn.
+        let without = |k: usize| {
+            let mut messages = self.messages.clone();
+            if k > 0 {
+                messages.forget(turn_starts[first]..turn_starts[first + k]);
             }
+            messages
+        };
+        let measure_ntokens_without = |k: usize| -> Result<usize, ShiftError> {
+            Ok(self.render_as_chunks(&without(k))?.n_tokens())
+        };
 
-            let turn_starts = user_message_indices(&messages);
-            // Everything between the first turn and the preserved recent ones.
-            // Zero means there is nothing left this may take.
-            let deletable = turn_starts.len().saturating_sub(PRESERVED_RECENT_TURNS + 1);
-            if deletable == 0 {
-                // The always-kept messages alone are over target.
-                warn!(
-                    n_tokens,
-                    target_token_size,
-                    system_messages = messages.iter().filter(|m| m.is_system()).count(),
-                    "Context shift could not reach its target: nothing left to delete."
-                );
-                break;
-            }
-
-            // 1 <= n <= turn_starts.len() - 3, so the range is never empty and
-            // never reaches the preserved turns.
-            let n = min(turns_to_delete, deletable);
-            // The range starts at a user message, so every pass still removes at
-            // least one turn start and the loop keeps converging.
-            messages.forget(turn_starts[1]..turn_starts[1 + n]);
-            turns_to_delete = turns_to_delete.saturating_mul(2);
+        if measure_ntokens_without(0)? <= target_token_size {
+            // We are already under the target, so no shift is needed.
+            return Ok(());
         }
 
-        self.messages = messages;
+        let n_tokens = measure_ntokens_without(deletable)?;
+        if n_tokens > target_token_size {
+            // The always-kept messages alone are over target.
+            // Delete all deletable messages, leaving only the always-kept ones.
+            warn!(
+                n_tokens,
+                target_token_size,
+                system_messages = self.messages.iter().filter(|m| m.is_system()).count(),
+                "Context shift could not reach its target: nothing left to delete."
+            );
+            self.messages = without(deletable);
+            return Ok(());
+        }
+
+        // Smallest k that fits: measure_ntokens_without(lo - 1) is over target,
+        // measure_ntokens_without(hi) fits.
+        let (mut lo, mut hi) = (1, deletable);
+        while lo < hi {
+            // Binary search!
+            let mid = lo + (hi - lo) / 2;
+            if measure_ntokens_without(mid)? <= target_token_size {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+
+        self.messages = without(hi);
         Ok(())
     }
 
@@ -2376,7 +2462,8 @@ impl<'a> Chat<'a> {
         {
             // Check if the context is full
             if self.engine.is_context_full() {
-                self.context_shift()?;
+                // Leave room for the partial response, which is read back in below.
+                self.context_shift(tokens_written_until_now.len())?;
                 self.sync_context_with_render(inference_lock_token)?;
                 if !tokens_written_until_now.is_empty() {
                     let mut generated_chunks = TokenizerChunks::new();
@@ -2547,7 +2634,7 @@ impl<'a> Chat<'a> {
 
                 if !execute_tools {
                     let content = content.to_string();
-                    self.context.chunks = self.render_as_chunks(&self.messages, true)?;
+                    self.context.chunks = self.render_as_chunks(&self.messages)?;
                     return Ok(CompletionResponse {
                         content,
                         tool_calls,
@@ -2599,7 +2686,7 @@ impl<'a> Chat<'a> {
             .as_ref()
             .is_none_or(|fmt| !response.contains(fmt.begin_token())));
         self.add_assistant_message(response.clone());
-        self.context.chunks = self.render_as_chunks(&self.messages, true)?;
+        self.context.chunks = self.render_as_chunks(&self.messages)?;
 
         Ok(CompletionResponse {
             content: response,
@@ -2672,14 +2759,7 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Go for the unhandled mode when you are context shifting.
-    /// That is for avoiding the render will concat system message with the first user message.
-    /// Otherwise please handle stuff.
-    fn render_as_chunks(
-        &self,
-        messages: &History,
-        handled: bool,
-    ) -> Result<TokenizerChunks, RenderError> {
+    fn render_as_chunks(&self, messages: &History) -> Result<TokenizerChunks, RenderError> {
         // Callers pass the conversation they want rendered — which may be a
         // shortened one, during a context shift. The system prompt is not part
         // of that, so it is added here.
@@ -2689,12 +2769,7 @@ impl<'a> Chat<'a> {
             (!self.tools.is_empty()).then(|| self.tools.clone()),
         );
 
-        let rendered_chat = if handled {
-            self.chat_template.render(messages, &template_context)?
-        } else {
-            self.chat_template
-                .render_unhandled(messages, &template_context)?
-        };
+        let rendered_chat = self.chat_template.render(messages, &template_context)?;
 
         let bitmaps: Vec<&MtmdBitmap> = messages
             .iter()
@@ -3630,7 +3705,7 @@ mod tests {
         );
 
         // Trigger context shift
-        worker.context_shift()?;
+        worker.context_shift(0)?;
 
         println!("{:?}", worker.messages);
 
@@ -3676,7 +3751,7 @@ mod tests {
         }
 
         // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
+        let token_count = worker.render_as_chunks(&worker.messages)?.n_tokens();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
@@ -3727,29 +3802,24 @@ mod tests {
         }
         worker.add_user_message("final".to_string());
 
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > target_size);
 
         let mut shortened_messages = worker.messages.clone();
         shortened_messages.forget(2..4);
-        assert!(
-            worker
-                .render_as_chunks(&shortened_messages, false)?
-                .n_tokens()
-                <= target_size
-        );
+        assert!(worker.render_as_chunks(&shortened_messages)?.n_tokens() <= target_size);
 
-        worker.context_shift()?;
+        worker.context_shift(0)?;
 
         assert!(worker.messages.iter().any(|message| {
             matches!(message, Message::User { content, .. } if content.to_string() == "keep")
         }));
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() <= target_size);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size);
 
         Ok(())
     }
 
-    /// A shift keeps the first turn and the last [`PRESERVED_RECENT_TURNS`], so
-    /// below that many turns it has nothing it may delete and must leave the
+    /// A shift keeps the first turn and the last two by default, so below that
+    /// many turns it has nothing it may delete and must leave the
     /// history alone however oversized it is.
     ///
     /// Both boundaries used to be broken. Two turns is `[user, assistant, user]`,
@@ -3762,7 +3832,8 @@ mod tests {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
 
-        for turn_count in [2, PRESERVED_RECENT_TURNS + 1] {
+        let defaults = ContextShiftOptions::default();
+        for turn_count in [2, defaults.keep_first_turns + defaults.keep_last_turns] {
             let mut worker = Chat::new_chat_worker(
                 &model,
                 ChatConfig {
@@ -3781,10 +3852,10 @@ mod tests {
             }
 
             assert_eq!(user_message_indices(&worker.messages).len(), turn_count);
-            assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
+            assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > target_size);
 
             let before = serde_json::to_value(&worker.messages)?;
-            worker.context_shift()?;
+            worker.context_shift(0)?;
             assert_eq!(
                 serde_json::to_value(&worker.messages)?,
                 before,
@@ -3826,9 +3897,9 @@ mod tests {
         }
         worker.add_user_message("final".to_string());
 
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > target_size);
 
-        worker.context_shift()?;
+        worker.context_shift(0)?;
 
         assert!(
             worker.messages.iter().any(|message| {
@@ -3861,15 +3932,162 @@ mod tests {
         )?;
 
         assert!(matches!(
-            worker.context_shift(),
+            worker.context_shift(0),
             Err(ShiftError::NoUserMessages)
         ));
 
         worker.add_user_message("only".to_string());
         assert!(matches!(
-            worker.context_shift(),
+            worker.context_shift(0),
             Err(ShiftError::TooFewMessages)
         ));
+
+        Ok(())
+    }
+
+    fn worker_with_turns<'a>(
+        model: &'a llm::Model,
+        context_shift: Option<ContextShiftOptions>,
+        turns: usize,
+    ) -> Result<Chat<'a>, Box<dyn std::error::Error>> {
+        let mut worker = Chat::new_chat_worker(
+            model,
+            ChatConfig {
+                n_ctx: 512,
+                context_shift,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+        for i in 0..turns {
+            worker.add_user_message(format!("Question {i}: tell me about the number {i}."));
+            worker.add_assistant_message(format!(
+                "The number {i} is a fine number, and there is plenty to say about it."
+            ));
+        }
+        worker.add_user_message("Thanks!".to_string());
+        Ok(worker)
+    }
+
+    /// The shift removes the fewest turns that fit, found by brute force here.
+    #[test]
+    fn test_context_shift_deletes_fewest_turns() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
+        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+        let original = worker.messages.clone();
+        let turn_starts = user_message_indices(&original);
+
+        let expected = (1..turn_starts.len() - 2)
+            .find(|&k| {
+                let mut messages = original.clone();
+                messages.forget(turn_starts[1]..turn_starts[1 + k]);
+                worker.render_as_chunks(&messages).unwrap().n_tokens() <= target_size
+            })
+            .expect("some deletion should reach the target");
+
+        worker.context_shift(0)?;
+        let deleted = turn_starts.len() - user_message_indices(&worker.messages).len();
+        assert_eq!(deleted, expected);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_custom_options() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let options = ContextShiftOptions {
+            keep_first_turns: 2,
+            keep_last_turns: 3,
+            target: ShiftTarget::Tokens(200),
+        };
+        let mut worker = worker_with_turns(&model, Some(options), 20)?;
+        let before: Vec<String> = worker
+            .messages
+            .iter()
+            .filter(|m| m.is_user())
+            .map(|m| m.content().to_string())
+            .collect();
+
+        worker.context_shift(0)?;
+
+        let after: Vec<String> = worker
+            .messages
+            .iter()
+            .filter(|m| m.is_user())
+            .map(|m| m.content().to_string())
+            .collect();
+        assert!(after.len() < before.len());
+        assert_eq!(after[..2], before[..2]);
+        assert_eq!(after[after.len() - 3..], before[before.len() - 3..]);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= 200);
+        assert_valid_message_structure(&worker.messages);
+
+        Ok(())
+    }
+
+    /// Room reserved for a partial response comes off the target.
+    #[test]
+    fn test_context_shift_reserves_tokens() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
+        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+
+        worker.context_shift(100)?;
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size - 100);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_disabled() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, None, 20)?;
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > 512);
+
+        let inference_lock_token = acquire_inference_lock();
+        assert!(matches!(
+            worker.sync_context_with_render(&inference_lock_token),
+            Err(ContextSyncError::Shift(ShiftError::Disabled))
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_options_are_validated() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let invalid = [
+            ShiftTarget::Fraction(1.5),
+            ShiftTarget::Fraction(0.0),
+            ShiftTarget::Tokens(0),
+            ShiftTarget::Tokens(512),
+        ]
+        .map(|target| ContextShiftOptions {
+            target,
+            ..Default::default()
+        });
+        let no_last_turn = ContextShiftOptions {
+            keep_last_turns: 0,
+            ..Default::default()
+        };
+
+        for options in invalid.into_iter().chain([no_last_turn]) {
+            let result = Chat::new_chat_worker(
+                &model,
+                ChatConfig {
+                    n_ctx: 512,
+                    context_shift: Some(options),
+                    ..Default::default()
+                },
+                Arc::new(AtomicBool::new(false)),
+            );
+            assert!(
+                matches!(result, Err(InitWorkerError::InvalidContextShiftOptions(_))),
+                "{options:?} should be rejected"
+            );
+        }
 
         Ok(())
     }
@@ -3902,7 +4120,7 @@ mod tests {
         }
         worker.add_user_message("final".to_string());
 
-        worker.context_shift()?;
+        worker.context_shift(0)?;
 
         assert!(
             matches!(&worker.messages[0], Message::Assistant { content, .. }
@@ -3916,7 +4134,7 @@ mod tests {
             "the first turn should survive: {:?}",
             worker.messages[1]
         );
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() <= target_size);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size);
 
         Ok(())
     }
@@ -3972,7 +4190,7 @@ mod tests {
         println!("Messages before shift: {}", messages_before);
 
         // Trigger context shift
-        worker.context_shift()?;
+        worker.context_shift(0)?;
 
         println!("{:?}", worker.messages);
 
@@ -4004,7 +4222,7 @@ mod tests {
         }
 
         // 4. Verify token count is within target
-        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
+        let token_count = worker.render_as_chunks(&worker.messages)?.n_tokens();
 
         let target_size = (n_ctx / 2) as usize;
         assert!(
