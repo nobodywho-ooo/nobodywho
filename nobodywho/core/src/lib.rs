@@ -12,6 +12,7 @@ pub mod llm;
 pub mod memory;
 mod model_selection;
 pub mod onnx;
+pub mod output_format;
 pub mod sampler;
 pub mod speech_to_text;
 pub mod stream;
