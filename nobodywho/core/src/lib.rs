@@ -19,6 +19,7 @@ pub mod template;
 pub mod text_to_speech;
 pub mod tokenizer;
 pub mod tool_calling;
+pub mod output_format;
 pub mod voice_activity_detection;
 
 /// Re-exported so bindings can name `Diagnostic` without depending on miette directly.
