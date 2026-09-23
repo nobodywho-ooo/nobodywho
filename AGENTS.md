@@ -139,5 +139,11 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed setup instructions.
 ## Documentation
 Documentation is built with Docusaurus and lives in the `docs/` folder. It is deployed to docs.nobodywho.ooo via Cloudflare Pages (see `.github/workflows/docs.yml`).
 
-For user-facing changes, add a concise entry under `Unreleased` in [`CHANGELOG.md`](CHANGELOG.md). Use the appropriate Keep a Changelog section and name the affected bindings when the change is not universal.
+For user-facing changes, add a change file with `just change`, as described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog-entries); it becomes an entry in [`CHANGELOG.md`](CHANGELOG.md) at release time. Its prompts read from stdin, so you can answer them in one go, in the order bindings, bump, section, description, file name:
+
+```bash
+printf '%s\n' 'python, flutter' minor added 'One-sentence description for users.' short_file_name | just change
+```
+
+It gives every binding the same bump. Edit the file it writes in [`.changeset/`](.changeset/) to give bindings different bumps or to add detail, then validate with `just check-changesets`.
 
