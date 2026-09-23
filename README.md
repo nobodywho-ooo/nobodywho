@@ -19,7 +19,7 @@
 
 ---
 
-## ✨ Features
+## Features
 
 * **Run locally, offline** — no API keys needed or hidden fees
 * **Run any chat LLM** — Gemma, Qwen, Mistral and more
@@ -30,7 +30,7 @@
 * **Voice Activity Detection** — know when to stop listening and start transcribing with Silero
 * **Model downloading** — load models directly from [Hugging Face](https://huggingface.co/models?library=gguf&sort=trending) or any URL
 
-## ⚡️ Under the Hood
+## Under the Hood
 
 ```mermaid
 flowchart TD
