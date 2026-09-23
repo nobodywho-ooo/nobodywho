@@ -32,12 +32,13 @@ use crate::errors::{
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
+use crate::output_format::{self, FormatError, Piece, ResolvedFormat};
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::GrammarFactory;
 use crate::sampler::SamplerConfig;
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
 use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks};
-use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
+use crate::tool_calling::{Tool, ToolCall};
 use ahash::AHasher;
 use indexmap::IndexMap;
 use llama_cpp_2::context::LlamaContext;
@@ -1980,11 +1981,9 @@ impl ChatContext {
     }
 }
 
-/// Builds the tool-call grammar sampler for an already-detected `tool_format`
-/// (detection happens once, in `new_chat_worker` — see the `tool_format`
-/// field doc), along with the begin-token sequence that triggers the switch to
-/// it. `Ok(None)` if `tools` is empty. `Err(DetectionFailed)` if tools are
-/// requested but no format was ever detected for this model.
+/// Builds the tool-call grammar sampler for the chat's output format, which is
+/// detected once in `new_chat_worker`. `Ok(None)` if `tools` is empty, and an
+/// error if tools are requested but no format was detected for this model.
 ///
 /// `grammar_factory` carries the llguidance state between calls: the ~400ms init
 /// is paid on the first build and every later one only compiles the grammar.
@@ -1993,20 +1992,20 @@ fn build_tool_sampler(
     grammar_factory: &mut Option<GrammarFactory>,
     tools: &[Tool],
     sampler_config: &SamplerConfig,
-    tool_format: Option<&ToolFormat>,
-) -> Result<Option<(LlamaSampler, Vec<LlamaToken>)>, ToolCallingSetupError> {
+    output_format: Option<&ResolvedFormat>,
+) -> Result<Option<LlamaSampler>, ToolCallingSetupError> {
     if tools.is_empty() {
         return Ok(None);
     }
 
-    let tool_format = tool_format.ok_or(ToolFormatError::DetectionFailed)?;
+    let output_format = output_format.ok_or(FormatError::Undetected)?;
 
-    let lark = tool_format.to_lark(tools, Some(model))?;
+    let lark = output_format.grammar(tools)?;
     debug!(grammar = %lark, "Generated tool calling grammar (Lark)");
 
-    // A chat's slice set never changes in practice (`tool_format` is detected once
+    // A chat's slice set never changes in practice (the format is detected once
     // and `slice_regexes` is a constant per format), so this builds at most once.
-    let slices = tool_format.slice_regexes();
+    let slices = output_format.slice_regexes();
     let rebuilt = GrammarFactory::build_if_stale(grammar_factory.as_ref(), model, slices)?;
     let factory = rebuilt
         .as_ref()
@@ -2017,127 +2016,113 @@ fn build_tool_sampler(
     let tool_sampler =
         sampler_config.build_sampler_with_prepended_step(model, Some(grammar_step))?;
 
-    let begin_tokens =
-        model.str_to_token(tool_format.begin_token(), llama_cpp_2::model::AddBos::Never)?;
-
     // Every fallible function has run, so the rebuilt factory can be committed.
     if rebuilt.is_some() {
         *grammar_factory = rebuilt;
     }
 
-    Ok(Some((tool_sampler, begin_tokens)))
+    Ok(Some(tool_sampler))
 }
 
 /// The samplers a chat response can draw from: `base` for free generation,
-/// `tool` (grammar-constrained) once the model emits the tool-call begin token.
-/// The switch is driven token-by-token via [`ChatSampler::observe`].
+/// `tool` (grammar-constrained) once the response enters a block of tool calls.
 pub(crate) struct ChatSampler {
-    base: LlamaSampler,
-    tool: Option<LlamaSampler>,
-    /// Sequence whose completion switches to `tool`. Empty when `tool` is None.
-    begin_tokens: Vec<LlamaToken>,
-    /// How many leading `begin_tokens` the emitted stream has matched so far.
-    begin_match_len: usize,
+    base_sampler: LlamaSampler,
+    tool_call_sampler: Option<LlamaSampler>,
     grammar_activated: bool,
 }
 
 impl ChatSampler {
-    fn new(base: LlamaSampler, tool: Option<(LlamaSampler, Vec<LlamaToken>)>) -> Self {
-        let mut sampler = Self {
-            base,
-            tool: None,
-            begin_tokens: Vec::new(),
-            begin_match_len: 0,
+    fn new(base_sampler: LlamaSampler, tool_call_sampler: Option<LlamaSampler>) -> Self {
+        Self {
+            base_sampler,
+            tool_call_sampler,
             grammar_activated: false,
-        };
-        sampler.set_tool(tool);
-        sampler
+        }
     }
 
     /// The sampler that should produce the next token.
     fn active(&mut self) -> &mut LlamaSampler {
         if self.grammar_activated {
-            self.tool
+            self.tool_call_sampler
                 .as_mut()
                 .expect("tool sampler must exist once the grammar is activated")
         } else {
-            &mut self.base
+            &mut self.base_sampler
         }
     }
 
     pub(crate) fn sample(&mut self, ctx: &LlamaContext<'_>, idx: i32) -> LlamaToken {
         // No need to use `sampler.accept` as `.sample` already accepts
         // the token: https://github.com/utilityai/llama-cpp-rs/issues/604
-        let token = self.active().sample(ctx, idx);
-        self.observe(token);
-        token
+        self.active().sample(ctx, idx)
     }
 
-    /// Feed an emitted token back in so the begin sequence can be tracked, and
-    /// switch to the tool sampler once it completes. Must be called on each
-    /// emitted token, in order, before its successor is sampled. Returns whether
-    /// the switch just happened.
-    fn observe(&mut self, token: LlamaToken) -> bool {
-        if self.grammar_activated || self.begin_tokens.is_empty() {
-            return false;
+    /// Switch to the tool sampler for the rest of the response, now that
+    /// `begin` has opened a block of tool calls. Without tools there's no
+    /// grammar to switch to.
+    fn activate_tool_grammar(&mut self, begin: LlamaToken) {
+        if self.grammar_activated {
+            return;
         }
-
-        // Rolling match: extend on a hit, else restart from this token.
-        self.begin_match_len = if token == self.begin_tokens[self.begin_match_len] {
-            self.begin_match_len + 1
-        } else if token == self.begin_tokens[0] {
-            1
-        } else {
-            0
-        };
-
-        if self.begin_match_len < self.begin_tokens.len() {
-            return false;
+        if let Some(tool) = self.tool_call_sampler.as_mut() {
+            // The grammar starts at `begin`, which the base sampler produced.
+            tool.accept(begin);
+            self.grammar_activated = true;
         }
-        self.begin_match_len = 0;
-
-        // Fast-forward the grammar matcher past the begin tokens.
-        let ts = self
-            .tool
-            .as_mut()
-            .expect("begin_tokens is non-empty only when a tool sampler exists");
-        ts.accept_many(self.begin_tokens.iter());
-        self.grammar_activated = true;
-        true
     }
 
     fn set_base(&mut self, base: LlamaSampler) {
-        self.base = base;
+        self.base_sampler = base;
     }
 
-    fn set_tool(&mut self, tool: Option<(LlamaSampler, Vec<LlamaToken>)>) {
-        match tool {
-            Some((sampler, begin_tokens)) => {
-                self.tool = Some(sampler);
-                self.begin_tokens = begin_tokens;
-            }
-            None => {
-                self.tool = None;
-                self.begin_tokens = Vec::new();
-            }
-        }
-        self.begin_match_len = 0;
+    fn set_tool(&mut self, tool: Option<LlamaSampler>) {
+        self.tool_call_sampler = tool;
     }
 
     /// Reset per-response state (RNG, penalty/DRY history, grammar matcher) and
     /// return to free generation.
     fn reset(&mut self) {
-        self.base.reset();
-        if let Some(ts) = self.tool.as_mut() {
+        self.base_sampler.reset();
+        if let Some(ts) = self.tool_call_sampler.as_mut() {
             ts.reset();
         }
         self.grammar_activated = false;
-        self.begin_match_len = 0;
+    }
+}
+
+/// Collects what the splitter found while streaming. A block of tool calls
+/// that couldn't be read is text after all, so it's streamed late, unless it
+/// follows calls, like anything else that does.
+fn read_pieces(
+    pieces: Vec<Piece>,
+    tool_calls: &mut Vec<ToolCall>,
+    content: &mut String,
+    respond: &mut impl FnMut(WriteOutput),
+) {
+    for piece in pieces {
+        match piece {
+            Piece::Calls(calls) => tool_calls.extend(calls),
+            Piece::Malformed { text, error } => {
+                warn!(%error, %text, "Couldn't read a block of tool calls");
+                if tool_calls.is_empty() {
+                    content.push_str(&text);
+                    respond(WriteOutput::Token(text));
+                }
+            }
+            Piece::Stray(marker) => {
+                warn!(marker, "The model wrote an end marker with nothing to end")
+            }
+            // Already streamed as the raw text they came from.
+            Piece::Text(_) | Piece::Thinking(_) | Piece::End => {}
+        }
     }
 }
 
 struct GeneratedResponse {
+    /// What the response said before its tool calls, as it was streamed.
     content: String,
+    tool_calls: Vec<ToolCall>,
     prompt_tokens: usize,
     completion_tokens: usize,
     hit_token_limit: bool,
@@ -2148,7 +2133,7 @@ struct GeneratedResponse {
 struct Chat<'a> {
     engine: InferenceEngine<'a>,
     should_stop: Arc<AtomicBool>,
-    tool_format: Option<ToolFormat>,
+    output_format: Option<ResolvedFormat>,
     sampler: ChatSampler,
     grammar_factory: Option<GrammarFactory>,
     sampler_config: SamplerConfig,
@@ -2185,16 +2170,17 @@ impl<'a> Chat<'a> {
         // `ChatSampler`) for every response.
         let base_sampler = sampler_config.build_sampler(&model.language_model)?;
 
-        // Depends only on the model's chat template, not on `config.tools`,
-        // so detect it once here regardless (cheap — see `tool_format` field
-        // doc). Only a hard error if tools were actually requested.
-        let tool_format = match detect_tool_format(&model.language_model) {
+        // Depends only on the model, not on `config.tools`, so detect it once
+        // here regardless. Only a hard error if tools were actually requested.
+        let output_format = output_format::detect(&model.language_model)
+            .and_then(|format| ResolvedFormat::new(format, &model.language_model));
+        let output_format = match output_format {
             Ok(format) => {
-                debug!(?format, "Detected tool calling format");
+                debug!(format = ?format.format(), "Detected output format");
                 Some(format)
             }
             Err(e) if config.tools.is_empty() => {
-                debug!(error = %e, "Failed to detect tool calling format");
+                debug!(error = %e, "Failed to detect output format");
                 None
             }
             Err(e) => return Err(InitWorkerError::ToolCallingSetup(e.into())),
@@ -2206,7 +2192,7 @@ impl<'a> Chat<'a> {
             &mut grammar_factory,
             &config.tools,
             &sampler_config,
-            tool_format.as_ref(),
+            output_format.as_ref(),
         )?;
 
         // Build the low-level inference engine via the shared Worker constructor,
@@ -2217,7 +2203,7 @@ impl<'a> Chat<'a> {
         Ok(Chat {
             engine,
             should_stop,
-            tool_format,
+            output_format,
             sampler: ChatSampler::new(base_sampler, tool_sampler),
             grammar_factory,
             sampler_config,
@@ -2346,12 +2332,16 @@ impl<'a> Chat<'a> {
     // This is a safety meassure to prevent bugs from multiple
     // contexts with the same model. It might not be necessary
     // but assume it is.
+    /// Streams a response to `prompt`, the render it continues, and returns
+    /// what it said before its tool calls, the calls, and how many tokens it
+    /// took. The calls themselves aren't streamed.
     fn generate_response_until_done_with_limit<F>(
         &mut self,
         mut respond: F,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
         max_tokens: Option<usize>,
-    ) -> Result<usize, GenerateResponseError>
+        prompt: &str,
+    ) -> Result<(String, Vec<ToolCall>, usize), GenerateResponseError>
     where
         F: FnMut(WriteOutput),
     {
@@ -2362,11 +2352,19 @@ impl<'a> Chat<'a> {
 
         // pre-allocating 4096 bytes for the response string
         // 4096 is a very randomly chosen number. how does this affect performance?
-        let mut full_response: String = String::with_capacity(4096);
+        let mut content: String = String::with_capacity(4096);
+        let mut tool_calls = Vec::new();
         let mut tokens_written_until_now = Vec::new();
         let mut generated_tokens = 0;
 
         self.sampler.reset();
+
+        // Owned, so the splitter doesn't borrow `self` while generating.
+        let output_format = self.output_format.clone();
+        let tools = self.tools.clone();
+        let mut splitter = output_format
+            .as_ref()
+            .map(|format| format.splitter(&tools, prompt));
 
         // init statefull decoder for split up tokens like emojis
         let mut decoder = encoding_rs::UTF_8.new_decoder();
@@ -2425,20 +2423,43 @@ impl<'a> Chat<'a> {
             let has_eog = self.engine.ctx.model.is_eog_token(new_token);
             trace!(?new_token, ?token_str, ?has_eog);
 
+            // The stream stays the raw text, reasoning and all. The splitter
+            // only finds the tool calls, which are kept out of it.
+            let mut in_tool_calls = false;
+            if let Some(splitter) = splitter.as_mut() {
+                let was_in_tool_calls = splitter.in_tool_calls();
+                let pieces = splitter.push(new_token, &token_bytes);
+                if !was_in_tool_calls && splitter.in_tool_calls() {
+                    self.sampler.activate_tool_grammar(new_token);
+                }
+                in_tool_calls = was_in_tool_calls || splitter.in_tool_calls();
+                read_pieces(pieces, &mut tool_calls, &mut content, &mut respond);
+            }
+
             if has_eog {
                 break;
             }
 
-            full_response.push_str(&token_str);
             generated_tokens += 1;
-            trace!(?token_str, "Sending out token:");
-            respond(WriteOutput::Token(token_str));
+            // Whatever follows the calls is left out, like the calls.
+            if !in_tool_calls && tool_calls.is_empty() {
+                content.push_str(&token_str);
+                trace!(?token_str, "Sending out token:");
+                respond(WriteOutput::Token(token_str));
+            }
         }
 
-        // we're done!
-        debug!(%full_response, "Sending out");
-        respond(WriteOutput::Done(full_response));
-        Ok(generated_tokens)
+        if let Some(splitter) = splitter.as_mut() {
+            read_pieces(
+                splitter.finish(),
+                &mut tool_calls,
+                &mut content,
+                &mut respond,
+            );
+        }
+
+        debug!(%content, ?tool_calls, "Generated response");
+        Ok((content, tool_calls, generated_tokens))
     }
 
     pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
@@ -2521,9 +2542,9 @@ impl<'a> Chat<'a> {
     {
         // The tool-call grammar is NOT pre-injected into the chain. Lark/
         // llguidance has no "trigger word" mechanism, so an always-on grammar
-        // would block EOS when the model just wants to chat. Instead the
-        // grammar is added dynamically inside `generate_response_until_done_with_limit`
-        // the moment the begin token appears in the streamed output.
+        // would block EOS when the model just wants to chat. Instead
+        // `generate_response_until_done_with_limit` switches to it the moment
+        // the response enters a block of tool calls.
 
         let mut generated =
             self.wrapped_update_context_and_generate_response(respond.clone(), max_tokens)?;
@@ -2532,72 +2553,62 @@ impl<'a> Chat<'a> {
             completion_tokens: generated.completion_tokens,
         };
         let mut hit_token_limit = generated.hit_token_limit;
-        let mut response = generated.content;
 
-        if let Some(tool_format) = self.tool_format.clone() {
-            while let Some(tool_calls) = tool_format.extract_tool_calls(&response) {
-                debug!(?tool_calls, "Got tool calls:");
+        while !generated.tool_calls.is_empty() {
+            let tool_calls = generated.tool_calls;
+            debug!(?tool_calls, "Got tool calls:");
 
-                // Whatever the model said before the call is part of the turn,
-                // so it goes into the history message alongside the calls.
-                let content = response
-                    .split_once(tool_format.begin_token())
-                    .map_or("", |(content, _)| content);
-                self.add_tool_calls(content, tool_calls.clone());
+            // Whatever the model said before the call is part of the turn,
+            // so it goes into the history message alongside the calls.
+            self.add_tool_calls(generated.content.clone(), tool_calls.clone());
 
-                if !execute_tools {
-                    let content = content.to_string();
-                    self.context.chunks = self.render_as_chunks(&self.messages, true)?;
-                    return Ok(CompletionResponse {
-                        content,
-                        tool_calls,
-                        finish_reason: FinishReason::ToolCalls,
-                        usage,
-                    });
-                }
-
-                for tool_call in tool_calls {
-                    // find the tool
-                    // this is just a stupid linear search
-                    // but I think it's probably faster than something fancy as long as we have few tools
-                    // /shrug I'm happy to be wrong
-                    let Some(tool) = self.tools.iter().find(|t| t.name == tool_call.name) else {
-                        // in case the tool isn't found.
-                        // I *think* this should be impossible, as long as the tool calling grammar
-                        // works.
-                        error!(
-                            tool_name = tool_call.name,
-                            "Model triggered tool call for invalid tool name:",
-                        );
-                        let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
-                        self.add_tool_resp(tool_call.name, errmsg);
-                        continue;
-                    };
-
-                    // call the tool
-                    let response = (tool.function)(tool_call.arguments);
-                    debug!(%tool_call.name, %response, "Tool call result:");
-
-                    self.add_tool_resp(tool_call.name, response);
-                }
-
-                let remaining_tokens =
-                    max_tokens.map(|limit| limit.saturating_sub(usage.completion_tokens));
-                generated = self.wrapped_update_context_and_generate_response(
-                    respond.clone(),
-                    remaining_tokens,
-                )?;
-                usage.prompt_tokens += generated.prompt_tokens;
-                usage.completion_tokens += generated.completion_tokens;
-                hit_token_limit = generated.hit_token_limit;
-                response = generated.content;
+            if !execute_tools {
+                self.context.chunks = self.render_as_chunks(&self.messages, true)?;
+                return Ok(CompletionResponse {
+                    content: generated.content,
+                    tool_calls,
+                    finish_reason: FinishReason::ToolCalls,
+                    usage,
+                });
             }
+
+            for tool_call in tool_calls {
+                // find the tool
+                // this is just a stupid linear search
+                // but I think it's probably faster than something fancy as long as we have few tools
+                // /shrug I'm happy to be wrong
+                let Some(tool) = self.tools.iter().find(|t| t.name == tool_call.name) else {
+                    // in case the tool isn't found.
+                    // I *think* this should be impossible, as long as the tool calling grammar
+                    // works.
+                    error!(
+                        tool_name = tool_call.name,
+                        "Model triggered tool call for invalid tool name:",
+                    );
+                    let errmsg = format!("ERROR - Invalid tool name: {}", tool_call.name);
+                    self.add_tool_resp(tool_call.name, errmsg);
+                    continue;
+                };
+
+                // call the tool
+                let response = (tool.function)(tool_call.arguments);
+                debug!(%tool_call.name, %response, "Tool call result:");
+
+                self.add_tool_resp(tool_call.name, response);
+            }
+
+            let remaining_tokens =
+                max_tokens.map(|limit| limit.saturating_sub(usage.completion_tokens));
+            generated = self
+                .wrapped_update_context_and_generate_response(respond.clone(), remaining_tokens)?;
+            usage.prompt_tokens += generated.prompt_tokens;
+            usage.completion_tokens += generated.completion_tokens;
+            hit_token_limit = generated.hit_token_limit;
         }
 
-        debug_assert!(self
-            .tool_format
-            .as_ref()
-            .is_none_or(|fmt| !response.contains(fmt.begin_token())));
+        // Only the response that ends the turn is done, as calls lead to another.
+        let response = generated.content;
+        respond(llm::WriteOutput::Done(response.clone()));
         self.add_assistant_message(response.clone());
         self.context.chunks = self.render_as_chunks(&self.messages, true)?;
 
@@ -2680,6 +2691,18 @@ impl<'a> Chat<'a> {
         messages: &History,
         handled: bool,
     ) -> Result<TokenizerChunks, RenderError> {
+        let rendered_chat = self.render(messages, handled)?;
+        let messages = &messages.with_system_prompt(self.system_prompt.as_deref());
+        let bitmaps: Vec<&MtmdBitmap> = messages
+            .iter()
+            .flat_map(|msg| msg.media_ids())
+            .filter_map(|id| self.context.bitmaps.get(id))
+            .collect();
+        Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
+    }
+
+    /// `messages` through the chat template, as `render_as_chunks` explains.
+    fn render(&self, messages: &History, handled: bool) -> Result<String, RenderError> {
         // Callers pass the conversation they want rendered — which may be a
         // shortened one, during a context shift. The system prompt is not part
         // of that, so it is added here.
@@ -2689,19 +2712,12 @@ impl<'a> Chat<'a> {
             (!self.tools.is_empty()).then(|| self.tools.clone()),
         );
 
-        let rendered_chat = if handled {
+        Ok(if handled {
             self.chat_template.render(messages, &template_context)?
         } else {
             self.chat_template
                 .render_unhandled(messages, &template_context)?
-        };
-
-        let bitmaps: Vec<&MtmdBitmap> = messages
-            .iter()
-            .flat_map(|msg| msg.media_ids())
-            .filter_map(|id| self.context.bitmaps.get(id))
-            .collect();
-        Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
+        })
     }
 
     fn wrapped_update_context_and_generate_response<F>(
@@ -2714,24 +2730,21 @@ impl<'a> Chat<'a> {
     {
         let inference_lock_token = acquire_inference_lock();
         self.sync_context_with_render(&inference_lock_token)?;
-
-        let tool_call_begin_token = self
-            .tool_format
-            .as_ref()
-            .map(|format| format.begin_token().to_string());
-        let (wrapped_respond, resp_receiver) =
-            crate::inference::wrap_respond(respond, tool_call_begin_token);
+        let prompt = self.render(&self.messages, true)?;
 
         let prompt_tokens = self.context.chunks.n_tokens();
-        let completion_tokens = self.generate_response_until_done_with_limit(
-            wrapped_respond,
-            &inference_lock_token,
-            max_tokens,
-        )?;
+        let (content, tool_calls, completion_tokens) = self
+            .generate_response_until_done_with_limit(
+                respond,
+                &inference_lock_token,
+                max_tokens,
+                &prompt,
+            )?;
         let hit_token_limit = max_tokens.is_some_and(|max_tokens| completion_tokens >= max_tokens);
 
         Ok(GeneratedResponse {
-            content: resp_receiver.recv()?,
+            content,
+            tool_calls,
             prompt_tokens,
             completion_tokens,
             hit_token_limit,
@@ -2749,7 +2762,7 @@ impl<'a> Chat<'a> {
             &mut self.grammar_factory,
             &tools,
             &self.sampler_config,
-            self.tool_format.as_ref(),
+            self.output_format.as_ref(),
         )?;
 
         self.engine.reset_context()?;
@@ -2819,7 +2832,7 @@ impl<'a> Chat<'a> {
             &mut self.grammar_factory,
             effective_tools,
             config,
-            self.tool_format.as_ref(),
+            self.output_format.as_ref(),
         )?;
         // The template depends only on whether there are any tools, so it is
         // re-selected only when that flips — never on a sampler change, which
@@ -3444,10 +3457,12 @@ mod tests {
         // The history splits the response at the begin token: the preamble is
         // kept as content, the call block itself never is.
         let begin_token = worker
-            .tool_format
+            .output_format
             .as_ref()
-            .expect("the test model has a tool format")
-            .begin_token();
+            .expect("the test model has an output format")
+            .format()
+            .tool_calls()
+            .begin;
         for message in &worker.messages.into_vec() {
             if let Message::Assistant {
                 content,
