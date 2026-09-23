@@ -922,9 +922,6 @@ pub enum WrappedResponseError {
     #[error("Error while generating response: {0}")]
     #[diagnostic(transparent)]
     GenerateResponse(#[from] GenerateResponseError),
-
-    #[error("Error receiving generated response: {0}")]
-    Receive(#[from] std::sync::mpsc::RecvError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1269,14 +1266,11 @@ impl From<llama_cpp_2::ChatTemplateError> for SelectTemplateError {
 /// of tools.
 #[derive(Debug, thiserror::Error)]
 pub enum ToolCallingSetupError {
-    #[error("Failed to detect or apply tool calling format: {0}")]
-    ToolFormat(#[from] crate::tool_calling::ToolFormatError),
+    #[error("Failed to detect or apply the model's output format: {0}")]
+    OutputFormat(#[from] crate::output_format::FormatError),
 
     #[error("Failed to build tool-call sampler: {0}")]
     Sampler(#[from] SamplerError),
-
-    #[error("Failed to tokenize the tool-call begin token: {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
