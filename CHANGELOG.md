@@ -10,7 +10,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
-- Android (Godot, Flutter, Kotlin, React Native): static OpenCL and Vulkan backends with automatic OpenCL → Vulkan → CPU selection. OpenCL stays optional: the device's `libOpenCL.so` is loaded at runtime, so devices without it still load the library.
+- Android (Godot, Flutter, Kotlin, React Native): static OpenCL and Vulkan backends with automatic OpenCL → Vulkan → CPU selection. OpenCL remains optional through an embedded forwarding shim.
 - **Python:** Added OpenAI-compatible `chat.completions` and `responses` APIs with streaming, usage metadata, tool support, and request-level sampling.
 - Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
 - `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered. Available for all bindings.
