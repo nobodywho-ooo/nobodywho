@@ -547,17 +547,14 @@ jobs:
 
       - name: "Cache Cargo Home"
         # Warp cache — off GitHub's 10 GiB budget (this runs on a Warp runner).
-        # ort-sys records the dfbin path in target build output, so these two
-        # directories must be restored and saved together.
         uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
-            ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('nobodywho/android/**') }}-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

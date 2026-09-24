@@ -127,17 +127,15 @@ jobs:
 
       - name: "Cache Cargo Home"
         # Same key shape as build.yml's cargo-build-android (uniffi / aarch64),
-        # so this shares the warm cache produced by regular CI runs. dfbin must
-        # travel with target because ort-sys records its absolute path there.
+        # so this shares the warm cache produced by regular CI runs.
         uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
-            ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -339,17 +337,14 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        # Keep ort-sys's downloaded archive with the target build output that
-        # contains its absolute native-library search path.
         uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
-            ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
+            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -552,17 +547,14 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: "Cache Cargo Home"
-        # Keep ort-sys's downloaded archive with the target build output that
-        # contains its absolute native-library search path.
         uses: WarpBuilds/cache@v1
         with:
           path: |
             ~/.cargo
-            ~/.cache/ort.pyke.io/dfbin
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-ort-dist-v1-${{ hashFiles('nobodywho/android/**') }}-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
