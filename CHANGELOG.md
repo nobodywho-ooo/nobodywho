@@ -33,7 +33,6 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.
 - Fix logs from llama.cpp's multimodal backend not being sent to the platform's logging mechanism.
 - **Flutter:** Logs are now forwarded to Dart's `package:logging`. Configure it as described in their documentation.
-- Flutter, Kotlin, Swift, React Native: llama.cpp's own log lines (model loading, GPU backend setup, driver errors) now reach the app's logging instead of being dropped. Routine progress arrives at DEBUG; warnings and errors keep their level.
 
 ### Removed
 

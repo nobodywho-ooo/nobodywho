@@ -9,7 +9,6 @@ pub mod huggingface;
 pub mod inference;
 mod join_on_drop;
 pub mod llm;
-pub mod logging;
 pub mod memory;
 mod model_selection;
 pub mod onnx;

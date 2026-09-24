@@ -1917,9 +1917,8 @@ pub fn init_app() {
     // send llamacpp logs into tracing
     nobodywho::send_llamacpp_logs_to_tracing();
 
-    // `enable_frb_rust_to_dart_logging!` above listens on the `log` crate.
-    // Forward all tracing events there, llama.cpp's own lines included.
-    nobodywho::logging::forward_tracing_to_log();
+    // NOTE: Do not set up a `tracing-subscriber`, that will conflict with
+    // `enable_frb_rust_to_dart_logging!` above!
 
     flutter_rust_bridge::setup_backtrace();
 }
