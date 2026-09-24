@@ -8,10 +8,8 @@
 
 import 'dart:async';
 import 'dart:convert';
-
 import 'frb_generated.dart';
 import 'lib.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 
 abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
@@ -431,6 +429,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
+  ContextShiftOptions dco_decode_box_autoadd_context_shift_options(dynamic raw);
+
+  @protected
   double dco_decode_box_autoadd_f_32(dynamic raw);
 
   @protected
@@ -446,6 +447,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   MtpConfig dco_decode_box_autoadd_mtp_config(dynamic raw);
 
   @protected
+  ShiftTarget dco_decode_box_autoadd_shift_target(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -459,6 +463,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   ContentPart dco_decode_content_part(dynamic raw);
+
+  @protected
+  ContextShiftOptions dco_decode_context_shift_options(dynamic raw);
 
   @protected
   double dco_decode_f_32(dynamic raw);
@@ -563,6 +570,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
+  ContextShiftOptions? dco_decode_opt_box_autoadd_context_shift_options(
+    dynamic raw,
+  );
+
+  @protected
   double? dco_decode_opt_box_autoadd_f_32(dynamic raw);
 
   @protected
@@ -573,6 +585,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   MtpConfig? dco_decode_opt_box_autoadd_mtp_config(dynamic raw);
+
+  @protected
+  ShiftTarget? dco_decode_opt_box_autoadd_shift_target(dynamic raw);
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
@@ -606,6 +621,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   (String, BigInt) dco_decode_record_string_usize(dynamic raw);
+
+  @protected
+  ShiftTarget dco_decode_shift_target(dynamic raw);
 
   @protected
   ToolCall dco_decode_tool_call(dynamic raw);
@@ -966,6 +984,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  ContextShiftOptions sse_decode_box_autoadd_context_shift_options(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double sse_decode_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
@@ -983,6 +1006,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   MtpConfig sse_decode_box_autoadd_mtp_config(SseDeserializer deserializer);
 
   @protected
+  ShiftTarget sse_decode_box_autoadd_shift_target(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -996,6 +1022,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   ContentPart sse_decode_content_part(SseDeserializer deserializer);
+
+  @protected
+  ContextShiftOptions sse_decode_context_shift_options(
+    SseDeserializer deserializer,
+  );
 
   @protected
   double sse_decode_f_32(SseDeserializer deserializer);
@@ -1116,6 +1147,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  ContextShiftOptions? sse_decode_opt_box_autoadd_context_shift_options(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   double? sse_decode_opt_box_autoadd_f_32(SseDeserializer deserializer);
 
   @protected
@@ -1126,6 +1162,11 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   MtpConfig? sse_decode_opt_box_autoadd_mtp_config(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ShiftTarget? sse_decode_opt_box_autoadd_shift_target(
     SseDeserializer deserializer,
   );
 
@@ -1163,6 +1204,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   (String, BigInt) sse_decode_record_string_usize(SseDeserializer deserializer);
+
+  @protected
+  ShiftTarget sse_decode_shift_target(SseDeserializer deserializer);
 
   @protected
   ToolCall sse_decode_tool_call(SseDeserializer deserializer);
@@ -1594,6 +1638,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_context_shift_options(
+    ContextShiftOptions self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_f_32(double self, SseSerializer serializer);
 
   @protected
@@ -1615,6 +1665,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_shift_target(
+    ShiftTarget self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
@@ -1628,6 +1684,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
 
   @protected
   void sse_encode_content_part(ContentPart self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_context_shift_options(
+    ContextShiftOptions self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
@@ -1782,6 +1844,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_context_shift_options(
+    ContextShiftOptions? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_f_32(double? self, SseSerializer serializer);
 
   @protected
@@ -1793,6 +1861,12 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
   @protected
   void sse_encode_opt_box_autoadd_mtp_config(
     MtpConfig? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_shift_target(
+    ShiftTarget? self,
     SseSerializer serializer,
   );
 
@@ -1847,6 +1921,9 @@ abstract class NobodyWhoApiImplPlatform extends BaseApiImpl<NobodyWhoWire> {
     (String, BigInt) self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_shift_target(ShiftTarget self, SseSerializer serializer);
 
   @protected
   void sse_encode_tool_call(ToolCall self, SseSerializer serializer);

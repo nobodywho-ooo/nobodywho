@@ -673,6 +673,11 @@ public protocol RustChatProtocol: AnyObject, Sendable {
     func setChatHistory(messages: [Message]) async throws 
     
     /**
+     * Set how old turns are forgotten when the context is full.
+     */
+    func setContextShift(options: ContextShiftOptions) async throws 
+    
+    /**
      * Set the sampler configuration.
      */
     func setSamplerConfig(sampler: SamplerConfig) async throws 
@@ -760,8 +765,11 @@ open class RustChat: RustChatProtocol, @unchecked Sendable {
      * detects the device's physical core count (performance cores only, on
      * Apple silicon), since hyperthreads and efficiency cores make inference
      * slower. Clamped to the CPU count.
+     *
+     * `context_shift` sets how old turns are forgotten when the context is
+     * full; `null` uses the defaults.
      */
-public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: MtpConfig?, threadCount: UInt32?)throws  {
+public convenience init(model: RustModel, systemPrompt: String?, contextSize: UInt32, templateVariables: [String: Bool]?, tools: [RustTool]?, sampler: SamplerConfig?, mtp: MtpConfig?, threadCount: UInt32?, contextShift: ContextShiftOptions?)throws  {
     let handle =
         try rustCallWithError(FfiConverterTypeNobodyWhoError_lift) {
     uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
@@ -772,7 +780,8 @@ public convenience init(model: RustModel, systemPrompt: String?, contextSize: UI
         FfiConverterOptionSequenceTypeRustTool.lower(tools),
         FfiConverterOptionTypeSamplerConfig.lower(sampler),
         FfiConverterOptionTypeMtpConfig.lower(mtp),
-        FfiConverterOptionUInt32.lower(threadCount),$0
+        FfiConverterOptionUInt32.lower(threadCount),
+        FfiConverterOptionTypeContextShiftOptions.lower(contextShift),$0
     )
 }
     self.init(unsafeFromHandle: handle)
@@ -1021,6 +1030,26 @@ open func setChatHistory(messages: [Message])async throws   {
                 uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
                     self.uniffiCloneHandle(),
                     FfiConverterSequenceTypeMessage.lower(messages)
+                )
+            },
+            pollFunc: ffi_nobodywho_uniffi_rust_future_poll_void,
+            completeFunc: ffi_nobodywho_uniffi_rust_future_complete_void,
+            freeFunc: ffi_nobodywho_uniffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNobodyWhoError_lift
+        )
+}
+    
+    /**
+     * Set how old turns are forgotten when the context is full.
+     */
+open func setContextShift(options: ContextShiftOptions)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_nobodywho_uniffi_fn_method_rustchat_set_context_shift(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeContextShiftOptions_lower(options)
                 )
             },
             pollFunc: ffi_nobodywho_uniffi_rust_future_poll_void,
@@ -3433,6 +3462,94 @@ public func FfiConverterTypeChatStats_lower(_ value: ChatStats) -> RustBuffer {
 
 
 /**
+ * How a chat forgets old turns when its context is full. A turn is a user
+ * message and everything up to the next one; system messages are always kept.
+ */
+public struct ContextShiftOptions: Equatable, Hashable {
+    /**
+     * `false` disables shifting, so a full context is an error instead.
+     */
+    public var enabled: Bool
+    /**
+     * Turns always kept at the start of the history.
+     */
+    public var keepFirstTurns: UInt32
+    /**
+     * Turns always kept at the end of the history; at least 1.
+     */
+    public var keepLastTurns: UInt32
+    /**
+     * Size the history is shrunk to. `null` means half the context size.
+     */
+    public var target: ShiftTarget?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * `false` disables shifting, so a full context is an error instead.
+         */enabled: Bool = true, 
+        /**
+         * Turns always kept at the start of the history.
+         */keepFirstTurns: UInt32 = UInt32(1), 
+        /**
+         * Turns always kept at the end of the history; at least 1.
+         */keepLastTurns: UInt32 = UInt32(2), 
+        /**
+         * Size the history is shrunk to. `null` means half the context size.
+         */target: ShiftTarget? = nil) {
+        self.enabled = enabled
+        self.keepFirstTurns = keepFirstTurns
+        self.keepLastTurns = keepLastTurns
+        self.target = target
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension ContextShiftOptions: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeContextShiftOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ContextShiftOptions {
+        return
+            try ContextShiftOptions(
+                enabled: FfiConverterBool.read(from: &buf), 
+                keepFirstTurns: FfiConverterUInt32.read(from: &buf), 
+                keepLastTurns: FfiConverterUInt32.read(from: &buf), 
+                target: FfiConverterOptionTypeShiftTarget.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ContextShiftOptions, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.enabled, into: &buf)
+        FfiConverterUInt32.write(value.keepFirstTurns, into: &buf)
+        FfiConverterUInt32.write(value.keepLastTurns, into: &buf)
+        FfiConverterOptionTypeShiftTarget.write(value.target, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeContextShiftOptions_lift(_ buf: RustBuffer) throws -> ContextShiftOptions {
+    return try FfiConverterTypeContextShiftOptions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeContextShiftOptions_lower(_ value: ContextShiftOptions) -> RustBuffer {
+    return FfiConverterTypeContextShiftOptions.lower(value)
+}
+
+
+/**
  * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
  * enables MTP; `null` runs the solo decode path. Requires the model to
  * have been loaded with a compatible `draft_model_path`.
@@ -4084,6 +4201,86 @@ public func FfiConverterTypeNobodyWhoError_lower(_ value: NobodyWhoError) -> Rus
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Size a context shift shrinks the chat history to.
+ */
+
+public enum ShiftTarget: Equatable, Hashable {
+    
+    /**
+     * A fraction of the context size, in `(0, 1)`.
+     */
+    case fraction(fraction: Float
+    )
+    /**
+     * A number of tokens, below the context size.
+     */
+    case tokens(tokens: UInt32
+    )
+
+
+
+}
+
+#if compiler(>=6)
+extension ShiftTarget: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeShiftTarget: FfiConverterRustBuffer {
+    typealias SwiftType = ShiftTarget
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ShiftTarget {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .fraction(fraction: try FfiConverterFloat.read(from: &buf)
+        )
+        
+        case 2: return .tokens(tokens: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ShiftTarget, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .fraction(fraction):
+            writeInt(&buf, Int32(1))
+            FfiConverterFloat.write(fraction, into: &buf)
+            
+        
+        case let .tokens(tokens):
+            writeInt(&buf, Int32(2))
+            FfiConverterUInt32.write(tokens, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeShiftTarget_lift(_ buf: RustBuffer) throws -> ShiftTarget {
+    return try FfiConverterTypeShiftTarget.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeShiftTarget_lower(_ value: ShiftTarget) -> RustBuffer {
+    return FfiConverterTypeShiftTarget.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * `push` always returns one of these: `Speech`/`Silence` for the confirmed
  * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
  * on the call that confirmed the transition.
@@ -4550,6 +4747,30 @@ fileprivate struct FfiConverterOptionTypeSamplerConfig: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeContextShiftOptions: FfiConverterRustBuffer {
+    typealias SwiftType = ContextShiftOptions?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeContextShiftOptions.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeContextShiftOptions.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeMtpConfig: FfiConverterRustBuffer {
     typealias SwiftType = MtpConfig?
 
@@ -4590,6 +4811,30 @@ fileprivate struct FfiConverterOptionTypePendingToolCall: FfiConverterRustBuffer
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypePendingToolCall.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeShiftTarget: FfiConverterRustBuffer {
+    typealias SwiftType = ShiftTarget?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeShiftTarget.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeShiftTarget.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -5477,6 +5722,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history() != 6058) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift() != 58540) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() != 28012) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -5621,7 +5869,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 2313) {
+    if (uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 4810) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022) {

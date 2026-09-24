@@ -2,6 +2,7 @@ import {
   RustChat,
   SamplerConfig,
   MtpConfig,
+  ContextShiftOptions,
   type ChatStats,
 } from "../generated/ts/nobodywho";
 import { Model } from "./model";
@@ -49,6 +50,9 @@ export class Chat {
    * device's physical core count (performance cores only, on Apple silicon) — hyperthreads
    * and efficiency cores make inference slower, not faster. Lower it to leave CPU headroom
    * for the rest of the app.
+   *
+   * `contextShift` sets how old turns are forgotten when the context is full; omit it for
+   * the defaults, or pass `{ enabled: false }` to disable shifting.
    */
   constructor(opts: {
     model: Model;
@@ -59,6 +63,7 @@ export class Chat {
     sampler?: SamplerConfig;
     mtp?: Partial<MtpConfig>;
     threadCount?: number;
+    contextShift?: Partial<ContextShiftOptions>;
   }) {
     this._inner = new RustChat(
       opts.model._inner,
@@ -69,6 +74,7 @@ export class Chat {
       opts.sampler ?? undefined,
       opts.mtp !== undefined ? MtpConfig.create(opts.mtp) : undefined,
       opts.threadCount ?? undefined,
+      opts.contextShift !== undefined ? ContextShiftOptions.create(opts.contextShift) : undefined,
     );
   }
 
@@ -96,6 +102,7 @@ export class Chat {
     sampler?: SamplerConfig;
     mtp?: Partial<MtpConfig>;
     threadCount?: number;
+    contextShift?: Partial<ContextShiftOptions>;
     onDownloadProgress?: (downloaded: number, total: number) => void;
   }): Promise<Chat> {
     const model = await Model.load({
@@ -191,6 +198,11 @@ export class Chat {
   /** Set the system prompt. */
   async setSystemPrompt(systemPrompt: string | undefined): Promise<void> {
     return this._inner.setSystemPrompt(systemPrompt);
+  }
+
+  /** Set how old turns are forgotten when the context is full. */
+  async setContextShift(options: Partial<ContextShiftOptions>): Promise<void> {
+    return this._inner.setContextShift(ContextShiftOptions.create(options));
   }
 
   /** Set the tools available to the model. */

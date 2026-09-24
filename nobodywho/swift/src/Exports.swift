@@ -13,6 +13,8 @@
 @_exported import struct NobodyWhoGenerated.ToolCall
 @_exported import class NobodyWhoGenerated.SamplerConfig
 @_exported import class NobodyWhoGenerated.SamplerBuilder
+@_exported import struct NobodyWhoGenerated.ContextShiftOptions
+@_exported import enum NobodyWhoGenerated.ShiftTarget
 @_exported import struct NobodyWhoGenerated.CachedModel
 
 import NobodyWhoGenerated

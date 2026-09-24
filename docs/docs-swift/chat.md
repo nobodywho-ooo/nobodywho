@@ -191,7 +191,23 @@ let chat = try await Chat.fromPath(
 
 The default value is `4096`, however this is mainly useful for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. You can check the maximum context size the model was trained with using `model.maxCtx` — setting `contextSize` above this value has no benefit.
 
-Even with a properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history, until the size reaches `contextSize / 2`. The KV cache is also updated automatically.
+Even with a properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho shifts the context: it forgets the fewest old turns needed to shrink the chat history to half of `contextSize`. A turn is a user message and everything up to the next one. System messages are always kept, and so are the first turn and the last two turns by default. The KV cache is updated automatically.
+
+You can tune this with `ContextShiftOptions`. `target` is either `.fraction(fraction:)` for a fraction of `contextSize`, or `.tokens(tokens:)` for a number of tokens. `keepLastTurns` must be at least 1, so the message being answered is never forgotten:
+
+```swift
+let chat = try await Chat.fromPath(
+    modelPath: "/path/to/model.gguf",
+    contextSize: 4096,
+    contextShift: ContextShiftOptions(keepFirstTurns: 1, keepLastTurns: 4, target: .fraction(fraction: 0.75))
+)
+```
+
+To turn context shifting off, pass `ContextShiftOptions(enabled: false)`; a full context then throws instead. The options can also be changed on an existing chat:
+
+```swift continuation
+try await chat.setContextShift(ContextShiftOptions(enabled: false))
+```
 
 To reset the current context content, call `resetContext()` with a new system prompt and potentially changed tools.
 
