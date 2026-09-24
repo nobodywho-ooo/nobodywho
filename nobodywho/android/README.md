@@ -29,6 +29,3 @@ Selection is OpenCL → Vulkan → CPU; `useGpu=false` forces CPU. The current
 Adreno Vulkan exclusion avoids observed shader crashes (llama.cpp#12421),
 while Turnip remains eligible. Vision/audio projection stays on CPU because
 mtmd cannot select its GPU. Selection does not recover from native driver crashes.
-
-See [`OPENCL_LINKING.md`](OPENCL_LINKING.md) for the difference between
-link-time and packaged OpenCL libraries.
