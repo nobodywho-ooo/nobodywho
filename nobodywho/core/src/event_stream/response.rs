@@ -17,6 +17,12 @@ use crate::event_stream::{
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ResponseId(pub String);
 
+impl ResponseId {
+    pub fn generate(rng: &mut impl Rng) -> Self {
+        ResponseId(format!("resp_{}", random_id_suffix(rng)))
+    }
+}
+
 /// An identifier for an item. Unique within the entire conversation.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ItemId(pub String);
