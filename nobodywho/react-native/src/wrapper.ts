@@ -77,6 +77,7 @@ export type { Message, Content, ContentPart } from "./message";
 export {
   SamplerBuilder,
   SamplerConfig,
+  ShiftTarget,
   cosineSimilarity,
   getCachedModels,
 } from "../generated/ts/nobodywho";
@@ -85,6 +86,7 @@ export type {
   ToolCall,
   CachedModel,
   ChatStats,
+  ContextShiftOptions,
 } from "../generated/ts/nobodywho";
 export type { TextToSpeechArchitecture, TextToSpeechDevice, TextToSpeechOptions } from "./text_to_speech";
 export type { SpeechToTextOptions } from "./speech_to_text";

@@ -188,6 +188,42 @@ void main() {
       expect(stats.contextUsed, lessThanOrEqualTo(stats.contextSize));
     });
 
+    test('Context shift options', () async {
+      await nobodywho.Chat.fromPath(
+        modelPath: modelPath,
+        contextSize: 1024,
+        contextShift: nobodywho.ContextShiftOptions(
+          keepFirstTurns: 2,
+          keepLastTurns: 3,
+          target: nobodywho.ShiftTarget.tokens(256),
+        ),
+      );
+      await nobodywho.Chat.fromPath(
+        modelPath: modelPath,
+        contextShift: nobodywho.ContextShiftOptions(enabled: false),
+      );
+      await expectLater(
+        nobodywho.Chat.fromPath(
+          modelPath: modelPath,
+          contextSize: 1024,
+          contextShift: nobodywho.ContextShiftOptions(
+            target: nobodywho.ShiftTarget.tokens(1024),
+          ),
+        ),
+        throwsA(anything),
+      );
+    });
+
+    test('Set context shift', () async {
+      await chat!.setContextShift(nobodywho.ContextShiftOptions(
+        target: nobodywho.ShiftTarget.fraction(0.25),
+      ));
+      await expectLater(
+        chat!.setContextShift(nobodywho.ContextShiftOptions(keepLastTurns: 0)),
+        throwsA(anything),
+      );
+    });
+
     test('Tool calling test', () async {
       final responseStream = chat!.ask(
         "Can you please sparklify the string 'Foopdoop'?",

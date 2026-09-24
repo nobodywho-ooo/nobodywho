@@ -282,7 +282,25 @@ chat = Chat("./model.gguf", n_ctx=4096)
 
 The default value is `4096`, however this is mainly useful for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. You can check the maximum context size the model was trained with using `model.max_ctx()` — setting `n_ctx` above this value has no benefit.
 
-Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history, until the size reaches `n_ctx / 2`. The KV cache is also updated automatically. In the future we plan on adding more advanced methods of context shrinking.
+Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho shifts the context: it forgets the fewest old turns needed to shrink the chat history to half of `n_ctx`. A turn is a user message and everything up to the next one. System messages are always kept, and so are the first turn and the last two turns by default. The KV cache is updated automatically.
+
+You can tune this with `ContextShiftOptions`. `target` is a float in (0, 1) for a fraction of `n_ctx`, or an int for a number of tokens. `keep_last_turns` must be at least 1, so the message being answered is never forgotten:
+
+```python
+from nobodywho import Chat, ContextShiftOptions
+
+chat = Chat(
+    "./model.gguf",
+    n_ctx=4096,
+    context_shift=ContextShiftOptions(keep_first_turns=1, keep_last_turns=4, target=0.75),
+)
+```
+
+To turn context shifting off, pass `ContextShiftOptions(enabled=False)`; a full context then raises an error instead. The options can also be changed on an existing chat:
+
+```python continuation
+chat.set_context_shift(ContextShiftOptions(enabled=False))
+```
 
 Again, `n_ctx` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `.reset()` with the new system prompt and potentially changed tools.
 

@@ -14,6 +14,8 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
 - `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered. Available for all bindings.
 
+- Context shifting is configurable: how many turns to always keep at the start and end, the size to shrink to (a fraction of the context size or a number of tokens), or turning it off so a full context is an error. Pass `ContextShiftOptions` when creating a chat or later with `set_context_shift`. **Godot:** use the `"context_shift"` config key and `set_context_shift()` with a bool or Dictionary. Available for all bindings.
+
 ### Changed
 
 - `SamplerPresets.json()` and the new `SamplerBuilder.json()` now constrain with the JSON schema `{"type":"object"}` through llguidance, so they take the same faster per-token path as the other `constrain_with_*` presets. Output is still a JSON object of any shape, as the old grammar's root was an object too. The new grammar is slightly more permissive at the edges: the old one allowed at most one newline plus 20 spaces of indentation per gap, and could not emit exponents like `1e10`. Affects all bindings.

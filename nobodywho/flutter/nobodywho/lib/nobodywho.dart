@@ -607,6 +607,9 @@ class Chat {
   /// detect the device's physical core count (performance cores only, on Apple silicon) —
   /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
   /// CPU headroom for the rest of the app.
+  ///
+  /// [contextShift] sets how old turns are forgotten when the context is full. Leave it
+  /// null for the defaults, or pass `ContextShiftOptions(enabled: false)` to disable it.
   factory Chat({
     required nobodywho.Model model,
     String? systemPrompt,
@@ -617,6 +620,7 @@ class Chat {
     nobodywho.SamplerConfig? sampler,
     nobodywho.MtpConfig? mtp,
     int? threadCount,
+    nobodywho.ContextShiftOptions? contextShift,
   }) {
     final chat = nobodywho.RustChat(
       model: model,
@@ -628,6 +632,7 @@ class Chat {
       sampler: sampler,
       mtp: mtp,
       threadCount: threadCount,
+      contextShift: contextShift,
     );
     return Chat._(chat);
   }
@@ -649,6 +654,9 @@ class Chat {
   /// detect the device's physical core count (performance cores only, on Apple silicon) —
   /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
   /// CPU headroom for the rest of the app.
+  ///
+  /// [contextShift] sets how old turns are forgotten when the context is full. Leave it
+  /// null for the defaults, or pass `ContextShiftOptions(enabled: false)` to disable it.
   static Future<Chat> fromPath({
     required String modelPath,
     String? projectionModelPath,
@@ -662,6 +670,7 @@ class Chat {
     bool useGpu = true,
     nobodywho.MtpConfig? mtp,
     int? threadCount,
+    nobodywho.ContextShiftOptions? contextShift,
     FutureOr<void> Function(int downloaded, int total) onDownloadProgress =
         nobodywho.noopOnDownloadProgress,
   }) async {
@@ -679,6 +688,7 @@ class Chat {
       useGpu: useGpu,
       mtp: mtp,
       threadCount: threadCount,
+      contextShift: contextShift,
     );
     return Chat._(chat);
   }
@@ -778,6 +788,10 @@ class Chat {
 
   /// Get the current system prompt.
   Future<String?> getSystemPrompt() => _chat.getSystemPrompt();
+
+  /// Set how old turns are forgotten when the context is full.
+  Future<void> setContextShift(nobodywho.ContextShiftOptions options) =>
+      _chat.setContextShift(options: options);
 
   /// Set the available tools.
   Future<void> setTools(List<Tool> tools) =>

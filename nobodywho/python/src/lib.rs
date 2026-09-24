@@ -1,5 +1,6 @@
 use pyo3::exceptions::PyKeyboardInterrupt;
 use pyo3::prelude::*;
+use pyo3::{type_hint_union, PyTypeInfo};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -2268,6 +2269,117 @@ impl From<MtpConfig> for nobodywho::chat::MtpConfig {
     }
 }
 
+/// How a chat forgets old turns when its context is full. Pass an instance as the
+/// `context_shift` argument to `Chat`/`ChatAsync`, or to `set_context_shift`.
+/// A turn is a user message and everything up to the next one; system messages
+/// are always kept.
+#[pyclass(from_py_object)]
+#[derive(Clone)]
+pub struct ContextShiftOptions {
+    /// `False` disables shifting, so a full context raises an error instead.
+    #[pyo3(get, set)]
+    pub enabled: bool,
+    /// Turns always kept at the start of the history.
+    #[pyo3(get, set)]
+    pub keep_first_turns: usize,
+    /// Turns always kept at the end of the history; at least 1.
+    #[pyo3(get, set)]
+    pub keep_last_turns: usize,
+    target: nobodywho::chat::ShiftTarget,
+}
+
+/// A float (fraction of n_ctx) or an int (tokens) passed as a shift target.
+struct ShiftTargetArg(nobodywho::chat::ShiftTarget);
+
+impl FromPyObject<'_, '_> for ShiftTargetArg {
+    type Error = PyErr;
+
+    const INPUT_TYPE: pyo3::inspect::PyStaticExpr = type_hint_union!(
+        <pyo3::types::PyFloat as PyTypeInfo>::TYPE_HINT,
+        <pyo3::types::PyInt as PyTypeInfo>::TYPE_HINT
+    );
+
+    fn extract(target: Borrowed<'_, '_, PyAny>) -> PyResult<Self> {
+        use pyo3::types::{PyBool, PyFloat, PyInt};
+        if target.is_instance_of::<PyFloat>() {
+            Ok(Self(nobodywho::chat::ShiftTarget::Fraction(
+                target.extract()?,
+            )))
+        } else if target.is_instance_of::<PyInt>() && !target.is_instance_of::<PyBool>() {
+            Ok(Self(nobodywho::chat::ShiftTarget::Tokens(
+                target.extract()?,
+            )))
+        } else {
+            Err(pyo3::exceptions::PyTypeError::new_err(
+                "target must be a float (fraction of n_ctx) or an int (tokens)",
+            ))
+        }
+    }
+}
+
+#[pymethods]
+impl ContextShiftOptions {
+    /// Create context shift options. Defaults mirror the core defaults.
+    ///
+    /// Args:
+    ///     enabled: Whether to shift at all. Defaults to True.
+    ///     keep_first_turns: Turns always kept at the start. Defaults to 1.
+    ///     keep_last_turns: Turns always kept at the end, at least 1. Defaults to 2.
+    ///     target: Size the history is shrunk to: a float in (0, 1) for a fraction
+    ///         of n_ctx, or an int for a number of tokens. Defaults to 0.5.
+    #[new]
+    #[pyo3(signature = (enabled = true, keep_first_turns = 1, keep_last_turns = 2, target: "float | int | None" = None))]
+    fn new(
+        enabled: bool,
+        keep_first_turns: usize,
+        keep_last_turns: usize,
+        target: Option<ShiftTargetArg>,
+    ) -> Self {
+        Self {
+            enabled,
+            keep_first_turns,
+            keep_last_turns,
+            target: target.map_or(
+                nobodywho::chat::ContextShiftOptions::default().target,
+                |t| t.0,
+            ),
+        }
+    }
+
+    /// Size the history is shrunk to: a float for a fraction of n_ctx, or an int
+    /// for a number of tokens.
+    #[getter]
+    fn target(&self) -> ShiftTargetOut {
+        match self.target {
+            nobodywho::chat::ShiftTarget::Fraction(f) => ShiftTargetOut::Fraction(f),
+            nobodywho::chat::ShiftTarget::Tokens(t) => ShiftTargetOut::Tokens(t),
+        }
+    }
+
+    /// Size the history is shrunk to: a float for a fraction of n_ctx, or an int
+    /// for a number of tokens.
+    #[setter]
+    fn set_target(&mut self, target: ShiftTargetArg) {
+        self.target = target.0;
+    }
+}
+
+#[derive(IntoPyObject)]
+enum ShiftTargetOut {
+    Fraction(f32),
+    Tokens(u32),
+}
+
+impl From<ContextShiftOptions> for Option<nobodywho::chat::ContextShiftOptions> {
+    fn from(o: ContextShiftOptions) -> Self {
+        o.enabled.then_some(nobodywho::chat::ContextShiftOptions {
+            keep_first_turns: o.keep_first_turns,
+            keep_last_turns: o.keep_last_turns,
+            target: o.target,
+        })
+    }
+}
+
 /// `Chat` is a general-purpose class for interacting with instruction-tuned conversational LLMs.
 /// It should be initialized with a turn-taking LLM, which includes a chat template.
 /// On a `Chat` instance, you can call `.ask()` with the prompt you intend to pass to the model,
@@ -2318,6 +2430,8 @@ impl Chat {
     ///         detects the host's physical core count (performance cores only, on Apple
     ///         silicon) — hyperthreads and efficiency cores slow inference down. Set it
     ///         lower to leave CPU headroom for other work. Clamped to the logical CPU count.
+    ///     context_shift: ContextShiftOptions for forgetting old turns when the context is
+    ///         full. Defaults to None, which uses the default options.
     ///
     /// Returns:
     ///     A Chat instance
@@ -2326,7 +2440,7 @@ impl Chat {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None) -> "Chat")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = Vec::<Tool>::new(), sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None, context_shift: "ContextShiftOptions | None" = None) -> "Chat")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -2337,6 +2451,7 @@ impl Chat {
         allow_thinking: Option<bool>,
         mtp: Option<MtpConfig>,
         n_threads: Option<u32>,
+        context_shift: Option<ContextShiftOptions>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -2368,6 +2483,9 @@ impl Chat {
             }
             if let Some(n_threads) = n_threads {
                 builder = builder.with_n_threads(n_threads);
+            }
+            if let Some(context_shift) = context_shift {
+                builder = builder.with_context_shift(context_shift.into());
             }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
@@ -2632,6 +2750,17 @@ impl Chat {
         py.detach(|| self.handle().set_system_prompt(system_prompt).map_err(err))
     }
 
+    /// Update how old turns are forgotten when the context is full.
+    ///
+    /// Args:
+    ///     options: New ContextShiftOptions
+    ///
+    /// Raises:
+    ///     RuntimeError: If the options are invalid for this chat's context size
+    pub fn set_context_shift(&self, options: ContextShiftOptions, py: Python) -> PyResult<()> {
+        py.detach(|| self.handle().set_context_shift(options.into()).map_err(err))
+    }
+
     /// Update the sampler configuration without resetting chat history.
     ///
     /// Args:
@@ -2783,6 +2912,8 @@ impl ChatAsync {
     ///         detects the host's physical core count (performance cores only, on Apple
     ///         silicon) — hyperthreads and efficiency cores slow inference down. Set it
     ///         lower to leave CPU headroom for other work. Clamped to the logical CPU count.
+    ///     context_shift: ContextShiftOptions for forgetting old turns when the context is
+    ///         full. Defaults to None, which uses the default options.
     ///
     /// Returns:
     ///     A ChatAsync instance
@@ -2791,7 +2922,7 @@ impl ChatAsync {
     ///     RuntimeError: If the model cannot be loaded
 
     #[new]
-    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None) -> "ChatAsync")]
+    #[pyo3(signature = (model: "Model | os.PathLike | str", n_ctx = 4096, system_prompt = None, template_variables: "dict[str, bool]" = std::collections::HashMap::<String, bool>::new(), tools: "list[Tool]" = vec![], sampler: "SamplerConfig | None" = None, allow_thinking: "bool | None" = None, mtp: "MtpConfig | None" = None, n_threads: "int | None" = None, context_shift: "ContextShiftOptions | None" = None) -> "ChatAsync")]
     pub fn new(
         model: ModelOrPath,
         n_ctx: u32,
@@ -2802,6 +2933,7 @@ impl ChatAsync {
         allow_thinking: Option<bool>,
         mtp: Option<MtpConfig>,
         n_threads: Option<u32>,
+        context_shift: Option<ContextShiftOptions>,
         py: Python<'_>,
     ) -> PyResult<Self> {
         let nw_model = model.get_inner_model()?;
@@ -2833,6 +2965,9 @@ impl ChatAsync {
             }
             if let Some(n_threads) = n_threads {
                 builder = builder.with_n_threads(n_threads);
+            }
+            if let Some(context_shift) = context_shift {
+                builder = builder.with_context_shift(context_shift.into());
             }
             // When no sampler is given, leave it unset so the worker falls back
             // to sampling settings embedded in the GGUF (general.sampling.*),
@@ -3093,6 +3228,20 @@ impl ChatAsync {
     pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> PyResult<()> {
         self.handle()
             .set_system_prompt(system_prompt)
+            .await
+            .map_err(err)
+    }
+
+    /// Update how old turns are forgotten when the context is full.
+    ///
+    /// Args:
+    ///     options: New ContextShiftOptions
+    ///
+    /// Raises:
+    ///     RuntimeError: If the options are invalid for this chat's context size
+    pub async fn set_context_shift(&self, options: ContextShiftOptions) -> PyResult<()> {
+        self.handle()
+            .set_context_shift(options.into())
             .await
             .map_err(err)
     }
@@ -5121,6 +5270,8 @@ pub mod nobodywhopython {
     use super::ChatStats;
     #[pymodule_export]
     use super::CompletionUsage;
+    #[pymodule_export]
+    use super::ContextShiftOptions;
     #[pymodule_export]
     use super::CrossEncoder;
     #[pymodule_export]

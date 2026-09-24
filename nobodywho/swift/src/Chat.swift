@@ -19,6 +19,9 @@ public class Chat {
     /// detect the device's physical core count (performance cores only, on Apple silicon) —
     /// hyperthreads and efficiency cores make inference slower, not faster. Lower it to leave
     /// CPU headroom for the rest of the app.
+    ///
+    /// `contextShift` sets how old turns are forgotten when the context is full; `nil`
+    /// uses the defaults.
     public init(
         model: Model,
         systemPrompt: String? = nil,
@@ -27,7 +30,8 @@ public class Chat {
         tools: [Tool]? = nil,
         sampler: SamplerConfig? = nil,
         mtp: MtpConfig? = nil,
-        threadCount: UInt32? = nil
+        threadCount: UInt32? = nil,
+        contextShift: ContextShiftOptions? = nil
     ) throws {
         self.inner = try RustChat(
             model: model.inner,
@@ -37,7 +41,8 @@ public class Chat {
             tools: tools?.map { $0.inner },
             sampler: sampler,
             mtp: mtp,
-            threadCount: threadCount
+            threadCount: threadCount,
+            contextShift: contextShift
         )
     }
 
@@ -55,6 +60,7 @@ public class Chat {
         sampler: SamplerConfig? = nil,
         mtp: MtpConfig? = nil,
         threadCount: UInt32? = nil,
+        contextShift: ContextShiftOptions? = nil,
         onDownloadProgress: ((UInt64, UInt64) -> Void)? = nil
     ) async throws -> Chat {
         let model = try await Model.load(
@@ -72,7 +78,8 @@ public class Chat {
             tools: tools,
             sampler: sampler,
             mtp: mtp,
-            threadCount: threadCount
+            threadCount: threadCount,
+            contextShift: contextShift
         )
     }
 
@@ -138,6 +145,11 @@ public class Chat {
     /// Set the system prompt.
     public func setSystemPrompt(_ systemPrompt: String?) async throws {
         try await inner.setSystemPrompt(systemPrompt: systemPrompt)
+    }
+
+    /// Set how old turns are forgotten when the context is full.
+    public func setContextShift(_ options: ContextShiftOptions) async throws {
+        try await inner.setContextShift(options: options)
     }
 
     /// Set the tools available to the model.
