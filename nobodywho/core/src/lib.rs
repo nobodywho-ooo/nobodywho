@@ -12,6 +12,8 @@ pub mod llm;
 pub mod memory;
 mod model_selection;
 pub mod onnx;
+#[cfg(target_os = "android")]
+mod opencl;
 pub mod sampler;
 pub mod speech_to_text;
 pub mod stream;

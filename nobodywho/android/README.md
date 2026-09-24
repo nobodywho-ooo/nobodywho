@@ -1,8 +1,7 @@
 # Android GPU builds
 
-The binding `.so` embeds GGML's CPU/OpenCL/Vulkan backends, a small OpenCL
-forwarding shim and C++ runtime. Android supplies `libvulkan.so` and optional OpenCL
-drivers. The existing x86_64 ONNX Runtime companion library is still required.
+The binding `.so` embeds GGML's CPU/OpenCL/Vulkan backends and C++ runtime.
+Android supplies `libvulkan.so` and optional OpenCL drivers. The existing x86_64 ONNX Runtime companion library is still required.
 
 With NDK r28, CMake and curl installed, run from `nobodywho/` in Bash:
 
@@ -16,8 +15,8 @@ cargo ndk -t arm64-v8a -p 28 build -p nobodywho-uniffi --release --locked
 
 The helper caches pinned dependencies in `target/android-gpu`; `--github-env`
 prints CI environment assignments. `VULKAN_GLSLC` overrides the NDK compiler.
-The shim opens the device's public `libOpenCL.so` once and resolves functions
-by name. It never reads vendor objects' ICD dispatch tables. This path is
+On the first OpenCL call, NobodyWho opens the device's public `libOpenCL.so`
+and resolves functions by name. It never reads vendor objects' ICD dispatch tables. This path is
 vendor-neutral, including Qualcomm and Mali; device testing is still required.
 Missing libraries or required OpenCL 1.2 entry points disable OpenCL discovery.
 The newer buffer-with-properties and subgroup-info APIs are optional.

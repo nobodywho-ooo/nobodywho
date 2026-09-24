@@ -47,13 +47,11 @@ fetch_source OpenCL-Headers "$headers_rev" "$headers" >&2
 fetch_source Vulkan-Headers "$vulkan_rev" "$vulkan" >&2
 fetch_source SPIRV-Headers "$spirv_rev" "$spirv" >&2
 
-build_dir="$deps_dir/$target/opencl-shim"
-mkdir -p "$build_dir"
-toolchain="$ANDROID_NDK/toolchains/llvm/prebuilt/$host_tag/bin"
-"$toolchain/${target}24-clang" -c "$script_dir/opencl-shim.c" \
-  -I"$headers" -O2 -g -fPIC -fvisibility=hidden -Wall -Wextra -Werror \
-  -o "$build_dir/opencl-shim.o"
-"$toolchain/llvm-ar" rcs "$build_dir/libOpenCL.a" "$build_dir/opencl-shim.o"
+# FindOpenCL needs a library path, but nothing links it: llama-static.cmake
+# makes every OpenCL call go through NobodyWho's by-name table instead.
+opencl_stub="$deps_dir/opencl-stub/libOpenCL.a"
+mkdir -p "${opencl_stub%/*}"
+printf '!<arch>\n' > "$opencl_stub"
 
 # SPIRV-Headers' CMake package is needed by ggml-vulkan when cross-compiling.
 cmake -S "$spirv" -B "$deps_dir/spirv-build" \
@@ -69,9 +67,13 @@ emit() {
   fi
 }
 emit OPENCL_INCLUDE_DIR "$headers"
-emit OPENCL_LIBRARY "$build_dir/libOpenCL.a"
+emit OPENCL_LIBRARY "$opencl_stub"
 emit VULKAN_INCLUDE_DIR "$vulkan/include"
 emit VULKAN_GLSLC "$glslc"
 emit SPIRV_HEADERS_DIR "$deps_dir/spirv-install/share/cmake/SPIRV-Headers"
 emit SPIRV_HEADERS_INCLUDE_DIR "$deps_dir/spirv-install/include"
 emit CMAKE_PROJECT_INCLUDE "$script_dir/llama-static.cmake"
+# llama-cpp-sys reruns on GGML_* changes but not CMAKE_* ones: rebuild ggml
+# whenever the hook or the OpenCL header changes.
+emit GGML_NOBODYWHO_ANDROID_HOOK "$(cat "$script_dir/llama-static.cmake" \
+  "$script_dir/opencl-api.h" "$script_dir/opencl-functions.inc" | cksum | cut -d' ' -f1)"

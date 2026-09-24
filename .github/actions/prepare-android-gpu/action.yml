@@ -1,5 +1,5 @@
 name: Prepare static Android GPU backends
-description: Build the static Android OpenCL forwarding shim and provide GPU headers.
+description: Fetch pinned OpenCL, Vulkan and SPIR-V headers and export the Android GPU build environment.
 inputs:
   target:
     required: true
