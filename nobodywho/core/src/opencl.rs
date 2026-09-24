@@ -12,7 +12,7 @@
 use std::ffi::{c_void, CStr, CString};
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, Ordering};
-use std::sync::Once;
+use std::sync::OnceLock;
 use tracing::{info, warn};
 
 const CL_INVALID_OPERATION: i32 = -59;
@@ -33,7 +33,6 @@ macro_rules! opencl_table {
 include!(concat!(env!("OUT_DIR"), "/opencl_functions.rs"));
 
 type GetPlatformIds = unsafe extern "C" fn(u32, *mut *mut c_void, *mut u32) -> i32;
-static GET_PLATFORM_IDS: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
 
 /// ggml's `clGetPlatformIDs`: loads the driver once, then forwards to it.
 #[export_name = "nobodywho_clGetPlatformIDs"]
@@ -42,31 +41,23 @@ unsafe extern "C" fn get_platform_ids(
     platforms: *mut *mut c_void,
     num_platforms: *mut u32,
 ) -> i32 {
-    static LOAD: Once = Once::new();
-    LOAD.call_once(load_driver);
-    let real = GET_PLATFORM_IDS.load(Ordering::Acquire);
-    if real.is_null() {
+    static DRIVER: OnceLock<Option<GetPlatformIds>> = OnceLock::new();
+    let Some(real) = *DRIVER.get_or_init(load_driver) else {
         if !num_platforms.is_null() {
             unsafe { *num_platforms = 0 };
         }
         return CL_PLATFORM_NOT_FOUND_KHR;
-    }
-    let real = unsafe { std::mem::transmute::<*mut c_void, GetPlatformIds>(real) };
+    };
     unsafe { real(num_entries, platforms, num_platforms) }
 }
 
-fn load_driver() {
-    // Lets a test point at a missing library to exercise the fallback.
-    let path =
-        std::env::var("NOBODYWHO_OPENCL_LIBRARY").unwrap_or_else(|_| "libOpenCL.so".to_owned());
-    let Ok(c_path) = CString::new(path.as_str()) else {
-        return;
-    };
+fn load_driver() -> Option<GetPlatformIds> {
     // Never closed once used: the pointers point into it for the whole process.
-    let driver = unsafe { libc::dlopen(c_path.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
+    let driver =
+        unsafe { libc::dlopen(c"libOpenCL.so".as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
     if driver.is_null() {
-        warn!(path, error = %dl_error(), "OpenCL unavailable: cannot load the driver");
-        return;
+        warn!(error = %dl_error(), "OpenCL unavailable: cannot load libOpenCL.so");
+        return None;
     }
     let symbol = |name: &str| {
         let name = CString::new(name).expect("OpenCL function names contain no NUL");
@@ -95,23 +86,18 @@ fn load_driver() {
     }
     if !missing.is_empty() {
         warn!(
-            path,
             ?missing,
             "OpenCL unavailable: the driver lacks required functions"
         );
         unsafe { libc::dlclose(driver) };
-        return;
+        return None;
     }
 
     for (slot, function) in resolved {
         slot.store(function, Ordering::Release);
     }
-    GET_PLATFORM_IDS.store(get_platform_ids, Ordering::Release);
-    info!(
-        path,
-        ?stubbed,
-        "OpenCL driver loaded; functions resolved by name"
-    );
+    info!(?stubbed, "OpenCL driver loaded; functions resolved by name");
+    Some(unsafe { std::mem::transmute::<*mut c_void, GetPlatformIds>(get_platform_ids) })
 }
 
 fn dl_error() -> String {
