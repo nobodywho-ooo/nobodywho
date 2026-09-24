@@ -1,7 +1,6 @@
 use super::{ArgsSyntax, CallParts, CallSyntax, FormatError, ResolvedFormat, ValueSyntax};
-use crate::tool_calling::{
-    escape_lark_string, json_body_slice_regexes, json_schema_for_llguidance, sanitize_lark, Tool,
-};
+use crate::sampler::json_body_slice_regexes;
+use crate::tool_calling::Tool;
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -22,7 +21,7 @@ impl ResolvedFormat {
             .iter()
             .enumerate()
             .map(|(i, tool)| grammar.call(i, tool))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
 
         let syntax = self.format.tool_calls();
         let body = match syntax.list {
@@ -99,17 +98,18 @@ impl Grammar<'_> {
         self.rules.push(format!("{name}: {}", body.as_ref()));
     }
 
-    fn json(&mut self, name: &str, schema: &Value) -> Result<String, FormatError> {
-        let schema =
-            json_schema_for_llguidance(schema).map_err(|e| FormatError::Grammar(e.to_string()))?;
-        self.rule(name, format!("%json {schema}"));
-        Ok(name.to_string())
+    fn json(&mut self, name: &str, schema: &Value) -> String {
+        self.rule(
+            name,
+            format!("%json {}", json_schema_for_llguidance(schema)),
+        );
+        name.to_string()
     }
 
-    fn call(&mut self, index: usize, tool: &Tool) -> Result<String, FormatError> {
+    fn call(&mut self, index: usize, tool: &Tool) -> String {
         let name = format!("call_{index}");
         let call = match self.format.format.tool_calls().call {
-            CallSyntax::Parts(parts) => self.call_parts(&name, parts, tool)?,
+            CallSyntax::Parts(parts) => self.call_parts(&name, parts, tool),
             CallSyntax::JsonObject {
                 name_key,
                 arguments_key,
@@ -124,22 +124,17 @@ impl Grammar<'_> {
                     "required": [name_key, arguments_key],
                     "additionalProperties": false,
                 });
-                let json = self.json(&format!("{name}_json"), &schema)?;
+                let json = self.json(&format!("{name}_json"), &schema);
                 format!("ws? {json} ws?")
             }
         };
         self.rule(&name, call);
-        Ok(name)
+        name
     }
 
-    fn call_parts(
-        &mut self,
-        name: &str,
-        syntax: CallParts,
-        tool: &Tool,
-    ) -> Result<String, FormatError> {
+    fn call_parts(&mut self, name: &str, syntax: CallParts, tool: &Tool) -> String {
         let args = match syntax.args {
-            ArgsSyntax::Json => self.json(&format!("{name}_args"), &tool.json_schema)?,
+            ArgsSyntax::Json => self.json(&format!("{name}_args"), &tool.json_schema),
             ArgsSyntax::KeyValue {
                 before_key,
                 after_key,
@@ -151,7 +146,7 @@ impl Grammar<'_> {
                 let required = required(&tool.json_schema);
                 for (j, (key, schema)) in properties(&tool.json_schema).enumerate() {
                     let param = format!("{name}_p{j}_{}", sanitize_lark(key));
-                    let value = self.value(&param, value, schema, after_value)?;
+                    let value = self.value(&param, value, schema, after_value);
                     let kv = seq([
                         self.lit(before_key),
                         Some(quoted(key)),
@@ -164,13 +159,13 @@ impl Grammar<'_> {
                 self.arg_list(name, &params, separator)
             }
         };
-        Ok(seq([
+        seq([
             self.lit(syntax.before_name),
             Some(quoted(&tool.name)),
             self.lit(syntax.after_name),
             Some(args),
             self.lit(syntax.after_args),
-        ]))
+        ])
     }
 
     /// Arguments in schema order, required ones always and optional ones maybe,
@@ -207,18 +202,12 @@ impl Grammar<'_> {
     }
 
     /// A value and the `after` that follows it.
-    fn value(
-        &mut self,
-        name: &str,
-        syntax: ValueSyntax,
-        schema: &Value,
-        after: &str,
-    ) -> Result<String, FormatError> {
+    fn value(&mut self, name: &str, syntax: ValueSyntax, schema: &Value, after: &str) -> String {
         let rule = format!("{name}_val");
         let is_string = schema_type(schema) == "string";
         let variants = string_variants(schema);
-        let value = match syntax {
-            ValueSyntax::Json => seq([Some(self.json(&rule, schema)?), self.lit(after)]),
+        match syntax {
+            ValueSyntax::Json => seq([Some(self.json(&rule, schema)), self.lit(after)]),
             ValueSyntax::Raw if is_string && variants.is_none() => {
                 // The lazy body stops at the first `after`, which the suffix
                 // consumes.
@@ -234,7 +223,7 @@ impl Grammar<'_> {
                         self.rule(&rule, variants);
                         rule
                     }
-                    _ => self.json(&rule, schema)?,
+                    _ => self.json(&rule, schema),
                 };
                 seq([Some(value), self.lit(after)])
             }
@@ -247,7 +236,7 @@ impl Grammar<'_> {
                     }
                     _ if is_string => self.quoted_text(&rule, quote),
                     _ => {
-                        let json = self.json(&format!("{rule}_json"), schema)?;
+                        let json = self.json(&format!("{rule}_json"), schema);
                         let q = self.lit(quote);
                         self.rule(&rule, seq([q.clone(), Some(json), q]));
                         rule
@@ -256,10 +245,9 @@ impl Grammar<'_> {
                 seq([Some(value), self.lit(after)])
             }
             ValueSyntax::JsonLike { quote } => {
-                seq([Some(self.json_like(&rule, schema, quote)?), self.lit(after)])
+                seq([Some(self.json_like(&rule, schema, quote)), self.lit(after)])
             }
-        };
-        Ok(value)
+        }
     }
 
     /// Any text between two `quote`s.
@@ -279,12 +267,7 @@ impl Grammar<'_> {
         name.to_string()
     }
 
-    fn json_like(
-        &mut self,
-        name: &str,
-        schema: &Value,
-        quote: &str,
-    ) -> Result<String, FormatError> {
+    fn json_like(&mut self, name: &str, schema: &Value, quote: &str) -> String {
         if !self.json_like {
             self.json_like = true;
             self.quoted_text("jl_string", quote);
@@ -295,7 +278,7 @@ impl Grammar<'_> {
             self.rule("jl_number", "/-?[0-9]+(\\.[0-9]+)?/");
         }
 
-        let term = match schema_type(schema) {
+        match schema_type(schema) {
             "string" => match string_variants(schema) {
                 Some(variants) => {
                     let q = self.lit(quote);
@@ -313,7 +296,7 @@ impl Grammar<'_> {
                 let mut params = Vec::new();
                 for (j, (key, prop)) in properties(schema).enumerate() {
                     let prop_name = format!("{name}_p{j}_{}", sanitize_lark(key));
-                    let value = self.json_like(&format!("{prop_name}_val"), prop, quote)?;
+                    let value = self.json_like(&format!("{prop_name}_val"), prop, quote);
                     self.rule(
                         &format!("{prop_name}_kv"),
                         format!("{} \":\" {value}", quoted(key)),
@@ -331,7 +314,7 @@ impl Grammar<'_> {
                     &format!("{name}_v"),
                     value_schema.unwrap_or(&default),
                     quote,
-                )?;
+                );
                 let kv = format!("jl_key \":\" {value}");
                 self.rule(name, format!("\"{{\" ({kv} (\",\" {kv})*)? \"}}\""));
                 name.to_string()
@@ -342,19 +325,18 @@ impl Grammar<'_> {
                         .iter()
                         .enumerate()
                         .map(|(i, item)| self.json_like(&format!("{name}_{i}"), item, quote))
-                        .collect::<Result<Vec<_>, _>>()?;
+                        .collect::<Vec<_>>();
                     self.rule(name, format!("\"[\" {} \"]\"", terms.join(" \",\" ")));
                 } else {
                     let default = serde_json::json!({ "type": "string" });
                     let items = schema.get("items").unwrap_or(&default);
-                    let item = self.json_like(&format!("{name}_item"), items, quote)?;
+                    let item = self.json_like(&format!("{name}_item"), items, quote);
                     self.rule(name, format!("\"[\" ({item} (\",\" {item})*)? \"]\""));
                 }
                 name.to_string()
             }
             _ => "jl_string".to_string(),
-        };
-        Ok(term)
+        }
     }
 }
 
@@ -371,6 +353,44 @@ fn seq(terms: impl IntoIterator<Item = Option<String>>) -> String {
 
 fn quoted(text: &str) -> String {
     format!("\"{}\"", escape_lark_string(text))
+}
+
+/// Escapes text for a double-quoted Lark literal, where a raw newline, tab or
+/// carriage return would also break it.
+pub(super) fn escape_lark_string(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+/// Lowercase alphanumerics and `_`, for rule names made from tool and property
+/// names. Lark reads an uppercase name as a terminal.
+pub(super) fn sanitize_lark(s: &str) -> String {
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// A schema for a `%json` directive, tagged `lenient` so llguidance ignores
+/// keywords it doesn't implement instead of failing, while still enforcing the
+/// ones it does. The tag only works at the root of each `%json`.
+pub(super) fn json_schema_for_llguidance(schema: &Value) -> String {
+    let mut schema = schema.clone();
+    if let Some(object) = schema.as_object_mut() {
+        object.insert(
+            "x-guidance".to_string(),
+            serde_json::json!({ "lenient": true }),
+        );
+    }
+    schema.to_string()
 }
 
 /// `text` as a Lark regex matching exactly it.

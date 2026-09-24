@@ -138,24 +138,4 @@ pub(crate) mod test_utils {
             }),
         ))
     }
-
-    pub(crate) fn gemma4_model() -> Option<Arc<Model>> {
-        init_test_tracing();
-
-        let path = std::env::var("GEMMA4_MODEL").ok()?;
-        Some(Arc::new(
-            get_model(&path, true, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e}")),
-        ))
-    }
-
-    pub(crate) fn qwen36_model() -> Option<Arc<Model>> {
-        init_test_tracing();
-
-        let path = std::env::var("QWEN36_MODEL").ok()?;
-        Some(Arc::new(
-            get_model(&path, false, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Qwen3.6 model from {path}: {e}")),
-        ))
-    }
 }
