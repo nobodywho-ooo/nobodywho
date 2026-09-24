@@ -91,31 +91,7 @@ pub fn has_gpu_backend() -> bool {
         return false;
     }
 
-    for backend_device in llama_cpp_2::list_llama_ggml_backend_devices() {
-        // TODO: account for memory available on backend device - .memory_total and .memory free
-        //       we might use these with GGUF model metadata, to decide on a number of layers to offload
-        match backend_device.device_type {
-            llama_cpp_2::LlamaBackendDeviceType::Unknown => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Cpu => {
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Accelerator => {
-                // Accelerator devices (e.g. NPUs) are auto-initialized by llama.cpp during
-                // context creation regardless of n_gpu_layers — no explicit handling needed.
-                continue;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu => {
-                return true;
-            }
-            llama_cpp_2::LlamaBackendDeviceType::Gpu => {
-                return true;
-            }
-        }
-    }
-
-    false
+    memory::select_best_gpu().is_some()
 }
 
 #[tracing::instrument(level = "info", skip(progress))]
@@ -193,7 +169,6 @@ pub fn get_model_cancellable(
         None => None,
     };
 
-    // TODO: `LlamaModelParams` uses all devices by default. Set it to an empty list once an upstream device API is available.
     let loading_plan =
         memory::plan_model_loading(&real_model_path, real_mmproj_path.as_deref(), use_gpu);
     let gpu_layers = loading_plan.gpu_layers;
@@ -204,6 +179,23 @@ pub fn get_model_cancellable(
     info!(use_gpu = use_gpu, gpu_layers = gpu_layers, "Loading model");
 
     let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
+    #[cfg(target_os = "android")]
+    let model_params = {
+        let device = if use_gpu && gpu_layers > 0 {
+            memory::select_best_gpu()
+        } else {
+            None
+        };
+        if let Some(device) = &device {
+            info!(backend = %device.backend, device = %device.name, gpu_layers, "Selected Android GPU");
+        }
+        // An empty list explicitly selects CPU. Do not let llama.cpp combine
+        // OpenCL and Vulkan devices backed by the same physical GPU.
+        let devices: Vec<_> = device.into_iter().map(|d| d.index).collect();
+        model_params.with_devices(&devices).map_err(|e| {
+            LoadModelError::InvalidModel(format!("Failed to select Android GPU: {e}"))
+        })?
+    };
 
     let model_params = pin!(model_params);
     let load_span = info_span!("model_load", path = %real_model_path.display());
@@ -228,9 +220,17 @@ pub fn get_model_cancellable(
         )?;
 
     info!("Model loaded successfully");
+    // mtmd's current API chooses its own GPU; retain CPU projection on Android
+    // until it can use the text model's selected device too.
     let projection_model = real_mmproj_path
         .as_ref()
-        .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
+        .map(|path| {
+            ProjectionModel::from_path(
+                path,
+                &language_model,
+                use_gpu && !cfg!(target_os = "android"),
+            )
+        })
         .transpose()?;
 
     let draft_model = real_draft_model_path

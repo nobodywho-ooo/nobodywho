@@ -552,9 +552,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('nobodywho/android/**') }}-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -574,6 +574,11 @@ jobs:
         with:
           ndk-version: r28
           add-to-path: false
+
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: ${{ matrix.target }}
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'

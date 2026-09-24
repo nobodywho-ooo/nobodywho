@@ -133,9 +133,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -157,6 +157,11 @@ jobs:
         with:
           ndk-version: r28
           add-to-path: false
+
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: aarch64-linux-android
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
       # a device run needs just the arm64-v8a .so.
@@ -337,9 +342,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-
+            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -369,6 +374,11 @@ jobs:
         with:
           ndk-version: r28
           add-to-path: false
+
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: aarch64-linux-android
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       # Without this the plugin's resolve_binary.dart silently downloads the
       # last *released* .so, so the job would test a stale binary instead of the
@@ -542,9 +552,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -566,6 +576,11 @@ jobs:
         with:
           ndk-version: r28
           add-to-path: false
+
+      - uses: ./.github/actions/prepare-android-gpu
+        with:
+          target: aarch64-linux-android
+          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
 
       - name: "Build uniffi .so (aarch64-linux-android)"
         working-directory: ./nobodywho

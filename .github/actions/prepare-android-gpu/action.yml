@@ -1,0 +1,18 @@
+name: Prepare static Android GPU backends
+description: Build the static Android OpenCL forwarding shim and provide GPU headers.
+inputs:
+  target:
+    required: true
+    description: Rust Android target
+  ndk:
+    required: true
+    description: Android NDK directory
+runs:
+  using: composite
+  steps:
+    - name: Build GPU dependencies
+      shell: bash
+      env:
+        ANDROID_NDK: ${{ inputs.ndk }}
+        GPU_TARGET: ${{ inputs.target }}
+      run: bash nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"

@@ -35,9 +35,7 @@ void main() {
     (tester) async {
       await nobodywho.NobodyWho.init();
 
-      // Ask for the GPU like a real app would. Android has no GPU backend yet,
-      // so this falls back to CPU today and starts exercising the GPU path
-      // automatically once one lands.
+      // Exercise automatic OpenCL/Vulkan selection with CPU fallback.
       final nobodywho.Chat chat = await nobodywho.Chat.fromPath(
         modelPath: selectModelPath(),
         systemPrompt: 'Reply with one word only.',
