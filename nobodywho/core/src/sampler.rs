@@ -302,24 +302,14 @@ impl SamplerConfig {
                 allowed_length,
                 penalty_last_n,
                 seq_breakers,
-            } => {
-                // llama.cpp used to read a negative window as "the whole context" and now
-                // clamps it to 0 (disabled). Keep the old meaning: scan as far back as the
-                // model's context can reach.
-                let penalty_last_n = if penalty_last_n < 0 {
-                    i32::try_from(model.n_ctx_train()).unwrap_or(i32::MAX)
-                } else {
-                    penalty_last_n
-                };
-                Ok(LlamaSampler::dry(
-                    model,
-                    multiplier,
-                    base,
-                    allowed_length,
-                    penalty_last_n,
-                    seq_breakers,
-                ))
-            }
+            } => Ok(LlamaSampler::dry(
+                model,
+                multiplier,
+                base,
+                allowed_length,
+                penalty_last_n,
+                seq_breakers,
+            )),
             ShiftStep::Penalties {
                 penalty_last_n,
                 penalty_repeat,
