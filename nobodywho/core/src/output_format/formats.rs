@@ -3,10 +3,13 @@ use super::{
     ValueSyntax,
 };
 
-const THINK_TAGS: ThinkingSyntax = ThinkingSyntax {
+/// As Qwen's templates write it: `<think>\nREASONING\n</think>\n\n`.
+const QWEN_THINKING: ThinkingSyntax = ThinkingSyntax {
     begin: "<think>",
-    label: "",
+    after_begin: "\n",
+    before_end: "\n",
     end: "</think>",
+    after_end: "\n\n",
 };
 
 /// `<tool_call>\n{"name": "f", "arguments": {"k": "v"}}\n</tool_call>`
@@ -16,8 +19,10 @@ pub struct Qwen3;
 impl OutputFormat for Qwen3 {
     fn tool_calls(&self) -> ToolCallSyntax {
         ToolCallSyntax {
+            before_begin: "\n",
             begin: "<tool_call>",
             end: Some("</tool_call>"),
+            after_end: "",
             list: None,
             call: CallSyntax::JsonObject {
                 name_key: "name",
@@ -27,7 +32,7 @@ impl OutputFormat for Qwen3 {
     }
 
     fn thinking(&self) -> Option<ThinkingSyntax> {
-        Some(THINK_TAGS)
+        Some(QWEN_THINKING)
     }
 }
 
@@ -37,9 +42,12 @@ pub struct Qwen35;
 
 impl OutputFormat for Qwen35 {
     fn tool_calls(&self) -> ToolCallSyntax {
+        // `\n\n` after text, but only `\n` between calls.
         ToolCallSyntax {
+            before_begin: "\n\n",
             begin: "<tool_call>",
             end: Some("</tool_call>"),
+            after_end: "\n",
             list: None,
             call: CallSyntax::Parts(CallParts {
                 before_name: "\n<function=",
@@ -57,7 +65,7 @@ impl OutputFormat for Qwen35 {
     }
 
     fn thinking(&self) -> Option<ThinkingSyntax> {
-        Some(THINK_TAGS)
+        Some(QWEN_THINKING)
     }
 
     fn detect(&self, template: &str) -> bool {
@@ -72,8 +80,10 @@ pub struct FunctionGemma;
 impl OutputFormat for FunctionGemma {
     fn tool_calls(&self) -> ToolCallSyntax {
         ToolCallSyntax {
+            before_begin: "",
             begin: "<start_function_call>",
             end: Some("<end_function_call>"),
+            after_end: "",
             list: None,
             call: CallSyntax::Parts(CallParts {
                 before_name: "call:",
@@ -98,8 +108,10 @@ pub struct Gemma4;
 impl OutputFormat for Gemma4 {
     fn tool_calls(&self) -> ToolCallSyntax {
         ToolCallSyntax {
+            before_begin: "",
             begin: "<|tool_call>",
             end: Some("<tool_call|>"),
+            after_end: "",
             list: None,
             call: CallSyntax::Parts(CallParts {
                 before_name: "call:",
@@ -119,8 +131,10 @@ impl OutputFormat for Gemma4 {
     fn thinking(&self) -> Option<ThinkingSyntax> {
         Some(ThinkingSyntax {
             begin: "<|channel>",
-            label: "thought\n",
+            after_begin: "thought\n",
+            before_end: "\n",
             end: "<channel|>",
+            after_end: "",
         })
     }
 }
@@ -132,8 +146,10 @@ pub struct Ministral3;
 impl OutputFormat for Ministral3 {
     fn tool_calls(&self) -> ToolCallSyntax {
         ToolCallSyntax {
+            before_begin: "",
             begin: "[TOOL_CALLS]",
             end: None,
+            after_end: "",
             list: None,
             call: CallSyntax::Parts(CallParts {
                 before_name: "",
@@ -147,8 +163,10 @@ impl OutputFormat for Ministral3 {
     fn thinking(&self) -> Option<ThinkingSyntax> {
         Some(ThinkingSyntax {
             begin: "[THINK]",
-            label: "",
+            after_begin: "",
+            before_end: "",
             end: "[/THINK]",
+            after_end: "",
         })
     }
 }
@@ -160,8 +178,10 @@ pub struct Lfm2;
 impl OutputFormat for Lfm2 {
     fn tool_calls(&self) -> ToolCallSyntax {
         ToolCallSyntax {
+            before_begin: "",
             begin: "<|tool_call_start|>",
             end: Some("<|tool_call_end|>"),
+            after_end: "",
             list: Some(ListSyntax {
                 open: "[",
                 separator: ", ",
@@ -183,7 +203,13 @@ impl OutputFormat for Lfm2 {
     }
 
     fn thinking(&self) -> Option<ThinkingSyntax> {
-        Some(THINK_TAGS)
+        Some(ThinkingSyntax {
+            begin: "<think>",
+            after_begin: "",
+            before_end: "",
+            end: "</think>",
+            after_end: "",
+        })
     }
 
     fn detect(&self, template: &str) -> bool {

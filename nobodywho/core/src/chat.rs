@@ -2091,9 +2091,9 @@ impl ChatSampler {
     }
 }
 
-/// Collects what the splitter found while streaming. A block of tool calls
-/// that couldn't be read is text after all, so it's streamed late, unless it
-/// follows calls, like anything else that does.
+/// Collects tool calls from the splitter's pieces. A block that turns out to be
+/// unreadable was hidden from the stream while it was written, so its text is
+/// sent now, unless it came after calls, where everything is hidden.
 fn read_pieces(
     pieces: Vec<Piece>,
     tool_calls: &mut Vec<ToolCall>,
@@ -2449,6 +2449,7 @@ impl<'a> Chat<'a> {
             }
         }
 
+        // Empty the splitter of buffered pieces.
         if let Some(splitter) = splitter.as_mut() {
             read_pieces(
                 splitter.finish(),

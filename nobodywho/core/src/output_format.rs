@@ -39,30 +39,40 @@ pub trait OutputFormat: Debug + Sync {
     }
 }
 
-/// A block of tool calls, written `begin CALLS end`.
+/// A block of tool calls, written `before_begin begin CALLS end after_end`.
+///
+/// `before_begin` and `after_end` are formatting the template writes around the
+/// block, which is neither text nor part of the calls. Between two blocks the
+/// template writes `after_end`, and possibly `before_begin` after it.
 #[derive(Clone, Copy, Debug)]
 pub struct ToolCallSyntax {
+    pub before_begin: &'static str,
     /// Must be a single special token.
     pub begin: &'static str,
     /// Must be a single special token. `None` when a block runs to the next
     /// `begin` or the end of the output.
     pub end: Option<&'static str>,
+    pub after_end: &'static str,
     /// Set when one block holds several calls, as in `[a(), b()]`. Otherwise
     /// each call gets a block of its own.
     pub list: Option<ListSyntax>,
     pub call: CallSyntax,
 }
 
-/// Reasoning, written `begin label REASONING end`.
+/// Reasoning, written `begin after_begin REASONING before_end end after_end`.
+///
+/// `after_begin`, `before_end` and `after_end` are formatting the template
+/// writes around the markers, which is neither reasoning nor text. That
+/// includes a label like the channel name after Gemma4's `<|channel>`.
 #[derive(Clone, Copy, Debug)]
 pub struct ThinkingSyntax {
     /// Must be a single special token, like `end`. A model whose vocabulary
     /// lacks either is taken not to reason.
     pub begin: &'static str,
-    /// Text that follows `begin` and isn't part of the reasoning, like the
-    /// channel name after Gemma4's `<|channel>`.
-    pub label: &'static str,
+    pub after_begin: &'static str,
+    pub before_end: &'static str,
     pub end: &'static str,
+    pub after_end: &'static str,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -288,15 +298,20 @@ impl ResolvedFormat {
     }
 
     /// Whether `prompt` leaves the response already reasoning, as templates do
-    /// that open the reasoning for the model.
-    fn opens_thinking(&self, prompt: &str) -> bool {
-        let Some(thinking) = self.format.thinking().filter(|_| self.thinking.is_some()) else {
-            return false;
-        };
-        match (prompt.rfind(thinking.begin), prompt.rfind(thinking.end)) {
-            (Some(begin), Some(end)) => begin > end,
-            (begin, _) => begin.is_some(),
+    /// that open the reasoning for the model. If so, gives the formatting after
+    /// `begin` that the prompt hasn't written yet.
+    fn opens_thinking(&self, prompt: &str) -> Option<&'static str> {
+        let thinking = self.format.thinking().filter(|_| self.thinking.is_some())?;
+        let begin = prompt.rfind(thinking.begin)?;
+        if prompt.rfind(thinking.end).is_some_and(|end| end > begin) {
+            return None;
         }
+        let written = &prompt[begin + thinking.begin.len()..];
+        Some(if written.starts_with(thinking.after_begin) {
+            ""
+        } else {
+            thinking.after_begin
+        })
     }
 }
 

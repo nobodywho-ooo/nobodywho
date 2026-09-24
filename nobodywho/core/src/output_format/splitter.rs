@@ -4,7 +4,8 @@ use encoding_rs::{Decoder, UTF_8};
 use llama_cpp_2::token::LlamaToken;
 
 /// A stretch of a response. Text and reasoning come a token at a time, tool
-/// calls a block at a time.
+/// calls a block at a time. Neither text nor reasoning includes the formatting
+/// the template writes around markers.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Piece {
     Text(String),
@@ -34,11 +35,15 @@ pub struct Splitter<'a> {
 
 #[derive(Debug)]
 enum State {
-    Text,
-    Thinking {
-        /// The reasoning read so far while it could still be the label, and
-        /// `None` once it's clear whether it is.
-        buffer: Option<String>,
+    /// Text or reasoning, which the model writes a token at a time.
+    Stretch {
+        kind: Stretch,
+        /// The formatting the template writes after the marker that began the
+        /// stretch, while what's been read could still be it.
+        opening: Option<Opening>,
+        /// Text at the end that could be the formatting before the next
+        /// marker, held back until it's clear whether it is.
+        held: String,
     },
     /// Collecting the text of a block of tool calls.
     ToolCalls {
@@ -47,18 +52,36 @@ enum State {
     Ended,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stretch {
+    Text,
+    Thinking,
+}
+
+#[derive(Debug)]
+struct Opening {
+    formatting: &'static str,
+    read: String,
+}
+
 impl<'a> Splitter<'a> {
-    pub(super) fn new(format: &'a ResolvedFormat, tools: &'a [Tool], thinking: bool) -> Self {
-        let mut splitter = Splitter {
+    /// `thinking` is `Some` when the prompt left the response reasoning, with
+    /// the formatting after the reasoning's `begin` that's still to come.
+    pub(super) fn new(
+        format: &'a ResolvedFormat,
+        tools: &'a [Tool],
+        thinking: Option<&'static str>,
+    ) -> Self {
+        let state = match thinking {
+            Some(after_begin) => stretch(Stretch::Thinking, after_begin),
+            None => stretch(Stretch::Text, ""),
+        };
+        Splitter {
             format,
             tools,
-            state: State::Text,
+            state,
             decoder: UTF_8.new_decoder_without_bom_handling(),
-        };
-        if thinking {
-            splitter.state = splitter.thinking();
         }
-        splitter
     }
 
     /// Takes the next token and the bytes it decodes to, and returns the
@@ -81,10 +104,14 @@ impl<'a> Splitter<'a> {
                 return vec![];
             }
             _ if is_end_of_generation => true,
-            State::Text => {
-                is_tool_call_begin || is_tool_call_end || is_thinking_begin || is_thinking_end
-            }
-            State::Thinking { .. } => is_thinking_end,
+            State::Stretch {
+                kind: Stretch::Text,
+                ..
+            } => is_tool_call_begin || is_tool_call_end || is_thinking_begin || is_thinking_end,
+            State::Stretch {
+                kind: Stretch::Thinking,
+                ..
+            } => is_thinking_end,
             State::ToolCalls { .. } => is_tool_call_begin || is_tool_call_end,
         };
         if !is_marker {
@@ -97,38 +124,56 @@ impl<'a> Splitter<'a> {
         let text = self.decode(&[], true);
         let mut pieces = self.add_text(&text);
         if is_end_of_generation {
-            pieces.extend(self.close_stretch());
+            pieces.extend(self.close_stretch(false));
             pieces.push(Piece::End);
             self.state = State::Ended;
             return pieces;
         }
+        let tool_calls = self.format.format.tool_calls();
+        let thinking = self.format.format.thinking();
         match &self.state {
-            State::Text if is_tool_call_begin => {
+            State::Stretch {
+                kind: Stretch::Text,
+                ..
+            } if is_tool_call_begin => {
+                pieces.extend(self.close_stretch(true));
                 self.state = State::ToolCalls {
                     buffer: String::new(),
                 };
             }
-            State::Text if is_thinking_begin => self.state = self.thinking(),
-            State::Text => {
+            State::Stretch {
+                kind: Stretch::Text,
+                ..
+            } if is_thinking_begin => {
+                pieces.extend(self.close_stretch(false));
+                self.state = stretch(Stretch::Thinking, thinking.map_or("", |t| t.after_begin));
+            }
+            State::Stretch {
+                kind: Stretch::Text,
+                ..
+            } => {
                 let marker = if is_thinking_end {
-                    self.format.format.thinking().map(|t| t.end)
+                    thinking.map(|t| t.end)
                 } else {
-                    self.format.format.tool_calls().end
+                    tool_calls.end
                 };
                 pieces.push(Piece::Stray(
                     marker.expect("only markers the format has match"),
                 ));
             }
-            State::Thinking { .. } => {
-                pieces.extend(self.flush_label());
-                self.state = State::Text;
+            State::Stretch {
+                kind: Stretch::Thinking,
+                ..
+            } => {
+                pieces.extend(self.close_stretch(true));
+                self.state = stretch(Stretch::Text, thinking.map_or("", |t| t.after_end));
             }
             // Both end the block, but only `end` is part of its text. A block
             // with no end runs until the next one begins.
             State::ToolCalls { buffer } => {
                 pieces.push(self.read_tool_calls(buffer, is_tool_call_end));
                 self.state = if is_tool_call_end {
-                    State::Text
+                    stretch(Stretch::Text, tool_calls.after_end)
                 } else {
                     State::ToolCalls {
                         buffer: String::new(),
@@ -151,7 +196,7 @@ impl<'a> Splitter<'a> {
     pub fn finish(&mut self) -> Vec<Piece> {
         let text = self.decode(&[], true);
         let mut pieces = self.add_text(&text);
-        pieces.extend(self.close_stretch());
+        pieces.extend(self.close_stretch(false));
         self.state = State::Ended;
         pieces
     }
@@ -171,22 +216,32 @@ impl<'a> Splitter<'a> {
         text
     }
 
-    /// Adds text to the stretch the response is in.
+    /// Adds text to the stretch the response is in, and returns what's
+    /// certainly not formatting.
     fn add_text(&mut self, text: &str) -> Vec<Piece> {
-        let label = self.label();
+        let before = self.formatting_before();
         match &mut self.state {
-            State::Text => text_piece(Piece::Text, text),
-            State::Thinking { buffer: None } => text_piece(Piece::Thinking, text),
-            State::Thinking {
-                buffer: Some(buffer),
+            State::Stretch {
+                kind,
+                opening,
+                held,
             } => {
-                buffer.push_str(text);
-                if label.starts_with(buffer.as_str()) && buffer.len() < label.len() {
-                    return vec![];
+                let mut text = text.to_string();
+                if let Some(opening_formatting) = opening {
+                    let read = &mut opening_formatting.read;
+                    let formatting = opening_formatting.formatting;
+                    read.push_str(&text);
+                    if formatting.starts_with(read.as_str()) && read.len() < formatting.len() {
+                        return vec![];
+                    }
+                    text = read.strip_prefix(formatting).unwrap_or(read).to_string();
+                    *opening = None;
                 }
-                let reasoning = buffer.strip_prefix(label).unwrap_or(buffer).to_string();
-                self.state = State::Thinking { buffer: None };
-                text_piece(Piece::Thinking, &reasoning)
+                held.push_str(&text);
+                let ready = held.len() - formatting_start(held, before);
+                let pieces = text_piece(*kind, &held[..ready]);
+                *held = held[ready..].to_string();
+                pieces
             }
             State::ToolCalls { buffer } => {
                 buffer.push_str(text);
@@ -196,33 +251,46 @@ impl<'a> Splitter<'a> {
         }
     }
 
-    /// Whatever the stretch the response is in still holds, when it ends
-    /// without its end marker.
-    fn close_stretch(&mut self) -> Vec<Piece> {
+    /// Ends the stretch the response is in, and returns what it still holds.
+    /// `formatted` is whether the marker ending it is the one whose formatting
+    /// the stretch could be holding.
+    fn close_stretch(&self, formatted: bool) -> Vec<Piece> {
+        let before = self.formatting_before();
         match &self.state {
+            State::Stretch {
+                kind,
+                opening,
+                held,
+            } => {
+                // What couldn't be read as the formatting after the last marker
+                // is text after all.
+                let opened = opening.as_ref().map_or("", |o| o.read.as_str());
+                let rest = format!("{opened}{held}");
+                let text = if formatted {
+                    rest.strip_suffix(before).unwrap_or(&rest)
+                } else {
+                    &rest
+                };
+                text_piece(*kind, text)
+            }
             State::ToolCalls { buffer } => vec![self.read_tool_calls(buffer, false)],
-            State::Thinking { .. } => self.flush_label(),
-            State::Text | State::Ended => vec![],
+            State::Ended => vec![],
         }
     }
 
-    fn thinking(&self) -> State {
-        let buffer = (!self.label().is_empty()).then(String::new);
-        State::Thinking { buffer }
-    }
-
-    fn label(&self) -> &'static str {
-        self.format.format.thinking().map_or("", |t| t.label)
-    }
-
-    /// Reasoning held back while it could have been the label.
-    fn flush_label(&mut self) -> Vec<Piece> {
-        match &mut self.state {
-            State::Thinking { buffer } => {
-                let reasoning = buffer.take().unwrap_or_default();
-                text_piece(Piece::Thinking, &reasoning)
-            }
-            _ => vec![],
+    /// The formatting the template writes before the marker that ends the
+    /// stretch the response is in.
+    fn formatting_before(&self) -> &'static str {
+        match self.state {
+            State::Stretch {
+                kind: Stretch::Text,
+                ..
+            } => self.format.format.tool_calls().before_begin,
+            State::Stretch {
+                kind: Stretch::Thinking,
+                ..
+            } => self.format.format.thinking().map_or("", |t| t.before_end),
+            State::ToolCalls { .. } | State::Ended => "",
         }
     }
 
@@ -241,10 +309,36 @@ impl<'a> Splitter<'a> {
     }
 }
 
-fn text_piece(piece: fn(String) -> Piece, text: &str) -> Vec<Piece> {
-    if text.is_empty() {
-        vec![]
-    } else {
-        vec![piece(text.to_string())]
+fn stretch(kind: Stretch, after_marker: &'static str) -> State {
+    State::Stretch {
+        kind,
+        opening: (!after_marker.is_empty()).then(|| Opening {
+            formatting: after_marker,
+            read: String::new(),
+        }),
+        held: String::new(),
     }
+}
+
+fn text_piece(kind: Stretch, text: &str) -> Vec<Piece> {
+    if text.is_empty() {
+        return vec![];
+    }
+    let text = text.to_string();
+    vec![match kind {
+        Stretch::Text => Piece::Text(text),
+        Stretch::Thinking => Piece::Thinking(text),
+    }]
+}
+
+/// The length of the longest end of `text` that could be the start of
+/// `formatting`.
+fn formatting_start(text: &str, formatting: &str) -> usize {
+    (1..=text.len().min(formatting.len()))
+        .rev()
+        .find(|&n| {
+            let start = text.len() - n;
+            text.is_char_boundary(start) && formatting.starts_with(&text[start..])
+        })
+        .unwrap_or(0)
 }

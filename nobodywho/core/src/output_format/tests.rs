@@ -495,11 +495,122 @@ fn separates_reasoning_from_the_answer() {
     assert_eq!(
         split(&Qwen3, &pieces),
         vec![
-            Piece::Thinking("\nHmm".into()),
-            Piece::Thinking(".\n".into()),
-            Piece::Text("\n\nHi".into()),
+            Piece::Thinking("Hmm".into()),
+            Piece::Thinking(".".into()),
+            Piece::Text("Hi".into()),
             Piece::End,
         ]
+    );
+}
+
+/// A response written exactly as Qwen3's template would write it.
+#[test]
+fn template_formatting_is_neither_text_nor_reasoning() {
+    let block = [
+        "<tool_call>",
+        "\n{\"name\": \"get_time\", \"arguments\": {}}\n",
+        "</tool_call>",
+    ];
+    let mut pieces = vec![
+        "<think>",
+        "\n",
+        "Hmm",
+        "\n",
+        "</think>",
+        "\n",
+        "\n",
+        "Let me check.",
+        "\n",
+    ];
+    pieces.extend(block);
+    pieces.push("\n");
+    pieces.extend(block);
+    pieces.push(EOG_TEXT);
+    let get_time = Piece::Calls(vec![call("get_time", json!({}))]);
+    assert_eq!(
+        split(&Qwen3, &pieces),
+        vec![
+            Piece::Thinking("Hmm".into()),
+            Piece::Text("Let me check.".into()),
+            get_time.clone(),
+            get_time,
+            Piece::End,
+        ]
+    );
+}
+
+/// Qwen3.5 writes `\n\n` between text and a call, but `\n` between calls.
+#[test]
+fn formatting_around_blocks_is_per_format() {
+    let block = [
+        "<tool_call>",
+        "\n<function=get_time>\n</function>\n",
+        "</tool_call>",
+    ];
+    let mut pieces = vec!["Checking.", "\n\n"];
+    pieces.extend(block);
+    pieces.push("\n");
+    pieces.extend(block);
+    pieces.push(EOG_TEXT);
+    let get_time = Piece::Calls(vec![call("get_time", json!({}))]);
+    assert_eq!(
+        split(&Qwen35, &pieces),
+        vec![
+            Piece::Text("Checking.".into()),
+            get_time.clone(),
+            get_time,
+            Piece::End,
+        ]
+    );
+}
+
+#[test]
+fn only_the_formatting_is_removed() {
+    // Whitespace the template doesn't write is the model's own. Whitespace
+    // that could be formatting is held back until it's clear it isn't.
+    let pieces = [
+        "<think>",
+        "\n\n  indented",
+        "\n",
+        "</think>",
+        "\n\n",
+        "    code\n",
+        "\n",
+        "more",
+        EOG_TEXT,
+    ];
+    assert_eq!(
+        split(&Qwen3, &pieces),
+        vec![
+            Piece::Thinking("\n  indented".into()),
+            Piece::Text("    code".into()),
+            Piece::Text("\n".into()),
+            Piece::Text("\nmore".into()),
+            Piece::End,
+        ]
+    );
+}
+
+#[test]
+fn formatting_only_counts_next_to_its_own_marker() {
+    // `\n` before `<tool_call>` is formatting, but before the end it's text.
+    assert_eq!(
+        split(&Qwen3, &["Hi", "\n", EOG_TEXT]),
+        vec![
+            Piece::Text("Hi".into()),
+            Piece::Text("\n".into()),
+            Piece::End
+        ]
+    );
+}
+
+#[test]
+fn formatting_has_to_match_exactly() {
+    // One newline where the template writes two is the model's.
+    let pieces = ["<think>", "Hmm", "</think>", "\n", "Hi"];
+    assert_eq!(
+        split(&Qwen3, &pieces),
+        vec![Piece::Thinking("Hmm".into()), Piece::Text("\nHi".into())]
     );
 }
 
@@ -511,6 +622,16 @@ fn a_prompt_can_open_the_reasoning() {
     assert_eq!(
         split_after(&Qwen35, "<|im_start|>assistant\n<think>\n", &pieces),
         reasoning
+    );
+    // The formatting after `<think>` is only expected if the prompt left it out.
+    let newline_first = ["\nHmm", "</think>", "Hi"];
+    assert_eq!(
+        split_after(&Qwen35, "<|im_start|>assistant\n<think>", &newline_first),
+        reasoning
+    );
+    assert_eq!(
+        split_after(&Qwen35, "<|im_start|>assistant\n<think>\n", &newline_first),
+        vec![Piece::Thinking("\nHmm".into()), Piece::Text("Hi".into())]
     );
 
     // One that closes it, as when reasoning is turned off, leaves the answer.
@@ -815,6 +936,60 @@ fn gemma4_grammar_accepts_calls_through_the_real_vocabulary() {
     assert!(
         accepts(&model, &grammar, &text),
         "rejected {text:?}\n{grammar}"
+    );
+}
+
+/// What Qwen3's own template writes around its markers is what `Qwen3`
+/// declares as formatting.
+#[test]
+fn qwen3_formatting_is_what_its_template_writes() {
+    use crate::chat::Message;
+    use crate::content::MessageContent;
+    use crate::template::{select_template, ChatTemplateContext};
+
+    let model = qwen3_vocab();
+    let template = select_template(&model, true).unwrap();
+    let get_time = call("get_time", json!({}));
+    let messages = [
+        Message::new_user("Hi"),
+        Message::Assistant {
+            content: MessageContent::text("<think>\nREASONING\n</think>\n\nCONTENT"),
+            tool_calls: Some(vec![get_time.clone(), get_time]),
+        },
+    ];
+    let context = ChatTemplateContext::new(Default::default(), Some(tools()));
+    let rendered = template.render(&messages, &context).unwrap();
+
+    let thinking = Qwen3.thinking().unwrap();
+    let syntax = Qwen3.tool_calls();
+    for expected in [
+        format!(
+            "{}{}REASONING{}{}{}CONTENT",
+            thinking.begin,
+            thinking.after_begin,
+            thinking.before_end,
+            thinking.end,
+            thinking.after_end
+        ),
+        format!("CONTENT{}{}", syntax.before_begin, syntax.begin),
+    ] {
+        assert!(
+            rendered.contains(&expected),
+            "{expected:?} not in {rendered:?}"
+        );
+    }
+    // Between blocks there's `after_end`, and maybe `before_begin` after it.
+    // The system prompt shows the format too, so this looks past the content.
+    let (_, calls) = rendered.split_once("CONTENT").unwrap();
+    let between = calls
+        .split(syntax.end.unwrap())
+        .nth(1)
+        .and_then(|rest| rest.split(syntax.begin).next())
+        .unwrap();
+    assert!(
+        between == syntax.after_end
+            || between == format!("{}{}", syntax.after_end, syntax.before_begin),
+        "{between:?} between blocks in {rendered:?}"
     );
 }
 
