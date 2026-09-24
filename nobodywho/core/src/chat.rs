@@ -47,6 +47,7 @@ use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::hash::Hasher;
+use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, warn};
@@ -418,32 +419,37 @@ pub enum ShiftTarget {
     Tokens(u32),
 }
 
-impl ShiftTarget {
-    fn resolve(self, n_ctx: u32) -> usize {
-        match self {
-            ShiftTarget::Fraction(fraction) => (n_ctx as f32 * fraction) as usize,
-            ShiftTarget::Tokens(tokens) => tokens as usize,
-        }
-    }
+/// [`ContextShiftOptions`] checked against a context size; only
+/// [`ContextShiftOptions::parse`] makes one.
+#[derive(Debug, Clone, Copy)]
+struct ContextShift {
+    keep_first_turns: usize,
+    keep_last_turns: NonZeroUsize,
+    target_tokens: usize,
 }
 
 impl ContextShiftOptions {
-    // TODO: consider doing this in a "parse, don't validate" fashion, so a user
-    // doesn't need to remember the validation.
-    fn validate(&self, n_ctx: u32) -> Result<(), InitWorkerError> {
-        let invalid = |reason: String| Err(InitWorkerError::InvalidContextShiftOptions(reason));
-        if self.keep_last_turns == 0 {
-            return invalid("keep_last_turns must be at least 1".into());
-        }
-        match self.target {
+    fn parse(self, n_ctx: u32) -> Result<ContextShift, InitWorkerError> {
+        let invalid = |reason: String| InitWorkerError::InvalidContextShiftOptions(reason);
+        let keep_last_turns = NonZeroUsize::new(self.keep_last_turns)
+            .ok_or_else(|| invalid("keep_last_turns must be at least 1".into()))?;
+        let target_tokens = match self.target {
             ShiftTarget::Fraction(f) if !(f > 0.0 && f < 1.0) => {
-                invalid(format!("target fraction {f} is not in (0, 1)"))
+                return Err(invalid(format!("target fraction {f} is not in (0, 1)")));
             }
             ShiftTarget::Tokens(t) if t == 0 || t >= n_ctx => {
-                invalid(format!("target of {t} tokens is not in (0, {n_ctx})"))
+                return Err(invalid(format!(
+                    "target of {t} tokens is not in (0, {n_ctx})"
+                )));
             }
-            _ => Ok(()),
-        }
+            ShiftTarget::Fraction(f) => (n_ctx as f32 * f) as usize,
+            ShiftTarget::Tokens(t) => t as usize,
+        };
+        Ok(ContextShift {
+            keep_first_turns: self.keep_first_turns,
+            keep_last_turns,
+            target_tokens,
+        })
     }
 }
 
@@ -2226,7 +2232,7 @@ struct Chat<'a> {
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
     context: ChatContext,
-    context_shift_options: Option<ContextShiftOptions>,
+    shift: Option<ContextShift>,
 }
 
 impl<'a> Chat<'a> {
@@ -2241,10 +2247,6 @@ impl<'a> Chat<'a> {
                 .meta_val_str("general.architecture")
                 .unwrap_or_else(|_| "unknown".into());
             return Err(InitWorkerError::NotAnLLM { architecture });
-        }
-
-        if let Some(options) = &config.context_shift {
-            options.validate(config.n_ctx)?;
         }
 
         let template = select_template(&model.language_model, !config.tools.is_empty())?;
@@ -2287,6 +2289,12 @@ impl<'a> Chat<'a> {
         let Worker { engine, extra: () } =
             Worker::new_with_type(model, config.n_ctx, false, config.mtp, config.n_threads, ())?;
 
+        // Parse against the real context, which may be capped below the requested n_ctx.
+        let shift = config
+            .context_shift
+            .map(|options| options.parse(engine.ctx.n_ctx()))
+            .transpose()?;
+
         Ok(Chat {
             engine,
             should_stop,
@@ -2300,7 +2308,7 @@ impl<'a> Chat<'a> {
             template_variables: config.template_variables,
             tools: config.tools,
             context: ChatContext::new(),
-            context_shift_options: config.context_shift,
+            shift,
         })
     }
 
@@ -2360,13 +2368,10 @@ impl<'a> Chat<'a> {
     /// `reserved` tokens, to fit the target. System messages are always kept.
     fn context_shift(&mut self, reserved: usize) -> Result<(), ShiftError> {
         info!("Context shift happens!");
-        let Some(options) = self.context_shift_options else {
+        let Some(shift) = self.shift else {
             return Err(ShiftError::Disabled);
         };
-        let target_token_size = options
-            .target
-            .resolve(self.engine.ctx.n_ctx())
-            .saturating_sub(reserved);
+        let target_token_size = shift.target_tokens.saturating_sub(reserved);
 
         let turn_starts = user_message_indices(&self.messages);
         match turn_starts.len() {
@@ -2375,11 +2380,11 @@ impl<'a> Chat<'a> {
             _ => {}
         }
 
-        let first = options.keep_first_turns;
+        let first = shift.keep_first_turns;
         let deletable = turn_starts
             .len()
-            .saturating_sub(first + options.keep_last_turns);
-        // keep_last_turns >= 1, so `first + k` always indexes a kept turn.
+            .saturating_sub(first + shift.keep_last_turns.get());
+        // keep_last_turns is nonzero, so `first + k` always indexes a kept turn.
         let without = |k: usize| {
             let mut messages = self.messages.clone();
             if k > 0 {
