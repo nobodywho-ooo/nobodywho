@@ -12,6 +12,7 @@ pub mod llm;
 pub mod memory;
 mod model_selection;
 pub mod onnx;
+pub mod output_format;
 pub mod sampler;
 pub mod speech_to_text;
 pub mod stream;
@@ -19,7 +20,6 @@ pub mod template;
 pub mod text_to_speech;
 pub mod tokenizer;
 pub mod tool_calling;
-pub mod output_format;
 pub mod voice_activity_detection;
 
 /// Re-exported so bindings can name `Diagnostic` without depending on miette directly.
@@ -136,26 +136,6 @@ pub(crate) mod test_utils {
             get_model(&vision_path, true, Some(&mmproj_path), None, None).unwrap_or_else(|e| {
                 panic!("failed to load vision models from {vision_path} and {mmproj_path}: {e}")
             }),
-        ))
-    }
-
-    pub(crate) fn gemma4_model() -> Option<Arc<Model>> {
-        init_test_tracing();
-
-        let path = std::env::var("GEMMA4_MODEL").ok()?;
-        Some(Arc::new(
-            get_model(&path, true, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e}")),
-        ))
-    }
-
-    pub(crate) fn qwen36_model() -> Option<Arc<Model>> {
-        init_test_tracing();
-
-        let path = std::env::var("QWEN36_MODEL").ok()?;
-        Some(Arc::new(
-            get_model(&path, false, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Qwen3.6 model from {path}: {e}")),
         ))
     }
 }

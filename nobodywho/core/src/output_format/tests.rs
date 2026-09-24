@@ -1,4 +1,4 @@
-use super::grammar::properties;
+use super::grammar::{escape_lark_string, json_schema_for_llguidance, properties, sanitize_lark};
 use super::*;
 use crate::tool_calling::{Tool, ToolCall};
 use llama_cpp_2::model::params::LlamaModelParams;
@@ -99,6 +99,19 @@ fn tools() -> Vec<Tool> {
             }),
         ),
         tool("get_time", json!({ "type": "object", "properties": {} })),
+        // Names Lark can't take as they are, for values that end where a
+        // format's own markers could begin.
+        tool(
+            "set_task",
+            json!({
+                "type": "object",
+                "properties": {
+                    "activeForm": { "type": "string" },
+                    "mode": { "type": "string", "enum": ["plain", "with\nnewline"] },
+                },
+                "required": ["activeForm", "mode"],
+            }),
+        ),
     ]
 }
 
@@ -629,6 +642,22 @@ fn detects_each_format_from_its_own_markers() {
     }
 }
 
+#[test]
+fn tells_qwen35_and_36_from_qwen3_in_metadata() {
+    for text in [
+        "qwen3.5-2b-instruct",
+        "qwen3.6-30b-a3b",
+        "qwen 3.5 coder",
+        "qwen-3.6 reasoning",
+        "qwen35moe",
+        "qwen36",
+    ] {
+        assert!(is_qwen35_36(text), "{text}");
+    }
+    assert!(!is_qwen35_36("qwen3-8b-instruct"));
+    assert!(!is_qwen35_36("qwen3"));
+}
+
 // ============================================================================
 // Against real vocabularies and llguidance
 // ============================================================================
@@ -849,4 +878,64 @@ fn control_token_markers_are_named_by_id() {
             "{format:?} rejected {text:?}\n{grammar}"
         );
     }
+}
+
+#[test]
+fn lark_names_and_literals_are_escaped() {
+    assert_eq!(escape_lark_string("a\"b\\c"), "a\\\"b\\\\c");
+    assert_eq!(escape_lark_string("l1\nl2\tx\r"), "l1\\nl2\\tx\\r");
+    // A backslash then `n` isn't a newline.
+    assert_eq!(escape_lark_string("a\\nb"), "a\\\\nb");
+    assert_eq!(sanitize_lark("activeForm"), "activeform");
+    assert_eq!(sanitize_lark("blocked-by"), "blocked_by");
+}
+
+/// Values that end where a format's own markers could begin, in arguments
+/// whose names Lark can't take as they are.
+#[test]
+fn awkward_names_and_values_make_working_grammars() {
+    let model = qwen3_vocab();
+    let tools = tools();
+    let call = call(
+        "set_task",
+        json!({ "activeForm": "sunny\n", "mode": "with\nnewline" }),
+    );
+    for &format in FORMATS {
+        let resolved = resolve(format);
+        let grammar = resolved.grammar(&tools).unwrap();
+        let text = render_response(format, std::slice::from_ref(&call));
+        assert!(
+            accepts(&model, &grammar, &text),
+            "{format:?} rejected {text:?}\n{grammar}"
+        );
+        let text = render_tool_calls(format, std::slice::from_ref(&call));
+        assert_eq!(
+            resolved.parse_tool_calls(&text, &tools),
+            Ok(vec![call.clone()]),
+            "{format:?} failed on {text:?}"
+        );
+    }
+}
+
+/// llguidance ignores schema keywords it doesn't implement, like
+/// `uniqueItems`, and still enforces the ones it does, like `maximum`.
+#[test]
+fn unimplemented_schema_keywords_are_ignored_not_fatal() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "score": { "type": "integer", "minimum": 0, "maximum": 5 },
+        },
+        "required": ["score"],
+    });
+    let embedded = json_schema_for_llguidance(&schema);
+    assert!(embedded.contains("\"lenient\":true"), "{embedded}");
+    assert!(embedded.contains("uniqueItems"), "{embedded}");
+
+    let model = qwen3_vocab();
+    let grammar = resolve(&Qwen3).grammar(&[tool("rate", schema)]).unwrap();
+    let rate = |score| render_response(&Qwen3, &[call("rate", json!({ "score": score }))]);
+    assert!(accepts(&model, &grammar, &rate(3)), "{grammar}");
+    assert!(!accepts(&model, &grammar, &rate(9)), "{grammar}");
 }

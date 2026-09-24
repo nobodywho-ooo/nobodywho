@@ -148,9 +148,6 @@ pub enum FormatError {
     #[error("a tool call grammar needs at least one tool")]
     NoTools,
 
-    #[error("failed to generate grammar: {0}")]
-    Grammar(String),
-
     #[error("no known tool call format matches this model")]
     Undetected,
 

@@ -397,9 +397,6 @@ pub enum InitWorkerError {
     #[error("Got no response after initializing worker.")]
     NoResponse,
 
-    #[error("Failed to detect tool calling format: {0}")]
-    ToolFormatDetection(#[from] crate::tool_calling::ToolFormatError),
-
     #[error("Could not initialize projection model: {0}")]
     ProjectionModel(#[from] MultimodalError),
 
