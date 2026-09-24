@@ -558,6 +558,47 @@ impl KokoroVoice {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn phonemize_en_us(phonemizer: &Phonemizer, text: &str) -> String {
+        phonemizer.phonemize(text).expect("phonemize").into_inner()
+    }
+
+    /// Typographic quotes must phonemize exactly like their ASCII
+    /// counterparts. Word processors and phone autocorrect emit `’` instead
+    /// of `'` (and `“”` instead of `"`), but misaki's lexicon only has
+    /// ASCII-apostrophe entries ("don't", never "don’t") — without the fold
+    /// in [`MisakiPhonemes::normalize_input`], contractions split and garble
+    /// (`don’t` → "don-tee").
+    #[test]
+    fn phonemizes_typographic_punctuation_like_ascii() {
+        // Sandbox-proof espeak data dir: the nix sandbox has no writable
+        // $HOME/.cache, and first-use extraction needs somewhere to write.
+        std::env::set_var(
+            "NOBODYWHO_ESPEAK_DATA_DIR",
+            std::env::temp_dir().join("nobodywho-espeak-test"),
+        );
+        let p = Phonemizer::new(EspeakDialect::EnUs, "en-us").expect("init phonemizer");
+
+        let ascii = phonemize_en_us(&p, "I don't like it, it's Bob's dog.");
+        for variant in [
+            "I don’t like it, it’s Bob’s dog.", // U+2019
+            "I don‘t like it, it‘s Bob‘s dog.", // U+2018
+            "I don´t like it, it´s Bob´s dog.", // acute accent
+            "I don`t like it, it`s Bob`s dog.", // grave accent
+        ] {
+            assert_eq!(ascii, phonemize_en_us(&p, variant), "variant: {variant:?}");
+        }
+
+        assert_eq!(
+            phonemize_en_us(&p, "He said “don’t” and left."),
+            phonemize_en_us(&p, "He said \"don't\" and left."),
+        );
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct KokoroConfig {
     pub source: String,
