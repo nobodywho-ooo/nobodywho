@@ -3187,6 +3187,7 @@ dependencies = [
  "libc",
  "llama-cpp-2",
  "llguidance",
+ "log",
  "mel_spec",
  "miette",
  "minijinja",
