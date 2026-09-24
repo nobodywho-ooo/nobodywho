@@ -114,10 +114,14 @@
         devShells.nobodywho-python = pkgs.mkShell {
           # a devshell that includes the built python package
           # useful for testing local changes in repl or pytest
+          # pytest also collects ../../docs (per pyproject.toml testpaths),
+          # whose conftest needs pytest-markdown-docs and the test models.
+          env = removeAttrs test-models [ "override" "overrideDerivation" ];
           packages = [
             (nobodywho-python.override { doCheck = false; })
             pkgs.python3Packages.pytest
             pkgs.python3Packages.pytest-asyncio
+            pkgs.python3Packages.pytest-markdown-docs
           ];
         };
 
