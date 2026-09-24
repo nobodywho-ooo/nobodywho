@@ -24,6 +24,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Fixed
 
+- Kokoro speech synthesis no longer garbles contractions written with typographic apostrophes (`’`, `‘`, `´`, `` ` ``) or curly double quotes (`“ ”`), which word processors and phone autocorrect produce — `it’s` was spoken "it-ess", `don’t` "don-tee". They now fold to their ASCII counterparts before phonemization, as the supertonic backend already did. Affects all bindings.
 - A FunctionGemma tool call whose argument value spans multiple lines is no longer dropped. The tool-call grammar lets a value contain newlines (a file body, a code snippet), but the extractor stopped at the first newline and discarded the whole call, so no tool ran. Multi-line values are now parsed. Affects all bindings.
 - **Python:** Pressing Ctrl+C during a synchronous GGUF model download now cancels the download, raises `KeyboardInterrupt`, and removes the incomplete temporary file.
 - **React Native:** Type errors in `Chat.tokenize`. Changed `async tokenize(message: string | Prompt): Promise<(number | null)[]>` to `async tokenize(message: string | Prompt): Promise<(number | undefined)[]>`. The `null` type was incorrect, as the embedding slots are represented by `undefined` in the TypeScript binding.

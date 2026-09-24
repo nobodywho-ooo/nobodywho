@@ -134,14 +134,23 @@ impl MisakiPhonemes {
         Self(joined).strip_zwj()
     }
 
-    /// Split CamelCase / snake_case / kebab-case so the G2P sees normal words.
+    /// Split CamelCase / snake_case / kebab-case so the G2P sees normal words,
+    /// and fold typographic quotes to ASCII. Word processors and phone
+    /// keyboards emit `’` instead of `'` (and `“”` instead of `"`), but
+    /// misaki's lexicon only has ASCII-apostrophe entries ("don't", never
+    /// "don’t") — without the fold, contractions split and garble
+    /// (`don’t` → "don-tee"). Same fold as the supertonic backend and
+    /// upstream's old `kokoro.py normalize_text`.
     /// Pre-G2P normalization, returns plain `String` since the result isn't
     /// misaki phonemes yet — just normalized text ready for either backend.
     /// https://github.com/hexgrad/misaki/blob/main/misaki/en.py#L54-L61
     fn normalize_input(text: &str) -> String {
         let re = regex::Regex::new(r"(\p{Ll})(\p{Lu})").unwrap();
         let sep_replaced = text.replace(['_', '-'], " ");
-        re.replace_all(&sep_replaced, "$1 $2").into_owned()
+        let quoted = sep_replaced
+            .replace(['\u{2018}', '\u{2019}', '´', '`'], "'")
+            .replace(['\u{201C}', '\u{201D}'], "\"");
+        re.replace_all(&quoted, "$1 $2").into_owned()
     }
 
     fn apply(mut self, pairs: &[(&str, &str)]) -> Self {
