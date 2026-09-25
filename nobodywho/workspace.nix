@@ -23,6 +23,9 @@
 let
   buildRustCrateForPkgs =
     pkgs:
+    let
+      onnxruntime = pkgs.callPackage ./onnxruntime.nix { };
+    in
     pkgs.buildRustCrate.override {
       defaultCrateOverrides = pkgs.defaultCrateOverrides // {
         llama-cpp-sys-2 = attrs: {
@@ -58,9 +61,9 @@ let
         };
 
         ort-sys = attrs: {
-          env.ORT_LIB_PATH = "${pkgs.onnxruntime}/lib";
-          env.ORT_PREFER_DYNAMIC_LINK = "1";
-          buildInputs = [ pkgs.onnxruntime ];
+          # Static link, as in release builds.
+          env.ORT_LIB_PATH = "${onnxruntime}/lib";
+          buildInputs = [ onnxruntime ];
           # ort-sys's `copy-dylibs` feature symlinks onnxruntime libs into
           # OUT_DIR.ancestors(3)/{examples,deps}. buildRustCrate sets
           # OUT_DIR=$(pwd)/target/build/ort-sys.out, so ancestors(3) is the
@@ -130,7 +133,7 @@ let
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
-            pkgs.onnxruntime
+            onnxruntime
           ];
         };
 
@@ -139,7 +142,7 @@ let
           nativeBuildInputs = [
             # this needs to be available at link-time
             vulkan-loader
-            pkgs.onnxruntime
+            onnxruntime
             flutter335
           ];
         };
@@ -149,14 +152,14 @@ let
             # XXX: can we do this with propagatedNativeBuildInputs??
             # this needs to be available at link-time
             vulkan-loader
-            pkgs.onnxruntime
+            onnxruntime
           ];
         };
 
         nobodywho-python = attrs: {
           nativeBuildInputs = [
             vulkan-loader
-            pkgs.onnxruntime
+            onnxruntime
             pkgs.python3
           ];
         };
