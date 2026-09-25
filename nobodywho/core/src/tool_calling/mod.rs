@@ -20,8 +20,7 @@ use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
 use monty::MontyRun;
 use monty_types::{
-    CompileOptions, PrintWriter, ResourceLimits, ResourceTracker, DEFAULT_MAX_RECURSION_DEPTH,
-    DEFAULT_MAX_SUSPENSIONS,
+    CompileOptions, PrintWriter, ResourceLimits, ResourceTracker, DEFAULT_MAX_SUSPENSIONS,
 };
 use serde::{ser::Serializer, Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
@@ -147,7 +146,7 @@ impl Tool {
                         max_duration,
                         max_memory,
                         gc_interval: None, // we dont let the user configure this
-                        max_recursion_depth: max_recursion_depth.unwrap_or(DEFAULT_MAX_RECURSION_DEPTH),
+                        max_recursion_depth: max_recursion_depth.unwrap_or(usize::MAX),
                         max_suspensions: DEFAULT_MAX_SUSPENSIONS, // we dont let the user configure this
                     };
 
