@@ -5,7 +5,7 @@
 //! boilerplate.
 
 use ort::ep::{ExecutionProvider, ExecutionProviderDispatch, CPU, CUDA};
-use ort::session::builder::SessionBuilder;
+use ort::session::builder::{GraphOptimizationLevel, SessionBuilder};
 use ort::session::Session;
 use std::path::Path;
 
@@ -46,8 +46,18 @@ pub fn execution_providers(device: Device) -> Vec<ExecutionProviderDispatch> {
 /// error type (`TextToSpeechError::Ort`, `SpeechToTextError::Ort`, …) using `?` plus a
 /// `From<ort::Error>` impl.
 pub fn load_session(path: &Path, device: Device) -> Result<Session, ort::Error> {
+    load_session_with_optimization(path, device, GraphOptimizationLevel::All)
+}
+
+/// Like [`load_session`], but with an explicit graph optimization level.
+pub fn load_session_with_optimization(
+    path: &Path,
+    device: Device,
+    level: GraphOptimizationLevel,
+) -> Result<Session, ort::Error> {
     SessionBuilder::new()?
         .with_log_level(ort::logging::LogLevel::Warning)?
+        .with_optimization_level(level)?
         .with_execution_providers(execution_providers(device))?
         .commit_from_file(path)
 }
