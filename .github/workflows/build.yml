@@ -584,12 +584,12 @@ jobs:
 
       # ort-sys has no prebuilt for x86_64-linux-android (pyke only ships arm64).
       # Pull Microsoft's official Android AAR (which has x86_64) and point ort-sys at it.
-      # Version must match ort-sys's pyke distribution (ms@1.24.2 — see ort-sys/build/download/dist.txt).
+      # Version must match ort-sys's pyke distribution (ms@1.28.0 — see ort-sys/build/download/dist.tsv).
       - name: "Fetch ONNX Runtime for x86_64-linux-android"
         if: matrix.target == 'x86_64-linux-android'
         id: ort-android
         run: |
-          ORT_VERSION=1.24.2
+          ORT_VERSION=1.28.0
           ORT_DIR="$RUNNER_TEMP/ort-android-x86_64/lib"
           mkdir -p "$ORT_DIR"
           curl -L --fail -o /tmp/onnxruntime.aar \
