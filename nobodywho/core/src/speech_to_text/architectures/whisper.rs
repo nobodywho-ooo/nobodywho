@@ -486,7 +486,8 @@ fn load_sessions(
     device: Device,
 ) -> Result<(Session, Session), SpeechToTextError> {
     let suffix = quantization_suffix(quantization)?;
-    // ORT < 1.28 crashes fusing fp16 graphs at Level3 (microsoft/onnxruntime#29153); drop once unpinned.
+    // ORT < 1.28 crashes fusing fp16 graphs at Level3 (microsoft/onnxruntime#29153).
+    // Drop once every ORT we link is >= 1.28 (nix builds still use nixpkgs 1.23).
     let level = match suffix {
         "_fp16" | "_q4f16" => GraphOptimizationLevel::Level2,
         _ => GraphOptimizationLevel::All,
