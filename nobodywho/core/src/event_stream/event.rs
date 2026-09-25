@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::output_format::Token;
+
 use crate::event_stream::response::{
     ContentPart, ContentPartIndex, Item, ItemFields, ItemId, ResponseObject, Status, SummaryIndex,
 };
@@ -212,4 +214,7 @@ pub struct StreamEvent {
     pub sequence_number: SequenceNumber,
     #[serde(flatten)]
     pub kind: EventKind,
+    /// The generated tokens the event stands for, possibly none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tokens: Vec<Token>,
 }

@@ -364,7 +364,7 @@ impl ResponseObject {
     pub fn consume_event(&mut self, event: StreamEvent) {
         let StreamEvent {
             sequence_number: _,
-            //tokens: _,
+            tokens: _,
             //raw: _,
             kind,
         } = event;

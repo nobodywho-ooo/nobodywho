@@ -392,7 +392,8 @@ fn says_where_a_block_stops_making_sense() {
 // ============================================================================
 
 /// Feeds `pieces` through a splitter for a response to `prompt`. Markers get
-/// their tokens, and anything else is token 1.
+/// their tokens, and anything else is token 1. Checks that every token ends up
+/// in exactly one piece, in order.
 fn split_after(format: &'static dyn OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piece> {
     let resolved = resolve(format);
     let tools = tools();
@@ -413,11 +414,57 @@ fn split_after(format: &'static dyn OutputFormat, prompt: &str, pieces: &[&str])
         .flat_map(|&piece| splitter.push(token(piece), piece.as_bytes()))
         .collect();
     out.extend(splitter.finish());
+
+    let ids: Vec<LlamaToken> = out.iter().flat_map(|p| &p.tokens).map(|t| t.id).collect();
+    let pushed: Vec<LlamaToken> = pieces.iter().map(|&piece| token(piece)).collect();
+    assert_eq!(
+        ids, pushed,
+        "every token is in one piece, in order: {out:?}"
+    );
+    let text: String = out
+        .iter()
+        .flat_map(|p| &p.tokens)
+        .map(|t| t.text.as_str())
+        .collect();
+    assert_eq!(text, pieces.concat());
     out
 }
 
 fn split(format: &'static dyn OutputFormat, pieces: &[&str]) -> Vec<Piece> {
     split_after(format, "", pieces)
+}
+
+fn kinds(pieces: &[Piece]) -> Vec<PieceKind> {
+    pieces.iter().map(|piece| piece.kind.clone()).collect()
+}
+
+/// Each piece, with the text of its tokens.
+fn with_tokens(pieces: &[Piece]) -> Vec<(PieceKind, String)> {
+    pieces
+        .iter()
+        .map(|piece| {
+            let text = piece.tokens.iter().map(|t| t.text.as_str()).collect();
+            (piece.kind.clone(), text)
+        })
+        .collect()
+}
+
+fn open(item: Item) -> PieceKind {
+    PieceKind::Open(item)
+}
+
+fn open_call(name: &str) -> PieceKind {
+    PieceKind::Open(Item::ToolCall { name: name.into() })
+}
+
+fn delta(text: &str) -> PieceKind {
+    PieceKind::Delta(text.into())
+}
+
+const CLOSE: PieceKind = PieceKind::Close;
+
+fn end(cut_off: bool) -> PieceKind {
+    PieceKind::End { cut_off }
 }
 
 #[test]
@@ -426,18 +473,77 @@ fn splits_text_from_calls() {
         "Let me ",
         "check.",
         "<tool_call>",
-        "\n{\"name\": \"get_time\", ",
-        "\"arguments\": {}}\n",
+        "\n",
+        "{\"name\": \"get_time\", ",
+        "\"arguments\": {}}",
+        "\n",
         "</tool_call>",
         "\n",
     ];
     assert_eq!(
-        split(&Qwen3, &pieces),
+        kinds(&split(&Qwen3, &pieces)),
         vec![
-            Piece::Text("Let me ".into()),
-            Piece::Text("check.".into()),
-            Piece::Calls(vec![call("get_time", json!({}))]),
-            Piece::Text("\n".into()),
+            open(Item::Text),
+            delta("Let me "),
+            delta("check."),
+            CLOSE,
+            open_call("get_time"),
+            delta("{}"),
+            CLOSE,
+            open(Item::Text),
+            delta("\n"),
+            CLOSE,
+            end(true),
+        ]
+    );
+}
+
+/// Markers are with the item they begin or end, along with the formatting
+/// around them. A token goes with the first piece its text is part of.
+#[test]
+fn tokens_go_with_the_pieces_they_write() {
+    let pieces = ["<think>", "\nHmm", ".\n", "</think>", "\n\nHi", EOG_TEXT];
+    assert_eq!(
+        with_tokens(&split(&Qwen3, &pieces)),
+        vec![
+            (open(Item::Thinking), "<think>\nHmm".into()),
+            (delta("Hmm"), "".into()),
+            (delta("."), ".\n".into()),
+            (CLOSE, "</think>\n\nHi".into()),
+            (open(Item::Text), "".into()),
+            (delta("Hi"), "".into()),
+            (CLOSE, "".into()),
+            (end(false), EOG_TEXT.into()),
+        ]
+    );
+}
+
+/// Each call in a list gets the tokens of its own text, and the list's syntax
+/// goes with the call after it, or the last call's end.
+#[test]
+fn calls_in_one_block_get_their_own_tokens() {
+    let pieces = [
+        "<|tool_call_start|>",
+        "[",
+        "get_time()",
+        ", ",
+        "get_weather(location=\"Oslo\")",
+        "]",
+        "<|tool_call_end|>",
+    ];
+    assert_eq!(
+        with_tokens(&split(&Lfm2, &pieces)),
+        vec![
+            (open_call("get_time"), "<|tool_call_start|>[".into()),
+            (delta("{}"), "get_time()".into()),
+            (CLOSE, "".into()),
+            (open_call("get_weather"), ", ".into()),
+            (
+                delta(r#"{"location":"Oslo"}"#),
+                "get_weather(location=\"Oslo\")".into()
+            ),
+            (CLOSE, "]<|tool_call_end|>".into()),
+            (end(true), "".into()),
         ]
     );
 }
@@ -446,10 +552,18 @@ fn splits_text_from_calls() {
 fn markers_spelled_in_text_are_text() {
     // The characters of `<tool_call>` arriving as ordinary tokens.
     let pieces = ["use ", "<tool", "_call>", " to call tools"];
-    assert_eq!(split(&Qwen3, &pieces).len(), 4);
-    assert!(split(&Qwen3, &pieces)
-        .iter()
-        .all(|piece| matches!(piece, Piece::Text(_))));
+    assert_eq!(
+        kinds(&split(&Qwen3, &pieces)),
+        vec![
+            open(Item::Text),
+            delta("use "),
+            delta("<tool"),
+            delta("_call>"),
+            delta(" to call tools"),
+            CLOSE,
+            end(true),
+        ]
+    );
 }
 
 #[test]
@@ -462,10 +576,15 @@ fn a_block_without_an_end_runs_to_the_next() {
         "{\"location\": \"Oslo\"}",
     ];
     assert_eq!(
-        split(&Ministral3, &pieces),
+        kinds(&split(&Ministral3, &pieces)),
         vec![
-            Piece::Calls(vec![call("get_time", json!({}))]),
-            Piece::Calls(vec![call("get_weather", json!({ "location": "Oslo" }))]),
+            open_call("get_time"),
+            delta("{}"),
+            CLOSE,
+            open_call("get_weather"),
+            delta(r#"{"location":"Oslo"}"#),
+            CLOSE,
+            end(true),
         ]
     );
 }
@@ -473,33 +592,28 @@ fn a_block_without_an_end_runs_to_the_next() {
 #[test]
 fn a_broken_block_comes_back_as_its_text() {
     let pieces = ["<|tool_call>", "call:get_time(", "<tool_call|>"];
-    let pieces: [Piece; 1] = split(&Gemma4, &pieces).try_into().unwrap();
-    let [Piece::Malformed { text, .. }] = pieces else {
-        panic!("expected a malformed block, got {pieces:?}");
-    };
-    assert_eq!(text, "<|tool_call>call:get_time(<tool_call|>");
+    let pieces = kinds(&split(&Gemma4, &pieces));
+    assert!(
+        matches!(pieces[0], PieceKind::Warning(Warning::Malformed(_))),
+        "{pieces:?}"
+    );
+    assert_eq!(
+        pieces[1..],
+        [
+            open(Item::Text),
+            delta("<|tool_call>call:get_time(<tool_call|>"),
+            CLOSE,
+            end(true),
+        ]
+    );
 }
 
 #[test]
 fn a_cut_off_block_is_still_read() {
     let pieces = ["<|tool_call_start|>", "[get_time()]"];
     assert_eq!(
-        split(&Lfm2, &pieces),
-        vec![Piece::Calls(vec![call("get_time", json!({}))])]
-    );
-}
-
-#[test]
-fn separates_reasoning_from_the_answer() {
-    let pieces = ["<think>", "\nHmm", ".\n", "</think>", "\n\nHi", EOG_TEXT];
-    assert_eq!(
-        split(&Qwen3, &pieces),
-        vec![
-            Piece::Thinking("Hmm".into()),
-            Piece::Thinking(".".into()),
-            Piece::Text("Hi".into()),
-            Piece::End,
-        ]
+        kinds(&split(&Lfm2, &pieces)),
+        vec![open_call("get_time"), delta("{}"), CLOSE, end(true)]
     );
 }
 
@@ -508,7 +622,9 @@ fn separates_reasoning_from_the_answer() {
 fn template_formatting_is_neither_text_nor_reasoning() {
     let block = [
         "<tool_call>",
-        "\n{\"name\": \"get_time\", \"arguments\": {}}\n",
+        "\n",
+        "{\"name\": \"get_time\", \"arguments\": {}}",
+        "\n",
         "</tool_call>",
     ];
     let mut pieces = vec![
@@ -526,15 +642,23 @@ fn template_formatting_is_neither_text_nor_reasoning() {
     pieces.push("\n");
     pieces.extend(block);
     pieces.push(EOG_TEXT);
-    let get_time = Piece::Calls(vec![call("get_time", json!({}))]);
+    let call = r#"{"name": "get_time", "arguments": {}}"#;
     assert_eq!(
-        split(&Qwen3, &pieces),
+        with_tokens(&split(&Qwen3, &pieces)),
         vec![
-            Piece::Thinking("Hmm".into()),
-            Piece::Text("Let me check.".into()),
-            get_time.clone(),
-            get_time,
-            Piece::End,
+            (open(Item::Thinking), "<think>\n".into()),
+            (delta("Hmm"), "Hmm".into()),
+            (CLOSE, "\n</think>\n\n".into()),
+            (open(Item::Text), "".into()),
+            (delta("Let me check."), "Let me check.".into()),
+            (CLOSE, "".into()),
+            (open_call("get_time"), "\n<tool_call>\n".into()),
+            (delta("{}"), call.into()),
+            (CLOSE, "\n</tool_call>".into()),
+            (open_call("get_time"), "\n<tool_call>\n".into()),
+            (delta("{}"), call.into()),
+            (CLOSE, "\n</tool_call>".into()),
+            (end(false), EOG_TEXT.into()),
         ]
     );
 }
@@ -552,14 +676,19 @@ fn formatting_around_blocks_is_per_format() {
     pieces.push("\n");
     pieces.extend(block);
     pieces.push(EOG_TEXT);
-    let get_time = Piece::Calls(vec![call("get_time", json!({}))]);
     assert_eq!(
-        split(&Qwen35, &pieces),
+        kinds(&split(&Qwen35, &pieces)),
         vec![
-            Piece::Text("Checking.".into()),
-            get_time.clone(),
-            get_time,
-            Piece::End,
+            open(Item::Text),
+            delta("Checking."),
+            CLOSE,
+            open_call("get_time"),
+            delta("{}"),
+            CLOSE,
+            open_call("get_time"),
+            delta("{}"),
+            CLOSE,
+            end(false),
         ]
     );
 }
@@ -580,13 +709,17 @@ fn only_the_formatting_is_removed() {
         EOG_TEXT,
     ];
     assert_eq!(
-        split(&Qwen3, &pieces),
+        kinds(&split(&Qwen3, &pieces)),
         vec![
-            Piece::Thinking("\n  indented".into()),
-            Piece::Text("    code".into()),
-            Piece::Text("\n".into()),
-            Piece::Text("\nmore".into()),
-            Piece::End,
+            open(Item::Thinking),
+            delta("\n  indented"),
+            CLOSE,
+            open(Item::Text),
+            delta("    code"),
+            delta("\n"),
+            delta("\nmore"),
+            CLOSE,
+            end(false),
         ]
     );
 }
@@ -595,11 +728,13 @@ fn only_the_formatting_is_removed() {
 fn formatting_only_counts_next_to_its_own_marker() {
     // `\n` before `<tool_call>` is formatting, but before the end it's text.
     assert_eq!(
-        split(&Qwen3, &["Hi", "\n", EOG_TEXT]),
+        kinds(&split(&Qwen3, &["Hi", "\n", EOG_TEXT])),
         vec![
-            Piece::Text("Hi".into()),
-            Piece::Text("\n".into()),
-            Piece::End
+            open(Item::Text),
+            delta("Hi"),
+            delta("\n"),
+            CLOSE,
+            end(false)
         ]
     );
 }
@@ -609,8 +744,16 @@ fn formatting_has_to_match_exactly() {
     // One newline where the template writes two is the model's.
     let pieces = ["<think>", "Hmm", "</think>", "\n", "Hi"];
     assert_eq!(
-        split(&Qwen3, &pieces),
-        vec![Piece::Thinking("Hmm".into()), Piece::Text("\nHi".into())]
+        kinds(&split(&Qwen3, &pieces)),
+        vec![
+            open(Item::Thinking),
+            delta("Hmm"),
+            CLOSE,
+            open(Item::Text),
+            delta("\nHi"),
+            CLOSE,
+            end(true),
+        ]
     );
 }
 
@@ -618,30 +761,42 @@ fn formatting_has_to_match_exactly() {
 fn a_prompt_can_open_the_reasoning() {
     // Templates that open the reasoning for the model end the prompt inside it.
     let pieces = ["Hmm", "</think>", "Hi"];
-    let reasoning = vec![Piece::Thinking("Hmm".into()), Piece::Text("Hi".into())];
-    assert_eq!(
-        split_after(&Qwen35, "<|im_start|>assistant\n<think>\n", &pieces),
-        reasoning
-    );
+    let reasoning = vec![
+        open(Item::Thinking),
+        delta("Hmm"),
+        CLOSE,
+        open(Item::Text),
+        delta("Hi"),
+        CLOSE,
+        end(true),
+    ];
+    let opened = "<|im_start|>assistant\n<think>\n";
+    assert_eq!(kinds(&split_after(&Qwen35, opened, &pieces)), reasoning);
     // The formatting after `<think>` is only expected if the prompt left it out.
     let newline_first = ["\nHmm", "</think>", "Hi"];
     assert_eq!(
-        split_after(&Qwen35, "<|im_start|>assistant\n<think>", &newline_first),
+        kinds(&split_after(
+            &Qwen35,
+            "<|im_start|>assistant\n<think>",
+            &newline_first
+        )),
         reasoning
     );
-    assert_eq!(
-        split_after(&Qwen35, "<|im_start|>assistant\n<think>\n", &newline_first),
-        vec![Piece::Thinking("\nHmm".into()), Piece::Text("Hi".into())]
-    );
+    let mut kept = reasoning.clone();
+    kept[1] = delta("\nHmm");
+    assert_eq!(kinds(&split_after(&Qwen35, opened, &newline_first)), kept);
 
     // One that closes it, as when reasoning is turned off, leaves the answer.
     let closed = "<|im_start|>assistant\n<think>\n\n</think>\n\n";
     assert_eq!(
-        split_after(&Qwen35, closed, &pieces),
+        kinds(&split_after(&Qwen35, closed, &pieces)),
         vec![
-            Piece::Text("Hmm".into()),
-            Piece::Stray("</think>"),
-            Piece::Text("Hi".into()),
+            open(Item::Text),
+            delta("Hmm"),
+            PieceKind::Warning(Warning::Stray("</think>")),
+            delta("Hi"),
+            CLOSE,
+            end(true),
         ]
     );
 }
@@ -650,29 +805,43 @@ fn a_prompt_can_open_the_reasoning() {
 fn a_reasoning_label_is_not_reasoning() {
     let pieces = ["<|channel>", "thought", "\nHmm", "<channel|>", "Hi"];
     assert_eq!(
-        split(&Gemma4, &pieces),
-        vec![Piece::Thinking("Hmm".into()), Piece::Text("Hi".into())]
+        kinds(&split(&Gemma4, &pieces)),
+        vec![
+            open(Item::Thinking),
+            delta("Hmm"),
+            CLOSE,
+            open(Item::Text),
+            delta("Hi"),
+            CLOSE,
+            end(true),
+        ]
     );
     // Without the label, the reasoning is kept whole.
     let pieces = ["<|channel>", "though", "ts", "<channel|>"];
     assert_eq!(
-        split(&Gemma4, &pieces),
-        vec![Piece::Thinking("thoughts".into())]
+        kinds(&split(&Gemma4, &pieces)),
+        vec![open(Item::Thinking), delta("thoughts"), CLOSE, end(true)]
     );
-    // Nor is a label that's all the reasoning there is.
+    // A label that's all there is leaves the reasoning empty.
     let pieces = ["<|channel>", "thought\n", "<channel|>"];
-    assert_eq!(split(&Gemma4, &pieces), vec![]);
+    assert_eq!(
+        kinds(&split(&Gemma4, &pieces)),
+        vec![open(Item::Thinking), CLOSE, end(true)]
+    );
 }
 
 #[test]
 fn the_end_of_generation_ends_the_response() {
     let pieces = ["[TOOL_CALLS]", "get_time[ARGS]{}", EOG_TEXT];
     assert_eq!(
-        split(&Ministral3, &pieces),
-        vec![Piece::Calls(vec![call("get_time", json!({}))]), Piece::End]
+        kinds(&split(&Ministral3, &pieces)),
+        vec![open_call("get_time"), delta("{}"), CLOSE, end(false)]
     );
-    // A response cut off before it doesn't end.
-    assert_eq!(split(&Qwen3, &["Hi"]), vec![Piece::Text("Hi".into())]);
+    // A response cut off before it ends all the same, but cut off.
+    assert_eq!(
+        kinds(&split(&Qwen3, &["Hi"])),
+        vec![open(Item::Text), delta("Hi"), CLOSE, end(true)]
+    );
 }
 
 #[test]
@@ -682,10 +851,11 @@ fn a_character_split_across_tokens_arrives_whole() {
     let mut splitter = resolved.splitter(&tools, "");
     let crab = "🦀".as_bytes();
     assert_eq!(splitter.push(LlamaToken(1), &crab[..2]), vec![]);
-    assert_eq!(
-        splitter.push(LlamaToken(1), &crab[2..]),
-        vec![Piece::Text("🦀".into())]
-    );
+    let pieces = splitter.push(LlamaToken(2), &crab[2..]);
+    assert_eq!(kinds(&pieces), vec![open(Item::Text), delta("🦀")]);
+    // The token that finishes the character has it as its text.
+    let texts: Vec<_> = pieces[1].tokens.iter().map(|t| t.text.as_str()).collect();
+    assert_eq!(texts, ["", "🦀"]);
 }
 
 #[test]
@@ -699,10 +869,13 @@ fn a_character_cut_off_by_a_marker_stays_where_it_started() {
     pieces.extend(splitter.push(UNTHINK, b"</think>"));
     pieces.extend(splitter.push(LlamaToken(1), &crab[2..]));
     assert_eq!(
-        pieces,
+        kinds(&pieces),
         vec![
-            Piece::Thinking("\u{FFFD}".into()),
-            Piece::Text("\u{FFFD}\u{FFFD}".into()),
+            open(Item::Thinking),
+            delta("\u{FFFD}"),
+            CLOSE,
+            open(Item::Text),
+            delta("\u{FFFD}\u{FFFD}"),
         ]
     );
 }
@@ -711,12 +884,21 @@ fn a_character_cut_off_by_a_marker_stays_where_it_started() {
 fn stray_end_markers_are_reported() {
     let pieces = ["Hi", "</tool_call>", "</think>", "there"];
     assert_eq!(
-        split(&Qwen3, &pieces),
+        with_tokens(&split(&Qwen3, &pieces)),
         vec![
-            Piece::Text("Hi".into()),
-            Piece::Stray("</tool_call>"),
-            Piece::Stray("</think>"),
-            Piece::Text("there".into()),
+            (open(Item::Text), "".into()),
+            (delta("Hi"), "Hi".into()),
+            (
+                PieceKind::Warning(Warning::Stray("</tool_call>")),
+                "</tool_call>".into()
+            ),
+            (
+                PieceKind::Warning(Warning::Stray("</think>")),
+                "</think>".into()
+            ),
+            (delta("there"), "there".into()),
+            (CLOSE, "".into()),
+            (end(true), "".into()),
         ]
     );
 }
@@ -726,6 +908,24 @@ fn stray_end_markers_are_reported() {
 #[should_panic(expected = "after the end of generation")]
 fn pushing_after_the_end_is_a_bug() {
     split(&Qwen3, &[EOG_TEXT, "more"]);
+}
+
+#[test]
+fn without_a_format_everything_but_the_end_is_text() {
+    let mut splitter = Splitter::plain(&FakeVocab(vec![]));
+    let mut pieces = splitter.push(LlamaToken(1), b"Hi ");
+    pieces.extend(splitter.push(THINK, b"<think>"));
+    pieces.extend(splitter.push(EOG, EOG_TEXT.as_bytes()));
+    assert_eq!(
+        with_tokens(&pieces),
+        vec![
+            (open(Item::Text), "".into()),
+            (delta("Hi "), "Hi ".into()),
+            (delta("<think>"), "<think>".into()),
+            (CLOSE, "".into()),
+            (end(false), EOG_TEXT.into()),
+        ]
+    );
 }
 
 #[test]
@@ -741,8 +941,8 @@ fn a_model_without_reasoning_markers_does_not_reason() {
     let tools = tools();
     let mut splitter = resolved.splitter(&tools, "<think>\n");
     assert_eq!(
-        splitter.push(LlamaToken(1), b"Hi"),
-        vec![Piece::Text("Hi".into())]
+        kinds(&splitter.push(LlamaToken(1), b"Hi")),
+        vec![open(Item::Text), delta("Hi")]
     );
 }
 

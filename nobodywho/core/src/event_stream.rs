@@ -15,61 +15,73 @@ use crate::{
         },
         response::{
             ContentPart, ContentPartIndex, FunctionCallItem, Item, ItemId, ItemKind, MessageItem,
-            ReasoningItem, ResponseId, ResponseObject, Role, Status,
+            ReasoningItem, ResponseId, ResponseObject, ResponseUsage, Role, Status,
         },
     },
-    output_format::Piece,
-    tool_calling::ToolCall,
+    output_format::{self, Piece, PieceKind, Token},
 };
 
 /// Turns the pieces of a model's response into the events of a Responses API
-/// stream. Text and reasoning stream as they arrive, and tool calls a call at a
-/// time, since that's how they arrive.
+/// stream, one piece at a time.
 pub struct EventStream {
     /// The response as the events so far describe it.
     response: ResponseObject,
     next_sequence_number: SequenceNumber,
-    /// The item text or reasoning is streaming into.
     open: Option<OpenItem>,
+    /// Tokens of pieces that make no event, which go on the next event.
+    carried: Vec<Token>,
+    input_tokens: u64,
+    output_tokens: u64,
 }
 
 struct OpenItem {
     index: OutputIndex,
     id: ItemId,
-    stretch: Stretch,
+    kind: Open,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Stretch {
-    Reasoning,
-    Message,
+enum Open {
+    Text,
+    Thinking,
+    ToolCall,
 }
 
 impl EventStream {
-    /// Starts a response, along with the events that announce it.
-    pub fn new(rng: &mut impl Rng) -> (Self, Vec<StreamEvent>) {
+    /// Starts a response to a prompt of `input_tokens` tokens, along with the
+    /// events that announce it.
+    pub fn new(input_tokens: u64, rng: &mut impl Rng) -> (Self, Vec<StreamEvent>) {
         let id = ResponseId::generate(rng);
         let mut stream = EventStream {
             response: ResponseObject::init(id),
             next_sequence_number: SequenceNumber::start(),
             open: None,
+            carried: Vec::new(),
+            input_tokens,
+            output_tokens: 0,
         };
         let response = stream.response.clone();
         let events = vec![
-            stream.emit(EventKind::Created {
-                response: response.clone(),
-            }),
-            stream.emit(EventKind::InProgress { response }),
+            stream.emit(
+                EventKind::Created {
+                    response: response.clone(),
+                },
+                vec![],
+            ),
+            stream.emit(EventKind::InProgress { response }, vec![]),
         ];
         (stream, events)
     }
 
+    /// The response as the events so far describe it.
+    pub fn response(&self) -> &ResponseObject {
+        &self.response
+    }
+
     /// Takes the next piece of the response and returns the events it makes.
-    /// Nothing comes after the end, so a piece then is an error.
-    ///
-    /// A block of tool calls that couldn't be read is shown as text, and a
-    /// stray marker is dropped, so a caller that wants to log them should do
-    /// so before passing them on.
+    /// Each event carries the tokens of the piece it came from, with the tags
+    /// on the events that add and finish an item. Warnings make no events, so
+    /// a caller that wants to log them should do so before passing them on.
     pub fn consume_piece(
         &mut self,
         piece: Piece,
@@ -78,46 +90,54 @@ impl EventStream {
         if self.response.status() != Status::InProgress {
             return Err(EventStreamError::Ended);
         }
-        let events = match piece {
-            Piece::Text(text) => self.add_text(Stretch::Message, &text, rng),
-            Piece::Thinking(text) => self.add_text(Stretch::Reasoning, &text, rng),
-            Piece::Malformed { text, .. } => self.add_text(Stretch::Message, &text, rng),
-            Piece::Calls(calls) => {
-                let mut events = self.close_item();
-                for call in calls {
-                    events.extend(self.call(call, rng));
-                }
-                events
+        let Piece { kind, tokens } = piece;
+        let fits = match kind {
+            PieceKind::Open(_) | PieceKind::End { .. } => self.open.is_none(),
+            PieceKind::Delta(_) | PieceKind::Close => self.open.is_some(),
+            PieceKind::Warning(_) => true,
+        };
+        if !fits {
+            return Err(EventStreamError::Misplaced(kind));
+        }
+        self.output_tokens += tokens.len() as u64;
+
+        let events = match kind {
+            PieceKind::Open(item) => self.open_item(item, tokens, rng),
+            PieceKind::Delta(delta) => vec![self.delta(delta, tokens)],
+            PieceKind::Close => self.close_item(tokens),
+            PieceKind::Warning(_) => {
+                self.carried.extend(tokens);
+                vec![]
             }
-            Piece::Stray(_) => vec![],
-            Piece::End => {
-                let mut events = self.close_item();
-                let response = self.ended(Status::Completed);
-                events.push(self.emit(EventKind::Completed { response }));
-                events
+            PieceKind::End { cut_off } => {
+                let usage = ResponseUsage {
+                    input_tokens: self.input_tokens,
+                    output_tokens: self.output_tokens,
+                };
+                let kind = if cut_off {
+                    EventKind::Incomplete {
+                        response: self.ended(Status::Incomplete, usage),
+                    }
+                } else {
+                    EventKind::Completed {
+                        response: self.ended(Status::Completed, usage),
+                    }
+                };
+                vec![self.emit(kind, tokens)]
             }
         };
         Ok(events)
     }
 
-    /// Ends a response cut off before the model ended it, e.g. by a token
-    /// limit. Does nothing to a response that has already ended.
-    pub fn finish(&mut self) -> Vec<StreamEvent> {
-        if self.response.status() != Status::InProgress {
-            return vec![];
-        }
-        // Providers close a cut-off item as completed, and mark the response.
-        let mut events = self.close_item();
-        let response = self.ended(Status::Incomplete);
-        events.push(self.emit(EventKind::Incomplete { response }));
-        events
-    }
-
-    /// Numbers an event and applies it to the response.
-    fn emit(&mut self, kind: EventKind) -> StreamEvent {
+    /// Numbers an event, gives it the tokens carried so far along with its
+    /// own, and applies it to the response.
+    fn emit(&mut self, kind: EventKind, tokens: Vec<Token>) -> StreamEvent {
+        let mut all_tokens = std::mem::take(&mut self.carried);
+        all_tokens.extend(tokens);
         let event = StreamEvent {
             sequence_number: self.next_sequence_number,
             kind,
+            tokens: all_tokens,
         };
         self.next_sequence_number = self.next_sequence_number.next();
         // The response starts out as the one `Created` carries.
@@ -127,55 +147,37 @@ impl EventStream {
         event
     }
 
-    /// Streams text or reasoning, starting a new item if the last one was
-    /// something else.
-    fn add_text(&mut self, stretch: Stretch, text: &str, rng: &mut impl Rng) -> Vec<StreamEvent> {
-        let mut events = Vec::new();
-        if self.open.as_ref().map(|open| open.stretch) != Some(stretch) {
-            events.extend(self.close_item());
-            events.extend(self.open_item(stretch, rng));
-        }
-        let open = self.open.as_ref().expect("an item was opened above");
-        let item_id = open.id.clone();
-        let output_index = open.index;
-        let content_index = ContentPartIndex(0);
-        let delta = text.to_string();
-        let kind = match stretch {
-            Stretch::Reasoning => EventKind::ReasoningTextDelta(ReasoningTextDeltaEvent {
-                item_id,
-                output_index,
-                content_index,
-                delta,
-            }),
-            Stretch::Message => EventKind::OutputTextDelta(OutputTextDeltaEvent {
-                item_id,
-                output_index,
-                content_index,
-                delta,
-            }),
-        };
-        events.push(self.emit(kind));
-        events
-    }
-
-    fn open_item(&mut self, stretch: Stretch, rng: &mut impl Rng) -> Vec<StreamEvent> {
+    fn open_item(
+        &mut self,
+        item: output_format::Item,
+        tokens: Vec<Token>,
+        rng: &mut impl Rng,
+    ) -> Vec<StreamEvent> {
         let index = self.next_output_index();
-        let (id, kind, part) = match stretch {
-            Stretch::Reasoning => (
-                ItemId::generate_reasoning(rng),
-                ItemKind::Reasoning(ReasoningItem {
-                    summary: vec![],
-                    content: vec![],
-                }),
-                ContentPart::reasoning(String::new()),
-            ),
-            Stretch::Message => (
+        let (id, kind, part, open) = match item {
+            output_format::Item::Text => (
                 ItemId::generate_message(rng),
                 ItemKind::Message(MessageItem {
                     role: Role::Assistant,
                     content: vec![],
                 }),
-                ContentPart::output(String::new()),
+                Some(ContentPart::output(String::new())),
+                Open::Text,
+            ),
+            output_format::Item::Thinking => (
+                ItemId::generate_reasoning(rng),
+                ItemKind::Reasoning(ReasoningItem {
+                    summary: vec![],
+                    content: vec![],
+                }),
+                Some(ContentPart::reasoning(String::new())),
+                Open::Thinking,
+            ),
+            output_format::Item::ToolCall { name } => (
+                ItemId::generate_function_call(rng),
+                ItemKind::FunctionCall(FunctionCallItem::new(name, rng)),
+                None,
+                Open::ToolCall,
             ),
         };
         let item = Item {
@@ -183,105 +185,126 @@ impl EventStream {
             status: Status::InProgress,
             kind,
         };
-        let events = vec![
-            self.emit(EventKind::OutputItemAdded(OutputItemAddedEvent {
+        let mut events = vec![self.emit(
+            EventKind::OutputItemAdded(OutputItemAddedEvent {
                 output_index: index,
                 item,
-            })),
-            self.emit(EventKind::ContentPartAdded(ContentPartAddedEvent {
-                item_id: id.clone(),
-                output_index: index,
-                content_index: ContentPartIndex(0),
-                part,
-            })),
-        ];
-        self.open = Some(OpenItem { index, id, stretch });
-        events
-    }
-
-    fn close_item(&mut self) -> Vec<StreamEvent> {
-        let Some(open) = self.open.take() else {
-            return vec![];
-        };
-        let item = self.done_item(open.index);
-        let text = match &item.kind {
-            ItemKind::Reasoning(ReasoningItem { content, .. })
-            | ItemKind::Message(MessageItem { content, .. }) => content[0].text.clone(),
-            ItemKind::FunctionCall(_) | ItemKind::FunctionCallOutput(_) => {
-                unreachable!("only reasoning and messages stay open")
-            }
-        };
-        let (text_done, part) = match open.stretch {
-            Stretch::Reasoning => (
-                EventKind::ReasoningTextDone(ReasoningTextDoneEvent {
-                    item_id: open.id.clone(),
-                    output_index: open.index,
-                    content_index: ContentPartIndex(0),
-                    text: text.clone(),
-                }),
-                ContentPart::reasoning(text),
-            ),
-            Stretch::Message => (
-                EventKind::OutputTextDone(OutputTextDoneEvent {
-                    item_id: open.id.clone(),
-                    output_index: open.index,
-                    content_index: ContentPartIndex(0),
-                    text: text.clone(),
-                }),
-                ContentPart::output(text),
-            ),
-        };
-        vec![
-            self.emit(text_done),
-            self.emit(EventKind::ContentPartDone(ContentPartDoneEvent {
-                item_id: open.id,
-                output_index: open.index,
-                content_index: ContentPartIndex(0),
-                part,
-            })),
-            self.emit(EventKind::OutputItemDone(OutputItemDoneEvent {
-                output_index: open.index,
-                item,
-            })),
-        ]
-    }
-
-    /// A tool call as a function call item, with its arguments in one delta.
-    fn call(&mut self, call: ToolCall, rng: &mut impl Rng) -> Vec<StreamEvent> {
-        let index = self.next_output_index();
-        let id = ItemId::generate_function_call(rng);
-        let arguments = call.arguments.to_string();
-        let item = Item {
-            id: id.clone(),
-            status: Status::InProgress,
-            kind: ItemKind::FunctionCall(FunctionCallItem::new(call.name, rng)),
-        };
-        let mut events = vec![
-            self.emit(EventKind::OutputItemAdded(OutputItemAddedEvent {
-                output_index: index,
-                item,
-            })),
-            self.emit(EventKind::FunctionCallArgumentsDelta(
-                FunctionCallArgumentsDeltaEvent {
+            }),
+            tokens,
+        )];
+        if let Some(part) = part {
+            events.push(self.emit(
+                EventKind::ContentPartAdded(ContentPartAddedEvent {
                     item_id: id.clone(),
                     output_index: index,
-                    delta: arguments.clone(),
-                },
-            )),
-            self.emit(EventKind::FunctionCallArgumentsDone(
-                FunctionCallArgumentsDoneEvent {
-                    item_id: id,
-                    output_index: index,
-                    arguments,
-                },
-            )),
-        ];
-        let item = self.done_item(index);
-        events.push(self.emit(EventKind::OutputItemDone(OutputItemDoneEvent {
-            output_index: index,
-            item,
-        })));
+                    content_index: ContentPartIndex(0),
+                    part,
+                }),
+                vec![],
+            ));
+        }
+        self.open = Some(OpenItem {
+            index,
+            id,
+            kind: open,
+        });
         events
+    }
+
+    fn delta(&mut self, delta: String, tokens: Vec<Token>) -> StreamEvent {
+        let open = self.open.as_ref().expect("checked by the caller");
+        let item_id = open.id.clone();
+        let output_index = open.index;
+        let kind = match open.kind {
+            Open::Text => EventKind::OutputTextDelta(OutputTextDeltaEvent {
+                item_id,
+                output_index,
+                content_index: ContentPartIndex(0),
+                delta,
+            }),
+            Open::Thinking => EventKind::ReasoningTextDelta(ReasoningTextDeltaEvent {
+                item_id,
+                output_index,
+                content_index: ContentPartIndex(0),
+                delta,
+            }),
+            Open::ToolCall => {
+                EventKind::FunctionCallArgumentsDelta(FunctionCallArgumentsDeltaEvent {
+                    item_id,
+                    output_index,
+                    delta,
+                })
+            }
+        };
+        self.emit(kind, tokens)
+    }
+
+    fn close_item(&mut self, tokens: Vec<Token>) -> Vec<StreamEvent> {
+        let open = self.open.take().expect("checked by the caller");
+        let item = self.done_item(open.index);
+        let mut events = match &item.kind {
+            ItemKind::Message(MessageItem { content, .. }) => {
+                let text = content[0].text.clone();
+                vec![
+                    self.emit(
+                        EventKind::OutputTextDone(OutputTextDoneEvent {
+                            item_id: open.id.clone(),
+                            output_index: open.index,
+                            content_index: ContentPartIndex(0),
+                            text: text.clone(),
+                        }),
+                        vec![],
+                    ),
+                    self.part_done(&open, ContentPart::output(text)),
+                ]
+            }
+            ItemKind::Reasoning(ReasoningItem { content, .. }) => {
+                let text = content[0].text.clone();
+                vec![
+                    self.emit(
+                        EventKind::ReasoningTextDone(ReasoningTextDoneEvent {
+                            item_id: open.id.clone(),
+                            output_index: open.index,
+                            content_index: ContentPartIndex(0),
+                            text: text.clone(),
+                        }),
+                        vec![],
+                    ),
+                    self.part_done(&open, ContentPart::reasoning(text)),
+                ]
+            }
+            ItemKind::FunctionCall(FunctionCallItem { arguments, .. }) => {
+                vec![self.emit(
+                    EventKind::FunctionCallArgumentsDone(FunctionCallArgumentsDoneEvent {
+                        item_id: open.id.clone(),
+                        output_index: open.index,
+                        arguments: arguments.clone(),
+                    }),
+                    vec![],
+                )]
+            }
+            ItemKind::FunctionCallOutput(_) => unreachable!("a model doesn't write these"),
+        };
+        events.push(self.emit(
+            EventKind::OutputItemDone(OutputItemDoneEvent {
+                output_index: open.index,
+                item,
+            }),
+            tokens,
+        ));
+        events
+    }
+
+    fn part_done(&mut self, open: &OpenItem, part: ContentPart) -> StreamEvent {
+        self.emit(
+            EventKind::ContentPartDone(ContentPartDoneEvent {
+                item_id: open.id.clone(),
+                output_index: open.index,
+                content_index: ContentPartIndex(0),
+                part,
+            }),
+            vec![],
+        )
     }
 
     fn next_output_index(&self) -> OutputIndex {
@@ -296,9 +319,10 @@ impl EventStream {
     }
 
     /// The response as it is once ended.
-    fn ended(&self, status: Status) -> ResponseObject {
+    fn ended(&self, status: Status, usage: ResponseUsage) -> ResponseObject {
         let mut response = self.response.clone();
         response.status = status;
+        response.usage = Some(usage);
         response
     }
 }
@@ -373,6 +397,8 @@ impl EventConsumer {
 pub enum EventStreamError {
     #[error("the response has already ended")]
     Ended,
+    #[error("a piece doesn't fit where the response is: {0:?}")]
+    Misplaced(PieceKind),
 }
 
 #[cfg(test)]
@@ -491,14 +517,28 @@ mod tests {
         pieces
     }
 
+    const INPUT_TOKENS: u64 = 12;
+
+    /// The events for `pieces`, which carry the same tokens in the same order.
     fn stream(pieces: Vec<Piece>) -> Vec<StreamEvent> {
+        let tokens: Vec<Token> = pieces.iter().flat_map(|p| p.tokens.clone()).collect();
         let mut rng = StdRng::seed_from_u64(0);
-        let (mut stream, mut events) = EventStream::new(&mut rng);
+        let (mut stream, mut events) = EventStream::new(INPUT_TOKENS, &mut rng);
         for piece in pieces {
             events.extend(stream.consume_piece(piece, &mut rng).unwrap());
         }
-        events.extend(stream.finish());
+        let event_tokens: Vec<Token> = events.iter().flat_map(|e| e.tokens.clone()).collect();
+        assert_eq!(event_tokens, tokens);
         events
+    }
+
+    /// The text of the tokens on the events of `event_type`.
+    fn tokens_of(events: &[StreamEvent], event_type: &str) -> Vec<String> {
+        events
+            .iter()
+            .filter(|event| serde_json::to_value(event).unwrap()["type"] == event_type)
+            .map(|event| event.tokens.iter().map(|t| t.text.as_str()).collect())
+            .collect()
     }
 
     /// The response a client builds from the events, sent to it as JSON.
@@ -641,9 +681,41 @@ mod tests {
     }
 
     #[test]
-    fn empty_reasoning_makes_no_item() {
+    fn empty_reasoning_is_an_empty_item() {
         let events = stream(pieces(PROMPT, "<think>\n\n</think>\n\nHi!<|im_end|>"));
-        assert_eq!(output(&consume(&events)), [("message", "Hi!".to_string())]);
+        assert_eq!(
+            output(&consume(&events)),
+            [("reasoning", String::new()), ("message", "Hi!".to_string())]
+        );
+    }
+
+    /// Markers go on the events that add and finish their items, and the end
+    /// of generation on the event that ends the response.
+    #[test]
+    fn tags_go_on_the_events_that_add_and_finish_items() {
+        let events = stream(pieces(
+            PROMPT,
+            "<think>\nHmm.\n</think>\n\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call><|im_end|>",
+        ));
+        let added = tokens_of(&events, "response.output_item.added");
+        assert!(added[0].starts_with("<think>"), "{added:?}");
+        assert!(added[1].starts_with("<tool_call>"), "{added:?}");
+        let done = tokens_of(&events, "response.output_item.done");
+        assert!(done[0].contains("</think>"), "{done:?}");
+        assert!(done[1].contains("</tool_call>"), "{done:?}");
+        assert_eq!(tokens_of(&events, "response.completed"), ["<|im_end|>"]);
+    }
+
+    #[test]
+    fn usage_counts_every_token() {
+        let response = "<think>\nHmm.\n</think>\n\nHi!<|im_end|>";
+        let generated = qwen3_vocab()
+            .str_to_token(response, AddBos::Never)
+            .unwrap()
+            .len() as u64;
+        let usage = consume(&stream(pieces(PROMPT, response))).usage.unwrap();
+        assert_eq!(usage.input_tokens, INPUT_TOKENS);
+        assert_eq!(usage.output_tokens, generated);
     }
 
     #[test]
@@ -673,15 +745,27 @@ mod tests {
         );
     }
 
+    fn piece(kind: PieceKind) -> Piece {
+        Piece {
+            kind,
+            tokens: vec![],
+        }
+    }
+
     #[test]
-    fn nothing_comes_after_the_end() {
+    fn pieces_have_to_fit_where_the_response_is() {
         let mut rng = StdRng::seed_from_u64(0);
-        let (mut stream, _) = EventStream::new(&mut rng);
-        stream.consume_piece(Piece::End, &mut rng).unwrap();
+        let (mut stream, _) = EventStream::new(INPUT_TOKENS, &mut rng);
+        let delta = PieceKind::Delta("more".to_string());
         assert!(matches!(
-            stream.consume_piece(Piece::Text("more".to_string()), &mut rng),
+            stream.consume_piece(piece(delta.clone()), &mut rng),
+            Err(EventStreamError::Misplaced(_))
+        ));
+        let end = PieceKind::End { cut_off: false };
+        stream.consume_piece(piece(end), &mut rng).unwrap();
+        assert!(matches!(
+            stream.consume_piece(piece(delta), &mut rng),
             Err(EventStreamError::Ended)
         ));
-        assert!(stream.finish().is_empty());
     }
 }

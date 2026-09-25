@@ -2,6 +2,7 @@ use super::grammar::schema_type;
 use super::{ArgsSyntax, CallParts, CallSyntax, ResolvedFormat, ValueSyntax};
 use crate::tool_calling::{Tool, ToolCall};
 use serde_json::{Map, Value};
+use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("expected {expected} at byte {at}")]
@@ -19,6 +20,17 @@ impl ResolvedFormat {
         text: &str,
         tools: &[Tool],
     ) -> Result<Vec<ToolCall>, ParseError> {
+        let calls = self.parse_tool_call_spans(text, tools)?;
+        Ok(calls.into_iter().map(|(call, _)| call).collect())
+    }
+
+    /// The calls in a block, each with where its text is in `text`, not
+    /// counting the whitespace before it.
+    pub(super) fn parse_tool_call_spans(
+        &self,
+        text: &str,
+        tools: &[Tool],
+    ) -> Result<Vec<(ToolCall, Range<usize>)>, ParseError> {
         let mut p = Parser {
             input: text,
             rest: text,
@@ -26,12 +38,12 @@ impl ResolvedFormat {
         };
         let syntax = self.format.tool_calls();
         let calls = match syntax.list {
-            None => vec![p.call(&syntax.call)?],
+            None => vec![p.spanned_call(&syntax.call)?],
             Some(list) => {
                 p.eat(list.open)?;
-                let mut calls = vec![p.call(&syntax.call)?];
+                let mut calls = vec![p.spanned_call(&syntax.call)?];
                 while p.try_eat(list.separator) {
-                    calls.push(p.call(&syntax.call)?);
+                    calls.push(p.spanned_call(&syntax.call)?);
                 }
                 p.eat(list.close)?;
                 calls
@@ -52,11 +64,24 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
+    fn position(&self) -> usize {
+        self.input.len() - self.rest.len()
+    }
+
     fn error(&self, expected: impl Into<String>) -> ParseError {
         ParseError {
-            at: self.input.len() - self.rest.len(),
+            at: self.position(),
             expected: expected.into(),
         }
+    }
+
+    fn spanned_call(
+        &mut self,
+        syntax: &CallSyntax,
+    ) -> Result<(ToolCall, Range<usize>), ParseError> {
+        let start = self.input.len() - self.rest.trim_start().len();
+        let call = self.call(syntax)?;
+        Ok((call, start..self.position()))
     }
 
     /// Consumes `marker` if `rest` starts with it. An empty marker never

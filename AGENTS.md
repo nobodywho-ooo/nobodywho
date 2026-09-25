@@ -21,6 +21,7 @@ The main implementation is in `nobodywho/core/src/`:
 - [`tokenizer.rs`](nobodywho/core/src/tokenizer.rs) - Tokenizer utilities
 - [`tool_calling.rs`](nobodywho/core/src/tool_calling.rs) - Tools and tool calls
 - [`output_format/`](nobodywho/core/src/output_format) - Each model family's tool call and reasoning syntax, with grammar-based constraining and parsing
+- [`response_parser.rs`](nobodywho/core/src/response_parser.rs) - Reads a response from generated tokens as Responses API events; the only part of reading a response that depends on the model
 - [`errors.rs`](nobodywho/core/src/errors.rs) - Error types using `thiserror`
 - [`sampler_config.rs`](nobodywho/core/src/sampler_config.rs) - Sampling configuration
 

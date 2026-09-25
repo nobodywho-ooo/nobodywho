@@ -29,10 +29,15 @@ use crate::errors::{
     InvalidHistoryError, MultimodalError, RenderError, SayError, SetterError, ShiftError,
     TokenizeError, ToolCallingSetupError, WrappedResponseError,
 };
+use crate::event_stream::{
+    event::{EventKind, OutputItemAddedEvent, StreamEvent},
+    response::ItemKind,
+};
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
 use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
-use crate::output_format::{self, FormatError, Piece, ResolvedFormat};
+use crate::output_format::{self, FormatError, ResolvedFormat};
+use crate::response_parser::ResponseParser;
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::GrammarFactory;
 use crate::sampler::SamplerConfig;
@@ -2091,30 +2096,32 @@ impl ChatSampler {
     }
 }
 
-/// Collects tool calls from the splitter's pieces. A block that turns out to be
-/// unreadable was hidden from the stream while it was written, so its text is
-/// sent now, unless it came after calls, where everything is hidden.
-fn read_pieces(
-    pieces: Vec<Piece>,
-    tool_calls: &mut Vec<ToolCall>,
-    content: &mut String,
-    respond: &mut impl FnMut(WriteOutput),
-) {
-    for piece in pieces {
-        match piece {
-            Piece::Calls(calls) => tool_calls.extend(calls),
-            Piece::Malformed { text, error } => {
-                warn!(%error, %text, "Couldn't read a block of tool calls");
-                if tool_calls.is_empty() {
-                    content.push_str(&text);
-                    respond(WriteOutput::Token(text));
+/// Streams the raw text of a response's events, reasoning and all, but not
+/// its tool calls or anything after them, nor the end of generation.
+#[derive(Default)]
+struct TextStream {
+    calls_begun: bool,
+}
+
+impl TextStream {
+    fn send(&mut self, events: &[StreamEvent], respond: &mut impl FnMut(WriteOutput)) {
+        for event in events {
+            match &event.kind {
+                EventKind::OutputItemAdded(OutputItemAddedEvent { item, .. })
+                    if matches!(item.kind, ItemKind::FunctionCall(_)) =>
+                {
+                    self.calls_begun = true
                 }
+                EventKind::Completed { .. } | EventKind::Incomplete { .. } => continue,
+                _ => {}
             }
-            Piece::Stray(marker) => {
-                warn!(marker, "The model wrote an end marker with nothing to end")
+            if self.calls_begun {
+                continue;
             }
-            // Already streamed as the raw text they came from.
-            Piece::Text(_) | Piece::Thinking(_) | Piece::End => {}
+            for token in event.tokens.iter().filter(|t| !t.text.is_empty()) {
+                trace!(text = token.text, "Sending out token:");
+                respond(WriteOutput::Token(token.text.clone()));
+            }
         }
     }
 }
@@ -2180,7 +2187,7 @@ impl<'a> Chat<'a> {
                 Some(format)
             }
             Err(e) if config.tools.is_empty() => {
-                debug!(error = %e, "Failed to detect output format");
+                info!(error = %e, "Failed to detect output format, so responses are read as plain text");
                 None
             }
             Err(e) => return Err(InitWorkerError::ToolCallingSetup(e.into())),
@@ -2341,6 +2348,7 @@ impl<'a> Chat<'a> {
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
         max_tokens: Option<usize>,
         prompt: &str,
+        prompt_tokens: usize,
     ) -> Result<(String, Vec<ToolCall>, usize), GenerateResponseError>
     where
         F: FnMut(WriteOutput),
@@ -2350,24 +2358,22 @@ impl<'a> Chat<'a> {
 
         self.engine.reset_mtp_stats();
 
-        // pre-allocating 4096 bytes for the response string
-        // 4096 is a very randomly chosen number. how does this affect performance?
-        let mut content: String = String::with_capacity(4096);
-        let mut tool_calls = Vec::new();
         let mut tokens_written_until_now = Vec::new();
         let mut generated_tokens = 0;
 
         self.sampler.reset();
 
-        // Owned, so the splitter doesn't borrow `self` while generating.
+        // Owned, so the parser doesn't borrow `self` while generating.
         let output_format = self.output_format.clone();
         let tools = self.tools.clone();
-        let mut splitter = output_format
-            .as_ref()
-            .map(|format| format.splitter(&tools, prompt));
-
-        // init statefull decoder for split up tokens like emojis
-        let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let (mut parser, _) = ResponseParser::new(
+            self.engine.ctx.model,
+            output_format.as_ref(),
+            &tools,
+            prompt,
+            prompt_tokens,
+        );
+        let mut text_stream = TextStream::default();
 
         while !self.should_stop()
             && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
@@ -2387,77 +2393,26 @@ impl<'a> Chat<'a> {
             }
 
             let new_token = self.engine.next_token(&mut self.sampler)?;
-
             tokens_written_until_now.push(new_token);
 
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
-                .engine
-                .ctx
-                .model
-                .token_to_piece_bytes(new_token, 64, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
-                }
-                x => x,
-            }?;
-
-            // Attempt to convert bytes to utf8 string.
-            let max_len = decoder
-                .max_utf8_buffer_length(token_bytes.len())
-                .unwrap_or(32);
-            let mut token_str = String::with_capacity(max_len);
-
-            // this is where the utf-8 decoder handles partial unicode
-            // it'll write whatever printable chars it can into `token_str`
-            // and retain partial codepoints for next decoding attempt
-            let (_result, _bytes_read, _had_errors) =
-                decoder.decode_to_string(&token_bytes, &mut token_str, false);
-
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token);
-            trace!(?new_token, ?token_str, ?has_eog);
-
-            // The stream stays the raw text, reasoning and all. The splitter
-            // only finds the tool calls, which are kept out of it.
-            let mut in_tool_calls = false;
-            if let Some(splitter) = splitter.as_mut() {
-                let was_in_tool_calls = splitter.in_tool_calls();
-                let pieces = splitter.push(new_token, &token_bytes);
-                if !was_in_tool_calls && splitter.in_tool_calls() {
-                    self.sampler.activate_tool_grammar(new_token);
-                }
-                in_tool_calls = was_in_tool_calls || splitter.in_tool_calls();
-                read_pieces(pieces, &mut tool_calls, &mut content, &mut respond);
+            let was_in_tool_calls = parser.in_tool_calls();
+            let events = parser.push(new_token)?;
+            if !was_in_tool_calls && parser.in_tool_calls() {
+                self.sampler.activate_tool_grammar(new_token);
             }
-
-            if has_eog {
+            text_stream.send(&events, &mut respond);
+            if events
+                .iter()
+                .any(|event| matches!(event.kind, EventKind::Completed { .. }))
+            {
                 break;
             }
-
             generated_tokens += 1;
-            // Whatever follows the calls is left out, like the calls.
-            if !in_tool_calls && tool_calls.is_empty() {
-                content.push_str(&token_str);
-                trace!(?token_str, "Sending out token:");
-                respond(WriteOutput::Token(token_str));
-            }
         }
 
-        // Empty the splitter of buffered pieces.
-        if let Some(splitter) = splitter.as_mut() {
-            read_pieces(
-                splitter.finish(),
-                &mut tool_calls,
-                &mut content,
-                &mut respond,
-            );
-        }
+        let response = parser.finish();
+        text_stream.send(&response.events, &mut respond);
+        let (content, tool_calls) = (response.content, response.tool_calls);
 
         debug!(%content, ?tool_calls, "Generated response");
         Ok((content, tool_calls, generated_tokens))
@@ -2740,6 +2695,7 @@ impl<'a> Chat<'a> {
                 &inference_lock_token,
                 max_tokens,
                 &prompt,
+                prompt_tokens,
             )?;
         let hit_token_limit = max_tokens.is_some_and(|max_tokens| completion_tokens >= max_tokens);
 

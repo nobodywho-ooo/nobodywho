@@ -8,7 +8,7 @@ mod splitter;
 
 pub use formats::{FunctionGemma, Gemma4, Lfm2, Ministral3, Qwen3, Qwen35};
 pub use parse::ParseError;
-pub use splitter::{Piece, Splitter};
+pub use splitter::{Item, Piece, PieceKind, Splitter, Token, Warning};
 
 use llama_cpp_2::model::{AddBos, LlamaModel};
 use llama_cpp_2::token::LlamaToken;
@@ -295,6 +295,17 @@ impl ResolvedFormat {
         prompt: &str,
     ) -> Splitter<'a> {
         Splitter::new(self, tools, self.opens_thinking(prompt))
+    }
+
+    /// Reasoning as the model writes it, with its markers and formatting.
+    pub fn write_reasoning(&self, reasoning: &str) -> String {
+        match self.format.thinking() {
+            Some(t) => format!(
+                "{}{}{reasoning}{}{}{}",
+                t.begin, t.after_begin, t.before_end, t.end, t.after_end
+            ),
+            None => reasoning.to_string(),
+        }
     }
 
     /// Whether `prompt` leaves the response already reasoning, as templates do
