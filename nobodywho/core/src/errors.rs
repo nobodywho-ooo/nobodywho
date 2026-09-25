@@ -425,6 +425,9 @@ pub enum InitWorkerError {
 
     #[error("Failed setting up tool calling: {0}")]
     ToolCallingSetup(#[from] ToolCallingSetupError),
+
+    #[error("Invalid context shift options: {0}")]
+    InvalidContextShiftOptions(String),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1170,6 +1173,16 @@ pub enum ShiftError {
         )
     )]
     TooFewMessages,
+
+    #[error("Context is full and context shifting is disabled")]
+    #[diagnostic(
+        code(nobodywho::context_shift_disabled),
+        help(
+            "Enable context shifting with ChatBuilder::with_context_shift, \
+             or increase the context size by setting a larger n_ctx."
+        )
+    )]
+    Disabled,
 
     #[error("Could not tokenize template render {0}")]
     StringToToken(#[from] llama_cpp_2::StringToTokenError),
