@@ -4,10 +4,10 @@ version = "2.4.0"
 edition = "2021"
 
 [dependencies]
-misaki-rs = { git = "https://github.com/MicheleYin/misaki-rs", branch = "main", default-features = false }
+misaki-rs = { git = "https://github.com/MicheleYin/misaki-rs", rev = "7bbe06cacd9102d8a0d9e338a3711ae7208de0ad", default-features = false }
 encoding_rs = "0.8.34"
 thiserror = "2.0.3"
-miette = { version = "5", features = ["fancy"] }
+miette = { version = "7.6.0", features = ["fancy"] }
 minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.11.0", features = ["pycompat"] }
 monty = { git = "https://github.com/pydantic/monty", tag = "v0.0.7" }
@@ -17,7 +17,7 @@ chrono = "0.4.39"
 gbnf = { path = "../grammar/gbnf" }
 llguidance = "1.7.5"
 
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", tag = "0.1.156", default-features = false, features = [
     "openmp",
     "mtmd",
     "llguidance",
@@ -36,7 +36,7 @@ tracing-subscriber = "0.3.19"
 regex = "1.11.1"
 serde_json = "1.0.140"
 nom = "8.0.0"
-rand = "0.9.3"
+rand = "0.10.2"
 futures = "0.3.31"
 ahash = "0.8.12"
 indexmap = "2.13.0"
@@ -45,20 +45,27 @@ indicatif = "0.18"
 walkdir = "2.5"
 tempfile = "3"
 hound = "3"
-safetensors = "0.5"
+safetensors = "0.8.0"
 # SpeechToText audio pipeline: WAV via hound, MP3 via symphonia-bundle-mp3 directly
 symphonia-core = "0.5"
 symphonia-bundle-mp3 = { version = "0.5", default-features = false, features = ["mp3"] }
 rubato = "0.16"
 mel_spec = "0.4"
-tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23.2", default-features = false, features = ["onig"] }
 sentencepiece-rs = "0.2"
 # Shared by SpeechToText (via mel_spec) and TextToSpeech (supertonic); use 0.17 as the workspace default
 ndarray = "0.17"
-rand_distr = "0.5"
+rand_distr = "0.6"
 unicode-normalization = "0.1"
 emojis = "0.9.0"
 unicode-segmentation = "1.13.3"
+espeak-ng = { version = "0.2.0", default-features = false, features = [
+    "bundled-data-en",
+    "bundled-data-es",
+    "bundled-data-fr",
+    "bundled-data-it",
+    "bundled-data-pt",
+] }
 
 [target.'cfg(any(target_os = "android", target_vendor = "apple"))'.dependencies]
 libc = "0.2"
@@ -71,13 +78,13 @@ libc = "0.2"
 # search path, which then resolves `-lgomp` to the non-PIC `libgomp.a` and
 # breaks linking the cdylib ("relocation R_X86_64_TPOFF32 against hidden symbol
 # `gomp_tls_data`"). Desktop keeps the dynamic libstdc++ it has always used.
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", tag = "0.1.156", default-features = false, features = [
     "android-static-stdcxx",
 ] }
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
-dirs = "6"
+dirs = "7.0.0"
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -95,22 +102,11 @@ windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] 
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["cuda"] }
 
-[dependencies.espeak-ng]
-version = "0.1.2"
-default-features = false
-features = [
-    "bundled-data-en",
-    "bundled-data-es",
-    "bundled-data-fr",
-    "bundled-data-it",
-    "bundled-data-pt",
-]
-
 # Enable Vulkan for x86_64, x86, and aarch64 targets (excluding Apple platforms and Android).
 # Apple platforms use Metal, which is auto-enabled by llama-cpp-rs for all Apple targets
 # (except watchOS which has no Metal support — handled in llama-cpp-rs build.rs).
 [target.'cfg(all(not(target_os = "macos"), not(target_os = "ios"), not(target_os = "visionos"), not(target_os = "watchos"), not(target_os = "android"), any(target_arch = "x86_64", target_arch = "x86", target_arch = "aarch64")))'.dependencies]
-llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", branch = "main", default-features = false, features = [
+llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs", tag = "0.1.156", default-features = false, features = [
     "openmp",
     "vulkan",
     "mtmd",

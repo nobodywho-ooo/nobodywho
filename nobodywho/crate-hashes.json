@@ -1,5 +1,5 @@
 {
-  "git+https://github.com/MicheleYin/misaki-rs?branch=main#0.3.0": "1ca5d875jd4cgpq6in482d8bix60r2n2ss33jc1f78ra2n90b359",
+  "git+https://github.com/MicheleYin/misaki-rs?rev=7bbe06cacd9102d8a0d9e338a3711ae7208de0ad#0.3.0": "1ca5d875jd4cgpq6in482d8bix60r2n2ss33jc1f78ra2n90b359",
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_ast@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_parser@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_python_trivia@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
@@ -7,6 +7,6 @@
   "git+https://github.com/astral-sh/ruff.git?rev=6ded4bed1651e30b34dd04cdaa50c763036abb0d#ruff_text_size@0.0.0": "03a816gz8nk7zadnwlcx21bmgb2wx6n2wpj4a10jcnlbjvhh4m4x",
   "git+https://github.com/everruns/bashkit?tag=v0.1.10#0.1.10": "0i0m81sqcmkynrdi45q112p6brcna9ws7wy1ac3wkh6mjl5k9swg",
   "git+https://github.com/pydantic/monty?tag=v0.0.7#0.0.7": "0k7a1pqyph7062msz39p6v2s1ylpyjn37wbscwmi09m3xkj109pa",
-  "git+https://github.com/utilityai/llama-cpp-rs?branch=main#llama-cpp-2@0.1.156": "06x37szb6pq8asnrrzm4kd7wqv3ps4fn3basr1758z7hps368h8y",
-  "git+https://github.com/utilityai/llama-cpp-rs?branch=main#llama-cpp-sys-2@0.1.156": "06x37szb6pq8asnrrzm4kd7wqv3ps4fn3basr1758z7hps368h8y"
+  "git+https://github.com/utilityai/llama-cpp-rs?tag=0.1.156#llama-cpp-2@0.1.156": "06x37szb6pq8asnrrzm4kd7wqv3ps4fn3basr1758z7hps368h8y",
+  "git+https://github.com/utilityai/llama-cpp-rs?tag=0.1.156#llama-cpp-sys-2@0.1.156": "06x37szb6pq8asnrrzm4kd7wqv3ps4fn3basr1758z7hps368h8y"
 }
