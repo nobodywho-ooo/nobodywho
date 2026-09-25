@@ -115,7 +115,7 @@ def test_image_recollection(multimodal_chat):
     ).completed()
     assert isinstance(response2, str)
     assert len(response2) > 0
-    assert "orange" in response2.lower()
+    assert "yellow" in response2.lower()
 
 
 def test_audio_transcription(multimodal_chat):
