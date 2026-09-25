@@ -136,7 +136,29 @@ val chat = Chat.fromPath(
 )
 ```
 
-The default is `4096`. When the context fills up during a conversation, NobodyWho automatically shrinks it by removing old messages (keeping the system prompt and first user message). You can check the maximum context size the model was trained with using `model.maxCtx` — setting `contextSize` above this value has no benefit.
+The default is `4096`. You can check the maximum context size the model was trained with using `model.maxCtx` — setting `contextSize` above this value has no benefit.
+
+When the context fills up during a conversation, NobodyWho shifts it: it forgets the fewest old turns needed to shrink the chat history to half of `contextSize`. A turn is a user message and everything up to the next one. System messages are always kept, and so are the first turn and the last two turns by default.
+
+You can tune this with `ContextShiftOptions`. `target` is either `ShiftTarget(fraction = ...)` for a fraction of `contextSize`, or `ShiftTarget(tokens = ...)` for a number of tokens. `keepLastTurns` must be at least 1, so the message being answered is never forgotten:
+
+```kotlin
+val chat = Chat.fromPath(
+    modelPath = "./model.gguf",
+    contextSize = 4096u,
+    contextShift = ContextShiftOptions(
+        keepFirstTurns = 1u,
+        keepLastTurns = 4u,
+        target = ShiftTarget(fraction = 0.75f)
+    )
+)
+```
+
+To turn context shifting off, pass `ContextShiftOptions(enabled = false)`; a full context then throws instead. The options can also be changed on an existing chat:
+
+```kotlin continuation
+chat.setContextShift(ContextShiftOptions(enabled = false))
+```
 
 To reset the context with a new system prompt and tools:
 

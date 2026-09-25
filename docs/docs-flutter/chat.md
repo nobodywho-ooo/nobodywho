@@ -147,7 +147,27 @@ final chat = await nobodywho.Chat.fromPath(
 
 The default value is `4096`, however this is mainly useful for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. You can check the maximum context size the model was trained with using `model.maxCtx` — setting `contextSize` above this value has no benefit.
 
-Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history, until the size reaches `contextSize / 2`. The KV cache is also updated automatically. In the future we plan on adding more advanced methods of context shrinking.
+Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho shifts the context: it forgets the fewest old turns needed to shrink the chat history to half of `contextSize`. A turn is a user message and everything up to the next one. System messages are always kept, and so are the first turn and the last two turns by default. The KV cache is updated automatically.
+
+You can tune this with `ContextShiftOptions`. `target` is either `ShiftTarget.fraction(...)` for a fraction of `contextSize`, or `ShiftTarget.tokens(...)` for a number of tokens. `keepLastTurns` must be at least 1, so the message being answered is never forgotten:
+
+```dart
+final chat = await nobodywho.Chat.fromPath(
+  modelPath: "./model.gguf",
+  contextSize: 4096,
+  contextShift: nobodywho.ContextShiftOptions(
+    keepFirstTurns: 1,
+    keepLastTurns: 4,
+    target: nobodywho.ShiftTarget.fraction(0.75),
+  ),
+);
+```
+
+To turn context shifting off, pass `ContextShiftOptions(enabled: false)`; a full context then throws instead. The options can also be changed on an existing chat:
+
+```dart continuation
+await chat.setContextShift(nobodywho.ContextShiftOptions(enabled: false));
+```
 
 Again, `contextSize` is fixed to the `Chat` instance, so it is currently not possible to change the size after `Chat` is created. To reset the current context content, just call `resetContext()` with the new system prompt and potentially changed tools.
 

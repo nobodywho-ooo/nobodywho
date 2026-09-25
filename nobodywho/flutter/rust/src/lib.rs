@@ -465,6 +465,8 @@ impl RustChat {
     ///         device's physical core count (performance cores only, on Apple silicon) —
     ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
     ///         headroom for the rest of the app. Clamped to the CPU count.
+    ///     context_shift: How old turns are forgotten when the context is full.
+    ///         Defaults to null, which uses the default options.
     #[flutter_rust_bridge::frb(sync)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -477,6 +479,7 @@ impl RustChat {
         #[frb(default = "null")] sampler: Option<SamplerConfig>,
         #[frb(default = "null")] mtp: Option<MtpConfig>,
         #[frb(default = "null")] thread_count: Option<u32>,
+        #[frb(default = "null")] context_shift: Option<ContextShiftOptions>,
     ) -> Result<Self, String> {
         let sampler_config = sampler.map(|s| s.sampler_config).unwrap_or_default();
 
@@ -502,6 +505,9 @@ impl RustChat {
         if let Some(thread_count) = thread_count {
             builder = builder.with_n_threads(thread_count);
         }
+        if let Some(context_shift) = context_shift {
+            builder = builder.with_context_shift(context_shift.into());
+        }
         let chat = builder
             .build_async()
             .map_err(|e| nobodywho::render_miette(&e))?;
@@ -526,6 +532,8 @@ impl RustChat {
     ///         device's physical core count (performance cores only, on Apple silicon) —
     ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
     ///         headroom for the rest of the app. Clamped to the CPU count.
+    ///     context_shift: How old turns are forgotten when the context is full.
+    ///         Defaults to null, which uses the default options.
     #[flutter_rust_bridge::frb]
     #[allow(clippy::too_many_arguments)]
     pub fn from_path(
@@ -545,6 +553,7 @@ impl RustChat {
         #[frb(default = true)] use_gpu: bool,
         #[frb(default = "null")] mtp: Option<MtpConfig>,
         #[frb(default = "null")] thread_count: Option<u32>,
+        #[frb(default = "null")] context_shift: Option<ContextShiftOptions>,
     ) -> Result<Self, String> {
         let model = nobodywho::llm::get_model(
             model_path,
@@ -577,6 +586,9 @@ impl RustChat {
         }
         if let Some(thread_count) = thread_count {
             builder = builder.with_n_threads(thread_count);
+        }
+        if let Some(context_shift) = context_shift {
+            builder = builder.with_context_shift(context_shift.into());
         }
         let chat = builder
             .build_async()
@@ -717,6 +729,13 @@ impl RustChat {
     pub async fn set_system_prompt(&self, system_prompt: Option<String>) -> Result<(), String> {
         self.chat
             .set_system_prompt(system_prompt)
+            .await
+            .map_err(|e| nobodywho::render_miette(&e))
+    }
+
+    pub async fn set_context_shift(&self, options: ContextShiftOptions) -> Result<(), String> {
+        self.chat
+            .set_context_shift(options.into())
             .await
             .map_err(|e| nobodywho::render_miette(&e))
     }
@@ -1347,6 +1366,54 @@ impl From<MtpConfig> for nobodywho::chat::MtpConfig {
             k_max: c.k_max,
             p_min: c.p_min,
         }
+    }
+}
+
+/// Size a context shift shrinks the chat history to.
+#[flutter_rust_bridge::frb]
+pub enum ShiftTarget {
+    /// A fraction of the context size, in `(0, 1)`.
+    Fraction(f32),
+    /// A number of tokens, below the context size.
+    Tokens(u32),
+}
+
+impl From<ShiftTarget> for nobodywho::chat::ShiftTarget {
+    fn from(t: ShiftTarget) -> Self {
+        match t {
+            ShiftTarget::Fraction(f) => nobodywho::chat::ShiftTarget::Fraction(f),
+            ShiftTarget::Tokens(t) => nobodywho::chat::ShiftTarget::Tokens(t),
+        }
+    }
+}
+
+/// How a chat forgets old turns when its context is full. A turn is a user
+/// message and everything up to the next one; system messages are always kept.
+#[flutter_rust_bridge::frb]
+pub struct ContextShiftOptions {
+    /// `false` disables shifting, so a full context is an error instead.
+    #[frb(default = true)]
+    pub enabled: bool,
+    /// Turns always kept at the start of the history.
+    // Defaults mirror core `ContextShiftOptions::default()`.
+    #[frb(default = 1)]
+    pub keep_first_turns: u32,
+    /// Turns always kept at the end of the history; at least 1.
+    #[frb(default = 2)]
+    pub keep_last_turns: u32,
+    /// Size the history is shrunk to. `null` means half the context size.
+    #[frb(default = "null")]
+    pub target: Option<ShiftTarget>,
+}
+
+impl From<ContextShiftOptions> for Option<nobodywho::chat::ContextShiftOptions> {
+    fn from(o: ContextShiftOptions) -> Self {
+        let defaults = nobodywho::chat::ContextShiftOptions::default();
+        o.enabled.then(|| nobodywho::chat::ContextShiftOptions {
+            keep_first_turns: o.keep_first_turns as usize,
+            keep_last_turns: o.keep_last_turns as usize,
+            target: o.target.map_or(defaults.target, Into::into),
+        })
     }
 }
 

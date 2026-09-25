@@ -29,6 +29,7 @@ func run(runner: Node) -> void:
 	await _test_sampler_constraints(runner, chat)
 	await _test_stats(runner, chat)
 	await _test_mtp_config(runner)
+	await _test_context_shift(runner, chat)
 	await _test_tokenize(runner, chat)
 	await _test_chat_history(runner, chat)
 	await _test_complete(runner, chat)
@@ -48,6 +49,36 @@ func _test_mtp_config(runner: Node) -> void:
 	else:
 		runner.fail("mtp: 'true' was ignored — chat created without draft heads")
 		chat = null
+
+func _test_context_shift(runner: Node, chat) -> void:
+	var tuned = await NobodyWhoChat.create(_model_path, {
+		"n_ctx": 1024,
+		"context_shift": {"keep_first_turns": 2, "keep_last_turns": 3, "target": 256},
+	})
+	if tuned != null:
+		runner.ok("context_shift: tuned Dictionary accepted")
+	else:
+		runner.fail("context_shift: tuned Dictionary rejected")
+
+	var disabled = await NobodyWhoChat.create(_model_path, {"context_shift": false})
+	if disabled != null:
+		runner.ok("context_shift: false accepted")
+	else:
+		runner.fail("context_shift: false rejected")
+
+	# Only the core knows n_ctx, so a target at n_ctx must fail worker init.
+	var too_big = await NobodyWhoChat.create(_model_path, {
+		"n_ctx": 1024,
+		"context_shift": {"target": 1024},
+	})
+	if too_big == null:
+		runner.ok("context_shift: target >= n_ctx rejected at worker init")
+	else:
+		runner.fail("context_shift: target >= n_ctx was accepted")
+
+	await chat.set_context_shift({"target": 0.25})
+	await chat.set_context_shift(true)
+	runner.ok("context_shift: setter accepts Dictionary and bool")
 
 func _test_system_prompt(runner: Node, chat) -> void:
 	# Initially no system prompt (we created with {}).

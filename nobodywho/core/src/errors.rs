@@ -426,9 +426,13 @@ pub enum InitWorkerError {
     #[error("Failed setting up tool calling: {0}")]
     ToolCallingSetup(#[from] ToolCallingSetupError),
 
-    #[error("Invalid context shift options: {0}")]
-    InvalidContextShiftOptions(String),
+    #[error(transparent)]
+    InvalidContextShiftOptions(#[from] InvalidContextShiftOptions),
 }
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("Invalid context shift options: {0}")]
+pub struct InvalidContextShiftOptions(pub(crate) String);
 
 #[derive(Debug, thiserror::Error)]
 pub enum InitContextError {
@@ -498,6 +502,9 @@ pub enum SetterError {
 
     #[error("MTP speculative decode call failed: {0}")]
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error(transparent)]
+    InvalidContextShiftOptions(#[from] InvalidContextShiftOptions),
 }
 
 #[derive(Debug, thiserror::Error)]

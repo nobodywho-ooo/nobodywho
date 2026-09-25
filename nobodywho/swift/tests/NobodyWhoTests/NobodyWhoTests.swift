@@ -186,6 +186,27 @@ final class NobodyWhoTests: XCTestCase {
         XCTAssertLessThanOrEqual(stats.contextUsed, stats.contextSize)
     }
 
+    func testContextShiftOptions() async throws {
+        let modelPath = try requireEnv("TEST_MODEL")
+        let model = try await Model.load(modelPath: modelPath)
+        _ = try Chat(
+            model: model,
+            contextSize: 1024,
+            contextShift: ContextShiftOptions(keepFirstTurns: 2, keepLastTurns: 3, target: .tokens(tokens: 256))
+        )
+        _ = try Chat(model: model, contextShift: ContextShiftOptions(enabled: false))
+        XCTAssertThrowsError(
+            try Chat(model: model, contextSize: 1024, contextShift: ContextShiftOptions(target: .tokens(tokens: 1024)))
+        )
+
+        let chat = try Chat(model: model)
+        try await chat.setContextShift(ContextShiftOptions(target: .fraction(fraction: 0.25)))
+        do {
+            try await chat.setContextShift(ContextShiftOptions(keepLastTurns: 0))
+            XCTFail("keepLastTurns = 0 should be rejected")
+        } catch {}
+    }
+
     // MARK: - Vision
 
     func testVision() async throws {

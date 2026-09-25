@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use godot::prelude::*;
 
 use crate::convert::{
-    dict_get, dict_get_positive_u32, globalize_message_media_paths, json_to_variant,
+    dict_get, dict_get_positive_u32, dict_get_u32, globalize_message_media_paths, json_to_variant,
     resolve_godot_path, validate_config_keys, variant_to_json,
 };
 use crate::model::NobodyWhoModel;
@@ -61,6 +61,12 @@ impl NobodyWhoChat {
     ///   optional `"k_max"` (int, default 3) and `"p_min"` (float in [0, 1],
     ///   default 0.0). Requires the model to have been loaded with a
     ///   `"draft_path"`, or `create` fails.
+    /// - `"context_shift"` (bool or Dictionary): how old turns are forgotten
+    ///   when the context is full. Omitted or `true` uses the defaults; `false`
+    ///   disables shifting, so a full context is an error. A Dictionary tunes it
+    ///   with optional `"keep_first_turns"` (int, default 1),
+    ///   `"keep_last_turns"` (int >= 1, default 2) and `"target"` (float in
+    ///   (0, 1) for a fraction of `n_ctx`, or int for tokens; default 0.5).
     ///
     /// Pass `{}` for defaults. Unknown keys and invalid values are errors
     /// (resolve to null).
@@ -354,6 +360,28 @@ impl NobodyWhoChat {
         })
     }
 
+    /// Update how old turns are forgotten when the context is full. Takes the
+    /// same bool or Dictionary as the `"context_shift"` key of `create`.
+    /// Resolves to null (success) or null + error.
+    #[func]
+    fn set_context_shift(&self, value: Variant) -> Variant {
+        let options = match parse_context_shift(&value) {
+            Ok(options) => options,
+            Err(e) => {
+                godot_error!("set_context_shift: {e}");
+                return Variant::nil();
+            }
+        };
+        let handle = self.handle.clone();
+        self.guarded("set_context_shift", async move {
+            handle
+                .set_context_shift(options)
+                .await
+                .map(|()| Variant::nil())
+                .map_err(|e| nobodywho::render_miette(&e))
+        })
+    }
+
     /// Update the sampler config. `config` is a NobodyWhoSamplerConfig.
     /// Resolves to null (success) or null + error.
     #[func]
@@ -545,6 +573,7 @@ impl NobodyWhoChat {
                 "template_variables",
                 "tools",
                 "mtp",
+                "context_shift",
             ],
         )?;
         let defaults = nobodywho::chat::ChatConfig::default();
@@ -565,6 +594,10 @@ impl NobodyWhoChat {
                 .unwrap_or_default(),
             tools,
             mtp: Self::parse_mtp(config)?,
+            context_shift: match config.get("context_shift") {
+                Some(value) => parse_context_shift(&value)?,
+                None => defaults.context_shift,
+            },
             ..defaults
         };
         let use_gpu = dict_get::<bool>(config, "use_gpu")?.unwrap_or(true);
@@ -600,6 +633,47 @@ impl NobodyWhoChat {
                 .into(),
         )
     }
+}
+
+/// Parse a `"context_shift"` value: `true` for the defaults, `false` to
+/// disable, or a Dictionary with optional `"keep_first_turns"`,
+/// `"keep_last_turns"` and `"target"`.
+fn parse_context_shift(
+    value: &Variant,
+) -> Result<Option<nobodywho::chat::ContextShiftOptions>, String> {
+    use godot::builtin::VariantType;
+    let defaults = nobodywho::chat::ContextShiftOptions::default();
+    if let Ok(enabled) = value.try_to::<bool>() {
+        return Ok(enabled.then_some(defaults));
+    }
+    let Ok(tuning) = value.try_to::<VarDictionary>() else {
+        return Err("context_shift must be a bool or a Dictionary".into());
+    };
+    validate_config_keys(&tuning, &["keep_first_turns", "keep_last_turns", "target"])?;
+    let target = match tuning.get("target") {
+        None => defaults.target,
+        Some(t) if t.get_type() == VariantType::FLOAT => {
+            nobodywho::chat::ShiftTarget::Fraction(t.to::<f64>() as f32)
+        }
+        Some(t) if t.get_type() == VariantType::INT => {
+            let tokens = u32::try_from(t.to::<i64>())
+                .map_err(|_| format!("context_shift \"target\" is out of range: {t}"))?;
+            nobodywho::chat::ShiftTarget::Tokens(tokens)
+        }
+        Some(t) => {
+            return Err(format!(
+                "context_shift \"target\" must be a float or an int, got {:?}",
+                t.get_type()
+            ));
+        }
+    };
+    Ok(Some(nobodywho::chat::ContextShiftOptions {
+        keep_first_turns: dict_get_u32(&tuning, "keep_first_turns")?
+            .map_or(defaults.keep_first_turns, |n| n as usize),
+        keep_last_turns: dict_get_u32(&tuning, "keep_last_turns")?
+            .map_or(defaults.keep_last_turns, |n| n as usize),
+        target,
+    }))
 }
 
 /// A `String`-or-null Variant -> `Option<String>`; `Err` for anything else.

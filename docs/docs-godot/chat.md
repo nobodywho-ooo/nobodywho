@@ -185,11 +185,29 @@ Choosing the right context size is quite important and depends heavily on your u
 `n_ctx` above the maximum context size the model was trained with has no benefit.
 
 Even with a properly selected context size it might happen that you fill up the entire context
-during a conversation. When this happens, NobodyWho will shrink the context for you. Currently
-this is done by removing the oldest turns from the chat history — keeping the first turn, the
-most recent turns, and any system messages in the history (they are instructions for the whole
-conversation) — until the size reaches `n_ctx / 2`. The KV cache is also updated
-automatically. In the future we plan on adding more advanced methods of context shrinking.
+during a conversation. When this happens, NobodyWho shifts the context: it forgets the fewest old
+turns needed to shrink the chat history to half of `n_ctx`. A turn is a user message and
+everything up to the next one. System messages are always kept (they are instructions for the
+whole conversation), and so are the first turn and the last two turns by default. The KV cache is
+updated automatically.
+
+You can tune this with the `"context_shift"` key. `"target"` is a float in (0, 1) for a
+fraction of `n_ctx`, or an int for a number of tokens. `"keep_last_turns"` must be at least 1,
+so the message being answered is never forgotten:
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {
+	"n_ctx": 4096,
+	"context_shift": {"keep_first_turns": 1, "keep_last_turns": 4, "target": 0.75},
+})
+```
+
+To turn context shifting off, set `"context_shift": false`; a full context is then an error
+instead. `set_context_shift()` takes the same bool or Dictionary on an existing chat:
+
+```gdscript
+await chat.set_context_shift(false)
+```
 
 `n_ctx` is fixed to the chat instance. To reset the current context content, call
 `reset_history()` (keeps the system prompt and tools), or `reset_chat()` to also change those:

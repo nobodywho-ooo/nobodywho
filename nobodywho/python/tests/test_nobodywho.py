@@ -352,6 +352,53 @@ def test_explicit_thread_count(model):
         assert "Copenhagen" in response
 
 
+def test_context_shift_options():
+    defaults = nobodywho.ContextShiftOptions()
+    assert defaults.enabled
+    assert (defaults.keep_first_turns, defaults.keep_last_turns) == (1, 2)
+    assert defaults.target == 0.5
+
+    assert isinstance(nobodywho.ContextShiftOptions(target=1024).target, int)
+    assert isinstance(nobodywho.ContextShiftOptions(target=0.25).target, float)
+    with pytest.raises(TypeError):
+        nobodywho.ContextShiftOptions(target=True)
+
+    options = nobodywho.ContextShiftOptions()
+    options.target = 2048
+    assert options.target == 2048
+    with pytest.raises(TypeError):
+        setattr(options, "target", "half")
+
+
+def test_chat_with_context_shift_options(model):
+    for options in (
+        nobodywho.ContextShiftOptions(
+            keep_first_turns=2, keep_last_turns=3, target=256
+        ),
+        nobodywho.ContextShiftOptions(enabled=False),
+    ):
+        nobodywho.Chat(model, n_ctx=1024, context_shift=options)
+
+    with pytest.raises(RuntimeError):
+        nobodywho.Chat(
+            model, n_ctx=1024, context_shift=nobodywho.ContextShiftOptions(target=1024)
+        )
+
+
+def test_set_context_shift(chat):
+    chat.set_context_shift(nobodywho.ContextShiftOptions(target=256))
+    chat.set_context_shift(nobodywho.ContextShiftOptions(enabled=False))
+    with pytest.raises(RuntimeError):
+        chat.set_context_shift(nobodywho.ContextShiftOptions(keep_last_turns=0))
+
+
+@pytest.mark.asyncio
+async def test_set_context_shift_async(chat_async):
+    await chat_async.set_context_shift(nobodywho.ContextShiftOptions(target=0.25))
+    with pytest.raises(RuntimeError):
+        await chat_async.set_context_shift(nobodywho.ContextShiftOptions(target=1.5))
+
+
 def test_set_and_get_chat_history(chat):
     chat_history = [
         {"role": "user", "content": "What's 2 + 2?"},

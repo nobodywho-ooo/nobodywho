@@ -48,6 +48,7 @@ class Chat:
         allow_thinking: "bool | None" = None,
         mtp: "MtpConfig | None" = None,
         n_threads: "int | None" = None,
+        context_shift: "ContextShiftOptions | None" = None,
     ) -> "Chat":
         """
         Create a new Chat instance for conversational text generation.
@@ -69,6 +70,8 @@ class Chat:
                 detects the host's physical core count (performance cores only, on Apple
                 silicon) — hyperthreads and efficiency cores slow inference down. Set it
                 lower to leave CPU headroom for other work. Clamped to the logical CPU count.
+            context_shift: ContextShiftOptions for forgetting old turns when the context is
+                full. Defaults to None, which uses the default options.
 
         Returns:
             A Chat instance
@@ -214,6 +217,16 @@ class Chat:
             ValueError: If message format is invalid
             RuntimeError: If setting history fails
         """
+    def set_context_shift(self, /, options: ContextShiftOptions) -> None:
+        """
+        Update how old turns are forgotten when the context is full.
+
+        Args:
+            options: New ContextShiftOptions
+
+        Raises:
+            RuntimeError: If the options are invalid for this chat's context size
+        """
     def set_sampler_config(self, /, sampler: SamplerConfig) -> None:
         """
         Update the sampler configuration without resetting chat history.
@@ -317,6 +330,7 @@ class ChatAsync:
         allow_thinking: "bool | None" = None,
         mtp: "MtpConfig | None" = None,
         n_threads: "int | None" = None,
+        context_shift: "ContextShiftOptions | None" = None,
     ) -> "ChatAsync":
         """
         Create a new async Chat instance for conversational text generation.
@@ -338,6 +352,8 @@ class ChatAsync:
                 detects the host's physical core count (performance cores only, on Apple
                 silicon) — hyperthreads and efficiency cores slow inference down. Set it
                 lower to leave CPU headroom for other work. Clamped to the logical CPU count.
+            context_shift: ContextShiftOptions for forgetting old turns when the context is
+                full. Defaults to None, which uses the default options.
 
         Returns:
             A ChatAsync instance
@@ -482,6 +498,16 @@ class ChatAsync:
         Raises:
             ValueError: If message format is invalid
             RuntimeError: If setting history fails
+        """
+    async def set_context_shift(self, /, options: ContextShiftOptions) -> None:
+        """
+        Update how old turns are forgotten when the context is full.
+
+        Args:
+            options: New ContextShiftOptions
+
+        Raises:
+            RuntimeError: If the options are invalid for this chat's context size
         """
     async def set_sampler_config(self, /, sampler: SamplerConfig) -> None:
         """
@@ -786,6 +812,75 @@ class CompletionUsage:
     def to_dict(self, /) -> "dict": ...
     @property
     def total_tokens(self, /) -> int: ...
+
+@final
+class ContextShiftOptions:
+    """
+    How a chat forgets old turns when its context is full. Pass an instance as the
+    `context_shift` argument to `Chat`/`ChatAsync`, or to `set_context_shift`.
+    A turn is a user message and everything up to the next one; system messages
+    are always kept.
+    """
+    def __new__(
+        cls,
+        /,
+        enabled: bool = True,
+        keep_first_turns: int = 1,
+        keep_last_turns: int = 2,
+        target: "float | int | None" = None,
+    ) -> ContextShiftOptions:
+        """
+        Create context shift options. Defaults mirror the core defaults.
+
+        Args:
+            enabled: Whether to shift at all. Defaults to True.
+            keep_first_turns: Turns always kept at the start. Defaults to 1.
+            keep_last_turns: Turns always kept at the end, at least 1. Defaults to 2.
+            target: Size the history is shrunk to: a float in (0, 1) for a fraction
+                of n_ctx, or an int for a number of tokens. Defaults to 0.5.
+        """
+    @property
+    def enabled(self, /) -> bool:
+        """
+        `False` disables shifting, so a full context raises an error instead.
+        """
+    @enabled.setter
+    def enabled(self, /, value: bool) -> None:
+        """
+        `False` disables shifting, so a full context raises an error instead.
+        """
+    @property
+    def keep_first_turns(self, /) -> int:
+        """
+        Turns always kept at the start of the history.
+        """
+    @keep_first_turns.setter
+    def keep_first_turns(self, /, value: int) -> None:
+        """
+        Turns always kept at the start of the history.
+        """
+    @property
+    def keep_last_turns(self, /) -> int:
+        """
+        Turns always kept at the end of the history; at least 1.
+        """
+    @keep_last_turns.setter
+    def keep_last_turns(self, /, value: int) -> None:
+        """
+        Turns always kept at the end of the history; at least 1.
+        """
+    @property
+    def target(self, /) -> float | int:
+        """
+        Size the history is shrunk to: a float for a fraction of n_ctx, or an int
+        for a number of tokens.
+        """
+    @target.setter
+    def target(self, /, target: float | int) -> None:
+        """
+        Size the history is shrunk to: a float for a fraction of n_ctx, or an int
+        for a number of tokens.
+        """
 
 @final
 class CrossEncoder:
