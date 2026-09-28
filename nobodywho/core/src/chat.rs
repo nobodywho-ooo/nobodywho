@@ -598,17 +598,6 @@ impl ChatHandle {
         })
     }
 
-    /// Send a message and get a tokio channel
-    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        prompt: Prompt,
-    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
-        output_rx
-    }
-
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
@@ -623,24 +612,12 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
-        TokenStream::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
-    }
-
-    /// Answer a full message list and get a tokio channel.
-    pub fn complete_channel(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
-        let messages = History::new(messages)?;
-        check_answerable(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Complete {
-            messages,
-            options,
+        self.guard.send(ChatMsg::Ask {
+            prompt: prompt.to_prompt(),
             output_tx,
         });
-        Ok(output_rx)
+        TokenStream::new(forward_write_output(output_rx))
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -676,9 +653,15 @@ impl ChatHandle {
         messages: Vec<Message>,
         options: Options,
     ) -> Result<TokenStream, InvalidHistoryError> {
-        Ok(TokenStream::new(forward_write_output(
-            self.complete_channel(messages, options)?,
-        )))
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Complete {
+            messages,
+            options,
+            output_tx,
+        });
+        Ok(TokenStream::new(forward_write_output(output_rx)))
     }
 
     pub fn complete_with_metadata(
@@ -1018,17 +1001,6 @@ impl ChatHandleAsync {
         })
     }
 
-    /// Send a message and get a tokio channel
-    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        prompt: Prompt,
-    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
-        output_rx
-    }
-
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
@@ -1043,24 +1015,12 @@ impl ChatHandleAsync {
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
-        TokenStreamAsync::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
-    }
-
-    /// Answer a full message list and get a tokio channel.
-    pub fn complete_channel(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
-        let messages = History::new(messages)?;
-        check_answerable(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Complete {
-            messages,
-            options,
+        self.guard.send(ChatMsg::Ask {
+            prompt: prompt.to_prompt(),
             output_tx,
         });
-        Ok(output_rx)
+        TokenStreamAsync::new(forward_write_output(output_rx))
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -1091,9 +1051,15 @@ impl ChatHandleAsync {
         messages: Vec<Message>,
         options: Options,
     ) -> Result<TokenStreamAsync, InvalidHistoryError> {
-        Ok(TokenStreamAsync::new(forward_write_output(
-            self.complete_channel(messages, options)?,
-        )))
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Complete {
+            messages,
+            options,
+            output_tx,
+        });
+        Ok(TokenStreamAsync::new(forward_write_output(output_rx)))
     }
 
     pub fn complete_with_metadata(
@@ -1560,10 +1526,7 @@ impl CompletionStreamAsync {
 }
 
 /// Convert a raw `WriteOutput` channel into a typed `StreamOutput<CompletionError>` channel.
-///
-/// `ask_channel` intentionally stays as `WriteOutput` so the Godot binding
-/// (which pattern-matches on it directly) is not broken. `ask` uses this
-/// forwarder to serve the generic `TokenStream`.
+// FIXME(Jonathan): spawns a thread per `ask`/`complete`; send `StreamOutput` from the worker directly, like `StructuredComplete` does.
 fn forward_write_output(
     rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
 ) -> tokio::sync::mpsc::UnboundedReceiver<crate::stream::StreamOutput<crate::errors::CompletionError>>
