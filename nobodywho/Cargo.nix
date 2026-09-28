@@ -9264,9 +9264,9 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.156";
+        version = "0.1.157";
         edition = "2021";
-        sha256 = "1m02nlwwj0yvjl2vp3ldw33kwwbc2d0acl1gv6q5imxlb5nhyidn";
+        sha256 = "1j4shs8dj2ma5x1d6gma6lf1yvjr5nmrj3mp0b3flfqnhg980pka";
         libName = "llama_cpp_2";
         dependencies = [
           {
@@ -9342,10 +9342,10 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.156";
+        version = "0.1.157";
         edition = "2021";
         links = "llama";
-        sha256 = "18q4l56xgc9kkqjb5y5iq7d4k8j7yhxalyp838zmwnrkhd54rsxa";
+        sha256 = "1v51vhfaw1332y60ck4xmm2pk6hpg61x8r1kk09769klr2gv7l6d";
         libName = "llama_cpp_sys_2";
         buildDependencies = [
           {
