@@ -44,7 +44,8 @@ impl NobodyWhoSpeechToText {
     /// - `"language"` (String): ISO 639-1 code (e.g. `"en"`); `""`/omit =
     ///   auto-detect.
     /// - `"quantization"` (String): ONNX precision variant — `"default"` (fp32),
-    ///   `"fp32"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, or `"quantized"`;
+    ///   `"fp32"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, or
+    ///   `"quantized"`;
     ///   `""`/omit = core default (`"q4"`, falling back to `"default"`
     ///   when the repo ships no `q4` variant).
     /// - `"device"` (String): `"auto"` (default), `"cpu"`, or `"cuda"`.

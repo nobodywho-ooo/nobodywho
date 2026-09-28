@@ -73,7 +73,8 @@ pub struct WhisperConfig {
     /// ISO 639-1 language code (e.g. `"en"`, `"fr"`). `None` → auto-detect.
     pub language: Option<String>,
     /// ONNX precision variant to download and load: one of `"default"`
-    /// (fp32, no suffix), `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`.
+    /// (fp32, no suffix), `"fp32"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`,
+    /// `"q4f16"`, `"quantized"`.
     /// Defaults to `"q4"`, falling back to `"default"` (fp32) if the source
     /// doesn't have a `"q4"` variant. Most users never need to set this.
     pub quantization: String,
