@@ -11,6 +11,7 @@ use crate::errors::{HuggingFaceError, SpeechToTextError};
 use crate::onnx::Device;
 use crate::speech_to_text::architecture::SpeechToTextArchitectureImpl;
 use mel_spec::prelude::*;
+use ort::memory::Allocator;
 use ort::session::Session;
 use ort::value::{DynValue, Tensor};
 use std::borrow::Cow;
@@ -147,6 +148,19 @@ impl KVCache {
         Self(Vec::new())
     }
 
+    /// Zero-length `past_key_values.*` entries for the first decoder step.
+    fn empty(num_layers: usize) -> Self {
+        let mut entries = Vec::new();
+        for i in 0..num_layers {
+            for kind in &["decoder", "encoder"] {
+                for field in &["key", "value"] {
+                    entries.push((format!("past_key_values.{i}.{kind}.{field}"), Vec::new()));
+                }
+            }
+        }
+        Self(entries)
+    }
+
     /// Extract `present.*` tensors from decoder outputs, returning a new cache
     /// keyed as `past_key_values.*` for the next step.
     ///
@@ -190,10 +204,13 @@ impl KVCache {
         self.iter()
             .map(|(name, data)| {
                 let seq_len = data.len() / (num_heads * head_dim);
-                let tensor = Tensor::from_array((
-                    [1i64, num_heads as i64, seq_len as i64, head_dim as i64],
-                    data.clone(),
-                ))?;
+                let shape = [1i64, num_heads as i64, seq_len as i64, head_dim as i64];
+                // `from_array` rejects zero-sized dims; allocate empty tensors instead.
+                let tensor = if data.is_empty() {
+                    Tensor::<f32>::new(&Allocator::default(), shape)?
+                } else {
+                    Tensor::from_array((shape, data.clone()))?
+                };
                 Ok((name.clone().into(), tensor.into_dyn()))
             })
             .collect()
@@ -363,7 +380,13 @@ impl WhisperBackend {
                 Tensor::from_array(([1usize], vec![!kv.is_empty()]))?.into_dyn(),
             ),
         ];
-        inputs.extend(kv.as_tensors(self.num_heads, self.head_dim)?);
+        if kv.is_empty() {
+            // fp16 exports cast past KV outside the `If`, so it must be fed even on step one.
+            inputs
+                .extend(KVCache::empty(self.num_layers).as_tensors(self.num_heads, self.head_dim)?);
+        } else {
+            inputs.extend(kv.as_tensors(self.num_heads, self.head_dim)?);
+        }
         Ok(inputs)
     }
 

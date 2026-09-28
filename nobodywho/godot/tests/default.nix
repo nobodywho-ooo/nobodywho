@@ -49,23 +49,20 @@ stdenv.mkDerivation {
     ln -s ${models.TEST_MODEL} \
       $out/hf-cache/nobodywho/models/NobodyWho/Qwen_Qwen3-0.6B-Q4_K_M.gguf
 
-    # NOTE: the ort-based suites (stt/tts/vad) are deliberately NOT wired up
-    # here: in the sandbox the extension links the nixpkgs-built dynamic
-    # onnxruntime, whose std::filesystem usage corrupts godot's statically
-    # linked-libstdc++ locale state (free(): invalid size abort). They run
-    # on hosts instead — see models.nix, which exports all their test
-    # inputs for the dev shell / `just godot-test`.
-
     # Import the project (generates .godot/ cache so extension classes resolve).
     ${godot_4}/bin/godot --headless --import --path . || true
 
     # Run the test suite headless. The env vars point at the nix-fetched
     # models so the model-backed tests (chat, tools, encoder, crossencoder)
-    # find their models without network access. TTS self-skips if its source
-    # isn't set.
+    # find their models without network access.
     TEST_MODEL=${models.TEST_MODEL} \
     TEST_ENCODER_MODEL=${models.TEST_EMBEDDINGS_MODEL} \
     TEST_CROSSENCODER_MODEL=${models.TEST_CROSSENCODER_MODEL} \
+    TEST_STT_SOURCE=${models.TEST_STT_SOURCE} \
+    TEST_AUDIO_FILE=${models.TEST_AUDIO_FILE} \
+    TEST_TTS_SOURCE=${models.TEST_TTS_SOURCE} \
+    TEST_VAD_MODEL=${models.TEST_VAD_MODEL} \
+    TEST_AUDIO_FILE_WAV=${models.TEST_AUDIO_FILE_WAV} \
     XDG_CACHE_HOME=$out/hf-cache \
     ${godot_4}/bin/godot --headless --path .
 
