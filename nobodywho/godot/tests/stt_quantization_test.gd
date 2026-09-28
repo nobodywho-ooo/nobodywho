@@ -29,14 +29,13 @@ func run(runner: Node) -> void:
 	await _test_documented_values(runner, source, audio)
 
 func _test_invalid_value_rejected(runner: Node, source: String) -> void:
-	# Unknown values must be rejected cleanly (null, no hang/crash), not
+	# An unknown value must be rejected cleanly (null, no hang/crash), not
 	# silently accepted or fatal.
-	for q in ["not-a-real-quantization"]:
-		var stt = await NobodyWhoSpeechToText.create(source, {"quantization": q})
-		if stt == null:
-			runner.ok("stt-quant: quantization '%s' rejected cleanly (null)" % q)
-		else:
-			runner.fail("stt-quant: quantization '%s' was accepted" % q)
+	var stt = await NobodyWhoSpeechToText.create(source, {"quantization": "not-a-real-quantization"})
+	if stt == null:
+		runner.ok("stt-quant: unknown quantization rejected cleanly (null)")
+	else:
+		runner.fail("stt-quant: unknown quantization was accepted")
 
 func _test_documented_values(runner: Node, source: String, audio: String) -> void:
 	var only: String = OS.get_environment("TEST_QUANT_ONLY")
