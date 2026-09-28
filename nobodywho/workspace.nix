@@ -61,9 +61,8 @@ let
         };
 
         ort-sys = attrs: {
-          # Static link, as in release builds (dynamic for the nixpkgs fallback).
+          # Static link, as in release builds.
           env.ORT_LIB_PATH = "${onnxruntime}/lib";
-          env.ORT_PREFER_DYNAMIC_LINK = if onnxruntime.static then "0" else "1";
           buildInputs = [ onnxruntime ];
           # ort-sys's `copy-dylibs` feature symlinks onnxruntime libs into
           # OUT_DIR.ancestors(3)/{examples,deps}. buildRustCrate sets

@@ -3,14 +3,11 @@
 # network, so we fetch it here and point ort-sys at it via ORT_LIB_PATH.
 # When bumping `ort`, copy the URLs and hashes from ort-sys's
 # build/download/dist.tsv, picking the feature set ort-sys would choose.
-# Systems pyke doesn't cover (x86_64-darwin) fall back to nixpkgs' dynamic build,
-# which is older than 1.28 and so crashes on fp16 Whisper (microsoft/onnxruntime#29153).
 {
   lib,
   stdenvNoCC,
   fetchurl,
   xz,
-  onnxruntime,
 }:
 
 let
@@ -31,11 +28,8 @@ let
     };
   };
   system = stdenvNoCC.hostPlatform.system;
-  dist = dists.${system};
+  dist = dists.${system} or (throw "no prebuilt ONNX Runtime for ${system}");
 in
-if !(dists ? ${system}) then
-  onnxruntime // { static = false; }
-else
 stdenvNoCC.mkDerivation {
   pname = "onnxruntime-pyke";
   inherit version;
@@ -60,6 +54,5 @@ stdenvNoCC.mkDerivation {
   # they are only dlopen'ed when CUDA is requested.
   dontFixup = true;
 
-  passthru.static = true;
   meta.platforms = lib.attrNames dists;
 }
