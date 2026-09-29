@@ -1,0 +1,19 @@
+:root{
+--nav-h:96px;--nav-h-compact:76px;
+--pad-x:clamp(16px,3.6vw,72px);
+--pad-y:clamp(56px,8vw,128px);
+--pad-y-display:clamp(64px,10vw,160px);
+--gap-col:clamp(24px,4vw,64px);
+--gap-spec:clamp(24px,5vw,96px);
+--gap-menu:clamp(20px,2.8vw,54px);
+--gap-nav-right:clamp(20px,3.2vw,64px);
+--gap-block:clamp(32px,5vw,72px);
+--gap-foot:clamp(48px,8vw,120px);
+--row-pad-top:28px;--row-pad-bottom:clamp(48px,6vw,96px);
+--tagline-bottom:clamp(20px,4vh,56px);/* @kind spacing */
+/* Grid ratios */
+--split-5-7:minmax(0,5fr) minmax(0,7fr);/* @kind other */--split-7-5:minmax(0,7fr) minmax(0,5fr);/* @kind other */
+/* Texture geometry */
+--dot-grid:52px;/* @kind other */--dot-size:1.2px;/* @kind other */--tick-step:96px;/* @kind other */--tick-width:22px;/* @kind other */--bar-step:11px;/* @kind other */
+--bp-nav:960px;/* @kind other */--bp-stack:760px;/* @kind other */
+}

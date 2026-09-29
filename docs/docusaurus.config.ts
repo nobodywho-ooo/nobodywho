@@ -1,6 +1,6 @@
-import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import {nobodywhoDark, nobodywhoLight} from './src/prismTheme';
 
 // The latest tagged release per binding. This is the default version users see
 // at /<binding>/. Bumping this requires a matching snapshot in
@@ -28,8 +28,6 @@ function sdkDocsConfig(id: string) {
 }
 
 const config: Config = {
-  clientModules: ['./src/github-stars.js'],
-
   title: 'NobodyWho',
   tagline: 'Local-first LLM inference for Kotlin, Swift, Python, Flutter, React Native, Expo and Godot',
   favicon: 'img/favicon.ico',
@@ -82,7 +80,14 @@ const config: Config = {
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
+          // Design system tokens first, then the docs theme that uses them
+          customCss: [
+            './src/css/nobodywho/colors.css',
+            './src/css/nobodywho/typography.css',
+            './src/css/nobodywho/spacing.css',
+            './src/css/nobodywho/effects.css',
+            './src/css/custom.css',
+          ],
         },
       } satisfies Preset.Options,
     ],
@@ -166,16 +171,14 @@ const config: Config = {
   ],
 
   themeConfig: {
+    // Follows the reader's system setting (dark if none), with a switch between dark and the light paper theme
     colorMode: {
       defaultMode: 'dark',
+      disableSwitch: false,
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'NobodyWho',
-      logo: {
-        alt: 'NobodyWho',
-        src: 'img/icon.svg',
-      },
+      title: 'nobodywho',
       items: [
         // Basics
         {
@@ -194,24 +197,16 @@ const config: Config = {
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',
+          label: 'GitHub',
           position: 'right',
           className: 'header-github-link',
-          'aria-label': 'GitHub repository',
-        },
-        {
-          href: 'https://discord.gg/qhaMc2qCYB',
-          position: 'right',
-          className: 'header-discord-link',
-          'aria-label': 'Discord server',
+          'aria-label': 'NobodyWho on GitHub',
         },
       ],
     },
-    footer: {
-      copyright: '<a href="https://www.nobodywho.ai/">NobodyWho.ai</a> — EUPL-1.2 — <a href="https://docs.nobodywho.ooo/llms.txt">llms.txt</a> · <a href="https://docs.nobodywho.ooo/llms-full.txt">llms-full.txt</a>',
-    },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: nobodywhoLight,
+      darkTheme: nobodywhoDark,
       additionalLanguages: ['bash', 'dart', 'kotlin', 'swift', 'json', 'toml'],
     },
   } satisfies Preset.ThemeConfig,

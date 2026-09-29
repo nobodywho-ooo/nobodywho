@@ -1,0 +1,9 @@
+:root{
+--radius:0;
+--border-hair:1px;/* @kind other */--border-button:1.5px;/* @kind other */--underline:1px;/* @kind other */
+--bullet-size:7px;/* @kind other */
+--blur-glass:6px;/* @kind other */--blur-scrim:10px;/* @kind other */
+--ease:ease;/* @kind other */--ease-rotor-fade:cubic-bezier(.4,0,.2,1);/* @kind other */--ease-rotor-move:cubic-bezier(.22,.61,.36,1);/* @kind other */
+--dur-fast:.2s;/* @kind other */--dur-base:.25s;/* @kind other */--dur-nav:.3s;/* @kind other */--dur-rotor-fade:.9s;/* @kind other */--dur-rotor-move:1.1s;/* @kind other */--rotor-hold:3400ms;/* @kind other */
+--shadow:none;
+}
