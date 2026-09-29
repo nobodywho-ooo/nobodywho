@@ -58,7 +58,7 @@ jobs:
               'apple-extended-ci': 'apple_extended',
               'regen-ci': 'regen',
               // Cloudflare Pages preview of this branch's docs; the link is posted on the PR.
-              'docs-ci': 'docs',
+              'docs-ci': 'docs_preview',
               // On-device tests: `source` builds from this repo, `released`
               // from the published package.
               'device-ci': 'device_all',

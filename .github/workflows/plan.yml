@@ -299,7 +299,7 @@ jobs:
           # docs_preview: a preview deploy of this branch's docs. Never path- or
           # full-run-triggered — only an explicit /docs-ci PR comment.
           run_docs_preview=false
-          if [[ " ${DISPATCH_BUCKETS:-} " == *" docs "* ]]; then run_docs_preview=true; fi
+          if [[ " ${DISPATCH_BUCKETS:-} " == *" docs_preview "* ]]; then run_docs_preview=true; fi
 
           # release: only on a release tag.
           run_release=false
