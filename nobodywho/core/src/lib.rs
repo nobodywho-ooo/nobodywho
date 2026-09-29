@@ -12,6 +12,8 @@ pub mod llm;
 pub mod memory;
 mod model_selection;
 pub mod onnx;
+pub mod output_format;
+mod response_parser;
 pub mod sampler;
 pub mod speech_to_text;
 pub mod stream;
@@ -49,6 +51,7 @@ pub fn send_llamacpp_logs_to_tracing() {
 pub(crate) mod test_utils {
     use crate::llm::{get_model, Model};
     use crate::send_llamacpp_logs_to_tracing;
+    use llama_cpp_2::model::{params::LlamaModelParams, LlamaModel};
     use std::sync::{Arc, Once};
 
     static INIT: Once = Once::new();
@@ -164,23 +167,25 @@ pub(crate) mod test_utils {
         ))
     }
 
-    pub(crate) fn gemma4_model() -> Option<Arc<Model>> {
+    /// Load only the test model's vocabulary
+    pub(crate) fn load_test_vocab() -> LlamaModel {
+        init_test_tracing();
+
+        let path = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
+        load_vocab(&path)
+    }
+
+    /// Load only the vocabulary of `GEMMA4_MODEL`, which may be a vocabulary-only GGUF
+    pub(crate) fn load_gemma4_vocab() -> Option<LlamaModel> {
         init_test_tracing();
 
         let path = std::env::var("GEMMA4_MODEL").ok()?;
-        Some(Arc::new(
-            get_model(&path, true, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e}")),
-        ))
+        Some(load_vocab(&path))
     }
 
-    pub(crate) fn qwen36_model() -> Option<Arc<Model>> {
-        init_test_tracing();
-
-        let path = std::env::var("QWEN36_MODEL").ok()?;
-        Some(Arc::new(
-            get_model(&path, false, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Qwen3.6 model from {path}: {e}")),
-        ))
+    fn load_vocab(path: &str) -> LlamaModel {
+        let params = LlamaModelParams::default().with_vocab_only(true);
+        LlamaModel::load_from_file(&crate::llm::LLAMA_BACKEND, path, &params)
+            .unwrap_or_else(|e| panic!("failed to load vocabulary from {path}: {e}"))
     }
 }

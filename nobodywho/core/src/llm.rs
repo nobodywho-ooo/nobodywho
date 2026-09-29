@@ -29,7 +29,7 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
     // HACK: On Qualcomm Snapdragon 750G, Adreno 619, Fairphone 4, the OpenCL
     // backend deadlocks and aborts when running `f32_f16_q1_vec`.
     //

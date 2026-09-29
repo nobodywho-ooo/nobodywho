@@ -387,9 +387,6 @@ pub enum InitWorkerError {
     #[error("Got no response after initializing worker.")]
     NoResponse,
 
-    #[error("Failed to detect tool calling format: {0}")]
-    ToolFormatDetection(#[from] crate::tool_calling::ToolFormatError),
-
     #[error("Could not initialize projection model: {0}")]
     ProjectionModel(#[from] MultimodalError),
 
@@ -1222,8 +1219,8 @@ impl From<llama_cpp_2::ChatTemplateError> for SelectTemplateError {
 /// of tools.
 #[derive(Debug, thiserror::Error)]
 pub enum ToolCallingSetupError {
-    #[error("Failed to detect or apply tool calling format: {0}")]
-    ToolFormat(#[from] crate::tool_calling::ToolFormatError),
+    #[error("Failed to detect or apply the model's output format: {0}")]
+    OutputFormat(#[from] crate::output_format::FormatError),
 
     #[error("Failed to build tool-call sampler: {0}")]
     Sampler(#[from] SamplerError),

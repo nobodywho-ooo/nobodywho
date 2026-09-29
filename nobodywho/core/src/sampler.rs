@@ -346,12 +346,9 @@ impl SamplerConfig {
     ) -> Result<LlamaSampler, SamplerError> {
         match step {
             // A schema always has JSON string bodies, so the slice pays for itself.
-            GrammarStep::JsonSchema(schema) => llguidance_sampler(
-                model,
-                "json_schema",
-                &schema,
-                &crate::tool_calling::json_body_slice_regexes(),
-            ),
+            GrammarStep::JsonSchema(schema) => {
+                llguidance_sampler(model, "json_schema", &schema, &json_body_slice_regexes())
+            }
             GrammarStep::Regex(pattern) => llguidance_sampler(model, "regex", &pattern, &[]),
             GrammarStep::Lark(lark) => {
                 let lark = gbnf::gbnf_to_lark::any_to_lark(&lark)
@@ -421,7 +418,7 @@ impl GrammarFactory {
 
 /// Builds an llguidance [`LlamaSampler`] for a `json_schema`/`regex`/`lark`
 /// `tag` + `grammar` content string. `slices` are optional vocabulary hints
-/// (see [`crate::tool_calling::ToolFormatHandler::slice_regexes`]), `&[]` for none.
+/// (see [`crate::output_format::ResolvedFormat::slice_regexes`]), `&[]` for none.
 ///
 /// Builds a throwaway [`GrammarFactory`]; hold one instead if the same slice set
 /// will be used again.
@@ -432,6 +429,12 @@ pub fn llguidance_sampler(
     slices: &[String],
 ) -> Result<LlamaSampler, SamplerError> {
     GrammarFactory::new(model, slices.to_vec())?.grammar_step(tag, grammar)
+}
+
+/// Slice for the body of a JSON string, which excludes `"`, `\` and control
+/// characters. Pays for itself in any grammar with JSON strings.
+pub(crate) fn json_body_slice_regexes() -> Vec<String> {
+    vec![r#"[^"\\\x00-\x1F\x7F]+"#.to_string()]
 }
 
 impl Default for SamplerConfig {
@@ -943,7 +946,7 @@ mod tests {
             "the held factory already serves an unchanged slice set"
         );
 
-        let slices = crate::tool_calling::json_body_slice_regexes();
+        let slices = json_body_slice_regexes();
         let rebuilt = GrammarFactory::build_if_stale(Some(&factory), model, slices.clone())
             .expect("rebuilding for another slice set")
             .expect("a different slice set needs a new factory");
