@@ -1,33 +1,23 @@
-//! Reads a model's generations: the text to stream, the tool calls, and what
-//! the history keeps. This is the only part of reading a response that depends
-//! on the model.
+//! Reads a model's generations as the events of a Responses API stream. This
+//! is the only part of reading a response that depends on the model.
 
-use crate::output_format::{Item, Piece, PieceKind, ResolvedFormat, Splitter, Warning};
-use crate::tool_calling::{Tool, ToolCall};
+use crate::event_stream::{event::StreamEvent, EventStream};
+use crate::output_format::{Piece, PieceKind, ResolvedFormat, Splitter, Warning};
+use crate::tool_calling::Tool;
 use llama_cpp_2::{model::LlamaModel, token::LlamaToken, TokenToStringError};
+use rand::rngs::ThreadRng;
 use tracing::{debug, warn};
 
-/// Reads one generation.
+/// Reads one generation into a response's event stream.
 pub(crate) struct ResponseParser<'a> {
     model: &'a LlamaModel,
     splitter: Splitter<'a>,
+    rng: ThreadRng,
     ended: bool,
-    /// Whether the model has begun its calls, from which on nothing streams.
-    calls_begun: bool,
-    calls: Vec<ToolCall>,
-    /// The call being read, with its arguments so far.
-    call: Option<(String, String)>,
     /// Whether the model wrote a block of tool calls that can't be read.
     unreadable: bool,
     /// Whether a grammar holds the model to the format's tool calls.
     has_grammar: bool,
-}
-
-/// A finished generation.
-pub(crate) struct Generation {
-    /// What the history keeps of it, as [`Splitter::written`] says.
-    pub written: String,
-    pub calls: Vec<ToolCall>,
 }
 
 impl<'a> ResponseParser<'a> {
@@ -48,20 +38,22 @@ impl<'a> ResponseParser<'a> {
         ResponseParser {
             model,
             splitter,
+            rng: rand::rng(),
             ended: false,
-            calls_begun: false,
-            calls: Vec::new(),
-            call: None,
             unreadable: false,
             has_grammar: format.is_some() && !tools.is_empty(),
         }
     }
 
-    /// Takes the next token and returns the text it finishes that streams.
-    pub fn push(&mut self, token: LlamaToken) -> Result<Vec<String>, TokenToStringError> {
+    /// Takes the next token and returns the events it finishes.
+    pub fn push(
+        &mut self,
+        token: LlamaToken,
+        stream: &mut EventStream,
+    ) -> Result<Vec<StreamEvent>, TokenToStringError> {
         let bytes = self.bytes(token)?;
         let pieces = self.splitter.push(token, &bytes);
-        Ok(self.read(pieces))
+        Ok(self.events_of(pieces, stream))
     }
 
     /// Whether the generation is in a block of tool calls, which is where a
@@ -76,21 +68,18 @@ impl<'a> ResponseParser<'a> {
     }
 
     /// Ends the generation, as cut off if the model hasn't ended it, and
-    /// returns the last of its text that streams, along with the generation.
-    pub fn finish(mut self) -> (Vec<String>, Generation) {
+    /// returns its last events along with what the history keeps of it, as
+    /// [`Splitter::written`] says.
+    pub fn finish(mut self, stream: &mut EventStream) -> (Vec<StreamEvent>, String) {
         let pieces = self.splitter.finish();
-        let text = self.read(pieces);
+        let events = self.events_of(pieces, stream);
         // The grammar should keep a model from writing a block it can't read,
         // unless it was cut off.
         debug_assert!(
             !(self.has_grammar && self.unreadable && self.ended),
             "the model wrote a block of tool calls that can't be read"
         );
-        let generation = Generation {
-            written: self.splitter.written(),
-            calls: self.calls,
-        };
-        (text, generation)
+        (events, self.splitter.written())
     }
 
     fn bytes(&self, token: LlamaToken) -> Result<Vec<u8>, TokenToStringError> {
@@ -103,14 +92,12 @@ impl<'a> ResponseParser<'a> {
         }
     }
 
-    /// Reads `pieces` for their calls, logging the warnings among them and
-    /// noting when the model ends the generation, and returns the texts of
-    /// their tokens that stream: everything the model writes up to its first
-    /// call, but for the end of generation.
-    fn read(&mut self, pieces: Vec<Piece>) -> Vec<String> {
-        let mut text = Vec::new();
-        for Piece { kind, tokens } in pieces {
-            match kind {
+    /// Hands `pieces` to `stream` and returns the events they make, logging
+    /// the warnings among them and noting when the model ends the generation.
+    fn events_of(&mut self, pieces: Vec<Piece>, stream: &mut EventStream) -> Vec<StreamEvent> {
+        let mut events = Vec::new();
+        for piece in pieces {
+            match &piece.kind {
                 PieceKind::Warning(Warning::Malformed(error)) => {
                     warn!(%error, "Couldn't read a block of tool calls");
                     self.unreadable = true;
@@ -118,41 +105,25 @@ impl<'a> ResponseParser<'a> {
                 PieceKind::Warning(Warning::Stray(marker)) => {
                     warn!(marker, "The model wrote an end marker with nothing to end")
                 }
-                PieceKind::End { cut_off } => {
-                    self.ended = !cut_off;
-                    continue;
-                }
-                PieceKind::Open(Item::ToolCall { name }) => {
-                    self.calls_begun = true;
-                    self.call = Some((name, String::new()));
-                }
-                PieceKind::Delta(delta) => {
-                    if let Some((_, arguments)) = &mut self.call {
-                        arguments.push_str(&delta);
-                    }
-                }
-                PieceKind::Close => {
-                    if let Some((name, arguments)) = self.call.take() {
-                        self.calls.push(ToolCall {
-                            name,
-                            arguments: serde_json::from_str(&arguments)
-                                .expect("the splitter writes arguments as JSON"),
-                        });
-                    }
-                }
-                PieceKind::Open(_) => {}
+                PieceKind::End { cut_off } => self.ended = !cut_off,
+                _ => {}
             }
-            if !self.calls_begun {
-                text.extend(tokens.into_iter().map(|token| token.text));
-            }
+            let new = stream
+                .consume_piece(piece, &mut self.rng)
+                .expect("the splitter's pieces fit together");
+            events.extend(new);
         }
-        text
+        events
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event_stream::{
+        event::EventKind,
+        response::{FunctionCallItem, ItemKind, Status},
+    };
     use crate::output_format::Qwen3;
     use llama_cpp_2::model::{params::LlamaModelParams, AddBos};
     use serde_json::json;
@@ -168,14 +139,14 @@ mod tests {
     const PROMPT: &str = "<|im_start|>user\nHi<|im_end|>\n<|im_start|>assistant\n";
 
     /// Reads `response` as one generation after `prompt`, token by token as
-    /// the model would write it, and returns the text that streams, the
-    /// generation and whether the model ended it.
+    /// the model would write it, and returns its events, the stream, what the
+    /// history keeps of it and whether the model ended it.
     fn parse(
         model: &LlamaModel,
         format: Option<&ResolvedFormat>,
         prompt: &str,
         response: &str,
-    ) -> (String, Generation, bool) {
+    ) -> (Vec<StreamEvent>, EventStream, String, bool) {
         let tools = [Tool::new(
             "get_weather",
             "",
@@ -186,15 +157,15 @@ mod tests {
             }),
             Arc::new(|_| String::new()),
         )];
+        let (mut stream, mut events) = EventStream::new(false, &mut rand::rng());
         let mut parser = ResponseParser::new(model, format, &tools, prompt);
-        let mut streamed = String::new();
         for token in model.str_to_token(response, AddBos::Never).unwrap() {
-            streamed.extend(parser.push(token).unwrap());
+            events.extend(parser.push(token, &mut stream).unwrap());
         }
         let ended = parser.ended();
-        let (last, generation) = parser.finish();
-        streamed.extend(last);
-        (streamed, generation, ended)
+        let (last, written) = parser.finish(&mut stream);
+        events.extend(last);
+        (events, stream, written, ended)
     }
 
     /// What the history keeps of a generation is exactly what the model
@@ -243,33 +214,11 @@ mod tests {
             ),
         ] {
             for end in ["<|im_end|>", ""] {
-                let (_, generation, _) =
+                let (_, _, written, _) =
                     parse(&model, Some(&format), prompt, &format!("{response}{end}"));
-                assert_eq!(generation.written, kept, "{response:?}");
+                assert_eq!(written, kept, "{response:?}");
             }
         }
-    }
-
-    /// What streams is exactly the model's text up to its first call.
-    #[test]
-    fn the_text_up_to_the_calls_streams() {
-        let model = qwen3_vocab();
-        let format = ResolvedFormat::new(&Qwen3, &model).unwrap();
-        let call = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>";
-        let (streamed, _, _) = parse(
-            &model,
-            Some(&format),
-            PROMPT,
-            "<think>\nHmm.\n</think>\n\nHi!<|im_end|>",
-        );
-        assert_eq!(streamed, "<think>\nHmm.\n</think>\n\nHi!");
-        let (streamed, _, _) = parse(
-            &model,
-            Some(&format),
-            PROMPT,
-            &format!("Let me check{call}\nMore.<|im_end|>"),
-        );
-        assert_eq!(streamed, "Let me check");
     }
 
     /// A block that's cut off is kept as the text it is, even one that reads
@@ -281,10 +230,14 @@ mod tests {
         let call =
             "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n";
         for block in ["<tool_call>\nnot js", call] {
-            let (_, generation, ended) = parse(&model, Some(&format), PROMPT, block);
+            let (_, stream, written, ended) = parse(&model, Some(&format), PROMPT, block);
             assert!(!ended);
-            assert_eq!(generation.written, block);
-            assert!(generation.calls.is_empty());
+            assert_eq!(written, block);
+            assert!(stream
+                .response()
+                .output
+                .iter()
+                .all(|item| matches!(item.kind, ItemKind::Message(_))));
         }
     }
 
@@ -296,9 +249,9 @@ mod tests {
         let model = qwen3_vocab();
         let format = ResolvedFormat::new(&Qwen3, &model).unwrap();
         let block = "<tool_call>\nnot json\n</tool_call>";
-        let (_, generation, _) =
+        let (_, _, written, _) =
             parse(&model, Some(&format), PROMPT, &format!("{block}<|im_end|>"));
-        assert_eq!(generation.written, block);
+        assert_eq!(written, block);
     }
 
     /// Without tools there's no grammar to hold the model to the format, so
@@ -308,46 +261,67 @@ mod tests {
         let model = qwen3_vocab();
         let format = ResolvedFormat::new(&Qwen3, &model).unwrap();
         let block = "<tool_call>\nnot json\n</tool_call>";
+        let (mut stream, _) = EventStream::new(false, &mut rand::rng());
         let mut parser = ResponseParser::new(&model, Some(&format), &[], PROMPT);
         let response = format!("{block}<|im_end|>");
         for token in model.str_to_token(&response, AddBos::Never).unwrap() {
-            parser.push(token).unwrap();
+            parser.push(token, &mut stream).unwrap();
         }
-        let (_, generation) = parser.finish();
-        assert_eq!(generation.written, block);
+        let (_, written) = parser.finish(&mut stream);
+        assert_eq!(written, block);
     }
 
     #[test]
     fn without_an_output_format_everything_is_text() {
         let model = qwen3_vocab();
-        let (_, generation, ended) =
+        let (_, _, written, ended) =
             parse(&model, None, PROMPT, "<think>\nHi 🦀</think><|im_end|>");
-        assert_eq!(generation.written, "<think>\nHi 🦀</think>");
+        assert_eq!(written, "<think>\nHi 🦀</think>");
         assert!(ended);
 
-        let (_, generation, ended) = parse(&model, None, PROMPT, "Cut off");
-        assert_eq!(generation.written, "Cut off");
+        let (_, _, written, ended) = parse(&model, None, PROMPT, "Cut off");
+        assert_eq!(written, "Cut off");
         assert!(!ended);
     }
 
     #[test]
-    fn calls_are_read_from_their_blocks() {
+    fn calls_are_items_of_their_own() {
         let model = qwen3_vocab();
         let format = ResolvedFormat::new(&Qwen3, &model).unwrap();
         let call = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>";
-        let (_, generation, ended) = parse(
+        let (_, stream, _, ended) = parse(
             &model,
             Some(&format),
             PROMPT,
             &format!("Let me check.\n{call}<|im_end|>"),
         );
         assert!(ended);
-        assert_eq!(
-            generation.calls,
-            [ToolCall {
-                name: "get_weather".into(),
-                arguments: json!({ "city": "Oslo" }),
-            }]
-        );
+        assert!(matches!(
+            &stream.response().output[1].kind,
+            ItemKind::FunctionCall(FunctionCallItem { name, arguments, .. })
+                if name == "get_weather"
+                    && serde_json::from_str::<serde_json::Value>(arguments).unwrap()
+                        == json!({ "city": "Oslo" })
+        ));
+    }
+
+    /// A generation doesn't end the response, which can go on with another.
+    #[test]
+    fn a_generation_knows_whether_the_model_ended_it() {
+        let model = qwen3_vocab();
+        let format = ResolvedFormat::new(&Qwen3, &model).unwrap();
+        for (response, model_ended) in [("Done.<|im_end|>", true), ("Cut", false)] {
+            let (events, stream, _, ended) = parse(&model, Some(&format), PROMPT, response);
+            assert_eq!(ended, model_ended);
+            assert!(!events.iter().any(|event| matches!(
+                event.kind,
+                EventKind::Completed { .. } | EventKind::Incomplete { .. }
+            )));
+            assert!(stream
+                .response()
+                .output
+                .iter()
+                .all(|item| item.status == Status::Completed));
+        }
     }
 }

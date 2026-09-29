@@ -1,0 +1,1126 @@
+[
+  {
+    "type": "response.created",
+    "response": {
+      "id": "gen-1790065151-evvDpJqlK8uoTRuoWWKU",
+      "object": "response",
+      "created_at": 1790065151,
+      "model": "openai/gpt-5-nano",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 0
+  },
+  {
+    "type": "response.in_progress",
+    "response": {
+      "id": "gen-1790065151-evvDpJqlK8uoTRuoWWKU",
+      "object": "response",
+      "created_at": 1790065151,
+      "model": "openai/gpt-5-nano",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 1
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 0,
+    "item": {
+      "id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+      "type": "reasoning",
+      "status": "in_progress",
+      "summary": []
+    },
+    "sequence_number": 2
+  },
+  {
+    "type": "response.reasoning_summary_part.added",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "part": {
+      "type": "summary_text",
+      "text": ""
+    },
+    "sequence_number": 3
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "**Clarifying a greeting**\n\nI",
+    "sequence_number": 4
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " notice",
+    "sequence_number": 5
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " that",
+    "sequence_number": 6
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " the",
+    "sequence_number": 7
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " second",
+    "sequence_number": 8
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " sentence",
+    "sequence_number": 9
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " is",
+    "sequence_number": 10
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " lacking",
+    "sequence_number": 11
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " an",
+    "sequence_number": 12
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " object",
+    "sequence_number": 13
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ".",
+    "sequence_number": 14
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " \"",
+    "sequence_number": 15
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "Nice",
+    "sequence_number": 16
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " to",
+    "sequence_number": 17
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " meet",
+    "sequence_number": 18
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "\"",
+    "sequence_number": 19
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " doesn't",
+    "sequence_number": 20
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " stand",
+    "sequence_number": 21
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " alone",
+    "sequence_number": 22
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " properly",
+    "sequence_number": 23
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ".",
+    "sequence_number": 24
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " In",
+    "sequence_number": 25
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " casual",
+    "sequence_number": 26
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " writing",
+    "sequence_number": 27
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ",",
+    "sequence_number": 28
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " it",
+    "sequence_number": 29
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " often",
+    "sequence_number": 30
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " stands",
+    "sequence_number": 31
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " as",
+    "sequence_number": 32
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " an",
+    "sequence_number": 33
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " abbreviation",
+    "sequence_number": 34
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " for",
+    "sequence_number": 35
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " \"",
+    "sequence_number": 36
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "Nice",
+    "sequence_number": 37
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " to",
+    "sequence_number": 38
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " meet",
+    "sequence_number": 39
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " you",
+    "sequence_number": 40
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ".\"",
+    "sequence_number": 41
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " It",
+    "sequence_number": 42
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " could",
+    "sequence_number": 43
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " be",
+    "sequence_number": 44
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " accepted",
+    "sequence_number": 45
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " inform",
+    "sequence_number": 46
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "ally",
+    "sequence_number": 47
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ",",
+    "sequence_number": 48
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " but",
+    "sequence_number": 49
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " the",
+    "sequence_number": 50
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " standard",
+    "sequence_number": 51
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " phrase",
+    "sequence_number": 52
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " is",
+    "sequence_number": 53
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " more",
+    "sequence_number": 54
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " complete",
+    "sequence_number": 55
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ".",
+    "sequence_number": 56
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " It",
+    "sequence_number": 57
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "\u2019s",
+    "sequence_number": 58
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " clear",
+    "sequence_number": 59
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " that",
+    "sequence_number": 60
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " \u201c",
+    "sequence_number": 61
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "Hello",
+    "sequence_number": 62
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ",",
+    "sequence_number": 63
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " nice",
+    "sequence_number": 64
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " to",
+    "sequence_number": 65
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " meet",
+    "sequence_number": 66
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " you",
+    "sequence_number": 67
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "\u201d",
+    "sequence_number": 68
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " has",
+    "sequence_number": 69
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " five",
+    "sequence_number": 70
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " words",
+    "sequence_number": 71
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ",",
+    "sequence_number": 72
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " and",
+    "sequence_number": 73
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " that",
+    "sequence_number": 74
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "\u2019s",
+    "sequence_number": 75
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " what",
+    "sequence_number": 76
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " the",
+    "sequence_number": 77
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " user",
+    "sequence_number": 78
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " requested",
+    "sequence_number": 79
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ".",
+    "sequence_number": 80
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " So",
+    "sequence_number": 81
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ",",
+    "sequence_number": 82
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " I'll",
+    "sequence_number": 83
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " focus",
+    "sequence_number": 84
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " on",
+    "sequence_number": 85
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " providing",
+    "sequence_number": 86
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " that",
+    "sequence_number": 87
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " exact",
+    "sequence_number": 88
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " five",
+    "sequence_number": 89
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": "-word",
+    "sequence_number": 90
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " sentence",
+    "sequence_number": 91
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " without",
+    "sequence_number": 92
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " any",
+    "sequence_number": 93
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " extra",
+    "sequence_number": 94
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " formatting",
+    "sequence_number": 95
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " or",
+    "sequence_number": 96
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": " commentary",
+    "sequence_number": 97
+  },
+  {
+    "type": "response.reasoning_summary_text.delta",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "delta": ".",
+    "sequence_number": 98
+  },
+  {
+    "type": "response.reasoning_summary_text.done",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "text": "**Clarifying a greeting**\n\nI notice that the second sentence is lacking an object. \"Nice to meet\" doesn't stand alone properly. In casual writing, it often stands as an abbreviation for \"Nice to meet you.\" It could be accepted informally, but the standard phrase is more complete. It\u2019s clear that \u201cHello, nice to meet you\u201d has five words, and that\u2019s what the user requested. So, I'll focus on providing that exact five-word sentence without any extra formatting or commentary.",
+    "sequence_number": 99
+  },
+  {
+    "type": "response.reasoning_summary_part.done",
+    "output_index": 0,
+    "item_id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+    "summary_index": 0,
+    "part": {
+      "type": "summary_text",
+      "text": "**Clarifying a greeting**\n\nI notice that the second sentence is lacking an object. \"Nice to meet\" doesn't stand alone properly. In casual writing, it often stands as an abbreviation for \"Nice to meet you.\" It could be accepted informally, but the standard phrase is more complete. It\u2019s clear that \u201cHello, nice to meet you\u201d has five words, and that\u2019s what the user requested. So, I'll focus on providing that exact five-word sentence without any extra formatting or commentary."
+    },
+    "sequence_number": 100
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 0,
+    "item": {
+      "id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+      "type": "reasoning",
+      "status": "completed",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "**Clarifying a greeting**\n\nI notice that the second sentence is lacking an object. \"Nice to meet\" doesn't stand alone properly. In casual writing, it often stands as an abbreviation for \"Nice to meet you.\" It could be accepted informally, but the standard phrase is more complete. It\u2019s clear that \u201cHello, nice to meet you\u201d has five words, and that\u2019s what the user requested. So, I'll focus on providing that exact five-word sentence without any extra formatting or commentary."
+        }
+      ],
+      "encrypted_content": "gAAAAABqsjoFGj8lPVnlhMSHe3EhpljSrAbloSwbaK0Ru5Giy3oJW3vI0gZFUIlimNPOHXrbvppSHhDcZwcpUvKhtHHW1xgITzmXo3XoSes5T5nf0X3A5EO1g7miWi1RRJw5s7d-3UgUYKGFE5z34PJL1TZmr99_3xDjnfUvXM0_K-zesw6Jc4MojL9gmP7y-O4kJy0mt2VBaKx1LuZJEHzdogTuY2IiXO-2IW9yBNoN_tnX253vnEEIvW2AHZfUgb-dkEIwyLwpAAgGWk7RwgtN5CcJs5TZK-AqWkdUl3CpWOV3--eEpXi25eisl6NgZERdNIL46LIml73RDsLn1MqnzuRHQ1aL1DisShepuUjADmNrLkfYzpMKPNZ5rQURKmlbIWSRIuCvtDHn6eYkkJlh4aHTb9RGep5-u1eHYRBGbwnN8YXikFpXPNHqe8Yf9PhTf0m9jNP3RIMNOfmImv7m27lR21w0eI2yqHwssFO0AUjZUejSjl_SfTDnihz6G4BLqUCysu4Pt_cBpPdGRcK8kK_eZzwunektQ31wDKHZKtjVuuYw-AvKO9jl-DfP_OrbI29sDOTXG6DPqdYV7zr3jZ3ql-VPuSeAwZzNHaRZRdsg93kbPxKRmy51f6djxBVFzf9YQxerkgQZxRoGjLl7XmyPHlcLRur-DhlAuGw6Tqo9Fz0PYr5B3XGfNLvHDbhabg-PNFhmRPwWvaq9-KnIP3_dQXQbrh7snqwglKD-QxK8TkUN118lDU83-riSuGn4xPPfs0JV_7CB6LQZGIB1Ommj7Z0EwDXDgoail4JNny3NZjAptW6LSURzTsb5F0nUjmlYmJY_F8muqw16xQju9poeCDeCOhDGB2XHUtV_55aJB8InYVEqBIqjLXjLEJrboIcId5ShzIVcJuLuVaBhi7EMky-yxQ9eWVTc6_F-urD2FLL4LdtIVGur2jJ4MTKKCN6Sfy1DXn3k4JOLT-eLi0kzkZXh9oSbCxj5s85zYiXguR17SlGqZYQvqArbTxNwCe5f6XELZE1MVYk91leaCai576jtUJyzz4AeGH5nbmh-49lzhPQm7J1feWlCupWjKamz78GG5JGr0zAT7belj8qk5wPM-hykMxZFmkLR9YalbCiE37K6KbQFf7K0p6wZfe_aFwv8Sjnum6kk_uEz6UuI_ZnigzzqMljCkRvtiZQSXXe8CCECThovqvImw4UuVRYpSCoGNUeeBG21VMdfYfJ9akt7U-PM3xcTqMaBpFqx761c4GNNVIUaJmsLjHVrDj8CDwVQvXUduBR2PrillmRXkeOd1QCr4oSLAB5HBsWA9-5w2_G0kYlbqKSo_EeN6kqjazzaEqo5yji4fFxecZfxprmUEia3o4NWnX-BB3Sd7LwOjhIrO4VTZF9NQNah_R80QR6aUXUmrGWOD_9qM_LflfmqVswCx5I-Bt5Mztoohs301YCZQQsjDU-mXQWgiosh0W9MZlnCye26bchcWepeTD6O7vUa-Hm0-AJbDjuJCquNTSbRzSyGLdWnKfh_MRNUujTSG1tQKQIljrDfYPyDHCECd1Dvg1QkJXdDGlJPDDTStN_Zx7uyNarQKea9tq-ZnjMXDaxkGCvl3QMTirjN1hBvPFuVRRd2Dp0gSt4yKj09H2aQtPdkbi7tmahWAr5rm_VqO0AwkF3rFksv_3g4VLa5iFKWKR6FUzF73nu4X62rNNbN04NWGIL4J-lGnjZER6ye9TiNEk3cA5g_Xtwve_AtCB9XvB4SPKheeuM7xCaY7-H365W5Zy4lW_7v2AyeGGSvDikBkxUEJSaIaqy9-9j7GwbQDEZTcU1Nm2C7HjNzYvOGv6q0LY3RFpkuAIM9JBTLqiF-hr-a8kNry4GEcNcxrjLI53-2Ou4QHlwpqw7jaENpZOo7NmRR6IcXZJHp0vF8MoPaLYWqbOzWdGCLTC7dx3-AenJJQ4vBe97Fa6ohmgIKm_lSfKpUkwYyITwsK-APCKKwh3_ER2BOf-4YA59dhmKaxZR6XjCBOe7E9C-CZVAch_M5I_P9LKpQMB5HgzLdM2p9djHQxYvMz1QU1v-voQ75klidQZS8noYvM7uBBUlyu2Cp3O0NC0Znn_0VmO16zL0vJYCxwPVFm6X0wiKj1nksj3pTEcqgfZWFLM65ZuK_HP3pTRk5jGzIxP19YvCTEKRYxlTD-kelNkXp9Rob-LgKT1hCiLIFUyMQx9q5GX2-JcmhM-RYbncZC467_YRLGXZiKKJ57kzQID6yOWpSJ92E9gNyTaAoXI85KbDUWk0sjFayfTLuTIQ5eBm_25kjL-28AVMfnbHJkOF7CZ7qCAhNpOZ6AiF3WcBj3QiXdc76MK7x0IaWCjpjYOoDNOTDvRFH6tezJRjrOQQlkDdbp6BWxKhjIFOxi8L8JiKa57bj7VrzA4WUXbLevuMi17fVeGSwHfnFKou01bhzgFrV1LusJFLCsHfHBAvCxzD6oUttNocVW9lZmOwdM8sxp5eYeJivSV4t1xGje2VD8K5hmqh-1aktIW8Iw-DMCJaaxRoS0Od0ED0-9ZeIwRM4Sr5p8_phC5EYsBGIn5m-aR_tOrBKaqpIcbi7vgI5Wwn0sSFoKOpNDdp9ZKQoY7FxbuPJ7Opch__HlzXe50VVNBQI6_RPMy2gAbHfM9Jfwk3LM_YPm0To3zTm0F2MikAMezPD2Va2UhB25tHrpH_SDMP9x0uafxW6cgY5Jdw6lVMqHe6jbtpeANjAS21fKTGwrheyneAOr8oD4jvxtXK_LFf6qGyZ1jiDJaxT25SK_t3c--KmXzKxUhj9hOkUvLAurK80g9n_-7DXoibOPLju9IWKqc7wVoAz_h2QlTVYQDScvQncExqjlVoOUS2CczGNoV3VPZRqQDO0azkxR-jsBUt4PdPQ-Lsl0lcHmvJo2xPSAlZ9w0zGX-0naHFIOAElAOrRXypvvJgQ2Y3AGk-GYIS3faBHEzkSe18RJRUQzcLv84sCbRj74Vd_4Nw2PsIryrVFrPv_o_JkHIgD7dQ-VJMFDIGQKsGm2F0Er4XNkPK6DxCA_s8WdknFksTS0DMfpRjZoqaIylRO2dIptQNsvWIkO3kRlF_l2MIsgx7-8CQg9eRkmrAnznZNIx5pQXpl8k8el0_cyBdlxlNClVe_WkHR9VkBaBzjrUagfvIGqX_KKl0jLhzMjk69ZZ42RdtaLLFouOYVF_ZmxKA-jYGNjYkQkZgUvTCsw1CBCSdozEDg1iyKEbtuE76m5sKW2xuBava_T4p6j1Z8dqKcES5lTvBYq8KnCXqdYwm607dzjUGNTf4maDJFh9SNJR5KhFzhp90pT_EayIYy0FCoF8gW3QCr54rKGUyWZVOTIzPR1CIzkg3FZsNhHvOyt4q3A15HsSW5wLr9ZA6fg7RNz05ijzBGxEVh0L93xzN1QWK6BOMUtlnbbEfqHSPcHuLpO9Fzslqh142YGISHkTcoEcUTGhGufmkh3fG1oj6shZNkYBxuClFtgIf8RbPasdfQnwGtkXQAEl5tCiNTKqbYTN2GzIHxwMXGkaj3Xnosg-n4y2ZAVpWR4R9fLPM5rQMRvXP33b0d0lwTUL2gvHygQPyRkiDU_nzwiQ-pSOxm1oB4UbvK0tVsZInNdVOiuoUYMTTW_YIuH-pyh4yQwu7TlN6ERbhqMOOMZYZGsd2PiOGEpvUonqKoWtPv1p7qy68293c8WPhUI6inl2Fz-ye-7SVzBnaHh9BXSab83CNQGD0RvO4T1Ed1eIBmv76pyAZ5rgOSkK6DHjnHhoLdxRBczh-i0x3tCb7nHYaA7_d9lhRhXdHgzd5PxesBJupehO8IGMYLGF6juRtjNEobib9YbW9beza0Wg==.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC01LW5hbm8tMjAyNS0wOC0wN3xvcGVuYWkifQ",
+      "format": "openai-responses-v1"
+    },
+    "sequence_number": 101
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 1,
+    "item": {
+      "id": "msg_tmp_ojzvluuuyif",
+      "type": "message",
+      "status": "in_progress",
+      "role": "assistant",
+      "content": []
+    },
+    "sequence_number": 102
+  },
+  {
+    "type": "response.content_part.added",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "part": {
+      "type": "output_text",
+      "text": "",
+      "annotations": [],
+      "logprobs": []
+    },
+    "sequence_number": 103
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "delta": "Hello",
+    "logprobs": [],
+    "sequence_number": 104
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "delta": ",",
+    "logprobs": [],
+    "sequence_number": 105
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "delta": " nice",
+    "logprobs": [],
+    "sequence_number": 106
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "delta": " to",
+    "logprobs": [],
+    "sequence_number": 107
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "delta": " meet",
+    "logprobs": [],
+    "sequence_number": 108
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "delta": " you",
+    "logprobs": [],
+    "sequence_number": 109
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "delta": ".",
+    "logprobs": [],
+    "sequence_number": 110
+  },
+  {
+    "type": "response.output_text.done",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "text": "Hello, nice to meet you.",
+    "logprobs": [],
+    "sequence_number": 111
+  },
+  {
+    "type": "response.content_part.done",
+    "output_index": 1,
+    "item_id": "msg_tmp_ojzvluuuyif",
+    "content_index": 0,
+    "part": {
+      "type": "output_text",
+      "text": "Hello, nice to meet you.",
+      "annotations": [],
+      "logprobs": []
+    },
+    "sequence_number": 112
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 1,
+    "item": {
+      "id": "msg_tmp_ojzvluuuyif",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Hello, nice to meet you.",
+          "annotations": [],
+          "logprobs": []
+        }
+      ]
+    },
+    "sequence_number": 113
+  },
+  {
+    "type": "response.completed",
+    "response": {
+      "id": "gen-1790065151-evvDpJqlK8uoTRuoWWKU",
+      "object": "response",
+      "created_at": 1790065151,
+      "model": "openai/gpt-5-nano",
+      "status": "completed",
+      "completed_at": 1790065158,
+      "output": [
+        {
+          "id": "rs_02dfd4420563a28d016ab239fff5f487d18912e45ca6b0e595",
+          "type": "reasoning",
+          "status": "completed",
+          "summary": [
+            {
+              "type": "summary_text",
+              "text": "**Clarifying a greeting**\n\nI notice that the second sentence is lacking an object. \"Nice to meet\" doesn't stand alone properly. In casual writing, it often stands as an abbreviation for \"Nice to meet you.\" It could be accepted informally, but the standard phrase is more complete. It\u2019s clear that \u201cHello, nice to meet you\u201d has five words, and that\u2019s what the user requested. So, I'll focus on providing that exact five-word sentence without any extra formatting or commentary."
+            }
+          ],
+          "encrypted_content": "gAAAAABqsjoFGj8lPVnlhMSHe3EhpljSrAbloSwbaK0Ru5Giy3oJW3vI0gZFUIlimNPOHXrbvppSHhDcZwcpUvKhtHHW1xgITzmXo3XoSes5T5nf0X3A5EO1g7miWi1RRJw5s7d-3UgUYKGFE5z34PJL1TZmr99_3xDjnfUvXM0_K-zesw6Jc4MojL9gmP7y-O4kJy0mt2VBaKx1LuZJEHzdogTuY2IiXO-2IW9yBNoN_tnX253vnEEIvW2AHZfUgb-dkEIwyLwpAAgGWk7RwgtN5CcJs5TZK-AqWkdUl3CpWOV3--eEpXi25eisl6NgZERdNIL46LIml73RDsLn1MqnzuRHQ1aL1DisShepuUjADmNrLkfYzpMKPNZ5rQURKmlbIWSRIuCvtDHn6eYkkJlh4aHTb9RGep5-u1eHYRBGbwnN8YXikFpXPNHqe8Yf9PhTf0m9jNP3RIMNOfmImv7m27lR21w0eI2yqHwssFO0AUjZUejSjl_SfTDnihz6G4BLqUCysu4Pt_cBpPdGRcK8kK_eZzwunektQ31wDKHZKtjVuuYw-AvKO9jl-DfP_OrbI29sDOTXG6DPqdYV7zr3jZ3ql-VPuSeAwZzNHaRZRdsg93kbPxKRmy51f6djxBVFzf9YQxerkgQZxRoGjLl7XmyPHlcLRur-DhlAuGw6Tqo9Fz0PYr5B3XGfNLvHDbhabg-PNFhmRPwWvaq9-KnIP3_dQXQbrh7snqwglKD-QxK8TkUN118lDU83-riSuGn4xPPfs0JV_7CB6LQZGIB1Ommj7Z0EwDXDgoail4JNny3NZjAptW6LSURzTsb5F0nUjmlYmJY_F8muqw16xQju9poeCDeCOhDGB2XHUtV_55aJB8InYVEqBIqjLXjLEJrboIcId5ShzIVcJuLuVaBhi7EMky-yxQ9eWVTc6_F-urD2FLL4LdtIVGur2jJ4MTKKCN6Sfy1DXn3k4JOLT-eLi0kzkZXh9oSbCxj5s85zYiXguR17SlGqZYQvqArbTxNwCe5f6XELZE1MVYk91leaCai576jtUJyzz4AeGH5nbmh-49lzhPQm7J1feWlCupWjKamz78GG5JGr0zAT7belj8qk5wPM-hykMxZFmkLR9YalbCiE37K6KbQFf7K0p6wZfe_aFwv8Sjnum6kk_uEz6UuI_ZnigzzqMljCkRvtiZQSXXe8CCECThovqvImw4UuVRYpSCoGNUeeBG21VMdfYfJ9akt7U-PM3xcTqMaBpFqx761c4GNNVIUaJmsLjHVrDj8CDwVQvXUduBR2PrillmRXkeOd1QCr4oSLAB5HBsWA9-5w2_G0kYlbqKSo_EeN6kqjazzaEqo5yji4fFxecZfxprmUEia3o4NWnX-BB3Sd7LwOjhIrO4VTZF9NQNah_R80QR6aUXUmrGWOD_9qM_LflfmqVswCx5I-Bt5Mztoohs301YCZQQsjDU-mXQWgiosh0W9MZlnCye26bchcWepeTD6O7vUa-Hm0-AJbDjuJCquNTSbRzSyGLdWnKfh_MRNUujTSG1tQKQIljrDfYPyDHCECd1Dvg1QkJXdDGlJPDDTStN_Zx7uyNarQKea9tq-ZnjMXDaxkGCvl3QMTirjN1hBvPFuVRRd2Dp0gSt4yKj09H2aQtPdkbi7tmahWAr5rm_VqO0AwkF3rFksv_3g4VLa5iFKWKR6FUzF73nu4X62rNNbN04NWGIL4J-lGnjZER6ye9TiNEk3cA5g_Xtwve_AtCB9XvB4SPKheeuM7xCaY7-H365W5Zy4lW_7v2AyeGGSvDikBkxUEJSaIaqy9-9j7GwbQDEZTcU1Nm2C7HjNzYvOGv6q0LY3RFpkuAIM9JBTLqiF-hr-a8kNry4GEcNcxrjLI53-2Ou4QHlwpqw7jaENpZOo7NmRR6IcXZJHp0vF8MoPaLYWqbOzWdGCLTC7dx3-AenJJQ4vBe97Fa6ohmgIKm_lSfKpUkwYyITwsK-APCKKwh3_ER2BOf-4YA59dhmKaxZR6XjCBOe7E9C-CZVAch_M5I_P9LKpQMB5HgzLdM2p9djHQxYvMz1QU1v-voQ75klidQZS8noYvM7uBBUlyu2Cp3O0NC0Znn_0VmO16zL0vJYCxwPVFm6X0wiKj1nksj3pTEcqgfZWFLM65ZuK_HP3pTRk5jGzIxP19YvCTEKRYxlTD-kelNkXp9Rob-LgKT1hCiLIFUyMQx9q5GX2-JcmhM-RYbncZC467_YRLGXZiKKJ57kzQID6yOWpSJ92E9gNyTaAoXI85KbDUWk0sjFayfTLuTIQ5eBm_25kjL-28AVMfnbHJkOF7CZ7qCAhNpOZ6AiF3WcBj3QiXdc76MK7x0IaWCjpjYOoDNOTDvRFH6tezJRjrOQQlkDdbp6BWxKhjIFOxi8L8JiKa57bj7VrzA4WUXbLevuMi17fVeGSwHfnFKou01bhzgFrV1LusJFLCsHfHBAvCxzD6oUttNocVW9lZmOwdM8sxp5eYeJivSV4t1xGje2VD8K5hmqh-1aktIW8Iw-DMCJaaxRoS0Od0ED0-9ZeIwRM4Sr5p8_phC5EYsBGIn5m-aR_tOrBKaqpIcbi7vgI5Wwn0sSFoKOpNDdp9ZKQoY7FxbuPJ7Opch__HlzXe50VVNBQI6_RPMy2gAbHfM9Jfwk3LM_YPm0To3zTm0F2MikAMezPD2Va2UhB25tHrpH_SDMP9x0uafxW6cgY5Jdw6lVMqHe6jbtpeANjAS21fKTGwrheyneAOr8oD4jvxtXK_LFf6qGyZ1jiDJaxT25SK_t3c--KmXzKxUhj9hOkUvLAurK80g9n_-7DXoibOPLju9IWKqc7wVoAz_h2QlTVYQDScvQncExqjlVoOUS2CczGNoV3VPZRqQDO0azkxR-jsBUt4PdPQ-Lsl0lcHmvJo2xPSAlZ9w0zGX-0naHFIOAElAOrRXypvvJgQ2Y3AGk-GYIS3faBHEzkSe18RJRUQzcLv84sCbRj74Vd_4Nw2PsIryrVFrPv_o_JkHIgD7dQ-VJMFDIGQKsGm2F0Er4XNkPK6DxCA_s8WdknFksTS0DMfpRjZoqaIylRO2dIptQNsvWIkO3kRlF_l2MIsgx7-8CQg9eRkmrAnznZNIx5pQXpl8k8el0_cyBdlxlNClVe_WkHR9VkBaBzjrUagfvIGqX_KKl0jLhzMjk69ZZ42RdtaLLFouOYVF_ZmxKA-jYGNjYkQkZgUvTCsw1CBCSdozEDg1iyKEbtuE76m5sKW2xuBava_T4p6j1Z8dqKcES5lTvBYq8KnCXqdYwm607dzjUGNTf4maDJFh9SNJR5KhFzhp90pT_EayIYy0FCoF8gW3QCr54rKGUyWZVOTIzPR1CIzkg3FZsNhHvOyt4q3A15HsSW5wLr9ZA6fg7RNz05ijzBGxEVh0L93xzN1QWK6BOMUtlnbbEfqHSPcHuLpO9Fzslqh142YGISHkTcoEcUTGhGufmkh3fG1oj6shZNkYBxuClFtgIf8RbPasdfQnwGtkXQAEl5tCiNTKqbYTN2GzIHxwMXGkaj3Xnosg-n4y2ZAVpWR4R9fLPM5rQMRvXP33b0d0lwTUL2gvHygQPyRkiDU_nzwiQ-pSOxm1oB4UbvK0tVsZInNdVOiuoUYMTTW_YIuH-pyh4yQwu7TlN6ERbhqMOOMZYZGsd2PiOGEpvUonqKoWtPv1p7qy68293c8WPhUI6inl2Fz-ye-7SVzBnaHh9BXSab83CNQGD0RvO4T1Ed1eIBmv76pyAZ5rgOSkK6DHjnHhoLdxRBczh-i0x3tCb7nHYaA7_d9lhRhXdHgzd5PxesBJupehO8IGMYLGF6juRtjNEobib9YbW9beza0Wg==.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC01LW5hbm8tMjAyNS0wOC0wN3xvcGVuYWkifQ",
+          "format": "openai-responses-v1"
+        },
+        {
+          "id": "msg_tmp_ojzvluuuyif",
+          "type": "message",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello, nice to meet you.",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "default",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": {
+        "context": "current_turn",
+        "effort": "medium",
+        "mode": "standard",
+        "summary": "detailed"
+      },
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": {
+        "input_tokens": 13,
+        "input_tokens_details": {
+          "cached_tokens": 0
+        },
+        "output_tokens": 481,
+        "output_tokens_details": {
+          "reasoning_tokens": 448
+        },
+        "total_tokens": 494,
+        "cost": 0.00019305,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.00019305,
+          "upstream_inference_input_cost": 6.5e-07,
+          "upstream_inference_output_cost": 0.0001924
+        }
+      }
+    },
+    "sequence_number": 114
+  }
+]
