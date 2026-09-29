@@ -1,6 +1,16 @@
 name: "Docs"
 on:
   workflow_call:
+    inputs:
+      branch:
+        # Cloudflare Pages branch to deploy as. `main` is production
+        # (docs.nobodywho.ooo); any other branch is a preview deploy.
+        type: string
+        default: main
+    outputs:
+      url:
+        description: "Deployed URL: the branch alias when there is one, else this deploy's URL."
+        value: ${{ jobs.deploy-pages.outputs.url }}
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: true
@@ -14,7 +24,18 @@ permissions:
 jobs:
   deploy-pages:
     runs-on: warp-ubuntu-latest-x64-2x
+    outputs:
+      url: ${{ steps.deploy.outputs.pages-deployment-alias-url || steps.deploy.outputs.deployment-url }}
     steps:
+      - name: Validate branch name
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          if [[ ! "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+            echo "::error::Unsupported branch name for a Pages deploy: $BRANCH"
+            exit 1
+          fi
+
       - uses: actions/checkout@v5
 
       - name: Set up Node.js
@@ -33,9 +54,12 @@ jobs:
         run: npm run build
 
       - name: Deploy to cloudflare pages
+        id: deploy
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./docs/build/ --project-name=nobodywho-docs
+          # Explicit --branch: wrangler would otherwise guess it from the checkout.
+          command: pages deploy ./docs/build/ --project-name=nobodywho-docs --branch=${{ inputs.branch }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
