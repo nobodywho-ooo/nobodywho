@@ -1,0 +1,939 @@
+[
+  {
+    "type": "response.created",
+    "response": {
+      "id": "gen-1790065229-h9FrkXzgxtVl00QKdJtz",
+      "object": "response",
+      "created_at": 1790065229,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": {
+        "effort": "low"
+      },
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 0
+  },
+  {
+    "type": "response.in_progress",
+    "response": {
+      "id": "gen-1790065229-h9FrkXzgxtVl00QKdJtz",
+      "object": "response",
+      "created_at": 1790065229,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": {
+        "effort": "low"
+      },
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 1
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 0,
+    "item": {
+      "id": "rs_tmp_fyx1aipcfol",
+      "type": "reasoning",
+      "status": "in_progress",
+      "summary": []
+    },
+    "sequence_number": 2
+  },
+  {
+    "type": "response.content_part.added",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "part": {
+      "type": "reasoning_text",
+      "text": ""
+    },
+    "sequence_number": 3
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": "The user is asking me",
+    "sequence_number": 4
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " to compare the current weather",
+    "sequence_number": 5
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " (",
+    "sequence_number": 6
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": "specifically",
+    "sequence_number": 7
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " temperature) between Copenhagen and Oslo. I",
+    "sequence_number": 8
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " need",
+    "sequence_number": 9
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " to get the current weather for both cities",
+    "sequence_number": 10
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " and",
+    "sequence_number": 11
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " then compare the temperatures.\n\nI should",
+    "sequence_number": 12
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " call",
+    "sequence_number": 13
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " the get_weather function for both Copenhagen",
+    "sequence_number": 14
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " and Oslo.",
+    "sequence_number": 15
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " Since these are independent calls, I can",
+    "sequence_number": 16
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " make them both",
+    "sequence_number": 17
+  },
+  {
+    "type": "response.reasoning_text.delta",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "delta": " in the same function_calls block.",
+    "sequence_number": 18
+  },
+  {
+    "type": "response.reasoning_text.done",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "text": "The user is asking me to compare the current weather (specifically temperature) between Copenhagen and Oslo. I need to get the current weather for both cities and then compare the temperatures.\n\nI should call the get_weather function for both Copenhagen and Oslo. Since these are independent calls, I can make them both in the same function_calls block.",
+    "sequence_number": 19
+  },
+  {
+    "type": "response.content_part.done",
+    "output_index": 0,
+    "item_id": "rs_tmp_fyx1aipcfol",
+    "content_index": 0,
+    "part": {
+      "type": "reasoning_text",
+      "text": "The user is asking me to compare the current weather (specifically temperature) between Copenhagen and Oslo. I need to get the current weather for both cities and then compare the temperatures.\n\nI should call the get_weather function for both Copenhagen and Oslo. Since these are independent calls, I can make them both in the same function_calls block."
+    },
+    "sequence_number": 20
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 0,
+    "item": {
+      "id": "rs_tmp_fyx1aipcfol",
+      "type": "reasoning",
+      "status": "completed",
+      "content": [
+        {
+          "type": "reasoning_text",
+          "text": "The user is asking me to compare the current weather (specifically temperature) between Copenhagen and Oslo. I need to get the current weather for both cities and then compare the temperatures.\n\nI should call the get_weather function for both Copenhagen and Oslo. Since these are independent calls, I can make them both in the same function_calls block."
+        }
+      ],
+      "summary": [],
+      "signature": "EuEECpwBCBIQARgCKkAn6MQIdUSTUvkrbvExpW7Wy8jMU55PBeEv73MhQwxUWk+64cUfUzMmQYKaEVYfMCNA8CtOEpEEAnlli2Ia/b+mMhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nWgw1MzY2OTcyNDk3MjhyEN/QxS8bu4xOuQZAG2+LMbuIAQGoAc70yNUGsAECEgxd6CSPffY3ftcCjQwaDNc6YOIhCgL5h36HPiIwyX9X3KJI6Qe+QJd1GOqbmo+8ozcgskQqq7AS/0OenxkZQheGENOoQmjxJ8sSzROUKvEC5+CthHCC8K7GThSKZbtCjlK/bpDccQwCEAElyR+XX2PJFwgbzKGpC2RMH69bH8R/WNFABSDRV1iJyJoYYGClEk3xxfH1E0YtQmZRwYCcfwLjQzmWFrxkjs+4oAGVMDVcdHaL32tpjbPdA+5efsEf37c4QhA2oTLVJWHz8RA2spSgceE8lvcnQNlvnHEFBE6QLbIQLKbuQxS5v9/VPkpRshLDoHvvaFrPdZj8IE/Sybn2APFK9gc2LY+OTuQdZFtA7IZu67zuT3nNTQhTsyhecC0+BEix05TgRtjTOhrMjoU3Ih95HeGzQXX4JNrFVXlYM+hUuBcPwXQXjlOModiGxjgmGIp3n6HUPbkjOaPv5JtHD7QCTtczhQtoOMCchXiPgbFRd0R9LEzY4HImo/E5E7ScIFQVhl6+UJ4M/kyORYpz/v149mqL8I40wDThB4sw7Hu7E/WVdpDU8XLuQfEgDSBfhlSp4wp65QtymA/kgtPZGAE=",
+      "format": "anthropic-claude-v1"
+    },
+    "sequence_number": 21
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 1,
+    "item": {
+      "id": "fc_tmp_fbe0m4mh7qn",
+      "type": "function_call",
+      "status": "in_progress",
+      "call_id": "toolu_bdrk_01UGwXcKkJZPLbEgoSSg4sG7",
+      "name": "get_weather",
+      "arguments": ""
+    },
+    "sequence_number": 22
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 1,
+    "item_id": "fc_tmp_fbe0m4mh7qn",
+    "delta": "{\"city\": \"Copenhagen",
+    "sequence_number": 23
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 1,
+    "item_id": "fc_tmp_fbe0m4mh7qn",
+    "delta": "\"}",
+    "sequence_number": 24
+  },
+  {
+    "type": "response.function_call_arguments.done",
+    "output_index": 1,
+    "item_id": "fc_tmp_fbe0m4mh7qn",
+    "name": "get_weather",
+    "arguments": "{\"city\": \"Copenhagen\"}",
+    "sequence_number": 25
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 1,
+    "item": {
+      "id": "fc_tmp_fbe0m4mh7qn",
+      "type": "function_call",
+      "status": "completed",
+      "call_id": "toolu_bdrk_01UGwXcKkJZPLbEgoSSg4sG7",
+      "name": "get_weather",
+      "arguments": "{\"city\": \"Copenhagen\"}"
+    },
+    "sequence_number": 26
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 2,
+    "item": {
+      "id": "fc_tmp_4jypd1heg23",
+      "type": "function_call",
+      "status": "in_progress",
+      "call_id": "toolu_bdrk_016jAj1ji6inK7koEcDmxYim",
+      "name": "get_weather",
+      "arguments": ""
+    },
+    "sequence_number": 27
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 2,
+    "item_id": "fc_tmp_4jypd1heg23",
+    "delta": "{\"city\": \"Oslo",
+    "sequence_number": 28
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 2,
+    "item_id": "fc_tmp_4jypd1heg23",
+    "delta": "\"}",
+    "sequence_number": 29
+  },
+  {
+    "type": "response.function_call_arguments.done",
+    "output_index": 2,
+    "item_id": "fc_tmp_4jypd1heg23",
+    "name": "get_weather",
+    "arguments": "{\"city\": \"Oslo\"}",
+    "sequence_number": 30
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 2,
+    "item": {
+      "id": "fc_tmp_4jypd1heg23",
+      "type": "function_call",
+      "status": "completed",
+      "call_id": "toolu_bdrk_016jAj1ji6inK7koEcDmxYim",
+      "name": "get_weather",
+      "arguments": "{\"city\": \"Oslo\"}"
+    },
+    "sequence_number": 31
+  },
+  {
+    "type": "response.completed",
+    "response": {
+      "id": "gen-1790065229-h9FrkXzgxtVl00QKdJtz",
+      "object": "response",
+      "created_at": 1790065229,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "completed",
+      "completed_at": 1790065230,
+      "output": [
+        {
+          "id": "rs_tmp_fyx1aipcfol",
+          "type": "reasoning",
+          "status": "completed",
+          "content": [
+            {
+              "type": "reasoning_text",
+              "text": "The user is asking me to compare the current weather (specifically temperature) between Copenhagen and Oslo. I need to get the current weather for both cities and then compare the temperatures.\n\nI should call the get_weather function for both Copenhagen and Oslo. Since these are independent calls, I can make them both in the same function_calls block."
+            }
+          ],
+          "summary": [],
+          "signature": "EuEECpwBCBIQARgCKkAn6MQIdUSTUvkrbvExpW7Wy8jMU55PBeEv73MhQwxUWk+64cUfUzMmQYKaEVYfMCNA8CtOEpEEAnlli2Ia/b+mMhljbGF1ZGUtaGFpa3UtNC01LTIwMjUxMDAxOABCCHRoaW5raW5nWgw1MzY2OTcyNDk3MjhyEN/QxS8bu4xOuQZAG2+LMbuIAQGoAc70yNUGsAECEgxd6CSPffY3ftcCjQwaDNc6YOIhCgL5h36HPiIwyX9X3KJI6Qe+QJd1GOqbmo+8ozcgskQqq7AS/0OenxkZQheGENOoQmjxJ8sSzROUKvEC5+CthHCC8K7GThSKZbtCjlK/bpDccQwCEAElyR+XX2PJFwgbzKGpC2RMH69bH8R/WNFABSDRV1iJyJoYYGClEk3xxfH1E0YtQmZRwYCcfwLjQzmWFrxkjs+4oAGVMDVcdHaL32tpjbPdA+5efsEf37c4QhA2oTLVJWHz8RA2spSgceE8lvcnQNlvnHEFBE6QLbIQLKbuQxS5v9/VPkpRshLDoHvvaFrPdZj8IE/Sybn2APFK9gc2LY+OTuQdZFtA7IZu67zuT3nNTQhTsyhecC0+BEix05TgRtjTOhrMjoU3Ih95HeGzQXX4JNrFVXlYM+hUuBcPwXQXjlOModiGxjgmGIp3n6HUPbkjOaPv5JtHD7QCTtczhQtoOMCchXiPgbFRd0R9LEzY4HImo/E5E7ScIFQVhl6+UJ4M/kyORYpz/v149mqL8I40wDThB4sw7Hu7E/WVdpDU8XLuQfEgDSBfhlSp4wp65QtymA/kgtPZGAE=",
+          "format": "anthropic-claude-v1"
+        },
+        {
+          "id": "fc_tmp_fbe0m4mh7qn",
+          "type": "function_call",
+          "status": "completed",
+          "call_id": "toolu_bdrk_01UGwXcKkJZPLbEgoSSg4sG7",
+          "name": "get_weather",
+          "arguments": "{\"city\": \"Copenhagen\"}"
+        },
+        {
+          "id": "fc_tmp_4jypd1heg23",
+          "type": "function_call",
+          "status": "completed",
+          "call_id": "toolu_bdrk_016jAj1ji6inK7koEcDmxYim",
+          "name": "get_weather",
+          "arguments": "{\"city\": \"Oslo\"}"
+        }
+      ],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "default",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": {
+        "effort": "low"
+      },
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": {
+        "input_tokens": 607,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens": 166,
+        "output_tokens_details": {
+          "reasoning_tokens": 74
+        },
+        "total_tokens": 773,
+        "cost": 0.001437,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.001437,
+          "upstream_inference_input_cost": 0.000607,
+          "upstream_inference_output_cost": 0.00083
+        }
+      }
+    },
+    "sequence_number": 32
+  },
+  {
+    "type": "response.created",
+    "response": {
+      "id": "gen-1790065230-t3miFcKGDjJBFeFxfCBh",
+      "object": "response",
+      "created_at": 1790065230,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": {
+        "effort": "low"
+      },
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 0
+  },
+  {
+    "type": "response.in_progress",
+    "response": {
+      "id": "gen-1790065230-t3miFcKGDjJBFeFxfCBh",
+      "object": "response",
+      "created_at": 1790065230,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": {
+        "effort": "low"
+      },
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 1
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 0,
+    "item": {
+      "id": "msg_tmp_yni2ey1jhd",
+      "type": "message",
+      "status": "in_progress",
+      "role": "assistant",
+      "content": []
+    },
+    "sequence_number": 2
+  },
+  {
+    "type": "response.content_part.added",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "part": {
+      "type": "output_text",
+      "text": "",
+      "annotations": [],
+      "logprobs": []
+    },
+    "sequence_number": 3
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": "Right",
+    "logprobs": [],
+    "sequence_number": 4
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " now, **",
+    "logprobs": [],
+    "sequence_number": 5
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": "Copenhagen and",
+    "logprobs": [],
+    "sequence_number": 6
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " Oslo have the same temperature**",
+    "logprobs": [],
+    "sequence_number": 7
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " - both",
+    "logprobs": [],
+    "sequence_number": 8
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " are at",
+    "logprobs": [],
+    "sequence_number": 9
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " **",
+    "logprobs": [],
+    "sequence_number": 10
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": "17\u00b0C (",
+    "logprobs": [],
+    "sequence_number": 11
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": "about",
+    "logprobs": [],
+    "sequence_number": 12
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " 63\u00b0F)",
+    "logprobs": [],
+    "sequence_number": 13
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": "**",
+    "logprobs": [],
+    "sequence_number": 14
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " with cloudy conditions. So",
+    "logprobs": [],
+    "sequence_number": 15
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " neither",
+    "logprobs": [],
+    "sequence_number": 16
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " city is warmer than the other at",
+    "logprobs": [],
+    "sequence_number": 17
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "delta": " this moment!",
+    "logprobs": [],
+    "sequence_number": 18
+  },
+  {
+    "type": "response.output_text.done",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "text": "Right now, **Copenhagen and Oslo have the same temperature** - both are at **17\u00b0C (about 63\u00b0F)** with cloudy conditions. So neither city is warmer than the other at this moment!",
+    "logprobs": [],
+    "sequence_number": 19
+  },
+  {
+    "type": "response.content_part.done",
+    "output_index": 0,
+    "item_id": "msg_tmp_yni2ey1jhd",
+    "content_index": 0,
+    "part": {
+      "type": "output_text",
+      "text": "Right now, **Copenhagen and Oslo have the same temperature** - both are at **17\u00b0C (about 63\u00b0F)** with cloudy conditions. So neither city is warmer than the other at this moment!",
+      "annotations": [],
+      "logprobs": []
+    },
+    "sequence_number": 20
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 0,
+    "item": {
+      "id": "msg_tmp_yni2ey1jhd",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Right now, **Copenhagen and Oslo have the same temperature** - both are at **17\u00b0C (about 63\u00b0F)** with cloudy conditions. So neither city is warmer than the other at this moment!",
+          "annotations": [],
+          "logprobs": []
+        }
+      ]
+    },
+    "sequence_number": 21
+  },
+  {
+    "type": "response.completed",
+    "response": {
+      "id": "gen-1790065230-t3miFcKGDjJBFeFxfCBh",
+      "object": "response",
+      "created_at": 1790065230,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "completed",
+      "completed_at": 1790065232,
+      "output": [
+        {
+          "id": "msg_tmp_yni2ey1jhd",
+          "type": "message",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Right now, **Copenhagen and Oslo have the same temperature** - both are at **17\u00b0C (about 63\u00b0F)** with cloudy conditions. So neither city is warmer than the other at this moment!",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "default",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": {
+        "effort": "low"
+      },
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": {
+        "input_tokens": 866,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens": 49,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 915,
+        "cost": 0.001111,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.001111,
+          "upstream_inference_input_cost": 0.000866,
+          "upstream_inference_output_cost": 0.000245
+        }
+      }
+    },
+    "sequence_number": 22
+  }
+]

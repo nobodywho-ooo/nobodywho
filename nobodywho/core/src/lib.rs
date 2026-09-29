@@ -4,6 +4,7 @@ pub mod cpu;
 pub mod crossencoder;
 pub mod encoder;
 pub mod errors;
+mod event_stream;
 mod host_memory;
 pub mod huggingface;
 pub mod inference;
