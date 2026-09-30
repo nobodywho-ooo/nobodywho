@@ -88,9 +88,7 @@ void main() {
     if (modelPath == null) return; // skip all LLM tests if no model provided
     nobodywho.Chat? chat;
 
-    setUp(() async {
-      // Additional setup goes here.
-
+    Future<nobodywho.Chat> createChat() async {
       final multiplyStringsTool = nobodywho.Tool(
         function: multiplyStrings,
         name: "multiplyStrings",
@@ -149,7 +147,7 @@ void main() {
         },
       );
 
-      chat = await nobodywho.Chat.fromPath(
+      return nobodywho.Chat.fromPath(
         modelPath: modelPath,
         systemPrompt: "",
         contextSize: 2048,
@@ -165,6 +163,10 @@ void main() {
           setIntersectionTool,
         ],
       );
+    }
+
+    setUp(() async {
+      chat = await createChat();
     });
 
     test('Capital of Denmark test', () async {
@@ -402,12 +404,14 @@ void main() {
 
     test('Sampler actually affects output', () async {
       // Test that greedy sampler gives deterministic output
-      final greedy = nobodywho.SamplerPresets.greedy();
-      await chat!.setSamplerConfig(greedy);
+      await chat!.setSamplerConfig(nobodywho.SamplerPresets.greedy());
 
       final response1 = await chat!.ask("Say exactly: 'Hello'").completed();
-      await chat!.resetHistory();
-      final response2 = await chat!.ask("Say exactly: 'Hello'").completed();
+      // Use a fresh context so both runs evaluate the full prompt, rather
+      // than comparing batched prefill with a cached-prefix token replay.
+      final secondChat = await createChat();
+      await secondChat.setSamplerConfig(nobodywho.SamplerPresets.greedy());
+      final response2 = await secondChat.ask("Say exactly: 'Hello'").completed();
 
       expect(response1, equals(response2)); // Should be identical with greedy
     });
