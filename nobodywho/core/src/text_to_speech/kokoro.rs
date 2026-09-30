@@ -134,14 +134,23 @@ impl MisakiPhonemes {
         Self(joined).strip_zwj()
     }
 
-    /// Split CamelCase / snake_case / kebab-case so the G2P sees normal words.
+    /// Split CamelCase / snake_case / kebab-case so the G2P sees normal words,
+    /// and fold typographic quotes to ASCII. Word processors and phone
+    /// keyboards emit `’` instead of `'` (and `“”` instead of `"`), but
+    /// misaki's lexicon only has ASCII-apostrophe entries ("don't", never
+    /// "don’t") — without the fold, contractions split and garble
+    /// (`don’t` → "don-tee"). Same fold as the supertonic backend and
+    /// upstream's old `kokoro.py normalize_text`.
     /// Pre-G2P normalization, returns plain `String` since the result isn't
     /// misaki phonemes yet — just normalized text ready for either backend.
     /// https://github.com/hexgrad/misaki/blob/main/misaki/en.py#L54-L61
     fn normalize_input(text: &str) -> String {
         let re = regex::Regex::new(r"(\p{Ll})(\p{Lu})").unwrap();
         let sep_replaced = text.replace(['_', '-'], " ");
-        re.replace_all(&sep_replaced, "$1 $2").into_owned()
+        let quoted = sep_replaced
+            .replace(['\u{2018}', '\u{2019}', '´', '`'], "'")
+            .replace(['\u{201C}', '\u{201D}'], "\"");
+        re.replace_all(&quoted, "$1 $2").into_owned()
     }
 
     fn apply(mut self, pairs: &[(&str, &str)]) -> Self {
@@ -555,6 +564,47 @@ impl KokoroVoice {
             .as_chunks::<STYLE_DIM>()
             .0
             .to_vec()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn phonemize_en_us(phonemizer: &Phonemizer, text: &str) -> String {
+        phonemizer.phonemize(text).expect("phonemize").into_inner()
+    }
+
+    /// Typographic quotes must phonemize exactly like their ASCII
+    /// counterparts. Word processors and phone autocorrect emit `’` instead
+    /// of `'` (and `“”` instead of `"`), but misaki's lexicon only has
+    /// ASCII-apostrophe entries ("don't", never "don’t") — without the fold
+    /// in [`MisakiPhonemes::normalize_input`], contractions split and garble
+    /// (`don’t` → "don-tee").
+    #[test]
+    fn phonemizes_typographic_punctuation_like_ascii() {
+        // Sandbox-proof espeak data dir: the nix sandbox has no writable
+        // $HOME/.cache, and first-use extraction needs somewhere to write.
+        std::env::set_var(
+            "NOBODYWHO_ESPEAK_DATA_DIR",
+            std::env::temp_dir().join("nobodywho-espeak-test"),
+        );
+        let p = Phonemizer::new(EspeakDialect::EnUs, "en-us").expect("init phonemizer");
+
+        let ascii = phonemize_en_us(&p, "I don't like it, it's Bob's dog.");
+        for variant in [
+            "I don’t like it, it’s Bob’s dog.", // U+2019
+            "I don‘t like it, it‘s Bob‘s dog.", // U+2018
+            "I don´t like it, it´s Bob´s dog.", // acute accent
+            "I don`t like it, it`s Bob`s dog.", // grave accent
+        ] {
+            assert_eq!(ascii, phonemize_en_us(&p, variant), "variant: {variant:?}");
+        }
+
+        assert_eq!(
+            phonemize_en_us(&p, "He said “don’t” and left."),
+            phonemize_en_us(&p, "He said \"don't\" and left."),
+        );
     }
 }
 
