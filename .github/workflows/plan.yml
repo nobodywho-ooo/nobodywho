@@ -38,6 +38,9 @@ on:
         value: ${{ jobs.plan.outputs.run_apple_extended }}
       run_docs:
         value: ${{ jobs.plan.outputs.run_docs }}
+      run_docs_preview:
+        # Docs preview deploy to Cloudflare Pages. Only on demand via /docs-ci.
+        value: ${{ jobs.plan.outputs.run_docs_preview }}
       run_regen:
         value: ${{ jobs.plan.outputs.run_regen }}
       run_release:
@@ -66,6 +69,7 @@ jobs:
       run_react_native:   ${{ steps.decide.outputs.run_react_native }}
       run_apple_extended: ${{ steps.decide.outputs.run_apple_extended }}
       run_docs:           ${{ steps.decide.outputs.run_docs }}
+      run_docs_preview:   ${{ steps.decide.outputs.run_docs_preview }}
       run_regen:          ${{ steps.decide.outputs.run_regen }}
       run_release:        ${{ steps.decide.outputs.run_release }}
       device_jobs:        ${{ steps.decide.outputs.device_jobs }}
@@ -292,6 +296,11 @@ jobs:
           # to main, so this only actually deploys on a push to main.
           run_docs=$(any "$everything" "$p_docs")
 
+          # docs_preview: a preview deploy of this branch's docs. Never path- or
+          # full-run-triggered — only an explicit /docs-ci PR comment.
+          run_docs_preview=false
+          if [[ " ${DISPATCH_BUCKETS:-} " == *" docs_preview "* ]]; then run_docs_preview=true; fi
+
           # release: only on a release tag.
           run_release=false
           if [[ "$REF" == refs/tags/nobodywho-* ]]; then run_release=true; fi
@@ -337,6 +346,7 @@ jobs:
             echo "run_react_native=$run_react_native"
             echo "run_apple_extended=$run_apple_extended"
             echo "run_docs=$run_docs"
+            echo "run_docs_preview=$run_docs_preview"
             echo "run_regen=$run_regen"
             echo "run_release=$run_release"
             echo "device_jobs=$device_jobs"
@@ -362,6 +372,7 @@ jobs:
             echo "| apple_extended | $run_apple_extended |"
             echo "| regen | $run_regen |"
             echo "| docs | $run_docs |"
+            echo "| docs_preview | $run_docs_preview |"
             echo "| release | $run_release |"
             echo "| device tests | ${device_jobs:-none} |"
           } >> "$GITHUB_STEP_SUMMARY"
