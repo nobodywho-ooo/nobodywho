@@ -63,6 +63,16 @@ rec {
       # File a bug if you depend on any for non-debug work!
       debug = internal.debugCrate { inherit packageId; };
     };
+    "make_stubs" = rec {
+      packageId = "make_stubs";
+      build = internal.buildRustCrateWithFeatures {
+        packageId = "make_stubs";
+      };
+
+      # Debug support which might change between releases.
+      # File a bug if you depend on any for non-debug work!
+      debug = internal.debugCrate { inherit packageId; };
+    };
     "nobodywho" = rec {
       packageId = "nobodywho";
       build = internal.buildRustCrateWithFeatures {
@@ -9547,6 +9557,26 @@ rec {
         features = {
         };
       };
+      "make_stubs" = rec {
+        crateName = "make_stubs";
+        version = "0.1.0";
+        edition = "2021";
+        crateBin = [
+          {
+            name = "make_stubs";
+            path = "src/main.rs";
+            requiredFeatures = [ ];
+          }
+        ];
+        src = lib.cleanSourceWith { filter = sourceFilter;  src = ./python/make_stubs; };
+        dependencies = [
+          {
+            name = "pyo3-introspection";
+            packageId = "pyo3-introspection";
+          }
+        ];
+
+      };
       "manyhow" = rec {
         crateName = "manyhow";
         version = "0.11.4";
@@ -11185,13 +11215,6 @@ rec {
         crateName = "nobodywho-python";
         version = "3.0.0";
         edition = "2021";
-        crateBin = [
-          {
-            name = "make_stubs";
-            path = "src/bin/make_stubs.rs";
-            requiredFeatures = [ ];
-          }
-        ];
         src = lib.cleanSourceWith { filter = sourceFilter;  src = ./python; };
         libName = "nobodywho_python";type = [ "cdylib" ];
         dependencies = [
@@ -11220,10 +11243,6 @@ rec {
             name = "pyo3-async-runtimes";
             packageId = "pyo3-async-runtimes";
             features = [ "attributes" "tokio-runtime" ];
-          }
-          {
-            name = "pyo3-introspection";
-            packageId = "pyo3-introspection";
           }
           {
             name = "pyo3-log";

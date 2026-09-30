@@ -25,7 +25,7 @@ clippy:
 
 [arg("clean", long="require-clean", value="true")]
 regen-python clean="false":
-    cd nobodywho/python && uv sync --no-install-project && maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
+    cd nobodywho/python && uv sync --no-install-project && maturin develop --uv && cargo run -p make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
     [ "{{clean}}" != true ] || git diff --exit-code nobodywho/python/nobodywho.pyi || (echo "Python stubs are out of date — commit them before pushing" && exit 1)
 
 [arg("clean", long="require-clean", value="true")]

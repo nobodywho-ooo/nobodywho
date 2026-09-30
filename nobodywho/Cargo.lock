@@ -3025,6 +3025,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc04a4c58212d57930a24bf47d3fa87485264a3a054e9c10e042eb373573ad3c"
 
 [[package]]
+name = "make_stubs"
+version = "0.1.0"
+dependencies = [
+ "pyo3-introspection",
+]
+
+[[package]]
 name = "manyhow"
 version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3520,7 +3527,6 @@ dependencies = [
  "nom 8.0.0",
  "pyo3",
  "pyo3-async-runtimes",
- "pyo3-introspection",
  "pyo3-log",
  "pythonize",
  "rand 0.10.3",

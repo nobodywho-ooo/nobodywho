@@ -3,7 +3,7 @@
 /// generate stubs for the Python bindings. The script should be run after the crate is built.
 ///
 /// Usage:
-///   cargo run --bin make_stubs [--release]
+///   cargo run -p make_stubs [--release]
 use pyo3_introspection::{introspect_cdylib, module_stub_files};
 use std::env;
 use std::fs;

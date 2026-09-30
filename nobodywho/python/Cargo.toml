@@ -23,7 +23,6 @@ log = "0.4"
 tracing = { version = "0.1.41", features = ["log"] }
 tracing-subscriber = "0.3.19"
 futures = "0.3.31"
-pyo3-introspection = "0.29.0"
 pyo3-log = "0.13.4"
 pythonize = "0.29.0"
 nom = "8.0.0"

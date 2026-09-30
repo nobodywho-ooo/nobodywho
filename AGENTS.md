@@ -66,7 +66,7 @@ cargo build
 ```bash
 cd nobodywho/python
 maturin develop --uv
-cargo run --bin make_stubs  # Generate type stubs
+cargo run -p make_stubs  # Generate type stubs
 ```
 
 ### Testing
