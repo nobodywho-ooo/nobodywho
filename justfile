@@ -7,7 +7,13 @@ GODOT_PROJECT := "nobodywho/godot/tests"
 # `clean` must be passed to every dependency that (transitively) reaches a
 # recipe taking it; a missed edge silently runs that subtree lenient.
 [arg("clean", long="require-clean", value="true")]
-check clean="false": (fmt clean) clippy (regen-python clean) (regen-flutter clean) (ruff clean) (regen-uniffi clean) flutter-analyze (testing-apps clean) godot-build
+check clean="false": _check-start (fmt clean) clippy (regen-python clean) (regen-flutter clean) (ruff clean) (regen-uniffi clean) flutter-analyze (testing-apps clean) godot-build
+    @n=$(find nobodywho/target/debug/build -path '*/llama-cpp-sys-2-*/output' -newer nobodywho/target/.check-start | wc -l); \
+    [ "$n" -le 1 ] || echo "⚠  llama.cpp was built $((n)) times; the cargo builds above no longer share one llama-cpp-sys-2 build."
+
+# Marks the start of `check`, so it can tell how many llama.cpp builds ran.
+_check-start:
+    @mkdir -p nobodywho/target && touch nobodywho/target/.check-start
 
 [arg("clean", long="require-clean", value="true")]
 fmt clean="false":

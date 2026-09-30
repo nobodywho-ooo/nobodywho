@@ -114,3 +114,7 @@ llama-cpp-2 = { version = "=0.1.157", default-features = false, features = [
     "llguidance",
     "common",
 ] }
+
+# Unifies host bitflags features (uniffi enables `std`) so llama-cpp-sys-2 is only built once.
+[build-dependencies]
+bitflags = { version = "2", features = ["std"] }

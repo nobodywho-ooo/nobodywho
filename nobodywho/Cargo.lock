@@ -3434,6 +3434,7 @@ version = "2.4.0"
 dependencies = [
  "ahash",
  "bashkit",
+ "bitflags 2.13.2",
  "chrono",
  "dirs",
  "emojis",

@@ -22,3 +22,8 @@ default-members = [
 
 # edition = "2021" implies resolver = "2".
 resolver = "2"
+
+# Keeps build-dependency units identical across `cargo build` and `cargo check`
+# so llama-cpp-sys-2 is only built once.
+[profile.dev.build-override]
+debug = false
