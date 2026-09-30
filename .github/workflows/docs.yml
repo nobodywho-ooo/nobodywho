@@ -27,15 +27,6 @@ jobs:
     outputs:
       url: ${{ steps.deploy.outputs.pages-deployment-alias-url || steps.deploy.outputs.deployment-url }}
     steps:
-      - name: Validate branch name
-        env:
-          BRANCH: ${{ inputs.branch }}
-        run: |
-          if [[ ! "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
-            echo "::error::Unsupported branch name for a Pages deploy: $BRANCH"
-            exit 1
-          fi
-
       - uses: actions/checkout@v5
 
       - name: Set up Node.js
