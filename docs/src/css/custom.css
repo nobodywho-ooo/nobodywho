@@ -29,21 +29,42 @@
   font-display: swap;
 }
 
+/* Size-matched fallback for Inter Tight, so text barely reflows (layout shift) when the web font
+   swaps in. size-adjust = Inter Tight's text width / Arial's, measured per weight. */
+@font-face {
+  font-family: 'Inter Tight Fallback';
+  src: local('Arial'), local('Liberation Sans'), local('Arimo');
+  font-weight: 400 500;
+  size-adjust: 96.8%;
+}
+
+@font-face {
+  font-family: 'Inter Tight Fallback';
+  src: local('Arial Bold'), local('Liberation Sans Bold'), local('Arimo Bold');
+  font-weight: 600 700;
+  size-adjust: 93.4%;
+}
+
 /* ── Tokens ─────────────────────────────────────────────── */
 /* :root[data-theme] outranks Infima's html[data-theme='dark'] defaults */
 :root,
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  /* Section tone: the docs sit on garnet-deep, like the design system's DocsPage */
-  --sec-bg: var(--nw-garnet-deep);
+  /* Section tone: the design system's ink tone (t-ink), a warm near-black */
+  --sec-bg: var(--nw-ink-black);
   --sec-ink: var(--nw-cream);
-  --sec-muted: rgba(244, 237, 230, 0.66);
-  --sec-rule: rgba(244, 237, 230, 0.3);
+  --sec-muted: var(--nw-cream-72);
+  --sec-rule: rgba(244, 237, 230, 0.32);
   --sec-dot: var(--nw-cream-16);
   --sec-accent: var(--nw-accent);
   /* Code ground and inline-code fill match the website blog (blog-refresh.css) */
-  --code-bg: #180607;
+  /* The design system's font stack plus the size-matched fallback above */
+  --font-sans: 'Inter Tight', 'Inter Tight Fallback', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --code-bg: var(--nw-ink-dark-3);
+  /* Small labels (nav links above titles, TOC heading, buttons, info labels); the design system's 13px eyebrow reads thin in the docs */
+  --label-size: 14px;
+  --code-ink: var(--nw-cream);
   --code-muted: rgba(244, 237, 230, 0.68);
   --code-rule: rgba(244, 237, 230, 0.3);
   --rule-soft: var(--nw-cream-15);
@@ -69,7 +90,7 @@
   --ifm-heading-color: var(--sec-ink);
 
   --ifm-color-emphasis-0: var(--sec-bg);
-  --ifm-color-emphasis-100: var(--nw-garnet);
+  --ifm-color-emphasis-100: var(--nw-ink-dark-3);
   --ifm-color-emphasis-200: var(--rule-soft);
   --ifm-color-emphasis-300: var(--sec-rule);
   --ifm-color-emphasis-400: var(--nw-cream-34);
@@ -145,7 +166,8 @@
   --search-local-input-active-border-color: var(--sec-accent);
 }
 
-/* Light mode: the design system's paper tone (t-paper), rust accent */
+/* Light mode: the design system's paper tone (t-paper). Accent is nobodywho.ai's light-theme
+   accent (#97410d): the design system's rust (#c9501f) is only 3.5:1 on paper, too faint for text. */
 :root[data-theme='light'] {
   color-scheme: light;
 
@@ -154,19 +176,19 @@
   --sec-muted: rgba(34, 24, 26, 0.64);
   --sec-rule: rgba(34, 24, 26, 0.38);
   --sec-dot: rgba(34, 24, 26, 0.22);
-  --sec-accent: var(--nw-rust);
-  --focus-ring: var(--nw-rust);
+  --sec-accent: #97410d;
+  --focus-ring: #97410d;
   --rule-soft: rgba(34, 24, 26, 0.15);
   --overlay-bg: rgba(233, 226, 216, 0.94);
   --overlay-glass: rgba(233, 226, 216, 0.55);
 
-  --ifm-color-primary: var(--nw-rust);
-  --ifm-color-primary-dark: var(--nw-rust-deep);
-  --ifm-color-primary-darker: var(--nw-rust-deep);
-  --ifm-color-primary-darkest: var(--nw-rust-deep);
-  --ifm-color-primary-light: var(--nw-rust);
-  --ifm-color-primary-lighter: var(--nw-rust);
-  --ifm-color-primary-lightest: var(--nw-rust);
+  --ifm-color-primary: #97410d;
+  --ifm-color-primary-dark: #97410d;
+  --ifm-color-primary-darker: #97410d;
+  --ifm-color-primary-darkest: #97410d;
+  --ifm-color-primary-light: #97410d;
+  --ifm-color-primary-lighter: #97410d;
+  --ifm-color-primary-lightest: #97410d;
 
   --ifm-color-emphasis-100: rgba(34, 24, 26, 0.06);
   --ifm-color-emphasis-400: rgba(34, 24, 26, 0.4);
@@ -176,8 +198,9 @@
 
   /* Code blocks: the design system's white tone, one step up from the paper page */
   --code-bg: var(--nw-white);
+  --code-ink: var(--nw-ink-dark);
   --code-muted: rgba(34, 24, 26, 0.64);
-  --code-rule: rgba(34, 24, 26, 0.3);
+  --code-rule: var(--sec-rule);
   --docusaurus-highlighted-code-line-bg: rgba(201, 80, 31, 0.12);
 }
 
@@ -304,11 +327,58 @@ b {
   color: var(--sec-ink);
 }
 
+/* "nobodywho | DOCS" wordmark: a single link to the docs home */
+.nw-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nw-brand .navbar__title {
+  /* Infima gives navbar titles flex: 1 1 auto, which would push the DOCS tag away */
+  flex: none;
+  text-decoration: none;
+}
+
+.nw-brand__docs {
+  padding: 2px 0 2px 12px;
+  border-left: var(--border-hair) solid var(--sec-rule);
+  color: var(--sec-muted);
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  line-height: 1;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.nw-brand:hover,
+.nw-brand:focus-visible {
+  text-decoration: none;
+}
+
+/* Hovering either part lights up DOCS, so it reads as one button */
+.nw-brand:hover .nw-brand__docs,
+.nw-brand:focus-visible .nw-brand__docs {
+  color: var(--sec-accent);
+}
+
+/* The nobodywho.ai item only belongs in the phone menu; the wordmark links to the docs home */
+.navbar__items--right .nav-site-link {
+  display: none !important;
+}
+
+.navbar-sidebar .nav-site-link svg {
+  display: none;
+}
+
 .navbar__items:not(.navbar__items--right) .navbar__link {
   position: relative;
   padding: 6px 0;
   margin: 0 calc(var(--gap-menu) / 2);
-  text-transform: uppercase;
+  /* Normal case (not the design system's uppercase) to make room for the language icons */
+  text-transform: none;
   font-size: var(--type-nav);
   font-weight: var(--fw-medium);
   letter-spacing: 0;
@@ -484,17 +554,42 @@ b {
   color: var(--sec-accent);
 }
 
+/* GitHub in the drawer: a normal drawer row with its mark, not the outlined nav button */
+.navbar-sidebar .header-github-link {
+  gap: 12px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: var(--border-hair) solid var(--rule-soft);
+  background: none;
+  color: var(--sec-ink) !important;
+  font-size: var(--type-drawer);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+}
+
+.navbar-sidebar .header-github-link::before {
+  width: 0.8em;
+  height: 0.8em;
+}
+
+.navbar-sidebar .header-github-link:hover,
+.navbar-sidebar .header-github-link:focus-visible {
+  background: none;
+  color: var(--sec-accent) !important;
+}
+
 .navbar-sidebar__back {
   background: transparent;
   color: var(--sec-accent);
   text-transform: uppercase;
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
 }
 
-/* Compact: GitHub goes icon-only and the menu tightens, as the design system nav does */
-@media (max-width: 1280px) {
+/* Compact: GitHub goes icon-only and the menu tightens, as the design system nav does.
+   Kicks in wide because the language icons make the menu long. */
+@media (max-width: 1720px) {
   .header-github-link {
     gap: 0;
     padding: 9px 10px;
@@ -514,8 +609,8 @@ b {
   }
 }
 
-/* Narrowest desktop widths, just above the mobile menu: tighten spacing so it all stays on one line */
-@media (max-width: 1140px) {
+/* Narrow desktop widths, just above the mobile menu: tighten spacing so it all stays on one line */
+@media (max-width: 1260px) {
   .navbar__brand,
   .navbar__items--right {
     margin-right: 0;
@@ -536,9 +631,22 @@ b {
   }
 }
 
+/* Narrowest desktop widths: drop the menu's language icons (the phone menu below 997px shows them) */
+@media (min-width: 997px) and (max-width: 1100px) {
+  .navbar__items:not(.navbar__items--right) .lang-icon::before {
+    display: none;
+  }
+}
+
 @media (max-width: 996px) {
   .navbar {
     height: var(--nav-h-compact);
+  }
+
+  /* Docusaurus shows the burger with display:inherit, which would copy the
+     left group's display:contents and collapse it to nothing */
+  .navbar__toggle {
+    display: block;
   }
 
   .navbar__items .header-github-link {
@@ -624,9 +732,8 @@ b {
   padding: 24px 24px 0 var(--pad-x);
 }
 
-.sidebar-version label,
-.sidebar-ext__label {
-  font-size: var(--type-eyebrow);
+.sidebar-version label {
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
@@ -672,14 +779,6 @@ b {
 .sidebar-version-select option {
   color: var(--nw-ink-dark);
   background: var(--nw-white);
-}
-
-.sidebar-ext {
-  display: grid;
-  gap: 10px;
-  margin: 8px 24px 24px var(--pad-x);
-  padding-top: 18px;
-  border-top: var(--border-hair) solid var(--sec-rule);
 }
 
 /* ── Arrow links (nw-more) ──────────────────────────────── */
@@ -828,7 +927,7 @@ article img {
 
 .markdown table th {
   text-align: left;
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
@@ -873,7 +972,7 @@ code {
   border-radius: var(--radius);
   background: var(--code-bg);
   font-family: var(--font-mono);
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   color: var(--code-muted);
 }
 
@@ -888,40 +987,84 @@ code {
   color: var(--sec-accent);
 }
 
-/* ── Admonitions: plain text under a small label, no box or rules.
-   Notes/tips get a muted label; warnings/caution/danger an accent one. ── */
+/* ── Admonitions: like the original docs, a 4px accent edge, icon and coloured label ──
+   Info/note/tip blue, warning/caution/danger red (Infima's own info/danger colours; blue is
+   outside the design system palette). Near-black box in dark mode, a pale accent tint in light. */
 .theme-admonition.alert {
-  --ifm-alert-background-color: transparent;
-  --ifm-alert-background-color-highlight: transparent;
-  --ifm-alert-foreground-color: var(--sec-ink);
-  --ifm-alert-padding-horizontal: 0;
-  --ifm-alert-padding-vertical: 0;
+  --callout-accent: #54c7ec;
+  --callout-label: #54c7ec;
+  --callout-bg: #0a0a0a;
+  --callout-ink: var(--sec-ink);
+  --ifm-alert-background-color: var(--callout-bg);
+  --ifm-alert-background-color-highlight: rgba(244, 237, 230, 0.08);
+  --ifm-alert-foreground-color: var(--callout-ink);
+  --ifm-alert-padding-horizontal: 20px;
+  --ifm-alert-padding-vertical: 16px;
   border: 0;
+  border-left: 4px solid var(--callout-accent);
   border-radius: var(--radius);
+  color: var(--callout-ink);
 }
 
-.theme-admonition [class*='admonitionHeading'] {
-  margin-bottom: 4px;
-  font-size: var(--type-eyebrow);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--tr-eyebrow);
-  text-transform: uppercase;
-  color: var(--sec-muted);
+.theme-admonition.alert.theme-admonition-warning,
+.theme-admonition.alert.theme-admonition-caution,
+.theme-admonition.alert.theme-admonition-danger {
+  --callout-accent: #fa383e;
+  --callout-label: #fa383e;
+}
+
+:root[data-theme='light'] .theme-admonition.alert {
+  --callout-bg: #e1f3fa;
+  --callout-label: #1f6f8b;
+  --callout-ink: var(--nw-ink-dark);
+  --ifm-alert-background-color-highlight: rgba(34, 24, 26, 0.08);
+}
+
+:root[data-theme='light'] .theme-admonition.alert.theme-admonition-warning,
+:root[data-theme='light'] .theme-admonition.alert.theme-admonition-caution,
+:root[data-theme='light'] .theme-admonition.alert.theme-admonition-danger {
+  --callout-bg: #fde4e5;
+  --callout-label: #a8252a;
 }
 
 /* Doubled class so this wins by specificity: the minifier may reorder same-colour rules */
-.theme-admonition.theme-admonition-warning [class*='admonitionHeading'],
-.theme-admonition.theme-admonition-caution [class*='admonitionHeading'],
-.theme-admonition.theme-admonition-danger [class*='admonitionHeading'] {
-  color: var(--sec-accent);
+.theme-admonition.theme-admonition [class*='admonitionHeading'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: var(--label-size);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--callout-label);
 }
 
+/* Docusaurus icon, in the label colour */
 .theme-admonition [class*='admonitionIcon'] {
-  display: none;
+  display: inline-flex;
+  margin-right: 0;
 }
 
-.alert a {
-  color: var(--sec-accent);
+.theme-admonition [class*='admonitionIcon'] svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Light tints need darker links and inline code than the page's */
+:root[data-theme='light'] .markdown .theme-admonition.alert a:not(.hash-link) {
+  color: var(--nw-ground);
+  text-decoration-color: currentColor;
+}
+
+:root[data-theme='light'] .markdown .theme-admonition.alert a:not(.hash-link):hover {
+  color: var(--nw-ink-dark);
+}
+
+:root[data-theme='light'] .theme-admonition.alert :not(pre) > code {
+  background: rgba(34, 24, 26, 0.08);
+  color: var(--nw-ink-dark);
 }
 
 /* Collapsible <details> blocks follow the same hairline pattern */
@@ -939,64 +1082,6 @@ code {
 
 .markdown details > summary {
   font-weight: var(--fw-semibold);
-}
-
-/* ── Breadcrumbs + version: the page eyebrow ────────────── */
-.breadcrumbs {
-  margin-bottom: 18px;
-}
-
-.breadcrumbs__item {
-  font-size: var(--type-eyebrow);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--tr-eyebrow);
-  text-transform: uppercase;
-}
-
-.breadcrumbs__link {
-  padding: 0;
-  border-radius: var(--radius);
-  background: transparent !important;
-  color: var(--sec-muted);
-  font-size: inherit;
-}
-
-a.breadcrumbs__link:hover {
-  color: var(--sec-accent);
-}
-
-.breadcrumbs__item--active .breadcrumbs__link {
-  color: var(--sec-muted);
-}
-
-.breadcrumbs__link svg {
-  display: none;
-}
-
-.breadcrumbs__link[aria-label]::before {
-  content: 'Documentation';
-}
-
-.breadcrumbs__item:not(:last-child)::after {
-  content: '\00B7';
-  width: auto;
-  height: auto;
-  margin: 0 0.6em;
-  background: none;
-  filter: none;
-  opacity: 1;
-  color: var(--sec-muted);
-}
-
-.theme-doc-version-badge {
-  margin-bottom: 18px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--sec-muted);
-  font-family: var(--font-mono);
-  font-size: var(--type-eyebrow);
-  font-weight: var(--fw-regular);
 }
 
 /* ── Top of page: prev/next + page actions ──────────────── */
@@ -1025,7 +1110,7 @@ a.breadcrumbs__link:hover {
   background: none;
   color: var(--sec-muted);
   font-family: var(--font-sans);
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
@@ -1073,6 +1158,12 @@ a.breadcrumbs__link:hover {
   position: relative;
 }
 
+/* Same footprint as the two buttons, so the page doesn't shift when they appear */
+.page-actions--placeholder {
+  width: 240px;
+  height: 34px;
+}
+
 .page-actions__list {
   position: absolute;
   right: 0;
@@ -1105,13 +1196,60 @@ a.breadcrumbs__link:hover {
   color: var(--sec-accent);
 }
 
+/* Copy page / Open in: framed buttons, equal height, icon + label */
+.page-action {
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: var(--border-hair) solid var(--sec-rule);
+  color: var(--sec-ink);
+  line-height: 1;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.page-action:hover,
+.page-action:focus-visible,
+.page-action[aria-expanded='true'] {
+  border-color: var(--sec-accent);
+}
+
+.page-action__icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.page-action__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.page-actions__list a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-actions__list .page-action__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* On narrow screens the actions sit on the left, so open the menu rightwards */
+@media (max-width: 996px) {
+  .page-actions__list {
+    left: 0;
+    right: auto;
+  }
+}
+
 /* ── Table of contents ──────────────────────────────────── */
-.table-of-contents::before {
+/* Desktop only: the folded mobile TOC already has its own "On this page" toggle */
+.theme-doc-toc-desktop .table-of-contents::before {
   content: 'On this page';
   display: block;
   margin-bottom: 10px;
   padding-left: var(--ifm-toc-padding-horizontal);
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
@@ -1123,7 +1261,7 @@ a.breadcrumbs__link:hover {
 }
 
 .table-of-contents {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .table-of-contents__link {
@@ -1147,7 +1285,7 @@ a.breadcrumbs__link:hover {
 .theme-doc-toc-mobile > button {
   padding-left: 0;
   padding-right: 0;
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
@@ -1184,7 +1322,7 @@ a.breadcrumbs__link:hover {
 
 .pagination-nav__sublabel {
   margin-bottom: 6px;
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
@@ -1297,7 +1435,7 @@ a.card:hover h2 {
   width: 100%;
   margin: var(--gap-foot) auto 0;
   padding: 22px var(--pad-x) 32px;
-  font-size: var(--type-foot);
+  font-size: 14px;
   color: var(--sec-muted);
 }
 
@@ -1368,7 +1506,7 @@ a.card:hover h2 {
 
 .nw-eyebrow {
   margin: 0 0 18px;
-  font-size: var(--type-eyebrow);
+  font-size: var(--label-size);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
@@ -1377,12 +1515,19 @@ a.card:hover h2 {
 
 .nw-phero h1 {
   margin: 0;
-  max-width: 16ch;
+  /* 16ch in Inter Tight, as em so the fallback font wraps the same (ch follows the font's "0") */
+  max-width: 10.08em;
   font-size: clamp(40px, 7vw, 120px);
   font-weight: var(--fw-semibold);
   line-height: 0.95;
   letter-spacing: var(--tr-tightest);
   text-wrap: balance;
+}
+
+.nw-phero__intro a {
+  text-decoration: underline;
+  text-decoration-thickness: var(--underline);
+  text-underline-offset: 3px;
 }
 
 .nw-phero__intro {
@@ -1450,9 +1595,24 @@ a.card:hover h2 {
   margin-top: 22px;
 }
 
+/* Skill install command right under the hero headline */
+.nw-phero__skill {
+  max-width: 760px;
+  margin-top: 32px;
+}
+
+.nw-phero__skill-label {
+  margin: 0 0 10px;
+  font-size: var(--type-body-sm);
+  color: var(--sec-muted);
+}
+
 .skill-install-command {
   min-width: 0;
-  margin-top: 22px;
+}
+
+.skill-install-command .prism-code {
+  font-size: 15px;
 }
 
 .skill-install-command pre {
@@ -1468,99 +1628,155 @@ a.card:hover h2 {
   display: none;
 }
 
-.skill-install-command [class*='buttonGroup'] {
-  opacity: 1;
+/* Always-visible, fully opaque copy button (Docusaurus fades code buttons to 0-40%) */
+.skill-install-command [class*='buttonGroup'] button {
+  opacity: 1 !important;
+  border-color: var(--code-ink);
+  color: var(--code-ink);
 }
 
-.nw-linklist {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: var(--border-hair) solid var(--sec-rule);
-}
-
-.nw-linklist a {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 16px;
-  padding: 18px 0 20px;
-  border-bottom: var(--border-hair) solid var(--sec-rule);
-  color: var(--sec-ink);
-  text-decoration: none;
-}
-
-.nw-linklist a::after {
-  content: '\203A';
-  grid-column: 2;
-  grid-row: 1 / span 3;
-  align-self: center;
-  font-size: 28px;
-  line-height: 0;
+.skill-install-command [class*='buttonGroup'] button:hover,
+.skill-install-command [class*='buttonGroup'] button:focus-visible {
+  border-color: var(--sec-accent);
   color: var(--sec-accent);
 }
 
-.nw-linklist b {
-  font-size: clamp(18px, 1.6vw, 24px);
-  font-weight: var(--fw-semibold);
-  letter-spacing: var(--tr-heading);
-  line-height: 1.15;
-  transition: color var(--dur-fast) var(--ease);
+/* ── Language icons (navbar items + install tabs) ────────── */
+/* Full-colour icons from the team (static/img/icons/lang/), drawn as images, not recoloured */
+.lang-icon {
+  align-items: center;
+  gap: 8px;
 }
 
-.nw-linklist span {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--sec-muted);
-  overflow-wrap: anywhere;
+
+.lang-icon::before {
+  content: '';
+  flex: none;
+  width: 1.2em;
+  height: 1.2em;
+  background: var(--lang-icon) center / contain no-repeat;
 }
 
-.nw-linklist .nw-linklist__desc {
-  font-family: var(--font-sans);
-  font-size: var(--type-body-sm);
-  color: var(--sec-ink);
+.lang-icon--python { --lang-icon: url('/img/icons/lang/python.svg'); }
+.lang-icon--godot { --lang-icon: url('/img/icons/lang/godot.svg'); }
+.lang-icon--flutter { --lang-icon: url('/img/icons/lang/flutter.svg'); }
+.lang-icon--react-native { --lang-icon: url('/img/icons/lang/react-native.svg'); }
+.lang-icon--swift { --lang-icon: url('/img/icons/lang/swift.svg'); }
+.lang-icon--kotlin { --lang-icon: url('/img/icons/lang/kotlin.svg'); }
+
+.navbar__item.lang-icon::before {
+  margin-right: 0.3rem;
 }
 
-.nw-linklist a:hover b,
-.nw-linklist a:focus-visible b {
-  color: var(--sec-accent);
+/* Desktop navbar only: on phones Docusaurus hides these links (they live in the drawer) */
+@media (min-width: 997px) {
+  .navbar__item.lang-icon {
+    display: inline-flex;
+  }
 }
 
-/* Binding rows: the link (name + description) with its install command underneath */
-.nw-bindings li {
-  padding-bottom: 20px;
-  border-bottom: var(--border-hair) solid var(--sec-rule);
+/* ── Install box: a top bar of language tabs over one panel ─ */
+.nw-install {
+  border: var(--border-hair) solid var(--sec-rule);
 }
 
-.nw-bindings li > a {
-  grid-template-rows: auto auto;
-  padding-bottom: 14px;
-  border-bottom: 0;
-}
-
-.nw-bindings li > a::after {
-  grid-row: 1 / span 2;
-}
-
-.nw-bindings .theme-code-block {
+.nw-install .tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
   margin: 0;
+  border-bottom: var(--border-hair) solid var(--sec-rule);
+  background: var(--code-bg);
+  scrollbar-width: none;
 }
 
-.nw-bindings .theme-code-block button[aria-label='Toggle word wrap'] {
+.nw-install .tabs::-webkit-scrollbar {
   display: none;
 }
 
-.nw-bindings .nw-bindings__note {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 14px;
+.nw-install .tabs__item {
+  /* Grow to fill the bar, never shrink below the label; the bar scrolls if they don't fit */
+  flex: 1 0 auto;
+  justify-content: center;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--code-muted);
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-button);
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.nw-install .tabs__item:hover {
+  background: transparent;
+  color: var(--code-ink);
+}
+
+/* Underline drawn inside the tab: the scrolling tab bar would clip one below it */
+.nw-install .tabs__item--active,
+.nw-install .tabs__item--active:hover {
+  box-shadow: inset 0 -2px 0 var(--sec-accent);
+  color: var(--sec-accent);
+}
+
+/* Docusaurus puts margin above the panel; the box supplies its own spacing */
+.nw-install [role='tabpanel'] {
+  margin: 0;
+}
+
+.nw-install .tabs + * {
+  margin-top: 0 !important;
+}
+
+.nw-install__panel {
+  display: grid;
+  /* minmax(0, …) so long commands scroll inside their code block instead of widening the page */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  padding: 24px;
+}
+
+.nw-install__desc,
+.nw-install__note {
+  margin: 0;
+  font-size: var(--type-body-sm);
+}
+
+.nw-install__note {
   color: var(--sec-muted);
+}
+
+.nw-install__note a {
+  color: var(--sec-accent);
+  text-decoration: underline;
+  text-decoration-thickness: var(--underline);
+  text-underline-offset: 3px;
+}
+
+.nw-install__note a:hover {
+  color: var(--sec-ink);
+}
+
+.nw-install .theme-code-block {
+  margin: 0;
+}
+
+.nw-install .theme-code-block button[aria-label='Toggle word wrap'] {
+  display: none;
+}
+
+.nw-install .nw-more {
+  justify-self: start;
 }
 
 @media (max-width: 760px) {
   .nw-foot,
   .nw-head,
   .nw-row {
-    grid-template-columns: 1fr;
+    /* minmax(0, …) lets wide children like code blocks scroll instead of widening the page */
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .nw-foot nav {

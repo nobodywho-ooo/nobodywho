@@ -21,6 +21,8 @@ const latestReleases: Record<string, string> = {
 function sdkDocsConfig(id: string) {
   return {
     lastVersion: latestReleases[id],
+    // The page title needs no "Documentation · Page" line above it
+    breadcrumbs: false,
     versions: {
       current: {label: 'main', path: 'main'},
     },
@@ -56,6 +58,15 @@ const config: Config = {
   ],
 
   headTags: [
+    // Preload the main fonts so text doesn't reflow (layout shift) when they swap in
+    {
+      tagName: 'link',
+      attributes: {rel: 'preload', href: '/fonts/InterTight-latin.woff2', as: 'font', type: 'font/woff2', crossorigin: 'anonymous'},
+    },
+    {
+      tagName: 'link',
+      attributes: {rel: 'preload', href: '/fonts/IBMPlexMono-400-latin.woff2', as: 'font', type: 'font/woff2', crossorigin: 'anonymous'},
+    },
     {
       tagName: 'script',
       attributes: {},
@@ -77,6 +88,7 @@ const config: Config = {
           path: 'docs',
           routeBasePath: 'docs',
           sidebarPath: './sidebars/shared.ts',
+          breadcrumbs: false,
         },
         blog: false,
         theme: {
@@ -187,13 +199,13 @@ const config: Config = {
           position: 'left',
           label: 'Basics',
         },
-        // Per-binding links
-        {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/'},
-        {to: '/python/', label: 'Python', position: 'left', activeBaseRegex: '/python/'},
-        {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/'},
-        {to: '/react-native/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/react-native/'},
-        {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/'},
-        {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
+        // Per-binding links, most used first (keep in sync with src/pages/index.tsx)
+        {to: '/python/', label: 'Python', position: 'left', activeBaseRegex: '/python/', className: 'lang-icon lang-icon--python'},
+        {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/', className: 'lang-icon lang-icon--godot'},
+        {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/', className: 'lang-icon lang-icon--flutter'},
+        {to: '/react-native/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/react-native/', className: 'lang-icon lang-icon--react-native'},
+        {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/', className: 'lang-icon lang-icon--swift'},
+        {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/', className: 'lang-icon lang-icon--kotlin'},
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',
@@ -201,6 +213,13 @@ const config: Config = {
           position: 'right',
           className: 'header-github-link',
           'aria-label': 'NobodyWho on GitHub',
+        },
+        // Phone menu only (hidden on desktop, where the wordmark links to nobodywho.ai)
+        {
+          href: 'https://www.nobodywho.ai/',
+          label: 'nobodywho.ai',
+          position: 'right',
+          className: 'nav-site-link',
         },
       ],
     },

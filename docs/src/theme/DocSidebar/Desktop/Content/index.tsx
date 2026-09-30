@@ -56,14 +56,6 @@ export default function ContentWrapper(props: Props): ReactNode {
     <>
       <VersionSelector />
       <Content {...props} />
-      <div className="sidebar-ext">
-        <a className="nw-more nw-more--accent" href="https://www.nobodywho.ai/" target="_blank" rel="noopener">
-          nobodywho.ai
-        </a>
-        <a className="nw-more nw-more--accent" href="https://github.com/nobodywho-ooo/nobodywho" target="_blank" rel="noopener">
-          GitHub
-        </a>
-      </div>
     </>
   );
 }

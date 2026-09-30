@@ -2,12 +2,9 @@ import React from 'react';
 
 // Footer from the NobodyWho design system (nw-foot): wordmark + tagline, uppercase links, location and licence.
 const links = [
-  {label: 'Product', href: 'https://www.nobodywho.ai/#product'},
+  {label: 'nobodywho.ai', href: 'https://www.nobodywho.ai/'},
   {label: 'Blog', href: 'https://www.nobodywho.ai/posts/'},
-  {label: 'About', href: 'https://www.nobodywho.ai/#about'},
-  {label: 'GitHub', href: 'https://github.com/nobodywho-ooo/nobodywho'},
   {label: 'Discord', href: 'https://discord.gg/qhaMc2qCYB'},
-  {label: 'LinkedIn', href: 'https://www.linkedin.com/company/nobodywho/'},
 ];
 
 export default function Footer(): React.JSX.Element {
