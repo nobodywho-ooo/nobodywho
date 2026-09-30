@@ -282,18 +282,13 @@ pub fn select_template(
 ) -> Result<ChatTemplate, SelectTemplateError> {
     let default_template = model.chat_template(None)?.to_string()?;
     let tool_template = model.chat_template(Some("tool_use"));
-    let bos = model.token_to_piece(
-        model.token_bos(),
-        &mut encoding_rs::UTF_8.new_decoder(),
-        true,
-        None,
-    )?;
-    let eos = model.token_to_piece(
-        model.token_eos(),
-        &mut encoding_rs::UTF_8.new_decoder(),
-        true,
-        None,
-    )?;
+    let vocab = model.vocab();
+
+    let bos = vocab.token_to_piece(vocab.bos(), true, None);
+    let (bos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&bos);
+
+    let eos = vocab.token_to_piece(vocab.eos(), true, None);
+    let (eos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&eos);
 
     let template = if !with_tools {
         // no tools. use default template.

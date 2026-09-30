@@ -148,31 +148,18 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        // Get CLS and SEP tokens from the model (CLS = BOS per llama.cpp, the current CLS token is deprecated.)
-        let mut decoder = encoding_rs::UTF_8.new_decoder();
-        let cls = self
-            .engine
-            .ctx
-            .model
-            .token_to_piece(self.engine.ctx.model.token_bos(), &mut decoder, true, None)
-            .unwrap_or_else(|_| {
-                warn!("Failed to convert BOS/CLS token to string, using fallback");
-                "<s>".to_string()
-            });
+        let vocab = self.engine.ctx.model.vocab();
 
-        let sep = self
-            .engine
-            .ctx
-            .model
-            .token_to_piece(self.engine.ctx.model.token_sep(), &mut decoder, true, None)
-            .unwrap_or_else(|_| {
-                warn!("Failed to convert SEP token to string, using fallback");
-                "</s>".to_string()
-            });
+        let bos = vocab.token_to_piece(vocab.bos(), true, None);
+        let (bos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&bos);
+
+        // If the model has no separator token, this will be an empty string.
+        let sep = vocab.token_to_piece(vocab.sep(), true, None);
+        let (sep, _) = encoding_rs::UTF_8.decode_without_bom_handling(&sep);
 
         let inputs = documents
             .into_iter()
-            .map(|document| format!("{cls}{query}{sep}{document}{sep}"))
+            .map(|document| format!("{bos}{query}{sep}{document}{sep}"))
             .collect();
 
         self.engine

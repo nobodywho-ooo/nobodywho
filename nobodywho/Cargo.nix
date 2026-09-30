@@ -9264,15 +9264,11 @@ rec {
       };
       "llama-cpp-2" = rec {
         crateName = "llama-cpp-2";
-        version = "0.1.157";
+        version = "0.1.158";
         edition = "2021";
-        sha256 = "1j4shs8dj2ma5x1d6gma6lf1yvjr5nmrj3mp0b3flfqnhg980pka";
+        sha256 = "1gncqpfyi914xzr75736nd9q37a9apfhc0hrlsd6i54pq3ax32as";
         libName = "llama_cpp_2";
         dependencies = [
-          {
-            name = "encoding_rs";
-            packageId = "encoding_rs";
-          }
           {
             name = "enumflags2";
             packageId = "enumflags2";
@@ -9310,12 +9306,6 @@ rec {
             packageId = "tracing-core";
           }
         ];
-        devDependencies = [
-          {
-            name = "encoding_rs";
-            packageId = "encoding_rs";
-          }
-        ];
         features = {
           "android-shared-stdcxx" = [ "llama-cpp-sys-2/shared-stdcxx" ];
           "android-static-stdcxx" = [ "llama-cpp-sys-2/static-stdcxx" ];
@@ -9342,10 +9332,10 @@ rec {
       };
       "llama-cpp-sys-2" = rec {
         crateName = "llama-cpp-sys-2";
-        version = "0.1.157";
+        version = "0.1.158";
         edition = "2021";
         links = "llama";
-        sha256 = "1v51vhfaw1332y60ck4xmm2pk6hpg61x8r1kk09769klr2gv7l6d";
+        sha256 = "1v3b1pcf7kz2zbkhjgbv1d8h4lh8gq23ypv6iqymgf5wv3pdp3k0";
         libName = "llama_cpp_sys_2";
         buildDependencies = [
           {
