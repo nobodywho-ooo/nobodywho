@@ -284,11 +284,23 @@ pub fn select_template(
     let tool_template = model.chat_template(Some("tool_use"));
     let vocab = model.vocab();
 
-    let bos = vocab.token_to_piece(vocab.bos(), true, None);
-    let (bos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&bos);
+    let bos = vocab.bos();
+    let bos = if bos.0 != -1 {
+        let bos = vocab.token_to_piece(bos, true, None);
+        let (bos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&bos);
+        bos.to_string()
+    } else {
+        "".to_string()
+    };
 
-    let eos = vocab.token_to_piece(vocab.eos(), true, None);
-    let (eos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&eos);
+    let eos = vocab.eos();
+    let eos = if eos.0 != -1 {
+        let eos = vocab.token_to_piece(eos, true, None);
+        let (eos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&eos);
+        eos.to_string()
+    } else {
+        "".to_string()
+    };
 
     let template = if !with_tools {
         // no tools. use default template.

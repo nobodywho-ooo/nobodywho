@@ -150,12 +150,23 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
         let vocab = self.engine.ctx.model.vocab();
 
-        let bos = vocab.token_to_piece(vocab.bos(), true, None);
-        let (bos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&bos);
+        let bos = vocab.bos();
+        let bos = if bos.0 != -1 {
+            let bos = vocab.token_to_piece(bos, true, None);
+            let (bos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&bos);
+            bos.to_string()
+        } else {
+            "".to_string()
+        };
 
-        // If the model has no separator token, this will be an empty string.
-        let sep = vocab.token_to_piece(vocab.sep(), true, None);
-        let (sep, _) = encoding_rs::UTF_8.decode_without_bom_handling(&sep);
+        let sep = vocab.sep();
+        let sep = if sep.0 != -1 {
+            let sep = vocab.token_to_piece(sep, true, None);
+            let (sep, _) = encoding_rs::UTF_8.decode_without_bom_handling(&sep);
+            sep.to_string()
+        } else {
+            "".to_string()
+        };
 
         let inputs = documents
             .into_iter()

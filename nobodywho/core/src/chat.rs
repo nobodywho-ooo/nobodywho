@@ -2431,6 +2431,7 @@ impl<'a> Chat<'a> {
             }
 
             let new_token = self.engine.next_token(&mut self.sampler)?;
+            assert_ne!(new_token.0, -1, "invalid token generated");
 
             tokens_written_until_now.push(new_token);
 
