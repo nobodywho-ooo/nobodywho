@@ -13,6 +13,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - **Python:** Added OpenAI-compatible `chat.completions` and `responses` APIs with streaming, usage metadata, tool support, and request-level sampling.
 - Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
 - `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered. Available for all bindings.
+- **Godot:** A complete reimplementation of every class exposed via the godot bindings (see docs for the new interfaces).
 
 ### Changed
 
@@ -32,11 +33,14 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.
 - Fix logs from llama.cpp's multimodal backend not being sent to the platform's logging mechanism.
 - **Flutter:** Logs are now forwarded to Dart's `package:logging`. Configure it as described in their documentation.
+- **Godot:** Godot tool functions may now be async.
+- **Godot:** Godot tool functions now allow all scene manipulations (they are now called on the main thread).
 
 ### Removed
 
 - **Breaking:** the deprecated `SamplerPresets.grammar()` preset and `SamplerBuilder.grammar()` step are gone, along with the `{"type": "grammar"}` entry in a serialized config. Both have been deprecated since June 2026 in favour of `constrain_with_grammar()`, which accepts the same GBNF as well as Lark and takes the faster llguidance path — switch to it and drop the `root` argument, which was always `"root"` in practice. The one thing it cannot express is a lazy grammar: `trigger_on`, which let the model write freely until a marker before the grammar took effect, has no llguidance equivalent and is removed with no replacement. Affects all bindings; Godot's method was `set_sampler_preset_grammar()`.
 - **Breaking:** the `lark_with_slices` sampler step is gone. Nothing constructed it, so the only way to have one is a hand-written sampler config, and `SamplerConfig.from_json()` now rejects a payload containing `{"type": "lark_with_slices"}`. Change it to `{"type": "lark"}` to keep the same grammar. Affects every binding with `SamplerConfig.from_json()`: Python, Flutter, Kotlin, Swift and React Native.
+- **Breaking:** A complete reimplementation of every class exposed via the godot bindings (see docs for the new interfaces).
 
 
 ## [Python v3.0.0, Flutter v4.0.0, Godot v11.0.0, Kotlin v4.0.0, React Native v4.0.0, Swift v4.0.0] - 2026-09-09
