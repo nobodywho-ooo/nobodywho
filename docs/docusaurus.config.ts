@@ -1,6 +1,6 @@
-import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import {nobodywhoDark, nobodywhoLight} from './src/prismTheme';
 
 // The latest tagged release per binding. This is the default version users see
 // at /<binding>/. Bumping this requires a matching snapshot in
@@ -21,6 +21,8 @@ const latestReleases: Record<string, string> = {
 function sdkDocsConfig(id: string) {
   return {
     lastVersion: latestReleases[id],
+    // The page title needs no "Documentation · Page" line above it
+    breadcrumbs: false,
     versions: {
       current: {label: 'main', path: 'main'},
     },
@@ -28,8 +30,6 @@ function sdkDocsConfig(id: string) {
 }
 
 const config: Config = {
-  clientModules: ['./src/github-stars.js'],
-
   title: 'NobodyWho',
   tagline: 'Local-first LLM inference for Kotlin, Swift, Python, Flutter, React Native, Expo and Godot',
   favicon: 'img/favicon.ico',
@@ -58,6 +58,15 @@ const config: Config = {
   ],
 
   headTags: [
+    // Preload the main fonts so text doesn't reflow (layout shift) when they swap in
+    {
+      tagName: 'link',
+      attributes: {rel: 'preload', href: '/fonts/InterTight-latin.woff2', as: 'font', type: 'font/woff2', crossorigin: 'anonymous'},
+    },
+    {
+      tagName: 'link',
+      attributes: {rel: 'preload', href: '/fonts/IBMPlexMono-400-latin.woff2', as: 'font', type: 'font/woff2', crossorigin: 'anonymous'},
+    },
     {
       tagName: 'script',
       attributes: {},
@@ -79,10 +88,18 @@ const config: Config = {
           path: 'docs',
           routeBasePath: 'docs',
           sidebarPath: './sidebars/shared.ts',
+          breadcrumbs: false,
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
+          // Design system tokens first, then the docs theme that uses them
+          customCss: [
+            './src/css/nobodywho/colors.css',
+            './src/css/nobodywho/typography.css',
+            './src/css/nobodywho/spacing.css',
+            './src/css/nobodywho/effects.css',
+            './src/css/custom.css',
+          ],
         },
       } satisfies Preset.Options,
     ],
@@ -166,16 +183,14 @@ const config: Config = {
   ],
 
   themeConfig: {
+    // Follows the reader's system setting (dark if none), with a switch between dark and the light paper theme
     colorMode: {
       defaultMode: 'dark',
+      disableSwitch: false,
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'NobodyWho',
-      logo: {
-        alt: 'NobodyWho',
-        src: 'img/icon.svg',
-      },
+      title: 'nobodywho',
       items: [
         // Basics
         {
@@ -184,34 +199,33 @@ const config: Config = {
           position: 'left',
           label: 'Basics',
         },
-        // Per-binding links
-        {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/'},
-        {to: '/python/', label: 'Python', position: 'left', activeBaseRegex: '/python/'},
-        {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/'},
-        {to: '/react-native/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/react-native/'},
-        {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/'},
-        {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/'},
+        // Per-binding links, most used first (keep in sync with src/pages/index.tsx)
+        {to: '/python/', label: 'Python', position: 'left', activeBaseRegex: '/python/', className: 'lang-icon lang-icon--python'},
+        {to: '/godot/', label: 'Godot', position: 'left', activeBaseRegex: '/godot/', className: 'lang-icon lang-icon--godot'},
+        {to: '/flutter/', label: 'Flutter', position: 'left', activeBaseRegex: '/flutter/', className: 'lang-icon lang-icon--flutter'},
+        {to: '/react-native/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/react-native/', className: 'lang-icon lang-icon--react-native'},
+        {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/', className: 'lang-icon lang-icon--swift'},
+        {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/', className: 'lang-icon lang-icon--kotlin'},
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',
+          label: 'GitHub',
           position: 'right',
           className: 'header-github-link',
-          'aria-label': 'GitHub repository',
+          'aria-label': 'NobodyWho on GitHub',
         },
+        // Phone menu only (hidden on desktop, where the wordmark links to nobodywho.ai)
         {
-          href: 'https://discord.gg/qhaMc2qCYB',
+          href: 'https://www.nobodywho.ai/',
+          label: 'nobodywho.ai',
           position: 'right',
-          className: 'header-discord-link',
-          'aria-label': 'Discord server',
+          className: 'nav-site-link',
         },
       ],
     },
-    footer: {
-      copyright: '<a href="https://www.nobodywho.ai/">NobodyWho.ai</a> — EUPL-1.2 — <a href="https://docs.nobodywho.ooo/llms.txt">llms.txt</a> · <a href="https://docs.nobodywho.ooo/llms-full.txt">llms-full.txt</a>',
-    },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: nobodywhoLight,
+      darkTheme: nobodywhoDark,
       additionalLanguages: ['bash', 'dart', 'kotlin', 'swift', 'json', 'toml'],
     },
   } satisfies Preset.ThemeConfig,

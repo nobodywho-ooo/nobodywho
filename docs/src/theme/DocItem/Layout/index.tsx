@@ -11,39 +11,16 @@ function TopNavigation() {
   const {previous, next} = useDoc().metadata;
 
   return (
-    <nav style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '1rem',
-      fontSize: '0.85rem',
-      flexWrap: 'wrap',
-      gap: '0.5rem',
-    }}>
-      <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
+    <nav className="top-doc-nav" aria-label="Previous and next page">
+      <div className="top-doc-nav__links">
         {previous && (
-          <Link to={previous.permalink} className="top-doc-nav-link" style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            color: 'var(--ifm-font-color-secondary)',
-            textDecoration: 'none',
-          }}>
-            <span aria-hidden="true">&larr;</span> {previous.title}
+          <Link to={previous.permalink} className="top-doc-nav-link top-doc-nav-link--prev">
+            {previous.title}
           </Link>
         )}
-        {previous && next && (
-          <span style={{color: 'var(--ifm-toc-border-color)'}}>|</span>
-        )}
         {next && (
-          <Link to={next.permalink} className="top-doc-nav-link" style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            color: 'var(--ifm-font-color-secondary)',
-            textDecoration: 'none',
-          }}>
-            {next.title} <span aria-hidden="true">&rarr;</span>
+          <Link to={next.permalink} className="top-doc-nav-link top-doc-nav-link--next">
+            {next.title}
           </Link>
         )}
       </div>

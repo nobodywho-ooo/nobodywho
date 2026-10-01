@@ -1,384 +1,1424 @@
 /*
- * NobodyWho Dark Modern Theme
- * Pure black backgrounds, thin Geist font, white accent
+ * NobodyWho docs theme — dark only.
+ * Follows the NobodyWho Design System: garnet grounds, cream ink, amber accent,
+ * Inter Tight + IBM Plex Mono, 1px hairline rules, radius 0, no shadows, no cards.
+ * Tokens (--nw-*, --type-*, --pad-*, …) come from ./nobodywho/, copied from the design system.
  */
 
 @font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist.woff2') format('woff2');
-  font-weight: 100 900;
+  font-family: 'Inter Tight';
+  src: url('/fonts/InterTight-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Apfel Grotezk';
-  src: url('/fonts/ApfelGrotezk-Satt.woff2') format('woff2');
-  font-weight: 400 900;
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/IBMPlexMono-400-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Geist Mono';
-  src: url('/fonts/GeistMono.woff2') format('woff2');
-  font-weight: 100 900;
+  font-family: 'IBM Plex Mono';
+  src: url('/fonts/IBMPlexMono-500-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500;
   font-display: swap;
 }
 
-/* ── Light mode ─────────────────────────────────────────── */
-:root {
-  --ifm-color-primary: #777;
-  --ifm-color-primary-dark: #6a6a6a;
-  --ifm-color-primary-darker: #636363;
-  --ifm-color-primary-darkest: #525252;
-  --ifm-color-primary-light: #848484;
-  --ifm-color-primary-lighter: #8b8b8b;
-  --ifm-color-primary-lightest: #9c9c9c;
-
-  --ifm-background-color: #ffffff;
-  --ifm-background-surface-color: #f5f5f5;
-  --ifm-font-color-base: #1a1a1a;
-  --ifm-font-color-secondary: #666;
-
-  --ifm-code-background: #f0f0f0;
-  --ifm-code-font-size: 87%;
-
-  --ifm-navbar-background-color: #ffffff;
-  --ifm-navbar-shadow: 0 1px 0 0 #e0e0e0;
-  --ifm-footer-background-color: #f5f5f5;
-
-  --ifm-font-family-base: 'Geist', system-ui, -apple-system,
-    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --ifm-font-family-monospace: 'Geist Mono', 'SF Mono', SFMono-Regular,
-    ui-monospace, Menlo, Consolas, monospace;
-  --ifm-font-weight-normal: 300;
-  --ifm-font-weight-semibold: 500;
-  --ifm-font-weight-bold: 600;
-
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.06);
-
-  --nw-logo: #000;
+/* Size-matched fallback for Inter Tight, so text barely reflows (layout shift) when the web font
+   swaps in. size-adjust = Inter Tight's text width / Arial's, measured per weight. */
+@font-face {
+  font-family: 'Inter Tight Fallback';
+  src: local('Arial'), local('Liberation Sans'), local('Arimo');
+  font-weight: 400 500;
+  size-adjust: 96.8%;
 }
 
-/* ── Dark mode (default) ────────────────────────────────── */
-[data-theme='dark'] {
-  --ifm-color-primary: #ccc;
-  --ifm-color-primary-dark: #b8b8b8;
-  --ifm-color-primary-darker: #aeaeae;
-  --ifm-color-primary-darkest: #909090;
-  --ifm-color-primary-light: #d9d9d9;
-  --ifm-color-primary-lighter: #e0e0e0;
-  --ifm-color-primary-lightest: #f0f0f0;
-
-  --ifm-background-color: #000;
-  --ifm-background-surface-color: #000;
-  --ifm-font-color-base: #e8e8e8;
-  --ifm-font-color-secondary: #a4a4a4;
-
-  --ifm-code-background: #0a0a0a;
-
-  --ifm-navbar-background-color: #000;
-  --ifm-navbar-shadow: 0 1px 0 0 #151515;
-  --ifm-footer-background-color: #000;
-
-  --ifm-toc-border-color: #151515;
-
-  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.04);
-
-  --nw-logo: #fff;
+@font-face {
+  font-family: 'Inter Tight Fallback';
+  src: local('Arial Bold'), local('Liberation Sans Bold'), local('Arimo Bold');
+  font-weight: 600 700;
+  size-adjust: 93.4%;
 }
 
-/* ── Force all backgrounds to pure black ────────────────── */
-[data-theme='dark'] #__docusaurus,
-[data-theme='dark'] .main-wrapper,
-[data-theme='dark'] [class*='docSidebarContainer'],
-[data-theme='dark'] [class*='sidebarViewport'],
-[data-theme='dark'] aside,
-[data-theme='dark'] nav.menu {
-  background-color: #000 !important;
+/* ── Tokens ─────────────────────────────────────────────── */
+/* :root[data-theme] outranks Infima's html[data-theme='dark'] defaults */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Section tone: the design system's ink tone (t-ink), a warm near-black */
+  --sec-bg: var(--nw-ink-black);
+  --sec-ink: var(--nw-cream);
+  --sec-muted: var(--nw-cream-72);
+  --sec-rule: rgba(244, 237, 230, 0.32);
+  --sec-dot: var(--nw-cream-16);
+  --sec-accent: var(--nw-accent);
+  /* Code ground and inline-code fill match the website blog (blog-refresh.css) */
+  /* The design system's font stack plus the size-matched fallback above */
+  --font-sans: 'Inter Tight', 'Inter Tight Fallback', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --code-bg: var(--nw-ink-dark-3);
+  /* Small labels (nav links above titles, TOC heading, buttons, info labels); the design system's 13px eyebrow reads thin in the docs */
+  --label-size: 14px;
+  --code-ink: var(--nw-cream);
+  --code-muted: rgba(244, 237, 230, 0.68);
+  --code-rule: rgba(244, 237, 230, 0.3);
+  --rule-soft: var(--nw-cream-15);
+  --overlay-bg: var(--nw-scrim);
+  --overlay-glass: var(--nw-glass);
+
+  /* Infima (Docusaurus) mapped onto the tokens */
+  --ifm-color-primary: var(--nw-accent);
+  --ifm-color-primary-dark: var(--nw-amber);
+  --ifm-color-primary-darker: var(--nw-amber);
+  --ifm-color-primary-darkest: var(--nw-copper-high);
+  --ifm-color-primary-light: var(--nw-accent);
+  --ifm-color-primary-lighter: var(--nw-accent);
+  --ifm-color-primary-lightest: var(--nw-accent);
+  --ifm-link-color: var(--sec-accent);
+  --ifm-link-hover-color: var(--sec-ink);
+  --ifm-link-hover-decoration: underline;
+
+  --ifm-background-color: var(--sec-bg);
+  --ifm-background-surface-color: var(--sec-bg);
+  --ifm-font-color-base: var(--sec-ink);
+  --ifm-font-color-secondary: var(--sec-muted);
+  --ifm-heading-color: var(--sec-ink);
+
+  --ifm-color-emphasis-0: var(--sec-bg);
+  --ifm-color-emphasis-100: var(--nw-ink-dark-3);
+  --ifm-color-emphasis-200: var(--rule-soft);
+  --ifm-color-emphasis-300: var(--sec-rule);
+  --ifm-color-emphasis-400: var(--nw-cream-34);
+  --ifm-color-emphasis-500: var(--sec-muted);
+  --ifm-color-emphasis-600: var(--sec-muted);
+  --ifm-color-emphasis-700: var(--nw-cream-72);
+  --ifm-color-emphasis-800: var(--sec-ink);
+  --ifm-color-emphasis-900: var(--sec-ink);
+  --ifm-color-emphasis-1000: var(--sec-ink);
+  --ifm-hover-overlay: transparent;
+
+  --ifm-font-family-base: var(--font-sans);
+  --ifm-font-family-monospace: var(--font-mono);
+  --ifm-heading-font-family: var(--font-sans);
+  --ifm-font-weight-normal: var(--fw-regular);
+  --ifm-font-weight-semibold: var(--fw-semibold);
+  --ifm-font-weight-bold: var(--fw-semibold);
+  --ifm-heading-font-weight: var(--fw-semibold);
+  --ifm-line-height-base: var(--lh-body);
+
+  --ifm-global-radius: var(--radius);
+  --ifm-global-shadow-lw: none;
+  --ifm-global-shadow-md: none;
+  --ifm-global-shadow-tl: none;
+  --ifm-code-border-radius: var(--radius);
+  --ifm-code-background: rgba(244, 237, 230, 0.12);
+  --ifm-code-font-size: 0.88em;
+  --ifm-pre-background: var(--code-bg);
+  --prism-background-color: var(--code-bg);
+  --docusaurus-highlighted-code-line-bg: rgba(242, 160, 46, 0.14);
+
+  --ifm-hr-background-color: var(--sec-rule);
+  --ifm-hr-height: 1px;
+
+  --ifm-navbar-height: var(--nav-h);
+  --ifm-navbar-padding-horizontal: var(--pad-x);
+  --ifm-navbar-background-color: transparent;
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-link-color: var(--sec-ink);
+  --ifm-navbar-link-hover-color: var(--sec-ink);
+  --ifm-navbar-search-input-background-color: transparent;
+  --ifm-navbar-search-input-color: var(--sec-ink);
+  --ifm-navbar-search-input-placeholder-color: var(--sec-muted);
+  --ifm-navbar-search-input-icon: none;
+
+  --ifm-toc-border-color: var(--sec-rule);
+  --ifm-toc-link-color: var(--sec-muted);
+
+  --ifm-menu-color: var(--sec-ink);
+  --ifm-menu-color-active: var(--sec-accent);
+  --ifm-menu-color-background-hover: transparent;
+  --ifm-menu-color-background-active: transparent;
+  --ifm-menu-link-padding-horizontal: 0;
+  --ifm-menu-link-padding-vertical: 5px;
+
+  --ifm-table-border-width: 0;
+  --ifm-table-border-color: var(--sec-rule);
+  --ifm-table-stripe-background: transparent;
+  --ifm-table-head-background: transparent;
+  --ifm-table-background: transparent;
+
+  --ifm-alert-shadow: none;
+  --ifm-card-background-color: transparent;
+
+  --search-local-modal-background: var(--overlay-bg);
+  --search-local-modal-shadow: none;
+  --search-local-hit-background: transparent;
+  --search-local-hit-shadow: none;
+  --search-local-hit-color: var(--sec-ink);
+  --search-local-hit-active-color: var(--sec-accent);
+  --search-local-muted-color: var(--sec-muted);
+  --search-local-highlight-color: var(--sec-accent);
+  --search-local-input-active-border-color: var(--sec-accent);
 }
 
-/* Restore code block backgrounds */
-[data-theme='dark'] pre,
-[data-theme='dark'] code,
-[data-theme='dark'] div[class*='codeBlockContainer'],
-[data-theme='dark'] div[class*='codeBlock'] {
-  background-color: #0a0a0a !important;
+/* Light mode: the design system's paper tone (t-paper). Accent is nobodywho.ai's light-theme
+   accent (#97410d): the design system's rust (#c9501f) is only 3.5:1 on paper, too faint for text. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --sec-bg: var(--nw-paper);
+  --sec-ink: var(--nw-ink-dark);
+  --sec-muted: rgba(34, 24, 26, 0.64);
+  --sec-rule: rgba(34, 24, 26, 0.38);
+  --sec-dot: rgba(34, 24, 26, 0.22);
+  --sec-accent: #97410d;
+  --focus-ring: #97410d;
+  --rule-soft: rgba(34, 24, 26, 0.15);
+  --overlay-bg: rgba(233, 226, 216, 0.94);
+  --overlay-glass: rgba(233, 226, 216, 0.55);
+
+  --ifm-color-primary: #97410d;
+  --ifm-color-primary-dark: #97410d;
+  --ifm-color-primary-darker: #97410d;
+  --ifm-color-primary-darkest: #97410d;
+  --ifm-color-primary-light: #97410d;
+  --ifm-color-primary-lighter: #97410d;
+  --ifm-color-primary-lightest: #97410d;
+
+  --ifm-color-emphasis-100: rgba(34, 24, 26, 0.06);
+  --ifm-color-emphasis-400: rgba(34, 24, 26, 0.4);
+  --ifm-color-emphasis-700: rgba(34, 24, 26, 0.8);
+
+  --ifm-code-background: rgba(34, 24, 26, 0.08);
+
+  /* Code blocks: the design system's white tone, one step up from the paper page */
+  --code-bg: var(--nw-white);
+  --code-ink: var(--nw-ink-dark);
+  --code-muted: rgba(34, 24, 26, 0.64);
+  --code-rule: var(--sec-rule);
+  --docusaurus-highlighted-code-line-bg: rgba(201, 80, 31, 0.12);
 }
 
-/* Restore alert backgrounds */
-[data-theme='dark'] .alert {
-  background-color: #0a0a0a !important;
-}
-
-/* ── Global typography ─────────────────────────────────── */
+/* ── Base ───────────────────────────────────────────────── */
+html,
 body {
-  font-weight: 300;
+  background: var(--sec-bg);
+  color: var(--sec-ink);
+}
+
+body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 500;
+::selection {
+  background: var(--sec-accent);
+  color: var(--sec-bg);
 }
 
-h1 {
-  font-weight: 600;
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+pre:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
 }
 
-/* Dark mode body copy needs a touch more weight/contrast to be readable */
-[data-theme='dark'] p,
-[data-theme='dark'] li,
-[data-theme='dark'] article {
-  font-weight: 400;
+strong,
+b {
+  font-weight: var(--fw-semibold);
 }
 
-strong, b {
-  font-weight: 500;
+* {
+  scrollbar-color: var(--sec-dot) transparent;
+  scrollbar-width: thin;
 }
 
-/* ── Layout — nudge content slightly inward ────────────── */
-.navbar__inner {
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--sec-dot);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--sec-rule);
+}
+
+/* ── Layout ─────────────────────────────────────────────── */
+/* The navbar spans the full width like nw-nav; the page content is capped */
+.main-wrapper {
   max-width: 1400px;
   margin: 0 auto;
 }
 
 .main-wrapper {
-  max-width: 1400px;
   width: 100%;
-  margin: 0 auto;
 }
 
-/* ── Navbar ─────────────────────────────────────────────── */
+/* ── Navbar (nw-nav, scrolled state) ────────────────────── */
 .navbar {
-  border-bottom: 1px solid var(--ifm-toc-border-color);
+  height: var(--nav-h);
+}
+
+/* Glass ground on a pseudo-element: backdrop-filter on .navbar itself would
+   trap the fixed mobile drawer inside the navbar box */
+.navbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--sec-bg) 88%, transparent);
+  backdrop-filter: blur(var(--blur-scrim));
+  -webkit-backdrop-filter: blur(var(--blur-scrim));
+}
+
+/* Like nw-nav: wordmark in the left corner, menu centred, GitHub + search in the right corner.
+   The brand and right cluster share the spare width equally, which centres the menu. */
+.navbar__inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.navbar__items:not(.navbar__items--right) {
+  display: contents;
+}
+
+.navbar__brand {
+  flex: 1 1 0;
+  min-width: max-content;
+  margin-right: var(--gap-menu);
+}
+
+.navbar__items--right {
+  flex: 1 1 0;
+  flex-wrap: nowrap;
+  min-width: max-content;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-left: var(--gap-menu);
+}
+
+.navbar__items--right [class*='navbarSearchContainer'] {
+  padding: 0;
 }
 
 .navbar__title {
-  font-family: 'Apfel Grotezk', var(--ifm-font-family-base);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--nw-logo);
+  overflow: visible;
+  text-overflow: clip;
+  font-size: var(--type-logo);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-tightest);
+  line-height: 1;
+  color: var(--sec-ink);
 }
 
-.navbar__link {
-  font-weight: 400;
+/* "nobodywho | DOCS" wordmark: a single link to the docs home */
+.nw-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
+.nw-brand .navbar__title {
+  /* Infima gives navbar titles flex: 1 1 auto, which would push the DOCS tag away */
+  flex: none;
+  text-decoration: none;
+}
+
+.nw-brand__docs {
+  padding: 2px 0 2px 12px;
+  border-left: var(--border-hair) solid var(--sec-rule);
+  color: var(--sec-muted);
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  line-height: 1;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.nw-brand:hover,
+.nw-brand:focus-visible {
+  text-decoration: none;
+}
+
+/* Hovering either part lights up DOCS, so it reads as one button */
+.nw-brand:hover .nw-brand__docs,
+.nw-brand:focus-visible .nw-brand__docs {
+  color: var(--sec-accent);
+}
+
+/* The nobodywho.ai item only belongs in the phone menu; the wordmark links to the docs home */
+.navbar__items--right .nav-site-link {
+  display: none !important;
+}
+
+.navbar-sidebar .nav-site-link svg {
+  display: none;
+}
+
+.navbar__items:not(.navbar__items--right) .navbar__link {
+  position: relative;
+  padding: 6px 0;
+  margin: 0 calc(var(--gap-menu) / 2);
+  /* Normal case (not the design system's uppercase) to make room for the language icons */
+  text-transform: none;
+  font-size: var(--type-nav);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.navbar__items:not(.navbar__items--right) .navbar__link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--underline);
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--dur-base) var(--ease);
+}
+
+.navbar__items:not(.navbar__items--right) .navbar__link:hover::after,
+.navbar__items:not(.navbar__items--right) .navbar__link:focus-visible::after,
+.navbar__items:not(.navbar__items--right) .navbar__link--active::after {
+  transform: scaleX(1);
+}
+
+/* Current page keeps the underline; the colour stays ink */
 .navbar__link--active {
-  font-weight: 700;
-  color: var(--ifm-font-color-base) !important;
+  color: var(--sec-ink);
 }
 
-[data-theme='dark'] .navbar__link {
-  color: #d0d0d0;
+/* GitHub: the design system's outlined button (flat in the scrolled nav) */
+.header-github-link {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: var(--border-button) solid var(--sec-accent);
+  background: transparent;
+  color: var(--sec-accent) !important;
+  text-transform: uppercase;
+  font-size: var(--type-button);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-button);
+  text-decoration: none !important;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-[data-theme='dark'] .navbar__link--active {
-  color: #fff !important;
+.header-github-link::before {
+  content: '';
+  display: block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  mask: url('/img/icons/github.svg') center / contain no-repeat;
 }
 
-[data-theme='dark'] .navbar__link:hover {
-  color: #ffffff;
+/* Hide Docusaurus' external-link glyph */
+.header-github-link svg {
+  display: none;
 }
 
-/* ── Left sidebar ──────────────────────────────────────── */
+.header-github-link:hover,
+.header-github-link:focus-visible {
+  background: var(--sec-accent);
+  color: var(--sec-bg) !important;
+}
+
+/* Light/dark switch: plain square button, accent on hover */
+[class*='colorModeToggle'] button {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  color: var(--sec-ink);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+[class*='colorModeToggle'] button:hover {
+  background: transparent;
+  color: var(--sec-accent);
+}
+
+/* Search: the design system's form field */
+.navbar__search-input {
+  width: 10rem;
+  height: auto;
+  padding: 10px 16px;
+  border: var(--border-hair) solid var(--sec-rule);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: var(--type-button);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.navbar__search-input:focus {
+  outline: none;
+  border-color: var(--sec-accent);
+}
+
+.navbar__search kbd {
+  border: var(--border-hair) solid var(--sec-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  box-shadow: none;
+  color: var(--sec-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.navbar__search [class*='dropdownMenu'] {
+  border: var(--border-hair) solid var(--sec-rule);
+  border-radius: var(--radius) !important;
+  background: var(--overlay-bg) !important;
+  backdrop-filter: blur(var(--blur-scrim));
+  -webkit-backdrop-filter: blur(var(--blur-scrim));
+  box-shadow: none !important;
+}
+
+.navbar__search [class*='suggestion'] {
+  border-radius: var(--radius) !important;
+  box-shadow: none !important;
+}
+
+/* Burger: three 2px bars, not a glyph */
+.navbar__toggle {
+  width: 34px;
+  height: 22px;
+  margin-right: 16px;
+  background:
+    linear-gradient(currentColor, currentColor) top / 100% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,
+    linear-gradient(currentColor, currentColor) bottom / 100% 2px no-repeat;
+  color: var(--sec-ink);
+}
+
+.navbar__toggle svg {
+  display: none;
+}
+
+/* Mobile drawer: scrim + big uppercase links */
+.navbar-sidebar {
+  background: var(--overlay-bg);
+  backdrop-filter: blur(var(--blur-scrim));
+  -webkit-backdrop-filter: blur(var(--blur-scrim));
+  box-shadow: none;
+}
+
+.navbar-sidebar__backdrop {
+  background-color: var(--overlay-glass);
+}
+
+.navbar-sidebar__brand {
+  height: var(--nav-h-compact);
+  box-shadow: none;
+}
+
+.navbar-sidebar__item:first-child .menu__list {
+  display: grid;
+  gap: 4px;
+}
+
+.navbar-sidebar__item:first-child .menu__link {
+  padding: 10px 0;
+  border-bottom: var(--border-hair) solid var(--rule-soft);
+  color: var(--sec-ink);
+  text-transform: uppercase;
+  font-size: var(--type-drawer);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+}
+
+.navbar-sidebar__item:first-child .menu__link--active {
+  color: var(--sec-accent);
+}
+
+/* GitHub in the drawer: a normal drawer row with its mark, not the outlined nav button */
+.navbar-sidebar .header-github-link {
+  gap: 12px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: var(--border-hair) solid var(--rule-soft);
+  background: none;
+  color: var(--sec-ink) !important;
+  font-size: var(--type-drawer);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+}
+
+.navbar-sidebar .header-github-link::before {
+  width: 0.8em;
+  height: 0.8em;
+}
+
+.navbar-sidebar .header-github-link:hover,
+.navbar-sidebar .header-github-link:focus-visible {
+  background: none;
+  color: var(--sec-accent) !important;
+}
+
+.navbar-sidebar__back {
+  background: transparent;
+  color: var(--sec-accent);
+  text-transform: uppercase;
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+}
+
+/* Compact: GitHub goes icon-only and the menu tightens, as the design system nav does.
+   Kicks in wide because the language icons make the menu long. */
+@media (max-width: 1720px) {
+  .header-github-link {
+    gap: 0;
+    padding: 9px 10px;
+    font-size: 0;
+  }
+
+  .navbar__search-input {
+    width: 7.5rem;
+  }
+
+  .navbar__search kbd {
+    display: none;
+  }
+
+  .navbar__items:not(.navbar__items--right) .navbar__link {
+    margin: 0 clamp(8px, 1.1vw, 16px);
+  }
+}
+
+/* Narrow desktop widths, just above the mobile menu: tighten spacing so it all stays on one line */
+@media (max-width: 1260px) {
+  .navbar__brand,
+  .navbar__items--right {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .navbar__brand {
+    margin-right: 16px;
+  }
+
+  .navbar__items--right {
+    margin-left: 16px;
+    gap: 12px;
+  }
+
+  .navbar__items:not(.navbar__items--right) .navbar__link {
+    margin: 0 8px;
+  }
+}
+
+/* Narrowest desktop widths: drop the menu's language icons (the phone menu below 997px shows them) */
+@media (min-width: 997px) and (max-width: 1100px) {
+  .navbar__items:not(.navbar__items--right) .lang-icon::before {
+    display: none;
+  }
+}
+
+@media (max-width: 996px) {
+  .navbar {
+    height: var(--nav-h-compact);
+  }
+
+  /* Docusaurus shows the burger with display:inherit, which would copy the
+     left group's display:contents and collapse it to nothing */
+  .navbar__toggle {
+    display: block;
+  }
+
+  .navbar__items .header-github-link {
+    display: none !important;
+  }
+}
+
+/* The search plugin collapses the field to an icon on phones; keep a short labelled field instead */
+@media (max-width: 576px) {
+  .navbar__search-input,
+  .navbar__search-input:not(:focus) {
+    width: 6.5rem !important;
+    padding: 8px 12px;
+  }
+
+  .navbar__search kbd {
+    display: none;
+  }
+}
+
+/* ── Docs sidebar (nw-docsnav) ──────────────────────────── */
+.theme-doc-sidebar-container {
+  border-right: 0 !important;
+}
+
+.theme-doc-sidebar-menu {
+  font-size: 15px;
+}
+
+.theme-doc-sidebar-container .menu {
+  padding: 24px 24px 24px var(--pad-x);
+}
 
 .menu__link {
-  font-weight: 300;
+  border-radius: var(--radius);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-panel);
+  transition: color var(--dur-fast) var(--ease);
 }
 
-.menu__link:hover {
-  color: var(--ifm-color-primary);
+.menu__link:hover,
+.menu__link--active,
+.menu__link--active:hover {
+  color: var(--sec-accent);
 }
 
-.menu__link--active:not(.menu__link--sublist) {
-  color: var(--ifm-color-primary);
-  font-weight: 400;
+.menu__list .menu__list {
+  padding-left: 16px;
 }
 
-[data-theme='dark'] .menu {
-  background-color: var(--ifm-background-color);
+/* Category caret: the brand › instead of Infima's arrow icon */
+.menu__link--sublist-caret::after,
+.menu__caret::before {
+  content: '\203A';
+  width: auto;
+  min-width: auto;
+  height: auto;
+  background: none;
+  filter: none;
+  color: var(--sec-muted);
+  font-size: 1.5em;
+  line-height: 0;
+  transform: rotate(90deg);
+  transition: transform var(--dur-base) var(--ease);
 }
 
-[data-theme='dark'] .menu__link--active:not(.menu__link--sublist) {
-  color: var(--ifm-color-primary-lightest);
-  font-weight: 500;
-  --ifm-menu-color-background-active: rgba(255, 255, 255, 0.08);
+.menu__list-item--collapsed .menu__link--sublist-caret::after,
+.menu__list-item--collapsed .menu__caret::before {
+  transform: rotate(0deg);
 }
 
-/* ── Right sidebar (TOC) ──────────────────────────────── */
-.toc-with-actions {
-  padding-top: 0.25rem;
+.menu__caret {
+  padding: 0 8px;
 }
 
-.table-of-contents::before {
-  content: 'On this page';
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 500;
+.menu__caret:hover {
+  background: transparent;
+}
+
+.sidebar-version {
+  display: grid;
+  gap: 8px;
+  padding: 24px 24px 0 var(--pad-x);
+}
+
+.sidebar-version label {
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ifm-font-color-secondary);
-  margin-bottom: 0.5rem;
-  padding-left: var(--ifm-toc-padding-horizontal);
+  color: var(--sec-muted);
 }
 
-/* Extend TOC column border to full height */
-[class*='col--3']:has(.toc-with-actions) {
-  border-left: 1px solid var(--ifm-toc-border-color);
-  padding-left: 1rem;
-  margin-top: -1rem;
-  padding-top: 1rem;
+.sidebar-version__select {
+  position: relative;
 }
 
-/* ── Top doc navigation arrows ─────────────────────────── */
-.top-doc-nav a:hover {
-  color: var(--ifm-font-color-base) !important;
+.sidebar-version__select::after {
+  content: '\203A';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%) rotate(90deg);
+  font-size: 24px;
+  line-height: 0;
+  color: var(--sec-accent);
+  pointer-events: none;
 }
 
-/* ── Code blocks ────────────────────────────────────────── */
-.prism-code {
-  border: 1px solid var(--ifm-toc-border-color);
-  border-radius: var(--ifm-code-border-radius);
-  font-weight: 400;
+.sidebar-version-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  margin: 0;
+  padding: 10px 40px 10px 14px;
+  border: var(--border-hair) solid var(--sec-rule);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--sec-ink);
+  font: var(--fw-regular) 15px / 1.4 var(--font-sans);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 
-[data-theme='dark'] div[class^='codeBlockContainer'] {
-  background-color: #080808;
+.sidebar-version-select:focus {
+  outline: none;
+  border-color: var(--sec-accent);
 }
 
-/* Inline code */
-code {
-  border: 1px solid var(--ifm-toc-border-color);
-  padding: 2px 5px;
-  font-size: 0.87em;
-  font-weight: 400;
+.sidebar-version-select option {
+  color: var(--nw-ink-dark);
+  background: var(--nw-white);
 }
 
-/* ── Admonitions ────────────────────────────────────────── */
-[data-theme='dark'] .alert {
-  --ifm-alert-background-color: #080808;
-  border-left-width: 4px;
+/* ── Arrow links (nw-more) ──────────────────────────────── */
+.nw-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--type-link);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-link);
+  text-transform: uppercase;
+  color: var(--sec-ink);
+  text-decoration: none !important;
+  transition: color var(--dur-fast) var(--ease);
 }
 
-/* ── Tables ─────────────────────────────────────────────── */
-.markdown table {
-  display: block;
-  width: fit-content;
-  max-width: 100%;
-  overflow-x: auto;
+.nw-more:hover,
+.nw-more:focus-visible {
+  color: var(--sec-accent);
 }
 
-[data-theme='dark'] table {
-  --ifm-table-stripe-background: #080808;
-  --ifm-table-border-color: #151515;
+.nw-more--accent {
+  color: var(--sec-accent);
 }
 
-table th {
-  text-align: left;
-  font-weight: 500;
+.nw-more::after {
+  content: '\203A';
+  font-size: 1.5em;
+  line-height: 0;
+  transform: translateY(-1px);
 }
 
-/* ── Images — center by default ─────────────────────────── */
+/* ── Article ────────────────────────────────────────────── */
+.markdown {
+  font-size: var(--type-body-sm);
+  line-height: var(--lh-body);
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  text-wrap: balance;
+}
+
+/* Article headings: reading sizes, close to the previous docs, rather than the
+   marketing-scale statement/lead type. Sentence case throughout. */
+.markdown h1:first-child,
+.markdown header h1 {
+  --ifm-h1-font-size: clamp(32px, 3vw, 44px);
+  margin-bottom: 24px;
+  line-height: 1.05;
+  letter-spacing: var(--tr-tighter);
+}
+
+/* h2 opens a new hairline row */
+.markdown h2 {
+  --ifm-h2-font-size: clamp(24px, 2.2vw, 30px);
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: var(--border-hair) solid var(--sec-rule);
+  line-height: 1.15;
+  letter-spacing: var(--tr-snug);
+}
+
+.markdown h3 {
+  --ifm-h3-font-size: clamp(19px, 1.7vw, 22px);
+  line-height: var(--lh-panel);
+  letter-spacing: var(--tr-heading);
+}
+
+.markdown h4 {
+  --ifm-h4-font-size: 18px;
+  letter-spacing: var(--tr-heading);
+}
+
+.hash-link {
+  color: var(--sec-accent);
+}
+
+.markdown a:not(.nw-more):not(.hash-link) {
+  color: var(--sec-accent);
+  text-decoration: underline;
+  text-decoration-thickness: var(--underline);
+  text-underline-offset: 3px;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.markdown a:not(.nw-more):not(.hash-link):hover {
+  color: var(--sec-ink);
+}
+
+/* Bullets are 7px solid squares */
+.markdown ul:not(.contains-task-list) {
+  padding-left: 0;
+  list-style: none;
+}
+
+.markdown ul:not(.contains-task-list) > li {
+  position: relative;
+  padding-left: 26px;
+}
+
+.markdown ul:not(.contains-task-list) > li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: var(--bullet-size);
+  height: var(--bullet-size);
+  background: currentColor;
+}
+
+.markdown ol > li::marker {
+  font-family: var(--font-mono);
+  color: var(--sec-muted);
+}
+
+.markdown blockquote {
+  padding: 0 0 0 20px;
+  border-left: var(--border-hair) solid var(--sec-rule);
+  color: var(--sec-muted);
+}
+
 article img {
   display: block;
   margin: 1.5rem auto;
 }
 
-/* ── Footer ─────────────────────────────────────────────── */
-.footer {
-  border-top: 1px solid var(--ifm-toc-border-color);
-  font-weight: 300;
+/* Tables: hairline rows, eyebrow headers, no fills */
+.markdown table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
 }
 
-.footer--dark {
-  --ifm-footer-background-color: #000;
+.markdown table thead tr {
+  border-bottom: var(--border-hair) solid var(--sec-rule);
 }
 
-/* ── Links ──────────────────────────────────────────────── */
-.markdown a:not(.button):not(.hash-link) {
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-  text-decoration-thickness: 1px;
+.markdown table tr {
+  border-top: var(--border-hair) solid var(--sec-rule);
 }
 
-[data-theme='dark'] a {
-  color: var(--ifm-color-primary);
+.markdown table th {
+  text-align: left;
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--sec-muted);
 }
 
-[data-theme='dark'] a:hover {
-  color: var(--ifm-color-primary-lighter);
+.markdown table th,
+.markdown table td {
+  padding: 12px 24px 12px 0;
 }
 
-/* ── Pagination (bottom arrows) ─────────────────────────── */
-.pagination-nav__label {
-  font-weight: 400;
+/* ── Code ───────────────────────────────────────────────── */
+code {
+  border: 0;
+  border-radius: var(--radius);
+  padding: 0.1em 0.3em;
+  font-weight: var(--fw-regular);
+  vertical-align: baseline;
 }
 
-.pagination-nav__sublabel {
-  display: none;
+.prism-code {
+  border: var(--border-hair) solid var(--code-rule);
+  border-radius: var(--radius);
+  background-color: var(--code-bg) !important;
+  font-size: 14px;
+  line-height: 1.65;
+  tab-size: 4;
 }
 
-/* ── Scrollbar (dark mode) ──────────────────────────────── */
-[data-theme='dark'] ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.prism-code code {
+  padding: 20px 22px;
 }
 
-[data-theme='dark'] ::-webkit-scrollbar-track {
+.theme-code-block {
+  border-radius: var(--radius);
+  box-shadow: none !important;
+}
+
+.theme-code-block [class*='codeBlockTitle'] {
+  border: var(--border-hair) solid var(--code-rule);
+  border-bottom: 0;
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: var(--label-size);
+  color: var(--code-muted);
+}
+
+.theme-code-block [class*='buttonGroup'] button {
+  border: var(--border-hair) solid var(--code-rule);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  color: var(--code-muted);
+}
+
+.theme-code-block [class*='buttonGroup'] button:hover {
+  color: var(--sec-accent);
+}
+
+/* ── Admonitions: like the original docs, a 4px accent edge, icon and coloured label ──
+   Info/note/tip blue, warning/caution/danger red (Infima's own info/danger colours; blue is
+   outside the design system palette). Near-black box in dark mode, a pale accent tint in light. */
+.theme-admonition.alert {
+  --callout-accent: #54c7ec;
+  --callout-label: #54c7ec;
+  --callout-bg: #0a0a0a;
+  --callout-ink: var(--sec-ink);
+  --ifm-alert-background-color: var(--callout-bg);
+  --ifm-alert-background-color-highlight: rgba(244, 237, 230, 0.08);
+  --ifm-alert-foreground-color: var(--callout-ink);
+  --ifm-alert-padding-horizontal: 20px;
+  --ifm-alert-padding-vertical: 16px;
+  border: 0;
+  border-left: 4px solid var(--callout-accent);
+  border-radius: var(--radius);
+  color: var(--callout-ink);
+}
+
+.theme-admonition.alert.theme-admonition-warning,
+.theme-admonition.alert.theme-admonition-caution,
+.theme-admonition.alert.theme-admonition-danger {
+  --callout-accent: #fa383e;
+  --callout-label: #fa383e;
+}
+
+:root[data-theme='light'] .theme-admonition.alert {
+  --callout-bg: #e1f3fa;
+  --callout-label: #1f6f8b;
+  --callout-ink: var(--nw-ink-dark);
+  --ifm-alert-background-color-highlight: rgba(34, 24, 26, 0.08);
+}
+
+:root[data-theme='light'] .theme-admonition.alert.theme-admonition-warning,
+:root[data-theme='light'] .theme-admonition.alert.theme-admonition-caution,
+:root[data-theme='light'] .theme-admonition.alert.theme-admonition-danger {
+  --callout-bg: #fde4e5;
+  --callout-label: #a8252a;
+}
+
+/* Doubled class so this wins by specificity: the minifier may reorder same-colour rules */
+.theme-admonition.theme-admonition [class*='admonitionHeading'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: var(--label-size);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--callout-label);
+}
+
+/* Docusaurus icon, in the label colour */
+.theme-admonition [class*='admonitionIcon'] {
+  display: inline-flex;
+  margin-right: 0;
+}
+
+.theme-admonition [class*='admonitionIcon'] svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Light tints need darker links and inline code than the page's */
+:root[data-theme='light'] .markdown .theme-admonition.alert a:not(.hash-link) {
+  color: var(--nw-ground);
+  text-decoration-color: currentColor;
+}
+
+:root[data-theme='light'] .markdown .theme-admonition.alert a:not(.hash-link):hover {
+  color: var(--nw-ink-dark);
+}
+
+:root[data-theme='light'] .theme-admonition.alert :not(pre) > code {
+  background: rgba(34, 24, 26, 0.08);
+  color: var(--nw-ink-dark);
+}
+
+/* Collapsible <details> blocks follow the same hairline pattern */
+.markdown details {
+  --ifm-alert-background-color: transparent;
+  --ifm-alert-foreground-color: var(--sec-ink);
+  --ifm-alert-border-color: var(--sec-rule);
+  border-width: var(--border-hair) 0;
+  border-style: solid;
+  border-radius: var(--radius);
+  box-shadow: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.markdown details > summary {
+  font-weight: var(--fw-semibold);
+}
+
+/* ── Top of page: prev/next + page actions ──────────────── */
+.top-doc-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px 24px;
+  margin-bottom: 28px;
+}
+
+.top-doc-nav__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.top-doc-nav-link,
+.page-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sec-muted);
+  font-family: var(--font-sans);
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.top-doc-nav-link:hover,
+.top-doc-nav-link:focus-visible,
+.page-action:hover,
+.page-action:focus-visible,
+.page-action[aria-expanded='true'] {
+  color: var(--sec-accent);
+  text-decoration: none;
+}
+
+.top-doc-nav-link--prev::before,
+.top-doc-nav-link--next::after,
+.page-action--menu::after {
+  font-size: 1.5em;
+  line-height: 0;
+}
+
+.top-doc-nav-link--prev::before {
+  content: '\2039';
+}
+
+.top-doc-nav-link--next::after {
+  content: '\203A';
+}
+
+.page-action--menu::after {
+  content: '\203A';
+  transform: rotate(90deg);
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.page-actions__menu {
+  position: relative;
+}
+
+/* Same footprint as the two buttons, so the page doesn't shift when they appear */
+.page-actions--placeholder {
+  width: 240px;
+  height: 34px;
+}
+
+.page-actions__list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 12px);
+  z-index: 50;
+  display: grid;
+  min-width: 200px;
+  padding: 8px 16px;
+  border: var(--border-hair) solid var(--sec-rule);
+  background: var(--overlay-bg);
+  backdrop-filter: blur(var(--blur-scrim));
+  -webkit-backdrop-filter: blur(var(--blur-scrim));
+}
+
+.page-actions__list a {
+  padding: 8px 0;
+  color: var(--sec-ink);
+  font-size: 15px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.page-actions__list a + a {
+  border-top: var(--border-hair) solid var(--rule-soft);
+}
+
+.page-actions__list a:hover,
+.page-actions__list a:focus-visible {
+  color: var(--sec-accent);
+}
+
+/* Copy page / Open in: framed buttons, equal height, icon + label */
+.page-action {
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: var(--border-hair) solid var(--sec-rule);
+  color: var(--sec-ink);
+  line-height: 1;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.page-action:hover,
+.page-action:focus-visible,
+.page-action[aria-expanded='true'] {
+  border-color: var(--sec-accent);
+}
+
+.page-action__icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.page-action__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.page-actions__list a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-actions__list .page-action__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* On narrow screens the actions sit on the left, so open the menu rightwards */
+@media (max-width: 996px) {
+  .page-actions__list {
+    left: 0;
+    right: auto;
+  }
+}
+
+/* ── Table of contents ──────────────────────────────────── */
+/* Desktop only: the folded mobile TOC already has its own "On this page" toggle */
+.theme-doc-toc-desktop .table-of-contents::before {
+  content: 'On this page';
+  display: block;
+  margin-bottom: 10px;
+  padding-left: var(--ifm-toc-padding-horizontal);
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--sec-muted);
+}
+
+.table-of-contents__left-border {
+  border-left: 0;
+}
+
+.table-of-contents {
+  font-size: 15px;
+}
+
+.table-of-contents__link {
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: var(--sec-accent);
+}
+
+/* Mobile "On this page" disclosure */
+.theme-doc-toc-mobile {
+  border-width: var(--border-hair) 0;
+  border-style: solid;
+  border-color: var(--sec-rule);
+  border-radius: var(--radius);
   background: transparent;
 }
 
-[data-theme='dark'] ::-webkit-scrollbar-thumb {
-  background: #1a1a1a;
-  border-radius: 3px;
+.theme-doc-toc-mobile > button {
+  padding-left: 0;
+  padding-right: 0;
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--sec-muted);
 }
 
-[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
-  background: #2a2a2a;
+.theme-doc-toc-mobile > button::after {
+  content: '\203A';
+  width: auto;
+  height: auto;
+  background: none;
+  filter: none;
+  font-size: 1.5em;
+  line-height: 0;
+  transform: rotate(90deg);
 }
 
-/* ── Buttons ────────────────────────────────────────────── */
-[data-theme='dark'] .button--secondary {
-  --ifm-button-background-color: #222;
-  --ifm-button-border-color: #333;
-  color: #ddd;
+/* ── Bottom pagination: hairline rows ───────────────────── */
+.pagination-nav {
+  margin-top: var(--gap-block);
 }
 
-[data-theme='dark'] .button--secondary:hover {
-  --ifm-button-background-color: #2a2a2a;
-  --ifm-button-border-color: #444;
-  color: #fff;
+.pagination-nav__link {
+  padding: 18px 0 20px;
+  border: 0;
+  border-top: var(--border-hair) solid var(--sec-rule);
+  border-radius: var(--radius);
+  transition: color var(--dur-fast) var(--ease);
 }
 
-/* ── Version dropdown ──────────────────────────────────── */
-.sidebar-version-select {
-  color: var(--ifm-font-color-base) !important;
-  background-color: var(--ifm-background-surface-color) !important;
-  border-color: var(--ifm-toc-border-color) !important;
+.pagination-nav__link:hover {
+  border-color: var(--sec-rule);
 }
 
-.sidebar-version-select option {
-  color: var(--ifm-font-color-base);
-  background-color: var(--ifm-background-surface-color);
+.pagination-nav__sublabel {
+  margin-bottom: 6px;
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--sec-muted);
 }
 
-[data-theme='dark'] .sidebar-version-select {
-  color: #fff !important;
-  background-color: #111 !important;
-  border-color: #333 !important;
+.pagination-nav__label {
+  font-size: clamp(18px, 1.6vw, 24px);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-heading);
+  line-height: 1.15;
+  color: var(--sec-ink);
+  transition: color var(--dur-fast) var(--ease);
 }
 
-[data-theme='dark'] .sidebar-version-select option {
-  background-color: #111;
-  color: #fff;
+.pagination-nav__link:hover .pagination-nav__label {
+  color: var(--sec-accent);
 }
 
-/* ── Version badge above doc title ─────────────────────── */
-[data-theme='dark'] .theme-doc-version-badge {
-  color: #ccc !important;
-  background-color: #1a1a1a !important;
-  border-color: #333 !important;
+.pagination-nav__link--prev .pagination-nav__label::before {
+  content: '\2039  ';
+  color: var(--sec-accent);
+}
+
+.pagination-nav__link--next .pagination-nav__label::after {
+  content: '  \203A';
+  color: var(--sec-accent);
+}
+
+/* ── Generated index pages: hairline rows, not cards ────── */
+.theme-doc-card-icon {
+  display: none;
+}
+
+.card {
+  padding: 18px 0 20px !important;
+  border: 0;
+  border-top: var(--border-hair) solid var(--sec-rule);
+  border-radius: var(--radius);
+  box-shadow: none;
+  background: transparent;
+}
+
+a.card:hover h2 {
+  color: var(--sec-accent);
+}
+
+.card h2 {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  font-size: clamp(18px, 1.6vw, 24px);
+}
+
+.card p {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--sec-muted);
+}
+
+/* ── Buttons (nw-btn) ───────────────────────────────────── */
+.button {
+  border-width: var(--border-button);
+  border-radius: var(--radius);
+  box-shadow: none;
+  text-transform: uppercase;
+  font-size: var(--type-button);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-button);
+}
+
+.button--secondary,
+.button--primary {
+  --ifm-button-background-color: transparent;
+  --ifm-button-border-color: var(--sec-accent);
+  --ifm-button-color: var(--sec-accent);
+  color: var(--sec-accent);
+}
+
+.button--secondary:hover,
+.button--primary:hover {
+  --ifm-button-background-color: var(--sec-accent);
+  --ifm-button-border-color: var(--sec-accent);
+  color: var(--sec-bg);
+}
+
+.theme-back-to-top-button {
+  border: var(--border-hair) solid var(--sec-rule);
+  border-radius: var(--radius);
+  background-color: var(--sec-bg);
+  box-shadow: none;
+}
+
+.theme-back-to-top-button:hover {
+  border-color: var(--sec-accent);
+  background-color: var(--sec-bg);
 }
 
 /* ── Hide edit this page ────────────────────────────────── */
@@ -386,68 +1426,368 @@ article img {
   display: none;
 }
 
-[data-theme='dark'] .top-doc-nav-link {
-  color: #ebebeb !important;
+/* ── Footer (nw-foot) ───────────────────────────────────── */
+.nw-foot {
+  display: grid;
+  grid-template-columns: var(--split-5-7);
+  gap: 18px var(--gap-col);
+  max-width: 1400px;
+  width: 100%;
+  margin: var(--gap-foot) auto 0;
+  padding: 22px var(--pad-x) 32px;
+  font-size: 14px;
+  color: var(--sec-muted);
 }
 
-.top-doc-nav-link:hover {
-  color: var(--ifm-font-color-base) !important;
+/* Hairline spans the content, inside the side padding */
+.nw-foot::before {
+  content: '';
+  grid-column: 1 / -1;
+  margin-top: -22px;
+  border-top: var(--border-hair) solid var(--sec-rule);
 }
 
-/* ── Category/doc card grid (generated index pages) ─────── */
-.theme-doc-card-icon {
+.nw-foot a {
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.nw-foot a:hover,
+.nw-foot a:focus-visible {
+  color: var(--sec-accent);
+}
+
+.nw-foot__brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+
+.nw-foot__brand a {
+  color: var(--sec-ink);
+  font-size: 16px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-tighter);
+}
+
+.nw-foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  justify-content: flex-end;
+}
+
+.nw-foot nav a {
+  color: var(--sec-ink);
+  text-transform: uppercase;
+  letter-spacing: var(--tr-link);
+  font-weight: var(--fw-medium);
+}
+
+.nw-foot__meta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.nw-foot__meta a {
+  color: var(--sec-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Docs home ──────────────────────────────────────────── */
+.nw-home {
+  width: min(100% - 2 * var(--pad-x), 1200px);
+  margin: 0 auto;
+  padding: var(--pad-y) 0 0;
+}
+
+.nw-eyebrow {
+  margin: 0 0 18px;
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--sec-muted);
+}
+
+.nw-phero h1 {
+  margin: 0;
+  /* 16ch in Inter Tight, as em so the fallback font wraps the same (ch follows the font's "0") */
+  max-width: 10.08em;
+  font-size: clamp(40px, 7vw, 120px);
+  font-weight: var(--fw-semibold);
+  line-height: 0.95;
+  letter-spacing: var(--tr-tightest);
+  text-wrap: balance;
+}
+
+.nw-phero__intro a {
+  text-decoration: underline;
+  text-decoration-thickness: var(--underline);
+  text-underline-offset: 3px;
+}
+
+.nw-phero__intro {
+  margin: 28px 0 0;
+  max-width: 56ch;
+  font-size: var(--type-body);
+  line-height: var(--lh-body);
+  color: var(--sec-muted);
+}
+
+.nw-home__section {
+  margin-top: var(--pad-y);
+}
+
+.nw-head {
+  display: grid;
+  grid-template-columns: var(--split-5-7);
+  gap: 18px var(--gap-col);
+  margin-bottom: var(--gap-block);
+  align-items: end;
+}
+
+.nw-head h2 {
+  margin: 0;
+  font-size: var(--type-lead);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-lead);
+  letter-spacing: var(--tr-tight);
+  text-wrap: balance;
+}
+
+.nw-rows {
+  display: grid;
+}
+
+.nw-row {
+  display: grid;
+  grid-template-columns: var(--split-5-7);
+  gap: var(--gap-col);
+  padding: var(--row-pad-top) 0 clamp(40px, 5vw, 72px);
+  border-top: var(--border-hair) solid var(--sec-rule);
+}
+
+.nw-row h3 {
+  margin: 0;
+  font-size: var(--type-h3);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--tr-heading);
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.nw-row p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--type-body);
+  line-height: var(--lh-body);
+}
+
+.nw-arrow-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+  margin-top: 22px;
+}
+
+/* Skill install command right under the hero headline */
+.nw-phero__skill {
+  max-width: 760px;
+  margin-top: 32px;
+}
+
+.nw-phero__skill-label {
+  margin: 0 0 10px;
+  font-size: var(--type-body-sm);
+  color: var(--sec-muted);
+}
+
+.skill-install-command {
+  min-width: 0;
+}
+
+.skill-install-command .prism-code {
+  font-size: 15px;
+}
+
+.skill-install-command pre {
+  margin: 0;
+  padding-right: 3.25rem;
+}
+
+.skill-install-command .theme-code-block {
+  margin-bottom: 0;
+}
+
+.skill-install-command button[aria-label='Toggle word wrap'] {
   display: none;
 }
 
-/* ── GitHub navbar icon + star count ─────────────────────── */
-.header-github-link {
-  display: flex !important;
-  align-items: center;
-  gap: 6px;
+/* Always-visible, fully opaque copy button (Docusaurus fades code buttons to 0-40%) */
+.skill-install-command [class*='buttonGroup'] button {
+  opacity: 1 !important;
+  border-color: var(--code-ink);
+  color: var(--code-ink);
 }
 
-@media (max-width: 996px) {
-  .navbar__items .header-github-link {
-    display: none !important;
+.skill-install-command [class*='buttonGroup'] button:hover,
+.skill-install-command [class*='buttonGroup'] button:focus-visible {
+  border-color: var(--sec-accent);
+  color: var(--sec-accent);
+}
+
+/* ── Language icons (navbar items + install tabs) ────────── */
+/* Full-colour icons from the team (static/img/icons/lang/), drawn as images, not recoloured */
+.lang-icon {
+  align-items: center;
+  gap: 8px;
+}
+
+
+.lang-icon::before {
+  content: '';
+  flex: none;
+  width: 1.2em;
+  height: 1.2em;
+  background: var(--lang-icon) center / contain no-repeat;
+}
+
+.lang-icon--python { --lang-icon: url('/img/icons/lang/python.svg'); }
+.lang-icon--godot { --lang-icon: url('/img/icons/lang/godot.svg'); }
+.lang-icon--flutter { --lang-icon: url('/img/icons/lang/flutter.svg'); }
+.lang-icon--react-native { --lang-icon: url('/img/icons/lang/react-native.svg'); }
+.lang-icon--swift { --lang-icon: url('/img/icons/lang/swift.svg'); }
+.lang-icon--kotlin { --lang-icon: url('/img/icons/lang/kotlin.svg'); }
+
+.navbar__item.lang-icon::before {
+  margin-right: 0.3rem;
+}
+
+/* Desktop navbar only: on phones Docusaurus hides these links (they live in the drawer) */
+@media (min-width: 997px) {
+  .navbar__item.lang-icon {
+    display: inline-flex;
   }
 }
 
-.header-github-link::before {
-  content: '';
-  width: 20px;
-  height: 20px;
-  display: block;
-  flex-shrink: 0;
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23666' d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E")
-    no-repeat center / contain;
+/* ── Install box: a top bar of language tabs over one panel ─ */
+.nw-install {
+  border: var(--border-hair) solid var(--sec-rule);
 }
 
-[data-theme='dark'] .header-github-link::before {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23999' d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E");
+.nw-install .tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin: 0;
+  border-bottom: var(--border-hair) solid var(--sec-rule);
+  background: var(--code-bg);
+  scrollbar-width: none;
 }
 
-.gh-star-count {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: var(--ifm-font-color-secondary);
+.nw-install .tabs::-webkit-scrollbar {
+  display: none;
 }
 
-.header-github-link:hover,
-.header-discord-link:hover {
-  opacity: 0.7;
+.nw-install .tabs__item {
+  /* Grow to fill the bar, never shrink below the label; the bar scrolls if they don't fit */
+  flex: 1 0 auto;
+  justify-content: center;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--code-muted);
+  font-size: var(--label-size);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-button);
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
-/* ── Discord navbar icon ────────────────────────────────── */
-.header-discord-link::before {
-  content: '';
-  width: 24px;
-  height: 24px;
-  display: flex;
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23666' d='M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z'/%3E%3C/svg%3E")
-    no-repeat;
+.nw-install .tabs__item:hover {
+  background: transparent;
+  color: var(--code-ink);
 }
 
-[data-theme='dark'] .header-discord-link::before {
-  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23999' d='M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189z'/%3E%3C/svg%3E")
-    no-repeat;
+/* Underline drawn inside the tab: the scrolling tab bar would clip one below it */
+.nw-install .tabs__item--active,
+.nw-install .tabs__item--active:hover {
+  box-shadow: inset 0 -2px 0 var(--sec-accent);
+  color: var(--sec-accent);
+}
+
+/* Docusaurus puts margin above the panel; the box supplies its own spacing */
+.nw-install [role='tabpanel'] {
+  margin: 0;
+}
+
+.nw-install .tabs + * {
+  margin-top: 0 !important;
+}
+
+.nw-install__panel {
+  display: grid;
+  /* minmax(0, …) so long commands scroll inside their code block instead of widening the page */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  padding: 24px;
+}
+
+.nw-install__desc,
+.nw-install__note {
+  margin: 0;
+  font-size: var(--type-body-sm);
+}
+
+.nw-install__note {
+  color: var(--sec-muted);
+}
+
+.nw-install__note a {
+  color: var(--sec-accent);
+  text-decoration: underline;
+  text-decoration-thickness: var(--underline);
+  text-underline-offset: 3px;
+}
+
+.nw-install__note a:hover {
+  color: var(--sec-ink);
+}
+
+.nw-install .theme-code-block {
+  margin: 0;
+}
+
+.nw-install .theme-code-block button[aria-label='Toggle word wrap'] {
+  display: none;
+}
+
+.nw-install .nw-more {
+  justify-self: start;
+}
+
+@media (max-width: 760px) {
+  .nw-foot,
+  .nw-head,
+  .nw-row {
+    /* minmax(0, …) lets wide children like code blocks scroll instead of widening the page */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nw-foot nav {
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
 }

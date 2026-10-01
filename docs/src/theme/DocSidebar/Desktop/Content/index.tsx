@@ -26,49 +26,27 @@ function VersionSelector() {
   if (versions.length <= 1) return null;
 
   return (
-    <div style={{
-      padding: '0.5rem 0.75rem 0.75rem',
-      borderBottom: '1px solid var(--ifm-toc-border-color)',
-    }}>
-      <div style={{
-        fontSize: '0.7rem',
-        fontWeight: 500,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        color: 'var(--ifm-font-color-secondary)',
-        marginBottom: '0.35rem',
-      }}>
-        Version
+    <div className="sidebar-version">
+      <label htmlFor="sidebar-version-select">Version</label>
+      <div className="sidebar-version__select">
+        <select
+          id="sidebar-version-select"
+          value={activeVersion?.name || 'current'}
+          onChange={(e) => {
+            const selected = versions.find((v) => v.name === e.target.value);
+            if (selected) {
+              window.location.href = selected.path + '/';
+            }
+          }}
+          className="sidebar-version-select"
+        >
+          {versions.map((v) => (
+            <option key={v.name} value={v.name}>
+              {v.label}
+            </option>
+          ))}
+        </select>
       </div>
-      <select
-        value={activeVersion?.name || 'current'}
-        onChange={(e) => {
-          const selected = versions.find((v) => v.name === e.target.value);
-          if (selected) {
-            window.location.href = selected.path + '/';
-          }
-        }}
-        style={{
-          width: '100%',
-          padding: '0.35rem 0.5rem',
-          fontSize: '0.85rem',
-          fontWeight: 400,
-          fontFamily: 'var(--ifm-font-family-base)',
-          borderRadius: '6px',
-          border: '1px solid var(--ifm-toc-border-color)',
-          backgroundColor: 'var(--ifm-background-surface-color)',
-          color: 'var(--ifm-font-color-base)',
-          cursor: 'pointer',
-          appearance: 'auto',
-        }}
-        className="sidebar-version-select"
-      >
-        {versions.map((v) => (
-          <option key={v.name} value={v.name}>
-            {v.label}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }
