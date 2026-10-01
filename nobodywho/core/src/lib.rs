@@ -49,7 +49,7 @@ pub fn send_llamacpp_logs_to_tracing() {
 pub(crate) mod test_utils {
     use crate::llm::{get_model, Model};
     use crate::send_llamacpp_logs_to_tracing;
-    use std::sync::{Arc, Once};
+    use std::sync::{Arc, Mutex, Once, Weak};
 
     static INIT: Once = Once::new();
 
@@ -67,18 +67,40 @@ pub(crate) mod test_utils {
         });
     }
 
-    /// Load the test model with GPU acceleration if available
+    /// Attempt to re-use a cached value (model), or replace it with a new one
+    /// if not available.
+    ///
+    /// This should allow running tests with multiple threads, or at least it
+    /// helps alleviate model loading failing because of limited RAM.
+    ///
+    /// The ideal way to do this would just be to store the model in a static
+    /// and have the OS unload the model when the process terminates, but that
+    /// is (annoyingly) not possible on the Metal backend, see:
+    /// https://github.com/ggml-org/llama.cpp/pull/28395
+    fn upgrade_or_replace<T>(weak: &mut Weak<T>, closure: impl FnOnce() -> T) -> Arc<T> {
+        if let Some(strong) = weak.upgrade() {
+            strong
+        } else {
+            let strong = Arc::new(closure());
+            *weak = Arc::downgrade(&strong);
+            strong
+        }
+    }
+
+    /// Load the test model (with GPU acceleration if available).
     pub(crate) fn load_test_model() -> Arc<Model> {
         init_test_tracing();
 
         let path = std::env::var("TEST_MODEL").unwrap_or_else(|_| "model.gguf".to_string());
-        Arc::new(
+
+        static MODEL: Mutex<Weak<Model>> = Mutex::new(Weak::new());
+        upgrade_or_replace(&mut MODEL.lock().unwrap(), || {
             get_model(&path, true, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load test model from {path}: {e}")),
-        )
+                .unwrap_or_else(|e| panic!("failed to load test model from {path}: {e}"))
+        })
     }
 
-    /// Load the embeddings model with GPU acceleration if available
+    /// Load the embeddings model (with GPU acceleration if available).
     pub(crate) fn load_embeddings_model() -> Arc<Model> {
         init_test_tracing();
 
@@ -90,10 +112,11 @@ pub(crate) mod test_utils {
         //      llvmpipe is very rare in the wild, so it shouldn't cause any problems in general
         //      this segfault doesn't happen on nobodywho commit 94d51c5.
         //      it's most likely related to an upstream change in llama.cpp
-        Arc::new(
+        static MODEL: Mutex<Weak<Model>> = Mutex::new(Weak::new());
+        upgrade_or_replace(&mut MODEL.lock().unwrap(), || {
             get_model(&path, false, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load embeddings model from {path}: {e}")),
-        )
+                .unwrap_or_else(|e| panic!("failed to load embeddings model from {path}: {e}"))
+        })
     }
 
     /// Load the crossencoder model with GPU acceleration if available
@@ -103,10 +126,11 @@ pub(crate) mod test_utils {
         let path = std::env::var("TEST_CROSSENCODER_MODEL")
             .unwrap_or_else(|_| "crossencoder.gguf".to_string());
         // Same GPU offloading note as embeddings model
-        Arc::new(
+        static MODEL: Mutex<Weak<Model>> = Mutex::new(Weak::new());
+        upgrade_or_replace(&mut MODEL.lock().unwrap(), || {
             get_model(&path, false, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load crossencoder model from {path}: {e}")),
-        )
+                .unwrap_or_else(|e| panic!("failed to load crossencoder model from {path}: {e}"))
+        })
     }
 
     /// Load the MTP draft and target models.
@@ -117,11 +141,12 @@ pub(crate) mod test_utils {
         let draft_path = std::env::var("TEST_MTP_DRAFT_MODEL")
             .expect("should have TEST_MTP_DRAFT_MODEL if TEST_MTP_TARGET_MODEL is set");
 
-        Some(Arc::new(
+        static MODEL: Mutex<Weak<Model>> = Mutex::new(Weak::new());
+        Some(upgrade_or_replace(&mut MODEL.lock().unwrap(), || {
             get_model(&target_path, true, None, Some(&draft_path), None).unwrap_or_else(|e| {
                 panic!("failed to load MTP models from {target_path} and {draft_path}: {e}")
-            }),
-        ))
+            })
+        }))
     }
 
     pub(crate) fn load_mtmd_models() -> Option<Arc<Model>> {
@@ -131,30 +156,33 @@ pub(crate) mod test_utils {
         let mmproj_path = std::env::var("TEST_MMPROJ_MODEL")
             .expect("should have TEST_MMPROJ_MODEL if TEST_VISION_MODEL is set");
 
-        Some(Arc::new(
+        static MODEL: Mutex<Weak<Model>> = Mutex::new(Weak::new());
+        Some(upgrade_or_replace(&mut MODEL.lock().unwrap(), || {
             get_model(&vision_path, true, Some(&mmproj_path), None, None).unwrap_or_else(|e| {
                 panic!("failed to load vision models from {vision_path} and {mmproj_path}: {e}")
-            }),
-        ))
+            })
+        }))
     }
 
     pub(crate) fn gemma4_model() -> Option<Arc<Model>> {
         init_test_tracing();
 
         let path = std::env::var("GEMMA4_MODEL").ok()?;
-        Some(Arc::new(
+        static MODEL: Mutex<Weak<Model>> = Mutex::new(Weak::new());
+        Some(upgrade_or_replace(&mut MODEL.lock().unwrap(), || {
             get_model(&path, true, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e}")),
-        ))
+                .unwrap_or_else(|e| panic!("failed to load Gemma4 model from {path}: {e}"))
+        }))
     }
 
     pub(crate) fn qwen36_model() -> Option<Arc<Model>> {
         init_test_tracing();
 
         let path = std::env::var("QWEN36_MODEL").ok()?;
-        Some(Arc::new(
+        static MODEL: Mutex<Weak<Model>> = Mutex::new(Weak::new());
+        Some(upgrade_or_replace(&mut MODEL.lock().unwrap(), || {
             get_model(&path, false, None, None, None)
-                .unwrap_or_else(|e| panic!("failed to load Qwen3.6 model from {path}: {e}")),
-        ))
+                .unwrap_or_else(|e| panic!("failed to load Qwen3.6 model from {path}: {e}"))
+        }))
     }
 }
