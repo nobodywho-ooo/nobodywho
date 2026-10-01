@@ -52,7 +52,7 @@ This installs `just` (if not already present) and wires up the pre-push hook. Af
 
 ## Changelog entries
 
-Pending changes are described as files in [`.changeset/`](.changeset/) rather than edited into [`CHANGELOG.md`](CHANGELOG.md) directly. Each binding is versioned and released on its own, and at release time these files are turned into a dated `CHANGELOG.md` entry and each released binding's next version. `just change` asks which bindings the change affects and how, which changelog section it belongs in, a description and a file name, and writes a file like this:
+Pending changes are described as files in [`.changeset/`](.changeset/) rather than edited into [`CHANGELOG.md`](CHANGELOG.md) directly. Each binding is versioned and released on its own, and at release time these files are turned into a dated `CHANGELOG.md` entry and each released binding's next version. `just change` asks which bindings the change affects, which changelog section it belongs in, how big a bump it is, a description and a file name, and writes a file like this:
 
 ```markdown
 ---
@@ -67,7 +67,7 @@ One or two sentences describing the change for users.
 
 - `section` is the Keep a Changelog section: `added`, `changed`, `deprecated`, `removed`, `fixed` or `security`.
 - Under `bindings`, list every binding whose users will notice the change, and only those. A change in `core/` usually affects all six: `python`, `godot`, `flutter`, `kotlin`, `react-native` and `swift`.
-- Pick the bump per binding: `major` if existing code can break (removed or renamed API, changed signature or behaviour, newly rejected input), `minor` for new functionality or other changes, `patch` for bug fixes. `just change` gives every binding the same bump; edit the file if they should differ.
+- Pick the bump per binding: `major` if existing code can break (removed or renamed API, changed signature or behaviour, newly rejected input), `minor` for new functionality or other changes, `patch` for bug fixes. `just change` suggests a bump from the section (`minor` for `added` and `deprecated`, `major` for `removed`, `patch` for `fixed` and `security`, none for `changed`) and gives every binding the same bump; edit the file if they should differ.
 - Don't name the affected bindings or mark the change as breaking in the text; `CHANGELOG.md` adds both from the frontmatter.
 - Write two files if the wording should differ between bindings.
 

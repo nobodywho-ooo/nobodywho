@@ -29,27 +29,30 @@ Pending user-facing changes live as one file each in `.changeset/` (format in [C
 
 Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `npmDepsHash`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR, tags and release notes are the user's.
 
-Releases are cut on a **release branch**, named `release-all-bindings-YYYY-MM-DD` by convention, off `origin/main`.
+Releases go out on a **release branch**, named `release-all-bindings-YYYY-MM-DD` by convention. The user creates it when they commit in Step 7, so it's fine to start the release on `main`.
 
-- **The branch fixes the contents.** Creating it decides what the release contains. The branch then gets the release commit and nothing else: no fixes and no merges from `main`.
+- **The starting commit fixes the contents.** The commit you start from (`HEAD` in Step 0) decides what the release contains. The release branch then gets the release commit and nothing else: no fixes and no merges from `main`.
 - **Tags go on the branch head.** The packages are published from there, and a person squash-merges the PR into `main` on GitHub afterwards.
 - **It shouldn't conflict with `main`.** The release commit only touches version files, lock and generated files, the changelogs, the consumed change files and the docs snapshot. PRs merged into `main` meanwhile add new change files and never edit `CHANGELOG.md`.
 
 Run the steps in order. Do not skip the approval gates.
 
+The user may work with git or with a git-compatible tool on a colocated repository, so only read state the same way both see it: compare against `HEAD` (`git diff HEAD`, `git ls-files --others`) rather than relying on git's index (`git status`, plain `git diff`).
+
 ---
 
 ## Step 0 — Pre-flight
 
-The release must start from a healthy `main`:
+Check that the release starts from a clean, healthy commit:
 
 ```bash
 git fetch origin
-git status --short        # must be empty
-git log -1 --format='%h %s' origin/main
+git diff --stat HEAD                         # must print nothing
+git ls-files --others --exclude-standard     # must print nothing
+git log -1 --format='%h %s' HEAD
 ```
 
-Check that the latest `Build and test` run on `main` (`build-and-test.yml`, which runs the full matrix on `main`) is fully green: `build.yml` on all platforms, `regen-checks`, `python-ci`, `kotlin-ci`, `swift-ci` and `linting`. **Do not cut a release from a red `main`.** The tag runs rerun the same jobs, and the release job only runs if they all pass, so a red `main` publishes nothing. Instead, each tag run fails, often hours in, and leaves behind a pushed tag that published nothing. If any job is failing or pending, stop and tell the user.
+Check that the `Build and test` run for `HEAD` on `main` (`build-and-test.yml`, which runs the full matrix on `main`) is fully green: `build.yml` on all platforms, `regen-checks`, `python-ci`, `kotlin-ci`, `swift-ci` and `linting`. `gh run list --workflow build-and-test.yml --commit "$(git rev-parse HEAD)"` finds it. **Do not release from a red commit.** The tag runs rerun the same jobs, and the release job only runs if they all pass, so a red commit publishes nothing. Instead, each tag run fails, often hours in, and leaves behind a pushed tag that published nothing. If any job is failing or pending, or `HEAD` has no such run (for example because it isn't pushed to `main`), stop and tell the user.
 
 Then check that the change files are valid and that nothing was written to `CHANGELOG.md` the old way:
 
@@ -57,7 +60,6 @@ Then check that the change files are valid and that nothing was written to `CHAN
 just check-changesets                       # must pass
 grep -n '^## \[Unreleased\]' CHANGELOG.md   # must print nothing
 ls .changeset/*.md                          # must list at least one file
-git ls-remote --heads origin 'release-*'    # check today's branch name isn't taken
 ```
 
 Stop if any of these fails:
@@ -66,15 +68,7 @@ Stop if any of these fails:
 - **An `Unreleased` section** means someone edited `CHANGELOG.md` directly. `prepare-release` would put the release above those entries and leave them unreleased. They have to become change files in a PR to `main` first.
 - **No change files** means there is nothing to release.
 
-Then ask the user to create the release branch off `origin/main` (fill in today's date), and wait until they have:
-
-```bash
-git switch -c release-all-bindings-YYYY-MM-DD origin/main
-# or with jj:
-jj new main@origin
-```
-
-With jj the branch is a bookmark, so it is only created at commit time in Step 7. Do all remaining work in this working copy.
+Do all remaining work in this working copy.
 
 ---
 
@@ -152,7 +146,8 @@ If it stops with `<binding> version files disagree`, stop and tell the user. One
 Check the result, and stop if anything differs from this list:
 
 ```bash
-git status --short
+git diff --stat HEAD
+git ls-files --others --exclude-standard
 ```
 
 - **Expected changes:**
@@ -169,7 +164,7 @@ If uniffi or core was approved in Step 2, bump them now and update the lock (run
 # after editing version = "..." in uniffi/Cargo.toml and/or core/Cargo.toml
 cargo update -p nobodywho-uniffi --precise <new-version>
 cargo update -p nobodywho --precise <new-version>        # core's package name is `nobodywho`
-git diff Cargo.lock    # only those crates' version lines should change
+git diff HEAD -- Cargo.lock    # only those crates' version lines should change
 ```
 
 ---
@@ -236,7 +231,7 @@ This creates `docs/<binding>_versioned_docs/version-<v>/` and `docs/<binding>_ve
 
 Then set each released binding's entry in the `latestReleases` map at the top of `docs/docusaurus.config.ts` to its new version. That makes it the default and gives the previous version the "unmaintained" banner.
 
-The new versioned files are untracked with git, so the Step 7 commands use `git add -A` rather than `git add -u`.
+The new versioned files are untracked, so the Step 7 commands use `git add -A` rather than `git add -u`.
 
 ---
 
@@ -245,11 +240,11 @@ The new versioned files are untracked with git, so the Step 7 commands use `git 
 ```bash
 just check-changesets      # passes with no change files left
 just next-versions         # "No change files in .changeset/, nothing to release."
-python3 -B -c 'import sys; sys.path.insert(0, ".github/scripts"); import changesets as c; [print(p, c.current_version(p)) for p in c.BINDINGS]'
+uv run --python '>=3.11' python -B -c 'import sys; sys.path.insert(0, ".github/scripts"); import changesets as c; [print(p, c.current_version(p)) for p in c.BINDINGS]'
 just release-tags          # exactly one new tag per released binding
 ```
 
-The `python3` line reads every version location and fails if any of a binding's locations disagree. Check that it prints the approved versions. Also check that `uniffi/Cargo.toml` and `core/Cargo.toml` match what was approved in Step 2.
+The `uv run` line reads every version location and fails if any of a binding's locations disagree. Check that it prints the approved versions. Also check that `uniffi/Cargo.toml` and `core/Cargo.toml` match what was approved in Step 2.
 
 From `nobodywho/`:
 
@@ -268,16 +263,13 @@ Summarize for the user:
 - the files changed: version files, lockfiles, `Cargo.nix`/`crate-hashes.json`, `flake.nix`, both changelogs, the deleted change files, the docs snapshots and `docusaurus.config.ts`;
 - the release-note drafts in `nobodywho/changelogs/` (untracked).
 
-Then give them the commands to run, filled in with the branch name and with the bracketed list from the new `CHANGELOG.md` heading as the title:
+Then give them the commands to run, filled in with today's date in the branch name and with the bracketed list from the new `CHANGELOG.md` heading as the title:
 
 ```bash
+git switch -c release-all-bindings-YYYY-MM-DD
 git add -A
 git commit -m "Release: Python v4.0.0, Flutter v5.0.0, …"
 git push -u origin release-all-bindings-YYYY-MM-DD
-# or with jj:
-jj commit -m "Release: Python v4.0.0, Flutter v5.0.0, …"
-jj bookmark create release-all-bindings-YYYY-MM-DD -r @-
-jj git push --bookmark release-all-bindings-YYYY-MM-DD   # older jj may also need --allow-new
 
 gh pr create --base main --head release-all-bindings-YYYY-MM-DD \
   --title "Release: Python v4.0.0, Flutter v5.0.0, …" \
@@ -305,7 +297,7 @@ Once the PR is green, have the user run this with the release commit checked out
 just push-release-tags
 ```
 
-Their checkout is right in both cases: with git, the release branch is checked out after Step 7, and with jj, git's `HEAD` is the commit `jj commit` just made. The command:
+After Step 7 the release branch is checked out, so `HEAD` is the release commit. The command:
 
 - creates each missing tag on `HEAD`;
 - pushes the tags one at a time, waiting for each tag's `Build and test` run to start before pushing the next;
@@ -336,8 +328,7 @@ The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` a
 
 ## Checklist
 
-- [ ] `main` clean and fully green; `just check-changesets` passes; change files present; no `Unreleased` section in `CHANGELOG.md` (Step 0)
-- [ ] Release branch created off `origin/main` by the user
+- [ ] Clean tree, green CI for `HEAD`, `just check-changesets` passes, change files present, no `Unreleased` section in `CHANGELOG.md` (Step 0)
 - [ ] Change files audited: coverage, bumps, wording (Step 1)
 - [ ] Version table, uniffi/core decision and changelog preview → **user approval** (Step 2)
 - [ ] `just prepare-release` run; diff matches expectations; `nobodywho/changelogs/` untracked (Step 3)
@@ -348,5 +339,5 @@ The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` a
 - [ ] `nix flake check -L` passes; the user runs it (4d)
 - [ ] Docs snapshotted per released binding, `latestReleases` updated (Step 5)
 - [ ] Step 6 checks pass
-- [ ] User committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)
+- [ ] User created the release branch, committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)
 - [ ] User ran `just push-release-tags` and added the GitHub release notes; told the PR is ready to squash-merge (Step 8)

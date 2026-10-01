@@ -104,24 +104,24 @@ regen-uniffi clean="false":
 
 # Add a user-facing change for the next release notes.
 change:
-    python3 .github/scripts/changesets.py new
+    .github/scripts/changesets.py new
 
 # Validate the pending change files in .changeset/ for correctness.
 check-changesets:
-    python3 .github/scripts/changesets.py check
+    .github/scripts/changesets.py check
 
 # Show the CHANGELOG.md entry and versions the pending change files would produce.
 next-versions:
-    python3 .github/scripts/changesets.py preview
+    .github/scripts/changesets.py preview
 
 # Bump versions, write CHANGELOG.md and consume .changeset/
 prepare-release:
-    python3 .github/scripts/changesets.py release
+    .github/scripts/changesets.py release
 
 # List the tags the newest CHANGELOG.md release is missing; --create makes them on HEAD.
 release-tags *args:
-    python3 .github/scripts/changesets.py tag {{args}}
+    .github/scripts/changesets.py tag {{args}}
 
 # Tag HEAD with the newest release's tags and push them one at a time, waiting for each CI run to start.
 push-release-tags:
-    python3 .github/scripts/changesets.py push-tags
+    .github/scripts/changesets.py push-tags
