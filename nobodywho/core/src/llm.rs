@@ -33,7 +33,7 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
+pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> =
     LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
