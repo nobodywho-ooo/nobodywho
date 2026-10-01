@@ -905,31 +905,6 @@ pub(crate) enum ChatWorkerError {
     Setter(#[from] SetterError),
 }
 
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
-pub enum WrappedResponseError {
-    #[error("Error during context shift: {0}")]
-    #[diagnostic(transparent)]
-    Shift(#[from] ShiftError),
-
-    #[error("Error rendering chat history with chat template: {0}")]
-    #[diagnostic(transparent)]
-    Render(#[from] RenderError),
-
-    #[error("Error removing tokens not present in the common prefix: {0}")]
-    KVCacheUpdate(#[from] KvCacheConversionError),
-
-    #[error("Error syncing context and reading prompt: {0}")]
-    #[diagnostic(transparent)]
-    ReadError(#[from] ContextSyncError),
-
-    #[error("Error while generating response: {0}")]
-    #[diagnostic(transparent)]
-    GenerateResponse(#[from] GenerateResponseError),
-
-    #[error("Error receiving generated response: {0}")]
-    Receive(#[from] std::sync::mpsc::RecvError),
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum InferenceError {
     #[error("Error reading tokens: {0}")]
@@ -943,13 +918,15 @@ pub enum GenerateResponseError {
     #[error("Error removing tokens from context after context shift")]
     KVCacheUpdate(#[from] KvCacheConversionError),
 
-    #[error("Error reading updated chat template render after context shift: {0}")]
+    #[error("Error reading generated tokens back after context shift: {0}")]
     Read(#[from] ReadError),
 
-    #[error("Error rendering template after context shift: {0}")]
+    #[error("Error rendering chat history with chat template: {0}")]
+    #[diagnostic(transparent)]
     Render(#[from] RenderError),
 
-    #[error("Error syncing context after context shift: {0}")]
+    #[error("Error syncing context with chat history: {0}")]
+    #[diagnostic(transparent)]
     ReadError(#[from] ContextSyncError),
 
     #[error("Error during context shift: {0}")]
@@ -1035,10 +1012,6 @@ pub enum SayError {
     #[error("Error finding token difference: {0}")]
     #[diagnostic(transparent)]
     Render(#[from] RenderError),
-
-    #[error("Error creating response: {0}")]
-    #[diagnostic(transparent)]
-    WrappedResponse(#[from] WrappedResponseError),
 
     #[error("Tokenization error: {0}")]
     Tokenization(#[from] TokenizationError),

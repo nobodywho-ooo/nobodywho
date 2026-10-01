@@ -24,6 +24,7 @@
 | `react_native` | uniffi build + RN xcframework | `react-native/`, `uniffi/` | main, tag |
 | `apple_extended` | uniffi visionOS/watchOS device+sim (nightly rust, ORT from source) | — (never path-triggered) | main, tag |
 | `docs` | docusaurus build + Cloudflare Pages deploy | — | main only |
+| `docs_preview` | docusaurus build + Cloudflare Pages **preview** deploy of the PR branch; link posted on the PR | — (never path-triggered, not part of full CI) | — (`/docs-ci` only) |
 | `device` | on-device tests on real phones (Firebase Test Lab) | — | nightly on main; release tag (that binding only) |
 | `release` | publish PyPI / pub.dev / npm / Maven / Swift | — | release tag |
 
@@ -60,6 +61,7 @@ Comment on a PR to run CI by hand (write/admin only). The comment must be **only
 | `/godot-ci` `/flutter-ci` `/swift-ci` `/kotlin-ci` `/react-native-ci` | that binding |
 | `/apple-extended-ci` | `apple_extended` — the 4 visionOS/watchOS targets only (compile check; no xcframework) |
 | `/regen-ci` | `regen` |
+| `/docs-ci` | `docs_preview` — deploys this branch's docs as a Cloudflare Pages preview and comments the link on the PR (updated on each rerun). Branches in this repo only, not forks. Never touches docs.nobodywho.ooo |
 | `/device-ci` | all six on-device jobs |
 | `/kotlin-device-source-ci` `/flutter-device-source-ci` `/react-native-device-source-ci` | that binding on real phones, built from this repo |
 | `/kotlin-device-released-ci` `/flutter-device-released-ci` `/react-native-device-released-ci` | that binding on real phones, from its published package |
@@ -111,7 +113,7 @@ build.yml           Per-platform cargo builds; matrix-gen computes integration +
 test.yml            nix flake check (run_rust_core) + flutter tests (run_flutter) + always-on doctest-drift.
 python-ci.yml       Static checks always; wheels/tests by run_python; model matrix by run_python_models.
 swift-ci.yml        Swift tests. kotlin-ci.yml  Kotlin/Android tests. (both gated upstream)
-docs.yml            Docusaurus deploy (main only).
+docs.yml            Docusaurus deploy: production from main, previews via /docs-ci.
 release.yml         Package publish (release tag).
 mobile-device-tests.yml  On-device tests on real phones via Firebase Test Lab.
                     Nightly on main; callable from build-and-test (release gating);
