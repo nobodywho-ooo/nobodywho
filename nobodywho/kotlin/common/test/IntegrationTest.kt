@@ -182,6 +182,39 @@ class IntegrationTest {
         assertTrue("context_used should not exceed context_size", stats.contextUsed <= stats.contextSize)
     }
 
+    @Test
+    fun testContextShiftOptions() = runBlocking {
+        val modelPath = requireEnv("TEST_MODEL")
+        val model = Model.load(modelPath)
+        Chat(
+            model = model,
+            contextSize = 1024u,
+            contextShift = ContextShiftOptions(
+                keepFirstTurns = 2u,
+                keepLastTurns = 3u,
+                target = ShiftTarget(tokens = 256u)
+            )
+        )
+        Chat(model = model, contextShift = ContextShiftOptions(enabled = false))
+        assertTrue(
+            "target >= contextSize should fail",
+            runCatching {
+                Chat(
+                    model = model,
+                    contextSize = 1024u,
+                    contextShift = ContextShiftOptions(target = ShiftTarget(tokens = 1024u))
+                )
+            }.isFailure
+        )
+
+        val chat = Chat(model = model)
+        chat.setContextShift(ContextShiftOptions(target = ShiftTarget(fraction = 0.25f)))
+        assertTrue(
+            "keepLastTurns = 0 should fail",
+            runCatching { chat.setContextShift(ContextShiftOptions(keepLastTurns = 0u)) }.isFailure
+        )
+    }
+
     @Test(timeout = 60_000)
     fun testSuspendToolDoesNotBlockCallerThread() = runBlocking {
         val modelPath = requireEnv("TEST_MODEL")

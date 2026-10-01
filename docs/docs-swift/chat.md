@@ -191,7 +191,31 @@ let chat = try await Chat.fromPath(
 
 The default value is `4096`, however this is mainly useful for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. You can check the maximum context size the model was trained with using `model.maxCtx` — setting `contextSize` above this value has no benefit.
 
-Even with a properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho will shrink the context for you. Currently this is done by removing old messages (apart from the system prompt and the first user message) from the chat history, until the size reaches `contextSize / 2`. The KV cache is also updated automatically.
+When a conversation fills the context window, NobodyWho removes older turns until the context is below half of `contextSize`. A turn includes a user message and everything before the next user message.
+
+System messages are always kept. By default, NobodyWho also keeps the first turn and the last two turns. The KV cache is updated automatically.
+
+Use `ContextShiftOptions` to adjust this behavior:
+
+- `target`: Remove turns until the context is below this limit. Use `.fraction(fraction:)` with a value between 0 and 1 for a fraction of `contextSize`, or `.tokens(tokens:)` with a count below `contextSize` for a token count. Defaults to half of `contextSize`. Whole turns are removed, so the resulting size may be smaller. A higher value, such as 0.9, removes fewer turns but may trigger more frequent shifts.
+- `keepFirstTurns`: Number of initial turns to keep. Defaults to 1. Increase this to preserve more of the opening conversation.
+- `keepLastTurns`: Number of recent turns to keep. Defaults to 2. Must be at least 1, so the message being answered is always kept.
+
+Example:
+
+```swift
+let chat = try await Chat.fromPath(
+    modelPath: "/path/to/model.gguf",
+    contextSize: 4096,
+    contextShift: ContextShiftOptions(keepFirstTurns: 1, keepLastTurns: 4, target: .fraction(fraction: 0.75))
+)
+```
+
+To turn context shifting off, pass `ContextShiftOptions(enabled: false)`; a full context then throws instead. The options can also be changed on an existing chat:
+
+```swift continuation
+try await chat.setContextShift(ContextShiftOptions(enabled: false))
+```
 
 To reset the current context content, call `resetContext()` with a new system prompt and potentially changed tools.
 

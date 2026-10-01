@@ -287,7 +287,7 @@ void uniffi_nobodywho_uniffi_fn_free_rustchat(uint64_t handle, RustCallStatus *_
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTCHAT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_CONSTRUCTOR_RUSTCHAT_NEW
-uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, RustBuffer system_prompt, uint32_t context_size, RustBuffer template_variables, RustBuffer tools, RustBuffer sampler, RustBuffer mtp, RustBuffer thread_count, RustCallStatus *_Nonnull out_status
+uint64_t uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(uint64_t model, RustBuffer system_prompt, uint32_t context_size, RustBuffer template_variables, RustBuffer tools, RustBuffer sampler, RustBuffer mtp, RustBuffer thread_count, RustBuffer context_shift, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_ASK
@@ -353,6 +353,11 @@ uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(uint64_t ptr
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_SET_CHAT_HISTORY
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_SET_CHAT_HISTORY
 uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(uint64_t ptr, RustBuffer messages
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_SET_CONTEXT_SHIFT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_SET_CONTEXT_SHIFT
+uint64_t uniffi_nobodywho_uniffi_fn_method_rustchat_set_context_shift(uint64_t ptr, RustBuffer options
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_FN_METHOD_RUSTCHAT_SET_SAMPLER_CONFIG
@@ -1288,6 +1293,12 @@ uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_SET_CHAT_HISTORY
 #define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_SET_CHAT_HISTORY
 uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_SET_CONTEXT_SHIFT
+#define UNIFFI_FFIDEF_UNIFFI_NOBODYWHO_UNIFFI_CHECKSUM_METHOD_RUSTCHAT_SET_CONTEXT_SHIFT
+uint16_t uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift(void
     
 );
 #endif

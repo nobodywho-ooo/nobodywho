@@ -20,7 +20,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_internal_fn_func_ffi__arraybuffer_to_string(buffer: Uint8Array, uniffi_out_err: UniffiRustCallStatus): string;
     ubrn_uniffi_nobodywho_uniffi_fn_clone_rustchat(handle: bigint, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_free_rustchat(handle: bigint, uniffi_out_err: UniffiRustCallStatus): void;
-    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(model: bigint, systemPrompt: Uint8Array, contextSize: number, templateVariables: Uint8Array, tools: Uint8Array, sampler: Uint8Array, mtp: Uint8Array, threadCount: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(model: bigint, systemPrompt: Uint8Array, contextSize: number, templateVariables: Uint8Array, tools: Uint8Array, sampler: Uint8Array, mtp: Uint8Array, threadCount: Uint8Array, contextShift: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask(ptr: bigint, message: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_json_prompt(ptr: bigint, json: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_ask_with_prompt(ptr: bigint, parts: Uint8Array, uniffi_out_err: UniffiRustCallStatus): bigint;
@@ -34,6 +34,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(ptr: bigint, systemPrompt: Uint8Array, tools: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(ptr: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(ptr: bigint, messages: Uint8Array): bigint;
+    ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_context_shift(ptr: bigint, options: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config(ptr: bigint, sampler: bigint): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_system_prompt(ptr: bigint, systemPrompt: Uint8Array): bigint;
     ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_template_variable(ptr: bigint, name: Uint8Array, value: number): bigint;
@@ -210,6 +211,7 @@ interface NativeModuleInterface {
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_context(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_reset_history(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(): number;
+    ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt(): number;
     ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_template_variable(): number;

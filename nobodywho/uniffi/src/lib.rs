@@ -441,6 +441,56 @@ impl From<MtpConfig> for nobodywho::chat::MtpConfig {
     }
 }
 
+// ---------- ContextShiftOptions ----------
+
+/// Size a context shift shrinks the chat history to.
+#[derive(uniffi::Enum, Clone, Copy)]
+pub enum ShiftTarget {
+    /// A fraction of the context size, in `(0, 1)`.
+    Fraction { fraction: f32 },
+    /// A number of tokens, below the context size.
+    Tokens { tokens: u32 },
+}
+
+impl From<ShiftTarget> for nobodywho::chat::ShiftTarget {
+    fn from(t: ShiftTarget) -> Self {
+        match t {
+            ShiftTarget::Fraction { fraction } => nobodywho::chat::ShiftTarget::Fraction(fraction),
+            ShiftTarget::Tokens { tokens } => nobodywho::chat::ShiftTarget::Tokens(tokens),
+        }
+    }
+}
+
+/// How a chat forgets old turns when its context is full. A turn is a user
+/// message and everything up to the next one; system messages are always kept.
+#[derive(uniffi::Record, Clone)]
+pub struct ContextShiftOptions {
+    /// `false` disables shifting, so a full context is an error instead.
+    #[uniffi(default = true)]
+    pub enabled: bool,
+    /// Turns always kept at the start of the history.
+    // Defaults mirror core `ContextShiftOptions::default()`.
+    #[uniffi(default = 1)]
+    pub keep_first_turns: u32,
+    /// Turns always kept at the end of the history; at least 1.
+    #[uniffi(default = 2)]
+    pub keep_last_turns: u32,
+    /// Size the history is shrunk to. `null` means half the context size.
+    #[uniffi(default = None)]
+    pub target: Option<ShiftTarget>,
+}
+
+impl From<ContextShiftOptions> for Option<nobodywho::chat::ContextShiftOptions> {
+    fn from(o: ContextShiftOptions) -> Self {
+        let defaults = nobodywho::chat::ContextShiftOptions::default();
+        o.enabled.then(|| nobodywho::chat::ContextShiftOptions {
+            keep_first_turns: o.keep_first_turns as usize,
+            keep_last_turns: o.keep_last_turns as usize,
+            target: o.target.map_or(defaults.target, Into::into),
+        })
+    }
+}
+
 // ---------- RustChat ----------
 // Wrapper intended to be wrapped again in the target language (e.g. as `Chat`).
 
@@ -462,6 +512,9 @@ impl RustChat {
     /// detects the device's physical core count (performance cores only, on
     /// Apple silicon), since hyperthreads and efficiency cores make inference
     /// slower. Clamped to the CPU count.
+    ///
+    /// `context_shift` sets how old turns are forgotten when the context is
+    /// full; `null` uses the defaults.
     #[uniffi::constructor]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -473,6 +526,7 @@ impl RustChat {
         sampler: Option<Arc<SamplerConfig>>,
         mtp: Option<MtpConfig>,
         thread_count: Option<u32>,
+        context_shift: Option<ContextShiftOptions>,
     ) -> Result<Arc<Self>, NobodyWhoError> {
         let core_tools: Vec<nobodywho::tool_calling::Tool> = tools
             .unwrap_or_default()
@@ -493,6 +547,9 @@ impl RustChat {
         }
         if let Some(thread_count) = thread_count {
             builder = builder.with_n_threads(thread_count);
+        }
+        if let Some(context_shift) = context_shift {
+            builder = builder.with_context_shift(context_shift.into());
         }
         let chat = builder.build_async().map_err(|e| NobodyWhoError::Error {
             message: nobodywho::render_miette(&e),
@@ -661,6 +718,17 @@ impl RustChat {
     ) -> Result<(), NobodyWhoError> {
         self.inner
             .set_system_prompt(system_prompt)
+            .await
+            .map_err(setter_err)
+    }
+
+    /// Set how old turns are forgotten when the context is full.
+    pub async fn set_context_shift(
+        &self,
+        options: ContextShiftOptions,
+    ) -> Result<(), NobodyWhoError> {
+        self.inner
+            .set_context_shift(options.into())
             .await
             .map_err(setter_err)
     }

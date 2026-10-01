@@ -4,16 +4,14 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import 'dart:convert';
-
 import 'frb_generated.dart';
-
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'lib.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `build_text_to_speech_config`, `content_to_core`, `dart_function_type_to_json_schema`, `load_sink`, `message_to_core`, `parse_text_to_speech_architecture`, `sample_step`, `shift_step`, `swap_sink`, `text_to_speech_device_from_use_gpu`, `wrap_progress`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FrbDartLogger`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `enabled`, `flush`, `from`, `from`, `from`, `from`, `from`, `from`, `log`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `enabled`, `flush`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `log`
 
 /// No-op default for `onDownloadProgress` callbacks. Not meant to be called by
 /// users — it exists so we can reference it as a const tear-off in the Dart
@@ -261,6 +259,8 @@ abstract class RustChat implements RustOpaqueInterface {
   ///         device's physical core count (performance cores only, on Apple silicon) —
   ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
   ///         headroom for the rest of the app. Clamped to the CPU count.
+  ///     context_shift: How old turns are forgotten when the context is full.
+  ///         Defaults to null, which uses the default options.
   static Future<RustChat> fromPath({
     required String modelPath,
     FutureOr<void> Function(PlatformInt64, PlatformInt64) onDownloadProgress =
@@ -276,6 +276,7 @@ abstract class RustChat implements RustOpaqueInterface {
     bool useGpu = true,
     MtpConfig? mtp = null,
     int? threadCount = null,
+    ContextShiftOptions? contextShift = null,
   }) => NobodyWho.instance.api.crateRustChatFromPath(
     modelPath: modelPath,
     onDownloadProgress: onDownloadProgress,
@@ -290,6 +291,7 @@ abstract class RustChat implements RustOpaqueInterface {
     useGpu: useGpu,
     mtp: mtp,
     threadCount: threadCount,
+    contextShift: contextShift,
   );
 
   Future<List<Message>> getChatHistory();
@@ -328,6 +330,8 @@ abstract class RustChat implements RustOpaqueInterface {
   ///         device's physical core count (performance cores only, on Apple silicon) —
   ///         hyperthreads and efficiency cores make inference slower. Lower it to leave CPU
   ///         headroom for the rest of the app. Clamped to the CPU count.
+  ///     context_shift: How old turns are forgotten when the context is full.
+  ///         Defaults to null, which uses the default options.
   factory RustChat({
     required Model model,
     String? systemPrompt = null,
@@ -338,6 +342,7 @@ abstract class RustChat implements RustOpaqueInterface {
     SamplerConfig? sampler = null,
     MtpConfig? mtp = null,
     int? threadCount = null,
+    ContextShiftOptions? contextShift = null,
   }) => NobodyWho.instance.api.crateRustChatNew(
     model: model,
     systemPrompt: systemPrompt,
@@ -348,6 +353,7 @@ abstract class RustChat implements RustOpaqueInterface {
     sampler: sampler,
     mtp: mtp,
     threadCount: threadCount,
+    contextShift: contextShift,
   );
 
   Future<void> resetContext({
@@ -360,6 +366,8 @@ abstract class RustChat implements RustOpaqueInterface {
   Future<void> setAllowThinking({required bool allowThinking});
 
   Future<void> setChatHistory({required List<Message> messages});
+
+  Future<void> setContextShift({required ContextShiftOptions options});
 
   Future<void> setSamplerConfig({required SamplerConfig samplerConfig});
 
@@ -794,6 +802,46 @@ sealed class ContentPart with _$ContentPart {
   const factory ContentPart.audio({required String path}) = ContentPart_Audio;
 }
 
+/// How a chat forgets old turns when its context is full. A turn is a user
+/// message and everything up to the next one; system messages are always kept.
+class ContextShiftOptions {
+  /// `false` disables shifting, so a full context is an error instead.
+  final bool enabled;
+
+  /// Turns always kept at the start of the history.
+  final int keepFirstTurns;
+
+  /// Turns always kept at the end of the history; at least 1.
+  final int keepLastTurns;
+
+  /// Size the history is shrunk to. `null` means half the context size.
+  final ShiftTarget? target;
+
+  const ContextShiftOptions({
+    this.enabled = true,
+    this.keepFirstTurns = 1,
+    this.keepLastTurns = 2,
+    this.target = null,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^
+      keepFirstTurns.hashCode ^
+      keepLastTurns.hashCode ^
+      target.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ContextShiftOptions &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          keepFirstTurns == other.keepFirstTurns &&
+          keepLastTurns == other.keepLastTurns &&
+          target == other.target;
+}
+
 class FrbLogRecord {
   final String level;
   final String message;
@@ -887,6 +935,17 @@ class MtpConfig {
           runtimeType == other.runtimeType &&
           kMax == other.kMax &&
           pMin == other.pMin;
+}
+
+@freezed
+sealed class ShiftTarget with _$ShiftTarget {
+  const ShiftTarget._();
+
+  /// A fraction of the context size, in `(0, 1)`.
+  const factory ShiftTarget.fraction(double field0) = ShiftTarget_Fraction;
+
+  /// A number of tokens, below the context size.
+  const factory ShiftTarget.tokens(int field0) = ShiftTarget_Tokens;
 }
 
 class ToolCall {
