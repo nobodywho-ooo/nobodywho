@@ -56,6 +56,14 @@ class Bump(enum.IntEnum):
 BUMPS = {bump.name.lower(): bump for bump in Bump}
 # In the order CHANGELOG.md lists them.
 SECTIONS = ["added", "changed", "deprecated", "fixed", "removed", "security"]
+# The bump `just change` suggests for each section. None for `changed`, where breaking changes hide.
+SUGGESTED_BUMPS = {
+    "added": "minor",
+    "deprecated": "minor",
+    "removed": "major",
+    "fixed": "patch",
+    "security": "patch",
+}
 
 
 # Regex flags used below: (?m) makes ^ match at the start of every line, not just the
@@ -421,11 +429,12 @@ def cmd_new(args: argparse.Namespace) -> int:
     packages = (
         list(BINDINGS) if answer == "all" else [b.strip() for b in answer.split(",")]
     )
+    section = ask(f"Changelog section ({', '.join(SECTIONS)})", lambda a: a in SECTIONS)
     kind = ask(
         f"Bump ({', '.join(reversed(BUMPS))}; edit the file to differ per binding)",
         lambda a: a in BUMPS,
+        default=SUGGESTED_BUMPS.get(section, ""),
     )
-    section = ask(f"Changelog section ({', '.join(SECTIONS)})", lambda a: a in SECTIONS)
     description = ask("Description for users (you can add detail in the file later)")
 
     # Suggest the description's first eight words, without punctuation, as the file name.
