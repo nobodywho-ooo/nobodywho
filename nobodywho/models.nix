@@ -100,8 +100,6 @@ rec
   # safetensors voices), so TEST_TTS_SOURCE can point straight at a local
   # dir and the dev shell runs the TTS suite offline. The source string
   # contains "kokoro", which is what the architecture inference matches on.
-  # (Not wired into the nix sandbox test: ort under the sandbox-built godot
-  # extension hits a heap-corruption abort — see tests/default.nix.)
   TEST_TTS_SOURCE = "${fetchgit {
     name = "kokoro-82M";
     url = "https://huggingface.co/NobodyWho/Kokoro-82M";

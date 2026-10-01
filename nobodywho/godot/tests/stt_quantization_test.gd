@@ -1,7 +1,7 @@
 extends Node
 # Tests that every `quantization` value documented in
-# docs/docs-godot/speech-to-text.md (default, fp32, int8, uint8, bnb4, q4,
-# quantized) actually works end-to-end, plus the documented
+# docs/docs-godot/speech-to-text.md (default, fp32, fp16, int8, uint8, bnb4,
+# q4, q4f16, quantized) actually works end-to-end, plus the documented
 # "falls back to default when the repo doesn't ship a q4 variant" behavior.
 #
 # Env vars:
@@ -12,7 +12,7 @@ extends Node
 
 # Exactly the values listed in docs/docs-godot/speech-to-text.md.
 const DOCUMENTED_VALUES := [
-	"default", "fp32", "int8", "uint8", "bnb4", "q4", "quantized",
+	"default", "fp32", "fp16", "int8", "uint8", "bnb4", "q4", "q4f16", "quantized",
 ]
 
 func run(runner: Node) -> void:
@@ -29,19 +29,21 @@ func run(runner: Node) -> void:
 	await _test_documented_values(runner, source, audio)
 
 func _test_invalid_value_rejected(runner: Node, source: String) -> void:
-	# Unknown values (and the unsupported fp16/q4f16) must be rejected cleanly
-	# (null, no hang/crash), not silently accepted or fatal.
-	for q in ["not-a-real-quantization", "fp16", "q4f16"]:
-		var stt = await NobodyWhoSpeechToText.create(source, {"quantization": q})
-		if stt == null:
-			runner.ok("stt-quant: quantization '%s' rejected cleanly (null)" % q)
-		else:
-			runner.fail("stt-quant: quantization '%s' was accepted" % q)
+	# An unknown value must be rejected cleanly (null, no hang/crash), not
+	# silently accepted or fatal.
+	var stt = await NobodyWhoSpeechToText.create(source, {"quantization": "not-a-real-quantization"})
+	if stt == null:
+		runner.ok("stt-quant: unknown quantization rejected cleanly (null)")
+	else:
+		runner.fail("stt-quant: unknown quantization was accepted")
 
 func _test_documented_values(runner: Node, source: String, audio: String) -> void:
 	var only: String = OS.get_environment("TEST_QUANT_ONLY")
 	var values: Array = DOCUMENTED_VALUES if only.is_empty() else only.split(",", false)
 	for q in values:
+		# Only onnx-community/whisper-large-v3-turbo ships q4f16, not the whisper-base fixture.
+		if only.is_empty() and q == "q4f16":
+			continue
 		var stt = await NobodyWhoSpeechToText.create(source, {
 			"quantization": q,
 			"language": "en",
