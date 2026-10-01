@@ -1819,7 +1819,6 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
             let result = match input {
                 TurnInput::Ask(prompt) => worker_state
                     .ask(prompt, on_chunk)
-                    .map(drop)
                     .map_err(|error| Box::new(error) as _),
                 TurnInput::Complete {
                     messages,
@@ -1828,7 +1827,6 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
                     execute_tools,
                 } => worker_state
                     .complete(messages, options, max_tokens, execute_tools, on_chunk)
-                    .map(drop)
                     .map_err(|error| Box::new(error) as _),
             };
             if let Err(error) = result {
@@ -2497,7 +2495,7 @@ impl<'a> Chat<'a> {
         &mut self,
         prompt: Prompt,
         on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<&mut Self, SayError> {
+    ) -> Result<(), SayError> {
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -2511,7 +2509,7 @@ impl<'a> Chat<'a> {
 
         self.run_turn(None, true, on_chunk)?;
 
-        Ok(self)
+        Ok(())
     }
 
     /// Load each media part's file, register its bitmap and write the bitmap id
@@ -2676,7 +2674,7 @@ impl<'a> Chat<'a> {
         max_tokens: Option<usize>,
         execute_tools: bool,
         on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<&mut Self, CompleteError> {
+    ) -> Result<(), CompleteError> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
         let hoisted = messages.take_system_prompt();
@@ -2689,7 +2687,7 @@ impl<'a> Chat<'a> {
         }
         self.messages = messages;
         self.run_turn(max_tokens, execute_tools, on_chunk)?;
-        Ok(self)
+        Ok(())
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -4587,10 +4585,8 @@ mod tests {
             user("How are you?"),
         ])?;
 
-        // `complete` returns `&mut Self` on success, which has no `Debug`.
         let err = worker
             .complete(unrenderable, Options::new(), None, true, |_| {})
-            .map(|_| ())
             .unwrap_err();
 
         // The help has to survive every wrapper between the template and the
