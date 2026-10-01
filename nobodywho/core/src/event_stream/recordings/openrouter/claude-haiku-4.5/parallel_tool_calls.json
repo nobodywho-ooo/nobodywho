@@ -1,0 +1,1041 @@
+[
+  {
+    "type": "response.created",
+    "response": {
+      "id": "gen-1790065225-XhTbscR7X8gfcQRqGx9B",
+      "object": "response",
+      "created_at": 1790065225,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 0
+  },
+  {
+    "type": "response.in_progress",
+    "response": {
+      "id": "gen-1790065225-XhTbscR7X8gfcQRqGx9B",
+      "object": "response",
+      "created_at": 1790065225,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 1
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 0,
+    "item": {
+      "id": "fc_tmp_k2uzik8jhg",
+      "type": "function_call",
+      "status": "in_progress",
+      "call_id": "toolu_bdrk_0187TRMxFTwJFGXtUZrH8HVv",
+      "name": "get_weather",
+      "arguments": ""
+    },
+    "sequence_number": 2
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 0,
+    "item_id": "fc_tmp_k2uzik8jhg",
+    "delta": "{\"city\": \"Copenhagen",
+    "sequence_number": 3
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 0,
+    "item_id": "fc_tmp_k2uzik8jhg",
+    "delta": "\"}",
+    "sequence_number": 4
+  },
+  {
+    "type": "response.function_call_arguments.done",
+    "output_index": 0,
+    "item_id": "fc_tmp_k2uzik8jhg",
+    "name": "get_weather",
+    "arguments": "{\"city\": \"Copenhagen\"}",
+    "sequence_number": 5
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 0,
+    "item": {
+      "id": "fc_tmp_k2uzik8jhg",
+      "type": "function_call",
+      "status": "completed",
+      "call_id": "toolu_bdrk_0187TRMxFTwJFGXtUZrH8HVv",
+      "name": "get_weather",
+      "arguments": "{\"city\": \"Copenhagen\"}"
+    },
+    "sequence_number": 6
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 1,
+    "item": {
+      "id": "fc_tmp_znxwzo16rz9",
+      "type": "function_call",
+      "status": "in_progress",
+      "call_id": "toolu_bdrk_01HxsbezrrVVTYD1Mfp1Dbe6",
+      "name": "get_weather",
+      "arguments": ""
+    },
+    "sequence_number": 7
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 1,
+    "item_id": "fc_tmp_znxwzo16rz9",
+    "delta": "{\"city\": \"Oslo",
+    "sequence_number": 8
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 1,
+    "item_id": "fc_tmp_znxwzo16rz9",
+    "delta": "\"}",
+    "sequence_number": 9
+  },
+  {
+    "type": "response.function_call_arguments.done",
+    "output_index": 1,
+    "item_id": "fc_tmp_znxwzo16rz9",
+    "name": "get_weather",
+    "arguments": "{\"city\": \"Oslo\"}",
+    "sequence_number": 10
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 1,
+    "item": {
+      "id": "fc_tmp_znxwzo16rz9",
+      "type": "function_call",
+      "status": "completed",
+      "call_id": "toolu_bdrk_01HxsbezrrVVTYD1Mfp1Dbe6",
+      "name": "get_weather",
+      "arguments": "{\"city\": \"Oslo\"}"
+    },
+    "sequence_number": 11
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 2,
+    "item": {
+      "id": "fc_tmp_zx8wpnmysag",
+      "type": "function_call",
+      "status": "in_progress",
+      "call_id": "toolu_bdrk_01UuKVBcgvMBiEDbTYGHe4Rf",
+      "name": "get_weather",
+      "arguments": ""
+    },
+    "sequence_number": 12
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 2,
+    "item_id": "fc_tmp_zx8wpnmysag",
+    "delta": "{\"city\": \"Stockholm",
+    "sequence_number": 13
+  },
+  {
+    "type": "response.function_call_arguments.delta",
+    "output_index": 2,
+    "item_id": "fc_tmp_zx8wpnmysag",
+    "delta": "\"}",
+    "sequence_number": 14
+  },
+  {
+    "type": "response.function_call_arguments.done",
+    "output_index": 2,
+    "item_id": "fc_tmp_zx8wpnmysag",
+    "name": "get_weather",
+    "arguments": "{\"city\": \"Stockholm\"}",
+    "sequence_number": 15
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 2,
+    "item": {
+      "id": "fc_tmp_zx8wpnmysag",
+      "type": "function_call",
+      "status": "completed",
+      "call_id": "toolu_bdrk_01UuKVBcgvMBiEDbTYGHe4Rf",
+      "name": "get_weather",
+      "arguments": "{\"city\": \"Stockholm\"}"
+    },
+    "sequence_number": 16
+  },
+  {
+    "type": "response.completed",
+    "response": {
+      "id": "gen-1790065225-XhTbscR7X8gfcQRqGx9B",
+      "object": "response",
+      "created_at": 1790065225,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "completed",
+      "completed_at": 1790065226,
+      "output": [
+        {
+          "id": "fc_tmp_k2uzik8jhg",
+          "type": "function_call",
+          "status": "completed",
+          "call_id": "toolu_bdrk_0187TRMxFTwJFGXtUZrH8HVv",
+          "name": "get_weather",
+          "arguments": "{\"city\": \"Copenhagen\"}"
+        },
+        {
+          "id": "fc_tmp_znxwzo16rz9",
+          "type": "function_call",
+          "status": "completed",
+          "call_id": "toolu_bdrk_01HxsbezrrVVTYD1Mfp1Dbe6",
+          "name": "get_weather",
+          "arguments": "{\"city\": \"Oslo\"}"
+        },
+        {
+          "id": "fc_tmp_zx8wpnmysag",
+          "type": "function_call",
+          "status": "completed",
+          "call_id": "toolu_bdrk_01UuKVBcgvMBiEDbTYGHe4Rf",
+          "name": "get_weather",
+          "arguments": "{\"city\": \"Stockholm\"}"
+        }
+      ],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "default",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": {
+        "input_tokens": 575,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens": 126,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 701,
+        "cost": 0.001205,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.001205,
+          "upstream_inference_input_cost": 0.000575,
+          "upstream_inference_output_cost": 0.00063
+        }
+      }
+    },
+    "sequence_number": 17
+  },
+  {
+    "type": "response.created",
+    "response": {
+      "id": "gen-1790065227-2syVkErbrSoeBjDrZgc2",
+      "object": "response",
+      "created_at": 1790065227,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 0
+  },
+  {
+    "type": "response.in_progress",
+    "response": {
+      "id": "gen-1790065227-2syVkErbrSoeBjDrZgc2",
+      "object": "response",
+      "created_at": 1790065227,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "in_progress",
+      "completed_at": null,
+      "output": [],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "auto",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": null
+    },
+    "sequence_number": 1
+  },
+  {
+    "type": "response.output_item.added",
+    "output_index": 0,
+    "item": {
+      "id": "msg_tmp_390981q1d2b",
+      "type": "message",
+      "status": "in_progress",
+      "role": "assistant",
+      "content": []
+    },
+    "sequence_number": 2
+  },
+  {
+    "type": "response.content_part.added",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "part": {
+      "type": "output_text",
+      "text": "",
+      "annotations": [],
+      "logprobs": []
+    },
+    "sequence_number": 3
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "Here",
+    "logprobs": [],
+    "sequence_number": 4
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "'s a comparison of the weather in these",
+    "logprobs": [],
+    "sequence_number": 5
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " three",
+    "logprobs": [],
+    "sequence_number": 6
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " Scandinavian cities:\n\n|",
+    "logprobs": [],
+    "sequence_number": 7
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " City",
+    "logprobs": [],
+    "sequence_number": 8
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " | Temperature |",
+    "logprobs": [],
+    "sequence_number": 9
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " Conditions |\n|------|----------",
+    "logprobs": [],
+    "sequence_number": 10
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "---|-----------|\n| **Copenhagen**",
+    "logprobs": [],
+    "sequence_number": 11
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " | 17\u00b0C |",
+    "logprobs": [],
+    "sequence_number": 12
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " Cloudy |\n| **Oslo",
+    "logprobs": [],
+    "sequence_number": 13
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "** | 17\u00b0C |",
+    "logprobs": [],
+    "sequence_number": 14
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " Cloudy |\n| **Stockholm**",
+    "logprobs": [],
+    "sequence_number": 15
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " | 17\u00b0C | Clou",
+    "logprobs": [],
+    "sequence_number": 16
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "dy |\n\n**",
+    "logprobs": [],
+    "sequence_number": 17
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "Summary",
+    "logprobs": [],
+    "sequence_number": 18
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": ":**\nAll",
+    "logprobs": [],
+    "sequence_number": 19
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " three cities are",
+    "logprobs": [],
+    "sequence_number": 20
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " currently",
+    "logprobs": [],
+    "sequence_number": 21
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " experiencing very",
+    "logprobs": [],
+    "sequence_number": 22
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " similar weather conditions.",
+    "logprobs": [],
+    "sequence_number": 23
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " They",
+    "logprobs": [],
+    "sequence_number": 24
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " all",
+    "logprobs": [],
+    "sequence_number": 25
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " have the",
+    "logprobs": [],
+    "sequence_number": 26
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " same temperature",
+    "logprobs": [],
+    "sequence_number": 27
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " of",
+    "logprobs": [],
+    "sequence_number": 28
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " 17\u00b0C (63\u00b0F",
+    "logprobs": [],
+    "sequence_number": 29
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": ") and clou",
+    "logprobs": [],
+    "sequence_number": 30
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "dy sk",
+    "logprobs": [],
+    "sequence_number": 31
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": "ies. This is quite",
+    "logprobs": [],
+    "sequence_number": 32
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " typical for the",
+    "logprobs": [],
+    "sequence_number": 33
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " Nordic",
+    "logprobs": [],
+    "sequence_number": 34
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " region, especially",
+    "logprobs": [],
+    "sequence_number": 35
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " during autumn",
+    "logprobs": [],
+    "sequence_number": 36
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " and spring",
+    "logprobs": [],
+    "sequence_number": 37
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " months when these",
+    "logprobs": [],
+    "sequence_number": 38
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " cities often",
+    "logprobs": [],
+    "sequence_number": 39
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " experience uniform",
+    "logprobs": [],
+    "sequence_number": 40
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " weather patterns due",
+    "logprobs": [],
+    "sequence_number": 41
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " to their proximity",
+    "logprobs": [],
+    "sequence_number": 42
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " and",
+    "logprobs": [],
+    "sequence_number": 43
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " similar climate",
+    "logprobs": [],
+    "sequence_number": 44
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": " systems",
+    "logprobs": [],
+    "sequence_number": 45
+  },
+  {
+    "type": "response.output_text.delta",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "delta": ".",
+    "logprobs": [],
+    "sequence_number": 46
+  },
+  {
+    "type": "response.output_text.done",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "text": "Here's a comparison of the weather in these three Scandinavian cities:\n\n| City | Temperature | Conditions |\n|------|-------------|-----------|\n| **Copenhagen** | 17\u00b0C | Cloudy |\n| **Oslo** | 17\u00b0C | Cloudy |\n| **Stockholm** | 17\u00b0C | Cloudy |\n\n**Summary:**\nAll three cities are currently experiencing very similar weather conditions. They all have the same temperature of 17\u00b0C (63\u00b0F) and cloudy skies. This is quite typical for the Nordic region, especially during autumn and spring months when these cities often experience uniform weather patterns due to their proximity and similar climate systems.",
+    "logprobs": [],
+    "sequence_number": 47
+  },
+  {
+    "type": "response.content_part.done",
+    "output_index": 0,
+    "item_id": "msg_tmp_390981q1d2b",
+    "content_index": 0,
+    "part": {
+      "type": "output_text",
+      "text": "Here's a comparison of the weather in these three Scandinavian cities:\n\n| City | Temperature | Conditions |\n|------|-------------|-----------|\n| **Copenhagen** | 17\u00b0C | Cloudy |\n| **Oslo** | 17\u00b0C | Cloudy |\n| **Stockholm** | 17\u00b0C | Cloudy |\n\n**Summary:**\nAll three cities are currently experiencing very similar weather conditions. They all have the same temperature of 17\u00b0C (63\u00b0F) and cloudy skies. This is quite typical for the Nordic region, especially during autumn and spring months when these cities often experience uniform weather patterns due to their proximity and similar climate systems.",
+      "annotations": [],
+      "logprobs": []
+    },
+    "sequence_number": 48
+  },
+  {
+    "type": "response.output_item.done",
+    "output_index": 0,
+    "item": {
+      "id": "msg_tmp_390981q1d2b",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Here's a comparison of the weather in these three Scandinavian cities:\n\n| City | Temperature | Conditions |\n|------|-------------|-----------|\n| **Copenhagen** | 17\u00b0C | Cloudy |\n| **Oslo** | 17\u00b0C | Cloudy |\n| **Stockholm** | 17\u00b0C | Cloudy |\n\n**Summary:**\nAll three cities are currently experiencing very similar weather conditions. They all have the same temperature of 17\u00b0C (63\u00b0F) and cloudy skies. This is quite typical for the Nordic region, especially during autumn and spring months when these cities often experience uniform weather patterns due to their proximity and similar climate systems.",
+          "annotations": [],
+          "logprobs": []
+        }
+      ]
+    },
+    "sequence_number": 49
+  },
+  {
+    "type": "response.completed",
+    "response": {
+      "id": "gen-1790065227-2syVkErbrSoeBjDrZgc2",
+      "object": "response",
+      "created_at": 1790065227,
+      "model": "anthropic/claude-haiku-4.5",
+      "status": "completed",
+      "completed_at": 1790065228,
+      "output": [
+        {
+          "id": "msg_tmp_390981q1d2b",
+          "type": "message",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Here's a comparison of the weather in these three Scandinavian cities:\n\n| City | Temperature | Conditions |\n|------|-------------|-----------|\n| **Copenhagen** | 17\u00b0C | Cloudy |\n| **Oslo** | 17\u00b0C | Cloudy |\n| **Stockholm** | 17\u00b0C | Cloudy |\n\n**Summary:**\nAll three cities are currently experiencing very similar weather conditions. They all have the same temperature of 17\u00b0C (63\u00b0F) and cloudy skies. This is quite typical for the Nordic region, especially during autumn and spring months when these cities often experience uniform weather patterns due to their proximity and similar climate systems.",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        }
+      ],
+      "error": null,
+      "incomplete_details": null,
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Get the current weather for a city.",
+          "strict": true,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ],
+      "tool_choice": "auto",
+      "parallel_tool_calls": true,
+      "max_output_tokens": null,
+      "temperature": 1,
+      "top_p": 1,
+      "presence_penalty": 0,
+      "frequency_penalty": 0,
+      "top_logprobs": 0,
+      "max_tool_calls": null,
+      "metadata": {},
+      "background": false,
+      "previous_response_id": null,
+      "service_tier": "default",
+      "truncation": "disabled",
+      "store": false,
+      "instructions": null,
+      "text": {
+        "format": {
+          "type": "text"
+        }
+      },
+      "reasoning": null,
+      "safety_identifier": null,
+      "prompt_cache_key": null,
+      "prompt_cache_options": null,
+      "usage": {
+        "input_tokens": 834,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens": 151,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        },
+        "total_tokens": 985,
+        "cost": 0.001589,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.001589,
+          "upstream_inference_input_cost": 0.000834,
+          "upstream_inference_output_cost": 0.000755
+        }
+      }
+    },
+    "sequence_number": 50
+  }
+]
