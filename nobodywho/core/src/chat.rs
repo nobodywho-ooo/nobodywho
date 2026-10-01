@@ -2069,8 +2069,9 @@ fn build_tool_sampler(
     let tool_sampler =
         sampler_config.build_sampler_with_prepended_step(model, Some(grammar_step))?;
 
-    let begin_tokens =
-        model.str_to_token(tool_format.begin_token(), llama_cpp_2::model::AddBos::Never)?;
+    let begin_tokens = model
+        .vocab()
+        .tokenize(tool_format.begin_token().as_bytes(), false, true);
 
     // Every fallible function has run, so the rebuilt factory can be committed.
     if rebuilt.is_some() {
@@ -2464,26 +2465,17 @@ impl<'a> Chat<'a> {
             }
 
             let new_token = self.engine.next_token(&mut self.sampler)?;
+            assert_ne!(new_token.0, -1, "invalid token generated");
 
             tokens_written_until_now.push(new_token);
 
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
+            // Convert token to bytes
+            let token_bytes = self
                 .engine
                 .ctx
                 .model
-                .token_to_piece_bytes(new_token, 64, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
-                }
-                x => x,
-            }?;
+                .vocab()
+                .token_to_piece(new_token, true, None);
 
             // Attempt to convert bytes to utf8 string.
             let max_len = decoder
@@ -2497,7 +2489,7 @@ impl<'a> Chat<'a> {
             let (_result, _bytes_read, _had_errors) =
                 decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token);
+            let has_eog = self.engine.ctx.model.vocab().is_eog(new_token);
             trace!(?new_token, ?token_str, ?has_eog);
 
             if has_eog {
