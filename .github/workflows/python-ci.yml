@@ -55,7 +55,7 @@ jobs:
 
       - name: Regenerate stubs
         working-directory: ./nobodywho/python
-        run: cargo build && cargo run --bin make_stubs
+        run: cargo build && cargo run -p make_stubs
 
       - name: Format generated stubs
         working-directory: ./nobodywho/python
@@ -69,7 +69,7 @@ jobs:
           else
             echo "❌ Generated stubs are outdated. Run:"
             echo "   cargo build"
-            echo "   cargo run --bin make_stubs"
+            echo "   cargo run -p make_stubs"
             echo "   uv run ruff format nobodywho.pyi"
             git --no-pager diff -- nobodywho.pyi
             exit 1
