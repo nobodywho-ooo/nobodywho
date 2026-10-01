@@ -130,7 +130,7 @@ void main() {
       );
     });
 
-    test('chat.md:154', () async {
+    test('chat.md:162', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         contextSize: 4096,
@@ -146,22 +146,22 @@ void main() {
       print("Using ${stats.contextUsed} of ${stats.contextSize} tokens");
     });
 
-    test('chat.md:197', () async {
+    test('chat.md:205', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         threadCount: 4
       );
     });
 
-    test('chat.md:227', () async {
+    test('chat.md:235', () async {
       final model = await nobodywho.Model.load(modelPath: './model.gguf', useGpu: true);
     });
 
-    test('chat.md:231', () async {
+    test('chat.md:239', () async {
       final chat = await nobodywho.Chat.fromPath(modelPath: './model.gguf', useGpu : false);
     });
 
-    test('chat.md:257', () async {
+    test('chat.md:265', () async {
       if (Platform.environment['TEST_MTP_MODEL'] == null) return;
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./gemma-4-e2b.gguf",
@@ -170,7 +170,7 @@ void main() {
       );
     });
 
-    test('chat.md:279', () async {
+    test('chat.md:287', () async {
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",
         templateVariables: {"enable_thinking": true}
@@ -189,7 +189,7 @@ void main() {
       print(variables); // {enable_thinking: true, verbose_mode: false}
     });
 
-    test('chat.md:331', () async {
+    test('chat.md:339', () async {
       // Deprecated - use templateVariables instead
       final chat = await nobodywho.Chat.fromPath(
         modelPath: "./model.gguf",

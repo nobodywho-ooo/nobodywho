@@ -282,9 +282,26 @@ chat = Chat("./model.gguf", n_ctx=4096)
 
 The default value is `4096`, however this is mainly useful for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. You can check the maximum context size the model was trained with using `model.max_ctx()` — setting `n_ctx` above this value has no benefit.
 
-Even with properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho shifts the context: it forgets the fewest old turns needed to shrink the chat history to half of `n_ctx`. A turn is a user message and everything up to the next one. System messages are always kept, and so are the first turn and the last two turns by default. The KV cache is updated automatically.
+When a conversation fills the context window, NobodyWho removes older turns until the context is below half of `n_ctx`. A turn includes a user message and everything before the next user message.
 
-You can tune this with `ContextShiftOptions`. `target` is a float in (0, 1) for a fraction of `n_ctx`, or an int for a number of tokens. `keep_last_turns` must be at least 1, so the message being answered is never forgotten:
+System messages are always kept. By default, NobodyWho also keeps the first turn and the last two turns. The KV cache is updated automatically.
+
+Use `ContextShiftOptions` to adjust this behavior:
+
+- `target`: Remove turns until the context is below this limit. Use a float between 0 and 1 for a fraction of `n_ctx`, or an integer below `n_ctx` for a token count. Defaults to 0.5. Whole turns are removed, so the resulting size may be smaller. A higher value, such as 0.9, removes fewer turns but may trigger more frequent shifts.
+- `keep_first_turns`: Number of initial turns to keep. Defaults to 1. Increase this to preserve more of the opening conversation.
+- `keep_last_turns`: Number of recent turns to keep. Defaults to 2. Must be at least 1, so the message being answered is always kept.
+
+```python
+# Default:
+options = ContextShiftOptions(
+    target=0.5,
+    keep_first_turns=1,
+    keep_last_turns=2,
+)
+```
+
+Example:
 
 ```python
 from nobodywho import Chat, ContextShiftOptions

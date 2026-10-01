@@ -150,9 +150,17 @@ const chat = await Chat.fromPath({
 
 The default value is `4096`, however this is mainly useful for short and simple conversations. Choosing the right context size is quite important and depends heavily on your use case. You can check the maximum context size the model was trained with using `model.maxCtx` — setting `contextSize` above this value has no benefit.
 
-Even with a properly selected context size it might happen that you fill up your entire context during a conversation. When this happens, NobodyWho shifts the context: it forgets the fewest old turns needed to shrink the chat history to half of `contextSize`. A turn is a user message and everything up to the next one. System messages are always kept, and so are the first turn and the last two turns by default. The KV cache is updated automatically.
+When a conversation fills the context window, NobodyWho removes older turns until the context is below half of `contextSize`. A turn includes a user message and everything before the next user message.
 
-You can tune this with the `contextShift` option. `target` is either `ShiftTarget.Fraction.new({ fraction })` for a fraction of `contextSize`, or `ShiftTarget.Tokens.new({ tokens })` for a number of tokens. `keepLastTurns` must be at least 1, so the message being answered is never forgotten:
+System messages are always kept. By default, NobodyWho also keeps the first turn and the last two turns. The KV cache is updated automatically.
+
+Use the `contextShift` option to adjust this behavior:
+
+- `target`: Remove turns until the context is below this limit. Use `ShiftTarget.Fraction.new({ fraction })` with a value between 0 and 1 for a fraction of `contextSize`, or `ShiftTarget.Tokens.new({ tokens })` with a count below `contextSize` for a token count. Defaults to half of `contextSize`. Whole turns are removed, so the resulting size may be smaller. A higher value, such as 0.9, removes fewer turns but may trigger more frequent shifts.
+- `keepFirstTurns`: Number of initial turns to keep. Defaults to 1. Increase this to preserve more of the opening conversation.
+- `keepLastTurns`: Number of recent turns to keep. Defaults to 2. Must be at least 1, so the message being answered is always kept.
+
+Example:
 
 ```typescript
 import { Chat, ShiftTarget } from "react-native-nobodywho";

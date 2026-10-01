@@ -88,6 +88,7 @@ def pytest_markdown_docs_globals():
         "SamplerPresets": nobodywho.SamplerPresets,
         "SamplerConfig": nobodywho.SamplerConfig,
         "SamplerBuilder": nobodywho.SamplerBuilder,
+        "ContextShiftOptions": nobodywho.ContextShiftOptions,
         "Encoder": nobodywho.Encoder,
         "EncoderAsync": nobodywho.EncoderAsync,
         "CrossEncoder": nobodywho.CrossEncoder,
