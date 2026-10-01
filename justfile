@@ -3,36 +3,46 @@ LIB_EXT := if os() == "macos" { "dylib" } else { "so" }
 GODOT := env("GODOT", "godot")
 GODOT_PROJECT := "nobodywho/godot/tests"
 
-check: fmt clippy regen-python regen-flutter ruff regen-uniffi flutter-analyze testing-apps godot-build
+# `--require-clean` fails if the checked paths differ from the git index.
+# `clean` must be passed to every dependency that (transitively) reaches a
+# recipe taking it; a missed edge silently runs that subtree lenient.
+[arg("clean", long="require-clean", value="true")]
+check clean="false": (fmt clean) clippy (regen-python clean) (regen-flutter clean) (ruff clean) (regen-uniffi clean) flutter-analyze (testing-apps clean) godot-build
 
-fmt:
+[arg("clean", long="require-clean", value="true")]
+fmt clean="false":
     cd nobodywho && cargo fmt --all
-    git diff --exit-code -- '*.rs' || (echo "cargo fmt made changes — commit them before pushing" && exit 1)
+    [ "{{clean}}" != true ] || git diff --exit-code -- '*.rs' || (echo "cargo fmt made changes — commit them before pushing" && exit 1)
 
 clippy:
     cd nobodywho/core && cargo clippy --no-deps --all-targets -- -D warnings
 
-regen-python:
+[arg("clean", long="require-clean", value="true")]
+regen-python clean="false":
     cd nobodywho/python && uv sync --no-install-project && maturin develop --uv && cargo run --bin make_stubs && uv run ruff format nobodywho.pyi && uv run ty check
-    git diff --exit-code nobodywho/python/nobodywho.pyi || (echo "Python stubs are out of date — commit them before pushing" && exit 1)
+    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/python/nobodywho.pyi || (echo "Python stubs are out of date — commit them before pushing" && exit 1)
 
-regen-flutter:
+[arg("clean", long="require-clean", value="true")]
+regen-flutter clean="false":
     cd nobodywho/flutter/nobodywho && dart run tool/doctest.dart ../../../docs/docs-flutter --generate-only
-    git diff --exit-code nobodywho/flutter/nobodywho/test/doctest_generated_test.dart || (echo "Flutter doctests are out of date — commit them before pushing" && exit 1)
+    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/flutter/nobodywho/test/doctest_generated_test.dart || (echo "Flutter doctests are out of date — commit them before pushing" && exit 1)
 
-ruff:
+[arg("clean", long="require-clean", value="true")]
+ruff clean="false":
     cd nobodywho/python && uv run ruff format && uv run ruff check
-    git diff --exit-code nobodywho/python/ || (echo "ruff format made changes — commit them before pushing" && exit 1)
+    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/python/ || (echo "ruff format made changes — commit them before pushing" && exit 1)
 
 flutter-analyze:
     cd nobodywho/flutter/nobodywho && flutter analyze lib/
 
-testing-apps: testapp-flutter testapp-react-native testapp-kotlin
+# Forwards `clean`; see `check`.
+testing-apps clean="false": testapp-flutter (testapp-react-native clean) testapp-kotlin
 
 testapp-flutter:
     cd nobodywho/testing-apps/flutter && flutter analyze
 
-testapp-react-native: regen-uniffi
+# Forwards `clean`; see `check`.
+testapp-react-native clean="false": (regen-uniffi clean)
     #!/usr/bin/env bash
     set -euo pipefail
     cd nobodywho/testing-apps/react-native
@@ -74,7 +84,8 @@ godot-test: godot-build
     fi
     {{GODOT}} --headless --path "{{GODOT_PROJECT}}"
 
-regen-uniffi:
+[arg("clean", long="require-clean", value="true")]
+regen-uniffi clean="false":
     cd nobodywho && cargo build -p nobodywho-uniffi --locked
     cd nobodywho && target/debug/uniffi-bindgen generate --library target/debug/libnobodywho_uniffi.{{LIB_EXT}} --language swift --out-dir swift/generated
     cd nobodywho && target/debug/uniffi-bindgen generate --library target/debug/libnobodywho_uniffi.{{LIB_EXT}} --language kotlin --out-dir kotlin/common/generated
@@ -83,4 +94,4 @@ regen-uniffi:
     # npx below silently fetches an unpinned uniffi-bindgen-react-native.
     cd nobodywho/react-native && { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci; }
     cd nobodywho && npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp $(pwd)/target/debug/libnobodywho_uniffi.{{LIB_EXT}}
-    git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/react-native/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
+    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/react-native/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
