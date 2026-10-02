@@ -47,10 +47,33 @@ This installs `just` (if not already present) and wires up the pre-push hook. Af
 
 1. Make sure all tests pass
 2. Link any relevant issues in your PR description
-3. Add a concise, user-facing entry under `Unreleased` in [`CHANGELOG.md`](CHANGELOG.md) when the change affects users. Group it under `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`, and mention affected bindings when it is not universal. Do not add entries for internal maintenance, CI, or documentation-only changes. PR links are not required.
+3. If the change affects users, add a change file with `just change` (see [Changelog entries](#changelog-entries)). Otherwise ask a maintainer to add the `no-changelog` label; CI fails without one or the other. Don't edit `CHANGELOG.md` directly: CI fails that too, unless a maintainer adds the `edit-changelog` label for a deliberate edit such as fixing a past entry.
 4. The PR will be merged once you have the sign-off of at least one maintainer
 
-At release time, maintainers move the relevant `Unreleased` entries into a dated release section and list the independent package versions published in that release.
+## Changelog entries
+
+Pending changes are described as files in [`.changeset/`](.changeset/) rather than edited into [`CHANGELOG.md`](CHANGELOG.md) directly. Each binding is versioned and released on its own, and at release time these files are turned into a dated `CHANGELOG.md` entry and each released binding's next version. `just change` asks which bindings the change affects, which changelog section it belongs in, how big a bump it is, a description and a file name, and writes a file like this:
+
+```markdown
+---
+section: changed
+bindings:
+  python: minor
+  flutter: major
+---
+
+One or two sentences describing the change for users.
+```
+
+- `section` is the Keep a Changelog section: `added`, `changed`, `deprecated`, `removed`, `fixed` or `security`.
+- Under `bindings`, list every binding whose users will notice the change, and only those. A change in `core/` usually affects all six: `python`, `godot`, `flutter`, `kotlin`, `react-native` and `swift`.
+- Pick the bump per binding: `major` if existing code can break (removed or renamed API, changed signature or behaviour, newly rejected input), `minor` for new functionality or other changes, `patch` for bug fixes. `just change` suggests a bump from the section (`minor` for `added` and `deprecated`, `major` for `removed`, `patch` for `fixed` and `security`, none for `changed`) and gives every binding the same bump; edit the file if they should differ.
+- Don't name the affected bindings or mark the change as breaking in the text; `CHANGELOG.md` adds both from the frontmatter.
+- Write two files if the wording should differ between bindings.
+
+`just check-changesets` validates the files, and `just next-versions` previews the `CHANGELOG.md` entry they would produce. Don't add entries for internal maintenance, CI, or documentation-only changes.
+
+At release time, `just prepare-release` bumps the version files, writes the `CHANGELOG.md` entry (and Flutter's pub.dev changelog) and deletes the consumed change files. The [release skill](.agents/skills/release/SKILL.md) describes the full process, including tagging.
 
 ## Code Style
 
