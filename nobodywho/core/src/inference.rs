@@ -2,7 +2,6 @@
 
 use crate::chat::ChatSampler;
 use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError, RollbackError};
-use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
 };
@@ -18,12 +17,8 @@ use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::{MutexGuard, RwLock};
+use std::sync::RwLock;
 use tracing::{debug, debug_span, trace, trace_span, warn};
-
-pub(crate) fn acquire_inference_lock() -> MutexGuard<'static, GlobalInferenceLockToken> {
-    GLOBAL_INFERENCE_LOCK.lock().unwrap()
-}
 
 /// MTP state.
 ///
@@ -458,7 +453,6 @@ impl<'a> InferenceEngine<'a> {
 
             let n_tokens = self.batch.n_tokens();
             let n_sequences = range.len();
-            let inference_lock_token = acquire_inference_lock();
             self.reset_context().expect("failed resetting context");
 
             let decode_span = debug_span!(
@@ -478,7 +472,6 @@ impl<'a> InferenceEngine<'a> {
                         .map_err(BatchedReadError::Output)?,
                 );
             }
-            drop(inference_lock_token);
 
             debug!(n_tokens, n_sequences, "Completed embedding batch");
         }
@@ -486,19 +479,15 @@ impl<'a> InferenceEngine<'a> {
         Ok(outputs)
     }
 
-    pub(crate) fn read_chunks(
-        &mut self,
-        chunks: TokenizerChunks,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, ReadError> {
+    pub(crate) fn read_chunks(&mut self, chunks: TokenizerChunks) -> Result<&mut Self, ReadError> {
         for chunk in chunks.into_iter() {
             self.kv_mirror();
             match &chunk {
                 TokenizerChunk::Text(tokens, _) => {
-                    self.read_text_tokens(tokens, inference_lock_token)?;
+                    self.read_text_tokens(tokens)?;
                 }
                 TokenizerChunk::Image(embeddings, _) | TokenizerChunk::Audio(embeddings, _) => {
-                    self.read_media_embeddings(embeddings.clone(), inference_lock_token)?;
+                    self.read_media_embeddings(embeddings.clone())?;
                 }
             }
             self.kv_mirror.append(chunk);
@@ -511,7 +500,6 @@ impl<'a> InferenceEngine<'a> {
     fn read_media_embeddings(
         &mut self,
         embeddings: Rc<MtmdInputChunks>,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         let projection_model = self
             .projection_model
@@ -542,17 +530,8 @@ impl<'a> InferenceEngine<'a> {
         Ok(self)
     }
 
-    // ---------- IMPORTANT ----------
-    // Should only be used under a global inference lock
-    // This is a safety meassure to prevent bugs from multiple
-    // contexts with the same model. It might not be necessary
-    // but assume it is.
     #[tracing::instrument(level = "trace", skip(self))]
-    fn read_text_tokens(
-        &mut self,
-        tokens: &[LlamaToken],
-        _inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, ReadError> {
+    fn read_text_tokens(&mut self, tokens: &[LlamaToken]) -> Result<&mut Self, ReadError> {
         let n_tokens = tokens.len();
         debug!(n_tokens, "Reading tokens:");
 
@@ -658,17 +637,12 @@ impl<'a> InferenceEngine<'a> {
 
     /// Read `target` from where the KV mirror ends up to token `end`. The mirror must be
     /// a prefix of `target`, so its length is how far into `target` the cache already is.
-    fn read_until(
-        &mut self,
-        target: &TokenizerChunks,
-        end: usize,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<(), ReadError> {
+    fn read_until(&mut self, target: &TokenizerChunks, end: usize) -> Result<(), ReadError> {
         let start = self.kv_mirror().n_tokens();
         if start < end {
             let mut chunks = target.tail(start);
             chunks.truncate(end - start);
-            self.read_chunks(chunks, inference_lock_token)?;
+            self.read_chunks(chunks)?;
         }
         Ok(())
     }
@@ -681,7 +655,6 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         target: TokenizerChunks,
         checkpoint_at: Option<usize>,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
             // Clear draft state.
@@ -711,10 +684,10 @@ impl<'a> InferenceEngine<'a> {
             kept <= ckpt && self.checkpoint.as_ref().is_none_or(|c| c.n_tokens < ckpt)
         });
         if let Some(at) = checkpoint_at {
-            self.read_until(&target, at, inference_lock_token)?;
+            self.read_until(&target, at)?;
             self.save_checkpoint();
         }
-        self.read_until(&target, end, inference_lock_token)?;
+        self.read_until(&target, end)?;
 
         Ok(())
     }

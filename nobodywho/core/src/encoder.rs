@@ -139,9 +139,8 @@ impl<'a> EncoderWorker<'a> {
     #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_string(&mut self, text: String) -> Result<&mut Self, crate::errors::ReadError> {
-        let inference_lock_token = crate::inference::acquire_inference_lock();
         let chunks = self.engine.tokenize(text, vec![])?;
-        self.engine.read_chunks(chunks, &inference_lock_token)?;
+        self.engine.read_chunks(chunks)?;
         Ok(self)
     }
 }

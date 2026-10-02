@@ -29,8 +29,8 @@ use crate::errors::{
     InitWorkerError, InvalidContextShiftOptions, InvalidHistoryError, MultimodalError, RenderError,
     SayError, SetterError, ShiftError, TokenizeError, ToolCallingSetupError,
 };
-use crate::inference::{acquire_inference_lock, InferenceEngine};
-use crate::llm::{self, GlobalInferenceLockToken, WorkerGuard};
+use crate::inference::InferenceEngine;
+use crate::llm::{self, WorkerGuard};
 use crate::output_format::{self, FormatError, ModelOutput, ResolvedFormat};
 use crate::response_parser::ResponseParser;
 use crate::sampler::{read_sampler_from_metadata, GrammarFactory, SamplerConfig};
@@ -51,7 +51,7 @@ use std::collections::HashSet;
 use std::hash::Hasher;
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, MutexGuard};
+use std::sync::Arc;
 use tracing::{debug, error, info, trace, warn};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -2256,10 +2256,7 @@ impl<'a> Chat<'a> {
     /// Because this invokes the model, this is potentially an expensive method to call.
     /// Returns the render the context now holds.
     #[tracing::instrument(level = "debug", skip_all)]
-    fn sync_context_with_render(
-        &mut self,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<String, ContextSyncError> {
+    fn sync_context_with_render(&mut self) -> Result<String, ContextSyncError> {
         let mut render = self.render(&self.messages, true)?;
         let mut chunks = self.chunks_of(&self.messages, render.clone())?;
         if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
@@ -2276,8 +2273,7 @@ impl<'a> Chat<'a> {
         let checkpoint_at = self.checkpoint_index(&chunks)?;
 
         // Diff against the KV mirror and load only the new tail.
-        self.engine
-            .sync_context(chunks, checkpoint_at, inference_lock_token)?;
+        self.engine.sync_context(chunks, checkpoint_at)?;
         self.media.retain_referenced(&self.messages);
 
         Ok(render)
@@ -2374,8 +2370,7 @@ impl<'a> Chat<'a> {
     ) -> Result<GeneratedResponse, GenerateResponseError> {
         // One generation at a time across all chats, in case contexts of one
         // model would interfere with each other.
-        let inference_lock_token = &acquire_inference_lock();
-        let prompt = self.sync_context_with_render(inference_lock_token)?;
+        let prompt = self.sync_context_with_render()?;
         let prompt_tokens = self.engine.kv_mirror().n_tokens();
 
         info!("Worker writing until done");
@@ -2402,13 +2397,12 @@ impl<'a> Chat<'a> {
             if self.engine.is_context_full() {
                 // Leave room for the partial response, which is read back in below.
                 self.context_shift(tokens_written_until_now.len())?;
-                self.sync_context_with_render(inference_lock_token)?;
+                self.sync_context_with_render()?;
                 if !tokens_written_until_now.is_empty() {
                     let mut generated_chunks = TokenizerChunks::new();
                     generated_chunks
                         .append(TokenizerChunk::new_text(tokens_written_until_now.clone()));
-                    self.engine
-                        .read_chunks(generated_chunks, inference_lock_token)?;
+                    self.engine.read_chunks(generated_chunks)?;
                 }
                 // do not update tokens_in_context as this is done later by ask
             }
@@ -3769,9 +3763,8 @@ mod tests {
         let mut worker = worker_with_turns(&model, None, 20)?;
         assert!(render(&worker, &worker.messages)?.n_tokens() > 512);
 
-        let inference_lock_token = acquire_inference_lock();
         assert!(matches!(
-            worker.sync_context_with_render(&inference_lock_token),
+            worker.sync_context_with_render(),
             Err(ContextSyncError::Shift(ShiftError::Disabled))
         ));
 
@@ -5102,8 +5095,7 @@ mod tests {
             chat.add_user_message(prompt);
             let render = render(&chat, &chat.messages).unwrap();
             let decoded = prompt_tokens_decoded(&mut chat, |chat| {
-                chat.sync_context_with_render(&acquire_inference_lock())
-                    .unwrap();
+                chat.sync_context_with_render().unwrap();
                 assert_eq!(
                     chat.engine.ctx.kv_cache_seq_pos_max(0) + 1,
                     render.n_positions() as i32

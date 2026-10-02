@@ -458,9 +458,6 @@ pub enum WorkerError {
 
     #[error("Could not send newly generated token out to the game engine.")]
     Send, // this is actually a SendError<LLMOutput>, but that becomes recursive and weird
-
-    #[error("Global Inference Lock was poisoned.")]
-    GILPoison, // this is actually a std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>, but that doesn't implement Send, so we do this
 }
 
 /// A setter's failure. Every variant but the first is the worker rejecting the
