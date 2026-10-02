@@ -11411,6 +11411,10 @@ rec {
             target = { target, features }: ("windows" == target."os" or null);
             features = [ "Win32_System_SystemInformation" ];
           }
+          {
+            name = "yoke";
+            packageId = "yoke";
+          }
         ];
         buildDependencies = [
           {

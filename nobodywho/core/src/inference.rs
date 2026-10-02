@@ -19,6 +19,7 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Mutex;
 use tracing::{debug, debug_span, trace, trace_span, warn};
+use yoke::Yokeable;
 
 /// MTP state.
 ///
@@ -219,7 +220,7 @@ pub(crate) struct BatchCapacity {
     pub(crate) sequences: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Yokeable)]
 pub(crate) struct InferenceEngine<'a> {
     pub(crate) ctx: EngineContext<'a>,
     projection_model: Option<&'a Mutex<ProjectionModel>>,
@@ -479,7 +480,7 @@ impl<'a> InferenceEngine<'a> {
         Ok(outputs)
     }
 
-    pub(crate) fn read_chunks(&mut self, chunks: TokenizerChunks) -> Result<&mut Self, ReadError> {
+    pub(crate) fn read_chunks(&mut self, chunks: TokenizerChunks) -> Result<(), ReadError> {
         for chunk in chunks.into_iter() {
             self.kv_mirror();
             match &chunk {
@@ -493,7 +494,7 @@ impl<'a> InferenceEngine<'a> {
             self.kv_mirror.append(chunk);
         }
 
-        Ok(self)
+        Ok(())
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
