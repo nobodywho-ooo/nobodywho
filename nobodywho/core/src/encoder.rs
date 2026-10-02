@@ -1,7 +1,7 @@
 use crate::errors::{EncoderWorkerError, InitWorkerError};
-use crate::inference::BatchedReadError;
+use crate::inference::{BatchedReadError, InferenceEngine};
 use crate::llm;
-use crate::llm::{Worker, WorkerGuard};
+use crate::llm::WorkerGuard;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
 use tracing::error;
@@ -36,7 +36,7 @@ impl EncoderAsync {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_encoder_worker(&model, n_ctx);
+            let worker = EncoderWorker::new(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
@@ -84,10 +84,10 @@ enum EncoderMsg {
 }
 
 /// Handle one message, reporting success or failure on its reply channel.
-fn process_worker_msg(worker_state: &mut Worker<'_, EncoderWorker>, msg: EncoderMsg) {
+fn process_worker_msg(worker_state: &mut EncoderWorker<'_>, msg: EncoderMsg) {
     match msg {
         EncoderMsg::EncodeBatch { texts, output_tx } => {
-            let pooling = worker_state.extra.pooling;
+            let pooling = worker_state.pooling;
             let embeddings = worker_state
                 .engine
                 .read_strings_batched(texts, |ctx, sequence_id| {
@@ -107,21 +107,13 @@ fn process_worker_msg(worker_state: &mut Worker<'_, EncoderWorker>, msg: Encoder
     }
 }
 
-struct EncoderWorker {
+struct EncoderWorker<'a> {
+    engine: InferenceEngine<'a>,
     pooling: LlamaPoolingType,
 }
 
-impl llm::PoolingType for EncoderWorker {
-    fn pooling_type(&self) -> LlamaPoolingType {
-        self.pooling
-    }
-}
-
-impl<'a> Worker<'a, EncoderWorker> {
-    pub fn new_encoder_worker(
-        model: &llm::Model,
-        n_ctx: u32,
-    ) -> Result<Worker<'_, EncoderWorker>, InitWorkerError> {
+impl<'a> EncoderWorker<'a> {
+    fn new(model: &'a llm::Model, n_ctx: u32) -> Result<Self, InitWorkerError> {
         let arch = model
             .language_model
             .meta_val_str("general.architecture")
@@ -134,12 +126,23 @@ impl<'a> Worker<'a, EncoderWorker> {
             .and_then(|val| val.parse::<i32>().ok())
             .map(LlamaPoolingType::from)
             .unwrap_or(LlamaPoolingType::Unspecified);
-        Worker::new_with_type(model, n_ctx, true, None, None, EncoderWorker { pooling })
+        let engine = InferenceEngine::new_with_type(model, n_ctx, true, None, None, pooling)?;
+        Ok(Self { engine, pooling })
     }
 
     #[cfg(test)]
-    pub fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
+    fn get_embedding(&self) -> Result<Vec<f32>, llama_cpp_2::EmbeddingsError> {
         Ok(self.engine.ctx.embeddings_seq_ith(0)?.to_vec())
+    }
+
+    /// Tokenize `text` and read it into the context under the global inference lock.
+    #[cfg(test)]
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn read_string(&mut self, text: String) -> Result<&mut Self, crate::errors::ReadError> {
+        let inference_lock_token = crate::inference::acquire_inference_lock();
+        let chunks = self.engine.tokenize(text, vec![])?;
+        self.engine.read_chunks(chunks, &inference_lock_token)?;
+        Ok(self)
     }
 }
 
@@ -205,7 +208,7 @@ mod tests {
     fn test_encoder_worker_direct() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_embeddings_model();
 
-        let mut worker = Worker::new_encoder_worker(&model, 1024)?;
+        let mut worker = EncoderWorker::new(&model, 1024)?;
 
         let copenhagen_embedding = worker
             .read_string("Copenhagen is the capital of Denmark.".to_string())?

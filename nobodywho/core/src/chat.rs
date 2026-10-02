@@ -31,7 +31,7 @@ use crate::errors::{
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
-use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard};
+use crate::llm::{GlobalInferenceLockToken, WorkerGuard};
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::GrammarFactory;
 use crate::sampler::SamplerConfig;
@@ -40,6 +40,7 @@ use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChu
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
+use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
@@ -2263,10 +2264,14 @@ impl<'a> Chat<'a> {
             tool_format.as_ref(),
         )?;
 
-        // Build the low-level inference engine via the shared Worker constructor,
-        // then take ownership of just the engine for the chat session.
-        let Worker { engine, extra: () } =
-            Worker::new_with_type(model, config.n_ctx, false, config.mtp, config.n_threads, ())?;
+        let engine = InferenceEngine::new_with_type(
+            model,
+            config.n_ctx,
+            false,
+            config.mtp,
+            config.n_threads,
+            LlamaPoolingType::None,
+        )?;
 
         // Parse against the real context, which may be capped below the requested n_ctx.
         let shift = config

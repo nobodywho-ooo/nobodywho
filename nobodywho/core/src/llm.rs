@@ -1,9 +1,5 @@
-#[cfg(test)]
-use crate::errors::ReadError;
 use crate::errors::{InitWorkerError, LoadModelError};
 use crate::huggingface::{download_gguf, parse_model_path};
-#[cfg(test)]
-use crate::inference::acquire_inference_lock;
 use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, SpeculativeEngine};
 use crate::memory;
 use crate::model_selection;
@@ -326,41 +322,19 @@ pub fn download_model_cancellable(
     )
 }
 
-#[derive(Debug)]
-pub(crate) struct Worker<'a, S> {
-    pub(crate) engine: InferenceEngine<'a>,
-    pub(crate) extra: S,
-}
-
-pub trait PoolingType {
-    fn pooling_type(&self) -> LlamaPoolingType;
-}
-
-/// Pooling type for a plain generative chat session (no pooling).
-impl PoolingType for () {
-    fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::None
-    }
-}
-
 pub type WriteOutput =
     crate::stream::StreamOutput<Box<dyn miette::Diagnostic + Send + Sync + 'static>>;
 
-// Common methods for any workstate type
-impl<'a, T> Worker<'a, T>
-where
-    T: PoolingType,
-{
+impl<'a> InferenceEngine<'a> {
+    // FIXME(madsmtm): Move this to inference.rs
     pub(crate) fn new_with_type(
         model: &'a Model,
         n_ctx: u32,
         use_embeddings: bool,
         mtp: Option<crate::chat::MtpConfig>,
         n_threads: Option<u32>,
-        extra: T,
-    ) -> Result<Worker<'a, T>, InitWorkerError> {
-        info!("Initializing worker");
-
+        pooling_type: LlamaPoolingType,
+    ) -> Result<Self, InitWorkerError> {
         let projection_model = model.projection_model.as_ref();
 
         // Set up context parameters. Without an explicit request this uses physical cores
@@ -378,7 +352,6 @@ where
             },
         )?;
         let planned_n_ctx = ctx_plan.n_ctx;
-        let pooling_type = extra.pooling_type();
         let n_seq_max = if use_embeddings
             && !matches!(
                 pooling_type,
@@ -450,7 +423,7 @@ where
 
         let tokenizer = Tokenizer::new(&model.language_model, projection_model);
 
-        let engine = InferenceEngine::new(
+        Ok(InferenceEngine::new(
             engine_ctx,
             projection_model,
             BatchCapacity {
@@ -459,18 +432,7 @@ where
             },
             tokenizer,
             use_embeddings,
-        );
-        Ok(Worker { engine, extra })
-    }
-
-    /// Tokenize `text` and read it into the context under the global inference lock.
-    #[cfg(test)]
-    #[tracing::instrument(level = "trace", skip(self))]
-    pub fn read_string(&mut self, text: String) -> Result<&mut Self, ReadError> {
-        let inference_lock_token = acquire_inference_lock();
-        let chunks = self.engine.tokenize(text, vec![])?;
-        self.engine.read_chunks(chunks, &inference_lock_token)?;
-        Ok(self)
+        ))
     }
 }
 
