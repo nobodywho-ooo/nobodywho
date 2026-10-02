@@ -3442,7 +3442,6 @@ dependencies = [
  "hound",
  "indexmap",
  "indicatif",
- "lazy_static",
  "libc",
  "llama-cpp-2",
  "llguidance",

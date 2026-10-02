@@ -24,7 +24,6 @@ llama-cpp-2 = { version = "=0.1.159", default-features = false, features = [
     "llguidance",
     "common",
 ] }
-lazy_static = "1.5.0"
 tokio = { version = "1.43.0", features = [
     "sync",
     "rt",

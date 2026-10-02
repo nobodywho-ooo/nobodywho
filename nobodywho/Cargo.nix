@@ -11225,10 +11225,6 @@ rec {
             packageId = "indicatif";
           }
           {
-            name = "lazy_static";
-            packageId = "lazy_static";
-          }
-          {
             name = "libc";
             packageId = "libc";
             target = { target, features }: (("android" == target."os" or null) || ("apple" == target."vendor" or null));
