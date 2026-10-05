@@ -1956,35 +1956,24 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
     }
 }
 
-// TOOLS TYPE STUFF
-
-// the callback closure isn't normally Send
-// but we just cheat a little here
-// so far it has been fine...
-// unsafe impl Send for Tool {}
-
-// TOOL CHAT WORKER
-
-/// What is in the KV cache is tracked by the engine; see [`InferenceEngine::kv_record`].
-struct ChatContext {
-    /// Here we keep a list of the media bitmaps, which are needed for tokenization.
+/// Decoded media the history refers to, kept so every render can re-tokenize it.
+/// Ids are content hashes and only mean something within this worker.
+struct MediaStore {
     bitmaps: IndexMap<ChunkId, MtmdBitmap>,
 }
 
-impl ChatContext {
+impl MediaStore {
     fn new() -> Self {
         Self {
             bitmaps: IndexMap::new(),
         }
     }
 
-    pub fn add_bitmaps(
-        &mut self,
-        bitmaps: Vec<MtmdBitmap>,
-    ) -> Result<Vec<String>, MultimodalError> {
+    /// Store `bitmaps` and tag each with its id, returned in the same order.
+    fn register(&mut self, bitmaps: Vec<MtmdBitmap>) -> Result<Vec<ChunkId>, MultimodalError> {
         let mut bitmap_ids = Vec::with_capacity(bitmaps.len());
         for bitmap in bitmaps {
-            let id = self.create_bitmap_id(&bitmap);
+            let id = bitmap_id(&bitmap);
             bitmap.set_id(&id)?;
             bitmap_ids.push(id.clone());
             self.bitmaps.entry(id).or_insert(bitmap);
@@ -1994,41 +1983,26 @@ impl ChatContext {
 
     /// Whether this worker has the bitmap an id names. Ids are worker-local, so
     /// content from elsewhere carries ids this answers `false` for.
-    fn has_bitmap(&self, id: &str) -> bool {
+    fn contains(&self, id: &str) -> bool {
         self.bitmaps.contains_key(id)
     }
 
-    pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
-        // Garbage collection for the bitmaps.
-        let referenced_bitmaps: HashSet<String> = messages
-            .iter()
-            .flat_map(|msg| msg.media_ids())
-            .map(str::to_string)
-            .collect();
-
-        let unreferenced_bitmap_ids: Vec<_> = self
-            .bitmaps
-            .keys()
-            .filter(|id| !referenced_bitmaps.contains(id.as_str()))
-            .cloned()
-            .collect();
-
-        self.remove_bitmaps(unreferenced_bitmap_ids);
+    fn get(&self, id: &str) -> Option<&MtmdBitmap> {
+        self.bitmaps.get(id)
     }
 
-    fn create_bitmap_id(&self, bitmap: &MtmdBitmap) -> String {
-        let mut hasher = AHasher::default();
-        hasher.write(bitmap.data());
-        hasher.finish().to_string()
+    /// Drop the bitmaps no message refers to anymore.
+    fn retain_referenced(&mut self, messages: &[Message]) {
+        let referenced: HashSet<&str> = messages.iter().flat_map(|msg| msg.media_ids()).collect();
+        self.bitmaps
+            .retain(|id, _| referenced.contains(id.as_str()));
     }
+}
 
-    fn remove_bitmaps(&mut self, bitmap_ids: Vec<String>) {
-        for id in bitmap_ids {
-            if let Some(bitmap) = self.bitmaps.shift_remove(&id) {
-                drop(bitmap);
-            }
-        }
-    }
+fn bitmap_id(bitmap: &MtmdBitmap) -> ChunkId {
+    let mut hasher = AHasher::default();
+    hasher.write(bitmap.data());
+    hasher.finish().to_string()
 }
 
 /// Builds the tool-call grammar sampler for an already-detected `tool_format`
@@ -2209,7 +2183,7 @@ struct Chat<'a> {
     template_variables: std::collections::HashMap<String, bool>,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
-    context: ChatContext,
+    media: MediaStore,
     shift: Option<ContextShift>,
 }
 
@@ -2289,7 +2263,7 @@ impl<'a> Chat<'a> {
             chat_template: template,
             template_variables: config.template_variables,
             tools: config.tools,
-            context: ChatContext::new(),
+            media: MediaStore::new(),
             shift,
         })
     }
@@ -2337,7 +2311,7 @@ impl<'a> Chat<'a> {
 
         // Diff against the chunks currently in the KV cache and load only the new tail.
         self.engine.sync_context(chunks, inference_lock_token)?;
-        self.context.garbage_collect_bitmaps(&self.messages);
+        self.media.retain_referenced(&self.messages);
 
         Ok(())
     }
@@ -2553,7 +2527,7 @@ impl<'a> Chat<'a> {
             .media_parts()
             .into_iter()
             .map(|part| {
-                if part.id().is_some_and(|id| self.context.has_bitmap(id)) {
+                if part.id().is_some_and(|id| self.media.contains(id)) {
                     return Ok(None);
                 }
                 match part {
@@ -2574,7 +2548,7 @@ impl<'a> Chat<'a> {
             .filter_map(|(position, bitmap)| bitmap.map(|bitmap| (position, bitmap)))
             .unzip();
 
-        let bitmap_ids = self.context.add_bitmaps(loaded)?;
+        let bitmap_ids = self.media.register(loaded)?;
         let mut parts = content.media_parts_mut();
         for (position, id) in positions.into_iter().zip(bitmap_ids) {
             parts[position].set_id(id);
@@ -2741,7 +2715,7 @@ impl<'a> Chat<'a> {
         let bitmaps: Vec<&MtmdBitmap> = messages
             .iter()
             .flat_map(|msg| msg.media_ids())
-            .filter_map(|id| self.context.bitmaps.get(id))
+            .filter_map(|id| self.media.get(id))
             .collect();
         Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
     }
@@ -2765,7 +2739,7 @@ impl<'a> Chat<'a> {
         self.tools = tools;
         self.messages = History::default();
         self.system_prompt = system_prompt;
-        self.context = ChatContext::new();
+        self.media = MediaStore::new();
         Ok(())
     }
 
@@ -2895,7 +2869,7 @@ impl<'a> Chat<'a> {
         // sync with an empty render and we only render when there are
         // messages present in the history.
 
-        self.context.garbage_collect_bitmaps(&self.messages);
+        self.media.retain_referenced(&self.messages);
 
         Ok(())
     }
@@ -4813,7 +4787,7 @@ mod tests {
             .id()
             .expect("the part should carry a freshly registered id");
         assert_ne!(registered, "id-from-another-session");
-        assert!(worker.context.bitmaps.contains_key(registered));
+        assert!(worker.media.bitmaps.contains_key(registered));
 
         Ok(())
     }
@@ -4870,7 +4844,7 @@ mod tests {
             "the interleaved image did not reach the model: {resp}"
         );
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             1,
             "the image part should have been registered"
         );
@@ -4929,7 +4903,7 @@ mod tests {
             |_| {},
         )?;
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             1,
             "expected the image to be registered"
         );
@@ -4947,7 +4921,7 @@ mod tests {
             serde_json::to_value(&stored)?,
             "an already-registered part should keep its id rather than be reloaded"
         );
-        assert_eq!(worker.context.bitmaps.len(), 1);
+        assert_eq!(worker.media.bitmaps.len(), 1);
 
         worker.complete(
             History::new(vec![user("Say the word 'banana'.")])?,
@@ -4957,7 +4931,7 @@ mod tests {
             |_| {},
         )?;
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             0,
             "the replaced history's image bitmap should have been released"
         );
@@ -4994,7 +4968,7 @@ mod tests {
             "the image was not reloaded from its path: {resp}"
         );
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             1,
             "the reloaded bitmap should be registered"
         );
@@ -5037,13 +5011,13 @@ mod tests {
             for part in message.content_ref().media_parts() {
                 assert!(
                     part.id()
-                        .is_some_and(|id| worker.context.bitmaps.contains_key(id)),
+                        .is_some_and(|id| worker.media.bitmaps.contains_key(id)),
                     "media on a {} message was not registered: {part:?}",
                     message.role(),
                 );
             }
         }
-        assert_eq!(worker.context.bitmaps.len(), 1);
+        assert_eq!(worker.media.bitmaps.len(), 1);
 
         Ok(())
     }
