@@ -665,6 +665,88 @@ const FfiConverterTypeChatStats = (() => {
 
 
 /**
+ * How a chat forgets old turns when its context is full. A turn is a user
+ * message and everything up to the next one; system messages are always kept.
+ */
+export type ContextShiftOptions = {
+    /**
+     * `false` disables shifting, so a full context is an error instead.
+     */
+    enabled: boolean,
+    /**
+     * Turns always kept at the start of the history.
+     */
+    keepFirstTurns: /*u32*/number,
+    /**
+     * Turns always kept at the end of the history; at least 1.
+     */
+    keepLastTurns: /*u32*/number,
+    /**
+     * Size the history is shrunk to. `null` means half the context size.
+     */
+    target: ShiftTarget | undefined
+}
+
+/**
+ * Generated factory for {@link ContextShiftOptions} record objects.
+ */
+export const ContextShiftOptions = (() => {
+    const defaults = () => ({enabled: true,keepFirstTurns: 1,keepLastTurns: 2,target: undefined
+    });
+    const create = (() => {
+        return uniffiCreateRecord<ContextShiftOptions, ReturnType<typeof defaults>>(defaults);
+    })();
+    return Object.freeze({
+        /**
+         * Create a frozen instance of {@link ContextShiftOptions}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        create,
+
+        /**
+         * Create a frozen instance of {@link ContextShiftOptions}, with defaults specified
+         * in Rust, in the {@link nobodywho} crate.
+         */
+        new: create,
+
+        /**
+         * Defaults specified in the {@link nobodywho} crate.
+         */
+        defaults: () => Object.freeze(defaults()) as Partial<ContextShiftOptions>,
+
+    });
+})();
+
+const FfiConverterTypeContextShiftOptions = (() => {
+    type TypeName = ContextShiftOptions;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            return {
+                enabled: FfiConverterBool.read(from), 
+                keepFirstTurns: FfiConverterUInt32.read(from), 
+                keepLastTurns: FfiConverterUInt32.read(from), 
+                target: FfiConverterOptionalTypeShiftTarget.read(from)
+            };
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            FfiConverterBool.write(value.enabled, into);
+            FfiConverterUInt32.write(value.keepFirstTurns, into);
+            FfiConverterUInt32.write(value.keepLastTurns, into);
+            FfiConverterOptionalTypeShiftTarget.write(value.target, into);
+        }
+        allocationSize(value: TypeName): number {
+            return FfiConverterBool.allocationSize(value.enabled) + 
+            FfiConverterUInt32.allocationSize(value.keepFirstTurns) + 
+            FfiConverterUInt32.allocationSize(value.keepLastTurns) + 
+            FfiConverterOptionalTypeShiftTarget.allocationSize(value.target);
+            
+        }
+    };
+    return new FFIConverter();
+})();
+
+
+/**
  * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
  * enables MTP; `null` runs the solo decode path. Requires the model to
  * have been loaded with a compatible `draft_model_path`.
@@ -1722,6 +1804,163 @@ const FfiConverterTypeNobodyWhoError = (() => {
 })();
 
 
+// Enum: ShiftTarget
+export enum ShiftTarget_Tags {
+    Fraction = "Fraction",
+    Tokens = "Tokens"
+}
+/**
+ * Size a context shift shrinks the chat history to.
+ */
+export const ShiftTarget = (() => {
+    
+
+    type Fraction__interface = {
+        tag: ShiftTarget_Tags.Fraction;
+        inner: Readonly<{fraction: /*f32*/number}>
+    };
+
+    
+    /**
+     * A fraction of the context size, in `(0, 1)`.
+     */
+    class Fraction_ extends UniffiEnum implements Fraction__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "ShiftTarget";
+        readonly tag = ShiftTarget_Tags.Fraction;
+        readonly inner: Readonly<{fraction: /*f32*/number}>;
+        constructor(inner: { fraction: /*f32*/number }) {
+            super("ShiftTarget", "Fraction");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { fraction: /*f32*/number }): Fraction_ {
+            return new Fraction_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Fraction_ {
+            return obj.tag === ShiftTarget_Tags.Fraction;
+        }
+        
+
+        
+
+    }
+    
+
+    type Tokens__interface = {
+        tag: ShiftTarget_Tags.Tokens;
+        inner: Readonly<{tokens: /*u32*/number}>
+    };
+
+    
+    /**
+     * A number of tokens, below the context size.
+     */
+    class Tokens_ extends UniffiEnum implements Tokens__interface {
+        /**
+         * @private
+         * This field is private and should not be used, use `tag` instead.
+         */
+        readonly [uniffiTypeNameSymbol] = "ShiftTarget";
+        readonly tag = ShiftTarget_Tags.Tokens;
+        readonly inner: Readonly<{tokens: /*u32*/number}>;
+        constructor(inner: { tokens: /*u32*/number }) {
+            super("ShiftTarget", "Tokens");
+            this.inner = Object.freeze(inner);
+        }
+
+        static new(inner: { tokens: /*u32*/number }): Tokens_ {
+            return new Tokens_(inner);
+        }
+
+        static instanceOf(obj: any): obj is Tokens_ {
+            return obj.tag === ShiftTarget_Tags.Tokens;
+        }
+        
+
+        
+
+    }
+
+    function instanceOf(obj: any): obj is ShiftTarget {
+        return obj[uniffiTypeNameSymbol] === "ShiftTarget";
+    }
+
+    return Object.freeze({
+        instanceOf,
+  Fraction: Fraction_, 
+  Tokens: Tokens_
+    });
+
+})();
+
+
+/**
+ * Size a context shift shrinks the chat history to.
+ */
+
+export type ShiftTarget = InstanceType<
+    typeof ShiftTarget[keyof Omit<typeof ShiftTarget, 'instanceOf'>]
+>;
+
+// FfiConverter for enum ShiftTarget
+const FfiConverterTypeShiftTarget = (() => {
+    const ordinalConverter = FfiConverterInt32;
+    type TypeName = ShiftTarget;
+    class FFIConverter extends AbstractFfiConverterByteArray<TypeName> {
+        read(from: RustBuffer): TypeName {
+            switch (ordinalConverter.read(from)) {
+                case 1: return new ShiftTarget.Fraction({fraction: FfiConverterFloat32.read(from) });
+                case 2: return new ShiftTarget.Tokens({tokens: FfiConverterUInt32.read(from) });
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        write(value: TypeName, into: RustBuffer): void {
+            switch (value.tag) {
+                case ShiftTarget_Tags.Fraction: {
+                    ordinalConverter.write(1, into);
+                    const inner = value.inner;
+                    FfiConverterFloat32.write(inner.fraction, into);
+                    return;
+                }
+                case ShiftTarget_Tags.Tokens: {
+                    ordinalConverter.write(2, into);
+                    const inner = value.inner;
+                    FfiConverterUInt32.write(inner.tokens, into);
+                    return;
+                }
+                default:
+                    // Throwing from here means that ShiftTarget_Tags hasn't matched an ordinal.
+                    throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+        allocationSize(value: TypeName): number {
+            switch (value.tag) {
+                case ShiftTarget_Tags.Fraction: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(1);
+                    size += FfiConverterFloat32.allocationSize(inner.fraction);
+                    return size;
+                }
+                case ShiftTarget_Tags.Tokens: {
+                    const inner = value.inner;
+                    let size = ordinalConverter.allocationSize(2);
+                    size += FfiConverterUInt32.allocationSize(inner.tokens);
+                    return size;
+                }
+                default: throw new UniffiInternalError.UnexpectedEnumCase();
+            }
+        }
+    }
+    return new FFIConverter();
+})();
+
+
+
 /**
  * `push` always returns one of these: `Speech`/`Silence` for the confirmed
  * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
@@ -1850,6 +2089,10 @@ export interface RustChatInterface {
      */
     setChatHistory(messages: Array<Message>, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
     /**
+     * Set how old turns are forgotten when the context is full.
+     */
+    setContextShift(options: ContextShiftOptions, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
+    /**
      * Set the sampler configuration.
      */
     setSamplerConfig(sampler: SamplerConfigInterface, asyncOpts_?: { signal: AbortSignal })  /*throws*/: Promise<void>;
@@ -1898,8 +2141,11 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
      * detects the device's physical core count (performance cores only, on
      * Apple silicon), since hyperthreads and efficiency cores make inference
      * slower. Clamped to the CPU count.
+     *
+     * `context_shift` sets how old turns are forgotten when the context is
+     * full; `null` uses the defaults.
      */
-    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: MtpConfig | undefined, threadCount: /*u32*/number | undefined) /*throws*/ {
+    constructor(model: RustModelInterface, systemPrompt: string | undefined, contextSize: /*u32*/number, templateVariables: Map<string, boolean> | undefined, tools: Array<RustToolInterface> | undefined, sampler: SamplerConfigInterface | undefined, mtp: MtpConfig | undefined, threadCount: /*u32*/number | undefined, contextShift: ContextShiftOptions | undefined) /*throws*/ {
         super();
         const pointer =
             
@@ -1915,6 +2161,7 @@ export class RustChat extends UniffiAbstractObject implements RustChatInterface 
         FfiConverterOptionalTypeSamplerConfig.lower(sampler),
         FfiConverterOptionalTypeMtpConfig.lower(mtp),
         FfiConverterOptionalUInt32.lower(threadCount),
+        FfiConverterOptionalTypeContextShiftOptions.lower(contextShift),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift,
@@ -2264,6 +2511,37 @@ async  setChatHistory(messages: Array<Message>, asyncOpts_?: { signal: AbortSign
                 return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
                     uniffiTypeRustChatObjectFactory.clonePointer(this),
                     FfiConverterArrayTypeMessage.lower(messages)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift,
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeNobodyWhoError.lift.bind(FfiConverterTypeNobodyWhoError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+    /**
+     * Set how old turns are forgotten when the context is full.
+     */
+async  setContextShift(options: ContextShiftOptions, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_nobodywho_uniffi_fn_method_rustchat_set_context_shift(
+                    uniffiTypeRustChatObjectFactory.clonePointer(this),
+                    FfiConverterTypeContextShiftOptions.lower(options)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_nobodywho_uniffi_rust_future_poll_void,
@@ -4772,6 +5050,10 @@ const FfiConverterOptionalFloat32 = new FfiConverterOptional(FfiConverterFloat32
 const FfiConverterOptionalInt32 = new FfiConverterOptional(FfiConverterInt32);
 
 
+// FfiConverter for ContextShiftOptions | undefined
+const FfiConverterOptionalTypeContextShiftOptions = new FfiConverterOptional(FfiConverterTypeContextShiftOptions);
+
+
 // FfiConverter for MtpConfig | undefined
 const FfiConverterOptionalTypeMtpConfig = new FfiConverterOptional(FfiConverterTypeMtpConfig);
 
@@ -4810,6 +5092,10 @@ const FfiConverterArrayTypeToolParameter = new FfiConverterArray(FfiConverterTyp
 
 // FfiConverter for Array<string>
 const FfiConverterArrayString = new FfiConverterArray(FfiConverterString);
+
+
+// FfiConverter for ShiftTarget | undefined
+const FfiConverterOptionalTypeShiftTarget = new FfiConverterOptional(FfiConverterTypeShiftTarget);
 
 
 // FfiConverter for Map<string, boolean> | undefined
@@ -4963,6 +5249,9 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history() !== 6058) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history");
     }
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift() !== 58540) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift");
+    }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() !== 28012) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config");
     }
@@ -5107,7 +5396,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() !== 51798) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 2313) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() !== 4810) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() !== 9022) {
@@ -5154,6 +5443,7 @@ export default Object.freeze({
     FfiConverterTypeCachedModel,
     FfiConverterTypeChatStats,
     FfiConverterTypeContentPart,
+    FfiConverterTypeContextShiftOptions,
     FfiConverterTypeMessage,
     FfiConverterTypeMessageContent,
     FfiConverterTypeMtpConfig,
@@ -5172,6 +5462,7 @@ export default Object.freeze({
     FfiConverterTypeRustVoiceActivityDetection,
     FfiConverterTypeSamplerBuilder,
     FfiConverterTypeSamplerConfig,
+    FfiConverterTypeShiftTarget,
     FfiConverterTypeToolCall,
     FfiConverterTypeToolParameter,
     FfiConverterTypeVoiceActivityDetectionEvent,

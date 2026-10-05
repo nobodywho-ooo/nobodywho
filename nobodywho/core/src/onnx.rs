@@ -4,7 +4,7 @@
 //! around [`ort`] session construction so each backend doesn't repeat the
 //! boilerplate.
 
-use ort::ep::{ExecutionProvider, ExecutionProviderDispatch, CPU, CUDA};
+use ort::ep::{ExecutionProviderDispatch, CPU};
 use ort::session::builder::SessionBuilder;
 use ort::session::Session;
 use std::path::Path;
@@ -22,21 +22,38 @@ pub enum Device {
 ///
 /// CPU is always appended alongside CUDA as a per-op fallback — some ops lack
 /// CUDA kernels, so CUDA still handles what it supports while CPU covers the rest.
-pub fn execution_providers(device: Device) -> Vec<ExecutionProviderDispatch> {
-    match device {
-        Device::Cuda => vec![
-            CUDA::default().build().error_on_failure(),
-            CPU::default().build(),
-        ],
-        Device::Cpu => vec![CPU::default().build()],
-        Device::Auto => {
-            let mut eps: Vec<ExecutionProviderDispatch> = Vec::new();
-            if CUDA::default().is_available().unwrap_or(false) {
-                eps.push(CUDA::default().build().fail_silently());
-            }
-            eps.push(CPU::default().build());
-            eps
+///
+/// Fails for [`Device::Cuda`] on platforms built without CUDA support.
+pub fn execution_providers(device: Device) -> Result<Vec<ExecutionProviderDispatch>, ort::Error> {
+    let mut eps: Vec<ExecutionProviderDispatch> = cuda_provider(device)?.into_iter().collect();
+    eps.push(CPU::default().build());
+    Ok(eps)
+}
+
+// Same cfg as ort's `cuda` feature in core/Cargo.toml.
+#[cfg(all(
+    any(target_os = "linux", target_os = "windows"),
+    target_arch = "x86_64"
+))]
+fn cuda_provider(device: Device) -> Result<Option<ExecutionProviderDispatch>, ort::Error> {
+    use ort::ep::{ExecutionProvider, CUDA};
+    Ok(match device {
+        Device::Cuda => Some(CUDA::default().build().error_on_failure()),
+        Device::Auto if CUDA::default().is_available().unwrap_or(false) => {
+            Some(CUDA::default().build().fail_silently())
         }
+        _ => None,
+    })
+}
+
+#[cfg(not(all(
+    any(target_os = "linux", target_os = "windows"),
+    target_arch = "x86_64"
+)))]
+fn cuda_provider(device: Device) -> Result<Option<ExecutionProviderDispatch>, ort::Error> {
+    match device {
+        Device::Cuda => Err(ort::Error::new("CUDA is not supported on this platform")),
+        _ => Ok(None),
     }
 }
 
@@ -48,6 +65,6 @@ pub fn execution_providers(device: Device) -> Vec<ExecutionProviderDispatch> {
 pub fn load_session(path: &Path, device: Device) -> Result<Session, ort::Error> {
     SessionBuilder::new()?
         .with_log_level(ort::logging::LogLevel::Warning)?
-        .with_execution_providers(execution_providers(device))?
+        .with_execution_providers(execution_providers(device)?)?
         .commit_from_file(path)
 }

@@ -1,4 +1,4 @@
-use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
+use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use std::path::PathBuf;
 
 // Memory errors
@@ -384,9 +384,6 @@ pub enum InitWorkerError {
     )]
     ChatTemplate(#[from] SelectTemplateError),
 
-    #[error("Failed to tokenize eos or bos tokens: {0}")]
-    TokenToStringError(#[from] TokenToStringError),
-
     #[error("Got no response after initializing worker.")]
     NoResponse,
 
@@ -419,9 +416,13 @@ pub enum InitWorkerError {
     #[error("Failed setting up tool calling: {0}")]
     ToolCallingSetup(#[from] ToolCallingSetupError),
 
-    #[error("Invalid context shift options: {0}")]
-    InvalidContextShiftOptions(String),
+    #[error(transparent)]
+    InvalidContextShiftOptions(#[from] InvalidContextShiftOptions),
 }
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("Invalid context shift options: {0}")]
+pub struct InvalidContextShiftOptions(pub(crate) String);
 
 #[derive(Debug, thiserror::Error)]
 pub enum InitContextError {
@@ -491,6 +492,9 @@ pub enum SetterError {
 
     #[error("MTP speculative decode call failed: {0}")]
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error(transparent)]
+    InvalidContextShiftOptions(#[from] InvalidContextShiftOptions),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -932,12 +936,6 @@ pub enum GenerateResponseError {
     )]
     Shift(#[from] ShiftError),
 
-    #[error("Error converting token to bytes: {0}")]
-    TokenToString(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Error tokenizing tool-call begin token: {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
-
     #[error("Error while decoding next token: {0}")]
     Decoding(#[from] DecodingError),
 
@@ -1086,22 +1084,10 @@ pub enum MultimodalError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TokenizationError {
-    #[error("Could not tokenize string: {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
-
     #[error("Failed to tokenize image {image_index} of {total_images}: {error}")]
     ImageTokenizationFailed {
         image_index: usize,
         total_images: usize,
-        error: String,
-    },
-
-    #[error(
-        "Failed to tokenize text segment at position {position} (preview: {text_preview}): {error}"
-    )]
-    TextTokenizationFailed {
-        position: usize,
-        text_preview: String,
         error: String,
     },
 
@@ -1150,9 +1136,6 @@ pub enum ShiftError {
     )]
     Disabled,
 
-    #[error("Could not tokenize template render {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
-
     #[error("Could not render messages with template {0}")]
     TemplateRender(#[from] RenderError),
 
@@ -1168,9 +1151,6 @@ pub enum ShiftError {
 pub enum ContextSyncError {
     #[error("Error removing tokens from context {0}")]
     KvCacheConversionError(#[from] KvCacheConversionError),
-
-    #[error("Could not tokenize template render {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 
     #[error("Could not render messages {0}")]
     #[diagnostic(transparent)]
@@ -1213,9 +1193,6 @@ pub enum RenderError {
     InlineSystemMessageUnsupported,
 
     #[error("Could not tokenize string: {0}")]
-    CreateContext(#[from] llama_cpp_2::StringToTokenError),
-
-    #[error("Could not tokenize string: {0}")]
     Tokenize(#[from] TokenizationError),
 }
 
@@ -1226,9 +1203,6 @@ pub enum SelectTemplateError {
 
     #[error("Could not parse chat template as UTF8: {0}")]
     TemplateUtf8(#[from] std::str::Utf8Error),
-
-    #[error("Could not detokenize string: {0}")]
-    Detokenize(#[from] llama_cpp_2::TokenToStringError),
 
     #[error("Could not create chat template: {0}")]
     CreateChatTemplate(#[from] minijinja::Error),
@@ -1253,9 +1227,6 @@ pub enum ToolCallingSetupError {
 
     #[error("Failed to build tool-call sampler: {0}")]
     Sampler(#[from] SamplerError),
-
-    #[error("Failed to tokenize the tool-call begin token: {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

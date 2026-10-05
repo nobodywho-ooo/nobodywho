@@ -184,12 +184,39 @@ The default value is `4096`, however this is mainly useful for short and simple 
 Choosing the right context size is quite important and depends heavily on your use case. Setting
 `n_ctx` above the maximum context size the model was trained with has no benefit.
 
-Even with a properly selected context size it might happen that you fill up the entire context
-during a conversation. When this happens, NobodyWho will shrink the context for you. Currently
-this is done by removing the oldest turns from the chat history — keeping the first turn, the
-most recent turns, and any system messages in the history (they are instructions for the whole
-conversation) — until the size reaches `n_ctx / 2`. The KV cache is also updated
-automatically. In the future we plan on adding more advanced methods of context shrinking.
+When a conversation fills the context window, NobodyWho removes older turns until the context is
+below half of `n_ctx`. A turn includes a user message and everything before the next user
+message.
+
+System messages are always kept. By default, NobodyWho also keeps the first turn and the last two
+turns. The KV cache is updated automatically.
+
+Use the `"context_shift"` key to adjust this behavior:
+
+- `"target"`: Remove turns until the context is below this limit. Use a float between 0 and 1 for
+  a fraction of `n_ctx`, or an int below `n_ctx` for a token count. Defaults to 0.5. Whole turns
+  are removed, so the resulting size may be smaller. A higher value, such as 0.9, removes fewer
+  turns but may trigger more frequent shifts.
+- `"keep_first_turns"`: Number of initial turns to keep. Defaults to 1. Increase this to preserve
+  more of the opening conversation.
+- `"keep_last_turns"`: Number of recent turns to keep. Defaults to 2. Must be at least 1, so the
+  message being answered is always kept.
+
+Example:
+
+```gdscript
+var chat = await NobodyWhoChat.create("./model.gguf", {
+	"n_ctx": 4096,
+	"context_shift": {"keep_first_turns": 1, "keep_last_turns": 4, "target": 0.75},
+})
+```
+
+To turn context shifting off, set `"context_shift": false`; a full context is then an error
+instead. `set_context_shift()` takes the same bool or Dictionary on an existing chat:
+
+```gdscript
+await chat.set_context_shift(false)
+```
 
 `n_ctx` is fixed to the chat instance. To reset the current context content, call
 `reset_history()` (keeps the system prompt and tools), or `reset_chat()` to also change those:

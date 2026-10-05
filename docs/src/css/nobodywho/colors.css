@@ -1,0 +1,25 @@
+:root{
+/* Garnet grounds (dark reds) */
+--nw-ground:#4e1411;--nw-ground-deep:#2a0709;--nw-ground-glow:#72281a;--nw-ground-mid:#3e0f0e;--nw-ground-low:#56180f;
+--nw-garnet:#3d0f11;--nw-garnet-deep:#2a080a;--nw-ink-black:#141011;
+/* Light grounds */
+--nw-paper:#e9e2d8;--nw-white:#f8f5f0;--nw-stone:#cbc3b8;
+/* Accents */
+--nw-amber:#ec9a2c;--nw-accent:#f2a02e;--nw-rust:#c9501f;--nw-rust-deep:#b8431a;
+/* Inks */
+--nw-cream:#f4ede6;--nw-cream-72:rgba(244,237,230,0.72);--nw-cream-68:rgba(244,237,230,0.68);--nw-cream-34:rgba(244,237,230,0.34);--nw-cream-16:rgba(244,237,230,0.16);--nw-cream-15:rgba(244,237,230,0.15);
+--nw-ink-dark:#22181a;--nw-ink-dark-2:#1c1416;--nw-ink-dark-3:#1e1618;
+/* Copper ramp — the 3D hero rings, top face → foot */
+--nw-copper-top:#f2a02e;--nw-copper-high:#e27426;--nw-copper-mid:#b44618;--nw-copper-low:#5a1a08;
+/* Glass / scrims */
+--nw-glass:rgba(28,6,8,0.55);--nw-scrim:rgba(28,6,8,0.92);
+/* Semantic aliases */
+--ink:var(--nw-cream);--ink-dim:var(--nw-cream-72);--accent:var(--nw-accent);
+--surface-page:var(--nw-ground);--surface-hero:var(--nw-ground-deep);
+--text-on-dark:var(--nw-cream);--text-on-dark-muted:var(--nw-cream-68);
+--text-on-light:var(--nw-ink-dark);--text-on-light-muted:rgba(34,24,26,0.64);
+--accent-on-dark:var(--nw-accent);--accent-on-light:var(--nw-rust);
+--rule-on-dark:var(--nw-cream-34);--rule-on-light:rgba(34,24,26,0.38);
+--focus-ring:var(--nw-accent);
+--bg-hero:radial-gradient(90% 75% at 38% 80%, var(--nw-ground-glow), transparent 72%),radial-gradient(60% 55% at 88% 68%, rgba(110,40,22,0.55), transparent 70%),linear-gradient(180deg, var(--nw-ground-deep) 0%, #3e0f0e 38%, var(--nw-ground) 65%, #56180f 100%);
+}

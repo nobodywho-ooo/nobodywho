@@ -34,6 +34,21 @@ func run(runner: Node) -> void:
 	)
 	_expect_null(
 		runner,
+		NobodyWhoChat.create("unused.gguf", {"context_shift": "yes"}),
+		"config: chat rejects non-bool/dict context_shift",
+	)
+	_expect_null(
+		runner,
+		NobodyWhoChat.create("unused.gguf", {"context_shift": {"bogus": 1}}),
+		"config: chat rejects unknown context_shift keys",
+	)
+	_expect_null(
+		runner,
+		NobodyWhoChat.create("unused.gguf", {"context_shift": {"target": "half"}}),
+		"config: chat rejects non-numeric context_shift target",
+	)
+	_expect_null(
+		runner,
 		NobodyWhoEncoder.create("unused.gguf", {"n_ctx": -1}),
 		"config: encoder rejects negative n_ctx",
 	)

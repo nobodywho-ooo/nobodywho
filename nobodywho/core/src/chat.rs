@@ -26,8 +26,8 @@
 pub use crate::content::{ContentPart, MessageContent};
 use crate::errors::{
     ChatWorkerError, CompleteError, CompletionError, ContextSyncError, GenerateResponseError,
-    InitWorkerError, InvalidHistoryError, MultimodalError, RenderError, SayError, SetterError,
-    ShiftError, TokenizeError, ToolCallingSetupError,
+    InitWorkerError, InvalidContextShiftOptions, InvalidHistoryError, MultimodalError, RenderError,
+    SayError, SetterError, ShiftError, TokenizeError, ToolCallingSetupError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
@@ -429,8 +429,8 @@ struct ContextShift {
 }
 
 impl ContextShiftOptions {
-    fn parse(self, n_ctx: u32) -> Result<ContextShift, InitWorkerError> {
-        let invalid = |reason: String| InitWorkerError::InvalidContextShiftOptions(reason);
+    fn parse(self, n_ctx: u32) -> Result<ContextShift, InvalidContextShiftOptions> {
+        let invalid = InvalidContextShiftOptions;
         let keep_last_turns = NonZeroUsize::new(self.keep_last_turns)
             .ok_or_else(|| invalid("keep_last_turns must be at least 1".into()))?;
         let target_tokens = match self.target {
@@ -1012,6 +1012,17 @@ impl ChatHandle {
         )
     }
 
+    /// Set how old turns are forgotten when the context is full; `None` disables it.
+    pub fn set_context_shift(
+        &self,
+        options: Option<ContextShiftOptions>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetContextShift { options, output_tx },
+            "set_context_shift",
+        )
+    }
+
     /// Get the system prompt
     pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
@@ -1431,6 +1442,18 @@ impl ChatHandleAsync {
         .await
     }
 
+    /// Set how old turns are forgotten when the context is full; `None` disables it.
+    pub async fn set_context_shift(
+        &self,
+        options: Option<ContextShiftOptions>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetContextShift { options, output_tx },
+            "set_context_shift",
+        )
+        .await
+    }
+
     /// Get the system prompt
     pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
@@ -1691,6 +1714,10 @@ enum ChatMsg {
     GetSystemPrompt {
         output_tx: tokio::sync::mpsc::Sender<Option<String>>,
     },
+    SetContextShift {
+        options: Option<ContextShiftOptions>,
+        output_tx: SetterReply,
+    },
     SetThinking {
         allow_thinking: bool,
         output_tx: SetterReply,
@@ -1765,6 +1792,10 @@ impl std::fmt::Debug for ChatMsg {
                 .field("system_prompt", system_prompt)
                 .finish(),
             ChatMsg::GetSystemPrompt { .. } => f.debug_struct("GetSystemPrompt").finish(),
+            ChatMsg::SetContextShift { options, .. } => f
+                .debug_struct("SetContextShift")
+                .field("options", options)
+                .finish(),
             ChatMsg::SetThinking { allow_thinking, .. } => f
                 .debug_struct("SetThinking")
                 .field("allow_thinking", allow_thinking)
@@ -1853,6 +1884,9 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
         ChatMsg::GetSystemPrompt { output_tx } => {
             let system_prompt = worker_state.get_system_prompt();
             let _ = output_tx.blocking_send(system_prompt);
+        }
+        ChatMsg::SetContextShift { options, output_tx } => {
+            let _ = output_tx.blocking_send(worker_state.set_context_shift(options));
         }
         ChatMsg::SetThinking {
             allow_thinking,
@@ -2035,8 +2069,9 @@ fn build_tool_sampler(
     let tool_sampler =
         sampler_config.build_sampler_with_prepended_step(model, Some(grammar_step))?;
 
-    let begin_tokens =
-        model.str_to_token(tool_format.begin_token(), llama_cpp_2::model::AddBos::Never)?;
+    let begin_tokens = model
+        .vocab()
+        .tokenize(tool_format.begin_token().as_bytes(), false, true);
 
     // Every fallible function has run, so the rebuilt factory can be committed.
     if rebuilt.is_some() {
@@ -2430,26 +2465,17 @@ impl<'a> Chat<'a> {
             }
 
             let new_token = self.engine.next_token(&mut self.sampler)?;
+            assert_ne!(new_token.0, -1, "invalid token generated");
 
             tokens_written_until_now.push(new_token);
 
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
+            // Convert token to bytes
+            let token_bytes = self
                 .engine
                 .ctx
                 .model
-                .token_to_piece_bytes(new_token, 64, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
-                }
-                x => x,
-            }?;
+                .vocab()
+                .token_to_piece(new_token, true, None);
 
             // Attempt to convert bytes to utf8 string.
             let max_len = decoder
@@ -2463,7 +2489,7 @@ impl<'a> Chat<'a> {
             let (_result, _bytes_read, _had_errors) =
                 decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token);
+            let has_eog = self.engine.ctx.model.vocab().is_eog(new_token);
             trace!(?new_token, ?token_str, ?has_eog);
 
             if has_eog {
@@ -2829,6 +2855,16 @@ impl<'a> Chat<'a> {
         if let Some(chat_template) = chat_template {
             self.chat_template = chat_template;
         }
+        Ok(())
+    }
+
+    pub fn set_context_shift(
+        &mut self,
+        options: Option<ContextShiftOptions>,
+    ) -> Result<(), SetterError> {
+        self.shift = options
+            .map(|options| options.parse(self.engine.ctx.n_ctx()))
+            .transpose()?;
         Ok(())
     }
 
@@ -3788,6 +3824,33 @@ mod tests {
     }
 
     #[test]
+    fn test_set_context_shift() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
+
+        let invalid = ContextShiftOptions {
+            target: ShiftTarget::Tokens(512),
+            ..Default::default()
+        };
+        assert!(matches!(
+            worker.set_context_shift(Some(invalid)),
+            Err(SetterError::InvalidContextShiftOptions(_))
+        ));
+
+        worker.set_context_shift(None)?;
+        assert!(matches!(worker.context_shift(0), Err(ShiftError::Disabled)));
+
+        worker.set_context_shift(Some(ContextShiftOptions {
+            target: ShiftTarget::Tokens(200),
+            ..Default::default()
+        }))?;
+        worker.context_shift(0)?;
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= 200);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_context_shift_options_are_validated() {
         let invalid = [
             ShiftTarget::Fraction(1.5),
@@ -3806,10 +3869,7 @@ mod tests {
 
         for options in invalid.into_iter().chain([no_last_turn]) {
             assert!(
-                matches!(
-                    options.parse(512),
-                    Err(InitWorkerError::InvalidContextShiftOptions(_))
-                ),
+                options.parse(512).is_err(),
                 "{options:?} should be rejected"
             );
         }

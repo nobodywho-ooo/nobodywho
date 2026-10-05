@@ -14,6 +14,7 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 - Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
 - `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered. Available for all bindings.
 - **Godot:** A complete reimplementation of every class exposed via the godot bindings (see docs for the new interfaces).
+- Context shifting is configurable: how many turns to always keep at the start and end, the size to shrink to (a fraction of the context size or a number of tokens), or turning it off so a full context is an error. Pass `ContextShiftOptions` when creating a chat or later with `set_context_shift`. **Godot:** use the `"context_shift"` config key and `set_context_shift()` with a bool or Dictionary. Available for all bindings.
 
 ### Changed
 
@@ -27,6 +28,8 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 ### Fixed
 
 - Kokoro speech synthesis no longer garbles contractions written with typographic apostrophes (`’`, `‘`, `´`, `` ` ``) or curly double quotes (`“ ”`), which word processors and phone autocorrect produce — `it’s` was spoken "it-ess", `don’t` "don-tee". They now fold to their ASCII counterparts before phonemization, as the supertonic backend already did. Affects all bindings.
+- Speech-to-text works with the `fp16` and `q4f16` Whisper quantizations. Before, both failed while the model was loading. Affects all bindings.
+- **Breaking:** ONNX Runtime, used for speech-to-text, text-to-speech and voice activity detection, is updated from 1.24 to 1.28. CUDA acceleration now needs a driver that supports CUDA 13, as CUDA 12 builds are no longer shipped. On platforms without CUDA support, requesting the `cuda` device now fails with "CUDA is not supported on this platform". Affects all bindings.
 - A FunctionGemma tool call whose argument value spans multiple lines is no longer dropped. The tool-call grammar lets a value contain newlines (a file body, a code snippet), but the extractor stopped at the first newline and discarded the whole call, so no tool ran. Multi-line values are now parsed. Affects all bindings.
 - **Python:** Pressing Ctrl+C during a synchronous GGUF model download now cancels the download, raises `KeyboardInterrupt`, and removes the incomplete temporary file.
 - **React Native:** Type errors in `Chat.tokenize`. Changed `async tokenize(message: string | Prompt): Promise<(number | null)[]>` to `async tokenize(message: string | Prompt): Promise<(number | undefined)[]>`. The `null` type was incorrect, as the embedding slots are represented by `undefined` in the TypeScript binding.

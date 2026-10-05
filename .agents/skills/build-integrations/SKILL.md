@@ -106,11 +106,12 @@ node.some_inference_call(...)
 Add a `#[pyclass]` struct to `nobodywho/python/src/lib.rs` following existing PyO3 patterns. Then regenerate stubs (from `nobodywho/python/`):
 
 ```bash
-cargo run --bin make_stubs
+cargo build
+cargo run -p make_stubs
 uv run ruff format nobodywho.pyi
 ```
 
-`make_stubs` uses compile-time introspection — it does not require the Python dylib to link successfully. Do NOT gate it on `cargo build` succeeding.
+`make_stubs` introspects the built `target/debug/libnobodywho_python` library, so build it first (`cargo build` or `maturin develop`).
 
 ### 3e. Flutter
 

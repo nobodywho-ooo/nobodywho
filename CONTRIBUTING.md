@@ -21,7 +21,7 @@ Run the setup script once after cloning:
 ./setup.sh
 ```
 
-This installs `just` (if not already present) and wires up the pre-push hook. After that, `just check` is available as a manual command and runs automatically on `git push`.
+This installs `just` (if not already present) and wires up the pre-push hook. After that, `just check` is available as a manual command and tolerates uncommitted changes. On `git push`, the hook runs `just check --require-clean`, which also fails if formatting or generated files differ from what is committed.
 
 ### On Linux or WSL
 

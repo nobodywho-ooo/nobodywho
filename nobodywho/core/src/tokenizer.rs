@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use ahash::AHasher;
 use llama_cpp_2::{
-    model::{AddBos, LlamaModel},
+    model::LlamaModel,
     mtmd::{
         MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputChunkType, MtmdInputChunks,
         MtmdInputText,
@@ -379,7 +379,7 @@ impl<'a> Tokenizer<'a> {
         rendered_chat: String,
         bitmaps: Vec<&MtmdBitmap>,
     ) -> Result<TokenizerChunks, TokenizationError> {
-        let text_chunks = self.tokenize_text(&rendered_chat)?;
+        let text_chunks = self.tokenize_text(&rendered_chat);
 
         let n_image_markers = text_chunks.len() - 1;
         if n_image_markers != bitmaps.len() {
@@ -405,33 +405,21 @@ impl<'a> Tokenizer<'a> {
         Ok(TokenizerChunks { chunks })
     }
 
-    fn tokenize_text(&self, text: &str) -> Result<Vec<TokenizerChunk>, TokenizationError> {
+    fn tokenize_text(&self, text: &str) -> Vec<TokenizerChunk> {
         let media_marker = llama_cpp_2::mtmd::mtmd_default_marker().to_string();
-        let splits = text
-            .split(media_marker.as_str())
+        text.split(media_marker.as_str())
             .enumerate()
             .map(|(idx, split)| {
-                self.model
-                    .str_to_token(
-                        split,
-                        // NOTE: Renamed to `add_special` in llama.cpp, the
-                        // model keeps track of whether BOS tokens make sense.
-                        if idx == 0 {
-                            AddBos::Always
-                        } else {
-                            AddBos::Never
-                        },
-                    )
-                    .map(TokenizerChunk::new_text)
-                    .map_err(|e| TokenizationError::TextTokenizationFailed {
-                        position: idx,
-                        text_preview: split.chars().take(100).collect(),
-                        error: e.to_string(),
-                    })
+                TokenizerChunk::new_text(self.model.vocab().tokenize(
+                    split.as_bytes(),
+                    // Add a BOS token to the first chunk.
+                    // FIXME(madsmtm): This seems brittle, we should possibly
+                    // add the token ourselves?
+                    idx == 0,
+                    true,
+                ))
             })
-            .collect::<Result<Vec<TokenizerChunk>, TokenizationError>>()?;
-
-        Ok(splits)
+            .collect::<Vec<TokenizerChunk>>()
     }
 
     fn tokenize_media(
