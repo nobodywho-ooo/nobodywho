@@ -18,13 +18,15 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Mel frames per 30-second Whisper window (hop_length=160 → 480000/160).
 const N_MEL_FRAMES: usize = 3_000;
 /// Whisper encoder output length (N_MEL_FRAMES / 2 due to 2× downsampling).
 const ENC_SEQ_LEN: usize = N_MEL_FRAMES / 2;
-const MAX_NEW_TOKENS: usize = 448;
+/// Decoder positions (prompt plus generated tokens) when `config.json` doesn't
+/// say; every Whisper size has 448.
+const DEFAULT_MAX_TARGET_POSITIONS: usize = 448;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -259,7 +261,10 @@ pub(in crate::speech_to_text) struct WhisperBackend {
     head_dim: usize,
     /// Encoder output width (= num_heads × head_dim).
     hidden_dim: usize,
-    /// KV cache accumulated during a single window's decode loop.
+    /// Decoder positions available to the prompt and the generated tokens.
+    max_target_positions: usize,
+    /// KV cache for the decoder sequence being run. Each window starts its own
+    /// sequence; see [`SpeechToTextArchitectureImpl::transcribe_window`].
     kv: KVCache,
 }
 
@@ -306,6 +311,7 @@ impl WhisperBackend {
             num_heads: model_cfg.num_heads,
             head_dim: model_cfg.head_dim,
             hidden_dim: model_cfg.num_heads * model_cfg.head_dim,
+            max_target_positions: model_cfg.max_target_positions,
             kv: KVCache::new(),
         })
     }
@@ -424,25 +430,38 @@ impl WhisperBackend {
         Ok(last_logits)
     }
 
+    /// The decoder prompt that starts a transcript in the given language.
+    fn prompt(&self, lang_id: u32) -> Vec<i64> {
+        vec![
+            self.sot_id as i64,
+            lang_id as i64,
+            self.transcribe_id as i64,
+            self.notimestamps_id as i64,
+        ]
+    }
+
+    /// How many tokens a transcript can have after a prompt of `prompt_len`
+    /// tokens before the decoder runs out of positions.
+    fn max_new_tokens(&self, prompt_len: usize) -> usize {
+        self.max_target_positions.saturating_sub(prompt_len)
+    }
+
     fn greedy_decode(
         &mut self,
         enc_hidden: &[f32],
         lang_id: u32,
         on_token: &mut dyn FnMut(String),
     ) -> Result<Vec<u32>, SpeechToTextError> {
+        // Language detection may have run the decoder already.
         self.kv = KVCache::new();
 
-        let prompt: Vec<i64> = vec![
-            self.sot_id as i64,
-            lang_id as i64,
-            self.transcribe_id as i64,
-            self.notimestamps_id as i64,
-        ];
+        let prompt = self.prompt(lang_id);
+        let max_new_tokens = self.max_new_tokens(prompt.len());
 
         let mut next_token = argmax(&self.run_decoder(&prompt, enc_hidden)?);
         let mut generated = Vec::new();
 
-        for step in 0..MAX_NEW_TOKENS {
+        for step in 0..max_new_tokens {
             if next_token == self.eot_id as i64 {
                 break;
             }
@@ -453,6 +472,13 @@ impl WhisperBackend {
             debug!(step, next_token, "Decode step");
             next_token = argmax(&self.run_decoder(&[next_token], enc_hidden)?);
         }
+        if next_token != self.eot_id as i64 {
+            // Usually a model stuck repeating itself.
+            warn!(
+                max_new_tokens,
+                "Window reached the decoder's length limit; cutting the transcript off"
+            );
+        }
 
         Ok(generated)
     }
@@ -460,6 +486,23 @@ impl WhisperBackend {
 
 impl SpeechToTextArchitectureImpl for WhisperBackend {
     fn transcribe_window(
+        &mut self,
+        window: &[f32],
+        on_token: &mut dyn FnMut(String),
+    ) -> Result<String, SpeechToTextError> {
+        // Each window is its own decoder sequence, but the backend is reused for
+        // every window and file. Language detection runs the decoder too, so a
+        // cache left from the previous transcript would skew which language it
+        // picks: start from an empty one, and leave none behind, even on error.
+        self.kv = KVCache::new();
+        let result = self.transcribe_window_inner(window, on_token);
+        self.kv = KVCache::new();
+        result
+    }
+}
+
+impl WhisperBackend {
+    fn transcribe_window_inner(
         &mut self,
         window: &[f32],
         on_token: &mut dyn FnMut(String),
@@ -529,6 +572,7 @@ struct ModelConfig {
     num_layers: usize,
     num_heads: usize,
     head_dim: usize,
+    max_target_positions: usize,
 }
 
 impl ModelConfig {
@@ -544,6 +588,9 @@ impl ModelConfig {
             num_layers: cfg["decoder_layers"].as_u64().unwrap_or(6) as usize,
             num_heads,
             head_dim: d_model / num_heads,
+            max_target_positions: cfg["max_target_positions"]
+                .as_u64()
+                .map_or(DEFAULT_MAX_TARGET_POSITIONS, |n| n as usize),
         })
     }
 }
@@ -567,5 +614,73 @@ impl GenerationConfig {
             .filter_map(|(k, v)| v.as_u64().map(|id| (k.clone(), id as u32)))
             .collect();
         Ok(Self { lang_to_id })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::speech_to_text::audio::{AudioResampler, DecodedAudio};
+
+    /// Windows of the 16 kHz test clip that CI also feeds the binding tests.
+    fn sound_windows() -> Vec<Vec<f32>> {
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/sound.mp3"
+        ));
+        AudioResampler::default()
+            .resample(DecodedAudio::from_file(path).unwrap())
+            .unwrap()
+            .into_windows()
+    }
+
+    /// Language detection runs the decoder on whatever KV cache the backend
+    /// holds, so a window must not leave one behind: the next window, or the
+    /// next file on the same `SpeechToText`, would be detected against the
+    /// previous transcript and could come out in the wrong language.
+    #[test]
+    fn transcribing_a_window_leaves_no_kv_cache() {
+        let Ok(source) = std::env::var("TEST_WHISPER_MODEL") else {
+            eprintln!("skipping: TEST_WHISPER_MODEL is not set");
+            return;
+        };
+        let mut backend = WhisperBackend::new(&source, None, "default", Device::Cpu).unwrap();
+
+        let text = backend
+            .transcribe_window(&sound_windows()[0], &mut |_| {})
+            .unwrap();
+
+        assert!(!text.trim().is_empty(), "the test clip should transcribe");
+        assert!(
+            backend.kv.is_empty(),
+            "decoder KV cache left behind after a window ({} entries)",
+            backend.kv.len()
+        );
+    }
+
+    /// A transcript that never reaches end-of-text, like a hallucination loop,
+    /// must stop at the decoder's position limit instead of running past it,
+    /// which ONNX Runtime rejects with a reshape error.
+    #[test]
+    fn greedy_decode_stays_within_the_decoder_position_limit() {
+        let Ok(source) = std::env::var("TEST_WHISPER_MODEL") else {
+            eprintln!("skipping: TEST_WHISPER_MODEL is not set");
+            return;
+        };
+        let mut backend = WhisperBackend::new(&source, Some("en"), "default", Device::Cpu).unwrap();
+        let enc_hidden = backend.encode(&sound_windows()[0]).unwrap();
+        let prompt = backend.prompt(backend.lang_to_id["<|en|>"]);
+        let token = prompt[prompt.len() - 1];
+
+        // Drive the decoder through every position greedy_decode may use.
+        backend.run_decoder(&prompt, &enc_hidden).unwrap();
+        for step in 0..backend.max_new_tokens(prompt.len()) {
+            backend
+                .run_decoder(&[token], &enc_hidden)
+                .unwrap_or_else(|e| panic!("decoder failed at step {step}: {e}"));
+        }
+
+        // The bound is the model's real limit: one more position fails.
+        assert!(backend.run_decoder(&[token], &enc_hidden).is_err());
     }
 }
