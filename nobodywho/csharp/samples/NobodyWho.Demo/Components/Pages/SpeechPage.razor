@@ -54,7 +54,7 @@
                 @if (_audio is { } audio)
                 {
                     <audio class="player" controls src="@audio.DataUrl"></audio>
-                    <p class="readout">@audio.Duration.TotalSeconds.ToString("F1") s of audio from @audio.Pieces piece@(audio.Pieces == 1 ? "" : "s"), made in @audio.Took.TotalSeconds.ToString("F1") s</p>
+                    <p class="readout">@audio.Duration.TotalSeconds.ToString("F1") s of audio, made in @audio.Took.TotalSeconds.ToString("F1") s</p>
                 }
             </ModelGate>
         </section>
@@ -120,9 +120,8 @@ string french = await translator.Ask(text).CompletedAsync();
 using var tts = await TextToSpeech.LoadAsync(
     "hf://NobodyWho/Kokoro-82M",
     voice: "am_michael", language: "en-us");
-// Kokoro reads up to 509 phonemes at a time, so read long text a
-// few sentences at a time and join the clips.
-byte[] wav = await tts.SynthesizeAsync(sentences);
+// Any length: long text is read a few sentences at a time.
+byte[] wav = await tts.SynthesizeAsync(text);
 
 using var vad = await VoiceActivityDetection.LoadAsync(
     sampleRate: 24000);
@@ -134,13 +133,7 @@ await foreach (var word in stt.TranscribeFile("speech.wav"))
     Console.Write(word);
 """;
 
-    private sealed record Speech(string Path, string DataUrl, TimeSpan Duration, TimeSpan Took, int Pieces, Wav.Audio Pcm);
-
-    /// <summary>
-    /// The longest piece of text to read in one call. Kokoro's limit is 509 phonemes, which English
-    /// text reaches at around 400 characters; a piece that still turns out too long is split again.
-    /// </summary>
-    private const int MaxPieceLength = 300;
+    private sealed record Speech(string Path, string DataUrl, TimeSpan Duration, TimeSpan Took, Wav.Audio Pcm);
 
     private sealed record Segment(TimeSpan Start, TimeSpan Length);
 
@@ -249,23 +242,17 @@ await foreach (var word in stt.TranscribeFile("speech.wav"))
         try
         {
             tts = await ModelForVoice(tts);
+            _progress = "Synthesizing…";
+            StateHasChanged();
             var stopwatch = Stopwatch.StartNew();
-            var pieces = SpeechText.Split(_text, MaxPieceLength);
-            var clips = new List<Wav.Audio>();
-            for (var i = 0; i < pieces.Count; i++)
-            {
-                _progress = pieces.Count == 1 ? "Synthesizing…" : $"Reading part {i + 1} of {pieces.Count}…";
-                StateHasChanged();
-                await SynthesizePiece(tts, pieces[i], MaxPieceLength, clips);
-            }
+            var wav = await tts.SynthesizeAsync(_text);
             var took = stopwatch.Elapsed;
 
-            var pcm = clips.Count == 1 ? clips[0] : Wav.Join(clips, TimeSpan.FromMilliseconds(150));
-            var wav = Wav.Write(pcm);
+            var pcm = Wav.Read(wav);
             var path = Path.Combine(Path.GetTempPath(), $"nobodywho-demo-{Guid.NewGuid():N}.wav");
             await File.WriteAllBytesAsync(path, wav);
             DeleteAudio();
-            _audio = new Speech(path, $"data:audio/wav;base64,{Convert.ToBase64String(wav)}", pcm.Duration, took, clips.Count, pcm);
+            _audio = new Speech(path, $"data:audio/wav;base64,{Convert.ToBase64String(wav)}", pcm.Duration, took, pcm);
         }
         catch (Exception e) when (e is NobodyWhoException or FormatException)
         {
@@ -276,20 +263,6 @@ await foreach (var word in stt.TranscribeFile("speech.wav"))
             _speaking = false;
         }
     });
-
-    /// <summary>Synthesize one piece, splitting it further if it still has too many phonemes.</summary>
-    private async Task SynthesizePiece(TextToSpeech tts, string piece, int maxLength, List<Wav.Audio> clips)
-    {
-        try
-        {
-            clips.Add(Wav.Read(await tts.SynthesizeAsync(piece)));
-        }
-        catch (NobodyWhoException e) when (e.Message.Contains("tts_too_many_phonemes") && maxLength > 40)
-        {
-            foreach (var smaller in SpeechText.Split(piece, maxLength / 2))
-                await SynthesizePiece(tts, smaller, maxLength / 2, clips);
-        }
-    }
 
     private async Task Upload(SpeechToText stt, InputFileChangeEventArgs e)
     {

@@ -44,42 +44,6 @@ public static class Wav
         throw new FormatException("The WAV file has no audio data.");
     }
 
-    /// <summary>Encode mono 16-bit samples as a WAV file.</summary>
-    public static byte[] Write(Audio audio)
-    {
-        var dataBytes = audio.Samples.Length * 2;
-        var wav = new byte[44 + dataBytes];
-        var span = wav.AsSpan();
-        "RIFF"u8.CopyTo(span);
-        BinaryPrimitives.WriteInt32LittleEndian(span[4..], 36 + dataBytes);
-        "WAVE"u8.CopyTo(span[8..]);
-        "fmt "u8.CopyTo(span[12..]);
-        BinaryPrimitives.WriteInt32LittleEndian(span[16..], 16);
-        BinaryPrimitives.WriteUInt16LittleEndian(span[20..], 1); // PCM
-        BinaryPrimitives.WriteUInt16LittleEndian(span[22..], 1); // mono
-        BinaryPrimitives.WriteInt32LittleEndian(span[24..], audio.SampleRate);
-        BinaryPrimitives.WriteInt32LittleEndian(span[28..], audio.SampleRate * 2);
-        BinaryPrimitives.WriteUInt16LittleEndian(span[32..], 2);
-        BinaryPrimitives.WriteUInt16LittleEndian(span[34..], 16);
-        "data"u8.CopyTo(span[36..]);
-        BinaryPrimitives.WriteInt32LittleEndian(span[40..], dataBytes);
-        for (var i = 0; i < audio.Samples.Length; i++)
-            BinaryPrimitives.WriteInt16LittleEndian(span[(44 + i * 2)..], audio.Samples[i]);
-        return wav;
-    }
-
-    /// <summary>Join clips end to end, with a short pause between them.</summary>
-    /// <exception cref="FormatException">The clips have different sample rates.</exception>
-    public static Audio Join(IReadOnlyList<Audio> clips, TimeSpan pause)
-    {
-        var rate = clips[0].SampleRate;
-        if (clips.Any(c => c.SampleRate != rate))
-            throw new FormatException("The audio pieces have different sample rates.");
-        var gap = new short[(int)(pause.TotalSeconds * rate)];
-        var samples = clips.SelectMany((c, i) => i == 0 ? c.Samples : gap.Concat(c.Samples)).ToArray();
-        return new Audio(samples, rate);
-    }
-
     private static short[] Decode(ReadOnlySpan<byte> data, int format, int channels, int bits)
     {
         var bytesPerSample = bits / 8;
