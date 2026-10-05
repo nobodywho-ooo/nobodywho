@@ -1,7 +1,7 @@
 use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
-use crate::inference::{BatchedReadError, EngineContext};
+use crate::inference::{BatchedReadError, EngineContext, InferenceEngine};
 use crate::llm;
-use crate::llm::{Worker, WorkerGuard};
+use crate::llm::WorkerGuard;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
 use tracing::{error, warn};
@@ -46,7 +46,7 @@ impl CrossEncoderAsync {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_crossencoder_worker(&model, n_ctx);
+            let worker = CrossEncoderWorker::new(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
@@ -113,7 +113,7 @@ enum CrossEncoderMsg {
 }
 
 /// Handle one message, reporting success or failure on its reply channel.
-fn process_worker_msg(worker_state: &mut Worker<'_, CrossEncoderWorker>, msg: CrossEncoderMsg) {
+fn process_worker_msg(worker_state: &mut CrossEncoderWorker<'_>, msg: CrossEncoderMsg) {
     match msg {
         CrossEncoderMsg::Rank {
             query,
@@ -127,20 +127,15 @@ fn process_worker_msg(worker_state: &mut Worker<'_, CrossEncoderWorker>, msg: Cr
     }
 }
 
-struct CrossEncoderWorker {}
-
-impl llm::PoolingType for CrossEncoderWorker {
-    fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::Rank
-    }
+struct CrossEncoderWorker<'a> {
+    engine: InferenceEngine<'a>,
 }
 
-impl<'a> Worker<'a, CrossEncoderWorker> {
-    pub fn new_crossencoder_worker(
-        model: &llm::Model,
-        n_ctx: u32,
-    ) -> Result<Worker<'_, CrossEncoderWorker>, InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, true, None, None, CrossEncoderWorker {})
+impl<'a> CrossEncoderWorker<'a> {
+    pub fn new(model: &'a llm::Model, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let engine =
+            InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::Rank)?;
+        Ok(Self { engine })
     }
 
     pub fn rank(
