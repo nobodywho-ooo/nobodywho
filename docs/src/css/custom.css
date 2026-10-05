@@ -1663,6 +1663,7 @@ a.card:hover h2 {
 .lang-icon--react-native { --lang-icon: url('/img/icons/lang/react-native.svg'); }
 .lang-icon--swift { --lang-icon: url('/img/icons/lang/swift.svg'); }
 .lang-icon--kotlin { --lang-icon: url('/img/icons/lang/kotlin.svg'); }
+.lang-icon--csharp { --lang-icon: url('/img/icons/lang/csharp.svg'); }
 
 .navbar__item.lang-icon::before {
   margin-right: 0.3rem;

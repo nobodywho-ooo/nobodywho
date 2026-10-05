@@ -32,6 +32,8 @@ on:
         value: ${{ jobs.plan.outputs.run_kotlin }}
       run_react_native:
         value: ${{ jobs.plan.outputs.run_react_native }}
+      run_csharp:
+        value: ${{ jobs.plan.outputs.run_csharp }}
       run_apple_extended:
         # visionOS/watchOS uniffi builds (nightly rust, ORT from source).
         # Expensive, so full runs only — or on demand via /apple-extended-ci.
@@ -67,6 +69,7 @@ jobs:
       run_swift:          ${{ steps.decide.outputs.run_swift }}
       run_kotlin:         ${{ steps.decide.outputs.run_kotlin }}
       run_react_native:   ${{ steps.decide.outputs.run_react_native }}
+      run_csharp:         ${{ steps.decide.outputs.run_csharp }}
       run_apple_extended: ${{ steps.decide.outputs.run_apple_extended }}
       run_docs:           ${{ steps.decide.outputs.run_docs }}
       run_docs_preview:   ${{ steps.decide.outputs.run_docs_preview }}
@@ -177,9 +180,10 @@ jobs:
           contains '^nobodywho/swift/'       && out swift        true || out swift        false
           contains '^nobodywho/(kotlin|testing-apps/kotlin)/' && out kotlin true || out kotlin false
           contains '^nobodywho/react-native/' && out react_native true || out react_native false
+          contains '^nobodywho/csharp/'      && out csharp       true || out csharp       false
           contains '^docs/'                  && out docs         true || out docs         false
           # regen-drift surface: anything that can change generated bindings/stubs.
-          contains '^nobodywho/(core/|uniffi/|grammar/|Cargo\.(toml|lock)$|swift/generated/|swift/Package\.swift$|kotlin/common/generated/|kotlin/.*\.gradle\.kts$|react-native/generated/|react-native/package(-lock)?\.json$)' && out regen true || out regen false
+          contains '^nobodywho/(core/|uniffi/|grammar/|Cargo\.(toml|lock)$|swift/generated/|swift/Package\.swift$|kotlin/common/generated/|kotlin/.*\.gradle\.kts$|react-native/generated/|react-native/package(-lock)?\.json$|csharp/src/NobodyWho/generated/|csharp/uniffi\.toml$|csharp/scripts/generate-bindings\.sh$)' && out regen true || out regen false
 
           {
             echo "## Path detection"
@@ -213,6 +217,7 @@ jobs:
           P_SWIFT:          ${{ steps.paths.outputs.swift }}
           P_KOTLIN:         ${{ steps.paths.outputs.kotlin }}
           P_RN:             ${{ steps.paths.outputs.react_native }}
+          P_CSHARP:         ${{ steps.paths.outputs.csharp }}
           P_DOCS:           ${{ steps.paths.outputs.docs }}
           P_REGEN:          ${{ steps.paths.outputs.regen }}
         run: |
@@ -236,6 +241,7 @@ jobs:
           p_swift="${P_SWIFT:-false}"
           p_kotlin="${P_KOTLIN:-false}"
           p_rn="${P_RN:-false}"
+          p_csharp="${P_CSHARP:-false}"
           p_docs="${P_DOCS:-false}"
           p_regen="${P_REGEN:-false}"
 
@@ -249,7 +255,7 @@ jobs:
           if has_label "full-ci"; then everything=true; fi                      # opt-in label / /full-ci
 
           # ---- per-bucket decisions ----------------------------------------
-          # Path-gated, no cascade — except uniffi/** → swift/kotlin/RN, which
+          # Path-gated, no cascade — except uniffi/** → swift/kotlin/RN/C#, which
           # consume its generated FFI. core/** is core coverage → rust_core +
           # the tool-calling matrix (python_models below), not the bindings.
           run_rust_core=$(any "$everything" "$p_core")
@@ -259,6 +265,7 @@ jobs:
           run_swift=$(any "$everything" "$p_uniffi" "$p_swift")
           run_kotlin=$(any "$everything" "$p_uniffi" "$p_kotlin")
           run_react_native=$(any "$everything" "$p_uniffi" "$p_rn")
+          run_csharp=$(any "$everything" "$p_uniffi" "$p_csharp")
 
           # python_models: tool-calling matrix (core coverage) — runs on any core change.
           run_python_models=false
@@ -287,6 +294,7 @@ jobs:
             has_bucket swift         && run_swift=true         || true
             has_bucket kotlin        && run_kotlin=true        || true
             has_bucket react_native  && run_react_native=true  || true
+            has_bucket csharp        && run_csharp=true        || true
             has_bucket regen         && run_regen=true         || true
             # Stands alone: builds only the 4 tier-3 slices, no swift matrix.
             has_bucket apple_extended && run_apple_extended=true || true
@@ -344,6 +352,7 @@ jobs:
             echo "run_swift=$run_swift"
             echo "run_kotlin=$run_kotlin"
             echo "run_react_native=$run_react_native"
+            echo "run_csharp=$run_csharp"
             echo "run_apple_extended=$run_apple_extended"
             echo "run_docs=$run_docs"
             echo "run_docs_preview=$run_docs_preview"
@@ -369,6 +378,7 @@ jobs:
             echo "| swift | $run_swift |"
             echo "| kotlin | $run_kotlin |"
             echo "| react_native | $run_react_native |"
+            echo "| csharp | $run_csharp |"
             echo "| apple_extended | $run_apple_extended |"
             echo "| regen | $run_regen |"
             echo "| docs | $run_docs |"

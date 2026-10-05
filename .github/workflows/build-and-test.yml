@@ -65,6 +65,7 @@ jobs:
       needs.plan.outputs.run_swift == 'true' ||
       needs.plan.outputs.run_kotlin == 'true' ||
       needs.plan.outputs.run_react_native == 'true' ||
+      needs.plan.outputs.run_csharp == 'true' ||
       needs.plan.outputs.run_apple_extended == 'true'
     uses: ./.github/workflows/build.yml
     with:
@@ -73,6 +74,7 @@ jobs:
       run_swift:        ${{ needs.plan.outputs.run_swift == 'true' }}
       run_kotlin:       ${{ needs.plan.outputs.run_kotlin == 'true' }}
       run_react_native: ${{ needs.plan.outputs.run_react_native == 'true' }}
+      run_csharp:       ${{ needs.plan.outputs.run_csharp == 'true' }}
       # visionOS/watchOS: nightly rust + ORT from source. Full runs, or
       # /apple-extended-ci to compile-check just those targets.
       apple_extended:   ${{ needs.plan.outputs.run_apple_extended == 'true' }}
@@ -86,6 +88,11 @@ jobs:
     needs: [plan, build]
     if: needs.plan.outputs.run_kotlin == 'true'
     uses: ./.github/workflows/kotlin-ci.yml
+
+  csharp-ci:
+    needs: [plan, build]
+    if: needs.plan.outputs.run_csharp == 'true'
+    uses: ./.github/workflows/csharp-ci.yml
 
   test:
     # Always invoked so the flutter doctest-drift check runs on every event.
@@ -113,7 +120,7 @@ jobs:
       GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
 
   release:
-    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci, mobile-device-tests]
+    needs: [plan, linting, regen-checks, build, test, python-ci, swift-ci, kotlin-ci, csharp-ci, mobile-device-tests]
     # always() so a *skipped* mobile-device-tests does not skip the release —
     # Swift/Python/Godot tags have no Android device tests. Failures and
     # cancellations still block, which is the point: a kotlin release cannot
@@ -133,6 +140,7 @@ jobs:
       MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
       MAVEN_SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
       MAVEN_SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
   docs:
     # Production build+deploy only happens on main (or the legacy deploy branch),

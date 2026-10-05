@@ -1,0 +1,201 @@
+@page "/structured"
+@inherits DemoPage
+@inject ModelHub Hub
+
+<PageTitle>NobodyWho: Structured output</PageTitle>
+
+<h1>Structured output</h1>
+<p class="lede">
+    Constrain what the model may write, token by token. Give it a JSON schema and it can only
+    produce JSON that matches, ready to deserialize; give it a regular expression and every answer fits it.
+</p>
+
+<div class="split">
+    <div class="demo">
+        <ModelGate Slot="Hub.ChatModel" ConfigKey="ChatModel" AutoLoad="true" Context="model">
+            <section class="panel" aria-labelledby="extract-heading">
+                <h2 id="extract-heading">Pull a contact card out of an email</h2>
+                <label class="field">
+                    <span class="field__label">Email</span>
+                    <textarea class="input" rows="6" @bind="_email" disabled="@_extracting"></textarea>
+                </label>
+                <button class="button button--primary" @onclick="() => Extract(model)" disabled="@_extracting">
+                    @(_extracting ? "Extracting…" : "Extract the contact")
+                </button>
+
+                @if (_json is not null)
+                {
+                    <div class="pair">
+                        <div>
+                            <h3>What the model wrote</h3>
+                            <pre class="json"><code>@_json</code></pre>
+                        </div>
+                        <div>
+                            <h3>Deserialized as <code>ContactCard</code></h3>
+                            @if (_card is { } card)
+                            {
+                                <dl class="card">
+                                    <dt>Name</dt><dd>@card.Name</dd>
+                                    <dt>Email</dt><dd>@card.Email</dd>
+                                    <dt>Company</dt><dd>@card.Company</dd>
+                                    <dt>Wants</dt><dd>@string.Join(", ", card.Topics)</dd>
+                                    <dt>Urgent</dt><dd>@(card.Urgent ? "Yes" : "No")</dd>
+                                </dl>
+                            }
+                            else
+                            {
+                                <p class="gate__error">@_parseError</p>
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+
+            <section class="panel" aria-labelledby="classify-heading">
+                <h2 id="classify-heading">Sort reviews by sentiment</h2>
+                <p>Every answer matches <code>(positive|negative|mixed)</code>. Nothing else can be generated.</p>
+                <button class="button button--primary" @onclick="() => Classify(model)" disabled="@_classifying">
+                    @(_classifying ? "Sorting…" : "Sort the reviews")
+                </button>
+                <ul class="reviews">
+                    @foreach (var review in _reviews)
+                    {
+                        <li>
+                            <span class="tag tag--@(review.Label ?? "none")">@(review.Label ?? "unsorted")</span>
+                            <span>@review.Text</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        </ModelGate>
+    </div>
+
+    <CodeSample Code="@Code" />
+</div>
+
+@code {
+    private const string Code = """"
+record ContactCard(string Name, string Email,
+    string Company, string[] Topics, bool Urgent);
+
+var schema = """{ "type": "object", "properties": { ... },
+                  "required": [ ... ] }""";
+
+using var chat = new Chat(model,
+    sampler: SamplerPresets.ConstrainWithJsonSchema(schema));
+
+string json = await chat.Ask(email).CompletedAsync();
+var card = JsonSerializer.Deserialize<ContactCard>(json);
+
+// Or any regular expression
+using var sorter = new Chat(model,
+    sampler: SamplerPresets.ConstrainWithRegex(
+        "(positive|negative|mixed)"));
+"""";
+
+    public sealed record ContactCard(string Name, string Email, string Company, string[] Topics, bool Urgent);
+
+    private const string Schema = """
+    {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "company": { "type": "string" },
+        "topics": { "type": "array", "items": { "type": "string" }, "maxItems": 4 },
+        "urgent": { "type": "boolean" }
+      },
+      "required": ["name", "email", "company", "topics", "urgent"],
+      "additionalProperties": false
+    }
+    """;
+
+    private static readonly JsonSerializerOptions CardJson = new(JsonSerializerDefaults.Web);
+
+    private sealed class Review(string text)
+    {
+        public string Text { get; } = text;
+        public string? Label { get; set; }
+    }
+
+    private string _email = """
+Hi there,
+
+I'm Priya Raman, head of platform at Fjordline Freight. We'd like to run document summarisation and invoice extraction on our own servers, since customer data can't leave our network. Could someone walk us through licensing before Friday? Our board meets Monday.
+
+Best,
+Priya (priya.raman@fjordline.example)
+""";
+
+    private readonly List<Review> _reviews =
+    [
+        new("Setup took five minutes and it has run without a hiccup for a month."),
+        new("The battery died on day two and support never wrote back."),
+        new("Great screen, but the speakers are tinny and it runs hot."),
+        new("Exactly what I needed. Already ordered a second one for my sister."),
+    ];
+
+    private Chat? _extractor;
+    private Chat? _sorter;
+    private bool _extracting;
+    private bool _classifying;
+    private string? _json;
+    private ContactCard? _card;
+    private string? _parseError;
+
+    private static readonly Dictionary<string, bool> NoThinking = new() { ["enable_thinking"] = false };
+
+    private Task Extract(Model model) => Guard(async () =>
+    {
+        _extractor ??= Own(new Chat(model,
+            systemPrompt: "Extract the sender's contact details from the email as JSON. Topics are short phrases for what they want.",
+            sampler: SamplerPresets.ConstrainWithJsonSchema(Schema),
+            templateVariables: NoThinking));
+
+        _extracting = true;
+        try
+        {
+            await _extractor.ResetHistoryAsync();
+            var json = await _extractor.Ask(_email).CompletedAsync(Alive);
+            using var doc = JsonDocument.Parse(json);
+            _json = JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { WriteIndented = true });
+            _card = JsonSerializer.Deserialize<ContactCard>(json, CardJson);
+            _parseError = null;
+        }
+        catch (Exception e) when (e is JsonException or NobodyWhoException)
+        {
+            _card = null;
+            _parseError = e.Message;
+            _json ??= "";
+        }
+        finally
+        {
+            _extracting = false;
+        }
+    });
+
+    private Task Classify(Model model) => Guard(async () =>
+    {
+        _sorter ??= Own(new Chat(model,
+            systemPrompt: "Label the sentiment of the customer review.",
+            sampler: SamplerPresets.ConstrainWithRegex("(positive|negative|mixed)"),
+            templateVariables: NoThinking));
+
+        _classifying = true;
+        foreach (var review in _reviews)
+            review.Label = null;
+        try
+        {
+            foreach (var review in _reviews)
+            {
+                await _sorter.ResetHistoryAsync();
+                review.Label = await _sorter.Ask(review.Text).CompletedAsync(Alive);
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            _classifying = false;
+        }
+    });
+}

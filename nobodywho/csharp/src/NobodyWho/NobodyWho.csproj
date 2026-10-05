@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>NobodyWho</RootNamespace>
+    <AssemblyName>NobodyWho</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Bumped by `just prepare-release`; 0.0.0 until the first release. -->
+    <Version>0.0.0</Version>
+    <PackageId>NobodyWho</PackageId>
+    <Title>NobodyWho</Title>
+    <Authors>NobodyWho</Authors>
+    <Description>Run LLMs locally and offline from .NET: chat, streaming, tool calling, embeddings, reranking, speech-to-text and text-to-speech, powered by llama.cpp.</Description>
+    <PackageTags>llm;llama;llama.cpp;gguf;ai;local;offline;inference</PackageTags>
+    <PackageLicenseExpression>EUPL-1.2</PackageLicenseExpression>
+    <PackageProjectUrl>https://docs.nobodywho.ooo/csharp/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/nobodywho-ooo/nobodywho</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="NobodyWho.Tests" />
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <!--
+    Native libraries.
+
+    Release packaging: CI drops the prebuilt libraries into runtimes/<rid>/native/
+    next to this file, and they are packed as-is. .NET resolves the right one at
+    run time from the package's runtimes/ folder.
+
+    Local development: `NobodyWhoNativeLib` (default: the workspace's
+    target/debug build for the current OS) is copied next to the assembly.
+  -->
+  <ItemGroup>
+    <None Include="runtimes/**/*" Pack="true" PackagePath="runtimes/" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <_NobodyWhoLibFile Condition="$([MSBuild]::IsOSPlatform('Windows'))">nobodywho_uniffi.dll</_NobodyWhoLibFile>
+    <_NobodyWhoLibFile Condition="$([MSBuild]::IsOSPlatform('OSX'))">libnobodywho_uniffi.dylib</_NobodyWhoLibFile>
+    <_NobodyWhoLibFile Condition="'$(_NobodyWhoLibFile)' == ''">libnobodywho_uniffi.so</_NobodyWhoLibFile>
+    <NobodyWhoNativeLib Condition="'$(NobodyWhoNativeLib)' == ''">$(MSBuildThisFileDirectory)../../../target/debug/$(_NobodyWhoLibFile)</NobodyWhoNativeLib>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(NobodyWhoNativeLib)')">
+    <None Include="$(NobodyWhoNativeLib)" Link="$(_NobodyWhoLibFile)" CopyToOutputDirectory="PreserveNewest" Pack="false" />
+  </ItemGroup>
+
+</Project>

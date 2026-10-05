@@ -1,6 +1,6 @@
 ---
 name: build-integrations
-description: Wire up a finished core Rust feature across all nobodywho language bindings, regenerate all generated files, and verify everything passes CI checks. Use when the user asks to build, propagate, or integrate a feature (e.g. TextToSpeech, SpeechToText, Encoder) across Python, Godot, Flutter, Swift, Kotlin, or React Native.
+description: Wire up a finished core Rust feature across all nobodywho language bindings, regenerate all generated files, and verify everything passes CI checks. Use when the user asks to build, propagate, or integrate a feature (e.g. TextToSpeech, SpeechToText, Encoder) across Python, Godot, Flutter, Swift, Kotlin, React Native, or C#.
 compatibility: Designed for Claude Code. Requires cargo, nix, uv, and npx on PATH.
 ---
 
@@ -26,7 +26,7 @@ Use `AskUserQuestion` to ask all three at once before writing any code:
 
 1. **API shape** — Should the public API in each language match the Rust API directly (same method names, sync/async as-is), or adapt to that language's idioms (e.g. Kotlin coroutines, Swift async/await, JS Promises)?
 2. **Test scope** — What level of testing is wanted: doc-tests / examples only, unit tests, or integration tests that require a real model file?
-3. **Documentation** — Which docs pages need updating? (The `docs/` directory has per-binding subdirectories: `docs-python/`, `docs-godot/`, `docs-flutter/`, `docs-kotlin/`, `docs-swift/`.) Are there any bindings where docs are not needed?
+3. **Documentation** — Which docs pages need updating? (The `docs/` directory has per-binding subdirectories: `docs-python/`, `docs-godot/`, `docs-flutter/`, `docs-kotlin/`, `docs-swift/`, `docs-react-native/`, `docs-csharp/`.) Are there any bindings where docs are not needed?
 
 ---
 
@@ -34,7 +34,7 @@ Use `AskUserQuestion` to ask all three at once before writing any code:
 
 Work in this order. Each step compiles before moving to the next.
 
-### 3a. UniFFI bridge → Kotlin / Swift / React Native
+### 3a. UniFFI bridge → Kotlin / Swift / React Native / C#
 
 Add a `Rust<Feature>` struct to `nobodywho/uniffi/src/lib.rs`. Mirror the pattern of `RustSpeechToText` (around line 546): use `Arc<Self>`, `#[uniffi::export]`, wrap core errors with `map_err(|e| e.to_string())`.
 
@@ -61,7 +61,16 @@ npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
   --ts-dir react-native/generated/ts \
   --cpp-dir react-native/generated/cpp \
   "$LIBPATH"
+
+# C# (installs the pinned uniffi-bindgen-cs on first use)
+bash csharp/scripts/generate-bindings.sh "$LIBPATH"
 ```
+
+`just regen-uniffi` runs all four.
+
+### 3a′. C# wrapper
+
+Add a public wrapper class in `csharp/src/NobodyWho/` following `Speech.cs` (async `LoadAsync` factory, `IDisposable`, native errors through the `Checked` helpers). The generated layer is `internal`, so every type the feature exposes needs a public C# counterpart. Add tests in `csharp/tests/NobodyWho.Tests/` and check with `just csharp-build`.
 
 ### 3b. React Native wrapper
 

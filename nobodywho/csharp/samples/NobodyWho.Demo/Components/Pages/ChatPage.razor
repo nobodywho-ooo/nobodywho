@@ -1,0 +1,218 @@
+@page "/chat"
+@inherits DemoPage
+@inject ModelHub Hub
+
+<PageTitle>NobodyWho: Chat</PageTitle>
+
+<h1>Chat</h1>
+<p class="lede">A conversation that streams token by token. Change the system prompt or the sampler between turns, and stop a reply halfway.</p>
+
+<div class="split">
+    <div class="demo">
+        <ModelGate Slot="Hub.ChatModel" ConfigKey="ChatModel" AutoLoad="true" Context="model">
+            @{ EnsureChat(model); }
+
+            <div class="settings">
+                <label class="field">
+                    <span class="field__label">System prompt</span>
+                    <textarea class="input" rows="2" @bind="_systemPrompt" @bind:after="ApplySystemPrompt" disabled="@_busy"></textarea>
+                </label>
+                <div class="settings__row">
+                    <label class="field">
+                        <span class="field__label">Sampler</span>
+                        <select class="input" @bind="_sampler" @bind:after="ApplySampler" disabled="@_busy">
+                            <option value="default">Default</option>
+                            <option value="greedy">Greedy (always the likeliest token)</option>
+                            <option value="temperature">Temperature</option>
+                        </select>
+                    </label>
+                    @if (_sampler == "temperature")
+                    {
+                        <label class="field">
+                            <span class="field__label">Temperature @_temperature.ToString("F1")</span>
+                            <input type="range" min="0" max="2" step="0.1" @bind="_temperature" @bind:event="oninput" @bind:after="ApplySampler" disabled="@_busy" />
+                        </label>
+                    }
+                    <label class="check">
+                        <input type="checkbox" @bind="_thinking" @bind:after="ApplyThinking" disabled="@_busy" />
+                        Let it think first
+                    </label>
+                </div>
+            </div>
+
+            <ol class="transcript" aria-live="polite">
+                @foreach (var turn in _turns)
+                {
+                    <li class="turn turn--@turn.Role">
+                        <span class="turn__role">@(turn.Role == "user" ? "You" : "Model")</span>
+                        @{ var split = Thinking.Split(turn.Text); }
+                        @if (split.Thought is { } thought)
+                        {
+                            <details class="thought" open="@split.StillThinking">
+                                <summary>@(split.StillThinking ? "Thinking…" : "Reasoning")</summary>
+                                <p>@thought</p>
+                            </details>
+                        }
+                        <Markdown Class="turn__text" Text="@split.Answer" />
+                        @if (turn.Stopped)
+                        {
+                            <span class="turn__note">Stopped</span>
+                        }
+                    </li>
+                }
+                @if (_turns.Count == 0)
+                {
+                    <li class="transcript__empty">Send a message to start the conversation.</li>
+                }
+            </ol>
+
+            <form class="ask" @onsubmit="Send" @onsubmit:preventDefault>
+                <label class="visually-hidden" for="chat-input">Message</label>
+                <div class="ask__row">
+                    <input id="chat-input" class="input" @bind="_input" @bind:event="oninput" placeholder="Write a message" disabled="@_busy" autocomplete="off" />
+                    @if (_busy)
+                    {
+                        <button type="button" class="button" @onclick="Stop">Stop</button>
+                    }
+                    else
+                    {
+                        <button type="submit" class="button button--primary" disabled="@string.IsNullOrWhiteSpace(_input)">Send</button>
+                    }
+                </div>
+            </form>
+
+            <div class="readout-bar">
+                @if (_stats is { } stats)
+                {
+                    <span>Context: @stats.ContextUsed of @stats.ContextSize tokens</span>
+                    <meter min="0" max="@stats.ContextSize" value="@stats.ContextUsed" aria-label="Context used"></meter>
+                }
+                @if (_tokensPerSecond is { } tps)
+                {
+                    <span>@tps.ToString("F1") tokens per second</span>
+                }
+                <button class="button button--small" @onclick="Reset" disabled="@_busy">Clear conversation</button>
+            </div>
+        </ModelGate>
+    </div>
+
+    <CodeSample Code="@Code">
+        Cancelling the token stops generation in the model, not only the wait. The partial reply stays in the history, so the conversation stays coherent.
+    </CodeSample>
+</div>
+
+@code {
+    private const string Code = """
+using var chat = new Chat(model,
+    systemPrompt: "You are a helpful assistant.",
+    sampler: SamplerPresets.Temperature(0.7f));
+
+var stream = chat.Ask(message);
+await foreach (var token in stream.WithCancellation(stop))
+    reply += token;
+
+// Settings can change between turns
+await chat.SetSystemPromptAsync(newPrompt);
+await chat.SetSamplerConfigAsync(SamplerPresets.Greedy());
+await chat.SetTemplateVariableAsync("enable_thinking", true);
+
+ChatStats stats = await chat.GetStatsAsync();
+""";
+
+    private sealed class Turn(string role, string text)
+    {
+        public string Role { get; } = role;
+        public string Text { get; set; } = text;
+        public bool Stopped { get; set; }
+    }
+
+    private readonly List<Turn> _turns = [];
+    private Chat? _chat;
+    private string _systemPrompt = "You are a friendly assistant. Keep answers short.";
+    private string _sampler = "default";
+    private float _temperature = 0.7f;
+    private bool _thinking;
+    private string _input = "";
+    private bool _busy;
+    private ChatStats? _stats;
+    private double? _tokensPerSecond;
+    private CancellationTokenSource? _cts;
+
+    private void EnsureChat(Model model) =>
+        _chat ??= Own(new Chat(model,
+            systemPrompt: _systemPrompt,
+            templateVariables: new Dictionary<string, bool> { ["enable_thinking"] = _thinking }));
+
+    private Task Send() => Guard(async () =>
+    {
+        if (_chat is null || string.IsNullOrWhiteSpace(_input))
+            return;
+        var message = _input.Trim();
+        _input = "";
+        _turns.Add(new Turn("user", message));
+        var reply = new Turn("model", "");
+        _turns.Add(reply);
+
+        _busy = true;
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(Alive);
+        var tokens = 0;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            await foreach (var token in _chat.Ask(message).WithCancellation(_cts.Token))
+            {
+                reply.Text += token;
+                tokens++;
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException) when (!IsDisposed)
+        {
+            reply.Stopped = true;
+        }
+        finally
+        {
+            _tokensPerSecond = tokens / Math.Max(stopwatch.Elapsed.TotalSeconds, 0.001);
+            _busy = false;
+        }
+        _stats = await _chat.GetStatsAsync();
+    });
+
+    private void Stop() => _cts?.Cancel();
+
+    private async Task ApplySystemPrompt()
+    {
+        if (_chat is not null)
+            await _chat.SetSystemPromptAsync(string.IsNullOrWhiteSpace(_systemPrompt) ? null : _systemPrompt);
+    }
+
+    private async Task ApplySampler()
+    {
+        if (_chat is null)
+            return;
+        using var sampler = _sampler switch
+        {
+            "greedy" => SamplerPresets.Greedy(),
+            "temperature" => SamplerPresets.Temperature(_temperature),
+            _ => SamplerPresets.Default(),
+        };
+        await _chat.SetSamplerConfigAsync(sampler);
+    }
+
+    private async Task ApplyThinking()
+    {
+        if (_chat is not null)
+            await _chat.SetTemplateVariableAsync("enable_thinking", _thinking);
+    }
+
+    private async Task Reset()
+    {
+        if (_chat is null)
+            return;
+        await _chat.ResetHistoryAsync();
+        _turns.Clear();
+        _stats = await _chat.GetStatsAsync();
+    }
+
+
+}

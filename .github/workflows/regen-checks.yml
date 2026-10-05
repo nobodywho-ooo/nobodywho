@@ -1,8 +1,8 @@
 name: "Regeneration checks"
 
-# Verifies that committed generated bindings (Swift, Kotlin, React Native) are
-# up to date with the Rust source. A single `build-uniffi-host` job compiles
-# the uniffi crate + uniffi-bindgen binary once; three downstream jobs (one per
+# Verifies that committed generated bindings (Swift, Kotlin, React Native, C#)
+# are up to date with the Rust source. A single `build-uniffi-host` job compiles
+# the uniffi crate + uniffi-bindgen binary once; four downstream jobs (one per
 # binding language) download that artifact and run their language-specific
 # generator. Separate jobs surface which binding is stale in the run summary.
 
@@ -190,5 +190,56 @@ jobs:
             echo "  npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \\"
             echo "    --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp \\"
             echo "    target/debug/libnobodywho_uniffi.so"
+            exit 1
+          fi
+
+  csharp-bindings-check:
+    needs: build-uniffi-host
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download uniffi host artifact"
+        uses: actions/download-artifact@v5
+        with:
+          name: uniffi-host
+          path: ./uniffi-host
+
+      - name: "Cache uniffi-bindgen-cs"
+        # The script installs the pinned generator here on first use.
+        uses: WarpBuilds/cache@v1
+        with:
+          path: nobodywho/target/tools
+          key: ${{ runner.os }}-uniffi-bindgen-cs-${{ hashFiles('nobodywho/csharp/scripts/generate-bindings.sh') }}
+
+      - name: "Install Vulkan runtime"
+        # As for the other generators: the library links libvulkan.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan1
+
+      - name: "Setup rust toolchain"
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          . "$HOME/.cargo/env"
+          rustup update stable
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: "Generate C# bindings"
+        working-directory: ./nobodywho
+        run: bash csharp/scripts/generate-bindings.sh ../uniffi-host/libnobodywho_uniffi.so
+
+      - name: "Verify committed C# bindings are up to date"
+        working-directory: ./nobodywho/csharp
+        run: |
+          if git diff --exit-code src/NobodyWho/generated/; then
+            echo "Generated C# bindings are up to date"
+          else
+            echo "ERROR: Committed C# bindings are out of date."
+            echo "Run the binding generation command and commit the results:"
+            echo "  cd nobodywho && cargo build -p nobodywho-uniffi"
+            echo "  csharp/scripts/generate-bindings.sh target/debug/libnobodywho_uniffi.so"
+            echo "(or run \`just regen-uniffi\`)"
             exit 1
           fi

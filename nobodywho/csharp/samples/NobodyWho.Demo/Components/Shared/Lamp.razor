@@ -1,0 +1,15 @@
+@* A status light for one model. Its colour and label always say the same thing, so the colour is never the only signal. *@
+<span class="lamp lamp--@State.ToString().ToLowerInvariant()" role="img" aria-label="@Label" title="@Label"></span>
+
+@code {
+    [Parameter, EditorRequired] public SlotState State { get; set; }
+
+    private string Label => State switch
+    {
+        SlotState.Ready => "Loaded",
+        SlotState.Loading => "Loading",
+        SlotState.Failed => "Failed to load",
+        SlotState.NotConfigured => "Not configured",
+        _ => "Not loaded yet",
+    };
+}

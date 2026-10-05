@@ -1,0 +1,8 @@
+# Config for uniffi-bindgen-cs. Pass with `--config csharp/uniffi.toml`.
+[bindings.csharp]
+namespace = "NobodyWho.Native"
+cdylib_name = "nobodywho_uniffi"
+global_methods_class_name = "NativeMethods"
+# Keep the generated layer internal; the hand-written wrappers in
+# src/NobodyWho are the public API.
+access_modifier = "internal"

@@ -1,0 +1,138 @@
+@page "/vision"
+@inherits DemoPage
+@inject ModelHub Hub
+
+<PageTitle>NobodyWho: Images</PageTitle>
+
+<h1>Images</h1>
+<p class="lede">
+    A multimodal model reads images as part of the prompt. Upload a picture and ask about it; the
+    image goes to the model as a file on this machine, never to a service.
+</p>
+
+<div class="split">
+    <div class="demo">
+        <ModelGate Slot="Hub.VisionModel" ConfigKey="VisionModel" Context="model">
+            <ChildContent>
+                @{ EnsureChat(model); }
+                <label class="field">
+                    <span class="field__label">Image (PNG or JPEG, up to 10 MB)</span>
+                    <InputFile class="input" accept="image/png,image/jpeg" OnChange="Upload" disabled="@_busy" />
+                </label>
+                @if (_preview is not null)
+                {
+                    <img class="preview" src="@_preview" alt="The uploaded image" />
+                }
+                <form class="ask" @onsubmit="Ask" @onsubmit:preventDefault>
+                    <label class="field__label" for="vision-question">Question</label>
+                    <div class="ask__row">
+                        <input id="vision-question" class="input" @bind="_question" @bind:event="oninput" disabled="@_busy" autocomplete="off" />
+                        <button type="submit" class="button button--primary" disabled="@(_busy || _imagePath is null)">Ask</button>
+                    </div>
+                </form>
+                @if (_answer.Length > 0)
+                {
+                    <div class="answer" aria-live="polite"><Markdown Text="@Thinking.Split(_answer).Answer" /></div>
+                }
+                @if (_error is not null)
+                {
+                    <p class="gate__error" role="alert">@_error</p>
+                }
+            </ChildContent>
+            <NotConfiguredContent>
+                <p>
+                    It also needs the model's projection file in <code>NobodyWho:VisionProjection</code>. For example,
+                    Gemma 4 E2B (about 4 GB with its projection):
+                </p>
+                <pre><code>"VisionModel": "hf://bartowski/google_gemma-4-E2B-it-GGUF/google_gemma-4-E2B-it-Q4_K_M.gguf",
+"VisionProjection": "hf://bartowski/google_gemma-4-E2B-it-GGUF/mmproj-google_gemma-4-E2B-it-f16.gguf"</code></pre>
+            </NotConfiguredContent>
+        </ModelGate>
+    </div>
+
+    <CodeSample Code="@Code" />
+</div>
+
+@code {
+    private const string Code = """
+using var model = await Model.LoadAsync(
+    "google_gemma-4-E2B-it-Q4_K_M.gguf",
+    projectionModelPath: "mmproj-google_gemma-4-E2B-it-f16.gguf");
+using var chat = new Chat(model);
+
+var prompt = new Prompt(
+    new ContentPart.Text("What is in this picture?"),
+    new ContentPart.Image("photo.jpg"));
+
+await foreach (var token in chat.Ask(prompt))
+    Console.Write(token);
+""";
+
+    private Chat? _chat;
+    private string? _imagePath;
+    private string? _preview;
+    private string _question = "What is in this picture?";
+    private string _answer = "";
+    private string? _error;
+    private bool _busy;
+
+    private void EnsureChat(Model model) =>
+        _chat ??= Own(new Chat(model, templateVariables: new Dictionary<string, bool> { ["enable_thinking"] = false }));
+
+    private async Task Upload(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _answer = "";
+        DeleteImage();
+        try
+        {
+            var extension = e.File.ContentType == "image/png" ? ".png" : ".jpg";
+            var path = Path.Combine(Path.GetTempPath(), $"nobodywho-demo-{Guid.NewGuid():N}{extension}");
+            await using (var file = File.Create(path))
+                await e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(file);
+            _imagePath = path;
+            _preview = $"data:{e.File.ContentType};base64,{Convert.ToBase64String(await File.ReadAllBytesAsync(path))}";
+        }
+        catch (IOException ex)
+        {
+            _error = $"The image couldn't be uploaded: {ex.Message}";
+        }
+    }
+
+    private Task Ask() => Guard(async () =>
+    {
+        if (_chat is null || _imagePath is null)
+            return;
+        _busy = true;
+        _answer = "";
+        _error = null;
+        try
+        {
+            await _chat.ResetHistoryAsync();
+            var prompt = new Prompt(new ContentPart.Text(_question), new ContentPart.Image(_imagePath));
+            await foreach (var token in _chat.Ask(prompt).WithCancellation(Alive))
+            {
+                _answer += token;
+                StateHasChanged();
+            }
+        }
+        catch (NobodyWhoException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    });
+
+    private void DeleteImage()
+    {
+        if (_imagePath is not null && File.Exists(_imagePath))
+            File.Delete(_imagePath);
+        _imagePath = null;
+        _preview = null;
+    }
+
+    protected override void OnDispose() => DeleteImage();
+}

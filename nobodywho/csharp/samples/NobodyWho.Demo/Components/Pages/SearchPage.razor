@@ -1,0 +1,208 @@
+@page "/search"
+@inherits DemoPage
+@inject ModelHub Hub
+
+<PageTitle>NobodyWho: Search and rerank</PageTitle>
+
+<h1>Search and rerank</h1>
+<p class="lede">
+    Find documents by meaning, not keywords. An embedding model turns each document into a vector,
+    a reranker rescores the best matches, and the chat model answers from what was found.
+</p>
+
+<div class="split">
+    <div class="demo">
+        <ModelGate Slot="Hub.Encoder" ConfigKey="EmbeddingModel" AutoLoad="true" Context="encoder">
+            <label class="field">
+                <span class="field__label">Documents, one per line</span>
+                <textarea class="input" rows="8" @bind="_corpus" @bind:after="CorpusChanged" disabled="@_busy"></textarea>
+            </label>
+
+            <form class="ask" @onsubmit="() => Search(encoder)" @onsubmit:preventDefault>
+                <label class="field__label" for="search-query">Question</label>
+                <div class="ask__row">
+                    <input id="search-query" class="input" @bind="_query" @bind:event="oninput" disabled="@_busy" autocomplete="off" />
+                    <button type="submit" class="button button--primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</button>
+                </div>
+            </form>
+
+            @if (_byEmbedding.Count > 0)
+            {
+                <div class="pair">
+                    <div>
+                        <h2>By embedding similarity</h2>
+                        <ol class="ranked">
+                            @foreach (var (document, score) in _byEmbedding)
+                            {
+                                <li>
+                                    <span class="ranked__text">@document</span>
+                                    <span class="ranked__score">
+                                        <span class="bar" style="--fill: @Percent(score)"></span>
+                                        @score.ToString("F2")
+                                    </span>
+                                </li>
+                            }
+                        </ol>
+                    </div>
+                    <div>
+                        <h2>Reranked</h2>
+                        <ModelGate Slot="Hub.Reranker" ConfigKey="RerankerModel" Context="reranker">
+                            @if (_reranked.Count == 0)
+                            {
+                                <button class="button" @onclick="() => Rerank(reranker)" disabled="@_busy">Rerank the top @TopN</button>
+                            }
+                            else
+                            {
+                                <ol class="ranked">
+                                    @foreach (var (document, score) in _reranked)
+                                    {
+                                        <li>
+                                            <span class="ranked__text">@document</span>
+                                            <span class="ranked__score">@score.ToString("F2")</span>
+                                        </li>
+                                    }
+                                </ol>
+                            }
+                        </ModelGate>
+                    </div>
+                </div>
+
+                <section class="panel" aria-labelledby="answer-heading">
+                    <h2 id="answer-heading">Answer from the best matches</h2>
+                    <ModelGate Slot="Hub.ChatModel" ConfigKey="ChatModel" Context="model">
+                        <button class="button" @onclick="() => Answer(model)" disabled="@_busy">Answer the question</button>
+                        @if (_answer.Length > 0)
+                        {
+                            <div class="answer" aria-live="polite"><Markdown Text="@Thinking.Split(_answer).Answer" /></div>
+                        }
+                    </ModelGate>
+                </section>
+            }
+        </ModelGate>
+    </div>
+
+    <CodeSample Code="@Code">
+        The embeddings are computed once for the documents and reused for every question until the documents change.
+    </CodeSample>
+</div>
+
+@code {
+    private const string Code = """
+using var encoder = await Encoder.FromPathAsync(embeddingModel);
+float[][] vectors = await encoder.EncodeBatchAsync(documents);
+float[] query = await encoder.EncodeAsync(question);
+
+var ranked = documents
+    .Zip(vectors, (doc, v) =>
+        (doc, Encoder.CosineSimilarity(query, v)))
+    .OrderByDescending(x => x.Item2);
+
+using var reranker = await CrossEncoder.FromPathAsync(rerankerModel);
+var reranked = await reranker.RankAndSortAsync(question, top);
+
+string answer = await chat.Ask(
+    $"Answer using only these notes:\n{notes}\n\n{question}")
+    .CompletedAsync();
+""";
+
+    private const int TopN = 4;
+
+    private string _corpus = """
+The office is closed on public holidays, and the on-call engineer covers urgent outages.
+Expense reports must be filed within 30 days, with receipts attached as PDF or photo.
+New laptops are ordered through the IT portal and arrive in about five working days.
+Remote employees can claim up to 500 euros a year for home-office furniture.
+The VPN is required for the billing system but not for email or the wiki.
+Parking passes for the main garage are handed out by reception on Mondays.
+Annual performance reviews happen in March, with a mid-year check-in in September.
+Lost badges must be reported to security the same day so they can be disabled.
+""";
+
+    private string _query = "How do I get a new computer?";
+    private string[]? _documents;
+    private float[][]? _vectors;
+    private List<(string Document, float Score)> _byEmbedding = [];
+    private IReadOnlyList<(string Document, float Score)> _reranked = [];
+    private string _answer = "";
+    private bool _busy;
+    private Chat? _chat;
+
+    private void CorpusChanged()
+    {
+        _documents = null;
+        _vectors = null;
+    }
+
+    private Task Search(Encoder encoder) => Guard(async () =>
+    {
+        _busy = true;
+        _reranked = [];
+        _answer = "";
+        try
+        {
+            if (_vectors is null)
+            {
+                _documents = _corpus.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                _vectors = await encoder.EncodeBatchAsync(_documents);
+            }
+            var query = await encoder.EncodeAsync(_query);
+            _byEmbedding = _documents!
+                .Zip(_vectors, (document, vector) => (document, Encoder.CosineSimilarity(query, vector)))
+                .OrderByDescending(x => x.Item2)
+                .ToList();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    });
+
+    private Task Rerank(CrossEncoder reranker) => Guard(async () =>
+    {
+        _busy = true;
+        try
+        {
+            _reranked = await reranker.RankAndSortAsync(_query, _byEmbedding.Take(TopN).Select(x => x.Document));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    });
+
+    private Task Answer(Model model) => Guard(async () =>
+    {
+        _chat ??= Own(new Chat(model,
+            systemPrompt: "Answer in one or two sentences, using only the notes you are given. If they do not cover the question, say so.",
+            templateVariables: new Dictionary<string, bool> { ["enable_thinking"] = false }));
+
+        var best = (_reranked.Count > 0 ? _reranked.Select(x => x.Document) : _byEmbedding.Select(x => x.Document)).Take(3);
+        var notes = string.Join("\n", best.Select(d => $"- {d}"));
+
+        _busy = true;
+        _answer = "";
+        try
+        {
+            await _chat.ResetHistoryAsync();
+            await foreach (var token in _chat.Ask($"Notes:\n{notes}\n\nQuestion: {_query}").WithCancellation(Alive))
+            {
+                _answer += token;
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    });
+
+    /// <summary>Bar width: the best match fills the bar, the worst still shows a sliver.</summary>
+    private string Percent(float score)
+    {
+        var max = _byEmbedding.Count > 0 ? _byEmbedding[0].Score : 1f;
+        var min = _byEmbedding.Count > 0 ? _byEmbedding[^1].Score : 0f;
+        var percent = max - min < 1e-6f ? 100f : 15f + 85f * (score - min) / (max - min);
+        return percent.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    }
+
+}

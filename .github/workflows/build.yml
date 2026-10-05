@@ -17,6 +17,9 @@ on:
       run_react_native:
         type: boolean
         default: false
+      run_csharp:
+        type: boolean
+        default: false
       apple_extended:
         type: boolean
         default: false
@@ -35,7 +38,8 @@ jobs:
           [[ "${{ inputs.run_flutter }}" == "true" ]] && ints+=('"flutter"') || true
           if [[ "${{ inputs.run_swift }}"        == "true" ]] || \
              [[ "${{ inputs.run_kotlin }}"       == "true" ]] || \
-             [[ "${{ inputs.run_react_native }}" == "true" ]]; then
+             [[ "${{ inputs.run_react_native }}" == "true" ]] || \
+             [[ "${{ inputs.run_csharp }}"       == "true" ]]; then
             ints+=('"uniffi"')
           fi
           IFS=,
@@ -60,6 +64,10 @@ jobs:
           if [[ "${{ inputs.run_react_native }}" == "true" ]]; then
             uni["aarch64-apple-ios"]=1; uni["aarch64-apple-ios-sim"]=1
           fi
+          # C# ships the macOS dylib in its NuGet package.
+          if [[ "${{ inputs.run_csharp }}" == "true" ]]; then
+            uni["aarch64-apple-darwin"]=1
+          fi
           for t in "${!uni[@]}"; do add uniffi "$t"; done
           IFS=,
           echo "macos_matrix={\"include\":[${combos[*]}]}" >> "$GITHUB_OUTPUT"
@@ -67,7 +75,7 @@ jobs:
 
   cargo-build-linux:
     needs: matrix-gen
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_csharp
     strategy:
       fail-fast: false
       matrix:
@@ -142,7 +150,7 @@ jobs:
 
   cargo-build-windows:
     needs: matrix-gen
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_kotlin || inputs.run_csharp
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -244,7 +252,7 @@ jobs:
     needs: matrix-gen
     # No run_kotlin: kotlin's CI tests use the Linux uniffi lib and it downloads
     # no macOS artifact; its release dylib comes from swift's build on full runs.
-    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native || inputs.apple_extended
+    if: inputs.run_godot || inputs.run_flutter || inputs.run_swift || inputs.run_react_native || inputs.run_csharp || inputs.apple_extended
     runs-on: warp-macos-15-arm64-6x
     strategy:
       fail-fast: false

@@ -7,7 +7,7 @@ GODOT_PROJECT := "nobodywho/godot/tests"
 # `clean` must be passed to every dependency that (transitively) reaches a
 # recipe taking it; a missed edge silently runs that subtree lenient.
 [arg("clean", long="require-clean", value="true")]
-check clean="false": _check-start (fmt clean) clippy (regen-python clean) (regen-flutter clean) (ruff clean) (regen-uniffi clean) flutter-analyze (testing-apps clean) godot-build
+check clean="false": _check-start (fmt clean) clippy (regen-python clean) (regen-flutter clean) (ruff clean) (regen-uniffi clean) flutter-analyze csharp-build (testing-apps clean) godot-build
     @n=$(find nobodywho/target/debug/build -path '*/llama-cpp-sys-2-*/output' -newer nobodywho/target/.check-start | wc -l); \
     [ "$n" -le 1 ] || echo "⚠  llama.cpp was built $((n)) times; the cargo builds above no longer share one llama-cpp-sys-2 build."
 
@@ -40,6 +40,23 @@ ruff clean="false":
 
 flutter-analyze:
     cd nobodywho/flutter/nobodywho && flutter analyze lib/
+
+# Builds the C# binding and checks its formatting. Skipped without a .NET SDK.
+csharp-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v dotnet >/dev/null; then
+        echo "⏭  skipping C# build: no dotnet in this shell."
+        exit 0
+    fi
+    cd nobodywho/csharp
+    dotnet format NobodyWho.slnx --verify-no-changes
+    dotnet build NobodyWho.slnx
+
+# Runs the C# tests. Model-backed tests skip unless TEST_MODEL (and
+# TEST_EMBEDDINGS_MODEL / TEST_CROSSENCODER_MODEL) are set.
+csharp-test: (regen-uniffi)
+    cd nobodywho/csharp && dotnet test
 
 # Forwards `clean`; see `check`.
 testing-apps clean="false": testapp-flutter (testapp-react-native clean) testapp-kotlin
@@ -100,7 +117,8 @@ regen-uniffi clean="false":
     # npx below silently fetches an unpinned uniffi-bindgen-react-native.
     cd nobodywho/react-native && { [ node_modules/.package-lock.json -nt package-lock.json ] || npm ci; }
     cd nobodywho && npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp $(pwd)/target/debug/libnobodywho_uniffi.{{LIB_EXT}}
-    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/react-native/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
+    cd nobodywho && bash csharp/scripts/generate-bindings.sh target/debug/libnobodywho_uniffi.{{LIB_EXT}}
+    [ "{{clean}}" != true ] || git diff --exit-code nobodywho/swift/generated/ nobodywho/kotlin/common/generated/ nobodywho/react-native/generated/ nobodywho/csharp/src/NobodyWho/generated/ || (echo "Uniffi bindings are out of date — commit them before pushing" && exit 1)
 
 # Add a user-facing change for the next release notes.
 change:

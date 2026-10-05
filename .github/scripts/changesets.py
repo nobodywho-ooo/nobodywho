@@ -45,6 +45,7 @@ BINDINGS = {
     "kotlin": "Kotlin",
     "react-native": "React Native",
     "swift": "Swift",
+    "csharp": "C#",
 }
 
 
@@ -148,6 +149,12 @@ VERSION_FILES = {
     "swift": [
         ("nobodywho/swift/README.md", SWIFT_SNIPPET),
         ("docs/docs-swift/index.md", SWIFT_SNIPPET),
+    ],
+    "csharp": [
+        (
+            "nobodywho/csharp/src/NobodyWho/NobodyWho.csproj",
+            r"<Version>(?P<version>[^<]+)</Version>",
+        ),
     ],
 }
 

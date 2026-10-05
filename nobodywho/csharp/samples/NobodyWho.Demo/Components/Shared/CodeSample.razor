@@ -1,0 +1,15 @@
+@* The C# this page runs, shown beside the demo. *@
+<aside class="code" aria-label="The code behind this demo">
+    <h2 class="code__title">@Title</h2>
+    <pre><code>@Code.Trim()</code></pre>
+    @if (ChildContent is not null)
+    {
+        <div class="code__note">@ChildContent</div>
+    }
+</aside>
+
+@code {
+    [Parameter] public string Title { get; set; } = "What this page runs";
+    [Parameter, EditorRequired] public string Code { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

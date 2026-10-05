@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="icon" type="image/svg+xml" href="@Assets["favicon.svg"]" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["NobodyWho.Demo.styles.css"]" />
+    <ImportMap />
+    <HeadOutlet @rendermode="Interactive" />
+</head>
+
+<body>
+    <Routes @rendermode="Interactive" />
+    <ReconnectModal />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>
+
+@code {
+    // No prerendering: a prerendered page shows buttons that do nothing until the live
+    // connection starts, and would build a throwaway Chat (with its native worker) per visit.
+    private static readonly IComponentRenderMode Interactive = new InteractiveServerRenderMode(prerender: false);
+}

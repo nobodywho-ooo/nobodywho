@@ -1,0 +1,180 @@
+@page "/tools"
+@inherits DemoPage
+@inject ModelHub Hub
+
+<PageTitle>NobodyWho: Tool calling</PageTitle>
+
+<h1>Tool calling</h1>
+<p class="lede">
+    The model can call C# functions while it answers. Each tool below is an ordinary lambda: its
+    parameter names and types become a grammar, so even this small model always produces a valid call.
+</p>
+
+<div class="split">
+    <div class="demo">
+        <ModelGate Slot="Hub.ChatModel" ConfigKey="ChatModel" AutoLoad="true" Context="model">
+            @{ EnsureChat(model); }
+
+            <div class="suggestions" role="group" aria-label="Try one of these">
+                @foreach (var suggestion in Suggestions)
+                {
+                    <button class="chip" @onclick="() => Send(suggestion)" disabled="@_busy">@suggestion</button>
+                }
+            </div>
+
+            <form class="ask" @onsubmit="() => Send(_input)" @onsubmit:preventDefault>
+                <label class="visually-hidden" for="tools-input">Message</label>
+                <div class="ask__row">
+                    <input id="tools-input" class="input" @bind="_input" @bind:event="oninput" placeholder="Ask something the tools can answer" disabled="@_busy" autocomplete="off" />
+                    <button type="submit" class="button button--primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_input))">Send</button>
+                </div>
+            </form>
+
+            <ol class="transcript" aria-live="polite">
+                @foreach (var entry in _entries)
+                {
+                    @switch (entry)
+                    {
+                        case Entry.Said said:
+                            <li class="turn turn--@said.Role">
+                                <span class="turn__role">@(said.Role == "user" ? "You" : "Model")</span>
+                                <Markdown Class="turn__text" Text="@Thinking.Split(said.Text).Answer" />
+                            </li>
+                            break;
+                        case Entry.Called called:
+                            <li class="turn turn--tool">
+                                <span class="turn__role">Called <code>@called.Name</code></span>
+                                <dl class="call">
+                                    <dt>Arguments</dt><dd><code>@called.Arguments</code></dd>
+                                    <dt>Returned</dt><dd><code>@called.Result</code></dd>
+                                </dl>
+                            </li>
+                            break;
+                    }
+                }
+                @if (_entries.Count == 0)
+                {
+                    <li class="transcript__empty">Pick a question above. Each tool call shows up here as it happens.</li>
+                }
+            </ol>
+        </ModelGate>
+    </div>
+
+    <CodeSample Code="@Code">
+        Tools run on the inference thread while the model waits for their result. An async tool is awaited there, so it never blocks your own threads.
+    </CodeSample>
+</div>
+
+@code {
+    private const string Code = """
+var weather = new Tool("get_weather",
+    "Get the current weather for a city",
+    ([Description("The city")] string city,
+     TemperatureUnit unit) => Forecast(city, unit));
+
+var calculate = new Tool("calculate",
+    "Do arithmetic on two numbers",
+    (double a, Operation operation, double b) => ...);
+
+var clock = new Tool("current_time",
+    "Get the current date and time",
+    () => DateTime.Now.ToString("f"));
+
+using var chat = new Chat(model,
+    tools: [weather, calculate, clock]);
+
+string answer = await chat.Ask(question).CompletedAsync();
+""";
+
+    public enum TemperatureUnit { Celsius, Fahrenheit }
+
+    public enum Operation { Add, Subtract, Multiply, Divide }
+
+    private abstract record Entry
+    {
+        public sealed record Said(string Role, string Text) : Entry;
+        public sealed record Called(string Name, string Arguments, string Result) : Entry;
+    }
+
+    private static readonly string[] Suggestions =
+    [
+        "What's the weather in Oslo, in Fahrenheit?",
+        "What is 1234 multiplied by 5678?",
+        "What time is it right now?",
+    ];
+
+    private readonly List<Entry> _entries = [];
+    private Chat? _chat;
+    private string _input = "";
+    private bool _busy;
+
+    private void EnsureChat(Model model) =>
+        _chat ??= Own(new Chat(model,
+            systemPrompt: "You are a helpful assistant. Use the tools to answer, then reply in one sentence.",
+            tools: [Weather(), Calculator(), Clock()],
+            templateVariables: new Dictionary<string, bool> { ["enable_thinking"] = false }));
+
+    private Tool Weather() => new("get_weather", "Get the current weather for a city",
+        ([Description("The city name")] string city, [Description("The unit to report the temperature in")] TemperatureUnit unit) =>
+        {
+            // Made up, but the same city always gets the same weather.
+            var seed = city.ToLowerInvariant().Aggregate(17, (h, c) => h * 31 + c);
+            var celsius = Math.Abs(seed % 30) - 5;
+            string[] skies = ["sunny", "cloudy", "rainy", "windy", "snowing"];
+            var temperature = unit == TemperatureUnit.Celsius ? celsius : celsius * 9 / 5 + 32;
+            return Log("get_weather", new { city, unit = unit.ToString() },
+                $"{{\"city\": \"{city}\", \"temperature\": {temperature}, \"unit\": \"{unit}\", \"sky\": \"{skies[Math.Abs(seed) % skies.Length]}\"}}");
+        });
+
+    private Tool Calculator() => new("calculate", "Do arithmetic on two numbers",
+        (double a, Operation operation, double b) =>
+        {
+            var result = operation switch
+            {
+                Operation.Add => a + b,
+                Operation.Subtract => a - b,
+                Operation.Multiply => a * b,
+                Operation.Divide => a / b,
+                _ => double.NaN,
+            };
+            return Log("calculate", new { a, operation = operation.ToString(), b }, result.ToString("G"));
+        });
+
+    private Tool Clock() => new("current_time", "Get the current date and time",
+        () => Log("current_time", new { }, DateTime.Now.ToString("dddd d MMMM yyyy, HH:mm")));
+
+    /// <summary>Record a tool call. Tools run on the inference thread, so redraw through the renderer.</summary>
+    private string Log(string name, object arguments, string result)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (IsDisposed)
+                return;
+            _entries.Add(new Entry.Called(name, JsonSerializer.Serialize(arguments), result));
+            StateHasChanged();
+        });
+        return result;
+    }
+
+    private Task Send(string message) => Guard(async () =>
+    {
+        if (_chat is null || string.IsNullOrWhiteSpace(message))
+            return;
+        _input = "";
+        _busy = true;
+        _entries.Add(new Entry.Said("user", message.Trim()));
+        try
+        {
+            var answer = await _chat.Ask(message.Trim()).CompletedAsync(Alive);
+            _entries.Add(new Entry.Said("model", answer));
+        }
+        catch (NobodyWhoException e)
+        {
+            _entries.Add(new Entry.Said("model", $"Generation failed: {e.Message}"));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    });
+}

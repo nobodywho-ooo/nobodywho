@@ -1,0 +1,69 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject ModelHub Hub
+
+<div class="shell">
+    <a class="skip" href="#main">Skip to the demo</a>
+
+    <nav class="side" aria-label="Demos">
+        <a class="brand" href="">
+            <span class="brand__name">NobodyWho</span>
+            <span class="brand__sub">for .NET</span>
+        </a>
+
+        <ul class="side__list">
+            @foreach (var item in Items)
+            {
+                <li>
+                    <NavLink class="side__link" href="@item.Href" Match="@(item.Href == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                        <span>@item.Label</span>
+                        @if (item.Slot is { } slot)
+                        {
+                            <Lamp State="slot.State" />
+                        }
+                    </NavLink>
+                </li>
+            }
+        </ul>
+
+        <p class="side__foot">Everything runs on this machine. After a model downloads once, nothing leaves it.</p>
+    </nav>
+
+    <main id="main" class="main">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Something went wrong on the page.
+    <a href="." class="reload">Reload</a>
+    <button class="dismiss" aria-label="Dismiss">×</button>
+</div>
+
+@code {
+    private record Item(string Href, string Label, IModelSlot? Slot);
+
+    private Item[] Items => [
+        new("", "Overview", null),
+        new("chat", "Chat", Hub.ChatModel),
+        new("tools", "Tool calling", Hub.ChatModel),
+        new("structured", "Structured output", Hub.ChatModel),
+        new("search", "Search and rerank", Hub.Encoder),
+        new("vision", "Images", Hub.VisionModel),
+        new("speech", "Speech", Hub.TextToSpeech),
+    ];
+
+    protected override void OnInitialized()
+    {
+        foreach (var slot in Hub.All)
+            slot.Changed += OnChanged;
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        foreach (var slot in Hub.All)
+            slot.Changed -= OnChanged;
+    }
+}

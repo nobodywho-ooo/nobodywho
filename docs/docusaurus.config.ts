@@ -29,9 +29,22 @@ function sdkDocsConfig(id: string) {
   };
 }
 
+// A binding with no tagged release yet serves `main` at /<binding>/. Switch it
+// to sdkDocsConfig (and add it to `latestReleases`) when its first release is
+// snapshotted.
+function unreleasedDocsConfig() {
+  return {
+    lastVersion: 'current',
+    breadcrumbs: false,
+    versions: {
+      current: {label: 'main'},
+    },
+  };
+}
+
 const config: Config = {
   title: 'NobodyWho',
-  tagline: 'Local-first LLM inference for Kotlin, Swift, Python, Flutter, React Native, Expo and Godot',
+  tagline: 'Local-first LLM inference for Kotlin, Swift, Python, Flutter, React Native, Expo, Godot and C#',
   favicon: 'img/favicon.ico',
 
   url: 'https://docs.nobodywho.ooo',
@@ -111,7 +124,7 @@ const config: Config = {
       {
         hashed: true,
         indexBlog: false,
-        docsRouteBasePath: ['docs', 'kotlin', 'python', 'swift', 'react-native', 'flutter', 'godot'],
+        docsRouteBasePath: ['docs', 'kotlin', 'python', 'swift', 'react-native', 'flutter', 'godot', 'csharp'],
       },
     ],
   ],
@@ -180,6 +193,16 @@ const config: Config = {
         ...sdkDocsConfig('godot'),
       },
     ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'csharp',
+        path: 'docs-csharp',
+        routeBasePath: 'csharp',
+        sidebarPath: './sidebars/csharp.ts',
+        ...unreleasedDocsConfig(),
+      },
+    ],
   ],
 
   themeConfig: {
@@ -206,6 +229,7 @@ const config: Config = {
         {to: '/react-native/', label: 'RN/Expo', position: 'left', activeBaseRegex: '/react-native/', className: 'lang-icon lang-icon--react-native'},
         {to: '/swift/', label: 'Swift', position: 'left', activeBaseRegex: '/swift/', className: 'lang-icon lang-icon--swift'},
         {to: '/kotlin/', label: 'Kotlin', position: 'left', activeBaseRegex: '/kotlin/', className: 'lang-icon lang-icon--kotlin'},
+        {to: '/csharp/', label: 'C#', position: 'left', activeBaseRegex: '/csharp/', className: 'lang-icon lang-icon--csharp'},
         // Right side
         {
           href: 'https://github.com/nobodywho-ooo/nobodywho',
@@ -226,7 +250,7 @@ const config: Config = {
     prism: {
       theme: nobodywhoLight,
       darkTheme: nobodywhoDark,
-      additionalLanguages: ['bash', 'dart', 'kotlin', 'swift', 'json', 'toml'],
+      additionalLanguages: ['bash', 'dart', 'kotlin', 'swift', 'csharp', 'json', 'toml'],
     },
   } satisfies Preset.ThemeConfig,
 };

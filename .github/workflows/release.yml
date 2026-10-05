@@ -18,6 +18,8 @@ on:
         required: false
       MAVEN_SIGNING_PASSWORD:
         required: false
+      NUGET_API_KEY:
+        required: false
 
 jobs:
   godot-distributable:
@@ -405,3 +407,78 @@ jobs:
           SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
         run: ./gradlew publishAggregationToCentralPortal -Pversion=${{ env.VERSION }}
+
+  # Pack the NuGet package with every desktop native lib, create a GitHub
+  # Release, and publish to nuget.org.
+  create-github-release-csharp:
+    if: startsWith(github.ref, 'refs/tags/nobodywho-csharp-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Download all uniffi release artifacts"
+        uses: actions/download-artifact@v5
+        with:
+          pattern: nobodywho-uniffi-*-release
+          merge-multiple: true
+          path: ./artifacts
+
+      - name: "List artifacts"
+        run: ls -la artifacts/
+
+      # .NET resolves runtimes/<rid>/native/ from the package at run time.
+      - name: "Place native libs"
+        run: |
+          runtimes=nobodywho/csharp/src/NobodyWho/runtimes
+          mkdir -p "$runtimes"/{linux-x64,linux-arm64,osx-arm64,win-x64}/native
+          cp artifacts/libnobodywho-uniffi-x86_64-unknown-linux-gnu-release.so \
+            "$runtimes"/linux-x64/native/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-aarch64-unknown-linux-gnu-release.so \
+            "$runtimes"/linux-arm64/native/libnobodywho_uniffi.so
+          cp artifacts/libnobodywho-uniffi-aarch64-apple-darwin-release.dylib \
+            "$runtimes"/osx-arm64/native/libnobodywho_uniffi.dylib
+          cp artifacts/libnobodywho-uniffi-x86_64-pc-windows-msvc-release.dll \
+            "$runtimes"/win-x64/native/nobodywho_uniffi.dll
+
+      - name: "Setup .NET"
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: nobodywho/csharp/global.json
+
+      - name: "Set version"
+        run: |
+          VERSION=${GITHUB_REF_NAME#nobodywho-csharp-v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: "Pack"
+        working-directory: ./nobodywho/csharp
+        # NobodyWhoNativeLib points nowhere so no local dev build is copied in.
+        run: |
+          dotnet pack src/NobodyWho -c Release -o ../../release \
+            -p:Version=${{ env.VERSION }} -p:NobodyWhoNativeLib=none
+
+      - name: "Check the package holds every native lib"
+        run: |
+          contents=$(unzip -l release/NobodyWho.${{ env.VERSION }}.nupkg)
+          for lib in linux-x64/native/libnobodywho_uniffi.so linux-arm64/native/libnobodywho_uniffi.so \
+                     osx-arm64/native/libnobodywho_uniffi.dylib win-x64/native/nobodywho_uniffi.dll; do
+            grep -q "runtimes/$lib" <<<"$contents" || { echo "missing runtimes/$lib"; exit 1; }
+          done
+
+      - name: "Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Publish to nuget.org"
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "release/*.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate

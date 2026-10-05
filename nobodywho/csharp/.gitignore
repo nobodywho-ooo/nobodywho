@@ -1,0 +1,6 @@
+bin/
+obj/
+# Prebuilt native libraries, dropped in by the release workflow.
+src/NobodyWho/runtimes/
+*.nupkg
+*.snupkg

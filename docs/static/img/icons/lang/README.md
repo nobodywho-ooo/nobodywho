@@ -2,6 +2,9 @@ Full-colour language icons for the docs homepage install tabs and the navbar, pr
 (icons.zip, 2026-09-30). Mapping from the zip: Group 25 -> python.svg, Group 23 -> godot.svg,
 Group 22 -> flutter.svg, Group 20 -> react-native.svg, Group 19 -> swift.svg, Group 24 -> kotlin.svg.
 
+csharp.svg is a placeholder (plain "C#" text on a purple tile), not from icons.zip and not an official
+logo. Replace it with the team's chosen icon.
+
 The logos are trademarks of their owners. Their published guidelines are collected below for reference;
 using these icons was a team decision. These notes are not legal advice.
 

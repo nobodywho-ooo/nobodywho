@@ -40,6 +40,7 @@ flowchart TD
     K["Kotlin"]:::lang
     S["Swift"]:::lang
     RN["React Native"]:::lang
+    CS["C#"]:::lang
 
     FRB["flutter_rust_bridge"]:::glue
     P3["PyO3"]:::glue
@@ -52,6 +53,7 @@ flowchart TD
     K --> U
     S --> U
     RN --> U
+    CS --> U
 
     CORE["NobodyWho · Rust<br/>chat · templates · grammars · sampling · context shifting"]:::core
 
@@ -91,6 +93,7 @@ You can test our inference engine on [iOS](https://apps.apple.com/us/app/nobodyw
 | **Flutter** | [pub.dev](#quick-start) | Desktop, Android, iOS | [docs.nobodywho.ooo/flutter](https://docs.nobodywho.ooo/flutter/) |
 | **Python** | [PyPI](#quick-start) | Desktop | [docs.nobodywho.ooo/python](https://docs.nobodywho.ooo/python/) |
 | **Godot** | [AssetLib](#quick-start) | Desktop, Android | [docs.nobodywho.ooo/godot](https://docs.nobodywho.ooo/godot/) |
+| **C#** | [NuGet](#quick-start) | Desktop (.NET 10) | [docs.nobodywho.ooo/csharp](https://docs.nobodywho.ooo/csharp/) |
 
 Desktop means Linux, macOS and Windows throughout. Three gaps worth knowing before you start:
 
@@ -269,6 +272,28 @@ Install NobodyWho from inside the editor:
 You can also grab a specific version from the [releases page](https://github.com/nobodywho-ooo/nobodywho/releases) and import the zip the same way.
 
 [Godot documentation](https://docs.nobodywho.ooo/godot/install/)
+
+</details>
+
+<details>
+<summary><b>C#</b></summary>
+
+Requires .NET 10, on Windows x64, Linux x64/ARM64 or macOS on Apple silicon.
+
+```bash
+dotnet add package NobodyWho
+```
+
+```csharp
+using NobodyWho;
+
+using var chat = await Chat.FromPathAsync("hf:NobodyWho/Qwen_Qwen3-0.6B-GGUF:Q4_K_M");
+
+var response = await chat.Ask("What is the capital of Denmark?").CompletedAsync();
+Console.WriteLine(response); // The capital of Denmark is Copenhagen.
+```
+
+[C# documentation](https://docs.nobodywho.ooo/csharp/)
 
 </details>
 

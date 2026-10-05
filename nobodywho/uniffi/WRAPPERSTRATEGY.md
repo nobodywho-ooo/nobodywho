@@ -48,7 +48,9 @@ These types are ergonomic enough as generated and should be re-exported directly
 
 ## Hidden Types (internal to wrappers)
 
-These types are used internally by the wrapper layer but should not be exposed to consumers. Each language should use its access control to hide them (TypeScript: `exports` field, Kotlin: `internal`, Swift: `package`).
+These types are used internally by the wrapper layer but should not be exposed to consumers. Each language should use its access control to hide them (TypeScript: `exports` field, Kotlin: `internal`, Swift: `package`, C#: `internal`).
+
+C# generates the whole UniFFI layer as `internal` (see `csharp/uniffi.toml`), so even the "direct re-export" types get thin public C# wrappers there: C# has no public type aliases.
 
 | UniFFI Type | Kind | Hidden Because |
 |-------------|------|---------------|

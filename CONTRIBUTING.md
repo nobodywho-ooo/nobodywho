@@ -66,7 +66,7 @@ One or two sentences describing the change for users.
 ```
 
 - `section` is the Keep a Changelog section: `added`, `changed`, `deprecated`, `removed`, `fixed` or `security`.
-- Under `bindings`, list every binding whose users will notice the change, and only those. A change in `core/` usually affects all six: `python`, `godot`, `flutter`, `kotlin`, `react-native` and `swift`.
+- Under `bindings`, list every binding whose users will notice the change, and only those. A change in `core/` usually affects every binding: `python`, `godot`, `flutter`, `kotlin`, `react-native`, `swift` and `csharp`.
 - Pick the bump per binding: `major` if existing code can break (removed or renamed API, changed signature or behaviour, newly rejected input), `minor` for new functionality or other changes, `patch` for bug fixes. `just change` suggests a bump from the section (`minor` for `added` and `deprecated`, `major` for `removed`, `patch` for `fixed` and `security`, none for `changed`) and gives every binding the same bump; edit the file if they should differ.
 - Don't name the affected bindings or mark the change as breaking in the text; `CHANGELOG.md` adds both from the frontmatter.
 - Write two files if the wording should differ between bindings.

@@ -4,7 +4,7 @@ const matter = require('gray-matter');
 
 const SITE_URL = 'https://docs.nobodywho.ooo';
 const DESCRIPTION =
-  'NobodyWho runs LLMs locally in Kotlin, Swift, Python, Flutter, React Native, Expo and Godot. It uses llama.cpp and supports streaming chat, tool calling, embeddings, RAG, speech to text, text to speech, voice activity detection, offline inference, and GPU acceleration.';
+  'NobodyWho runs LLMs locally in Kotlin, Swift, Python, Flutter, React Native, Expo, Godot and C#. It uses llama.cpp and supports streaming chat, tool calling, embeddings, RAG, speech to text, text to speech, voice activity detection, offline inference, and GPU acceleration.';
 
 // Map of documentation sources to section names and route prefixes
 const SECTIONS = [
@@ -15,10 +15,13 @@ const SECTIONS = [
   {id: 'react-native', label: 'React Native/Expo', routeBase: '/react-native'},
   {id: 'flutter', label: 'Flutter', routeBase: '/flutter'},
   {id: 'godot', label: 'Godot', routeBase: '/godot'},
+  // Not released yet: served from `main` (see unreleasedDocsConfig in docusaurus.config.ts).
+  {id: 'csharp', label: 'C#', routeBase: '/csharp', unreleased: true},
 ];
 
 function getDocsSource({section, siteDir}) {
   if (section.dir) return {dirPath: path.join(siteDir, section.dir), version: null};
+  if (section.unreleased) return {dirPath: path.join(siteDir, `docs-${section.id}`), version: null};
 
   const versionsPath = path.join(siteDir, `${section.id}_versions.json`);
   const [latestVersion] = JSON.parse(fs.readFileSync(versionsPath, 'utf-8'));
@@ -166,6 +169,7 @@ module.exports = function llmsTxtPlugin(context) {
         lines.push('');
         fullLines.push('', `## ${section.label}`, '');
         if (version) fullLines.push(`This section documents ${section.label} ${version}, the latest released version.`, '');
+        if (section.unreleased) fullLines.push(`This section documents the ${section.label} binding on main, which has no release yet.`, '');
 
         for (const filePath of files.sort()) {
           const raw = fs.readFileSync(filePath, 'utf-8');

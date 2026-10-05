@@ -1,6 +1,6 @@
 ---
 name: release
-description: Release the nobodywho language bindings — audit the pending `.changeset/` files against the merged PRs, get the computed versions and changelog approved, run `just prepare-release` on a release branch, regenerate Nix and lock files, snapshot Docusaurus docs, then give the user the exact commands to commit, open the release PR and push the tags. Use when the user asks to release, publish, cut a release, or bump versions for any binding (Python, Godot, Flutter, Kotlin, Swift, React Native).
+description: Release the nobodywho language bindings — audit the pending `.changeset/` files against the merged PRs, get the computed versions and changelog approved, run `just prepare-release` on a release branch, regenerate Nix and lock files, snapshot Docusaurus docs, then give the user the exact commands to commit, open the release PR and push the tags. Use when the user asks to release, publish, cut a release, or bump versions for any binding (Python, Godot, Flutter, Kotlin, Swift, React Native, C#).
 compatibility: Designed for Claude Code. Requires python3, git, gh, cargo, nix and a Node.js toolchain on PATH; the Flutter toolchain is needed for the pubspec.lock sync. On a pure Nix setup these are all provided by the flake's devShell (`nix develop`), so enter the devShell before running the Step 4 commands rather than invoking the tools ad hoc.
 ---
 
@@ -10,7 +10,7 @@ Release the nobodywho bindings. Each binding is versioned **independently** and 
 
 **Fail loudly.** Every check in this skill is a stop condition. When one fails, stop and tell the user exactly what failed. Don't work around it, don't repair it quietly, and don't carry on.
 
-The six bindings are **python, godot, flutter, kotlin, react-native, swift**. The `uniffi` and `core` Rust crates are not released on their own, but their `Cargo.toml` versions still feed into `Cargo.lock` / `Cargo.nix`.
+The seven bindings are **python, godot, flutter, kotlin, react-native, swift, csharp**. The `uniffi` and `core` Rust crates are not released on their own, but their `Cargo.toml` versions still feed into `Cargo.lock` / `Cargo.nix`.
 
 ## How a release flows
 
@@ -20,7 +20,7 @@ Pending user-facing changes live as one file each in `.changeset/` (format in [C
 
 - `just next-versions` previews the `CHANGELOG.md` entry, including the version each binding would get. It reads only.
 - `just prepare-release` publishes nothing. It only edits files in the working copy, preparing the release commit. Every binding named in any change file gets a new version, bumped by the highest level any file gives it. Bindings that no change file names are left alone. It:
-  - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, both `package-lock.json` fields, the binding entries in `Cargo.lock` and `uv.lock`, and the Kotlin/Swift install snippets in the docs and README;
+  - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, both `package-lock.json` fields, the binding entries in `Cargo.lock` and `uv.lock`, and the Kotlin/Swift install snippets in the docs and README, and `NobodyWho.csproj` for C#;
   - adds the release's entry to the top of the root `CHANGELOG.md`, covering all released bindings;
   - if Flutter is released, also adds a Flutter-only `## X.Y.Z` section to `nobodywho/flutter/nobodywho/CHANGELOG.md`. That is a separate file: it ships inside the Flutter package, and pub.dev shows it;
   - writes per-binding GitHub release notes to the gitignored `nobodywho/changelogs/<binding>-<version>.md`;
@@ -52,7 +52,7 @@ git ls-files --others --exclude-standard     # must print nothing
 git log -1 --format='%h %s' HEAD
 ```
 
-Check that the `Build and test` run for `HEAD` on `main` (`build-and-test.yml`, which runs the full matrix on `main`) is fully green: `build.yml` on all platforms, `regen-checks`, `python-ci`, `kotlin-ci`, `swift-ci` and `linting`. `gh run list --workflow build-and-test.yml --commit "$(git rev-parse HEAD)"` finds it. **Do not release from a red commit.** The tag runs rerun the same jobs, and the release job only runs if they all pass, so a red commit publishes nothing. Instead, each tag run fails, often hours in, and leaves behind a pushed tag that published nothing. If any job is failing or pending, or `HEAD` has no such run (for example because it isn't pushed to `main`), stop and tell the user.
+Check that the `Build and test` run for `HEAD` on `main` (`build-and-test.yml`, which runs the full matrix on `main`) is fully green: `build.yml` on all platforms, `regen-checks`, `python-ci`, `kotlin-ci`, `swift-ci`, `csharp-ci` and `linting`. `gh run list --workflow build-and-test.yml --commit "$(git rev-parse HEAD)"` finds it. **Do not release from a red commit.** The tag runs rerun the same jobs, and the release job only runs if they all pass, so a red commit publishes nothing. Instead, each tag run fails, often hours in, and leaves behind a pushed tag that published nothing. If any job is failing or pending, or `HEAD` has no such run (for example because it isn't pushed to `main`), stop and tell the user.
 
 Then check that the change files are valid and that nothing was written to `CHANGELOG.md` the old way:
 
@@ -99,7 +99,7 @@ Tags usually sit on the previous release branch rather than on `main`. `$last..o
 **Bumps: each binding's level is right.**
 
 - `major` only for changes that can break existing code: removed or renamed API, changed signature or behaviour, newly rejected input. Also look for the reverse: a breaking change marked `minor` or `patch` is the costly mistake. Read the PR diff when the wording leaves it unclear.
-- The binding list matches what users of each binding see. A change in `core/` usually reaches all six. A binding-specific API usually reaches one.
+- The binding list matches what users of each binding see. A change in `core/` usually reaches every released binding. A binding-specific API usually reaches one.
 - If one binding needs different wording, that is two change files, not one.
 
 **Wording: the entry reads well as a whole.**
@@ -230,6 +230,8 @@ npx docusaurus docs:version:<binding> <new-version>
 This creates `docs/<binding>_versioned_docs/version-<v>/` and `docs/<binding>_versioned_sidebars/version-<v>-sidebars.json`, and prepends the version to `docs/<binding>_versions.json` (see `docs/README.md` → "Cutting docs for a new release").
 
 Then set each released binding's entry in the `latestReleases` map at the top of `docs/docusaurus.config.ts` to its new version. That makes it the default and gives the previous version the "unmaintained" banner.
+
+**First C# release only:** C# docs are served unversioned from `main` until then (`unreleasedDocsConfig()` in `docs/docusaurus.config.ts`). After snapshotting it, switch its plugin entry to `...sdkDocsConfig('csharp')`, add `csharp` to `latestReleases`, and remove `unreleased: true` from its entry in `docs/plugins/llms-txt/index.js`. Publishing to nuget.org needs the `NUGET_API_KEY` repository secret.
 
 The new versioned files are untracked, so the Step 7 commands use `git add -A` rather than `git add -u`.
 

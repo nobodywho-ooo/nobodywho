@@ -56,6 +56,9 @@ pkgs.mkShell {
     # node.js (for napi-rs bindings)
     pkgs.nodejs
 
+    # C# / .NET
+    pkgs.dotnet-sdk_10
+
     # dev tooling
     pkgs.just
   ];

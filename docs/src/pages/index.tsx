@@ -76,6 +76,13 @@ const bindings: {
     docs: '/kotlin/',
     install: [{code: 'implementation("ai.nobodywho:nobodywho-android:2.2.0")', language: 'kotlin'}],
   },
+  {
+    id: 'csharp',
+    name: 'C#',
+    description: '.NET 10 library for desktop apps on Windows, Linux and macOS.',
+    docs: '/csharp/',
+    install: [{code: 'dotnet add package NobodyWho', language: 'bash'}],
+  },
 ];
 
 export default function Home(): React.JSX.Element {

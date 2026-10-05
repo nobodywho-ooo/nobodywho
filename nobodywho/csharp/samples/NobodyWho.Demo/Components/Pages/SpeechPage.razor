@@ -1,0 +1,396 @@
+@page "/speech"
+@inherits DemoPage
+@inject ModelHub Hub
+
+<PageTitle>NobodyWho: Speech</PageTitle>
+
+<h1>Speech</h1>
+<p class="lede">
+    Turn text into speech, find where the speaking is, and turn it back into text. With no microphone
+    needed, the loop below feeds the generated speech straight into transcription.
+</p>
+
+<div class="split">
+    <div class="demo">
+        <section class="panel" aria-labelledby="tts-heading">
+            <h2 id="tts-heading">Read text aloud</h2>
+            <ModelGate Slot="Hub.TextToSpeech" ConfigKey="TextToSpeech" Context="tts">
+                @if (ShowVoices)
+                {
+                    <label class="field">
+                        <span class="field__label">Voice</span>
+                        <select class="input" @bind="_voice" @bind:after="VoiceChanged" disabled="@Busy">
+                            @foreach (var language in KokoroVoices.All.GroupBy(v => v.Language))
+                            {
+                                <optgroup label="@language.Key.Name">
+                                    @foreach (var voice in language)
+                                    {
+                                        <option value="@voice.Id">@voice.Name, @voice.Gender</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </label>
+                }
+                <label class="field">
+                    <span class="field__label">Text</span>
+                    <textarea class="input" rows="5" @bind="_text" disabled="@Busy"></textarea>
+                </label>
+                <div class="settings__row">
+                    <button class="button button--primary" @onclick="() => Speak(tts)" disabled="@(Busy || string.IsNullOrWhiteSpace(_text))">
+                        @(_speaking ? _progress : "Read it aloud")
+                    </button>
+                    @if (ShowVoices && TargetLanguage is { } target)
+                    {
+                        <button class="button" @onclick="Translate" disabled="@(Busy || string.IsNullOrWhiteSpace(_text))">
+                            @(_translating ? _progress : $"Translate into {target}")
+                        </button>
+                    }
+                </div>
+                @if (_speakError is not null)
+                {
+                    <p class="gate__error" role="alert">@_speakError</p>
+                }
+                @if (_audio is { } audio)
+                {
+                    <audio class="player" controls src="@audio.DataUrl"></audio>
+                    <p class="readout">@audio.Duration.TotalSeconds.ToString("F1") s of audio from @audio.Pieces piece@(audio.Pieces == 1 ? "" : "s"), made in @audio.Took.TotalSeconds.ToString("F1") s</p>
+                }
+            </ModelGate>
+        </section>
+
+        <section class="panel" aria-labelledby="stt-heading">
+            <h2 id="stt-heading">Transcribe</h2>
+            <ModelGate Slot="Hub.SpeechToText" ConfigKey="SpeechToText" Context="stt">
+                <div class="settings__row">
+                    <button class="button button--primary" @onclick="() => Transcribe(stt, _audio?.Path)" disabled="@(Busy || _audio is null)">Transcribe the speech above</button>
+                    <label class="field">
+                        <span class="field__label">Or upload a WAV or MP3</span>
+                        <InputFile class="input" accept=".wav,.mp3,audio/wav,audio/mpeg" OnChange="e => Upload(stt, e)" disabled="@Busy" />
+                    </label>
+                </div>
+                @if (_transcript.Length > 0 || _transcribing)
+                {
+                    <p class="answer" aria-live="polite">@_transcript@(_transcribing ? "…" : "")</p>
+                }
+            </ModelGate>
+        </section>
+
+        <section class="panel" aria-labelledby="vad-heading">
+            <h2 id="vad-heading">Find the speech</h2>
+            <p>Voice activity detection marks where someone is talking, so a voice app knows when to stop listening.</p>
+            <button class="button" @onclick="FindSpeech" disabled="@(Busy || _audio is null)">Find speech in the audio above</button>
+            @if (_segments is { } segments)
+            {
+                @if (segments.Count == 0)
+                {
+                    <p>No speech found.</p>
+                }
+                else
+                {
+                    <div class="timeline" role="img" aria-label="@($"{segments.Count} stretches of speech in {_audio!.Duration.TotalSeconds:F1} seconds")">
+                        @foreach (var segment in segments)
+                        {
+                            <span class="timeline__speech" style="left: @Pct(segment.Start)%; width: @Pct(segment.Length)%"></span>
+                        }
+                    </div>
+                    <p class="readout">@segments.Count stretch@(segments.Count == 1 ? "" : "es") of speech: @string.Join(", ", segments.Select(s => $"{s.Length.TotalSeconds:F1} s"))</p>
+                }
+            }
+            @if (_error is not null)
+            {
+                <p class="gate__error" role="alert">@_error</p>
+            }
+        </section>
+    </div>
+
+    <CodeSample Code="@Code" />
+</div>
+
+@code {
+    private const string Code = """
+// Translate with the chat model first, if you like
+using var translator = new Chat(chatModel, systemPrompt:
+    "Translate the user's text into French. " +
+    "Reply with only the translation.");
+string french = await translator.Ask(text).CompletedAsync();
+
+// A voice is fixed when the model loads; Kokoro
+// voices also need their language.
+using var tts = await TextToSpeech.LoadAsync(
+    "hf://NobodyWho/Kokoro-82M",
+    voice: "am_michael", language: "en-us");
+// Kokoro reads up to 509 phonemes at a time, so read long text a
+// few sentences at a time and join the clips.
+byte[] wav = await tts.SynthesizeAsync(sentences);
+
+using var vad = await VoiceActivityDetection.LoadAsync(
+    sampleRate: 24000);
+short[][] speech = vad.Segment(samples);
+
+using var stt = await SpeechToText.LoadAsync(
+    "hf://onnx-community/whisper-base");
+await foreach (var word in stt.TranscribeFile("speech.wav"))
+    Console.Write(word);
+""";
+
+    private sealed record Speech(string Path, string DataUrl, TimeSpan Duration, TimeSpan Took, int Pieces, Wav.Audio Pcm);
+
+    /// <summary>
+    /// The longest piece of text to read in one call. Kokoro's limit is 509 phonemes, which English
+    /// text reaches at around 400 characters; a piece that still turns out too long is split again.
+    /// </summary>
+    private const int MaxPieceLength = 300;
+
+    private sealed record Segment(TimeSpan Start, TimeSpan Length);
+
+    private string _text = KokoroVoices.Languages[0].Sample;
+    private string _voice = "";
+
+    /// <summary>A model loaded for a voice other than the shared default, owned by this page.</summary>
+    private (string Voice, TextToSpeech Model)? _ownVoice;
+
+    private string DefaultVoice => string.IsNullOrWhiteSpace(Hub.Options.TextToSpeechVoice) ? "bf_emma" : Hub.Options.TextToSpeechVoice;
+
+    private bool ShowVoices => KokoroVoices.IsKokoro(Hub.Options.TextToSpeech);
+
+    protected override void OnInitialized() => _voice = DefaultVoice;
+
+    /// <summary>Swap a built-in sample for one in the new voice's language; leave the visitor's own text alone.</summary>
+    private void VoiceChanged()
+    {
+        if (KokoroVoices.Languages.Any(l => l.Sample == _text) && KokoroVoices.Find(_voice) is { } voice)
+            _text = voice.Language.Sample;
+    }
+
+    /// <summary>The model for the selected voice: the shared one, or one this page loads.</summary>
+    private async Task<TextToSpeech> ModelForVoice(TextToSpeech shared)
+    {
+        if (_voice == DefaultVoice)
+            return shared;
+        if (_ownVoice is { } own && own.Voice == _voice)
+            return own.Model;
+
+        _progress = $"Loading {KokoroVoices.Find(_voice)?.Name ?? _voice}…";
+        StateHasChanged();
+        var loaded = await Hub.LoadVoiceAsync(_voice, Alive);
+        _ownVoice?.Model.Dispose();
+        _ownVoice = (_voice, loaded);
+        return loaded;
+    }
+    private Speech? _audio;
+    private string _transcript = "";
+    private List<Segment>? _segments;
+    private string? _error;
+    private string? _speakError;
+    private string _progress = "";
+    private bool _speaking;
+    private bool _transcribing;
+    private bool _finding;
+    private bool _translating;
+    private Chat? _translator;
+    private bool Busy => _speaking || _transcribing || _finding || _translating;
+
+    /// <summary>The language to translate into: the selected voice's, without the accent.</summary>
+    private string? TargetLanguage => KokoroVoices.Find(_voice)?.Language.Name switch
+    {
+        "American English" or "British English" => "English",
+        var name => name,
+    };
+
+    /// <summary>Translate the text box into the voice's language with the chat model, streaming it in.</summary>
+    private Task Translate() => Guard(async () =>
+    {
+        if (TargetLanguage is not { } target)
+            return;
+        _translating = true;
+        _speakError = null;
+        try
+        {
+            if (Hub.ChatModel.State != SlotState.Ready)
+            {
+                _progress = "Loading the chat model…";
+                StateHasChanged();
+            }
+            var model = await Hub.ChatModel.GetAsync();
+            _translator ??= Own(new Chat(model,
+                systemPrompt: "You are a translator. Translate the user's text into the language they name. " +
+                    "Keep the meaning, tone and paragraph breaks. Reply with only the translation.",
+                sampler: SamplerPresets.Temperature(0.3f),
+                templateVariables: new Dictionary<string, bool> { ["enable_thinking"] = false }));
+
+            _progress = $"Translating into {target}…";
+            var source = _text;
+            var reply = "";
+            await _translator.ResetHistoryAsync();
+            await foreach (var token in _translator.Ask($"Translate into {target}:\n\n{source}").WithCancellation(Alive))
+            {
+                reply += token;
+                _text = Thinking.Split(reply).Answer;
+                StateHasChanged();
+            }
+        }
+        catch (Exception e) when (e is NobodyWhoException or InvalidOperationException)
+        {
+            _speakError = e.Message;
+        }
+        finally
+        {
+            _translating = false;
+        }
+    });
+    private string? _uploadPath;
+
+    private Task Speak(TextToSpeech tts) => Guard(async () =>
+    {
+        _speaking = true;
+        _speakError = null;
+        _segments = null;
+        try
+        {
+            tts = await ModelForVoice(tts);
+            var stopwatch = Stopwatch.StartNew();
+            var pieces = SpeechText.Split(_text, MaxPieceLength);
+            var clips = new List<Wav.Audio>();
+            for (var i = 0; i < pieces.Count; i++)
+            {
+                _progress = pieces.Count == 1 ? "Synthesizing…" : $"Reading part {i + 1} of {pieces.Count}…";
+                StateHasChanged();
+                await SynthesizePiece(tts, pieces[i], MaxPieceLength, clips);
+            }
+            var took = stopwatch.Elapsed;
+
+            var pcm = clips.Count == 1 ? clips[0] : Wav.Join(clips, TimeSpan.FromMilliseconds(150));
+            var wav = Wav.Write(pcm);
+            var path = Path.Combine(Path.GetTempPath(), $"nobodywho-demo-{Guid.NewGuid():N}.wav");
+            await File.WriteAllBytesAsync(path, wav);
+            DeleteAudio();
+            _audio = new Speech(path, $"data:audio/wav;base64,{Convert.ToBase64String(wav)}", pcm.Duration, took, clips.Count, pcm);
+        }
+        catch (Exception e) when (e is NobodyWhoException or FormatException)
+        {
+            _speakError = e.Message;
+        }
+        finally
+        {
+            _speaking = false;
+        }
+    });
+
+    /// <summary>Synthesize one piece, splitting it further if it still has too many phonemes.</summary>
+    private async Task SynthesizePiece(TextToSpeech tts, string piece, int maxLength, List<Wav.Audio> clips)
+    {
+        try
+        {
+            clips.Add(Wav.Read(await tts.SynthesizeAsync(piece)));
+        }
+        catch (NobodyWhoException e) when (e.Message.Contains("tts_too_many_phonemes") && maxLength > 40)
+        {
+            foreach (var smaller in SpeechText.Split(piece, maxLength / 2))
+                await SynthesizePiece(tts, smaller, maxLength / 2, clips);
+        }
+    }
+
+    private async Task Upload(SpeechToText stt, InputFileChangeEventArgs e)
+    {
+        var extension = Path.GetExtension(e.File.Name).ToLowerInvariant() == ".mp3" ? ".mp3" : ".wav";
+        DeleteUpload();
+        _uploadPath = Path.Combine(Path.GetTempPath(), $"nobodywho-demo-{Guid.NewGuid():N}{extension}");
+        await using (var file = File.Create(_uploadPath))
+            await e.File.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(file);
+        await Transcribe(stt, _uploadPath);
+    }
+
+    private Task Transcribe(SpeechToText stt, string? path) => Guard(async () =>
+    {
+        if (path is null)
+            return;
+        _transcribing = true;
+        _transcript = "";
+        _error = null;
+        try
+        {
+            await foreach (var token in stt.TranscribeFile(path).WithCancellation(Alive))
+            {
+                _transcript += token;
+                StateHasChanged();
+            }
+            _transcript = _transcript.Trim();
+        }
+        catch (NobodyWhoException e)
+        {
+            _error = e.Message;
+        }
+        finally
+        {
+            _transcribing = false;
+        }
+    });
+
+    private Task FindSpeech() => Guard(async () =>
+    {
+        if (_audio is null)
+            return;
+        _finding = true;
+        _error = null;
+        try
+        {
+            var pcm = _audio.Pcm;
+            using var vad = await VoiceActivityDetection.LoadAsync(pcm.SampleRate, source: NullIfEmpty(Hub.Options.VoiceActivityDetection));
+            var segments = await Task.Run(() => vad.Segment(pcm.Samples));
+            _segments = Locate(pcm.Samples, segments, pcm.SampleRate);
+        }
+        catch (NobodyWhoException e)
+        {
+            _error = e.Message;
+        }
+        finally
+        {
+            _finding = false;
+        }
+    });
+
+    /// <summary>
+    /// <see cref="VoiceActivityDetection.Segment"/> returns each stretch's audio. Find where each one
+    /// starts in the recording, to draw it on a timeline.
+    /// </summary>
+    private static List<Segment> Locate(short[] samples, short[][] segments, int sampleRate)
+    {
+        var located = new List<Segment>();
+        var from = 0;
+        foreach (var segment in segments)
+        {
+            var start = segment.Length == 0 ? -1 : samples.AsSpan(from).IndexOf(segment.AsSpan(0, Math.Min(64, segment.Length)));
+            var at = start < 0 ? from : from + start;
+            located.Add(new Segment(TimeSpan.FromSeconds((double)at / sampleRate), TimeSpan.FromSeconds((double)segment.Length / sampleRate)));
+            from = Math.Min(samples.Length, at + segment.Length);
+        }
+        return located;
+    }
+
+    private string Pct(TimeSpan time) =>
+        (100 * time.TotalSeconds / Math.Max(_audio?.Duration.TotalSeconds ?? 1, 0.001)).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private void DeleteAudio()
+    {
+        if (_audio is not null && File.Exists(_audio.Path))
+            File.Delete(_audio.Path);
+        _audio = null;
+    }
+
+    private void DeleteUpload()
+    {
+        if (_uploadPath is not null && File.Exists(_uploadPath))
+            File.Delete(_uploadPath);
+        _uploadPath = null;
+    }
+
+    protected override void OnDispose()
+    {
+        _ownVoice?.Model.Dispose();
+        DeleteAudio();
+        DeleteUpload();
+    }
+}

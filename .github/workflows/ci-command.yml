@@ -55,6 +55,7 @@ jobs:
               'swift-ci': 'swift',
               'kotlin-ci': 'kotlin',
               'react-native-ci': 'react_native',
+              'csharp-ci': 'csharp',
               'apple-extended-ci': 'apple_extended',
               'regen-ci': 'regen',
               // Cloudflare Pages preview of this branch's docs; the link is posted on the PR.

@@ -28,6 +28,7 @@ The main implementation is in `nobodywho/core/src/`:
 - **Python** ([`nobodywho/python/`](nobodywho/python/)) - PyO3/maturin bindings
 - **Godot** ([`nobodywho/godot/`](nobodywho/godot/)) - GDExtension bindings
 - **Flutter** ([`nobodywho/flutter/`](nobodywho/flutter/)) - FFI bindings via `flutter_rust_bridge`
+- **Swift, Kotlin, React Native, C#** ([`nobodywho/uniffi/`](nobodywho/uniffi/)) - generated from one UniFFI crate; see [`WRAPPERSTRATEGY.md`](nobodywho/uniffi/WRAPPERSTRATEGY.md). C# lives in [`nobodywho/csharp/`](nobodywho/csharp/) (see its `DEVELOPMENT.md`)
 
 ## Key Types & Patterns
 

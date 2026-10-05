@@ -1,0 +1,16 @@
+@using Markdig
+
+@* A model reply, rendered as Markdown. Raw HTML in the reply is escaped, never rendered. *@
+<div class="md @Class">@((MarkupString)Markdig.Markdown.ToHtml(Text ?? "", Pipeline))</div>
+
+@code {
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .DisableHtml()
+        .UseAutoLinks()
+        .UsePipeTables()
+        .UseEmphasisExtras()
+        .Build();
+
+    [Parameter, EditorRequired] public string? Text { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

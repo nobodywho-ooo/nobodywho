@@ -1,6 +1,6 @@
 # NobodyWho Documentation
 
-Built with [Docusaurus 3](https://docusaurus.io/). Each binding (Kotlin, Python, Swift, React Native, Flutter, Godot) has its own docs instance with independent versioning.
+Built with [Docusaurus 3](https://docusaurus.io/). Each binding (Kotlin, Python, Swift, React Native, Flutter, Godot, C#) has its own docs instance with independent versioning.
 
 ## Development
 
@@ -18,6 +18,7 @@ npm run serve    # Serve the production build locally
 docs/
   docs/                  # Shared docs (Overview, LLM Basics, Model Selection)
   docs-kotlin/           # Kotlin binding docs
+  docs-csharp/           # C# binding docs (unreleased: served from main at /csharp/)
   docs-python/           # Python binding docs
   docs-swift/            # Swift binding docs
   docs-react-native/     # React Native binding docs
@@ -56,6 +57,8 @@ const latestReleases: Record<string, string> = {
 ```
 
 The banner on each non-default version is chosen automatically by Docusaurus based on whether the version is newer or older than `lastVersion` (which is set from `latestReleases`).
+
+A binding with no release yet (currently C#) uses `unreleasedDocsConfig()` instead: its `main` docs are served at `/<binding>/` with no banner. When its first release is snapshotted, add it to `latestReleases`, switch its plugin entry to `sdkDocsConfig()`, and drop the `unreleased` flag from its entry in `plugins/llms-txt/index.js`.
 
 ### Cutting docs for a new release
 

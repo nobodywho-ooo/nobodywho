@@ -1,0 +1,89 @@
+@typeparam T where T : class, IDisposable
+@implements IDisposable
+
+@* Renders its content once the slot's model is loaded, and the load itself until then. *@
+@switch (Slot.State)
+{
+    case SlotState.Ready:
+        @ChildContent(Slot.Value!)
+        break;
+
+    case SlotState.NotConfigured:
+        <div class="gate">
+            <p class="gate__title">No @Slot.Name.ToLowerInvariant() model is set up</p>
+            <p>Set <code>NobodyWho:@ConfigKey</code> in <code>appsettings.json</code> to a model path or <code>hf://</code> URL, then restart the app.</p>
+            @NotConfiguredContent
+        </div>
+        break;
+
+    case SlotState.Loading:
+        <div class="gate" aria-live="polite">
+            <p class="gate__title"><Lamp State="Slot.State" /> Loading the @Slot.Name.ToLowerInvariant() model</p>
+            <p class="gate__source">@Slot.Source</p>
+            @if (Slot.Progress is { Total: > 0 } p)
+            {
+                <progress max="@p.Total" value="@p.Downloaded"></progress>
+                <p class="gate__meta">Downloading: @Format.Bytes(p.Downloaded) of @Format.Bytes(p.Total). It's cached after the first time.</p>
+            }
+            else
+            {
+                <progress></progress>
+                <p class="gate__meta">Loading into memory.</p>
+            }
+        </div>
+        break;
+
+    case SlotState.Failed:
+        <div class="gate gate--failed" role="alert">
+            <p class="gate__title"><Lamp State="Slot.State" /> The @Slot.Name.ToLowerInvariant() model didn't load</p>
+            <p class="gate__error">@Slot.Error</p>
+            <button class="button" @onclick="Load">Try again</button>
+        </div>
+        break;
+
+    default:
+        <div class="gate">
+            <p class="gate__title"><Lamp State="Slot.State" /> This demo needs the @Slot.Name.ToLowerInvariant() model</p>
+            <p class="gate__source">@Slot.Source</p>
+            <button class="button button--primary" @onclick="Load">Load the model</button>
+        </div>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public ModelSlot<T> Slot { get; set; } = default!;
+    [Parameter, EditorRequired] public RenderFragment<T> ChildContent { get; set; } = default!;
+
+    /// <summary>The appsettings key that configures this model, for the "not set up" message.</summary>
+    [Parameter] public string ConfigKey { get; set; } = "";
+
+    [Parameter] public RenderFragment? NotConfiguredContent { get; set; }
+
+    /// <summary>Start loading as soon as the page opens.</summary>
+    [Parameter] public bool AutoLoad { get; set; }
+
+    private ModelSlot<T>? _subscribed;
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_subscribed, Slot))
+        {
+            if (_subscribed is not null)
+                _subscribed.Changed -= OnChanged;
+            Slot.Changed += OnChanged;
+            _subscribed = Slot;
+        }
+        if (AutoLoad && Slot.State == SlotState.NotLoaded)
+            Load();
+    }
+
+    private void Load() => _ = Slot.GetAsync().ContinueWith(_ => { }, TaskScheduler.Default);
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (_subscribed is not null)
+            _subscribed.Changed -= OnChanged;
+    }
+}
