@@ -301,6 +301,8 @@ After Step 7 the release branch is checked out, so `HEAD` is the release commit.
 
 - creates each missing tag on `HEAD`;
 - pushes the tags one at a time, waiting for each tag's `Build and test` run to start before pushing the next;
+- skips the pre-push hook, since the release PR's full CI already checked the commit;
+- reports each run's status and URL as it changes, and every five minutes while it doesn't;
 - stops with an error if a run ends without success, or if a tag already exists on another commit.
 
 Two GitHub behaviours force the one-at-a-time pushing:
