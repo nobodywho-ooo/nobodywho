@@ -364,10 +364,35 @@ fn init_translator(language: &str) -> Result<Translator, TextToSpeechError> {
 }
 
 impl TextToSpeechArchitectureImpl for KokoroBackend {
+    /// Synthesize `text`, a piece at a time when its phonemes are more than
+    /// one model call takes (the voice's `max_input_phonemes`).
     fn synthesize_raw(&mut self, text: &str) -> Result<Vec<f32>, TextToSpeechError> {
-        let phoneme_ids = self.text_to_phoneme_ids(text)?;
-        let style = self.voice.style_for_len(phoneme_ids.len()).to_vec();
-        self.run_model(phoneme_ids, style)
+        let phonemes = self.text_to_phonemes(text)?;
+        let pieces: Vec<String> = split_phonemes(&phonemes, self.voice.max_input_phonemes(), |c| {
+            self.vocab
+                .contains_key(c.encode_utf8(&mut [0u8; 4]) as &str)
+        })
+        .into_iter()
+        .map(String::from)
+        .collect();
+        if pieces.len() > 1 {
+            debug!(pieces = pieces.len(), "Kokoro: synthesizing in pieces");
+        }
+
+        let mut pcm = Vec::new();
+        for piece in &pieces {
+            let phoneme_ids = match self.phonemes_to_vocab_ids(piece) {
+                // A piece holding only characters Kokoro has no token for says nothing.
+                Err(TextToSpeechError::NoVocabMatch) if pieces.len() > 1 => continue,
+                result => result?,
+            };
+            let style = self.voice.style_for_len(phoneme_ids.len()).to_vec();
+            pcm.extend(self.run_model(phoneme_ids, style)?);
+        }
+        if pcm.is_empty() {
+            return Err(TextToSpeechError::NoVocabMatch);
+        }
+        Ok(pcm)
     }
 
     fn sample_rate(&self) -> u32 {
@@ -376,9 +401,8 @@ impl TextToSpeechArchitectureImpl for KokoroBackend {
 }
 
 impl KokoroBackend {
-    /// Run the full text → phoneme-ID pipeline: phonemize, trim, validate
-    /// non-empty, then look up each phoneme in the vocab.
-    fn text_to_phoneme_ids(&self, text: &str) -> Result<Vec<i64>, TextToSpeechError> {
+    /// Phonemize `text`, trim it, and check something is left to say.
+    fn text_to_phonemes(&self, text: &str) -> Result<String, TextToSpeechError> {
         let phonemes = self.phonemizer.phonemize(text)?;
         let phonemes = phonemes.as_str().trim();
         debug!(
@@ -388,7 +412,7 @@ impl KokoroBackend {
         if phonemes.is_empty() {
             return Err(TextToSpeechError::NoPhonemes);
         }
-        self.phonemes_to_vocab_ids(phonemes)
+        Ok(phonemes.to_string())
     }
 
     /// Feed `phoneme_ids` + `style` through the ONNX session and extract the
@@ -480,6 +504,53 @@ impl KokoroBackend {
         }
         Ok(vocab)
     }
+}
+
+/// Split a phoneme string into pieces of at most `max` phonemes, so text longer
+/// than one model call can be synthesized a piece at a time. Like upstream
+/// Kokoro's pipeline, a piece ends at the last sentence end that fits, else
+/// the last clause break, else the last space; only a single word too long
+/// for a piece is cut inside the word. `counts` says which characters are
+/// phonemes (have a vocab entry); others, such as spaces, don't count.
+fn split_phonemes(phonemes: &str, max: usize, counts: impl Fn(char) -> bool) -> Vec<&str> {
+    const SENTENCE_ENDS: &[char] = &['.', '!', '?'];
+    const CLAUSE_BREAKS: &[char] = &[',', ';', ':', '—', '…'];
+    let max = max.max(1);
+
+    let mut pieces = Vec::new();
+    let mut rest = phonemes.trim();
+    while !rest.is_empty() {
+        // Byte offset of the first phoneme past the limit, if there is one.
+        let over = rest
+            .char_indices()
+            .filter(|&(_, c)| counts(c))
+            .nth(max)
+            .map(|(i, _)| i);
+        let Some(over) = over else {
+            pieces.push(rest);
+            break;
+        };
+
+        let window = &rest[..over];
+        let after_last = |marks: &[char]| {
+            window
+                .char_indices()
+                .rev()
+                .find(|&(_, c)| marks.contains(&c))
+                .map(|(i, c)| i + c.len_utf8())
+        };
+        let end = after_last(SENTENCE_ENDS)
+            .or_else(|| after_last(CLAUSE_BREAKS))
+            .or_else(|| window.rfind(char::is_whitespace).filter(|&i| i > 0))
+            .unwrap_or(over);
+
+        let (piece, tail) = rest.split_at(end);
+        if !piece.trim().is_empty() {
+            pieces.push(piece.trim());
+        }
+        rest = tail.trim_start();
+    }
+    pieces
 }
 
 /// A Kokoro voice's style vectors, indexed by input phoneme count.
@@ -604,6 +675,106 @@ mod tests {
         assert_eq!(
             phonemize_en_us(&p, "He said “don’t” and left."),
             phonemize_en_us(&p, "He said \"don't\" and left."),
+        );
+    }
+
+    /// Unit tests count every non-space character as a phoneme.
+    fn counts(c: char) -> bool {
+        !c.is_whitespace()
+    }
+
+    #[test]
+    fn short_phonemes_stay_whole() {
+        assert_eq!(
+            split_phonemes("həlˈO wˈɜɹld.", 50, counts),
+            vec!["həlˈO wˈɜɹld."]
+        );
+    }
+
+    #[test]
+    fn splits_at_sentence_ends_before_clauses() {
+        assert_eq!(
+            split_phonemes("aa bb, cc. dd ee, ff. gg hh.", 12, counts),
+            vec!["aa bb, cc.", "dd ee, ff.", "gg hh."]
+        );
+    }
+
+    #[test]
+    fn falls_back_to_clauses_then_words_then_a_hard_split() {
+        assert_eq!(
+            split_phonemes("aaa bbb, ccc ddd", 9, counts),
+            vec!["aaa bbb,", "ccc ddd"]
+        );
+        assert_eq!(
+            split_phonemes("aaa bbb ccc ddd", 7, counts),
+            vec!["aaa bbb", "ccc ddd"]
+        );
+        assert_eq!(
+            split_phonemes("abcdefghij", 4, counts),
+            vec!["abcd", "efgh", "ij"]
+        );
+    }
+
+    #[test]
+    fn uncounted_characters_do_not_count_toward_the_limit() {
+        assert_eq!(split_phonemes("a b c d e", 4, counts), vec!["a b c d", "e"]);
+    }
+
+    #[test]
+    fn every_piece_fits_and_nothing_is_lost() {
+        let phonemes = (0..120)
+            .map(|i| match i % 7 {
+                3 => "ðə kˈæt,",
+                6 => "sˈæt dˈWn.",
+                _ => "wˈʌn mˈɔɹ wˈɜɹd",
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        let squash = |s: &str| s.chars().filter(|&c| counts(c)).collect::<String>();
+
+        for max in [1, 5, 37, 100, 509] {
+            let pieces = split_phonemes(&phonemes, max, counts);
+            assert!(pieces.iter().all(|p| !p.is_empty()));
+            assert!(
+                pieces.iter().all(|p| squash(p).chars().count() <= max),
+                "a piece is over {max} phonemes"
+            );
+            assert_eq!(squash(&pieces.concat()), squash(&phonemes), "max {max}");
+        }
+    }
+
+    /// Text far over one model call's phoneme limit (509 for the stock
+    /// voices) is read a piece at a time instead of failing.
+    #[test]
+    fn synthesizes_text_longer_than_one_model_call() {
+        let Ok(source) = std::env::var("TEST_TTS_SOURCE") else {
+            eprintln!("skipping: TEST_TTS_SOURCE is not set");
+            return;
+        };
+        std::env::set_var(
+            "NOBODYWHO_ESPEAK_DATA_DIR",
+            std::env::temp_dir().join("nobodywho-espeak-test"),
+        );
+        let tts = crate::text_to_speech::TextToSpeech::new(
+            crate::text_to_speech::TextToSpeechConfig::from_source(&source, None)
+                .expect("a Kokoro source"),
+        )
+        .expect("load Kokoro");
+
+        let paragraph = "Lighthouses were once the only way ships could find their way \
+            home at night. Each one had its own pattern of flashes, so a captain could tell \
+            exactly which coast he was looking at. The keepers lived beside the lamp all \
+            year, trimming wicks and polishing glass.";
+        let one = tts.synthesize(paragraph).expect("one paragraph");
+        let four = tts
+            .synthesize([paragraph; 4].join(" "))
+            .expect("four paragraphs, well over the phoneme limit");
+
+        assert!(
+            four.len() > one.len() * 3,
+            "four paragraphs should be about four times as long ({} vs {} bytes)",
+            four.len(),
+            one.len()
         );
     }
 }

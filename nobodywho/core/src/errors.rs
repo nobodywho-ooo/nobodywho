@@ -767,7 +767,7 @@ pub enum TextToSpeechError {
     #[error("Input is {count} phonemes; max {max}")]
     #[diagnostic(
         code(nobodywho::tts_too_many_phonemes),
-        help("Chunking is not yet implemented — break the text into shorter pieces.")
+        help("Long text is split into pieces that fit, so this is a bug in that splitting — please report it.")
     )]
     TooManyPhonemes { count: usize, max: usize },
 
