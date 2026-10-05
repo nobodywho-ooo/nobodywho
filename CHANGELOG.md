@@ -4,47 +4,7 @@ Notable user-facing changes to NobodyWho.
 
 We follow [Semantic Versioning](https://semver.org/) for published bindings, which are released independently. Release entries list the package versions that contain the change.
 
-Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
-
-## [Unreleased]
-
-### Added
-
-- **Python:** Added OpenAI-compatible `chat.completions` and `responses` APIs with streaming, usage metadata, tool support, and request-level sampling.
-- Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
-- `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered. Available for all bindings.
-- **Godot:** A complete reimplementation of every class exposed via the godot bindings (see docs for the new interfaces).
-- Context shifting is configurable: how many turns to always keep at the start and end, the size to shrink to (a fraction of the context size or a number of tokens), or turning it off so a full context is an error. Pass `ContextShiftOptions` when creating a chat or later with `set_context_shift`. **Godot:** use the `"context_shift"` config key and `set_context_shift()` with a bool or Dictionary. Available for all bindings.
-
-### Changed
-
-- `SamplerPresets.json()` and the new `SamplerBuilder.json()` now constrain with the JSON schema `{"type":"object"}` through llguidance, so they take the same faster per-token path as the other `constrain_with_*` presets. Output is still a JSON object of any shape, as the old grammar's root was an object too. The new grammar is slightly more permissive at the edges: the old one allowed at most one newline plus 20 spaces of indentation per gap, and could not emit exponents like `1e10`. Affects all bindings.
-- **Breaking:** `SamplerConfig` holds its constraints in a new `grammar_steps` list instead of mixing them into `steps`, and `json_schema`, `regex` and `lark` are now grammar steps rather than shift steps. The chain runs the grammar steps, then the shift steps, then the sample step, so a grammar cannot end up behind a truncation step that leaves it nothing valid to pick. Shift steps run in the order you add them, which matters for `dry`, `penalties` and `logit_bias`: they only reshuffle a shortlist if you chain them after a truncation step. Note that llama.cpp's own default chain leads with the penalties. `SamplerConfig.from_json()` rejects a saved config with a grammar step inside `steps`, naming the step it could not read; move that entry into a `"grammar_steps"` list to load it. Affects all bindings; the `from_json()` rejection applies to the five that expose it — Python, Flutter, Kotlin, Swift and React Native.
-- **Breaking:** every `SamplerPresets` entry now builds on the default sampler (top-k 20, top-p 0.95, temperature 0.6) and changes one thing, instead of producing a chain holding only its own step: enabling a constraint no longer drops the truncation and temperature you would otherwise be sampling with, and `top_k`, `top_p` and `temperature` each override their counterpart and leave the rest alone. Constrained output is valid as before but less random within the constrained set. `greedy` is unaffected — it needs no shift steps. Affects all bindings.
-- `SamplerPresets.dry()` now actually applies the DRY penalty. Its multiplier was 0.0, which llama.cpp reads as "disabled", so the preset was a no-op that sampled exactly like the default one. It is now 0.8, the value the preset's other numbers (base 1.75, allowed length 2) are tuned for. The preset leads with its DRY step, so the penalty sees the whole vocabulary rather than what survived truncation. Affects all bindings.
-- `penalty_last_n` no longer accepts `-1`, use a positive value instead (good defaults are 64 for penalties sampling and 1024 for DRY sampling).
-- Context shifting now forgets the fewest turns needed to shrink the chat to half the context size. Previously it could forget up to twice as many. Affects all bindings.
-
-### Fixed
-
-- Kokoro speech synthesis no longer garbles contractions written with typographic apostrophes (`’`, `‘`, `´`, `` ` ``) or curly double quotes (`“ ”`), which word processors and phone autocorrect produce — `it’s` was spoken "it-ess", `don’t` "don-tee". They now fold to their ASCII counterparts before phonemization, as the supertonic backend already did. Affects all bindings.
-- Speech-to-text works with the `fp16` and `q4f16` Whisper quantizations. Before, both failed while the model was loading. Affects all bindings.
-- **Breaking:** ONNX Runtime, used for speech-to-text, text-to-speech and voice activity detection, is updated from 1.24 to 1.28. CUDA acceleration now needs a driver that supports CUDA 13, as CUDA 12 builds are no longer shipped. On platforms without CUDA support, requesting the `cuda` device now fails with "CUDA is not supported on this platform". Affects all bindings.
-- A FunctionGemma tool call whose argument value spans multiple lines is no longer dropped. The tool-call grammar lets a value contain newlines (a file body, a code snippet), but the extractor stopped at the first newline and discarded the whole call, so no tool ran. Multi-line values are now parsed. Affects all bindings.
-- **Python:** Pressing Ctrl+C during a synchronous GGUF model download now cancels the download, raises `KeyboardInterrupt`, and removes the incomplete temporary file.
-- **React Native:** Type errors in `Chat.tokenize`. Changed `async tokenize(message: string | Prompt): Promise<(number | null)[]>` to `async tokenize(message: string | Prompt): Promise<(number | undefined)[]>`. The `null` type was incorrect, as the embedding slots are represented by `undefined` in the TypeScript binding.
-- Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments. Affects all bindings.
-- Fix logs from llama.cpp's multimodal backend not being sent to the platform's logging mechanism.
-- **Flutter:** Logs are now forwarded to Dart's `package:logging`. Configure it as described in their documentation.
-- **Godot:** Godot tool functions may now be async.
-- **Godot:** Godot tool functions now allow all scene manipulations (they are now called on the main thread).
-
-### Removed
-
-- **Breaking:** the deprecated `SamplerPresets.grammar()` preset and `SamplerBuilder.grammar()` step are gone, along with the `{"type": "grammar"}` entry in a serialized config. Both have been deprecated since June 2026 in favour of `constrain_with_grammar()`, which accepts the same GBNF as well as Lark and takes the faster llguidance path — switch to it and drop the `root` argument, which was always `"root"` in practice. The one thing it cannot express is a lazy grammar: `trigger_on`, which let the model write freely until a marker before the grammar took effect, has no llguidance equivalent and is removed with no replacement. Affects all bindings; Godot's method was `set_sampler_preset_grammar()`.
-- **Breaking:** the `lark_with_slices` sampler step is gone. Nothing constructed it, so the only way to have one is a hand-written sampler config, and `SamplerConfig.from_json()` now rejects a payload containing `{"type": "lark_with_slices"}`. Change it to `{"type": "lark"}` to keep the same grammar. Affects every binding with `SamplerConfig.from_json()`: Python, Flutter, Kotlin, Swift and React Native.
-- **Breaking:** A complete reimplementation of every class exposed via the godot bindings (see docs for the new interfaces).
-
+Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), but we keep unreleased changes in individual files in [`.changeset/`](.changeset/) rather than editing them into this file directly. See [CONTRIBUTING.md](CONTRIBUTING.md#changelog-entries) for details.
 
 ## [Python v3.0.0, Flutter v4.0.0, Godot v11.0.0, Kotlin v4.0.0, React Native v4.0.0, Swift v4.0.0] - 2026-09-09
 

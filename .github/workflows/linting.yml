@@ -40,7 +40,24 @@ jobs:
         # (lib tests themselves only run under `nix flake check`, which is opt-in).
         run: cargo clippy --no-deps --all-targets -- -D warnings
 
-  # Dart and TypeScript static checks, ungated because they are seconds of work.
+  # Dart, TypeScript and Python static checks, ungated because they are seconds of work.
+  python-scripts:
+    runs-on: warp-ubuntu-latest-x64-2x
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: "Setup uv"
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: "Ruff the repo scripts"
+        # The ruff locked for the Python binding, without installing the rest of its dev group.
+        run: |
+          RUFF_VERSION=$(sed -n '/^name = "ruff"$/{n;s/^version = "\(.*\)"$/\1/p}' nobodywho/python/uv.lock)
+          uvx "ruff@$RUFF_VERSION" format --check .github/scripts
+          uvx "ruff@$RUFF_VERSION" check .github/scripts
+
   flutter-analyze:
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
