@@ -78,6 +78,20 @@ pub(crate) mod test_utils {
         )
     }
 
+    /// Load an optional language model named by `var`; `None` (and a note) if unset.
+    pub(crate) fn load_model_from_env(var: &str) -> Option<Arc<Model>> {
+        init_test_tracing();
+
+        let Ok(path) = std::env::var(var) else {
+            eprintln!("skipping: set {var} to run this test");
+            return None;
+        };
+        Some(Arc::new(
+            get_model(&path, true, None, None, None)
+                .unwrap_or_else(|e| panic!("failed to load {var} from {path}: {e}")),
+        ))
+    }
+
     /// Load the embeddings model with GPU acceleration if available
     pub(crate) fn load_embeddings_model() -> Arc<Model> {
         init_test_tracing();

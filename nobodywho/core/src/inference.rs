@@ -194,6 +194,11 @@ pub(crate) struct InferenceEngine<'a> {
     /// Batch that's used when decoding. Stored here to re-use the allocation.
     batch: LlamaBatch<'static>,
     use_embeddings: bool,
+    /// What is in the KV cache at positions `[0, n_past)`, together with
+    /// `kv_generated`.
+    kv: TokenizerChunks,
+    /// Generated tokens not yet folded into `kv`, so each one isn't a re-hash.
+    kv_generated: Vec<LlamaToken>,
 }
 
 impl<'a> InferenceEngine<'a> {
@@ -216,7 +221,34 @@ impl<'a> InferenceEngine<'a> {
             projection_model,
             tokenizer,
             use_embeddings,
+            kv: TokenizerChunks::new(),
+            kv_generated: Vec::new(),
         }
+    }
+
+    /// The chunks in the KV cache at positions `[0, n_past)`.
+    pub(crate) fn kv_record(&mut self) -> &TokenizerChunks {
+        self.kv_fold();
+        debug_assert_eq!(self.kv.n_tokens(), self.n_past as usize);
+        &self.kv
+    }
+
+    fn kv_fold(&mut self) {
+        if !self.kv_generated.is_empty() {
+            let generated = std::mem::take(&mut self.kv_generated);
+            self.kv.append(TokenizerChunk::new_text(generated));
+        }
+    }
+
+    /// Record that positions from `n_tokens` onward were removed from the KV cache.
+    fn kv_truncate(&mut self, n_tokens: usize) {
+        self.kv_fold();
+        self.kv.truncate(n_tokens);
+    }
+
+    fn kv_clear(&mut self) {
+        self.kv = TokenizerChunks::new();
+        self.kv_generated.clear();
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
@@ -228,6 +260,7 @@ impl<'a> InferenceEngine<'a> {
         }
         self.ctx.clear_kv_cache();
         self.n_past = 0;
+        self.kv_clear();
         Ok(())
     }
 
@@ -326,14 +359,16 @@ impl<'a> InferenceEngine<'a> {
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         for chunk in chunks.into_iter() {
-            match chunk {
+            self.kv_record();
+            match &chunk {
                 TokenizerChunk::Text(tokens, _) => {
                     self.read_text_tokens(tokens, inference_lock_token)?;
                 }
                 TokenizerChunk::Image(embeddings, _) | TokenizerChunk::Audio(embeddings, _) => {
-                    self.read_media_embeddings(embeddings, inference_lock_token)?;
+                    self.read_media_embeddings(embeddings.clone(), inference_lock_token)?;
                 }
             }
+            self.kv.append(chunk);
         }
 
         Ok(self)
@@ -382,7 +417,7 @@ impl<'a> InferenceEngine<'a> {
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_text_tokens(
         &mut self,
-        tokens: Vec<LlamaToken>,
+        tokens: &[LlamaToken],
         _inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         let n_tokens = tokens.len();
@@ -461,6 +496,7 @@ impl<'a> InferenceEngine<'a> {
 
         if seq_rm_success {
             self.n_past = index as i32;
+            self.kv_truncate(index);
             Ok((index, before - self.n_past))
         } else {
             // Partial sequence removal is not supported by this model's memory type
@@ -473,18 +509,17 @@ impl<'a> InferenceEngine<'a> {
             );
             self.ctx.clear_kv_cache();
             self.n_past = 0;
+            self.kv_clear();
             Ok((0, before))
         }
     }
 
-    /// Diff `target` chunks against `prev` and load only the new tail into the KV cache.
-    /// Returns the new KV-cache mirror; the caller is responsible for storing it.
+    /// Diff `target` chunks against what is in the KV cache and load only the new tail.
     pub(crate) fn sync_context(
         &mut self,
         target: TokenizerChunks,
-        prev: &TokenizerChunks,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<TokenizerChunks, ContextSyncError> {
+    ) -> Result<(), ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
             // Clear draft state.
             spec.accept_drafts()?;
@@ -493,7 +528,7 @@ impl<'a> InferenceEngine<'a> {
             spec.n_accepted = 0;
         }
 
-        let prefix_index = find_chunks_prefix_difference(prev, &target);
+        let prefix_index = find_chunks_prefix_difference(self.kv_record(), &target);
 
         debug_assert!(!target.is_empty());
 
@@ -511,7 +546,7 @@ impl<'a> InferenceEngine<'a> {
             self.read_chunks(target.tail(self.n_past as usize), inference_lock_token)?;
         }
 
-        Ok(target)
+        Ok(())
     }
 
     fn in_progress_drafts(&self) -> i32 {
@@ -523,6 +558,10 @@ impl<'a> InferenceEngine<'a> {
     }
 
     /// The context size including drafts.
+    pub(crate) fn n_past(&self) -> usize {
+        self.n_past as usize
+    }
+
     pub(crate) fn actual_context_size(&self) -> i32 {
         self.n_past + self.in_progress_drafts()
     }
@@ -585,6 +624,7 @@ impl<'a> InferenceEngine<'a> {
                 // return the token.
                 if token == *draft {
                     spec.n_accepted += 1;
+                    self.kv_generated.push(token);
                     self.n_past += 1;
                     return Ok(token);
                 }
@@ -655,6 +695,7 @@ impl<'a> InferenceEngine<'a> {
             spec.drafts = drafts;
         }
 
+        self.kv_generated.push(token);
         self.n_past += 1;
 
         Ok(token)

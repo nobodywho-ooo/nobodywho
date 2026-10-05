@@ -233,6 +233,42 @@ impl TokenizerChunks {
             }
         }
     }
+
+    /// Keep only the first `n_tokens` positions; the inverse of [`Self::tail`].
+    /// A media chunk is never split, so the cut must not fall inside one.
+    pub fn truncate(&mut self, n_tokens: usize) {
+        if n_tokens >= self.n_tokens() {
+            return;
+        }
+
+        let mut pos = 0;
+        let mut keep = 0;
+        while pos + self.chunks[keep].n_tokens() <= n_tokens {
+            pos += self.chunks[keep].n_tokens();
+            keep += 1;
+        }
+
+        let rest = n_tokens - pos;
+        if rest > 0 {
+            match &self.chunks[keep] {
+                TokenizerChunk::Text(tokens, _) => {
+                    self.chunks[keep] = TokenizerChunk::new_text(tokens[..rest].to_vec());
+                    keep += 1;
+                }
+                TokenizerChunk::Image(..) | TokenizerChunk::Audio(..) => {
+                    debug_assert!(false, "cannot truncate inside a media chunk");
+                }
+            }
+        }
+        self.chunks.truncate(keep);
+    }
+
+    /// Split into the first `n_tokens` positions and the rest.
+    pub fn split_at(mut self, n_tokens: usize) -> (TokenizerChunks, TokenizerChunks) {
+        let tail = self.tail(n_tokens);
+        self.truncate(n_tokens);
+        (self, tail)
+    }
 }
 
 pub fn find_chunks_prefix_difference(old: &TokenizerChunks, new: &TokenizerChunks) -> usize {
@@ -954,5 +990,48 @@ mod tests {
 
         assert_eq!(prefix_index, 300); // 100 chunks * 3 tokens each
         assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Final different chunk
+    }
+
+    // ===== Truncate / split =====
+
+    #[test]
+    fn test_truncate_splits_text_chunk() {
+        let mut chunks = create_chunks(vec![
+            create_text_chunk(vec![1, 2, 3]),
+            create_image_chunk("img"),
+            create_text_chunk(vec![4, 5, 6]),
+        ]);
+        chunks.truncate(4);
+        assert_eq!(
+            chunks.to_token_ids(),
+            vec![Some(1), Some(2), Some(3), Some(4)]
+        );
+        // The split chunk is re-hashed, so it compares equal to a fresh one.
+        assert_eq!(chunks.get(2).unwrap().id(), create_text_chunk(vec![4]).id());
+    }
+
+    #[test]
+    fn test_truncate_at_chunk_boundary_and_beyond() {
+        let mut chunks = create_chunks(vec![
+            create_text_chunk(vec![1, 2]),
+            create_text_chunk(vec![3, 4]),
+        ]);
+        chunks.truncate(10);
+        assert_eq!(chunks.n_tokens(), 4);
+        chunks.truncate(2);
+        assert_eq!(chunks.len(), 1);
+        chunks.truncate(0);
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_split_at_matches_truncate_and_tail() {
+        let chunks = create_chunks(vec![
+            create_text_chunk(vec![1, 2, 3]),
+            create_text_chunk(vec![4, 5]),
+        ]);
+        let (head, tail) = chunks.clone().split_at(2);
+        assert_eq!(head.to_token_ids(), vec![Some(1), Some(2)]);
+        assert_eq!(tail.to_token_ids(), chunks.tail(2).to_token_ids());
     }
 }
