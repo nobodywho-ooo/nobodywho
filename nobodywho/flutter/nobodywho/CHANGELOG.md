@@ -1,3 +1,38 @@
+## 5.0.0
+
+### Added
+
+- Context shifting is configurable: how many turns to always keep at the start and end, the size to shrink to (a fraction of the context size or a number of tokens), or turning it off so a full context is an error. Pass `ContextShiftOptions` when creating a chat or later with `set_context_shift`. **Godot:** use the `"context_shift"` config key and `set_context_shift()` with a bool or Dictionary.
+- Loaded models expose the identifier used to load them through a read-only `source` property.
+- `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered.
+- Support for the model scheme that [llama.app](https://llama.app) uses for its GGUF models which is `owner/repo:quantization`, where the repo name must end with `-GGUF`. Unlike llama.cpp, a quantization with no exact match in the repo is an error rather than a fallback to the repo's first model.
+
+### Changed
+
+- Context shifting now forgets the fewest turns needed to shrink the chat to half the context size. Previously it could forget up to twice as many.
+- `SamplerPresets.dry()` now actually applies the DRY penalty. Its multiplier was 0.0, which llama.cpp reads as "disabled", so the preset was a no-op that sampled exactly like the default one. It is now 0.8, the value the preset's other numbers (base 1.75, allowed length 2) are tuned for. The preset leads with its DRY step, so the penalty sees the whole vocabulary rather than what survived truncation.
+- **Breaking:** `SamplerConfig.from_json()` rejects a saved config with a grammar step inside `steps`, naming the step it could not read; move that entry into a `"grammar_steps"` list to load it.
+- `SamplerPresets.json()` and the new `SamplerBuilder.json()` now constrain with the JSON schema `{"type":"object"}` through llguidance, so they take the same faster per-token path as the other `constrain_with_*` presets. Output is still a JSON object of any shape, as the old grammar's root was an object too. The new grammar is slightly more permissive at the edges: the old one allowed at most one newline plus 20 spaces of indentation per gap, and could not emit exponents like `1e10`.
+- `penalty_last_n` no longer accepts `-1`, use a positive value instead (good defaults are 64 for penalties sampling and 1024 for DRY sampling).
+- **Breaking:** Every `SamplerPresets` entry now builds on the default sampler (top-k 20, top-p 0.95, temperature 0.6) and changes one thing, instead of producing a chain holding only its own step: enabling a constraint no longer drops the truncation and temperature you would otherwise be sampling with, and `top_k`, `top_p` and `temperature` each override their counterpart and leave the rest alone. Constrained output is valid as before but less random within the constrained set. `greedy` is unaffected — it needs no shift steps.
+- **Breaking:** `SamplerConfig` holds its constraints in a new `grammar_steps` list instead of mixing them into `steps`, and `json_schema`, `regex` and `lark` are now grammar steps rather than shift steps. The chain runs the grammar steps, then the shift steps, then the sample step, so a grammar cannot end up behind a truncation step that leaves it nothing valid to pick. Shift steps run in the order you add them, which matters for `dry`, `penalties` and `logit_bias`: they only reshuffle a shortlist if you chain them after a truncation step. Note that llama.cpp's own default chain leads with the penalties.
+- A system message is now allowed after the start of the chat history. It stays in the history, for the chat template to render in place. On a model without a system role, where the system prompt is folded into the first user message and only a leading one can be, generating reports an error saying where to move the instruction.
+
+### Fixed
+
+- **Breaking:** ONNX Runtime, used for speech-to-text, text-to-speech and voice activity detection, is updated from 1.24 to 1.28. CUDA acceleration now needs a driver that supports CUDA 13, as CUDA 12 builds are no longer shipped. On platforms without CUDA support, requesting the `cuda` device now fails with "CUDA is not supported on this platform".
+- Logs are now forwarded to Dart's `package:logging`. Configure it as described in their documentation.
+- A FunctionGemma tool call whose argument value spans multiple lines is no longer dropped. The tool-call grammar lets a value contain newlines (a file body, a code snippet), but the extractor stopped at the first newline and discarded the whole call, so no tool ran. Multi-line values are now parsed.
+- Kokoro speech synthesis no longer garbles contractions written with typographic apostrophes (`’`, `‘`, `´`, `` ` ``) or curly double quotes (`“ ”`), which word processors and phone autocorrect produce — `it’s` was spoken "it-ess", `don’t` "don-tee". They now fold to their ASCII counterparts before phonemization, as the supertonic backend already did.
+- Fix logs from llama.cpp's multimodal backend not being sent to the platform's logging mechanism.
+- Speech-to-text works with the `fp16` and `q4f16` Whisper quantizations. Before, both failed while the model was loading.
+- Text a model writes before a tool call is now kept in the chat history. Previously whatever a model generated (and streamed) before the tool call was forgotten and not visible in `get_chat_history()`. It is now stored as content in the assistant message and is rendered next to the tool call. Note that the tool call is still stored in history as the function name and its arguments.
+
+### Removed
+
+- **Breaking:** The deprecated `SamplerPresets.grammar()` preset and `SamplerBuilder.grammar()` step are gone, along with the `{"type": "grammar"}` entry in a serialized config. Both have been deprecated since June 2026 in favour of `constrain_with_grammar()`, which accepts the same GBNF as well as Lark and takes the faster llguidance path — switch to it and drop the `root` argument, which was always `"root"` in practice. The one thing it cannot express is a lazy grammar: `trigger_on`, which let the model write freely until a marker before the grammar took effect, has no llguidance equivalent and is removed with no replacement. Godot's method was `set_sampler_preset_grammar()`.
+- **Breaking:** The `lark_with_slices` sampler step is gone. Nothing constructed it, so the only way to have one is a hand-written sampler config, and `SamplerConfig.from_json()` now rejects a payload containing `{"type": "lark_with_slices"}`. Change it to `{"type": "lark"}` to keep the same grammar.
+
 ## 4.0.0
 
 ### Breaking changes
