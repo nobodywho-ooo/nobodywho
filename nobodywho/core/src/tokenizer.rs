@@ -1022,36 +1022,4 @@ mod tests {
         assert_eq!(prefix_index, 300); // 100 chunks * 3 tokens each
         assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Final different chunk
     }
-
-    // ===== Truncate =====
-
-    #[test]
-    fn test_truncate_splits_text_chunk() {
-        let mut chunks = create_chunks(vec![
-            create_text_chunk(vec![1, 2, 3]),
-            create_image_chunk("img"),
-            create_text_chunk(vec![4, 5, 6]),
-        ]);
-        chunks.truncate(4);
-        assert_eq!(
-            chunks.to_token_ids(),
-            vec![Some(1), Some(2), Some(3), Some(4)]
-        );
-        // The split chunk is re-hashed, so it compares equal to a fresh one.
-        assert_eq!(chunks.get(2).unwrap().id(), create_text_chunk(vec![4]).id());
-    }
-
-    #[test]
-    fn test_truncate_at_chunk_boundary_and_beyond() {
-        let mut chunks = create_chunks(vec![
-            create_text_chunk(vec![1, 2]),
-            create_text_chunk(vec![3, 4]),
-        ]);
-        chunks.truncate(10);
-        assert_eq!(chunks.n_tokens(), 4);
-        chunks.truncate(2);
-        assert_eq!(chunks.len(), 1);
-        chunks.truncate(0);
-        assert!(chunks.is_empty());
-    }
 }

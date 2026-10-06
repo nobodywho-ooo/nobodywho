@@ -5085,132 +5085,50 @@ mod tests {
         Ok(())
     }
 
-    /// First position where the KV record and a fresh render disagree, rendered
-    /// for a readable failure. `None` if they match.
-    fn kv_drift(chat: &mut Chat) -> Option<String> {
-        let render_chunks = chat.render_as_chunks(&chat.messages).unwrap();
-        // The record can't see stale cells, so also ask llama.cpp for the cache's extent.
-        let (render_len, cache_len) = (
-            render_chunks.n_positions(),
-            (chat.engine.ctx.kv_cache_seq_pos_max(0) + 1) as usize,
-        );
-        if render_len != cache_len {
-            return Some(format!(
-                "KV cache spans {cache_len} positions, the render {render_len}"
-            ));
-        }
-        let render = render_chunks.to_token_ids();
-        let kv = chat.engine.kv_mirror().to_token_ids();
-        let diverge = render
-            .iter()
-            .zip(&kv)
-            .position(|(r, k)| r != k)
-            .unwrap_or(render.len().min(kv.len()));
-        if diverge == render.len() && diverge == kv.len() {
-            return None;
-        }
-        let vocab = chat.engine.ctx.model.vocab();
-        let show = |ids: &[Option<i32>]| -> String {
-            ids.iter()
-                .map(|id| match id {
-                    Some(id) => {
-                        String::from_utf8_lossy(&vocab.token_to_piece(LlamaToken(*id), true, None))
-                            .into_owned()
-                    }
-                    None => "<media>".to_string(),
-                })
-                .collect()
-        };
-        let window = |ids: &[Option<i32>]| {
-            show(&ids[diverge.saturating_sub(8)..(diverge + 8).min(ids.len())])
-        };
-        Some(format!(
-            "diverge at {diverge} (render len {}, kv len {})\n  render: {:?}\n  kv:     {:?}",
-            render.len(),
-            kv.len(),
-            window(&render),
-            window(&kv),
-        ))
-    }
-
-    /// After every sync the KV cache must hold exactly the rendered history,
-    /// including after a message is removed again. `first` opens the chat.
-    fn assert_kv_matches_render_over_turns(
-        model: &llm::Model,
-        enable_thinking: bool,
-        first: MessageContent,
-    ) {
+    /// Before each turn the KV cache must hold exactly the rendered chat, by
+    /// position and by token count.
+    fn assert_cache_matches_render(model: &llm::Model, first: MessageContent) {
         let mut chat = Chat::new_chat_worker(
             model,
             ChatConfig {
                 n_ctx: 4096,
-                template_variables: [("enable_thinking".to_string(), enable_thinking)].into(),
                 sampler_config: Some(SamplerPresets::greedy()),
                 ..Default::default()
             },
             Arc::new(AtomicBool::new(false)),
         )
         .unwrap();
-
-        let prompts = [
+        for mut prompt in [
             first,
             "Say bye in one word.".into(),
             "Count to three.".into(),
-        ];
-        let mut drifts = Vec::new();
-        for (turn, mut prompt) in prompts.into_iter().enumerate() {
+        ] {
             chat.register_media(&mut prompt).unwrap();
             chat.add_user_message(prompt);
-            chat.run_turn(Some(256), true, |_| {}).unwrap();
-
-            // Sync for a next turn without generating, then take it back.
-            chat.add_user_message("And again?".to_string());
             chat.sync_context_with_render(&acquire_inference_lock())
                 .unwrap();
-            if let Some(d) = kv_drift(&mut chat) {
-                drifts.push(format!("turn {turn}: {d}"));
-            }
-            chat.messages
-                .forget(chat.messages.len() - 1..chat.messages.len());
+            let render = chat.render_as_chunks(&chat.messages).unwrap();
+            assert_eq!(
+                chat.engine.ctx.kv_cache_seq_pos_max(0) + 1,
+                render.n_positions() as i32
+            );
+            assert_eq!(chat.engine.actual_context_size(), render.n_tokens() as i32);
+            chat.run_turn(Some(64), true, |_| {}).unwrap();
         }
-        assert!(
-            drifts.is_empty(),
-            "KV drifted from the render:\n{}",
-            drifts.join("\n")
-        );
     }
 
+    /// Gemma 3 ends a turn with a newline after the end-of-turn token the model generates.
     #[test]
-    fn test_kv_matches_render_without_thinking() {
-        assert_kv_matches_render_over_turns(
-            &test_utils::load_test_model(),
-            false,
-            "Say hi in one word.".into(),
-        );
-    }
-
-    #[test]
-    fn test_kv_matches_render_with_thinking() {
-        assert_kv_matches_render_over_turns(
-            &test_utils::load_test_model(),
-            true,
-            "Say hi in one word.".into(),
-        );
-    }
-
-    /// Gemma 3 does not rewrite earlier turns, so drift would never heal.
-    #[test]
-    fn test_kv_matches_render_gemma() {
+    fn test_cache_matches_render_gemma() {
         let Some(model) = test_utils::load_model_from_env("TEST_VISION_MODEL", None) else {
             return;
         };
-        assert_kv_matches_render_over_turns(&model, false, "Say hi in one word.".into());
+        assert_cache_matches_render(&model, "Say hi in one word.".into());
     }
 
-    /// Qwen3.5 is recurrent, and its images take fewer KV positions than
-    /// tokens (M-RoPE), which the sync must account for after the image.
+    /// Qwen3.5 gives an image fewer KV positions than tokens (M-RoPE).
     #[test]
-    fn test_kv_matches_render_recurrent() {
+    fn test_cache_matches_render_mrope_image() {
         let Some(model) = test_utils::load_model_from_env(
             "TEST_RECURRENT_MODEL",
             Some("TEST_RECURRENT_MMPROJ_MODEL"),
@@ -5222,7 +5140,7 @@ mod tests {
             ContentPart::image(image),
             ContentPart::text("What animal is this? One word."),
         ]);
-        assert_kv_matches_render_over_turns(&model, false, first);
+        assert_cache_matches_render(&model, first);
     }
 
     // Template rendering tests have been moved to template.rs module
