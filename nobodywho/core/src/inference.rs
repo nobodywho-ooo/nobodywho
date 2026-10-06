@@ -229,7 +229,7 @@ impl<'a> InferenceEngine<'a> {
     /// The chunks in the KV cache at positions `[0, n_past)`.
     pub(crate) fn kv_record(&mut self) -> &TokenizerChunks {
         self.kv_fold();
-        debug_assert_eq!(self.kv.n_tokens(), self.n_past as usize);
+        debug_assert_eq!(self.kv.n_positions(), self.n_past as usize);
         &self.kv
     }
 
@@ -476,7 +476,7 @@ impl<'a> InferenceEngine<'a> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    /// Remove everything in the KV cache from `index` onward.
+    /// Remove everything in the KV cache from token `index` onward.
     ///
     /// Returns `(effective_prefix, trimmed)` where:
     /// - `effective_prefix` is the number of tokens still valid in the KV cache
@@ -485,17 +485,19 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         index: usize,
     ) -> Result<(usize, i32), KvCacheConversionError> {
-        if self.n_past <= index as i32 {
+        if self.kv_record().n_tokens() <= index {
             return Ok((index, 0));
         }
 
+        // The cache is cut by position, which falls behind the token count after M-RoPE media.
+        let position = self.kv.position_at(index);
         let before = self.n_past;
         let seq_rm_success = self
             .ctx
-            .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
+            .clear_kv_cache_seq(Some(0), Some(position as u32), None)?;
 
         if seq_rm_success {
-            self.n_past = index as i32;
+            self.n_past = position as i32;
             self.kv_truncate(index);
             Ok((index, before - self.n_past))
         } else {
@@ -542,8 +544,9 @@ impl<'a> InferenceEngine<'a> {
             // Truncate-only: KV cache was trimmed but no new tokens need appending.
             // Re-decode the last token to refresh stale logits — llama.cpp requires
             // consecutive positions so we must evict it before re-reading.
-            self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
-            self.read_chunks(target.tail(self.n_past as usize), inference_lock_token)?;
+            let n_tokens = self.kv_record().n_tokens();
+            let (kept, _) = self.remove_all_tokens_from_index_from_ctx(n_tokens - 1)?;
+            self.read_chunks(target.tail(kept), inference_lock_token)?;
         }
 
         Ok(())
@@ -557,13 +560,10 @@ impl<'a> InferenceEngine<'a> {
         }
     }
 
-    /// The context size including drafts.
-    pub(crate) fn n_past(&self) -> usize {
-        self.n_past as usize
-    }
-
+    /// Tokens in the KV cache including drafts. Each takes a slot of the context,
+    /// though M-RoPE media spans fewer positions than that.
     pub(crate) fn actual_context_size(&self) -> i32 {
-        self.n_past + self.in_progress_drafts()
+        (self.kv.n_tokens() + self.kv_generated.len()) as i32 + self.in_progress_drafts()
     }
 
     pub(crate) fn is_context_full(&self) -> bool {
@@ -660,7 +660,8 @@ impl<'a> InferenceEngine<'a> {
 
             // Clamp drafts so the verify batch [pending, drafts...] stays
             // within the context window:
-            let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
+            let used = self.kv.n_tokens() + self.kv_generated.len();
+            let room = (spec.ctx.target_context().n_ctx() as usize).saturating_sub(used + 1);
             drafts.truncate(room);
 
             trace!(?drafts);

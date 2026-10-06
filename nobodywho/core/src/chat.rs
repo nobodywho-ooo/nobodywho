@@ -2397,7 +2397,7 @@ impl<'a> Chat<'a> {
         // model would interfere with each other.
         let inference_lock_token = &acquire_inference_lock();
         self.sync_context_with_render(inference_lock_token)?;
-        let prompt_tokens = self.engine.n_past();
+        let prompt_tokens = self.engine.kv_record().n_tokens();
         let tool_call_begin_token = self
             .tool_format
             .as_ref()
@@ -5088,10 +5088,18 @@ mod tests {
     /// First position where the KV record and a fresh render disagree, rendered
     /// for a readable failure. `None` if they match.
     fn kv_drift(chat: &mut Chat) -> Option<String> {
-        let render = chat
-            .render_as_chunks(&chat.messages)
-            .unwrap()
-            .to_token_ids();
+        let render_chunks = chat.render_as_chunks(&chat.messages).unwrap();
+        // The record can't see stale cells, so also check the cache's own extent.
+        let (render_len, cache_len) = (
+            render_chunks.n_tokens(),
+            chat.engine.actual_context_size() as usize,
+        );
+        if render_len != cache_len {
+            return Some(format!(
+                "KV cache holds {cache_len} tokens, the render {render_len}"
+            ));
+        }
+        let render = render_chunks.to_token_ids();
         let kv = chat.engine.kv_record().to_token_ids();
         let diverge = render
             .iter()
@@ -5126,8 +5134,12 @@ mod tests {
     }
 
     /// After every sync the KV cache must hold exactly the rendered history,
-    /// including after a message is removed again.
-    fn assert_kv_matches_render_over_turns(model: &llm::Model, enable_thinking: bool) {
+    /// including after a message is removed again. `first` opens the chat.
+    fn assert_kv_matches_render_over_turns(
+        model: &llm::Model,
+        enable_thinking: bool,
+        first: MessageContent,
+    ) {
         let mut chat = Chat::new_chat_worker(
             model,
             ChatConfig {
@@ -5141,13 +5153,14 @@ mod tests {
         .unwrap();
 
         let prompts = [
-            "Say hi in one word.",
-            "Say bye in one word.",
-            "Count to three.",
+            first,
+            "Say bye in one word.".into(),
+            "Count to three.".into(),
         ];
         let mut drifts = Vec::new();
-        for (turn, prompt) in prompts.iter().enumerate() {
-            chat.add_user_message(*prompt);
+        for (turn, mut prompt) in prompts.into_iter().enumerate() {
+            chat.register_media(&mut prompt).unwrap();
+            chat.add_user_message(prompt);
             chat.run_turn(Some(256), true, |_| {}).unwrap();
 
             // Sync for a next turn without generating, then take it back.
@@ -5169,29 +5182,47 @@ mod tests {
 
     #[test]
     fn test_kv_matches_render_without_thinking() {
-        assert_kv_matches_render_over_turns(&test_utils::load_test_model(), false);
+        assert_kv_matches_render_over_turns(
+            &test_utils::load_test_model(),
+            false,
+            "Say hi in one word.".into(),
+        );
     }
 
     #[test]
     fn test_kv_matches_render_with_thinking() {
-        assert_kv_matches_render_over_turns(&test_utils::load_test_model(), true);
+        assert_kv_matches_render_over_turns(
+            &test_utils::load_test_model(),
+            true,
+            "Say hi in one word.".into(),
+        );
     }
 
     /// Gemma 3 does not rewrite earlier turns, so drift would never heal.
     #[test]
     fn test_kv_matches_render_gemma() {
-        let Some(model) = test_utils::load_model_from_env("TEST_VISION_MODEL") else {
+        let Some(model) = test_utils::load_model_from_env("TEST_VISION_MODEL", None) else {
             return;
         };
-        assert_kv_matches_render_over_turns(&model, false);
+        assert_kv_matches_render_over_turns(&model, false, "Say hi in one word.".into());
     }
 
+    /// Qwen3.5 is recurrent, and its images take fewer KV positions than
+    /// tokens (M-RoPE), which the sync must account for after the image.
     #[test]
     fn test_kv_matches_render_recurrent() {
-        let Some(model) = test_utils::load_model_from_env("TEST_RECURRENT_MODEL") else {
+        let Some(model) = test_utils::load_model_from_env(
+            "TEST_RECURRENT_MODEL",
+            Some("TEST_RECURRENT_MMPROJ_MODEL"),
+        ) else {
             return;
         };
-        assert_kv_matches_render_over_turns(&model, false);
+        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let first = MessageContent::parts([
+            ContentPart::image(image),
+            ContentPart::text("What animal is this? One word."),
+        ]);
+        assert_kv_matches_render_over_turns(&model, false, first);
     }
 
     // Template rendering tests have been moved to template.rs module

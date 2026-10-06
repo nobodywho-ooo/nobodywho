@@ -86,6 +86,22 @@ impl TokenizerChunk {
         Self::Audio(Rc::new(chunks), id.unwrap_or_default())
     }
 
+    /// KV positions the chunk takes; fewer than its tokens for M-RoPE media.
+    pub fn n_positions(&self) -> usize {
+        match self {
+            TokenizerChunk::Text(tokens, _) => tokens.len(),
+            TokenizerChunk::Image(chunks_rc, _) | TokenizerChunk::Audio(chunks_rc, _) => (0
+                ..chunks_rc.len())
+                .map(|i| {
+                    chunks_rc
+                        .get(i)
+                        .map(|c| c.n_positions() as usize)
+                        .unwrap_or(0)
+                })
+                .sum(),
+        }
+    }
+
     pub fn id(&self) -> &str {
         match self {
             Self::Text(_, id) | Self::Image(_, id) | Self::Audio(_, id) => id,
@@ -127,8 +143,30 @@ impl TokenizerChunks {
         self.chunks.iter().map(|chunk| chunk.n_tokens()).sum()
     }
 
+    pub fn n_positions(&self) -> usize {
+        self.chunks.iter().map(|chunk| chunk.n_positions()).sum()
+    }
+
     pub fn len(&self) -> usize {
         self.chunks.len()
+    }
+
+    /// KV positions taken by the first `n_tokens` tokens, which must not end inside media.
+    pub fn position_at(&self, n_tokens: usize) -> usize {
+        let mut tokens = 0;
+        let mut positions = 0;
+        for chunk in &self.chunks {
+            if tokens + chunk.n_tokens() > n_tokens {
+                debug_assert!(
+                    matches!(chunk, TokenizerChunk::Text(..)) || tokens == n_tokens,
+                    "position inside a media chunk"
+                );
+                return positions + (n_tokens - tokens);
+            }
+            tokens += chunk.n_tokens();
+            positions += chunk.n_positions();
+        }
+        positions
     }
 
     pub fn is_empty(&self) -> bool {
