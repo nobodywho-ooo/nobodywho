@@ -151,22 +151,21 @@ impl TokenizerChunks {
         self.chunks.len()
     }
 
-    /// KV positions taken by the first `n_tokens` tokens, which must not end inside media.
-    pub fn position_at(&self, n_tokens: usize) -> usize {
+    /// `(tokens, positions)` kept by a cut at `n_tokens`; a cut inside media moves back to its start.
+    pub fn cut_at(&self, n_tokens: usize) -> (usize, usize) {
         let mut tokens = 0;
         let mut positions = 0;
         for chunk in &self.chunks {
             if tokens + chunk.n_tokens() > n_tokens {
-                debug_assert!(
-                    matches!(chunk, TokenizerChunk::Text(..)) || tokens == n_tokens,
-                    "position inside a media chunk"
-                );
-                return positions + (n_tokens - tokens);
+                return match chunk {
+                    TokenizerChunk::Text(..) => (n_tokens, positions + (n_tokens - tokens)),
+                    TokenizerChunk::Image(..) | TokenizerChunk::Audio(..) => (tokens, positions),
+                };
             }
             tokens += chunk.n_tokens();
             positions += chunk.n_positions();
         }
-        positions
+        (tokens, positions)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1021,5 +1020,42 @@ mod tests {
 
         assert_eq!(prefix_index, 300); // 100 chunks * 3 tokens each
         assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Final different chunk
+    }
+
+    // ===== E. KV Mirror Tests =====
+
+    #[test]
+    fn test_mirror_keeps_previous_reply_across_turns() {
+        // The engine's mirror: sync each render's tail, then append the generated reply.
+        // Text chunks merge on append, so each turn re-reads only the new tokens.
+        let mut mirror = TokenizerChunks::new();
+        let turns = [(0..10, 10..12), (0..23, 23..25), (0..34, 34..36)];
+        let mut prev_len = 0;
+        for (render, reply) in turns {
+            let target = create_chunks(vec![create_text_chunk(render.clone().collect())]);
+            let cut = find_chunks_prefix_difference(&mirror, &target);
+            assert_eq!(cut, prev_len, "previous render and reply should be kept");
+
+            mirror.truncate(cut);
+            for chunk in target.tail(cut).iter() {
+                mirror.append(chunk.clone());
+            }
+            mirror.append(create_text_chunk(reply.clone().collect()));
+            prev_len = reply.end as usize;
+        }
+    }
+
+    #[test]
+    fn test_cut_at_keeps_text_cuts() {
+        let chunks = create_chunks(vec![
+            create_text_chunk(vec![1, 2, 3]),
+            create_image_chunk("img"),
+            create_text_chunk(vec![4, 5]),
+        ]);
+
+        for n in 0..=5 {
+            assert_eq!(chunks.cut_at(n), (n, n));
+        }
+        assert_eq!(chunks.cut_at(10), (5, 5));
     }
 }

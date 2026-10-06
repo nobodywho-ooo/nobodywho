@@ -492,7 +492,8 @@ impl<'a> InferenceEngine<'a> {
         }
 
         // The cache is cut by position, which falls behind the token count after M-RoPE media.
-        let position = self.kv_mirror.position_at(index);
+        // Media can't be split, so a cut inside one moves back to its start and it is re-read.
+        let (index, position) = self.kv_mirror.cut_at(index);
         let before = self.n_past;
         let seq_rm_success = self
             .ctx
