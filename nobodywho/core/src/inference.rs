@@ -194,11 +194,11 @@ pub(crate) struct InferenceEngine<'a> {
     /// Batch that's used when decoding. Stored here to re-use the allocation.
     batch: LlamaBatch<'static>,
     use_embeddings: bool,
-    /// What is in the KV cache at positions `[0, n_past)`, together with
-    /// `kv_generated`.
-    kv: TokenizerChunks,
-    /// Generated tokens not yet folded into `kv`, so each one isn't a re-hash.
-    kv_generated: Vec<LlamaToken>,
+    /// Our account of the KV cache at positions `[0, n_past)`, together with
+    /// `pending_generated`.
+    kv_mirror: TokenizerChunks,
+    /// Generated tokens not yet merged into `kv_mirror`, so each one isn't a re-hash.
+    pending_generated: Vec<LlamaToken>,
 }
 
 impl<'a> InferenceEngine<'a> {
@@ -221,34 +221,36 @@ impl<'a> InferenceEngine<'a> {
             projection_model,
             tokenizer,
             use_embeddings,
-            kv: TokenizerChunks::new(),
-            kv_generated: Vec::new(),
+            kv_mirror: TokenizerChunks::new(),
+            pending_generated: Vec::new(),
         }
     }
 
-    /// The chunks in the KV cache at positions `[0, n_past)`.
-    pub(crate) fn kv_record(&mut self) -> &TokenizerChunks {
-        self.kv_fold();
-        debug_assert_eq!(self.kv.n_positions(), self.n_past as usize);
-        &self.kv
+    /// The chunks in the KV cache at positions `[0, n_past)`; merges pending generated tokens first.
+    pub(crate) fn kv_mirror(&mut self) -> &TokenizerChunks {
+        self.flush_generated();
+        debug_assert_eq!(self.kv_mirror.n_positions(), self.n_past as usize);
+        &self.kv_mirror
     }
 
-    fn kv_fold(&mut self) {
-        if !self.kv_generated.is_empty() {
-            let generated = std::mem::take(&mut self.kv_generated);
-            self.kv.append(TokenizerChunk::new_text(generated));
+    /// Merge `pending_generated` into `kv_mirror`.
+    fn flush_generated(&mut self) {
+        if !self.pending_generated.is_empty() {
+            let generated = std::mem::take(&mut self.pending_generated);
+            self.kv_mirror.append(TokenizerChunk::new_text(generated));
         }
     }
 
     /// Record that positions from `n_tokens` onward were removed from the KV cache.
-    fn kv_truncate(&mut self, n_tokens: usize) {
-        self.kv_fold();
-        self.kv.truncate(n_tokens);
+    fn truncate_mirror(&mut self, n_tokens: usize) {
+        self.flush_generated();
+        self.kv_mirror.truncate(n_tokens);
     }
 
-    fn kv_clear(&mut self) {
-        self.kv = TokenizerChunks::new();
-        self.kv_generated.clear();
+    /// Record that the KV cache was emptied.
+    fn clear_mirror(&mut self) {
+        self.kv_mirror = TokenizerChunks::new();
+        self.pending_generated.clear();
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
@@ -260,7 +262,7 @@ impl<'a> InferenceEngine<'a> {
         }
         self.ctx.clear_kv_cache();
         self.n_past = 0;
-        self.kv_clear();
+        self.clear_mirror();
         Ok(())
     }
 
@@ -359,7 +361,7 @@ impl<'a> InferenceEngine<'a> {
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         for chunk in chunks.into_iter() {
-            self.kv_record();
+            self.kv_mirror();
             match &chunk {
                 TokenizerChunk::Text(tokens, _) => {
                     self.read_text_tokens(tokens, inference_lock_token)?;
@@ -368,7 +370,7 @@ impl<'a> InferenceEngine<'a> {
                     self.read_media_embeddings(embeddings.clone(), inference_lock_token)?;
                 }
             }
-            self.kv.append(chunk);
+            self.kv_mirror.append(chunk);
         }
 
         Ok(self)
@@ -485,12 +487,12 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         index: usize,
     ) -> Result<(usize, i32), KvCacheConversionError> {
-        if self.kv_record().n_tokens() <= index {
+        if self.kv_mirror().n_tokens() <= index {
             return Ok((index, 0));
         }
 
         // The cache is cut by position, which falls behind the token count after M-RoPE media.
-        let position = self.kv.position_at(index);
+        let position = self.kv_mirror.position_at(index);
         let before = self.n_past;
         let seq_rm_success = self
             .ctx
@@ -498,7 +500,7 @@ impl<'a> InferenceEngine<'a> {
 
         if seq_rm_success {
             self.n_past = position as i32;
-            self.kv_truncate(index);
+            self.truncate_mirror(index);
             Ok((index, before - self.n_past))
         } else {
             // Partial sequence removal is not supported by this model's memory type
@@ -511,7 +513,7 @@ impl<'a> InferenceEngine<'a> {
             );
             self.ctx.clear_kv_cache();
             self.n_past = 0;
-            self.kv_clear();
+            self.clear_mirror();
             Ok((0, before))
         }
     }
@@ -530,7 +532,7 @@ impl<'a> InferenceEngine<'a> {
             spec.n_accepted = 0;
         }
 
-        let prefix_index = find_chunks_prefix_difference(self.kv_record(), &target);
+        let prefix_index = find_chunks_prefix_difference(self.kv_mirror(), &target);
 
         debug_assert!(!target.is_empty());
 
@@ -544,7 +546,7 @@ impl<'a> InferenceEngine<'a> {
             // Truncate-only: KV cache was trimmed but no new tokens need appending.
             // Re-decode the last token to refresh stale logits — llama.cpp requires
             // consecutive positions so we must evict it before re-reading.
-            let n_tokens = self.kv_record().n_tokens();
+            let n_tokens = self.kv_mirror().n_tokens();
             let (kept, _) = self.remove_all_tokens_from_index_from_ctx(n_tokens - 1)?;
             self.read_chunks(target.tail(kept), inference_lock_token)?;
         }
@@ -563,7 +565,8 @@ impl<'a> InferenceEngine<'a> {
     /// Tokens in the KV cache including drafts. Each takes a slot of the context,
     /// though M-RoPE media spans fewer positions than that.
     pub(crate) fn actual_context_size(&self) -> i32 {
-        (self.kv.n_tokens() + self.kv_generated.len()) as i32 + self.in_progress_drafts()
+        (self.kv_mirror.n_tokens() + self.pending_generated.len()) as i32
+            + self.in_progress_drafts()
     }
 
     pub(crate) fn is_context_full(&self) -> bool {
@@ -624,7 +627,7 @@ impl<'a> InferenceEngine<'a> {
                 // return the token.
                 if token == *draft {
                     spec.n_accepted += 1;
-                    self.kv_generated.push(token);
+                    self.pending_generated.push(token);
                     self.n_past += 1;
                     return Ok(token);
                 }
@@ -660,7 +663,7 @@ impl<'a> InferenceEngine<'a> {
 
             // Clamp drafts so the verify batch [pending, drafts...] stays
             // within the context window:
-            let used = self.kv.n_tokens() + self.kv_generated.len();
+            let used = self.kv_mirror.n_tokens() + self.pending_generated.len();
             let room = (spec.ctx.target_context().n_ctx() as usize).saturating_sub(used + 1);
             drafts.truncate(room);
 
@@ -696,7 +699,7 @@ impl<'a> InferenceEngine<'a> {
             spec.drafts = drafts;
         }
 
-        self.kv_generated.push(token);
+        self.pending_generated.push(token);
         self.n_past += 1;
 
         Ok(token)

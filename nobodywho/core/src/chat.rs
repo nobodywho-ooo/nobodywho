@@ -2397,7 +2397,7 @@ impl<'a> Chat<'a> {
         // model would interfere with each other.
         let inference_lock_token = &acquire_inference_lock();
         self.sync_context_with_render(inference_lock_token)?;
-        let prompt_tokens = self.engine.kv_record().n_tokens();
+        let prompt_tokens = self.engine.kv_mirror().n_tokens();
         let tool_call_begin_token = self
             .tool_format
             .as_ref()
@@ -5100,7 +5100,7 @@ mod tests {
             ));
         }
         let render = render_chunks.to_token_ids();
-        let kv = chat.engine.kv_record().to_token_ids();
+        let kv = chat.engine.kv_mirror().to_token_ids();
         let diverge = render
             .iter()
             .zip(&kv)
