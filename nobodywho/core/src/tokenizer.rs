@@ -300,13 +300,6 @@ impl TokenizerChunks {
         }
         self.chunks.truncate(keep);
     }
-
-    /// Split into the first `n_tokens` positions and the rest.
-    pub fn split_at(mut self, n_tokens: usize) -> (TokenizerChunks, TokenizerChunks) {
-        let tail = self.tail(n_tokens);
-        self.truncate(n_tokens);
-        (self, tail)
-    }
 }
 
 pub fn find_chunks_prefix_difference(old: &TokenizerChunks, new: &TokenizerChunks) -> usize {
@@ -1030,7 +1023,7 @@ mod tests {
         assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Final different chunk
     }
 
-    // ===== Truncate / split =====
+    // ===== Truncate =====
 
     #[test]
     fn test_truncate_splits_text_chunk() {
@@ -1060,16 +1053,5 @@ mod tests {
         assert_eq!(chunks.len(), 1);
         chunks.truncate(0);
         assert!(chunks.is_empty());
-    }
-
-    #[test]
-    fn test_split_at_matches_truncate_and_tail() {
-        let chunks = create_chunks(vec![
-            create_text_chunk(vec![1, 2, 3]),
-            create_text_chunk(vec![4, 5]),
-        ]);
-        let (head, tail) = chunks.clone().split_at(2);
-        assert_eq!(head.to_token_ids(), vec![Some(1), Some(2)]);
-        assert_eq!(tail.to_token_ids(), chunks.tail(2).to_token_ids());
     }
 }

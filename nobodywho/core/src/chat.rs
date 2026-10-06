@@ -5089,14 +5089,14 @@ mod tests {
     /// for a readable failure. `None` if they match.
     fn kv_drift(chat: &mut Chat) -> Option<String> {
         let render_chunks = chat.render_as_chunks(&chat.messages).unwrap();
-        // The record can't see stale cells, so also check the cache's own extent.
+        // The record can't see stale cells, so also ask llama.cpp for the cache's extent.
         let (render_len, cache_len) = (
-            render_chunks.n_tokens(),
-            chat.engine.actual_context_size() as usize,
+            render_chunks.n_positions(),
+            (chat.engine.ctx.kv_cache_seq_pos_max(0) + 1) as usize,
         );
         if render_len != cache_len {
             return Some(format!(
-                "KV cache holds {cache_len} tokens, the render {render_len}"
+                "KV cache spans {cache_len} positions, the render {render_len}"
             ));
         }
         let render = render_chunks.to_token_ids();
