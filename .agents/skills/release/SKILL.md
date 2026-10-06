@@ -23,11 +23,11 @@ Pending user-facing changes live as one file each in `.changeset/` (format in [C
   - writes the new version to every location listed in `VERSION_FILES` in the script: the binding `Cargo.toml`s, `pyproject.toml`, `pubspec.yaml`, `build.gradle.kts`, `package.json`, both `package-lock.json` fields, the binding entries in `Cargo.lock` and `uv.lock`, and the Kotlin/Swift install snippets in the docs and README;
   - adds the release's entry to the top of the root `CHANGELOG.md`, covering all released bindings;
   - if Flutter is released, also adds a Flutter-only `## X.Y.Z` section to `nobodywho/flutter/nobodywho/CHANGELOG.md`. That is a separate file: it ships inside the Flutter package, and pub.dev shows it;
-  - writes per-binding GitHub release notes to the gitignored `nobodywho/changelogs/<binding>-<version>.md`;
+  - writes per-binding GitHub release notes to the gitignored `nobodywho/changelogs/<binding>-<version>.md`, for review only: each tag's release job renders the same notes itself with `changesets.py notes`;
   - deletes the consumed change files.
 - `just release-tags` lists the `nobodywho-<binding>-vX.Y.Z` tags for the newest `CHANGELOG.md` heading that don't exist yet. `just push-release-tags` creates and pushes them in Step 8.
 
-Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `npmDepsHash`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR, tags and release notes are the user's.
+Still done by hand: the optional `uniffi`/`core` bumps, `Cargo.nix`, `npmDepsHash`, `pubspec.lock` and the docs snapshot, which you do. The branch, commit, PR and tags are the user's.
 
 Releases go out on a **release branch**, named `release-all-bindings-YYYY-MM-DD` by convention. The user creates it when they commit in Step 7, so it's fine to start the release on `main`.
 
@@ -291,7 +291,16 @@ Once the user has opened the PR, watch its checks (`gh pr checks <number>` only 
 
 Tags go on the **release branch head**, the commit from Step 7. A person squash-merges the PR afterwards, so the tagged commit never lands on `main` itself.
 
-Once the PR is green, have the user run this with the release commit checked out:
+Once the PR is green, check that the release branch still holds exactly the release commit:
+
+```bash
+git fetch origin
+.github/scripts/changesets.py verify-release
+```
+
+It fails unless `HEAD` is a single commit on top of `origin/main` that leaves no change files behind. Anything else means the branch was rebased, merged into or added to since Step 7, and it may ship changes the changelog misses. Stop and tell the user; the release is cut again from Step 0.
+
+Then have the user run this with the release commit checked out:
 
 ```bash
 just push-release-tags
@@ -314,13 +323,7 @@ The runs therefore execute one after another and the command takes hours. If it 
 
 **If it reports a failed run, stop and tell the user.** No fixes go to the release branch, and no tag is moved or re-pushed, since a published version can't be replaced. Whether to rerun the job or to fix it on `main` and cut a patch release is the user's call.
 
-Each binding's release job creates its GitHub Release with the build artifacts but no notes. The notes come from the `nobodywho/changelogs/<binding>-<version>.md` files that `prepare-release` wrote. As each release appears, give the user both ways to add them:
-
-- **From the terminal**, one command per released binding, filled in:
-  ```bash
-  gh release edit nobodywho-python-v4.0.0 --notes-file nobodywho/changelogs/python-4.0.0.md
-  ```
-- **In the GitHub web UI:** open the release (`https://github.com/nobodywho-ooo/nobodywho/releases/tag/<tag>`), click edit, and paste the file's contents into the description.
+Each binding's release job creates its GitHub Release with the build artifacts and its notes, which the `release-notes` job renders from the change files the release commit consumed. They should match `nobodywho/changelogs/<binding>-<version>.md`; if a Release's notes are missing or differ, tell the user.
 
 When every binding is published, tell the user the PR is ready to squash-merge on GitHub. The release branch never gets `main` merged into it.
 
@@ -342,4 +345,4 @@ The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` a
 - [ ] Docs snapshotted per released binding, `latestReleases` updated (Step 5)
 - [ ] Step 6 checks pass
 - [ ] User created the release branch, committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)
-- [ ] User ran `just push-release-tags` and added the GitHub release notes; told the PR is ready to squash-merge (Step 8)
+- [ ] `changesets.py verify-release` passes; user ran `just push-release-tags`; each GitHub Release has its notes; told the PR is ready to squash-merge (Step 8)

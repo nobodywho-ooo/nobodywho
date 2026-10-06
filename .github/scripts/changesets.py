@@ -12,6 +12,11 @@ Usage:
                                            adds one and leaves the changelogs alone, unless its labels say otherwise
   changesets.py preview                    print the CHANGELOG.md entry the next release would get
   changesets.py release                    bump versions, write the changelogs and delete the change files
+  changesets.py notes BINDING [--rev REV]  print a binding's GitHub release notes from the change files
+                                           at REV (default HEAD^, the release commit's parent)
+  changesets.py verify-release [--base REV]
+                                           check that HEAD is one commit on top of REV (default
+                                           origin/main) that consumed every change file
   changesets.py tag [--create]             list (or create on HEAD) the newest release's missing tags
   changesets.py push-tags                  tag HEAD and push those tags one at a time, waiting for each CI run
 """
@@ -28,7 +33,9 @@ import time
 from dataclasses import dataclass
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-CHANGESET_DIR = ROOT / ".changeset"
+# Relative to ROOT, as git pathspecs take it.
+CHANGESET_PATH = ".changeset"
+CHANGESET_DIR = ROOT / CHANGESET_PATH
 CHANGELOG = ROOT / "CHANGELOG.md"
 FLUTTER_CHANGELOG = ROOT / "nobodywho/flutter/nobodywho/CHANGELOG.md"
 # PR labels that waive the check's requirement of a new change file and ban on changelog edits.
@@ -160,12 +167,10 @@ class Change:
     body: str
 
 
-def parse_change_file(path: pathlib.Path) -> tuple[Change | None, list[str]]:
+def parse_change_file(path: pathlib.Path, text: str) -> tuple[Change | None, list[str]]:
     errors = []
     # A leading `---` line, the frontmatter up to the next `---` line, then the body.
-    match = re.match(
-        r"---\n(.*?)^---\n(.*)", path.read_text(), re.DOTALL | re.MULTILINE
-    )
+    match = re.match(r"---\n(.*?)^---\n(.*)", text, re.DOTALL | re.MULTILINE)
     if not match:
         return None, ["must start with a `---` frontmatter block"]
     frontmatter, body = match.groups()
@@ -231,16 +236,23 @@ def parse_change_file(path: pathlib.Path) -> tuple[Change | None, list[str]]:
     return Change(path, section, bumps, body), []
 
 
-def load_changes() -> list[Change]:
-    """Parse every change file, oldest first, exiting if any is invalid."""
+def load_changes(rev: str | None = None) -> list[Change]:
+    """Parse every change file in the working tree, or at `rev`, oldest first, exiting if any is invalid."""
+    if rev:
+        names = git(
+            "ls-tree", "--name-only", rev, "--", f"{CHANGESET_PATH}/"
+        ).splitlines()
+        files = [(ROOT / name, git("show", f"{rev}:{name}")) for name in names]
+    else:
+        files = [(path, path.read_text()) for path in CHANGESET_DIR.glob("*")]
     changes, failed = [], False
-    for path in sorted(CHANGESET_DIR.glob("*")):
+    for path, text in sorted(files):
         rel = path.relative_to(ROOT)
         if path.suffix != ".md":
             print(f"::error file={rel}::only .md change files belong in .changeset/")
             failed = True
             continue
-        change, errors = parse_change_file(path)
+        change, errors = parse_change_file(path, text)
         for error in errors:
             print(f"::error file={rel}::{error}")
         failed |= bool(errors)
@@ -249,14 +261,20 @@ def load_changes() -> list[Change]:
     if failed:
         sys.exit(1)
 
-    added = added_times()
+    added = added_times(rev or "HEAD")
     return sorted(changes, key=lambda c: added.get(c.path.name, float("inf")))
 
 
-def added_times() -> dict[str, int]:
-    """When each committed change file was added, so entries keep their chronological order."""
+def added_times(rev: str) -> dict[str, int]:
+    """When each change file committed by `rev` was added, so entries keep their chronological order."""
     out = git(
-        "log", "--diff-filter=A", "--name-only", "--format=%ct", "--", ".changeset/"
+        "log",
+        "--diff-filter=A",
+        "--name-only",
+        "--format=%ct",
+        rev,
+        "--",
+        f"{CHANGESET_PATH}/",
     )
     times, current = {}, 0
     for line in out.splitlines():
@@ -272,6 +290,15 @@ def git(*args: str) -> str:
     return subprocess.run(
         ["git", *args], cwd=ROOT, check=True, capture_output=True, text=True
     ).stdout
+
+
+def is_ancestor(commit: str, of: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit, of], cwd=ROOT, check=False
+        ).returncode
+        == 0
+    )
 
 
 def current_version(package: str) -> str:
@@ -475,7 +502,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         "--diff-filter=A",
         f"{args.pr_base}...HEAD",
         "--",
-        ".changeset/",
+        f"{CHANGESET_PATH}/",
     )
     if NO_CHANGELOG_LABEL not in labels and not any(
         p.endswith(".md") for p in added.splitlines()
@@ -531,6 +558,40 @@ def cmd_release(args: argparse.Namespace) -> int:
         print(f"Release notes for GitHub: {notes.relative_to(ROOT)}")
     for change in changes:
         change.path.unlink()
+    return 0
+
+
+def cmd_notes(args: argparse.Namespace) -> int:
+    """Print a binding's GitHub release notes, as `release` wrote them, from the change files at `rev`."""
+    changes = load_changes(args.rev)
+    if not any(args.binding in change.bumps for change in changes):
+        sys.exit(f"::error::no change file at {args.rev} names {args.binding}")
+    version = current_version(args.binding)
+    print(binding_release(changes, args.binding, version), end="")
+    return 0
+
+
+def cmd_verify_release(args: argparse.Namespace) -> int:
+    """Exit unless HEAD is one commit on top of `base` that consumed every change file."""
+    parents = git("rev-list", "--parents", "-n1", "HEAD").split()[1:]
+    if len(parents) != 1 or is_ancestor("HEAD", args.base):
+        sys.exit(
+            f"::error::HEAD must be a single release commit that isn't on {args.base} yet"
+        )
+    if not is_ancestor(parents[0], args.base):
+        sys.exit(
+            f"::error::HEAD's parent isn't on {args.base}. The release branch must be one commit on top "
+            f"of main; cut the release again (or `git fetch` if {args.base} is out of date)."
+        )
+    left = git(
+        "ls-tree", "--name-only", "HEAD", "--", f"{CHANGESET_PATH}/"
+    ).splitlines()
+    if left:
+        sys.exit(
+            f"::error::HEAD still has change files, so it would release changes its changelog misses: "
+            f"{', '.join(left)}. Cut the release again."
+        )
+    print(f"HEAD is a release commit on top of {args.base}.")
     return 0
 
 
@@ -640,6 +701,13 @@ def main() -> int:
     check.set_defaults(run=cmd_check)
     commands.add_parser("preview").set_defaults(run=cmd_preview)
     commands.add_parser("release").set_defaults(run=cmd_release)
+    notes = commands.add_parser("notes")
+    notes.add_argument("binding", choices=list(BINDINGS))
+    notes.add_argument("--rev", default="HEAD^", metavar="REV")
+    notes.set_defaults(run=cmd_notes)
+    verify = commands.add_parser("verify-release")
+    verify.add_argument("--base", default="origin/main", metavar="REV")
+    verify.set_defaults(run=cmd_verify_release)
     tag = commands.add_parser("tag")
     tag.add_argument("--create", action="store_true")
     tag.set_defaults(run=cmd_tag)
