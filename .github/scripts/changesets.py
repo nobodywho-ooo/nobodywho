@@ -553,21 +553,32 @@ def cmd_push_tags(args: argparse.Namespace) -> int:
     GitHub starts no workflows for a push of more than three tags, and runs on the same commit
     share a concurrency group that cancels a pending run when a newer one queues.
     """
+    # Keep these lines in order with git's output, even when piped.
+    sys.stdout.reconfigure(line_buffering=True)
     head = git("rev-parse", "HEAD").strip()
+    print("Checking which release tags are already on origin…")
     pushed = remote_tags()
     for tag in newest_release_tags():
         if tag in pushed and pushed[tag] != head:
             sys.exit(
                 f"::error::{tag} is already on origin, on {pushed[tag]} instead of HEAD"
             )
-        if tag not in pushed:
+        if tag in pushed:
+            print(f"{tag} is already on origin.")
+        else:
             if git("tag", "--list", tag).strip():
                 if git("rev-list", "-n1", tag).strip() != head:
                     sys.exit(f"::error::{tag} already exists locally on another commit")
             else:
                 git("tag", tag)
-            git("push", "origin", f"refs/tags/{tag}")
-            print(f"pushed {tag}")
+            print(f"Pushing {tag}…")
+            # The release PR's full CI already checked this commit, so skip the pre-push hook's
+            # `just check`.
+            subprocess.run(
+                ["git", "push", "--no-verify", "origin", f"refs/tags/{tag}"],
+                cwd=ROOT,
+                check=True,
+            )
         wait_for_run(tag, head)
     return 0
 
@@ -582,9 +593,15 @@ def remote_tags() -> dict[str, str]:
     return tags
 
 
+# How often `wait_for_run` repeats a status that hasn't changed.
+HEARTBEAT_SECONDS = 5 * 60
+
+
 def wait_for_run(tag: str, commit: str) -> None:
     """Wait until the tag's Build and test run starts, exiting if it ended without success."""
-    last = None
+    print(f"Waiting for {tag}'s Build and test run to start…")
+    start = time.monotonic()
+    last, last_print = None, start
     while True:
         out = subprocess.run(
             ["gh", "run", "list", "--workflow", "build-and-test.yml", "--branch", tag]
@@ -596,9 +613,12 @@ def wait_for_run(tag: str, commit: str) -> None:
         ).stdout
         runs = [run for run in json.loads(out) if run["headSha"] == commit]
         status = runs[0]["status"] if runs else "not created yet"
-        if status != last:
-            print(f"  {tag}: {status}")
-            last = status
+        now = time.monotonic()
+        # Report every change, and the unchanged status every few minutes as a heartbeat.
+        if status != last or now - last_print >= HEARTBEAT_SECONDS:
+            url = f" {runs[0]['url']}" if runs else ""
+            print(f"  {tag}: {status} after {int(now - start) // 60} min{url}")
+            last, last_print = status, now
         if status == "in_progress":
             return
         if status == "completed":
