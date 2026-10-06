@@ -787,6 +787,13 @@ impl<'a> InferenceEngine<'a> {
         // the various other work we do (including the work the user does)
         // isn't going to block inference.
 
+        // Explicitly wait for decoding to finish. This is done implicitly
+        // inside `.sample` as well, but doing it explicitly here makes it
+        // easier to see in traces where the actual work happens.
+        let span = trace_span!("synchronize").entered();
+        self.ctx.synchronize();
+        drop(span);
+
         let span = trace_span!("sample").entered();
         let token = if let EngineContext::Speculative(spec) = &mut self.ctx {
             if let Some(draft) = spec.drafts.get(spec.n_accepted) {
@@ -851,8 +858,8 @@ impl<'a> InferenceEngine<'a> {
         // llm go brr?
         //
         // We _start_ the decoding here, though we don't wait for it to finish
-        // (see comment further up), so beware that timings might be somewhat
-        // confusing if you're trying to benchmark.
+        // (that is done in `synchronize` further up), so beware that timings
+        // might be somewhat confusing if you're trying to benchmark.
         let span = trace_span!("decode", n_past = self.n_past).entered();
         self.ctx.decode(&mut self.batch)?;
         drop(span);
