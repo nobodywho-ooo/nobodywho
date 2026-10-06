@@ -325,6 +325,8 @@ The runs therefore execute one after another and the command takes hours. If it 
 
 Each binding's release job creates its GitHub Release with the build artifacts and its notes, which the `release-notes` job renders from the change files the release commit consumed. They should match `nobodywho/changelogs/<binding>-<version>.md`; if a Release's notes are missing or differ, tell the user.
 
+If Godot is released, remind the user once its GitHub Release appears to upload it to the Godot Asset Store by hand. The store's API doesn't allow automating it yet. The upload is the zip attached to the `nobodywho-godot-v<version>` Release, added as a new version at <https://store.godotengine.org/asset/nobodywho/nobodywho/manage/#versions>.
+
 When every binding is published, tell the user the PR is ready to squash-merge on GitHub. The release branch never gets `main` merged into it.
 
 The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` and new change files don't overlap the deleted ones. If GitHub still reports a conflict, stop and ask the user. It can happen when `main` edited a consumed change file, or a lockfile or `Cargo.nix`, since the branch was cut.
@@ -345,4 +347,4 @@ The PR shouldn't conflict with `main`, since nothing else edits `CHANGELOG.md` a
 - [ ] Docs snapshotted per released binding, `latestReleases` updated (Step 5)
 - [ ] Step 6 checks pass
 - [ ] User created the release branch, committed, pushed and opened the PR with `no-changelog`, `edit-changelog` and `full-ci`; every check green (Step 7)
-- [ ] `changesets.py verify-release` passes; user ran `just push-release-tags`; each GitHub Release has its notes; told the PR is ready to squash-merge (Step 8)
+- [ ] `changesets.py verify-release` passes; user ran `just push-release-tags`; each GitHub Release has its notes; user reminded to upload Godot to the Godot Asset Store, if released; told the PR is ready to squash-merge (Step 8)
