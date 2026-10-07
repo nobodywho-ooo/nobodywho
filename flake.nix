@@ -51,6 +51,9 @@
             export TEST_MODEL=${test-models.TEST_MODEL}
             export TEST_EMBEDDINGS_MODEL=${test-models.TEST_EMBEDDINGS_MODEL}
             export TEST_CROSSENCODER_MODEL=${test-models.TEST_CROSSENCODER_MODEL}
+            export TEST_RECURRENT_MODEL=${test-models.TEST_RECURRENT_MODEL}
+            export TEST_RECURRENT_MMPROJ_MODEL=${test-models.TEST_RECURRENT_MMPROJ_MODEL}
+            export TEST_IMAGE=${./nobodywho/python/tests/img/dog.png}
 
 
           '';

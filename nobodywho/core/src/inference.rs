@@ -194,6 +194,11 @@ pub(crate) struct InferenceEngine<'a> {
     /// Batch that's used when decoding. Stored here to re-use the allocation.
     batch: LlamaBatch<'static>,
     use_embeddings: bool,
+    /// Our account of the KV cache at positions `[0, n_past)`, together with
+    /// `pending_generated`.
+    kv_mirror: TokenizerChunks,
+    /// Generated tokens not yet merged into `kv_mirror`, so each one isn't a re-hash.
+    pending_generated: Vec<LlamaToken>,
 }
 
 impl<'a> InferenceEngine<'a> {
@@ -216,7 +221,36 @@ impl<'a> InferenceEngine<'a> {
             projection_model,
             tokenizer,
             use_embeddings,
+            kv_mirror: TokenizerChunks::new(),
+            pending_generated: Vec::new(),
         }
+    }
+
+    /// The chunks in the KV cache at positions `[0, n_past)`; merges pending generated tokens first.
+    pub(crate) fn kv_mirror(&mut self) -> &TokenizerChunks {
+        self.flush_generated();
+        debug_assert_eq!(self.kv_mirror.n_positions(), self.n_past as usize);
+        &self.kv_mirror
+    }
+
+    /// Merge `pending_generated` into `kv_mirror`.
+    fn flush_generated(&mut self) {
+        if !self.pending_generated.is_empty() {
+            let generated = std::mem::take(&mut self.pending_generated);
+            self.kv_mirror.append(TokenizerChunk::new_text(generated));
+        }
+    }
+
+    /// Record that positions from `n_tokens` onward were removed from the KV cache.
+    fn truncate_mirror(&mut self, n_tokens: usize) {
+        self.flush_generated();
+        self.kv_mirror.truncate(n_tokens);
+    }
+
+    /// Record that the KV cache was emptied.
+    fn clear_mirror(&mut self) {
+        self.kv_mirror = TokenizerChunks::new();
+        self.pending_generated.clear();
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
@@ -228,6 +262,7 @@ impl<'a> InferenceEngine<'a> {
         }
         self.ctx.clear_kv_cache();
         self.n_past = 0;
+        self.clear_mirror();
         Ok(())
     }
 
@@ -326,14 +361,16 @@ impl<'a> InferenceEngine<'a> {
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         for chunk in chunks.into_iter() {
-            match chunk {
+            self.kv_mirror();
+            match &chunk {
                 TokenizerChunk::Text(tokens, _) => {
                     self.read_text_tokens(tokens, inference_lock_token)?;
                 }
                 TokenizerChunk::Image(embeddings, _) | TokenizerChunk::Audio(embeddings, _) => {
-                    self.read_media_embeddings(embeddings, inference_lock_token)?;
+                    self.read_media_embeddings(embeddings.clone(), inference_lock_token)?;
                 }
             }
+            self.kv_mirror.append(chunk);
         }
 
         Ok(self)
@@ -382,7 +419,7 @@ impl<'a> InferenceEngine<'a> {
     #[tracing::instrument(level = "trace", skip(self))]
     fn read_text_tokens(
         &mut self,
-        tokens: Vec<LlamaToken>,
+        tokens: &[LlamaToken],
         _inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         let n_tokens = tokens.len();
@@ -441,7 +478,7 @@ impl<'a> InferenceEngine<'a> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    /// Remove everything in the KV cache from `index` onward.
+    /// Remove everything in the KV cache from token `index` onward.
     ///
     /// Returns `(effective_prefix, trimmed)` where:
     /// - `effective_prefix` is the number of tokens still valid in the KV cache
@@ -450,17 +487,21 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         index: usize,
     ) -> Result<(usize, i32), KvCacheConversionError> {
-        if self.n_past <= index as i32 {
+        if self.kv_mirror().n_tokens() <= index {
             return Ok((index, 0));
         }
 
+        // The cache is cut by position, which falls behind the token count after M-RoPE media.
+        // Media can't be split, so a cut inside one moves back to its start and it is re-read.
+        let (index, position) = self.kv_mirror.cut_at(index);
         let before = self.n_past;
         let seq_rm_success = self
             .ctx
-            .clear_kv_cache_seq(Some(0), Some(index as u32), None)?;
+            .clear_kv_cache_seq(Some(0), Some(position as u32), None)?;
 
         if seq_rm_success {
-            self.n_past = index as i32;
+            self.n_past = position as i32;
+            self.truncate_mirror(index);
             Ok((index, before - self.n_past))
         } else {
             // Partial sequence removal is not supported by this model's memory type
@@ -473,18 +514,17 @@ impl<'a> InferenceEngine<'a> {
             );
             self.ctx.clear_kv_cache();
             self.n_past = 0;
+            self.clear_mirror();
             Ok((0, before))
         }
     }
 
-    /// Diff `target` chunks against `prev` and load only the new tail into the KV cache.
-    /// Returns the new KV-cache mirror; the caller is responsible for storing it.
+    /// Diff `target` chunks against what is in the KV cache and load only the new tail.
     pub(crate) fn sync_context(
         &mut self,
         target: TokenizerChunks,
-        prev: &TokenizerChunks,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<TokenizerChunks, ContextSyncError> {
+    ) -> Result<(), ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
             // Clear draft state.
             spec.accept_drafts()?;
@@ -493,7 +533,7 @@ impl<'a> InferenceEngine<'a> {
             spec.n_accepted = 0;
         }
 
-        let prefix_index = find_chunks_prefix_difference(prev, &target);
+        let prefix_index = find_chunks_prefix_difference(self.kv_mirror(), &target);
 
         debug_assert!(!target.is_empty());
 
@@ -507,11 +547,12 @@ impl<'a> InferenceEngine<'a> {
             // Truncate-only: KV cache was trimmed but no new tokens need appending.
             // Re-decode the last token to refresh stale logits — llama.cpp requires
             // consecutive positions so we must evict it before re-reading.
-            self.remove_all_tokens_from_index_from_ctx(self.n_past as usize - 1)?;
-            self.read_chunks(target.tail(self.n_past as usize), inference_lock_token)?;
+            let n_tokens = self.kv_mirror().n_tokens();
+            let (kept, _) = self.remove_all_tokens_from_index_from_ctx(n_tokens - 1)?;
+            self.read_chunks(target.tail(kept), inference_lock_token)?;
         }
 
-        Ok(target)
+        Ok(())
     }
 
     fn in_progress_drafts(&self) -> i32 {
@@ -522,9 +563,11 @@ impl<'a> InferenceEngine<'a> {
         }
     }
 
-    /// The context size including drafts.
+    /// Tokens in the KV cache including drafts. Each takes a slot of the context,
+    /// though M-RoPE media spans fewer positions than that.
     pub(crate) fn actual_context_size(&self) -> i32 {
-        self.n_past + self.in_progress_drafts()
+        (self.kv_mirror.n_tokens() + self.pending_generated.len()) as i32
+            + self.in_progress_drafts()
     }
 
     pub(crate) fn is_context_full(&self) -> bool {
@@ -585,6 +628,7 @@ impl<'a> InferenceEngine<'a> {
                 // return the token.
                 if token == *draft {
                     spec.n_accepted += 1;
+                    self.pending_generated.push(token);
                     self.n_past += 1;
                     return Ok(token);
                 }
@@ -620,7 +664,8 @@ impl<'a> InferenceEngine<'a> {
 
             // Clamp drafts so the verify batch [pending, drafts...] stays
             // within the context window:
-            let room = usize::try_from(self.ctx.n_ctx() as i32 - self.n_past - 1).unwrap_or(0);
+            let used = self.kv_mirror.n_tokens() + self.pending_generated.len();
+            let room = (spec.ctx.target_context().n_ctx() as usize).saturating_sub(used + 1);
             drafts.truncate(room);
 
             trace!(?drafts);
@@ -655,6 +700,7 @@ impl<'a> InferenceEngine<'a> {
             spec.drafts = drafts;
         }
 
+        self.pending_generated.push(token);
         self.n_past += 1;
 
         Ok(token)

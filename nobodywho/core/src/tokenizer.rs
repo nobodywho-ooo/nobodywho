@@ -86,6 +86,22 @@ impl TokenizerChunk {
         Self::Audio(Rc::new(chunks), id.unwrap_or_default())
     }
 
+    /// KV positions the chunk takes; fewer than its tokens for M-RoPE media.
+    pub fn n_positions(&self) -> usize {
+        match self {
+            TokenizerChunk::Text(tokens, _) => tokens.len(),
+            TokenizerChunk::Image(chunks_rc, _) | TokenizerChunk::Audio(chunks_rc, _) => (0
+                ..chunks_rc.len())
+                .map(|i| {
+                    chunks_rc
+                        .get(i)
+                        .map(|c| c.n_positions() as usize)
+                        .unwrap_or(0)
+                })
+                .sum(),
+        }
+    }
+
     pub fn id(&self) -> &str {
         match self {
             Self::Text(_, id) | Self::Image(_, id) | Self::Audio(_, id) => id,
@@ -127,8 +143,29 @@ impl TokenizerChunks {
         self.chunks.iter().map(|chunk| chunk.n_tokens()).sum()
     }
 
+    pub fn n_positions(&self) -> usize {
+        self.chunks.iter().map(|chunk| chunk.n_positions()).sum()
+    }
+
     pub fn len(&self) -> usize {
         self.chunks.len()
+    }
+
+    /// `(tokens, positions)` kept by a cut at `n_tokens`; a cut inside media moves back to its start.
+    pub fn cut_at(&self, n_tokens: usize) -> (usize, usize) {
+        let mut tokens = 0;
+        let mut positions = 0;
+        for chunk in &self.chunks {
+            if tokens + chunk.n_tokens() > n_tokens {
+                return match chunk {
+                    TokenizerChunk::Text(..) => (n_tokens, positions + (n_tokens - tokens)),
+                    TokenizerChunk::Image(..) | TokenizerChunk::Audio(..) => (tokens, positions),
+                };
+            }
+            tokens += chunk.n_tokens();
+            positions += chunk.n_positions();
+        }
+        (tokens, positions)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -232,6 +269,35 @@ impl TokenizerChunks {
                 }
             }
         }
+    }
+
+    /// Keep only the first `n_tokens` positions; the inverse of [`Self::tail`].
+    /// A media chunk is never split, so the cut must not fall inside one.
+    pub fn truncate(&mut self, n_tokens: usize) {
+        if n_tokens >= self.n_tokens() {
+            return;
+        }
+
+        let mut pos = 0;
+        let mut keep = 0;
+        while pos + self.chunks[keep].n_tokens() <= n_tokens {
+            pos += self.chunks[keep].n_tokens();
+            keep += 1;
+        }
+
+        let rest = n_tokens - pos;
+        if rest > 0 {
+            match &self.chunks[keep] {
+                TokenizerChunk::Text(tokens, _) => {
+                    self.chunks[keep] = TokenizerChunk::new_text(tokens[..rest].to_vec());
+                    keep += 1;
+                }
+                TokenizerChunk::Image(..) | TokenizerChunk::Audio(..) => {
+                    debug_assert!(false, "cannot truncate inside a media chunk");
+                }
+            }
+        }
+        self.chunks.truncate(keep);
     }
 }
 
@@ -954,5 +1020,42 @@ mod tests {
 
         assert_eq!(prefix_index, 300); // 100 chunks * 3 tokens each
         assert_eq!(new.tail(prefix_index).n_tokens(), 2); // Final different chunk
+    }
+
+    // ===== E. KV Mirror Tests =====
+
+    #[test]
+    fn test_mirror_keeps_previous_reply_across_turns() {
+        // The engine's mirror: sync each render's tail, then append the generated reply.
+        // Text chunks merge on append, so each turn re-reads only the new tokens.
+        let mut mirror = TokenizerChunks::new();
+        let turns = [(0..10, 10..12), (0..23, 23..25), (0..34, 34..36)];
+        let mut prev_len = 0;
+        for (render, reply) in turns {
+            let target = create_chunks(vec![create_text_chunk(render.clone().collect())]);
+            let cut = find_chunks_prefix_difference(&mirror, &target);
+            assert_eq!(cut, prev_len, "previous render and reply should be kept");
+
+            mirror.truncate(cut);
+            for chunk in target.tail(cut).iter() {
+                mirror.append(chunk.clone());
+            }
+            mirror.append(create_text_chunk(reply.clone().collect()));
+            prev_len = reply.end as usize;
+        }
+    }
+
+    #[test]
+    fn test_cut_at_keeps_text_cuts() {
+        let chunks = create_chunks(vec![
+            create_text_chunk(vec![1, 2, 3]),
+            create_image_chunk("img"),
+            create_text_chunk(vec![4, 5]),
+        ]);
+
+        for n in 0..=5 {
+            assert_eq!(chunks.cut_at(n), (n, n));
+        }
+        assert_eq!(chunks.cut_at(10), (5, 5));
     }
 }
