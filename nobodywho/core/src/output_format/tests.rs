@@ -35,20 +35,27 @@ const EOG: LlamaToken = LlamaToken(1004);
 const EOG_TEXT: &str = "<eog>";
 
 /// The special tokens `format` needs, as text.
-fn specials(format: &dyn OutputFormat) -> Vec<(&'static str, SpecialToken)> {
+fn specials(format: &OutputFormat) -> Vec<(&'static str, SpecialToken)> {
     let text = |id| SpecialToken { id, control: false };
-    let syntax = format.tool_calls();
+    let syntax = format.tool_calls;
     let mut specials = vec![(syntax.begin, text(BEGIN))];
     specials.extend(syntax.end.map(|end| (end, text(END))));
-    if let Some(thinking) = format.thinking() {
+    if let Some(thinking) = format.thinking {
         specials.extend([(thinking.begin, text(THINK)), (thinking.end, text(UNTHINK))]);
     }
     specials
 }
 
 /// `format` over a vocabulary that has its markers as text.
-fn resolve(format: &'static dyn OutputFormat) -> ResolvedFormat {
-    ResolvedFormat::new(format, &FakeVocab(specials(format))).unwrap()
+fn resolve(format: &OutputFormat) -> ResolvedFormat {
+    ResolvedFormat::new(*format, &FakeVocab(specials(format))).unwrap()
+}
+
+/// Every format.
+fn formats() -> impl Iterator<Item = OutputFormat> {
+    [function_gemma, gemma4, qwen35, qwen3, ministral3, lfm2]
+        .into_iter()
+        .map(|f| f())
 }
 
 fn tool(name: &str, schema: Value) -> Tool {
@@ -124,7 +131,7 @@ fn call(name: &str, arguments: Value) -> ToolCall {
 
 /// Calls every format can write. `create_event` has nested values, which only
 /// JSON and JSON-like values can hold.
-fn calls(format: &dyn OutputFormat) -> Vec<ToolCall> {
+fn calls(format: &OutputFormat) -> Vec<ToolCall> {
     let mut calls = vec![
         call("get_weather", json!({ "location": "Paris" })),
         call(
@@ -134,7 +141,7 @@ fn calls(format: &dyn OutputFormat) -> Vec<ToolCall> {
         call("calculate", json!({ "exact": false, "x": 1.5, "y": -2 })),
         call("get_time", json!({})),
     ];
-    let nests = match format.tool_calls().call {
+    let nests = match format.tool_calls.call {
         CallSyntax::JsonObject { .. } => true,
         CallSyntax::Parts(parts) => match parts.args {
             ArgsSyntax::Json => true,
@@ -187,8 +194,8 @@ fn render_json_like(value: &Value, quote: &str) -> String {
     }
 }
 
-fn render_call(format: &dyn OutputFormat, call: &ToolCall) -> String {
-    let syntax = match format.tool_calls().call {
+fn render_call(format: &OutputFormat, call: &ToolCall) -> String {
+    let syntax = match format.tool_calls.call {
         CallSyntax::Parts(parts) => parts,
         CallSyntax::JsonObject {
             name_key,
@@ -236,20 +243,20 @@ fn render_call(format: &dyn OutputFormat, call: &ToolCall) -> String {
 
 /// The text of a block of tool calls holding `calls`, without its begin and
 /// end markers.
-fn render_tool_calls(format: &dyn OutputFormat, calls: &[ToolCall]) -> String {
+fn render_tool_calls(format: &OutputFormat, calls: &[ToolCall]) -> String {
     let calls: Vec<_> = calls.iter().map(|c| render_call(format, c)).collect();
-    match format.tool_calls().list {
+    match format.tool_calls.list {
         Some(list) => format!("{}{}{}", list.open, calls.join(list.separator), list.close),
         None => {
-            assert_eq!(calls.len(), 1, "{format:?} has one call per block");
+            assert_eq!(calls.len(), 1, "{} has one call per block", format.name);
             calls[0].clone()
         }
     }
 }
 
 /// A full response making `calls`, markers included.
-fn render_response(format: &dyn OutputFormat, calls: &[ToolCall]) -> String {
-    let syntax = format.tool_calls();
+fn render_response(format: &OutputFormat, calls: &[ToolCall]) -> String {
+    let syntax = format.tool_calls;
     let end = syntax.end.unwrap_or("");
     let tool_calls =
         |calls: &[ToolCall]| format!("{}{}{end}", syntax.begin, render_tool_calls(format, calls));
@@ -268,14 +275,15 @@ fn render_response(format: &dyn OutputFormat, calls: &[ToolCall]) -> String {
 
 #[test]
 fn every_format_reads_back_what_it_writes() {
-    for &format in FORMATS {
-        let resolved = resolve(format);
-        for call in calls(format) {
-            let text = render_tool_calls(format, std::slice::from_ref(&call));
+    for format in formats() {
+        let resolved = resolve(&format);
+        for call in calls(&format) {
+            let text = render_tool_calls(&format, std::slice::from_ref(&call));
             assert_eq!(
                 resolved.parse_tool_calls(&text, &tools()),
                 Ok(vec![call]),
-                "{format:?} failed on {text:?}"
+                "{} failed on {text:?}",
+                format.name
             );
         }
     }
@@ -283,29 +291,29 @@ fn every_format_reads_back_what_it_writes() {
 
 #[test]
 fn reads_what_the_old_handlers_were_tested_on() {
-    let cases: &[(&'static dyn OutputFormat, &str, Vec<ToolCall>)] = &[
+    let cases: &[(&OutputFormat, &str, Vec<ToolCall>)] = &[
         (
-            &Qwen3,
+            &qwen3(),
             r#"{"name": "tool1", "arguments": {"a": 1}}"#,
             vec![call("tool1", json!({ "a": 1 }))],
         ),
         (
-            &Qwen35,
+            &qwen35(),
             "\n<function=get_weather>\n<parameter=location>\nsunny\n\n</parameter>\n</function>\n",
             vec![call("get_weather", json!({ "location": "sunny\n" }))],
         ),
         (
-            &FunctionGemma,
+            &function_gemma(),
             "call:calculate{x:<escape>10<escape>, y:<escape>20<escape>, op:<escape>add<escape>}",
             vec![call("calculate", json!({ "x": 10, "y": 20, "op": "add" }))],
         ),
         (
-            &FunctionGemma,
+            &function_gemma(),
             "call:write_file{content:<escape>line1\nline2<escape>}",
             vec![call("write_file", json!({ "content": "line1\nline2" }))],
         ),
         (
-            &Gemma4,
+            &gemma4(),
             "call:search{query:<|\"|>rust lang<|\"|>,limit:10,exact:false}",
             vec![call(
                 "search",
@@ -313,12 +321,12 @@ fn reads_what_the_old_handlers_were_tested_on() {
             )],
         ),
         (
-            &Ministral3,
+            &ministral3(),
             r#"sparklify[ARGS]{"text": "JULEMAND"}"#,
             vec![call("sparklify", json!({ "text": "JULEMAND" }))],
         ),
         (
-            &Lfm2,
+            &lfm2(),
             r#"[get_weather(location="Paris"), set_flag(on=True, off=False, x=None, name='Bob')]"#,
             vec![
                 call("get_weather", json!({ "location": "Paris" })),
@@ -331,9 +339,10 @@ fn reads_what_the_old_handlers_were_tested_on() {
     ];
     for (format, text, expected) in cases {
         assert_eq!(
-            resolve(*format).parse_tool_calls(text, &tools()),
+            resolve(format).parse_tool_calls(text, &tools()),
             Ok(expected.clone()),
-            "{format:?} failed on {text:?}"
+            "{} failed on {text:?}",
+            format.name
         );
     }
 }
@@ -342,7 +351,7 @@ fn reads_what_the_old_handlers_were_tested_on() {
 fn a_json_call_can_name_its_arguments_first() {
     let text = r#"{"arguments": {"location": "Oslo"}, "name": "get_weather"}"#;
     assert_eq!(
-        resolve(&Qwen3).parse_tool_calls(text, &tools()),
+        resolve(&qwen3()).parse_tool_calls(text, &tools()),
         Ok(vec![call("get_weather", json!({ "location": "Oslo" }))])
     );
 }
@@ -352,7 +361,7 @@ fn values_are_read_by_their_schema_type() {
     // A string that looks like a number stays a string when the schema says so.
     let text = "\n<function=get_weather>\n<parameter=location>\n123\n</parameter>\n</function>\n";
     assert_eq!(
-        resolve(&Qwen35).parse_tool_calls(text, &tools()),
+        resolve(&qwen35()).parse_tool_calls(text, &tools()),
         Ok(vec![call("get_weather", json!({ "location": "123" }))])
     );
 }
@@ -380,7 +389,7 @@ fn values_keep_the_types_their_schemas_allow() {
                 s:<escape>7<escape>,u:<escape>8<escape>,e:<escape>1<escape>,\
                 o:<escape>12345<escape>,b:<escape>true<escape>}";
     assert_eq!(
-        resolve(&FunctionGemma).parse_tool_calls(text, &tools),
+        resolve(&function_gemma()).parse_tool_calls(text, &tools),
         Ok(vec![call(
             "pick",
             json!({ "n": 5, "m": 6, "s": "7", "u": "8", "e": "1", "o": "12345", "b": true })
@@ -392,12 +401,12 @@ fn values_keep_the_types_their_schemas_allow() {
 fn reads_whitespace_the_template_would_not_have_written() {
     let text = r#"{"name":"get_time","arguments":{}}"#;
     assert_eq!(
-        resolve(&Qwen3).parse_tool_calls(text, &tools()),
+        resolve(&qwen3()).parse_tool_calls(text, &tools()),
         Ok(vec![call("get_time", json!({}))])
     );
     let text = "call:calculate{x:<escape>1<escape>,y:<escape>2<escape>}";
     assert_eq!(
-        resolve(&FunctionGemma).parse_tool_calls(text, &tools()),
+        resolve(&function_gemma()).parse_tool_calls(text, &tools()),
         Ok(vec![call("calculate", json!({ "x": 1, "y": 2 }))])
     );
 }
@@ -406,21 +415,21 @@ fn reads_whitespace_the_template_would_not_have_written() {
 #[test]
 fn raw_values_keep_their_whitespace() {
     let call = call("get_weather", json!({ "location": "\n    x = 1\n\n" }));
-    let text = render_tool_calls(&Qwen35, std::slice::from_ref(&call));
+    let text = render_tool_calls(&qwen35(), std::slice::from_ref(&call));
     assert_eq!(
-        resolve(&Qwen35).parse_tool_calls(&text, &tools()),
+        resolve(&qwen35()).parse_tool_calls(&text, &tools()),
         Ok(vec![call])
     );
 }
 
 #[test]
 fn says_where_a_block_stops_making_sense() {
-    let error = resolve(&Gemma4)
+    let error = resolve(&gemma4())
         .parse_tool_calls("call:get_time{", &tools())
         .unwrap_err();
     assert_eq!(error.at, "call:get_time{".len());
 
-    let error = resolve(&Qwen3)
+    let error = resolve(&qwen3())
         .parse_tool_calls(
             "\n{\"name\": \"get_time\", \"arguments\": {}}\ntrailing",
             &tools(),
@@ -436,7 +445,7 @@ fn says_where_a_block_stops_making_sense() {
 /// Feeds `pieces` through a splitter for a response to `prompt`. Markers get
 /// their tokens, and anything else is token 1. Checks that every token ends up
 /// in exactly one piece, in order.
-fn split_after(format: &'static dyn OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piece> {
+fn split_after(format: &OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piece> {
     let resolved = resolve(format);
     let tools = tools();
     let mut splitter = resolved.splitter(tools, prompt);
@@ -472,7 +481,7 @@ fn split_after(format: &'static dyn OutputFormat, prompt: &str, pieces: &[&str])
     out
 }
 
-fn split(format: &'static dyn OutputFormat, pieces: &[&str]) -> Vec<Piece> {
+fn split(format: &OutputFormat, pieces: &[&str]) -> Vec<Piece> {
     split_after(format, "", pieces)
 }
 
@@ -523,7 +532,7 @@ fn splits_text_from_calls() {
         "\n",
     ];
     assert_eq!(
-        kinds(&split(&Qwen3, &pieces)),
+        kinds(&split(&qwen3(), &pieces)),
         vec![
             open(Item::Text),
             delta("Let me "),
@@ -546,7 +555,7 @@ fn splits_text_from_calls() {
 fn tokens_go_with_the_pieces_they_write() {
     let pieces = ["<think>", "\nHmm", ".\n", "</think>", "\n\nHi", EOG_TEXT];
     assert_eq!(
-        with_tokens(&split(&Qwen3, &pieces)),
+        with_tokens(&split(&qwen3(), &pieces)),
         vec![
             (open(Item::Thinking), "<think>\nHmm".into()),
             (delta("Hmm"), "".into()),
@@ -574,7 +583,7 @@ fn calls_in_one_block_get_their_own_tokens() {
         "<|tool_call_end|>",
     ];
     assert_eq!(
-        with_tokens(&split(&Lfm2, &pieces)),
+        with_tokens(&split(&lfm2(), &pieces)),
         vec![
             (open_call("get_time"), "<|tool_call_start|>[".into()),
             (delta("{}"), "get_time()".into()),
@@ -595,7 +604,7 @@ fn markers_spelled_in_text_are_text() {
     // The characters of `<tool_call>` arriving as ordinary tokens.
     let pieces = ["use ", "<tool", "_call>", " to call tools"];
     assert_eq!(
-        kinds(&split(&Qwen3, &pieces)),
+        kinds(&split(&qwen3(), &pieces)),
         vec![
             open(Item::Text),
             delta("use "),
@@ -619,7 +628,7 @@ fn a_block_without_an_end_runs_to_the_next() {
         EOG_TEXT,
     ];
     assert_eq!(
-        kinds(&split(&Ministral3, &pieces)),
+        kinds(&split(&ministral3(), &pieces)),
         vec![
             open_call("get_time"),
             delta("{}"),
@@ -643,7 +652,7 @@ fn a_broken_block_keeps_the_formatting_before_it() {
         "</tool_call>",
         EOG_TEXT,
     ];
-    let text: String = split(&Qwen3, &pieces)
+    let text: String = split(&qwen3(), &pieces)
         .into_iter()
         .filter_map(|piece| match piece.kind {
             PieceKind::Delta(text) => Some(text),
@@ -656,7 +665,7 @@ fn a_broken_block_keeps_the_formatting_before_it() {
 #[test]
 fn a_broken_block_comes_back_as_its_text() {
     let pieces = ["<|tool_call>", "call:get_time(", "<tool_call|>"];
-    let pieces = kinds(&split(&Gemma4, &pieces));
+    let pieces = kinds(&split(&gemma4(), &pieces));
     assert!(
         matches!(pieces[0], PieceKind::Warning(Warning::Malformed(_))),
         "{pieces:?}"
@@ -678,7 +687,7 @@ fn a_broken_block_comes_back_as_its_text() {
 fn a_cut_off_block_is_text() {
     let pieces = ["<|tool_call_start|>", "[get_time()]"];
     assert_eq!(
-        kinds(&split(&Lfm2, &pieces)),
+        kinds(&split(&lfm2(), &pieces)),
         vec![
             open(Item::Text),
             delta("<|tool_call_start|>[get_time()]"),
@@ -688,7 +697,7 @@ fn a_cut_off_block_is_text() {
     );
     let pieces = ["<|tool_call_start|>", "[get_time()]", EOG_TEXT];
     assert_eq!(
-        kinds(&split(&Lfm2, &pieces)),
+        kinds(&split(&lfm2(), &pieces)),
         vec![open_call("get_time"), delta("{}"), CLOSE, end(false)]
     );
 }
@@ -720,7 +729,7 @@ fn template_formatting_is_neither_text_nor_reasoning() {
     pieces.push(EOG_TEXT);
     let call = r#"{"name": "get_time", "arguments": {}}"#;
     assert_eq!(
-        with_tokens(&split(&Qwen3, &pieces)),
+        with_tokens(&split(&qwen3(), &pieces)),
         vec![
             (open(Item::Thinking), "<think>\n".into()),
             (delta("Hmm"), "Hmm".into()),
@@ -753,7 +762,7 @@ fn formatting_around_blocks_is_per_format() {
     pieces.extend(block);
     pieces.push(EOG_TEXT);
     assert_eq!(
-        kinds(&split(&Qwen35, &pieces)),
+        kinds(&split(&qwen35(), &pieces)),
         vec![
             open(Item::Text),
             delta("Checking."),
@@ -785,7 +794,7 @@ fn only_the_formatting_is_removed() {
         EOG_TEXT,
     ];
     assert_eq!(
-        kinds(&split(&Qwen3, &pieces)),
+        kinds(&split(&qwen3(), &pieces)),
         vec![
             open(Item::Thinking),
             delta("\n  indented"),
@@ -804,7 +813,7 @@ fn only_the_formatting_is_removed() {
 fn formatting_only_counts_next_to_its_own_marker() {
     // `\n` before `<tool_call>` is formatting, but before the end it's text.
     assert_eq!(
-        kinds(&split(&Qwen3, &["Hi", "\n", EOG_TEXT])),
+        kinds(&split(&qwen3(), &["Hi", "\n", EOG_TEXT])),
         vec![
             open(Item::Text),
             delta("Hi"),
@@ -820,7 +829,7 @@ fn formatting_has_to_match_exactly() {
     // One newline where the template writes two is the model's.
     let pieces = ["<think>", "Hmm", "</think>", "\n", "Hi"];
     assert_eq!(
-        kinds(&split(&Qwen3, &pieces)),
+        kinds(&split(&qwen3(), &pieces)),
         vec![
             open(Item::Thinking),
             delta("Hmm"),
@@ -840,7 +849,7 @@ fn an_earlier_unclosed_marker_leaves_nothing_open() {
     let prompt = "<|im_start|>assistant\n<think>\nOkay, the user<|im_end|>\n\
                   <|im_start|>user\nWhat is 2+2?<|im_end|>\n<|im_start|>assistant\n";
     assert_eq!(
-        kinds(&split_after(&Qwen3, prompt, &["It's 4.", EOG_TEXT])),
+        kinds(&split_after(&qwen3(), prompt, &["It's 4.", EOG_TEXT])),
         vec![open(Item::Text), delta("It's 4."), CLOSE, end(false)]
     );
 }
@@ -856,7 +865,7 @@ fn a_character_cut_off_by_the_end_is_dropped() {
         &[&[b"Hi ".as_slice(), &crab[..2]].concat()],
     ];
     for tokens in tokens {
-        let resolved = resolve(&Qwen3);
+        let resolved = resolve(&qwen3());
         let tools = tools();
         let mut splitter = resolved.splitter(tools, "");
         let mut pieces = Vec::new();
@@ -888,12 +897,12 @@ fn a_prompt_can_open_the_reasoning() {
         end(true),
     ];
     let opened = "<|im_start|>assistant\n<think>\n";
-    assert_eq!(kinds(&split_after(&Qwen35, opened, &pieces)), reasoning);
+    assert_eq!(kinds(&split_after(&qwen35(), opened, &pieces)), reasoning);
     // The formatting after `<think>` is only expected if the prompt left it out.
     let newline_first = ["\nHmm", "</think>", "Hi"];
     assert_eq!(
         kinds(&split_after(
-            &Qwen35,
+            &qwen35(),
             "<|im_start|>assistant\n<think>",
             &newline_first
         )),
@@ -901,12 +910,12 @@ fn a_prompt_can_open_the_reasoning() {
     );
     let mut kept = reasoning.clone();
     kept[1] = delta("\nHmm");
-    assert_eq!(kinds(&split_after(&Qwen35, opened, &newline_first)), kept);
+    assert_eq!(kinds(&split_after(&qwen35(), opened, &newline_first)), kept);
 
     // One that closes it, as when reasoning is turned off, leaves the answer.
     let closed = "<|im_start|>assistant\n<think>\n\n</think>\n\n";
     assert_eq!(
-        kinds(&split_after(&Qwen35, closed, &pieces)),
+        kinds(&split_after(&qwen35(), closed, &pieces)),
         vec![
             open(Item::Text),
             delta("Hmm"),
@@ -923,7 +932,7 @@ fn a_prompt_can_open_the_reasoning() {
 fn a_reasoning_label_is_not_reasoning() {
     let pieces = ["<|channel>", "thought", "\nHmm", "<channel|>", "Hi"];
     assert_eq!(
-        kinds(&split(&Gemma4, &pieces)),
+        kinds(&split(&gemma4(), &pieces)),
         vec![
             open(Item::Thinking),
             delta("Hmm"),
@@ -937,13 +946,13 @@ fn a_reasoning_label_is_not_reasoning() {
     // Without the label, the reasoning is kept whole.
     let pieces = ["<|channel>", "though", "ts", "<channel|>"];
     assert_eq!(
-        kinds(&split(&Gemma4, &pieces)),
+        kinds(&split(&gemma4(), &pieces)),
         vec![open(Item::Thinking), delta("thoughts"), CLOSE, end(true)]
     );
     // A label that's all there is leaves the reasoning empty.
     let pieces = ["<|channel>", "thought\n", "<channel|>"];
     assert_eq!(
-        kinds(&split(&Gemma4, &pieces)),
+        kinds(&split(&gemma4(), &pieces)),
         vec![open(Item::Thinking), CLOSE, end(true)]
     );
 }
@@ -952,19 +961,19 @@ fn a_reasoning_label_is_not_reasoning() {
 fn the_end_of_generation_ends_the_response() {
     let pieces = ["[TOOL_CALLS]", "get_time[ARGS]{}", EOG_TEXT];
     assert_eq!(
-        kinds(&split(&Ministral3, &pieces)),
+        kinds(&split(&ministral3(), &pieces)),
         vec![open_call("get_time"), delta("{}"), CLOSE, end(false)]
     );
     // A response cut off before it ends all the same, but cut off.
     assert_eq!(
-        kinds(&split(&Qwen3, &["Hi"])),
+        kinds(&split(&qwen3(), &["Hi"])),
         vec![open(Item::Text), delta("Hi"), CLOSE, end(true)]
     );
 }
 
 #[test]
 fn a_character_split_across_tokens_arrives_whole() {
-    let resolved = resolve(&Qwen3);
+    let resolved = resolve(&qwen3());
     let tools = tools();
     let mut splitter = resolved.splitter(tools, "");
     let crab = "🦀".as_bytes();
@@ -978,7 +987,7 @@ fn a_character_split_across_tokens_arrives_whole() {
 
 #[test]
 fn a_character_cut_off_by_a_marker_is_dropped() {
-    let resolved = resolve(&Qwen3);
+    let resolved = resolve(&qwen3());
     let tools = tools();
     let mut splitter = resolved.splitter(tools, "");
     let crab = "🦀".as_bytes();
@@ -999,7 +1008,7 @@ fn a_character_cut_off_by_a_marker_is_dropped() {
 
 /// `text` as tokens of at most `size` characters, with each of `format`'s
 /// markers a token of its own, as a model's vocabulary has them.
-fn tokenize(format: &dyn OutputFormat, text: &str, size: usize) -> Vec<String> {
+fn tokenize(format: &OutputFormat, text: &str, size: usize) -> Vec<String> {
     let markers: Vec<&str> = specials(format).iter().map(|(marker, _)| *marker).collect();
     let mut tokens = Vec::new();
     let mut rest = text;
@@ -1021,7 +1030,7 @@ fn tokenize(format: &dyn OutputFormat, text: &str, size: usize) -> Vec<String> {
 }
 
 /// What the history keeps of `output`, a generation after `prompt`.
-fn written(format: &'static dyn OutputFormat, prompt: &str, output: &[String]) -> String {
+fn written(format: &OutputFormat, prompt: &str, output: &[String]) -> String {
     let resolved = resolve(format);
     let tools = tools();
     let mut splitter = resolved.splitter(tools, prompt);
@@ -1047,9 +1056,9 @@ fn written(format: &'static dyn OutputFormat, prompt: &str, output: &[String]) -
 /// formatting the template writes before them, which it writes again.
 #[test]
 fn the_history_is_what_was_written() {
-    for &format in FORMATS {
-        let syntax = format.tool_calls();
-        let call = render_response(format, &calls(format)[..1]);
+    for format in formats() {
+        let syntax = format.tool_calls;
+        let call = render_response(&format, &calls(&format)[..1]);
         let block = format!("{}{call}", syntax.before_begin);
         // What follows a block without an end is part of it.
         let after_block = if syntax.end.is_some() { "\nDone." } else { "" };
@@ -1075,7 +1084,7 @@ fn the_history_is_what_was_written() {
                 format!("{}not a call{}", syntax.begin, syntax.end.unwrap_or("")),
             ),
         ];
-        if let Some(t) = format.thinking() {
+        if let Some(t) = format.thinking {
             let reasoning = |r: &str| {
                 format!(
                     "{}{}{r}{}{}{}",
@@ -1113,7 +1122,7 @@ fn the_history_is_what_was_written() {
         for (prompt, output, kept) in &cases {
             for size in [1, 2, 3, 5, 100] {
                 for end in ["", EOG_TEXT] {
-                    let mut tokens = tokenize(format, output, size);
+                    let mut tokens = tokenize(&format, output, size);
                     tokens.extend((!end.is_empty()).then(|| end.to_string()));
                     // A block with no end marker is still open when the
                     // response is cut off, so it's text.
@@ -1124,9 +1133,10 @@ fn the_history_is_what_was_written() {
                         kept
                     };
                     assert_eq!(
-                        &written(format, prompt, &tokens),
+                        &written(&format, prompt, &tokens),
                         kept,
-                        "{format:?} wrote {tokens:?} after {prompt:?}"
+                        "{} wrote {tokens:?} after {prompt:?}",
+                        format.name
                     );
                 }
             }
@@ -1138,7 +1148,7 @@ fn the_history_is_what_was_written() {
 fn stray_end_markers_are_reported_and_kept_as_text() {
     let pieces = ["Hi", "</tool_call>", "</think>", "there"];
     assert_eq!(
-        with_tokens(&split(&Qwen3, &pieces)),
+        with_tokens(&split(&qwen3(), &pieces)),
         vec![
             (open(Item::Text), "".into()),
             (delta("Hi"), "Hi".into()),
@@ -1160,7 +1170,7 @@ fn stray_end_markers_are_reported_and_kept_as_text() {
 #[cfg(debug_assertions)]
 #[should_panic(expected = "after the end of generation")]
 fn pushing_after_the_end_is_a_bug() {
-    split(&Qwen3, &[EOG_TEXT, "more"]);
+    split(&qwen3(), &[EOG_TEXT, "more"]);
 }
 
 #[test]
@@ -1184,13 +1194,13 @@ fn without_a_format_everything_but_the_end_is_text() {
 
 #[test]
 fn a_model_without_reasoning_markers_does_not_reason() {
-    let syntax = Qwen3.tool_calls();
+    let syntax = qwen3().tool_calls;
     let text = |id| SpecialToken { id, control: false };
     let vocab = FakeVocab(vec![
         (syntax.begin, text(BEGIN)),
         (syntax.end.unwrap(), text(END)),
     ]);
-    let resolved = ResolvedFormat::new(&Qwen3, &vocab).unwrap();
+    let resolved = ResolvedFormat::new(qwen3(), &vocab).unwrap();
     assert_eq!(resolved.thinking, None);
     let tools = tools();
     let mut splitter = resolved.splitter(tools, "<think>\n");
@@ -1206,27 +1216,23 @@ fn a_model_without_reasoning_markers_does_not_reason() {
 
 #[test]
 fn detects_each_format_from_its_own_markers() {
-    for &format in FORMATS {
-        let template = render_response(format, &[call("get_time", json!({}))]);
-        let detected = FORMATS.iter().find(|f| f.detect(&template)).unwrap();
-        assert_eq!(
-            format!("{detected:?}"),
-            format!("{format:?}"),
-            "{template:?}"
-        );
+    for format in formats() {
+        let template = render_response(&format, &[call("get_time", json!({}))]);
+        let detected = detect_from_template(&template).unwrap();
+        assert_eq!(detected.name, format.name, "{template:?}");
     }
 }
 
 /// A format, and the `(architecture, name)` pairs that should give it.
-type MetadataCase<'a> = (Option<&'a dyn OutputFormat>, &'a [(&'a str, &'a str)]);
+type MetadataCase<'a> = (Option<OutputFormat>, &'a [(&'a str, &'a str)]);
 
 /// Checks `detect_from_metadata` on each case.
 fn assert_detected_from_metadata(cases: &[MetadataCase]) {
     for &(expected, metadata) in cases {
         for &(arch, name) in metadata {
             assert_eq!(
-                format!("{:?}", detect_from_metadata(arch, name)),
-                format!("{expected:?}"),
+                detect_from_metadata(arch, name).map(|f| f.name),
+                expected.map(|f| f.name),
                 "architecture {arch:?}, name {name:?}"
             );
         }
@@ -1237,7 +1243,7 @@ fn assert_detected_from_metadata(cases: &[MetadataCase]) {
 fn tells_qwen35_and_36_from_qwen3_in_metadata() {
     assert_detected_from_metadata(&[
         (
-            Some(&Qwen35),
+            Some(qwen35()),
             &[
                 ("qwen35", "Qwen3.5 2B Instruct"),
                 ("qwen35moe", "Qwen3.5 35B A3B"),
@@ -1249,7 +1255,7 @@ fn tells_qwen35_and_36_from_qwen3_in_metadata() {
             ],
         ),
         (
-            Some(&Qwen3),
+            Some(qwen3()),
             &[
                 ("qwen3", "Qwen3 8B"),
                 ("qwen3moe", "Qwen3 30B A3B"),
@@ -1263,9 +1269,12 @@ fn tells_qwen35_and_36_from_qwen3_in_metadata() {
 #[test]
 fn detects_other_formats_from_metadata() {
     assert_detected_from_metadata(&[
-        (Some(&Lfm2), &[("lfm2", "LFM2 1.2B"), ("", "LFM2-350M")]),
-        (Some(&FunctionGemma), &[("gemma3", "functiongemma-270m-it")]),
-        (Some(&Gemma4), &[("", "gemma-4-e2b-it")]),
+        (Some(lfm2()), &[("lfm2", "LFM2 1.2B"), ("", "LFM2-350M")]),
+        (
+            Some(function_gemma()),
+            &[("gemma3", "functiongemma-270m-it")],
+        ),
+        (Some(gemma4()), &[("", "gemma-4-e2b-it")]),
         (
             None,
             &[
@@ -1300,10 +1309,10 @@ fn tokens(model: &llama_cpp_2::model::LlamaModel, text: &str) -> Vec<u32> {
 /// `resolve` gives them.
 fn marked_tokens(
     model: &llama_cpp_2::model::LlamaModel,
-    format: &dyn OutputFormat,
+    format: &OutputFormat,
     text: &str,
 ) -> Vec<u32> {
-    let syntax = format.tool_calls();
+    let syntax = format.tool_calls;
     let mut markers = vec![(syntax.begin, BEGIN)];
     markers.extend(syntax.end.map(|end| (end, END)));
     let mut ids = Vec::new();
@@ -1346,9 +1355,9 @@ fn accepts_tokens(model: &llama_cpp_2::model::LlamaModel, grammar: &str, tokens:
 #[test]
 fn a_block_ends_only_with_its_token() {
     let model = load_test_vocab();
-    let resolved = ResolvedFormat::new(&Qwen3, &model).unwrap();
+    let resolved = ResolvedFormat::new(qwen3(), &model).unwrap();
     let grammar = resolved.grammar(&tools()).unwrap();
-    let text = render_response(&Qwen3, &calls(&Qwen3)[..1]);
+    let text = render_response(&qwen3(), &calls(&qwen3())[..1]);
     assert!(accepts(&model, &grammar, &text));
     let body = text.strip_suffix("</tool_call>").unwrap();
     let mut spelled = tokens(&model, body);
@@ -1363,22 +1372,24 @@ fn a_block_ends_only_with_its_token() {
 #[test]
 fn every_grammar_accepts_what_its_format_writes() {
     let model = load_test_vocab();
-    for &format in FORMATS {
-        let grammar = resolve(format).grammar(&tools()).unwrap();
-        let calls = calls(format);
+    for format in formats() {
+        let grammar = resolve(&format).grammar(&tools()).unwrap();
+        let calls = calls(&format);
         for call in &calls {
-            let text = render_response(format, std::slice::from_ref(call));
+            let text = render_response(&format, std::slice::from_ref(call));
             assert!(
-                accepts_tokens(&model, &grammar, &marked_tokens(&model, format, &text)),
-                "{format:?} rejected {text:?}\n{grammar}"
+                accepts_tokens(&model, &grammar, &marked_tokens(&model, &format, &text)),
+                "{} rejected {text:?}\n{grammar}",
+                format.name
             );
         }
-        let syntax = format.tool_calls();
+        let syntax = format.tool_calls;
         if syntax.list.is_some() || syntax.several_blocks {
-            let text = render_response(format, &calls);
+            let text = render_response(&format, &calls);
             assert!(
-                accepts_tokens(&model, &grammar, &marked_tokens(&model, format, &text)),
-                "{format:?} rejected {text:?}\n{grammar}"
+                accepts_tokens(&model, &grammar, &marked_tokens(&model, &format, &text)),
+                "{} rejected {text:?}\n{grammar}",
+                format.name
             );
         }
     }
@@ -1389,14 +1400,15 @@ fn every_grammar_accepts_what_its_format_writes() {
 #[test]
 fn only_formats_with_several_blocks_allow_another() {
     let model = load_test_vocab();
-    for &format in FORMATS {
-        let grammar = resolve(format).grammar(&tools()).unwrap();
-        let block = render_response(format, &calls(format)[..1]);
+    for format in formats() {
+        let grammar = resolve(&format).grammar(&tools()).unwrap();
+        let block = render_response(&format, &calls(&format)[..1]);
         let twice = format!("{block}{block}");
         assert_eq!(
-            accepts_tokens(&model, &grammar, &marked_tokens(&model, format, &twice)),
-            format.tool_calls().several_blocks,
-            "{format:?} on {twice:?}\n{grammar}"
+            accepts_tokens(&model, &grammar, &marked_tokens(&model, &format, &twice)),
+            format.tool_calls.several_blocks,
+            "{} on {twice:?}\n{grammar}",
+            format.name
         );
     }
 }
@@ -1413,20 +1425,21 @@ fn grammars_hold_the_model_to_the_schema() {
         call("calculate", json!({ "x": 1, "y": 1.5 })),
         call("no_such_tool", json!({})),
     ];
-    for &format in FORMATS {
-        let resolved = resolve(format);
+    for format in formats() {
+        let resolved = resolve(&format);
         let grammar = resolved.grammar(&tools()).unwrap();
         for call in &wrong {
             // `no_such_tool` has no schema, so render it as if it took none.
             let text = if call.name == "no_such_tool" {
-                render_response(format, &[self::call("get_time", json!({}))])
+                render_response(&format, &[self::call("get_time", json!({}))])
                     .replace("get_time", "no_such_tool")
             } else {
-                render_response(format, std::slice::from_ref(call))
+                render_response(&format, std::slice::from_ref(call))
             };
             assert!(
-                !accepts_tokens(&model, &grammar, &marked_tokens(&model, format, &text)),
-                "{format:?} accepted {text:?}"
+                !accepts_tokens(&model, &grammar, &marked_tokens(&model, &format, &text)),
+                "{} accepted {text:?}",
+                format.name
             );
         }
     }
@@ -1435,7 +1448,7 @@ fn grammars_hold_the_model_to_the_schema() {
 #[test]
 fn checks_markers_against_the_vocabulary() {
     let model = load_test_vocab();
-    let qwen3 = ResolvedFormat::new(&Qwen3, &model).unwrap();
+    let qwen3 = ResolvedFormat::new(qwen3(), &model).unwrap();
     let id = |text| model.special_token(text).unwrap().id;
     assert_eq!(qwen3.tool_calls.begin, id("<tool_call>"));
     let thinking = ThinkingTokens {
@@ -1448,7 +1461,7 @@ fn checks_markers_against_the_vocabulary() {
     assert!(qwen3.control.is_empty());
 
     assert!(matches!(
-        ResolvedFormat::new(&Gemma4, &model),
+        ResolvedFormat::new(gemma4(), &model),
         Err(FormatError::NotSpecial {
             marker: "<|tool_call>",
             ..
@@ -1459,13 +1472,14 @@ fn checks_markers_against_the_vocabulary() {
 #[test]
 fn qwen_grammars_accept_calls_through_the_real_vocabulary() {
     let model = load_test_vocab();
-    for format in [&Qwen3 as &'static dyn OutputFormat, &Qwen35] {
-        let resolved = ResolvedFormat::new(format, &model).unwrap();
+    for format in [&qwen3(), &qwen35()] {
+        let resolved = ResolvedFormat::new(*format, &model).unwrap();
         let grammar = resolved.grammar(&tools()).unwrap();
         let text = render_response(format, &calls(format));
         assert!(
             accepts(&model, &grammar, &text),
-            "{format:?} rejected {text:?}\n{grammar}"
+            "{} rejected {text:?}\n{grammar}",
+            format.name
         );
     }
 }
@@ -1476,7 +1490,7 @@ fn gemma4_grammar_accepts_calls_through_the_real_vocabulary() {
         eprintln!("skipping: set GEMMA4_MODEL to a Gemma4 GGUF to run this test");
         return;
     };
-    let resolved = ResolvedFormat::new(&Gemma4, &model).unwrap();
+    let resolved = ResolvedFormat::new(gemma4(), &model).unwrap();
     let id = |text| model.special_token(text).unwrap().id;
     assert_eq!(
         resolved.thinking,
@@ -1489,7 +1503,7 @@ fn gemma4_grammar_accepts_calls_through_the_real_vocabulary() {
     assert!(resolved.end_of_generation.contains(&id("<|tool_response>")));
 
     let grammar = resolved.grammar(&tools()).unwrap();
-    let text = render_response(&Gemma4, &calls(&Gemma4));
+    let text = render_response(&gemma4(), &calls(&gemma4()));
     assert!(
         accepts(&model, &grammar, &text),
         "rejected {text:?}\n{grammar}"
@@ -1517,8 +1531,8 @@ fn qwen3_formatting_is_what_its_template_writes() {
     let context = ChatTemplateContext::new(Default::default(), Some(tools()));
     let rendered = template.render(&messages, &context, true).unwrap();
 
-    let thinking = Qwen3.thinking().unwrap();
-    let syntax = Qwen3.tool_calls();
+    let thinking = qwen3().thinking.unwrap();
+    let syntax = qwen3().tool_calls;
     for expected in [
         format!(
             "{}{}REASONING{}{}{}CONTENT",
@@ -1563,16 +1577,16 @@ fn control_token_markers_are_named_by_id() {
     let vision = model.special_token("<|vision_start|>").unwrap();
     assert!(im_start.control && vision.control);
 
-    let cases: [(&'static dyn OutputFormat, &[StandIn]); 2] = [
+    let cases: [(&OutputFormat, &[StandIn]); 2] = [
         (
-            &Ministral3,
+            &ministral3(),
             &[
                 ("[TOOL_CALLS]", "<|im_start|>", im_start),
                 ("[ARGS]", "<|vision_start|>", vision),
             ],
         ),
         (
-            &FunctionGemma,
+            &function_gemma(),
             &[
                 ("<start_function_call>", "<|im_start|>", im_start),
                 ("<escape>", "<|vision_start|>", vision),
@@ -1594,7 +1608,7 @@ fn control_token_markers_are_named_by_id() {
                 .map(|&(marker, _, token)| (marker, token))
                 .collect(),
         );
-        let resolved = ResolvedFormat::new(format, &vocab).unwrap();
+        let resolved = ResolvedFormat::new(*format, &vocab).unwrap();
         let grammar = resolved.grammar(&tools()).unwrap();
         assert!(
             grammar.contains(&format!("<[{}]>", vision.id.0)),
@@ -1608,7 +1622,8 @@ fn control_token_markers_are_named_by_id() {
             }
             assert!(
                 accepts_tokens(&model, &grammar, &marked_tokens(&model, format, &text)),
-                "{format:?} rejected {text:?}\n{grammar}"
+                "{} rejected {text:?}\n{grammar}",
+                format.name
             );
         }
     }
@@ -1634,19 +1649,21 @@ fn awkward_names_and_values_make_working_grammars() {
         "set_task",
         json!({ "activeForm": "sunny\n", "mode": "with\nnewline" }),
     );
-    for &format in FORMATS {
-        let resolved = resolve(format);
+    for format in formats() {
+        let resolved = resolve(&format);
         let grammar = resolved.grammar(&tools).unwrap();
-        let text = render_response(format, std::slice::from_ref(&call));
+        let text = render_response(&format, std::slice::from_ref(&call));
         assert!(
-            accepts_tokens(&model, &grammar, &marked_tokens(&model, format, &text)),
-            "{format:?} rejected {text:?}\n{grammar}"
+            accepts_tokens(&model, &grammar, &marked_tokens(&model, &format, &text)),
+            "{} rejected {text:?}\n{grammar}",
+            format.name
         );
-        let text = render_tool_calls(format, std::slice::from_ref(&call));
+        let text = render_tool_calls(&format, std::slice::from_ref(&call));
         assert_eq!(
             resolved.parse_tool_calls(&text, &tools),
             Ok(vec![call.clone()]),
-            "{format:?} failed on {text:?}"
+            "{} failed on {text:?}",
+            format.name
         );
     }
 }
@@ -1668,14 +1685,14 @@ fn unimplemented_schema_keywords_are_ignored_not_fatal() {
     assert!(embedded.contains("uniqueItems"), "{embedded}");
 
     let model = load_test_vocab();
-    let grammar = resolve(&Qwen3).grammar(&[tool("rate", schema)]).unwrap();
-    let rate = |score| render_response(&Qwen3, &[call("rate", json!({ "score": score }))]);
+    let grammar = resolve(&qwen3()).grammar(&[tool("rate", schema)]).unwrap();
+    let rate = |score| render_response(&qwen3(), &[call("rate", json!({ "score": score }))]);
     assert!(
-        accepts_tokens(&model, &grammar, &marked_tokens(&model, &Qwen3, &rate(3))),
+        accepts_tokens(&model, &grammar, &marked_tokens(&model, &qwen3(), &rate(3))),
         "{grammar}"
     );
     assert!(
-        !accepts_tokens(&model, &grammar, &marked_tokens(&model, &Qwen3, &rate(9))),
+        !accepts_tokens(&model, &grammar, &marked_tokens(&model, &qwen3(), &rate(9))),
         "{grammar}"
     );
 }

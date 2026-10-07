@@ -6,7 +6,7 @@ mod grammar;
 mod parse;
 mod splitter;
 
-pub use formats::{FunctionGemma, Gemma4, Lfm2, Ministral3, Qwen3, Qwen35};
+pub use formats::{function_gemma, gemma4, lfm2, ministral3, qwen3, qwen35};
 pub use parse::ParseError;
 pub use splitter::{Item, Piece, PieceKind, Splitter, Token, Warning};
 
@@ -14,7 +14,6 @@ use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::token::LlamaToken;
 use llama_cpp_2::token_type::LlamaTokenAttr;
 use std::collections::HashMap;
-use std::fmt::Debug;
 use tracing::debug;
 
 /// How a model family writes its output: its tool calls, and its reasoning if
@@ -24,19 +23,13 @@ use tracing::debug;
 /// The strings are copied from the model's chat template. A marker the
 /// vocabulary has as a control token must be a whole string here, since control
 /// tokens have no text to match partway through.
-pub trait OutputFormat: Debug + Sync {
-    fn tool_calls(&self) -> ToolCallSyntax;
-
+#[derive(Clone, Copy, Debug)]
+pub struct OutputFormat {
+    /// For logs and errors.
+    pub name: &'static str,
+    pub tool_calls: ToolCallSyntax,
     /// `None` for models that don't reason.
-    fn thinking(&self) -> Option<ThinkingSyntax> {
-        None
-    }
-
-    /// Whether a chat template renders tool calls in this format.
-    fn detect(&self, template: &str) -> bool {
-        let syntax = self.tool_calls();
-        template.contains(syntax.begin) || syntax.end.is_some_and(|end| template.contains(end))
-    }
+    pub thinking: Option<ThinkingSyntax>,
 }
 
 /// A block of tool calls, written `before_begin begin CALLS end after_end`.
@@ -137,24 +130,19 @@ pub struct ListSyntax {
     pub close: &'static str,
 }
 
-/// Every format, in the order `detect` tries them. A format whose markers are
-/// a superset of another's has to come first.
-pub const FORMATS: &[&dyn OutputFormat] =
-    &[&FunctionGemma, &Gemma4, &Qwen35, &Qwen3, &Ministral3, &Lfm2];
-
 #[derive(Debug, thiserror::Error)]
 pub enum FormatError {
-    #[error("{format:?} expects {marker:?} to be a single special token, but the vocabulary doesn't have one")]
+    #[error("{format} expects {marker:?} to be a single special token, but the vocabulary doesn't have one")]
     NotSpecial {
-        format: &'static dyn OutputFormat,
+        /// The format's name.
+        format: &'static str,
         marker: &'static str,
     },
 
-    #[error(
-        "{format:?} needs {marker:?} to be text, but the vocabulary has it as a control token"
-    )]
+    #[error("{format} needs {marker:?} to be text, but the vocabulary has it as a control token")]
     NotText {
-        format: &'static dyn OutputFormat,
+        /// The format's name.
+        format: &'static str,
         marker: &'static str,
     },
 
@@ -208,7 +196,7 @@ impl Vocab for LlamaModel {
 /// generation and to read it.
 #[derive(Clone, Debug)]
 pub struct ResolvedFormat {
-    format: &'static dyn OutputFormat,
+    format: OutputFormat,
     tool_calls: ToolCallTokens,
     /// `None` if the model doesn't reason.
     thinking: Option<ThinkingTokens>,
@@ -232,24 +220,25 @@ struct ThinkingTokens {
 }
 
 impl ResolvedFormat {
-    pub fn new(format: &'static dyn OutputFormat, vocab: &impl Vocab) -> Result<Self, FormatError> {
-        let syntax = format.tool_calls();
+    pub fn new(format: OutputFormat, vocab: &impl Vocab) -> Result<Self, FormatError> {
+        let syntax = format.tool_calls;
         let special = |marker: &'static str| {
-            vocab
-                .special_token(marker)
-                .ok_or(FormatError::NotSpecial { format, marker })
+            vocab.special_token(marker).ok_or(FormatError::NotSpecial {
+                format: format.name,
+                marker,
+            })
         };
         let tool_calls = ToolCallTokens {
             begin: special(syntax.begin)?.id,
             end: syntax.end.map(special).transpose()?.map(|t| t.id),
         };
 
-        let thinking = format.thinking().and_then(|thinking| {
+        let thinking = format.thinking.and_then(|thinking| {
             let begin = vocab.special_token(thinking.begin);
             let end = vocab.special_token(thinking.end);
             if begin.is_none() || end.is_none() {
                 debug!(
-                    ?format,
+                    format = format.name,
                     ?thinking,
                     "The vocabulary lacks the thinking markers, so the model doesn't reason"
                 );
@@ -273,7 +262,10 @@ impl ResolvedFormat {
             .into_iter()
             .find(|marker| control.contains_key(marker))
         {
-            return Err(FormatError::NotText { format, marker });
+            return Err(FormatError::NotText {
+                format: format.name,
+                marker,
+            });
         }
 
         Ok(ResolvedFormat {
@@ -285,8 +277,8 @@ impl ResolvedFormat {
         })
     }
 
-    pub fn format(&self) -> &'static dyn OutputFormat {
-        self.format
+    pub fn format(&self) -> &OutputFormat {
+        &self.format
     }
 
     /// A splitter for the response to `prompt`, the rendered template it
@@ -301,7 +293,7 @@ impl ResolvedFormat {
     /// that open the reasoning for the model. If so, gives the prompt from
     /// `begin` on, and the formatting after `begin` that it hasn't written yet.
     fn opens_thinking(&self, prompt: &str) -> Option<(String, &'static str)> {
-        let thinking = self.format.thinking().filter(|_| self.thinking.is_some())?;
+        let thinking = self.format.thinking.filter(|_| self.thinking.is_some())?;
         let begin = prompt.rfind(thinking.begin)?;
         // Only a prompt that ends in the reasoning it opens leaves it open, not
         // one with an unclosed marker further back, as in an earlier turn.
@@ -315,7 +307,7 @@ impl ResolvedFormat {
 /// known, as text that only the end of generation ends.
 #[derive(Clone, Debug)]
 pub enum ModelOutput {
-    Formatted(ResolvedFormat),
+    Formatted(Box<ResolvedFormat>),
     Plain { end_of_generation: Vec<LlamaToken> },
 }
 
@@ -336,7 +328,7 @@ impl ModelOutput {
     /// A splitter for the response to `prompt`, as [`ResolvedFormat::splitter`].
     pub fn splitter(self, tools: Vec<crate::tool_calling::Tool>, prompt: &str) -> Splitter {
         match self {
-            ModelOutput::Formatted(format) => format.splitter(tools, prompt),
+            ModelOutput::Formatted(format) => (*format).splitter(tools, prompt),
             ModelOutput::Plain { end_of_generation } => Splitter::plain(end_of_generation.clone()),
         }
     }
@@ -389,14 +381,17 @@ fn text_markers(syntax: &ToolCallSyntax) -> Vec<&'static str> {
 
 /// The format a model writes tool calls in, from its chat template or failing
 /// that its metadata.
-pub fn detect(model: &LlamaModel) -> Result<&'static dyn OutputFormat, FormatError> {
+pub fn detect(model: &LlamaModel) -> Result<OutputFormat, FormatError> {
     let template = model
         .chat_template(Some("tool_use"))
         .and_then(|t| Ok(t.to_string()?))
         .or_else(|_| model.chat_template(None).and_then(|t| Ok(t.to_string()?)))?;
 
-    if let Some(&format) = FORMATS.iter().find(|format| format.detect(&template)) {
-        debug!(?format, "Detected tool call format from chat template");
+    if let Some(format) = detect_from_template(&template) {
+        debug!(
+            format = format.name,
+            "Detected tool call format from chat template"
+        );
         return Ok(format);
     }
 
@@ -405,38 +400,60 @@ pub fn detect(model: &LlamaModel) -> Result<&'static dyn OutputFormat, FormatErr
         .unwrap_or_default();
     let name = model.meta_val_str("general.name").unwrap_or_default();
     let format = detect_from_metadata(&arch, &name).ok_or(FormatError::Undetected)?;
-    debug!(?format, %arch, %name, "Detected tool call format from model metadata");
+    debug!(format = format.name, %arch, %name, "Detected tool call format from model metadata");
     Ok(format)
 }
 
+/// The format a chat template renders tool calls in.
+fn detect_from_template(template: &str) -> Option<OutputFormat> {
+    let has = |marker| template.contains(marker);
+    if has("<start_function_call>") || has("<end_function_call>") {
+        return Some(function_gemma());
+    }
+    // Before Qwen, since both contain `tool_call`.
+    if has("<|tool_call>") || has("<tool_call|>") {
+        return Some(gemma4());
+    }
+    if has("<tool_call>") || has("</tool_call>") {
+        return Some(if has("<function=") { qwen35() } else { qwen3() });
+    }
+    if has("[TOOL_CALLS]") {
+        return Some(ministral3());
+    }
+    if has("<|tool_call_start|>") || has("<|tool_list_start|>") || has("<|tool_response_start|>") {
+        return Some(lfm2());
+    }
+    None
+}
+
 /// The format a model's `general.architecture` or `general.name` suggests.
-fn detect_from_metadata(arch: &str, name: &str) -> Option<&'static dyn OutputFormat> {
+fn detect_from_metadata(arch: &str, name: &str) -> Option<OutputFormat> {
     let arch_lower = arch.to_lowercase();
     if is_qwen35_36_architecture(&arch_lower) {
-        return Some(&Qwen35);
+        return Some(qwen35());
     }
     if arch_lower.starts_with("qwen3") {
-        return Some(&Qwen3);
+        return Some(qwen3());
     }
     if arch_lower.starts_with("lfm") {
-        return Some(&Lfm2);
+        return Some(lfm2());
     }
 
     let name_lower = name.to_lowercase();
     if name_lower.contains("lfm") {
-        return Some(&Lfm2);
+        return Some(lfm2());
     }
     if name_lower.contains("functiongemma") || name_lower.contains("function-gemma") {
-        return Some(&FunctionGemma);
+        return Some(function_gemma());
     }
     if name_lower.contains("gemma-4") || name_lower.contains("gemma4") {
-        return Some(&Gemma4);
+        return Some(gemma4());
     }
     if is_qwen35_36_name(&name_lower) {
-        return Some(&Qwen35);
+        return Some(qwen35());
     }
     if is_qwen3_name(&name_lower) || name_lower.contains("qwen") {
-        return Some(&Qwen3);
+        return Some(qwen3());
     }
     None
 }

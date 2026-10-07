@@ -134,7 +134,7 @@ impl ResponseParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::output_format::{Qwen3, ResolvedFormat};
+    use crate::output_format::{qwen3, ResolvedFormat};
     use crate::test_utils::load_test_vocab;
     use llama_cpp_2::model::LlamaModel;
     use serde_json::json;
@@ -183,7 +183,8 @@ mod tests {
     #[test]
     fn the_history_keeps_what_the_model_wrote() {
         let model = load_test_vocab();
-        let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
+        let format =
+            ModelOutput::Formatted(Box::new(ResolvedFormat::new(qwen3(), &model).unwrap()));
         let opened = format!("{PROMPT}<think>\n");
         let call = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>";
         for (prompt, response, kept) in [
@@ -234,7 +235,8 @@ mod tests {
     #[test]
     fn the_text_up_to_the_calls_streams() {
         let model = load_test_vocab();
-        let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
+        let format =
+            ModelOutput::Formatted(Box::new(ResolvedFormat::new(qwen3(), &model).unwrap()));
         let call = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>";
         let (streamed, _, _) = parse(
             &model,
@@ -257,7 +259,8 @@ mod tests {
     #[test]
     fn a_cut_off_block_is_text() {
         let model = load_test_vocab();
-        let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
+        let format =
+            ModelOutput::Formatted(Box::new(ResolvedFormat::new(qwen3(), &model).unwrap()));
         let call =
             "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n";
         for block in ["<tool_call>\nnot js", call] {
@@ -274,7 +277,8 @@ mod tests {
     #[cfg_attr(debug_assertions, should_panic(expected = "can't be read"))]
     fn an_unreadable_block_is_a_bug() {
         let model = load_test_vocab();
-        let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
+        let format =
+            ModelOutput::Formatted(Box::new(ResolvedFormat::new(qwen3(), &model).unwrap()));
         let block = "<tool_call>\nnot json\n</tool_call>";
         let (_, generation, _) = parse(&model, format, PROMPT, &format!("{block}<|im_end|>"));
         assert_eq!(generation.written, block);
@@ -285,7 +289,8 @@ mod tests {
     #[test]
     fn without_tools_an_unreadable_block_is_text() {
         let model = load_test_vocab();
-        let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
+        let format =
+            ModelOutput::Formatted(Box::new(ResolvedFormat::new(qwen3(), &model).unwrap()));
         let block = "<tool_call>\nnot json\n</tool_call>";
         let mut parser = ResponseParser::new(format, Vec::new(), PROMPT);
         let response = format!("{block}<|im_end|>");
@@ -317,7 +322,8 @@ mod tests {
     #[test]
     fn calls_are_read_from_their_blocks() {
         let model = load_test_vocab();
-        let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
+        let format =
+            ModelOutput::Formatted(Box::new(ResolvedFormat::new(qwen3(), &model).unwrap()));
         let call = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>";
         let (_, generation, ended) = parse(
             &model,

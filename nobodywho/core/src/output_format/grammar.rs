@@ -23,7 +23,7 @@ impl ResolvedFormat {
             .map(|(i, tool)| grammar.call(i, tool))
             .collect::<Vec<_>>();
 
-        let syntax = self.format.tool_calls();
+        let syntax = self.format.tool_calls;
         let body = match syntax.list {
             None => "call".to_string(),
             Some(list) => {
@@ -60,7 +60,7 @@ impl ResolvedFormat {
     /// Vocabulary hints for the grammar's hot positions. Only JSON strings have
     /// one that can apply, since the other string bodies are lazy.
     pub fn slice_regexes(&self) -> Vec<String> {
-        match self.format.tool_calls().call {
+        match self.format.tool_calls.call {
             CallSyntax::JsonObject { .. }
             | CallSyntax::Parts(CallParts {
                 args: ArgsSyntax::Json,
@@ -90,7 +90,7 @@ impl Grammar<'_> {
     /// A marker as a Lark term: by id if it's a block's begin or end, which
     /// the splitter only knows by id, or a control token, else as text.
     fn lit(&self, marker: &str) -> Option<String> {
-        let syntax = self.format.format.tool_calls();
+        let syntax = self.format.format.tool_calls;
         let token = if marker == syntax.begin {
             Some(self.format.tool_calls.begin)
         } else if Some(marker) == syntax.end {
@@ -119,7 +119,7 @@ impl Grammar<'_> {
 
     fn call(&mut self, index: usize, tool: &Tool) -> String {
         let name = format!("call_{index}");
-        let call = match self.format.format.tool_calls().call {
+        let call = match self.format.format.tool_calls.call {
             CallSyntax::Parts(parts) => self.call_parts(&name, parts, tool),
             CallSyntax::JsonObject {
                 name_key,

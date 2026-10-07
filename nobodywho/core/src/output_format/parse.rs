@@ -35,7 +35,7 @@ impl ResolvedFormat {
             rest: text,
             tools,
         };
-        let syntax = self.format.tool_calls();
+        let syntax = self.format.tool_calls;
         let calls = match syntax.list {
             None => vec![p.spanned_call(&syntax.call)?],
             Some(list) => {

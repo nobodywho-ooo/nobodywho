@@ -2174,8 +2174,8 @@ impl<'a> Chat<'a> {
             .and_then(|format| ResolvedFormat::new(format, &model.language_model));
         let model_output = match output_format {
             Ok(format) => {
-                debug!(format = ?format.format(), "Detected output format");
-                ModelOutput::Formatted(format)
+                debug!(format = format.format().name, "Detected output format");
+                ModelOutput::Formatted(Box::new(format))
             }
             Err(e) if config.tools.is_empty() => {
                 info!(error = %e, "Failed to detect output format, so responses are read as plain text");
@@ -3422,7 +3422,7 @@ mod tests {
             .resolved_format()
             .expect("the test model has an output format")
             .format()
-            .tool_calls()
+            .tool_calls
             .begin;
         for message in &worker.messages.into_vec() {
             if let Message::Assistant {

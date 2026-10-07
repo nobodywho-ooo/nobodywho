@@ -283,8 +283,8 @@ impl Splitter {
             .format
             .as_ref()
             .expect("without a format, only the end of generation is a marker");
-        let tool_calls = format.format.tool_calls();
-        let thinking = format.format.thinking();
+        let tool_calls = format.format.tool_calls;
+        let thinking = format.format.thinking;
         match &self.state {
             State::Text(_) if is_tool_call_begin => {
                 // The text stays open, since the block might not be calls.
@@ -573,8 +573,8 @@ impl Splitter {
             return "";
         };
         match self.state {
-            State::Text(_) => format.format.tool_calls().before_begin,
-            State::Thinking(_) => format.format.thinking().map_or("", |t| t.before_end),
+            State::Text(_) => format.format.tool_calls.before_begin,
+            State::Thinking(_) => format.format.thinking.map_or("", |t| t.before_end),
             State::ToolCalls { .. } | State::Ended => "",
         }
     }
@@ -629,7 +629,7 @@ impl Splitter {
             .format
             .as_ref()
             .expect("only an output format finds tool calls");
-        let syntax = format.format.tool_calls();
+        let syntax = format.format.tool_calls;
         let end_marker = syntax.end.filter(|_| closed).unwrap_or("");
         let text = format!(
             "{}{}{text}{end_marker}",
