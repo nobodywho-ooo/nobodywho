@@ -97,6 +97,13 @@ pub(crate) mod test_utils {
         ))
     }
 
+    /// Test image path: `TEST_IMAGE` if set (the nix sandbox only has `core/`), else the repo copy.
+    pub(crate) fn test_image() -> String {
+        std::env::var("TEST_IMAGE").unwrap_or_else(|_| {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png").to_string()
+        })
+    }
+
     /// Load the embeddings model with GPU acceleration if available
     pub(crate) fn load_embeddings_model() -> Arc<Model> {
         init_test_tracing();

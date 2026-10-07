@@ -4771,7 +4771,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let image = test_utils::test_image();
         let mut content = MessageContent::parts([
             ContentPart::text("What is in this image?"),
             ContentPart::image(image),
@@ -4813,7 +4813,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let image = test_utils::test_image();
         let messages: Vec<Message> = serde_json::from_value(serde_json::json!([{
             "role": "user",
             "content": [
@@ -4891,10 +4891,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = std::path::PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../python/tests/img/dog.png"
-        ));
+        let image = std::path::PathBuf::from(test_utils::test_image());
         worker.ask(
             Prompt::parts([
                 ContentPart::text("What is in this image?"),
@@ -4997,9 +4994,10 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
-        let screenshot =
-            || MessageContent::parts([ContentPart::text("Here it is:"), ContentPart::image(image)]);
+        let image = test_utils::test_image();
+        let screenshot = || {
+            MessageContent::parts([ContentPart::text("Here it is:"), ContentPart::image(&image)])
+        };
         let mut messages = History::new(vec![
             user("Take a screenshot."),
             Message::new_tool("screenshot".to_string(), screenshot()),
@@ -5135,7 +5133,7 @@ mod tests {
         ) else {
             return;
         };
-        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let image = test_utils::test_image();
         let first = MessageContent::parts([
             ContentPart::image(image),
             ContentPart::text("What animal is this? One word."),
