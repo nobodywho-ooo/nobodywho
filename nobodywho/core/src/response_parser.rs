@@ -8,8 +8,8 @@ use llama_cpp_2::token::LlamaToken;
 use tracing::{debug, warn};
 
 /// Reads one generation.
-pub(crate) struct ResponseParser<'a> {
-    splitter: Splitter<'a>,
+pub(crate) struct ResponseParser {
+    splitter: Splitter,
     ended: bool,
     /// Whether the model has begun its calls, from which on nothing streams.
     calls_begun: bool,
@@ -29,12 +29,14 @@ pub(crate) struct Generation {
     pub calls: Vec<ToolCall>,
 }
 
-impl<'a> ResponseParser<'a> {
+impl ResponseParser {
     /// Starts reading a generation that continues `prompt`.
-    pub fn new(output: &'a ModelOutput, tools: &'a [Tool], prompt: &str) -> Self {
+    pub fn new(output: ModelOutput, tools: Vec<Tool>, prompt: &str) -> Self {
         if output.resolved_format().is_none() {
             debug!("No output format, so the response is read as plain text");
         }
+        let is_tools_empty = tools.is_empty();
+        let has_grammar = output.resolved_format().is_some() && !is_tools_empty;
         ResponseParser {
             splitter: output.splitter(tools, prompt),
             ended: false,
@@ -42,7 +44,7 @@ impl<'a> ResponseParser<'a> {
             calls: Vec::new(),
             call: None,
             unreadable: false,
-            has_grammar: output.resolved_format().is_some() && !tools.is_empty(),
+            has_grammar,
         }
     }
 
@@ -150,7 +152,7 @@ mod tests {
     /// generation and whether the model ended it.
     fn parse(
         model: &LlamaModel,
-        output: &ModelOutput,
+        output: ModelOutput,
         prompt: &str,
         response: &str,
     ) -> (String, Generation, bool) {
@@ -164,7 +166,7 @@ mod tests {
             }),
             Arc::new(|_| String::new()),
         )];
-        let mut parser = ResponseParser::new(output, &tools, prompt);
+        let mut parser = ResponseParser::new(output, tools.to_vec(), prompt);
         let mut streamed = String::new();
         for token in model.vocab().tokenize(response.as_bytes(), false, true) {
             streamed.extend(push(&mut parser, model, token));
@@ -222,7 +224,7 @@ mod tests {
         ] {
             for end in ["<|im_end|>", ""] {
                 let (_, generation, _) =
-                    parse(&model, &format, prompt, &format!("{response}{end}"));
+                    parse(&model, format.clone(), prompt, &format!("{response}{end}"));
                 assert_eq!(generation.written, kept, "{response:?}");
             }
         }
@@ -236,14 +238,14 @@ mod tests {
         let call = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>";
         let (streamed, _, _) = parse(
             &model,
-            &format,
+            format.clone(),
             PROMPT,
             "<think>\nHmm.\n</think>\n\nHi!<|im_end|>",
         );
         assert_eq!(streamed, "<think>\nHmm.\n</think>\n\nHi!");
         let (streamed, _, _) = parse(
             &model,
-            &format,
+            format,
             PROMPT,
             &format!("Let me check{call}\nMore.<|im_end|>"),
         );
@@ -259,7 +261,7 @@ mod tests {
         let call =
             "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n";
         for block in ["<tool_call>\nnot js", call] {
-            let (_, generation, ended) = parse(&model, &format, PROMPT, block);
+            let (_, generation, ended) = parse(&model, format.clone(), PROMPT, block);
             assert!(!ended);
             assert_eq!(generation.written, block);
             assert!(generation.calls.is_empty());
@@ -274,7 +276,7 @@ mod tests {
         let model = load_test_vocab();
         let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
         let block = "<tool_call>\nnot json\n</tool_call>";
-        let (_, generation, _) = parse(&model, &format, PROMPT, &format!("{block}<|im_end|>"));
+        let (_, generation, _) = parse(&model, format, PROMPT, &format!("{block}<|im_end|>"));
         assert_eq!(generation.written, block);
     }
 
@@ -285,7 +287,7 @@ mod tests {
         let model = load_test_vocab();
         let format = ModelOutput::Formatted(ResolvedFormat::new(&Qwen3, &model).unwrap());
         let block = "<tool_call>\nnot json\n</tool_call>";
-        let mut parser = ResponseParser::new(&format, &[], PROMPT);
+        let mut parser = ResponseParser::new(format, Vec::new(), PROMPT);
         let response = format!("{block}<|im_end|>");
         for token in model.vocab().tokenize(response.as_bytes(), false, true) {
             push(&mut parser, &model, token);
@@ -298,12 +300,16 @@ mod tests {
     fn without_an_output_format_everything_is_text() {
         let model = load_test_vocab();
         let plain = ModelOutput::plain(&model);
-        let (_, generation, ended) =
-            parse(&model, &plain, PROMPT, "<think>\nHi 🦀</think><|im_end|>");
+        let (_, generation, ended) = parse(
+            &model,
+            plain.clone(),
+            PROMPT,
+            "<think>\nHi 🦀</think><|im_end|>",
+        );
         assert_eq!(generation.written, "<think>\nHi 🦀</think>");
         assert!(ended);
 
-        let (_, generation, ended) = parse(&model, &plain, PROMPT, "Cut off");
+        let (_, generation, ended) = parse(&model, plain, PROMPT, "Cut off");
         assert_eq!(generation.written, "Cut off");
         assert!(!ended);
     }
@@ -315,7 +321,7 @@ mod tests {
         let call = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>";
         let (_, generation, ended) = parse(
             &model,
-            &format,
+            format,
             PROMPT,
             &format!("Let me check.\n{call}<|im_end|>"),
         );

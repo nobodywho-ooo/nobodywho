@@ -72,13 +72,18 @@ pub enum Warning {
     Malformed(ParseError),
 }
 
-/// Splits a response into text, reasoning, and tool calls as it's generated.
-pub struct Splitter<'a> {
+pub struct SplitterContext {
     /// `None` when the model's output format isn't known, so that everything
     /// but the end of generation is text.
-    format: Option<&'a ResolvedFormat>,
-    end_of_generation: &'a [LlamaToken],
-    tools: &'a [Tool],
+    format: Option<ResolvedFormat>,
+    end_of_generation_token: Vec<LlamaToken>,
+    tools: Vec<Tool>,
+}
+
+/// Splits a response into text, reasoning, and tool calls as it's generated.
+pub struct Splitter {
+    /// Context for interpreting the token stream.
+    context: SplitterContext,
     state: State,
     /// Holds a character split across tokens until the rest of it arrives.
     decoder: Decoder,
@@ -139,12 +144,12 @@ struct Opening {
     marker: Option<PieceKind>,
 }
 
-impl<'a> Splitter<'a> {
+impl Splitter {
     /// `thinking` is the reasoning the prompt opened, if it did, and the
     /// formatting still to come after it.
     pub(super) fn new(
-        format: &'a ResolvedFormat,
-        tools: &'a [Tool],
+        format: ResolvedFormat,
+        tools: Vec<Tool>,
         thinking: Option<(String, &'static str)>,
     ) -> Self {
         let (continued, state) = match thinking {
@@ -161,10 +166,13 @@ impl<'a> Splitter<'a> {
             ),
             None => (String::new(), State::Text(Stretch::default())),
         };
+        let end_of_generation = format.end_of_generation.clone();
         Splitter::start(
-            Some(format),
-            &format.end_of_generation,
-            tools,
+            SplitterContext {
+                format: Some(format),
+                end_of_generation_token: end_of_generation,
+                tools,
+            },
             state,
             continued,
         )
@@ -172,27 +180,21 @@ impl<'a> Splitter<'a> {
 
     /// A splitter for a model whose output format isn't known, so that
     /// everything but the end of generation is text.
-    pub fn plain(end_of_generation: &'a [LlamaToken]) -> Self {
+    pub fn plain(end_of_generation: Vec<LlamaToken>) -> Self {
         Splitter::start(
-            None,
-            end_of_generation,
-            &[],
+            SplitterContext {
+                format: None,
+                end_of_generation_token: end_of_generation,
+                tools: Vec::new(),
+            },
             State::Text(Stretch::default()),
             String::new(),
         )
     }
 
-    fn start(
-        format: Option<&'a ResolvedFormat>,
-        end_of_generation: &'a [LlamaToken],
-        tools: &'a [Tool],
-        state: State,
-        continued: String,
-    ) -> Self {
+    fn start(context: SplitterContext, state: State, continued: String) -> Self {
         Splitter {
-            format,
-            end_of_generation,
-            tools,
+            context,
             state,
             decoder: UTF_8.new_decoder_without_bom_handling(),
             open: None,
@@ -220,8 +222,8 @@ impl<'a> Splitter<'a> {
     /// pieces it finishes. There's nothing after the end of generation, so a
     /// token pushed then panics in debug builds and is ignored otherwise.
     pub fn push(&mut self, token: LlamaToken, bytes: &[u8]) -> Vec<Piece> {
-        let is_end_of_generation = self.end_of_generation.contains(&token);
-        let format = self.format;
+        let is_end_of_generation = self.context.end_of_generation_token.contains(&token);
+        let format = self.context.format.as_ref();
         let is_tool_call_begin = format.is_some_and(|f| token == f.tool_calls.begin);
         let is_tool_call_end = format.is_some_and(|f| Some(token) == f.tool_calls.end);
         let thinking = format.and_then(|f| f.thinking);
@@ -276,7 +278,11 @@ impl<'a> Splitter<'a> {
             pieces.extend(self.end(end, false));
             return pieces;
         }
-        let format = format.expect("without a format, only the end of generation is a marker");
+        let format = self
+            .context
+            .format
+            .as_ref()
+            .expect("without a format, only the end of generation is a marker");
         let tool_calls = format.format.tool_calls();
         let thinking = format.format.thinking();
         match &self.state {
@@ -563,7 +569,7 @@ impl<'a> Splitter<'a> {
     /// The formatting the template writes before the marker that ends the
     /// stretch the response is in.
     fn formatting_before(&self) -> &'static str {
-        let Some(format) = self.format else {
+        let Some(format) = self.context.format.as_ref() else {
             return "";
         };
         match self.state {
@@ -584,9 +590,13 @@ impl<'a> Splitter<'a> {
         end: usize,
         closed: bool,
     ) -> (Vec<Piece>, Option<PieceKind>) {
-        let format = self.format.expect("only an output format finds tool calls");
+        let format = self
+            .context
+            .format
+            .as_ref()
+            .expect("only an output format finds tool calls");
         let mut pieces = Vec::new();
-        match format.parse_tool_call_spans(text, self.tools) {
+        match format.parse_tool_call_spans(text, self.context.tools.as_slice()) {
             Ok(calls) => {
                 self.history_end.get_or_insert(self.block_start);
                 pieces.extend(self.close_open());
@@ -614,7 +624,11 @@ impl<'a> Splitter<'a> {
     /// A block that holds no calls as the text it is, with the formatting
     /// before it, ending at `end`.
     fn block_as_text(&mut self, text: &str, end: usize, closed: bool) -> Vec<Piece> {
-        let format = self.format.expect("only an output format finds tool calls");
+        let format = self
+            .context
+            .format
+            .as_ref()
+            .expect("only an output format finds tool calls");
         let syntax = format.format.tool_calls();
         let end_marker = syntax.end.filter(|_| closed).unwrap_or("");
         let text = format!(

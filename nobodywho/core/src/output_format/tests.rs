@@ -439,7 +439,7 @@ fn says_where_a_block_stops_making_sense() {
 fn split_after(format: &'static dyn OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piece> {
     let resolved = resolve(format);
     let tools = tools();
-    let mut splitter = resolved.splitter(&tools, prompt);
+    let mut splitter = resolved.splitter(tools, prompt);
     let token = |piece: &str| {
         specials(format)
             .into_iter()
@@ -858,7 +858,7 @@ fn a_character_cut_off_by_the_end_is_dropped() {
     for tokens in tokens {
         let resolved = resolve(&Qwen3);
         let tools = tools();
-        let mut splitter = resolved.splitter(&tools, "");
+        let mut splitter = resolved.splitter(tools, "");
         let mut pieces = Vec::new();
         for bytes in tokens {
             pieces.extend(splitter.push(LlamaToken(1), bytes));
@@ -966,7 +966,7 @@ fn the_end_of_generation_ends_the_response() {
 fn a_character_split_across_tokens_arrives_whole() {
     let resolved = resolve(&Qwen3);
     let tools = tools();
-    let mut splitter = resolved.splitter(&tools, "");
+    let mut splitter = resolved.splitter(tools, "");
     let crab = "🦀".as_bytes();
     assert_eq!(splitter.push(LlamaToken(1), &crab[..2]), vec![]);
     let pieces = splitter.push(LlamaToken(2), &crab[2..]);
@@ -980,7 +980,7 @@ fn a_character_split_across_tokens_arrives_whole() {
 fn a_character_cut_off_by_a_marker_is_dropped() {
     let resolved = resolve(&Qwen3);
     let tools = tools();
-    let mut splitter = resolved.splitter(&tools, "");
+    let mut splitter = resolved.splitter(tools, "");
     let crab = "🦀".as_bytes();
     let mut pieces = splitter.push(THINK, b"<think>");
     pieces.extend(splitter.push(LlamaToken(1), &crab[..2]));
@@ -1024,7 +1024,7 @@ fn tokenize(format: &dyn OutputFormat, text: &str, size: usize) -> Vec<String> {
 fn written(format: &'static dyn OutputFormat, prompt: &str, output: &[String]) -> String {
     let resolved = resolve(format);
     let tools = tools();
-    let mut splitter = resolved.splitter(&tools, prompt);
+    let mut splitter = resolved.splitter(tools, prompt);
     let specials = specials(format);
     for piece in output {
         let token = specials
@@ -1166,7 +1166,7 @@ fn pushing_after_the_end_is_a_bug() {
 #[test]
 fn without_a_format_everything_but_the_end_is_text() {
     let plain = ModelOutput::plain(&FakeVocab(vec![]));
-    let mut splitter = plain.splitter(&[], "");
+    let mut splitter = plain.splitter(Vec::new(), "");
     let mut pieces = splitter.push(LlamaToken(1), b"Hi ");
     pieces.extend(splitter.push(THINK, b"<think>"));
     pieces.extend(splitter.push(EOG, EOG_TEXT.as_bytes()));
@@ -1193,7 +1193,7 @@ fn a_model_without_reasoning_markers_does_not_reason() {
     let resolved = ResolvedFormat::new(&Qwen3, &vocab).unwrap();
     assert_eq!(resolved.thinking, None);
     let tools = tools();
-    let mut splitter = resolved.splitter(&tools, "<think>\n");
+    let mut splitter = resolved.splitter(tools, "<think>\n");
     assert_eq!(
         kinds(&splitter.push(LlamaToken(1), b"Hi")),
         vec![open(Item::Text), delta("Hi")]

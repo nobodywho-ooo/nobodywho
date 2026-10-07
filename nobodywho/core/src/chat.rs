@@ -2382,9 +2382,8 @@ impl<'a> Chat<'a> {
         self.sampler.reset();
 
         // Owned, so the parser doesn't borrow `self` while generating.
-        let model_output = self.model_output.clone();
-        let tools = self.tools.clone();
-        let mut parser = ResponseParser::new(&model_output, &tools, &prompt);
+        let mut parser =
+            ResponseParser::new(self.model_output.clone(), self.tools.clone(), &prompt);
         let mut stream = |text: Vec<String>| {
             for text in text.into_iter().filter(|text| !text.is_empty()) {
                 trace!(text, "Sending out token:");

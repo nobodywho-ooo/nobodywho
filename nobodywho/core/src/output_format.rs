@@ -292,12 +292,9 @@ impl ResolvedFormat {
     /// A splitter for the response to `prompt`, the rendered template it
     /// continues. `tools` is only used to read argument values by their schema
     /// type.
-    pub fn splitter<'a>(
-        &'a self,
-        tools: &'a [crate::tool_calling::Tool],
-        prompt: &str,
-    ) -> Splitter<'a> {
-        Splitter::new(self, tools, self.opens_thinking(prompt))
+    pub fn splitter(self, tools: Vec<crate::tool_calling::Tool>, prompt: &str) -> Splitter {
+        let opens_thinking = self.opens_thinking(prompt);
+        Splitter::new(self, tools, opens_thinking)
     }
 
     /// Whether `prompt` leaves the response already reasoning, as templates do
@@ -337,14 +334,10 @@ impl ModelOutput {
     }
 
     /// A splitter for the response to `prompt`, as [`ResolvedFormat::splitter`].
-    pub fn splitter<'a>(
-        &'a self,
-        tools: &'a [crate::tool_calling::Tool],
-        prompt: &str,
-    ) -> Splitter<'a> {
+    pub fn splitter(self, tools: Vec<crate::tool_calling::Tool>, prompt: &str) -> Splitter {
         match self {
             ModelOutput::Formatted(format) => format.splitter(tools, prompt),
-            ModelOutput::Plain { end_of_generation } => Splitter::plain(end_of_generation),
+            ModelOutput::Plain { end_of_generation } => Splitter::plain(end_of_generation.clone()),
         }
     }
 }
