@@ -13,6 +13,7 @@ use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeError};
 use llama_cpp_2::token::LlamaToken;
+use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
@@ -123,17 +124,45 @@ impl<'a> SpeculativeEngine<'a> {
                 None,
             )?;
             if !rolled_back {
-                // Recurrent / hybrid-recurrent memory types reject partial
-                // removal (Ok(false)). Unlike `remove_all_tokens_from_index_from_ctx`
-                // we cannot fall back to a full reset here — that would drop the
-                // prompt mid-generation. Leaving the rejected drafts' KV in place
-                // would silently corrupt subsequent decodes, so fail loudly. MTP
-                // targets attention models, where partial removal is supported.
+                // Recurrent memory only rolls back as many tokens as the context keeps
+                // snapshots for (`n_rs_seq`), and only on architectures that support it.
+                // Unlike `remove_tokens_from` we cannot fall back to a full reset here —
+                // that would drop the prompt mid-generation. Leaving the rejected drafts'
+                // KV in place would silently corrupt subsequent decodes, so fail loudly.
                 return Err(RollbackError::MtpPartialRollbackUnsupported);
             }
         }
 
         Ok(())
+    }
+
+    /// Hand MTP a batch the target just decoded, starting at position `start`.
+    fn process(&mut self, batch: &LlamaBatch, start: i32) -> Result<(), MtpSpeculativeError> {
+        self.clear_draft_cache_from(start);
+        self.ctx.process(batch)
+    }
+
+    /// Draft tokens to follow `token`, which goes at position `n_past`.
+    fn draft(
+        &mut self,
+        n_past: i32,
+        token: LlamaToken,
+    ) -> Result<Vec<LlamaToken>, MtpSpeculativeError> {
+        self.clear_draft_cache_from(n_past);
+        self.ctx.draft(n_past, token, &[])
+    }
+
+    /// The draft context has a cache of its own, which MTP doesn't trim for every model.
+    /// It keeps rejected drafts and positions the target rewound past, so clear what
+    /// is about to be decoded again.
+    fn clear_draft_cache_from(&mut self, position: i32) {
+        let cleared =
+            self.ctx
+                .draft_context_mut()
+                .clear_kv_cache_seq(Some(0), Some(position as u32), None);
+        if !matches!(cleared, Ok(true)) {
+            warn!(?cleared, position, "Failed to clear the MTP draft cache");
+        }
     }
 }
 
@@ -174,6 +203,20 @@ impl<'a> std::ops::DerefMut for EngineContext<'a> {
     }
 }
 
+/// Recurrent state of the sequence after the first `n_tokens` of the KV mirror.
+/// Recurrent memory can't be cut partway, so rewinding restores one of these instead.
+#[derive(Debug)]
+struct Checkpoint {
+    state: SeqState,
+    n_tokens: usize,
+}
+
+/// Only the recurrent part of the state, kept in device memory. Taking a new
+/// on-device snapshot invalidates the previous one, so there is at most one.
+const CHECKPOINT_FLAGS: LlamaStateSeqFlags = LlamaStateSeqFlags::from_bits(
+    LlamaStateSeqFlags::PARTIAL_ONLY.bits() | LlamaStateSeqFlags::ON_DEVICE.bits(),
+);
+
 #[derive(Debug)]
 pub(crate) struct BatchCapacity {
     pub(crate) tokens: usize,
@@ -199,6 +242,10 @@ pub(crate) struct InferenceEngine<'a> {
     kv_mirror: TokenizerChunks,
     /// Generated tokens not yet merged into `kv_mirror`, so each one isn't a re-hash.
     pending_generated: Vec<LlamaToken>,
+    /// Whether the model has recurrent memory, which needs checkpoints to rewind.
+    needs_checkpoints: bool,
+    /// Always covers a prefix of `kv_mirror` that hasn't changed since it was taken.
+    checkpoint: Option<Checkpoint>,
 }
 
 impl<'a> InferenceEngine<'a> {
@@ -212,6 +259,7 @@ impl<'a> InferenceEngine<'a> {
         // The batch limit is sequence IDs per token; each embedding token
         // belongs to one sequence.
         let batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
+        let needs_checkpoints = ctx.model.is_recurrent() || ctx.model.is_hybrid();
 
         Self {
             n_past: 0,
@@ -223,10 +271,16 @@ impl<'a> InferenceEngine<'a> {
             use_embeddings,
             kv_mirror: TokenizerChunks::new(),
             pending_generated: Vec::new(),
+            needs_checkpoints,
+            checkpoint: None,
         }
     }
 
-    /// The chunks in the KV cache at positions `[0, n_past)`; merges pending generated tokens first.
+    pub(crate) fn needs_checkpoints(&self) -> bool {
+        self.needs_checkpoints
+    }
+
+    /// Our record of the chunks in the KV cache at positions `[0, n_past)`; merges pending generated tokens first.
     pub(crate) fn kv_mirror(&mut self) -> &TokenizerChunks {
         self.flush_generated();
         debug_assert_eq!(self.kv_mirror.n_positions(), self.n_past as usize);
@@ -245,12 +299,87 @@ impl<'a> InferenceEngine<'a> {
     fn truncate_mirror(&mut self, n_tokens: usize) {
         self.flush_generated();
         self.kv_mirror.truncate(n_tokens);
+        // If we go back before the checkpoint, it is no longer valid.
+        if self
+            .checkpoint
+            .as_ref()
+            .is_some_and(|c| n_tokens < c.n_tokens)
+        {
+            self.checkpoint = None;
+        }
     }
 
     /// Record that the KV cache was emptied.
     fn clear_mirror(&mut self) {
         self.kv_mirror = TokenizerChunks::new();
         self.pending_generated.clear();
+        self.checkpoint = None;
+    }
+
+    /// Snapshot the recurrent state at the current end of the KV cache.
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn save_checkpoint(&mut self) {
+        match self.ctx.state_seq_get(0, CHECKPOINT_FLAGS) {
+            Ok(state) => {
+                let n_tokens = self.kv_mirror().n_tokens();
+                trace!(
+                    n_tokens,
+                    n_past = self.n_past,
+                    bytes = state.byte_len(),
+                    "Saved checkpoint"
+                );
+                self.checkpoint = Some(Checkpoint { state, n_tokens });
+            }
+            Err(error) => {
+                // The failed snapshot already invalidated the previous on-device one.
+                warn!(%error, "Failed to save checkpoint");
+                self.checkpoint = None;
+            }
+        }
+    }
+
+    /// Rewind to the checkpoint if it lies at or before token `index`, returning
+    /// the tokens kept. `None` means the caller has to reset the whole context.
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn restore_checkpoint(&mut self, index: usize) -> Option<usize> {
+        let Some(checkpoint) = self.checkpoint.as_ref() else {
+            trace!("No checkpoint to restore from");
+            return None;
+        };
+        let n_tokens = checkpoint.n_tokens;
+        if index < n_tokens {
+            trace!(
+                n_tokens,
+                index,
+                "Checkpoint is past the rewind target; cannot use"
+            );
+            return None;
+        }
+        if let Err(error) = self.ctx.state_seq_set(&checkpoint.state, 0) {
+            warn!(%error, "Failed to restore checkpoint");
+            return None;
+        }
+        // The restore only covers the recurrent state; drop the attention cells after it.
+        let (_, position) = self.kv_mirror.cut_at(n_tokens);
+        match self
+            .ctx
+            .clear_kv_cache_seq(Some(0), Some(position as u32), None)
+        {
+            Ok(true) => {}
+            other => {
+                // should be unreachable, since the recurrent state was
+                // just set to the checkpoint, which is before position
+                warn!(
+                    ?other,
+                    position, "Failed to clear the KV cache after the checkpoint"
+                );
+                return None;
+            }
+        }
+        self.n_past = position as i32;
+        self.truncate_mirror(n_tokens);
+        trace!(n_tokens, index, n_past = self.n_past, "Restored checkpoint");
+        Some(n_tokens)
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
@@ -461,7 +590,7 @@ impl<'a> InferenceEngine<'a> {
 
         // Keep the MTP draft ctx's hidden state in sync.
         if let EngineContext::Speculative(s) = &mut self.ctx {
-            s.ctx.process(&self.batch)?;
+            s.process(&self.batch, self.n_past)?;
             // A new prompt (or context-shift replay) invalidates in-progress
             // drafts.
             //
@@ -478,23 +607,19 @@ impl<'a> InferenceEngine<'a> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    /// Remove everything in the KV cache from token `index` onward.
-    ///
-    /// Returns `(effective_prefix, trimmed)` where:
-    /// - `effective_prefix` is the number of tokens still valid in the KV cache
-    /// - `trimmed` is how many positions were evicted.
-    fn remove_all_tokens_from_index_from_ctx(
-        &mut self,
-        index: usize,
-    ) -> Result<(usize, i32), KvCacheConversionError> {
+    /// Remove tokens from `index` onward from the KV cache, and return how many are kept.
+    /// That can be fewer than `index`: media is never split, recurrent models can only go
+    /// back to a checkpoint, and without one the whole context is reset.
+    fn remove_tokens_from(&mut self, index: usize) -> Result<usize, KvCacheConversionError> {
         if self.kv_mirror().n_tokens() <= index {
-            return Ok((index, 0));
+            return Ok(self.kv_mirror.n_tokens());
         }
 
         // The cache is cut by position, which falls behind the token count after M-RoPE media.
         // Media can't be split, so a cut inside one moves back to its start and it is re-read.
         let (index, position) = self.kv_mirror.cut_at(index);
-        let before = self.n_past;
+        // For recurrent / hybrid models this fails, leaving the cache untouched, unless `position` is 0
+        // or at most n_rs_seq tokens back (once per decode). Then we restore a checkpoint or reset.
         let seq_rm_success = self
             .ctx
             .clear_kv_cache_seq(Some(0), Some(position as u32), None)?;
@@ -502,27 +627,52 @@ impl<'a> InferenceEngine<'a> {
         if seq_rm_success {
             self.n_past = position as i32;
             self.truncate_mirror(index);
-            Ok((index, before - self.n_past))
+            Ok(index)
+        } else if let Some(kept) = self.restore_checkpoint(index) {
+            // Recurrent memory can't be cut partway, but the checkpoint gets close.
+            Ok(kept)
         } else {
             // Partial sequence removal is not supported by this model's memory type
-            // (e.g. hybrid models with recurrent components). Fall back to full reset,
-            // which leaves the cache empty — so the effective prefix is 0.
+            // (e.g. hybrid models with recurrent components), and no checkpoint
+            // helps. Fall back to full reset, which leaves the cache empty — so the
+            // effective prefix is 0.
             warn!(
                 index,
                 n_past = self.n_past,
-                "Partial KV cache removal not supported, falling back to full context reset"
+                "Partial KV cache removal not supported and no usable checkpoint, falling back to full context reset"
             );
             self.ctx.clear_kv_cache();
             self.n_past = 0;
             self.clear_mirror();
-            Ok((0, before))
+            Ok(0)
         }
     }
 
-    /// Diff `target` chunks against what is in the KV cache and load only the new tail.
+    /// Read `target` from where the KV mirror ends up to token `end`. The mirror must be
+    /// a prefix of `target`, so its length is how far into `target` the cache already is.
+    fn read_until(
+        &mut self,
+        target: &TokenizerChunks,
+        end: usize,
+        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
+    ) -> Result<(), ReadError> {
+        let start = self.kv_mirror().n_tokens();
+        if start < end {
+            let mut chunks = target.tail(start);
+            chunks.truncate(end - start);
+            self.read_chunks(chunks, inference_lock_token)?;
+        }
+        Ok(())
+    }
+
+    /// Diff `target` chunks against `kv_mirror` and load only the new tail into the KV cache.
+    ///
+    /// `checkpoint_at` is a token index in `target` to save a checkpoint at, if the cache
+    /// isn't already past it; only pass it if [`Self::needs_checkpoints`].
     pub(crate) fn sync_context(
         &mut self,
         target: TokenizerChunks,
+        checkpoint_at: Option<usize>,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
@@ -533,24 +683,30 @@ impl<'a> InferenceEngine<'a> {
             spec.n_accepted = 0;
         }
 
-        let prefix_index = find_chunks_prefix_difference(self.kv_mirror(), &target);
-
         debug_assert!(!target.is_empty());
+        let end = target.n_tokens();
 
-        let (effective_prefix, trimmed) =
-            self.remove_all_tokens_from_index_from_ctx(prefix_index)?;
-
-        let chunks_to_read = target.tail(effective_prefix);
-        if chunks_to_read.n_tokens() > 0 {
-            self.read_chunks(chunks_to_read, inference_lock_token)?;
-        } else if trimmed > 0 {
-            // Truncate-only: KV cache was trimmed but no new tokens need appending.
-            // Re-decode the last token to refresh stale logits — llama.cpp requires
-            // consecutive positions so we must evict it before re-reading.
-            let n_tokens = self.kv_mirror().n_tokens();
-            let (kept, _) = self.remove_all_tokens_from_index_from_ctx(n_tokens - 1)?;
-            self.read_chunks(target.tail(kept), inference_lock_token)?;
+        // All indices here count tokens into `target`. After the cut the mirror is
+        // `target[..kept]`, and `read_until` continues from there.
+        let cached = self.kv_mirror().n_tokens();
+        let diverge = find_chunks_prefix_difference(&self.kv_mirror, &target);
+        let mut kept = self.remove_tokens_from(diverge)?;
+        if kept == end && kept < cached {
+            // The target ends inside the cache, whose logits are for a token we just
+            // removed. Read the last token again to get its logits.
+            kept = self.remove_tokens_from(end - 1)?;
         }
+
+        // The cache can't be saved at a point it is already past, and an older checkpoint
+        // survives the cut only at or before `kept`, so a new one is never further back.
+        let checkpoint_at = checkpoint_at.filter(|&ckpt| {
+            kept <= ckpt && self.checkpoint.as_ref().is_none_or(|c| c.n_tokens < ckpt)
+        });
+        if let Some(at) = checkpoint_at {
+            self.read_until(&target, at, inference_lock_token)?;
+            self.save_checkpoint();
+        }
+        self.read_until(&target, end, inference_lock_token)?;
 
         Ok(())
     }
@@ -657,7 +813,7 @@ impl<'a> InferenceEngine<'a> {
         // token is an EOG token (then we'd rather decode just that token).
         let drafts = if let EngineContext::Speculative(spec) = &mut self.ctx {
             let _span = trace_span!("draft", n_past = self.n_past, ?token).entered();
-            let mut drafts = spec.ctx.draft(self.n_past, token, &[])?;
+            let mut drafts = spec.draft(self.n_past, token)?;
 
             // Make sure we later `.accept(...)` the drafts.
             spec.needs_accept = !drafts.is_empty();
@@ -695,7 +851,7 @@ impl<'a> InferenceEngine<'a> {
             // FIXME(madsmtm): This seems to synchronize the context, can we
             // avoid that somehow?
             let _span = trace_span!("mtp_process").entered();
-            spec.ctx.process(&self.batch)?;
+            spec.process(&self.batch, self.n_past)?;
 
             spec.drafts = drafts;
         }

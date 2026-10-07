@@ -233,7 +233,11 @@ pub fn get_model_cancellable(
         .as_ref()
         .map(|path| {
             info!(path = %path.display(), "Loading MTP draft model");
-            LlamaModel::load_from_file(&LLAMA_BACKEND, path, &model_params).map_err(|e| {
+            // Qwen3.5 ships its MTP layers in the main file, and llama.cpp skips them by default.
+            let draft_params = pin!(LlamaModelParams::default()
+                .with_n_gpu_layers(gpu_layers)
+                .with_load_mtp(true));
+            LlamaModel::load_from_file(&LLAMA_BACKEND, path, &draft_params).map_err(|e| {
                 let error_msg = format!(
                     "Failed to load MTP draft model at {}: {}",
                     path.display(),
@@ -380,7 +384,10 @@ impl<'a> InferenceEngine<'a> {
             .with_n_threads_batch(n_threads)
             .with_embeddings(use_embeddings)
             .with_pooling_type(pooling_type)
-            .with_kv_unified(n_seq_max > 1);
+            .with_kv_unified(n_seq_max > 1)
+            // Lets recurrent models roll back rejected MTP drafts; llama.cpp ignores it for
+            // architectures that can't.
+            .with_n_rs_seq(mtp.as_ref().map_or(0, |mtp| mtp.k_max));
 
         let ctx = model
             .language_model
@@ -391,11 +398,11 @@ impl<'a> InferenceEngine<'a> {
             match &model.draft_model {
                 Some(draft_model) => {
                     info!("Initializing MTP speculative draft context");
-                    let draft_batch_cap: u32 = 32;
+                    // MTP replays every batch the target decodes, prompts included.
                     let draft_params = LlamaContextParams::default()
                         .with_n_ctx(std::num::NonZero::new(planned_n_ctx))
-                        .with_n_batch(draft_batch_cap)
-                        .with_n_ubatch(draft_batch_cap)
+                        .with_n_batch(planned_n_ctx)
+                        .with_n_ubatch(n_ubatch)
                         .with_n_threads(n_threads)
                         .with_n_threads_batch(n_threads)
                         .with_context_type(LlamaContextType::Mtp)
