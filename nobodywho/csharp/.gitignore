@@ -1,5 +1,7 @@
 bin/
 obj/
+# Visual Studio per-user IDE state (layouts, caches, .suo).
+.vs/
 # Prebuilt native libraries, dropped in by the release workflow.
 src/NobodyWho/runtimes/
 *.nupkg
