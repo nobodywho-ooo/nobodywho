@@ -61,5 +61,9 @@
     "jest": "^30.3.0",
     "ts-jest": "^29.4.9",
     "prettier": "^3.9.9"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }
