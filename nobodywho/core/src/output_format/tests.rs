@@ -442,10 +442,14 @@ fn says_where_a_block_stops_making_sense() {
 // Splitting
 // ============================================================================
 
-/// Feeds `pieces` through a splitter for a response to `prompt`. Markers get
-/// their tokens, and anything else is token 1. Checks that every token ends up
-/// in exactly one piece, in order.
-fn split_after(format: &OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piece> {
+/// Feeds `pieces` through a splitter for a response to `prompt`, and returns
+/// the pieces and warnings. Markers get their tokens, and anything else is
+/// token 1. Checks that every token ends up in exactly one piece, in order.
+fn split_with_warnings(
+    format: &OutputFormat,
+    prompt: &str,
+    pieces: &[&str],
+) -> (Vec<Piece>, Vec<Warning>) {
     let resolved = resolve(format);
     let tools = tools();
     let mut splitter = resolved.splitter(tools, prompt);
@@ -460,11 +464,16 @@ fn split_after(format: &OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piec
                 LlamaToken(1)
             })
     };
-    let mut out: Vec<Piece> = pieces
-        .iter()
-        .flat_map(|&piece| splitter.push(token(piece), piece.as_bytes()))
-        .collect();
-    out.extend(splitter.finish());
+    let mut out = Vec::new();
+    let mut warnings = Vec::new();
+    for &piece in pieces {
+        let (new, warning) = splitter.push(token(piece), piece.as_bytes());
+        out.extend(new);
+        warnings.extend(warning);
+    }
+    let (last, warning) = splitter.finish();
+    out.extend(last);
+    warnings.extend(warning);
 
     let ids: Vec<LlamaToken> = out.iter().flat_map(|p| &p.tokens).map(|t| t.id).collect();
     let pushed: Vec<LlamaToken> = pieces.iter().map(|&piece| token(piece)).collect();
@@ -478,7 +487,12 @@ fn split_after(format: &OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piec
         .map(|t| t.text.as_str())
         .collect();
     assert_eq!(text, pieces.concat());
-    out
+    (out, warnings)
+}
+
+/// `split_with_warnings`'s pieces.
+fn split_after(format: &OutputFormat, prompt: &str, pieces: &[&str]) -> Vec<Piece> {
+    split_with_warnings(format, prompt, pieces).0
 }
 
 fn split(format: &OutputFormat, pieces: &[&str]) -> Vec<Piece> {
@@ -665,13 +679,13 @@ fn a_broken_block_keeps_the_formatting_before_it() {
 #[test]
 fn a_broken_block_comes_back_as_its_text() {
     let pieces = ["<|tool_call>", "call:get_time(", "<tool_call|>"];
-    let pieces = kinds(&split(&gemma4(), &pieces));
+    let (pieces, warnings) = split_with_warnings(&gemma4(), "", &pieces);
     assert!(
-        matches!(pieces[0], PieceKind::Warning(Warning::Malformed(_))),
-        "{pieces:?}"
+        matches!(warnings[..], [Warning::Malformed(_)]),
+        "{warnings:?}"
     );
     assert_eq!(
-        pieces[1..],
+        kinds(&pieces),
         [
             open(Item::Text),
             delta("<|tool_call>call:get_time(<tool_call|>"),
@@ -870,9 +884,9 @@ fn a_character_cut_off_by_the_end_is_dropped() {
         let mut splitter = resolved.splitter(tools, "");
         let mut pieces = Vec::new();
         for bytes in tokens {
-            pieces.extend(splitter.push(LlamaToken(1), bytes));
+            pieces.extend(splitter.push(LlamaToken(1), bytes).0);
         }
-        pieces.extend(splitter.finish());
+        pieces.extend(splitter.finish().0);
         let text: String = pieces
             .iter()
             .flat_map(|p| &p.tokens)
@@ -914,12 +928,13 @@ fn a_prompt_can_open_the_reasoning() {
 
     // One that closes it, as when reasoning is turned off, leaves the answer.
     let closed = "<|im_start|>assistant\n<think>\n\n</think>\n\n";
+    let (split, warnings) = split_with_warnings(&qwen35(), closed, &pieces);
+    assert_eq!(warnings, [Warning::Stray("</think>")]);
     assert_eq!(
-        kinds(&split_after(&qwen35(), closed, &pieces)),
+        kinds(&split),
         vec![
             open(Item::Text),
             delta("Hmm"),
-            PieceKind::Warning(Warning::Stray("</think>")),
             delta("</think>"),
             delta("Hi"),
             CLOSE,
@@ -977,8 +992,8 @@ fn a_character_split_across_tokens_arrives_whole() {
     let tools = tools();
     let mut splitter = resolved.splitter(tools, "");
     let crab = "🦀".as_bytes();
-    assert_eq!(splitter.push(LlamaToken(1), &crab[..2]), vec![]);
-    let pieces = splitter.push(LlamaToken(2), &crab[2..]);
+    assert_eq!(splitter.push(LlamaToken(1), &crab[..2]).0, vec![]);
+    let pieces = splitter.push(LlamaToken(2), &crab[2..]).0;
     assert_eq!(kinds(&pieces), vec![open(Item::Text), delta("🦀")]);
     // The token that finishes the character has it as its text.
     let texts: Vec<_> = pieces[1].tokens.iter().map(|t| t.text.as_str()).collect();
@@ -991,10 +1006,10 @@ fn a_character_cut_off_by_a_marker_is_dropped() {
     let tools = tools();
     let mut splitter = resolved.splitter(tools, "");
     let crab = "🦀".as_bytes();
-    let mut pieces = splitter.push(THINK, b"<think>");
-    pieces.extend(splitter.push(LlamaToken(1), &crab[..2]));
-    pieces.extend(splitter.push(UNTHINK, b"</think>"));
-    pieces.extend(splitter.push(LlamaToken(1), &crab[2..]));
+    let mut pieces = splitter.push(THINK, b"<think>").0;
+    pieces.extend(splitter.push(LlamaToken(1), &crab[..2]).0);
+    pieces.extend(splitter.push(UNTHINK, b"</think>").0);
+    pieces.extend(splitter.push(LlamaToken(1), &crab[2..]).0);
     assert_eq!(
         with_tokens(&pieces),
         vec![
@@ -1147,17 +1162,17 @@ fn the_history_is_what_was_written() {
 #[test]
 fn stray_end_markers_are_reported_and_kept_as_text() {
     let pieces = ["Hi", "</tool_call>", "</think>", "there"];
+    let (split, warnings) = split_with_warnings(&qwen3(), "", &pieces);
     assert_eq!(
-        with_tokens(&split(&qwen3(), &pieces)),
+        warnings,
+        [Warning::Stray("</tool_call>"), Warning::Stray("</think>")]
+    );
+    assert_eq!(
+        with_tokens(&split),
         vec![
             (open(Item::Text), "".into()),
             (delta("Hi"), "Hi".into()),
-            (
-                PieceKind::Warning(Warning::Stray("</tool_call>")),
-                "".into()
-            ),
             (delta("</tool_call>"), "</tool_call>".into()),
-            (PieceKind::Warning(Warning::Stray("</think>")), "".into()),
             (delta("</think>"), "</think>".into()),
             (delta("there"), "there".into()),
             (CLOSE, "".into()),
@@ -1177,9 +1192,9 @@ fn pushing_after_the_end_is_a_bug() {
 fn without_a_format_everything_but_the_end_is_text() {
     let plain = ModelOutput::plain(&FakeVocab(vec![]));
     let mut splitter = plain.splitter(Vec::new(), "");
-    let mut pieces = splitter.push(LlamaToken(1), b"Hi ");
-    pieces.extend(splitter.push(THINK, b"<think>"));
-    pieces.extend(splitter.push(EOG, EOG_TEXT.as_bytes()));
+    let mut pieces = splitter.push(LlamaToken(1), b"Hi ").0;
+    pieces.extend(splitter.push(THINK, b"<think>").0);
+    pieces.extend(splitter.push(EOG, EOG_TEXT.as_bytes()).0);
     assert_eq!(
         with_tokens(&pieces),
         vec![
@@ -1207,7 +1222,7 @@ fn a_model_without_reasoning_markers_does_not_reason() {
     let tools = tools();
     let mut splitter = resolved.splitter(tools, "<think>\n");
     assert_eq!(
-        kinds(&splitter.push(LlamaToken(1), b"Hi")),
+        kinds(&splitter.push(LlamaToken(1), b"Hi").0),
         vec![open(Item::Text), delta("Hi")]
     );
 }

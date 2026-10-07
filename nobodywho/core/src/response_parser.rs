@@ -51,7 +51,8 @@ impl ResponseParser {
     /// Takes the next token and the bytes it decodes to, and returns the text
     /// it finishes that streams.
     pub fn push(&mut self, token: LlamaToken, bytes: &[u8]) -> Vec<String> {
-        let pieces = self.splitter.push(token, bytes);
+        let (pieces, warning) = self.splitter.push(token, bytes);
+        self.log_warning(warning);
         self.read(pieces)
     }
 
@@ -69,7 +70,8 @@ impl ResponseParser {
     /// Ends the generation, as cut off if the model hasn't ended it, and
     /// returns the last of its text that streams, along with the generation.
     pub fn finish(mut self) -> (Vec<String>, Generation) {
-        let pieces = self.splitter.finish();
+        let (pieces, warning) = self.splitter.finish();
+        self.log_warning(warning);
         let text = self.read(pieces);
         // The grammar should keep a model from writing a block it can't read,
         // unless it was cut off.
@@ -84,21 +86,28 @@ impl ResponseParser {
         (text, generation)
     }
 
-    /// Reads `pieces` for their calls, logging the warnings among them and
-    /// noting when the model ends the generation, and returns the texts of
-    /// their tokens that stream: everything the model writes up to its first
-    /// call, but for the end of generation.
+    /// Logs `warning`, noting a block of calls that can't be read.
+    fn log_warning(&mut self, warning: Option<Warning>) {
+        match warning {
+            Some(Warning::Malformed(error)) => {
+                warn!(%error, "Couldn't read a block of tool calls");
+                self.unreadable = true;
+            }
+            Some(Warning::Stray(marker)) => {
+                warn!(marker, "The model wrote an end marker with nothing to end")
+            }
+            None => {}
+        }
+    }
+
+    /// Reads `pieces` for their calls, noting when the model ends the
+    /// generation, and returns the texts of their tokens that stream:
+    /// everything the model writes up to its first call, but for the end of
+    /// generation.
     fn read(&mut self, pieces: Vec<Piece>) -> Vec<String> {
         let mut text = Vec::new();
         for Piece { kind, tokens } in pieces {
             match kind {
-                PieceKind::Warning(Warning::Malformed(error)) => {
-                    warn!(%error, "Couldn't read a block of tool calls");
-                    self.unreadable = true;
-                }
-                PieceKind::Warning(Warning::Stray(marker)) => {
-                    warn!(marker, "The model wrote an end marker with nothing to end")
-                }
                 PieceKind::End { cut_off } => {
                     self.ended = !cut_off;
                     continue;

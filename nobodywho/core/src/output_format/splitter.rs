@@ -49,8 +49,6 @@ pub enum PieceKind {
     /// The open item ends. Its tokens are its marker and the formatting
     /// around it, if it has any.
     Close,
-    /// Something the caller may want to log. It adds nothing to the output.
-    Warning(Warning),
     /// The response ended, either by the model or cut off before that, e.g.
     /// by a token limit.
     End { cut_off: bool },
@@ -63,6 +61,8 @@ pub enum Item {
     ToolCall { name: String },
 }
 
+/// Something the caller may want to log, which `push` and `finish` return next
+/// to the pieces. It adds nothing to the output.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Warning {
     /// A marker that doesn't make sense in context, e.g. an end marker with
@@ -226,9 +226,10 @@ impl Splitter {
     }
 
     /// Takes the next token and the bytes it decodes to, and returns the
-    /// pieces it finishes. There's nothing after the end of generation, so a
-    /// token pushed then panics in debug builds and is ignored otherwise.
-    pub fn push(&mut self, token: LlamaToken, bytes: &[u8]) -> Vec<Piece> {
+    /// pieces it finishes and the warning it raises, if any. There's nothing
+    /// after the end of generation, so a token pushed then panics in debug
+    /// builds and is ignored otherwise.
+    pub fn push(&mut self, token: LlamaToken, bytes: &[u8]) -> (Vec<Piece>, Option<Warning>) {
         let is_end_of_generation = self.context.end_of_generation_token.contains(&token);
         let format = self.context.format.as_ref();
         let is_tool_call_begin = format.is_some_and(|f| token == f.tool_calls.begin);
@@ -244,7 +245,7 @@ impl Splitter {
                 if cfg!(debug_assertions) {
                     panic!("a token was pushed after the end of generation");
                 }
-                return vec![];
+                return (vec![], None);
             }
             _ if is_end_of_generation => true,
             State::Text(_) => {
@@ -263,7 +264,7 @@ impl Splitter {
                 },
             ));
             self.output.push_str(&text);
-            return self.add_text(&text);
+            return (self.add_text(&text), None);
         }
 
         // A marker ends the text before it. A character that text left
@@ -280,10 +281,10 @@ impl Splitter {
         let end = self.output.len();
         self.output.push_str(&marker);
         let mut pieces = Vec::new();
+        let mut warning = None;
 
         if is_end_of_generation {
-            pieces.extend(self.end(end, false));
-            return pieces;
+            return self.end(end, false);
         }
         let format = self
             .context
@@ -319,8 +320,7 @@ impl Splitter {
                 };
                 let marker = marker.expect("only markers the format has match");
                 pieces.extend(self.flush(end, false));
-                let warning = PieceKind::Warning(Warning::Stray(marker));
-                pieces.push(self.piece(warning, self.num_bytes_covered));
+                warning = Some(Warning::Stray(marker));
                 // The model wrote it, so it's text like any other.
                 pieces.extend(self.content(
                     Item::Text,
@@ -338,13 +338,15 @@ impl Splitter {
             State::ToolCalls { buffer, start } => {
                 let (buffer, start) = (buffer.clone(), *start);
                 if is_tool_call_end {
-                    let (read, close) =
+                    let (read, close, malformed) =
                         self.read_tool_calls(&buffer, start, self.output.len(), true);
                     pieces.extend(read);
+                    warning = malformed;
                     pieces.extend(self.begin_stretch(State::Text, tool_calls.after_end, close));
                 } else {
-                    let (read, close) = self.read_tool_calls(&buffer, start, end, false);
+                    let (read, close, malformed) = self.read_tool_calls(&buffer, start, end, false);
                     pieces.extend(read);
+                    warning = malformed;
                     pieces.extend(close.map(|close| self.piece(close, end)));
                     self.block_start = end;
                     self.formatting_before_block.clear();
@@ -356,7 +358,7 @@ impl Splitter {
             }
             State::Ended => unreachable!("returned above"),
         }
-        pieces
+        (pieces, warning)
     }
 
     /// Whether the response is in a block of tool calls, which is where a
@@ -367,9 +369,9 @@ impl Splitter {
 
     /// Ends a response cut off before the model ended it, reading any block
     /// of tool calls it left open. Does nothing to one that has ended.
-    pub fn finish(&mut self) -> Vec<Piece> {
+    pub fn finish(&mut self) -> (Vec<Piece>, Option<Warning>) {
         if matches!(self.state, State::Ended) {
-            return vec![];
+            return (vec![], None);
         }
         // A character the model left unfinished isn't text, so it's dropped.
         self.decode(&[], true);
@@ -407,7 +409,7 @@ impl Splitter {
         match &kind {
             PieceKind::Open(item) => self.open = Some(item.clone()),
             PieceKind::Close => self.open = None,
-            PieceKind::Delta(_) | PieceKind::Warning(_) | PieceKind::End { .. } => {}
+            PieceKind::Delta(_) | PieceKind::End { .. } => {}
         }
         Piece { kind, tokens }
     }
@@ -544,8 +546,10 @@ impl Splitter {
     }
 
     /// Ends the response, whose output before its last marker, if any, ends
-    /// at `end`.
-    fn end(&mut self, end: usize, cut_off: bool) -> Vec<Piece> {
+    /// at `end`. Returns the pieces, and a warning if a block it reads can't
+    /// be.
+    fn end(&mut self, end: usize, cut_off: bool) -> (Vec<Piece>, Option<Warning>) {
+        let mut warning = None;
         let mut pieces = match &self.state {
             State::Text(_) | State::Thinking(_) => self.flush(end, false),
             // A block the model didn't finish holds no calls, so none run.
@@ -555,7 +559,8 @@ impl Splitter {
             }
             State::ToolCalls { buffer, start } => {
                 let (buffer, start) = (buffer.clone(), *start);
-                let (mut read, close) = self.read_tool_calls(&buffer, start, end, false);
+                let (mut read, close, malformed) = self.read_tool_calls(&buffer, start, end, false);
+                warning = malformed;
                 read.extend(close.map(|close| self.piece(close, end)));
                 read
             }
@@ -570,7 +575,7 @@ impl Splitter {
             .extend(self.tokens.drain(..).map(|(_, token)| token));
         pieces.push(last);
         self.state = State::Ended;
-        pieces
+        (pieces, warning)
     }
 
     /// The formatting the template writes before the marker that ends the
@@ -588,15 +593,16 @@ impl Splitter {
 
     /// Reads a block of tool calls whose text starts at `start`, and which
     /// ends at `end`. `closed` is whether it got its end marker. Returns the
-    /// pieces, and the last call's `Close` if it has one, which the caller
-    /// places since it covers what follows the block.
+    /// pieces, the last call's `Close` if it has one, which the caller places
+    /// since it covers what follows the block, and a warning if the block
+    /// can't be read.
     fn read_tool_calls(
         &mut self,
         text: &str,
         start: usize,
         end: usize,
         closed: bool,
-    ) -> (Vec<Piece>, Option<PieceKind>) {
+    ) -> (Vec<Piece>, Option<PieceKind>, Option<Warning>) {
         let format = self
             .context
             .format
@@ -617,13 +623,11 @@ impl Splitter {
                         pieces.push(self.piece(PieceKind::Close, start + span.end));
                     }
                 }
-                (pieces, Some(PieceKind::Close))
+                (pieces, Some(PieceKind::Close), None)
             }
             Err(error) => {
-                let warning = PieceKind::Warning(Warning::Malformed(error));
-                pieces.push(self.piece(warning, self.num_bytes_covered));
                 pieces.extend(self.block_as_text(text, end, closed));
-                (pieces, None)
+                (pieces, None, Some(Warning::Malformed(error)))
             }
         }
     }
