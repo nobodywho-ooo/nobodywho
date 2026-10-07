@@ -24,7 +24,9 @@ use tracing::{debug, info};
 const N_MEL_FRAMES: usize = 3_000;
 /// Whisper encoder output length (N_MEL_FRAMES / 2 due to 2× downsampling).
 const ENC_SEQ_LEN: usize = N_MEL_FRAMES / 2;
-const MAX_NEW_TOKENS: usize = 448;
+/// Decoder positions, shared by the prompt and the generated tokens; 448 for
+/// every Whisper size.
+const MAX_TARGET_POSITIONS: usize = 448;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -442,7 +444,7 @@ impl WhisperBackend {
         let mut next_token = argmax(&self.run_decoder(&prompt, enc_hidden)?);
         let mut generated = Vec::new();
 
-        for step in 0..MAX_NEW_TOKENS {
+        for step in 0..MAX_TARGET_POSITIONS - prompt.len() {
             if next_token == self.eot_id as i64 {
                 break;
             }
@@ -567,5 +569,43 @@ impl GenerationConfig {
             .filter_map(|(k, v)| v.as_u64().map(|id| (k.clone(), id as u32)))
             .collect();
         Ok(Self { lang_to_id })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::speech_to_text::audio::{AudioResampler, DecodedAudio};
+
+    fn first_window_of_test_clip() -> Vec<f32> {
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/sound.mp3"
+        ));
+        let audio = DecodedAudio::from_file(path).unwrap();
+        let mut windows = AudioResampler::default()
+            .resample(audio)
+            .unwrap()
+            .into_windows();
+        windows.swap_remove(0)
+    }
+
+    /// A transcript that never reaches end-of-text, like a model stuck
+    /// repeating itself, used to run past the decoder's 448 positions and fail
+    /// with an ONNX Runtime reshape error. It should stop at the limit instead.
+    #[test]
+    fn a_transcript_that_never_ends_stops_at_the_decoder_limit() {
+        let Ok(source) = std::env::var("TEST_WHISPER_MODEL") else {
+            eprintln!("skipping: TEST_WHISPER_MODEL is not set");
+            return;
+        };
+        let mut backend = WhisperBackend::new(&source, Some("en"), "default", Device::Cpu).unwrap();
+        // No token is end-of-text, so decoding only stops at the limit.
+        backend.eot_id = u32::MAX;
+
+        let window = first_window_of_test_clip();
+        backend
+            .transcribe_window(&window, &mut |_| {})
+            .expect("transcribing past the decoder limit");
     }
 }
