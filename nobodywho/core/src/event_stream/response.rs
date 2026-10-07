@@ -7,9 +7,7 @@ use crate::event_stream::event::{
     ContentPartAddedEvent, ContentPartDoneEvent, EventKind, FunctionCallArgumentsDeltaEvent,
     FunctionCallArgumentsDoneEvent, McpCallArgumentsDeltaEvent, McpCallArgumentsDoneEvent,
     McpEvent, OutputIndex, OutputItemAddedEvent, OutputItemDoneEvent, OutputTextDeltaEvent,
-    OutputTextDoneEvent, ReasoningSummaryPartAddedEvent, ReasoningSummaryPartDoneEvent,
-    ReasoningSummaryTextDeltaEvent, ReasoningSummaryTextDoneEvent, ReasoningTextDeltaEvent,
-    ReasoningTextDoneEvent, StreamEvent,
+    OutputTextDoneEvent, ReasoningTextDeltaEvent, ReasoningTextDoneEvent, StreamEvent,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -68,9 +66,6 @@ impl Display for ItemId {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ContentPartIndex(pub usize);
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct SummaryIndex(pub usize);
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FunctionCallId(pub String);
 
@@ -87,7 +82,6 @@ impl FunctionCallId {
 #[allow(clippy::enum_variant_names)]
 pub enum ContentPartType {
     OutputText,
-    SummaryText,
     ReasoningText,
 }
 
@@ -141,10 +135,8 @@ pub struct ResponseUsage {
 pub enum ItemType {
     Reasoning,
     FunctionCall,
-    FunctionCallOutput,
     Message,
     McpCall,
-    McpListTools,
 }
 
 impl ItemType {
@@ -153,16 +145,16 @@ impl ItemType {
         match self {
             ItemType::Reasoning => "rs_",
             ItemType::FunctionCall => "fc_",
-            ItemType::FunctionCallOutput => "fco_",
             ItemType::Message => "msg_",
             ItemType::McpCall => "mcp_",
-            ItemType::McpListTools => "mcpl_",
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReasoningItem {
+    /// Always empty, as models here don't summarize their reasoning, but the
+    /// API has every reasoning item carry it.
     #[serde(default)]
     pub summary: Vec<ContentPart>,
     #[serde(default)]
@@ -187,19 +179,13 @@ impl FunctionCallItem {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FunctionCallOutputItem {
-    pub call_id: FunctionCallId,
-    pub output: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MessageItem {
     pub role: Role,
     pub content: Vec<ContentPart>,
 }
 
-/// A call run by the server rather than the client, in the item OpenAI uses for
-/// calls to MCP servers.
+/// A call we run rather than the client, written as the API's MCP call item,
+/// though no MCP server is involved.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "McpCallFields", into = "McpCallFields")]
 pub struct McpCallItem {
@@ -262,31 +248,13 @@ pub enum McpCallError {
     Http { code: u16, message: String },
 }
 
-/// The tools an MCP server has, which only arrive when the item is done.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct McpListToolsItem {
-    pub server_label: String,
-    pub tools: Vec<McpTool>,
-    pub error: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct McpTool {
-    pub name: String,
-    pub description: Option<String>,
-    pub input_schema: serde_json::Value,
-    pub annotations: Option<serde_json::Value>,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ItemKind {
     Reasoning(ReasoningItem),
     FunctionCall(FunctionCallItem),
-    FunctionCallOutput(FunctionCallOutputItem),
     Message(MessageItem),
     McpCall(McpCallItem),
-    McpListTools(McpListToolsItem),
 }
 
 impl ItemKind {
@@ -294,15 +262,13 @@ impl ItemKind {
         match self {
             ItemKind::Reasoning { .. } => ItemType::Reasoning,
             ItemKind::FunctionCall { .. } => ItemType::FunctionCall,
-            ItemKind::FunctionCallOutput { .. } => ItemType::FunctionCallOutput,
             ItemKind::Message { .. } => ItemType::Message,
             ItemKind::McpCall { .. } => ItemType::McpCall,
-            ItemKind::McpListTools { .. } => ItemType::McpListTools,
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Item {
     pub id: ItemId,
     pub status: Status,
@@ -310,55 +276,7 @@ pub struct Item {
     pub kind: ItemKind,
 }
 
-/// An item as the wire has it. Some providers leave a reasoning item unstatused,
-/// so its state has to come from whatever carried it.
-#[derive(Deserialize)]
-pub(crate) struct ItemFields {
-    id: ItemId,
-    status: Option<Status>,
-    #[serde(flatten)]
-    kind: ItemKind,
-}
-
-impl ItemFields {
-    /// `status` is what to assume when the wire says nothing.
-    pub fn into_item(self, status: Status) -> Item {
-        Item {
-            id: self.id,
-            status: self.status.unwrap_or(status),
-            kind: self.kind,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct ResponseObjectFields {
-    id: ResponseId,
-    usage: Option<ResponseUsage>,
-    status: Status,
-    incomplete_details: Option<IncompleteDetails>,
-    output: Vec<ItemFields>,
-}
-
-impl From<ResponseObjectFields> for ResponseObject {
-    fn from(fields: ResponseObjectFields) -> Self {
-        ResponseObject {
-            id: fields.id,
-            usage: fields.usage,
-            status: fields.status,
-            incomplete_details: fields.incomplete_details,
-            // A response lists its items only once they are all done.
-            output: fields
-                .output
-                .into_iter()
-                .map(|item| item.into_item(Status::Completed))
-                .collect(),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(from = "ResponseObjectFields")]
 pub struct ResponseObject {
     pub(crate) id: ResponseId,
     pub(crate) usage: Option<ResponseUsage>,
@@ -436,23 +354,6 @@ impl ResponseObject {
         }
     }
 
-    /// The status of the MCP tool listing an event addresses.
-    fn get_mcp_list_tools_status_mut(
-        &mut self,
-        output_index: OutputIndex,
-        item_id: &ItemId,
-        event: &str,
-    ) -> &mut Status {
-        let item = self.get_event_item_mut(output_index, item_id, event);
-        match &item.kind {
-            ItemKind::McpListTools(_) => &mut item.status,
-            kind => panic!(
-                "{event} event received for item of kind {:?}, which is not an MCP tool listing",
-                kind.item_type()
-            ),
-        }
-    }
-
     pub fn consume_event(&mut self, event: StreamEvent) {
         let StreamEvent {
             sequence_number: _,
@@ -524,16 +425,11 @@ impl ResponseObject {
                     );
                 }
                 current_item.status = item.status;
-                // What an MCP item ends up with has no events of its own.
-                match (&mut current_item.kind, &item.kind) {
-                    (ItemKind::McpCall(current), ItemKind::McpCall(done)) => {
-                        current.result = done.result.clone();
-                    }
-                    (ItemKind::McpListTools(current), ItemKind::McpListTools(done)) => {
-                        current.tools = done.tools.clone();
-                        current.error = done.error.clone();
-                    }
-                    _ => {}
+                // What an MCP call returned has no events of its own.
+                if let (ItemKind::McpCall(current), ItemKind::McpCall(done)) =
+                    (&mut current_item.kind, &item.kind)
+                {
+                    current.result = done.result.clone();
                 }
                 if current_item != &item {
                     panic!(
@@ -569,7 +465,7 @@ impl ResponseObject {
                             );
                         }
                     },
-                    ItemKind::FunctionCall (_) | ItemKind::FunctionCallOutput (_) | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    ItemKind::FunctionCall (_) | ItemKind::McpCall(_) => panic!(
                         "ContentPartAdded event received for item of kind {:?}, which does not support content parts",
                         item.kind
                     ),
@@ -600,7 +496,7 @@ impl ResponseObject {
                             content_index.0, part.text, done_content.text
                         )}
                     },
-                    ItemKind::FunctionCall (_)| ItemKind::FunctionCallOutput (_) | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    ItemKind::FunctionCall (_) | ItemKind::McpCall(_) => panic!(
                         "ContentPartDone event received for item of kind {:?}, which does not support content parts",
                         item.kind
                     ),
@@ -628,7 +524,7 @@ impl ResponseObject {
                         );
                         part.text.push_str(&delta);
                     },
-                    ItemKind::FunctionCall (_)| ItemKind::FunctionCallOutput (_) | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    ItemKind::FunctionCall (_) | ItemKind::McpCall(_) => panic!(
                         "OutputTextDelta event received for item of kind {:?}, which does not support content parts",
                         item.kind
                     ),
@@ -659,7 +555,7 @@ impl ResponseObject {
                             content_index.0, part.text, text
                         )}
                     },
-                    ItemKind::FunctionCall (_)| ItemKind::FunctionCallOutput (_) | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    ItemKind::FunctionCall (_) | ItemKind::McpCall(_) => panic!(
                         "OutputTextDone event received for item of kind {:?}, which does not support content parts",
                         item.kind
                     ),
@@ -680,9 +576,9 @@ impl ResponseObject {
                         );
                         part.text.push_str(&delta);
                     }
-                    ItemKind::FunctionCall (_)| ItemKind::FunctionCallOutput (_)
+                    ItemKind::FunctionCall (_)
                     | ItemKind::Message (_)
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    | ItemKind::McpCall(_) => panic!(
                         "ReasoningTextDelta event received for item of kind {kind:?}, which does not reason"
                     ),
                 }
@@ -707,121 +603,10 @@ impl ResponseObject {
                             )
                         }
                     }
-                    ItemKind::FunctionCall (_)| ItemKind::FunctionCallOutput (_)
+                    ItemKind::FunctionCall (_)
                     | ItemKind::Message (_)
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    | ItemKind::McpCall(_) => panic!(
                         "ReasoningTextDone event received for item of kind {kind:?}, which does not reason"
-                    ),
-                }
-            }
-            EventKind::ReasoningSummaryPartAdded(ReasoningSummaryPartAddedEvent {
-                item_id,
-                output_index,
-                summary_index,
-                part,
-            }) => {
-                let item =
-                    self.get_event_item_mut(output_index, &item_id, "ReasoningSummaryPartAdded");
-                let kind = item.kind.item_type();
-                match item.kind {
-                    ItemKind::Reasoning (ReasoningItem{ ref mut summary, .. } ) => {
-                        if summary.len() == summary_index.0 {
-                            summary.push(part);
-                        } else {
-                            panic!(
-                                "ReasoningSummaryPartAdded event received out of order: expected index {}, got {}",
-                                summary.len(),
-                                summary_index.0
-                            );
-                        }
-                    }
-                    ItemKind::FunctionCall(_)
-                    | ItemKind::FunctionCallOutput(_)
-                    | ItemKind::Message(_)
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
-                        "ReasoningSummaryPartAdded event received for item of kind {kind:?}, which has no summary"
-                    ),
-                }
-            }
-            EventKind::ReasoningSummaryPartDone(ReasoningSummaryPartDoneEvent {
-                item_id,
-                output_index,
-                summary_index,
-                part: done_part,
-            }) => {
-                let item =
-                    self.get_event_item_mut(output_index, &item_id, "ReasoningSummaryPartDone");
-                let kind = item.kind.item_type();
-                match item.kind {
-                    ItemKind::Reasoning (ReasoningItem{ ref summary, .. }) => {
-                        let part = summary.get(summary_index.0).expect(
-                            "ReasoningSummaryPartAdded event must have been received before ReasoningSummaryPartDone event",
-                        );
-                        if done_part != *part {
-                            panic!(
-                                "ReasoningSummaryPartDone event received for summary part at index {}, but the content does not match: expected '{:?}', got '{:?}'",
-                                summary_index.0, part.text, done_part.text
-                            )
-                        }
-                    }
-                    ItemKind::FunctionCall { .. }
-                    | ItemKind::FunctionCallOutput { .. }
-                    | ItemKind::Message { .. }
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
-                        "ReasoningSummaryPartDone event received for item of kind {kind:?}, which has no summary"
-                    ),
-                }
-            }
-            EventKind::ReasoningSummaryTextDelta(ReasoningSummaryTextDeltaEvent {
-                item_id,
-                output_index,
-                summary_index,
-                delta,
-            }) => {
-                let item =
-                    self.get_event_item_mut(output_index, &item_id, "ReasoningSummaryTextDelta");
-                let kind = item.kind.item_type();
-                match item.kind {
-                    ItemKind::Reasoning (ReasoningItem{ ref mut summary, .. }) => {
-                        let part = summary.get_mut(summary_index.0).expect(
-                            "ReasoningSummaryPartAdded event must have been received before ReasoningSummaryTextDelta event",
-                        );
-                        part.text.push_str(&delta);
-                    }
-                    ItemKind::FunctionCall (_)
-                    | ItemKind::FunctionCallOutput (_)
-                    | ItemKind::Message (_)
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
-                        "ReasoningSummaryTextDelta event received for item of kind {kind:?}, which has no summary"
-                    ),
-                }
-            }
-            EventKind::ReasoningSummaryTextDone(ReasoningSummaryTextDoneEvent {
-                item_id,
-                output_index,
-                summary_index,
-                text,
-            }) => {
-                let item =
-                    self.get_event_item_mut(output_index, &item_id, "ReasoningSummaryTextDone");
-                let kind = item.kind.item_type();
-                match item.kind {
-                    ItemKind::Reasoning (ReasoningItem{ ref summary, .. }) => {
-                        let part = summary.get(summary_index.0).expect(
-                            "ReasoningSummaryPartAdded event must have been received before ReasoningSummaryTextDone event",
-                        );
-                        if text != part.text {
-                            panic!(
-                                "ReasoningSummaryTextDone event received for summary part at index {}, but the content does not match: expected '{}', got '{}'",
-                                summary_index.0, part.text, text
-                            )
-                        }
-                    }
-                    ItemKind::FunctionCall (_)
-                    | ItemKind::FunctionCallOutput (_)
-                    | ItemKind::Message (_)
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
-                        "ReasoningSummaryTextDone event received for item of kind {kind:?}, which has no summary"
                     ),
                 }
             }
@@ -848,9 +633,8 @@ impl ResponseObject {
                         }
                     ) => {arguments.push_str(&delta); },
                     ItemKind::Reasoning (_)
-                    | ItemKind::FunctionCallOutput (_)
                     | ItemKind::Message (_)
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    | ItemKind::McpCall(_) => panic!(
                         "FunctionCallArgumentsDelta event received for item of kind {:?}, which does not support arguments",
                         item.kind.item_type()
                     ),
@@ -886,9 +670,8 @@ impl ResponseObject {
                         }
                     }
                     ItemKind::Reasoning (_)
-                    | ItemKind::FunctionCallOutput (_)
                     | ItemKind::Message (_)
-                    | ItemKind::McpCall(_) | ItemKind::McpListTools(_) => panic!(
+                    | ItemKind::McpCall(_) => panic!(
                         "FunctionCallArgumentsDone event received for item of kind {:?}, which does not support arguments",
                         item.kind.item_type()
                     ),
@@ -940,36 +723,6 @@ impl ResponseObject {
             }) => {
                 let (status, _) = self.get_mcp_call_mut(output_index, &item_id, "McpCallFailed");
                 *status = Status::Failed;
-            }
-            EventKind::McpListToolsInProgress(McpEvent {
-                item_id,
-                output_index,
-            }) => {
-                let status = self.get_mcp_list_tools_status_mut(
-                    output_index,
-                    &item_id,
-                    "McpListToolsInProgress",
-                );
-                if *status != Status::InProgress {
-                    panic!("McpListToolsInProgress event received for item_id {item_id}, which is {status:?}");
-                }
-            }
-            EventKind::McpListToolsCompleted(McpEvent {
-                item_id,
-                output_index,
-            }) => {
-                *self.get_mcp_list_tools_status_mut(
-                    output_index,
-                    &item_id,
-                    "McpListToolsCompleted",
-                ) = Status::Completed;
-            }
-            EventKind::McpListToolsFailed(McpEvent {
-                item_id,
-                output_index,
-            }) => {
-                *self.get_mcp_list_tools_status_mut(output_index, &item_id, "McpListToolsFailed") =
-                    Status::Failed;
             }
         }
     }

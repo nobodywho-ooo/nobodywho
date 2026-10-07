@@ -1,9 +1,6 @@
 pub mod event;
 pub mod response;
 
-#[cfg(test)]
-use std::collections::HashMap;
-
 use rand::rngs::StdRng;
 
 use crate::{
@@ -413,9 +410,6 @@ impl EventStream {
                     tokens,
                 )];
             }
-            ItemKind::FunctionCallOutput(_) | ItemKind::McpListTools(_) => {
-                unreachable!("a model doesn't write these")
-            }
         };
         events.push(self.emit(
             EventKind::OutputItemDone(OutputItemDoneEvent {
@@ -488,196 +482,6 @@ pub enum EventStreamError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct EventConsumer {
-        responses: HashMap<ResponseId, ResponseObject>,
-        active_response_id: Option<ResponseId>,
-        cur_sequence_number: SequenceNumber,
-    }
-
-    impl EventConsumer {
-        pub fn new() -> EventConsumer {
-            EventConsumer {
-                responses: HashMap::new(),
-                active_response_id: None,
-                cur_sequence_number: SequenceNumber::start(),
-            }
-        }
-
-        pub fn consume_event(&mut self, event: StreamEvent) -> Result<(), EventStreamError> {
-            match event {
-                StreamEvent {
-                    kind: EventKind::Created { response },
-                    sequence_number,
-                    ..
-                } => {
-                    assert_eq!(
-                        sequence_number,
-                        SequenceNumber::start(),
-                        "Created event must have sequence index 0"
-                    );
-                    if self.active_response_id.is_some() {
-                        panic!(
-                        "Created event received, but there is already an active response with id {:?}",
-                        self.active_response_id
-                    );
-                    }
-                    // Sequence indices restart with each response.
-                    self.cur_sequence_number = sequence_number.next();
-                    let response_id = response.id.clone();
-                    self.responses.insert(response_id.clone(), response);
-                    self.active_response_id = Some(response_id);
-                }
-                event => {
-                    if event.sequence_number != self.cur_sequence_number {
-                        panic!(
-                            "Event sequence index mismatch: expected {:?}, got {:?}",
-                            self.cur_sequence_number, event.sequence_number
-                        );
-                    }
-                    self.cur_sequence_number = event.sequence_number.next();
-
-                    let active_response_id = self.active_response_id.as_ref().expect(
-                        "Event received, but there is no active response to consume it for",
-                    );
-                    let response = self.responses.get_mut(active_response_id).expect(
-                    "Active response id is set, but the response does not exist in the responses map",
-                );
-                    response.consume_event(event);
-
-                    if response.status == Status::Completed {
-                        self.active_response_id = None;
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
-
-    /// Replay a recorded conversation through an `EventConsumer`.
-    ///
-    /// The asserts inside `consume_event` are the assertions; this only has to get
-    /// every event in, in order.
-    fn replay(recording: &str) {
-        let events: Vec<StreamEvent> = serde_json::from_str(recording)
-            .expect("every event in the recording must map onto an `EventKind`");
-
-        let mut consumer = EventConsumer::new();
-        for event in events {
-            if consumer.consume_event(event).is_err() {
-                panic!("EventConsumer rejected an event");
-            }
-        }
-    }
-
-    /// One test per recorded conversation, for the recordings in one directory.
-    macro_rules! conversations {
-        ($dir:literal) => {
-            #[test]
-            fn simple_text() {
-                replay(include_str!(concat!($dir, "simple_text.json")));
-            }
-
-            #[test]
-            fn multi_turn_text() {
-                replay(include_str!(concat!($dir, "multi_turn_text.json")));
-            }
-
-            #[test]
-            fn single_tool_call() {
-                replay(include_str!(concat!($dir, "single_tool_call.json")));
-            }
-
-            #[test]
-            fn parallel_tool_calls() {
-                replay(include_str!(concat!($dir, "parallel_tool_calls.json")));
-            }
-
-            #[test]
-            fn reasoning_with_tool_call() {
-                replay(include_str!(concat!($dir, "reasoning_with_tool_call.json")));
-            }
-
-            #[test]
-            fn incomplete_max_output_tokens() {
-                replay(include_str!(concat!(
-                    $dir,
-                    "incomplete_max_output_tokens.json"
-                )));
-            }
-        };
-    }
-
-    mod openai_gpt_5_nano {
-        use super::*;
-        conversations!("event_stream/recordings/");
-    }
-
-    mod openrouter_gpt_5_nano {
-        use super::*;
-        conversations!("event_stream/recordings/openrouter/gpt-5-nano/");
-    }
-
-    mod openrouter_claude_haiku_4_5 {
-        use super::*;
-        conversations!("event_stream/recordings/openrouter/claude-haiku-4.5/");
-    }
-
-    /// Calls OpenAI runs itself on an MCP server, the first of which fails.
-    #[test]
-    fn mcp_calls() {
-        use response::{ItemType, McpCallError, McpCallItem};
-        let recording = include_str!("event_stream/recordings/mcp/mcp_calls.json");
-        replay(recording);
-
-        let events: Vec<StreamEvent> = serde_json::from_str(recording).unwrap();
-        let response = events
-            .iter()
-            .find_map(|event| match &event.kind {
-                EventKind::Completed { response } => Some(response),
-                _ => None,
-            })
-            .unwrap();
-        let items: Vec<_> = response
-            .output
-            .iter()
-            .map(|item| (item.kind.item_type(), item.status))
-            .collect();
-        assert_eq!(
-            items,
-            [
-                (ItemType::McpListTools, Status::Completed),
-                (ItemType::McpCall, Status::Failed),
-                (ItemType::McpCall, Status::Completed),
-                (ItemType::Message, Status::Completed),
-            ]
-        );
-        assert!(matches!(
-            &response.output[1].kind,
-            ItemKind::McpCall(McpCallItem {
-                result: Some(Err(McpCallError::ToolExecution { .. })),
-                ..
-            })
-        ));
-
-        // Written back, both calls have the fields OpenAI wrote.
-        let recorded: Vec<serde_json::Value> = serde_json::from_str(recording).unwrap();
-        let recorded = &recorded
-            .iter()
-            .find(|event| event["type"] == "response.completed")
-            .unwrap()["response"]["output"];
-        for index in [1, 2] {
-            let written = serde_json::to_value(&response.output[index]).unwrap();
-            for field in ["output", "error"] {
-                assert_eq!(written[field], recorded[index][field]);
-            }
-        }
-    }
-
-    // ========================================================================
-    // Streams made from our own generations
-    // ========================================================================
-
     use crate::event_stream::response::IncompleteReason;
     use crate::output_format::{qwen3, ResolvedFormat};
     use crate::tool_calling::Tool;
@@ -767,12 +571,17 @@ mod tests {
     fn consume(events: &[StreamEvent]) -> ResponseObject {
         let json = serde_json::to_string(events).unwrap();
         let events: Vec<StreamEvent> = serde_json::from_str(&json).unwrap();
-        let mut consumer = EventConsumer::new();
-        for event in events {
-            consumer.consume_event(event).unwrap();
+        let mut events = events.into_iter();
+        let created = events.next().unwrap();
+        assert_eq!(created.sequence_number, SequenceNumber::start());
+        let EventKind::Created { mut response } = created.kind else {
+            panic!("a response starts with `Created`, not {:?}", created.kind);
+        };
+        for (number, event) in (1..).zip(events) {
+            assert_eq!(event.sequence_number, SequenceNumber(number));
+            response.consume_event(event);
         }
-        assert_eq!(consumer.responses.len(), 1);
-        consumer.responses.into_values().next().unwrap()
+        response
     }
 
     /// Each item's type and text, or a call's name and arguments.
@@ -795,9 +604,6 @@ mod tests {
                     ItemKind::McpCall(McpCallItem {
                         name, arguments, ..
                     }) => ("mcp_call", format!("{name}{arguments}")),
-                    ItemKind::FunctionCallOutput(_) | ItemKind::McpListTools(_) => {
-                        unreachable!("the stream doesn't write these")
-                    }
                 }
             })
             .collect()
@@ -836,9 +642,9 @@ mod tests {
         assert!(deltas > 1, "the text should stream, not arrive whole");
     }
 
-    /// The same events, in the same order, as Claude's reasoning and calls.
+    /// Reasoning and calls stream as the Responses API streams them.
     #[test]
-    fn reasoning_and_calls_stream_as_providers_do() {
+    fn reasoning_and_calls_stream_as_the_api_does() {
         let call = |city| {
             format!(
                 "<tool_call>\n{{\"name\": \"get_weather\", \"arguments\": {{\"city\": \"{city}\"}}}}\n</tool_call>"
@@ -862,21 +668,29 @@ mod tests {
             ]
         );
 
-        let recording: Vec<Value> = serde_json::from_str(include_str!(
-            "event_stream/recordings/openrouter/claude-haiku-4.5/reasoning_with_tool_call.json"
-        ))
-        .unwrap();
-        // The recording's first response, which reasons and calls.
-        let end = recording
-            .iter()
-            .position(|e| e["type"] == "response.completed")
-            .unwrap();
-        let mut expected: Vec<String> = recording[..=end]
-            .iter()
-            .map(|e| e["type"].as_str().unwrap().to_string())
-            .collect();
-        expected.dedup();
-        assert_eq!(types(&events), expected);
+        // With repeated deltas as one.
+        assert_eq!(
+            types(&events),
+            [
+                "response.created",
+                "response.in_progress",
+                "response.output_item.added",
+                "response.content_part.added",
+                "response.reasoning_text.delta",
+                "response.reasoning_text.done",
+                "response.content_part.done",
+                "response.output_item.done",
+                "response.output_item.added",
+                "response.function_call_arguments.delta",
+                "response.function_call_arguments.done",
+                "response.output_item.done",
+                "response.output_item.added",
+                "response.function_call_arguments.delta",
+                "response.function_call_arguments.done",
+                "response.output_item.done",
+                "response.completed",
+            ]
+        );
     }
 
     #[test]
@@ -1035,9 +849,9 @@ mod tests {
         events
     }
 
-    /// The same events, in the same order, as OpenAI's for an MCP call.
+    /// A call we run streams as the Responses API streams an MCP call.
     #[test]
-    fn calls_we_run_stream_as_openai_runs_mcp_calls() {
+    fn calls_we_run_stream_as_mcp_calls() {
         let events = run_call(Ok("17°C and cloudy".to_string()));
         assert_eq!(
             output(&consume(&events)),
@@ -1047,20 +861,27 @@ mod tests {
             ]
         );
 
-        let recording: Vec<Value> =
-            serde_json::from_str(include_str!("event_stream/recordings/mcp/mcp_calls.json"))
-                .unwrap();
-        // The recording's second response, which calls without listing tools.
-        let start = recording
-            .iter()
-            .rposition(|e| e["type"] == "response.created")
-            .unwrap();
-        let mut expected: Vec<String> = recording[start..]
-            .iter()
-            .map(|e| e["type"].as_str().unwrap().to_string())
-            .collect();
-        expected.dedup();
-        assert_eq!(types(&events), expected);
+        // With repeated deltas as one.
+        assert_eq!(
+            types(&events),
+            [
+                "response.created",
+                "response.in_progress",
+                "response.output_item.added",
+                "response.mcp_call.in_progress",
+                "response.mcp_call_arguments.delta",
+                "response.mcp_call_arguments.done",
+                "response.mcp_call.completed",
+                "response.output_item.done",
+                "response.output_item.added",
+                "response.content_part.added",
+                "response.output_text.delta",
+                "response.output_text.done",
+                "response.content_part.done",
+                "response.output_item.done",
+                "response.completed",
+            ]
+        );
     }
 
     #[test]
@@ -1076,6 +897,30 @@ mod tests {
             &call.kind,
             ItemKind::McpCall(McpCallItem { result: Some(Err(e)), .. }) if *e == error
         ));
+    }
+
+    /// A call's result is written as the Responses API has it: what the call
+    /// returned as `output`, or what went wrong as `error`, with the other
+    /// `null`.
+    #[test]
+    fn call_results_are_written_as_the_api_has_them() {
+        let written = |result| {
+            let events = run_call(result);
+            serde_json::to_value(&consume(&events).output[0]).unwrap()
+        };
+        let call = written(Ok("17°C and cloudy".to_string()));
+        assert_eq!(call["output"], json!("17°C and cloudy"));
+        assert_eq!(call["error"], Value::Null);
+
+        let content = json!([{ "type": "text", "text": "Repository not found." }]);
+        let call = written(Err(McpCallError::ToolExecution {
+            content: content.clone(),
+        }));
+        assert_eq!(call["output"], Value::Null);
+        assert_eq!(
+            call["error"],
+            json!({ "type": "mcp_tool_execution_error", "content": content })
+        );
     }
 
     /// A call's end tag finishes its arguments, and the end of the generation

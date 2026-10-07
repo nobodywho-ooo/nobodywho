@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::output_format::Token;
 
-use crate::event_stream::response::{
-    ContentPart, ContentPartIndex, Item, ItemFields, ItemId, ResponseObject, Status, SummaryIndex,
-};
+use crate::event_stream::response::{ContentPart, ContentPartIndex, Item, ItemId, ResponseObject};
 
 /// The item's index within the response.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -24,49 +22,15 @@ impl SequenceNumber {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(from = "OutputItemFields")]
 pub struct OutputItemAddedEvent {
     pub output_index: OutputIndex,
     pub item: Item,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(from = "OutputItemFields")]
 pub struct OutputItemDoneEvent {
     pub output_index: OutputIndex,
     pub item: Item,
-}
-
-/// Both output-item events carry the same payload. They differ only in the state
-/// they imply for an item the wire left unstatused.
-#[derive(Deserialize)]
-struct OutputItemFields {
-    output_index: OutputIndex,
-    item: ItemFields,
-}
-
-impl From<OutputItemFields> for OutputItemAddedEvent {
-    fn from(fields: OutputItemFields) -> Self {
-        let item = fields.item.into_item(Status::InProgress);
-        debug_assert_eq!(
-            item.status,
-            Status::InProgress,
-            "an added item has to be in progress"
-        );
-        OutputItemAddedEvent {
-            output_index: fields.output_index,
-            item,
-        }
-    }
-}
-
-impl From<OutputItemFields> for OutputItemDoneEvent {
-    fn from(fields: OutputItemFields) -> Self {
-        OutputItemDoneEvent {
-            output_index: fields.output_index,
-            item: fields.item.into_item(Status::Completed),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,8 +65,8 @@ pub struct OutputTextDoneEvent {
     pub text: String,
 }
 
-/// Reasoning streamed as the content of a reasoning item, by providers that have
-/// no reasoning summaries. Addressed like any other content part.
+/// Reasoning, streamed as the content of a reasoning item. Addressed like any
+/// other content part.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReasoningTextDeltaEvent {
     pub item_id: ItemId,
@@ -116,40 +80,6 @@ pub struct ReasoningTextDoneEvent {
     pub item_id: ItemId,
     pub output_index: OutputIndex,
     pub content_index: ContentPartIndex,
-    pub text: String,
-}
-
-/// A reasoning item's summary has its own part events, rather than the shared
-/// `ContentPart*Event`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReasoningSummaryPartAddedEvent {
-    pub item_id: ItemId,
-    pub output_index: OutputIndex,
-    pub summary_index: SummaryIndex,
-    pub part: ContentPart,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReasoningSummaryPartDoneEvent {
-    pub item_id: ItemId,
-    pub output_index: OutputIndex,
-    pub summary_index: SummaryIndex,
-    pub part: ContentPart,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReasoningSummaryTextDeltaEvent {
-    pub item_id: ItemId,
-    pub output_index: OutputIndex,
-    pub summary_index: SummaryIndex,
-    pub delta: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ReasoningSummaryTextDoneEvent {
-    pub item_id: ItemId,
-    pub output_index: OutputIndex,
-    pub summary_index: SummaryIndex,
     pub text: String,
 }
 
@@ -215,7 +145,7 @@ pub enum EventKind {
     /// An item is finished, and carries it whole.
     #[serde(rename = "response.output_item.done")]
     OutputItemDone(OutputItemDoneEvent),
-    /// A content part starts in a message, or in reasoning without a summary.
+    /// A content part starts in a message or in reasoning.
     #[serde(rename = "response.content_part.added")]
     ContentPartAdded(ContentPartAddedEvent),
     /// A content part is finished, and carries it whole.
@@ -233,18 +163,6 @@ pub enum EventKind {
     /// All of a reasoning item's content part's text.
     #[serde(rename = "response.reasoning_text.done")]
     ReasoningTextDone(ReasoningTextDoneEvent),
-    /// A summary part starts in a reasoning item.
-    #[serde(rename = "response.reasoning_summary_part.added")]
-    ReasoningSummaryPartAdded(ReasoningSummaryPartAddedEvent),
-    /// A summary part is finished, and carries it whole.
-    #[serde(rename = "response.reasoning_summary_part.done")]
-    ReasoningSummaryPartDone(ReasoningSummaryPartDoneEvent),
-    /// More text for a reasoning item's summary part.
-    #[serde(rename = "response.reasoning_summary_text.delta")]
-    ReasoningSummaryTextDelta(ReasoningSummaryTextDeltaEvent),
-    /// All of a reasoning item's summary part's text.
-    #[serde(rename = "response.reasoning_summary_text.done")]
-    ReasoningSummaryTextDone(ReasoningSummaryTextDoneEvent),
     /// More of the arguments of a call the client is to run.
     #[serde(rename = "response.function_call_arguments.delta")]
     FunctionCallArgumentsDelta(FunctionCallArgumentsDeltaEvent),
@@ -268,16 +186,6 @@ pub enum EventKind {
     /// `OutputItemDone`.
     #[serde(rename = "response.mcp_call.failed")]
     McpCallFailed(McpEvent),
-    /// The server has started listing an MCP server's tools.
-    #[serde(rename = "response.mcp_list_tools.in_progress")]
-    McpListToolsInProgress(McpEvent),
-    /// The server has listed an MCP server's tools. They come with the item's
-    /// `OutputItemDone`.
-    #[serde(rename = "response.mcp_list_tools.completed")]
-    McpListToolsCompleted(McpEvent),
-    /// The server couldn't list an MCP server's tools.
-    #[serde(rename = "response.mcp_list_tools.failed")]
-    McpListToolsFailed(McpEvent),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
