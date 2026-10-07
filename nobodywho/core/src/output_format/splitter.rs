@@ -84,10 +84,14 @@ pub struct SplitterContext {
 pub struct Splitter {
     /// Context for interpreting the token stream.
     context: SplitterContext,
+    /// Whether the response is currently in a text, reasoning, or tool call
+    /// item, and the state needed to read that.
     state: State,
     /// Holds a character split across tokens until the rest of it arrives.
     decoder: Decoder,
     /// The item the pieces so far leave open.
+    /// Differs from `state` for example when an empty text item never gets
+    /// opened, but the splitter does enter `State::Text` to read it.
     open: Option<Item>,
     /// The end of the prompt that the output continues.
     continued: String,
@@ -117,6 +121,9 @@ enum State {
     Thinking(Stretch),
     /// Collecting the text of a block of tool calls.
     ToolCalls {
+        /// Buffers the entire tool call or block of calls. The alternative
+        /// would require an incremental parser for each format to translate it
+        /// to JSON.
         buffer: String,
         /// Where the block's text starts in the output.
         start: usize,

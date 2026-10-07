@@ -1185,6 +1185,8 @@ fn without_a_format_everything_but_the_end_is_text() {
         vec![
             (open(Item::Text), "".into()),
             (delta("Hi "), "Hi ".into()),
+            // Thinking is read literally because the format has no reasoning
+            // markers.
             (delta("<think>"), "<think>".into()),
             (CLOSE, "".into()),
             (end(false), EOG_TEXT.into()),
