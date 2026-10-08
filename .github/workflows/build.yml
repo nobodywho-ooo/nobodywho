@@ -552,9 +552,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-
+            ${{ runner.os }}-cargo-home-${{ matrix.integration }}-${{ matrix.target }}-release-${{ hashFiles('nobodywho/android/**') }}-
       - name: "Setup rust toolchain"
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -574,6 +574,12 @@ jobs:
         with:
           ndk-version: r28
           add-to-path: false
+
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: ${{ matrix.target }}
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
 
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'
@@ -608,7 +614,7 @@ jobs:
           cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} --release --locked
         working-directory: ./nobodywho
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           # ort-sys hardcodes `-lc++_shared` on Android, which undoes the
           # static C++ runtime that llama-cpp-rs's `android-static-stdcxx`
           # already gives us. Linking it statically too leaves the .so needing

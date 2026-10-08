@@ -81,6 +81,8 @@ libc = "0.2"
 # `gomp_tls_data`"). Desktop keeps the dynamic libstdc++ it has always used.
 llama-cpp-2 = { version = "=0.1.158", default-features = false, features = [
     "android-static-stdcxx",
+    "vulkan",
+    "opencl",
 ] }
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-20"] }
 

@@ -133,9 +133,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -158,13 +158,19 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: aarch64-linux-android
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
+
       # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
       # a device run needs just the arm64-v8a .so.
       - name: "Build uniffi .so (aarch64-linux-android)"
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           # Keep in sync with build.yml: links the C++ runtime statically so the
           # .so carries no libc++_shared.so dependency.
           ORT_CXX_STDLIB: "c++_static"
@@ -337,9 +343,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-
+            ${{ runner.os }}-cargo-home-flutter-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -370,6 +376,12 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: aarch64-linux-android
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
+
       # Without this the plugin's resolve_binary.dart silently downloads the
       # last *released* .so, so the job would test a stale binary instead of the
       # branch — checkLocalBuild() prefers target/<triple>/release.
@@ -377,7 +389,7 @@ jobs:
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-flutter --target aarch64-linux-android --release --locked
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           ORT_CXX_STDLIB: "c++_static"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
@@ -542,9 +554,9 @@ jobs:
           path: |
             ~/.cargo
             nobodywho/target
-          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-
+            ${{ runner.os }}-cargo-home-uniffi-aarch64-linux-android-release-${{ hashFiles('nobodywho/android/**') }}-
 
       - name: "Setup rust toolchain"
         run: |
@@ -567,11 +579,17 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: aarch64-linux-android
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
+
       - name: "Build uniffi .so (aarch64-linux-android)"
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           ORT_CXX_STDLIB: "c++_static"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
