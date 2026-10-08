@@ -46,6 +46,12 @@ This is a super simple example, but we believe that examples which do simple thi
 
 To get a full overview of the functionality provided by NobodyWho, simply keep reading. You can also have a look at our [flutter starter app repository](https://github.com/nobodywho-ooo/flutter-starter-example).
 
+## Android requirements
+
+NobodyWho ships native libraries for `arm64-v8a` and `x86_64`, 32-bit Android devices (`armeabi-v7a`, `x86`) are not supported.
+
+If you use the x86_64 Android emulator for development, your app must set `minSdkVersion` to at least 31. This is due to a threading feature (ELF TLS) that the Rust runtime requires on x86_64. `arm64-v8a` devices work with any `minSdkVersion`.
+
 ## Minimum recommended specs
 
 - iOS: iPhone 11 or newer with at least 4 GB of RAM. We tested a Qwen3 0.6B (332 MB) on an iPhone X (iOS 16) and while it ran, performance was too slow to be practical.

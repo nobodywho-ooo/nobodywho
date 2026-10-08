@@ -80,6 +80,12 @@ Valid levels are `"TRACE"`, `"DEBUG"`, `"INFO"`, `"WARN"`, and `"ERROR"`.
 Smaller models (around 0.5-1B parameters, quantized) run comfortably on these specs, including on
  phones. Every feature works without a GPU, just slower.
 
+## Android requirements
+
+NobodyWho ships native libraries for `arm64-v8a` and `x86_64`, 32-bit Android devices (`armeabi-v7a`, `x86`) are not supported.
+
+If you use the x86_64 Android emulator for development, your app must set `minSdkVersion` to at least 31. This is due to a threading feature (ELF TLS) that the Rust runtime requires on x86_64. `arm64-v8a` devices work with any `minSdkVersion`.
+
 ## Feedback & Contributions
 
 Bugs and feature requests go to our [issues](https://github.com/nobodywho-ooo/nobodywho/issues).
