@@ -473,6 +473,18 @@ def test_client_chat_completion_stream(client, model):
     assert "copenhagen" in completion.choices[0].message.content.lower()
 
 
+def test_client_chat_completion_longer_than_stream_buffer(client, model):
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": "Write a long essay about Denmark."}],
+        thinking=False,
+        max_tokens=64,
+    )
+
+    assert completion.choices[0].finish_reason == "length"
+    assert completion.usage.completion_tokens == 64
+
+
 def test_client_chat_completion_reuses_full_conversation(client, model):
     messages = [
         {

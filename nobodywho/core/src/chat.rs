@@ -3615,6 +3615,7 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_system_prompt(Some("You are a dog. End all responses with woof."))
+            .with_template_variable("enable_thinking".to_string(), false)
             .build()
             .expect("chat build failed in test");
 
@@ -3624,7 +3625,10 @@ mod tests {
 
         chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()))
             .unwrap();
-        let cat_response = chat.ask("Hello again!").completed().unwrap();
+        let cat_response = chat
+            .ask("Now say the correct animal sound!")
+            .completed()
+            .unwrap();
         assert!(cat_response.to_lowercase().contains("meow"));
     }
 

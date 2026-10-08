@@ -3491,7 +3491,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-flutter"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
  "flutter_rust_bridge",
  "flutter_rust_bridge_codegen",
@@ -3506,7 +3506,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-godot"
-version = "11.0.0"
+version = "12.0.0"
 dependencies = [
  "godot",
  "nobodywho",
@@ -3518,7 +3518,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-python"
-version = "3.0.0"
+version = "4.0.0"
 dependencies = [
  "futures",
  "log",
@@ -3553,7 +3553,7 @@ dependencies = [
 
 [[package]]
 name = "nobodywho-uniffi"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "android_logger",
  "console_log",
