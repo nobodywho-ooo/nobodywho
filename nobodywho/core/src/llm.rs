@@ -29,8 +29,18 @@ lazy_static! {
         Mutex::new(GlobalInferenceLockToken);
 }
 
-static LLAMA_BACKEND: LazyLock<LlamaBackend> =
-    LazyLock::new(|| LlamaBackend::init().expect("Failed to initialize llama backend"));
+static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
+    // HACK: On Qualcomm Snapdragon 750G, Adreno 619, Fairphone 4, the OpenCL
+    // backend deadlocks and aborts when running `f32_f16_q1_vec`.
+    //
+    // FIXME(madsmtm): Fix this upstream in the llama.cpp OpenCL backend.
+    #[cfg(target_os = "android")]
+    unsafe {
+        std::env::set_var("GGML_OPENCL_FA_F16_VEC_DK128", "0")
+    };
+
+    LlamaBackend::init().expect("Failed to initialize llama backend")
+});
 
 // llama.cpp rejects contexts above LLAMA_MAX_SEQ; llama_max_parallel_sequences()
 // returns 256 in the pinned version. llama-cpp-2 does not expose that function yet.
