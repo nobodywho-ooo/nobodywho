@@ -8,13 +8,13 @@ case "$target" in
   aarch64-linux-android|x86_64-linux-android) ;;
   *) echo "Unsupported Android target: $target" >&2; exit 1 ;;
 esac
-: "${ANDROID_NDK:?Set ANDROID_NDK to the Android NDK directory}"
+: "${ANDROID_NDK_ROOT:?Set ANDROID_NDK_ROOT to the Android NDK directory}"
 case "$(uname -s)" in
   Darwin) host_tag=darwin-x86_64 ;;
   Linux) host_tag=linux-x86_64 ;;
   *) echo "Run this helper on Linux or macOS" >&2; exit 1 ;;
 esac
-glslc="${VULKAN_GLSLC:-$ANDROID_NDK/shader-tools/$host_tag/glslc}"
+glslc="${VULKAN_GLSLC:-$ANDROID_NDK_ROOT/shader-tools/$host_tag/glslc}"
 [[ -x "$glslc" ]] || { echo "Set VULKAN_GLSLC to a host glslc executable" >&2; exit 1; }
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 deps_dir="${NOBODYWHO_ANDROID_GPU_DIR:-$script_dir/../target/android-gpu}"
@@ -49,7 +49,7 @@ fetch_source SPIRV-Headers "$spirv_rev" "$spirv" >&2
 
 build_dir="$deps_dir/$target/opencl-shim"
 mkdir -p "$build_dir"
-toolchain="$ANDROID_NDK/toolchains/llvm/prebuilt/$host_tag/bin"
+toolchain="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$host_tag/bin"
 "$toolchain/${target}24-clang" -c "$script_dir/opencl-shim.c" \
   -I"$headers" -O2 -g -fPIC -fvisibility=hidden -Wall -Wextra -Werror \
   -o "$build_dir/opencl-shim.o"

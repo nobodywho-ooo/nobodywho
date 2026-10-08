@@ -613,7 +613,7 @@ jobs:
           cargo build -p nobodywho-${{ matrix.integration }} --verbose --target ${{ matrix.target }} --release --locked
         working-directory: ./nobodywho
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           # ort-sys hardcodes `-lc++_shared` on Android, which undoes the
           # static C++ runtime that llama-cpp-rs's `android-static-stdcxx`
           # already gives us. Linking it statically too leaves the .so needing

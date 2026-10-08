@@ -7,7 +7,7 @@ drivers. The existing x86_64 ONNX Runtime companion library is still required.
 With NDK r28, CMake and curl installed, run from `nobodywho/` in Bash:
 
 ```bash
-export ANDROID_NDK=/absolute/path/to/android-ndk
+export ANDROID_NDK_ROOT=/absolute/path/to/android-ndk
 gpu_env=$(bash android/prepare-gpu.sh aarch64-linux-android) || exit
 eval "$gpu_env"
 export ORT_CXX_STDLIB=c++_static

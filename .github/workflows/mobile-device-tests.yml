@@ -169,7 +169,7 @@ jobs:
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           # Keep in sync with build.yml: links the C++ runtime statically so the
           # .so carries no libc++_shared.so dependency.
           ORT_CXX_STDLIB: "c++_static"
@@ -387,7 +387,7 @@ jobs:
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-flutter --target aarch64-linux-android --release --locked
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           ORT_CXX_STDLIB: "c++_static"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
@@ -586,7 +586,7 @@ jobs:
         working-directory: ./nobodywho
         run: cargo build -p nobodywho-uniffi --target aarch64-linux-android --release --locked
         env:
-          ANDROID_NDK: "${{ steps.setup-ndk.outputs.ndk-path }}"
+          ANDROID_NDK_ROOT: "${{ steps.setup-ndk.outputs.ndk-path }}"
           ORT_CXX_STDLIB: "c++_static"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang"
           CARGO_TARGET_AARCH64_LINUX_ANDROID_AR: "${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
