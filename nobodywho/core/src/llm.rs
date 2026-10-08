@@ -528,6 +528,8 @@ impl<T> Drop for WorkerGuard<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tokenizer::{TokenizerChunk, TokenizerChunks};
+    use llama_cpp_2::token::LlamaToken;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
@@ -571,5 +573,59 @@ mod tests {
         cb(50, 100);
         cb(100, 100);
         assert_eq!(count.load(Ordering::Relaxed), 2);
+    }
+
+    /// A rewind of two tokens on a recurrent model, right after a one-token decode.
+    #[test]
+    fn recurrent_rewind_after_two_token_decode() {
+        let Some(model) = crate::test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None)
+        else {
+            return;
+        };
+        let lock = crate::inference::acquire_inference_lock();
+        // MTP sets n_rs_seq, which lets recurrent memory roll back a few tokens.
+        let new_engine = || {
+            let params = LlamaContextParams::default().with_n_rs_seq(3);
+            let ctx = model
+                .language_model
+                .new_context(&LLAMA_BACKEND, params)
+                .unwrap();
+            let capacity = BatchCapacity {
+                tokens: 512,
+                sequences: 1,
+            };
+            let tokenizer = Tokenizer::new(&model.language_model, None);
+            InferenceEngine::new(EngineContext::Solo(ctx), None, capacity, tokenizer, false)
+        };
+        let sync = |engine: &mut InferenceEngine, tokens: &[LlamaToken]| {
+            let mut chunks = TokenizerChunks::new();
+            chunks.append(TokenizerChunk::new_text(tokens.to_vec()));
+            engine.sync_context(chunks, None, &lock).unwrap();
+        };
+
+        let tokens =
+            model
+                .language_model
+                .vocab()
+                .tokenize(b"Once upon a time there was a", true, false);
+        let (prompt, tail) = tokens.split_at(tokens.len() - 2);
+        let swapped = [prompt, &[tail[1], tail[0]]].concat();
+
+        let mut engine = new_engine();
+        sync(&mut engine, prompt);
+        sync(&mut engine, &tokens);
+        sync(&mut engine, &swapped);
+
+        let mut reference = new_engine();
+        sync(&mut reference, prompt);
+        sync(&mut reference, &swapped);
+
+        let logits = engine
+            .ctx
+            .get_logits()
+            .iter()
+            .zip(reference.ctx.get_logits());
+        let error = logits.map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+        assert!(error < 0.5, "max logit error {error}");
     }
 }

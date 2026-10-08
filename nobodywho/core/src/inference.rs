@@ -618,11 +618,14 @@ impl<'a> InferenceEngine<'a> {
         // The cache is cut by position, which falls behind the token count after M-RoPE media.
         // Media can't be split, so a cut inside one moves back to its start and it is re-read.
         let (index, position) = self.kv_mirror.cut_at(index);
-        // For recurrent / hybrid models this fails, leaving the cache untouched, unless `position` is 0
-        // or at most n_rs_seq tokens back (once per decode). Then we restore a checkpoint or reset.
-        let seq_rm_success = self
-            .ctx
-            .clear_kv_cache_seq(Some(0), Some(position as u32), None)?;
+        // Recurrent and hybrid models can only cut within the last decode, which we don't have a way of checking.
+        // Instead those models always fall back to the last checkpoint or a full reset.
+        let seq_rm_success = if !self.needs_checkpoints() || index == 0 {
+            self.ctx
+                .clear_kv_cache_seq(Some(0), Some(position as u32), None)?
+        } else {
+            false
+        };
 
         if seq_rm_success {
             self.n_past = position as i32;
