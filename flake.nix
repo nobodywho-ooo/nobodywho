@@ -54,6 +54,8 @@
             export TEST_RECURRENT_MODEL=${test-models.TEST_RECURRENT_MODEL}
             export TEST_RECURRENT_MMPROJ_MODEL=${test-models.TEST_RECURRENT_MMPROJ_MODEL}
             export TEST_IMAGE=${./nobodywho/python/tests/img/dog.png}
+            export TEST_WHISPER_MODEL=${test-models.TEST_WHISPER_MODEL}
+            export TEST_AUDIO_FILE=${./assets/sound.mp3}
 
 
           '';

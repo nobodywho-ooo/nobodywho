@@ -340,6 +340,8 @@ impl WhisperBackend {
     }
 
     fn detect_language(&mut self, enc_hidden: &[f32]) -> Result<u32, SpeechToTextError> {
+        // Start a new decoder sequence, not the previous window's transcript.
+        self.kv = KVCache::new();
         let logits = self.run_decoder(&[self.sot_id as i64], enc_hidden)?;
 
         let (best, _) = self
@@ -567,5 +569,45 @@ impl GenerationConfig {
             .filter_map(|(k, v)| v.as_u64().map(|id| (k.clone(), id as u32)))
             .collect();
         Ok(Self { lang_to_id })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::speech_to_text::audio::{AudioResampler, DecodedAudio};
+
+    fn first_window_of_test_clip() -> Vec<f32> {
+        // `TEST_AUDIO_FILE` if set (the nix sandbox only has `core/`), else the repo copy.
+        let path = std::env::var("TEST_AUDIO_FILE").unwrap_or_else(|_| {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/sound.mp3").to_string()
+        });
+        let audio = DecodedAudio::from_file(Path::new(&path)).unwrap();
+        let mut windows = AudioResampler::default()
+            .resample(audio)
+            .unwrap()
+            .into_windows();
+        windows.swap_remove(0)
+    }
+
+    /// Language detection used to run on the KV cache left by the previous
+    /// transcript, so after a Japanese transcript, English audio was detected
+    /// as Japanese and came back in Japanese.
+    #[test]
+    fn english_is_detected_as_english_after_a_japanese_transcript() {
+        let Ok(source) = std::env::var("TEST_WHISPER_MODEL") else {
+            eprintln!("skipping: TEST_WHISPER_MODEL is not set");
+            return;
+        };
+        let english = first_window_of_test_clip();
+        let mut backend = WhisperBackend::new(&source, Some("ja"), "default", Device::Cpu).unwrap();
+        backend.transcribe_window(&english, &mut |_| {}).unwrap();
+
+        backend.language = None;
+        let enc_hidden = backend.encode(&english).unwrap();
+        let detected = backend.detect_language(&enc_hidden).unwrap();
+
+        let detected = backend.tokenizer.id_to_token(detected);
+        assert_eq!(detected.as_deref(), Some("<|en|>"));
     }
 }
