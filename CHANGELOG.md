@@ -10,9 +10,11 @@ Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/
 
 ### Added
 
-- **Python:** Added OpenAI-compatible `chat.completions` and `responses` APIs with streaming, usage metadata, tool support, and request-level sampling.
+- Context shifting is configurable: how many turns to always keep at the start and end, the size to shrink to (a fraction of the context size or a number of tokens), or turning it off so a full context is an error. Pass `ContextShiftOptions` when creating a chat or later with `set_context_shift`. **Godot:** use the `"context_shift"` config key and `set_context_shift()` with a bool or Dictionary. Available for all bindings.
 - Loaded models expose the identifier used to load them through a read-only `source` property. Available for all bindings.
+- **Python:** Added OpenAI-compatible `chat.completions` and `responses` APIs with streaming, usage metadata, tool support, and request-level sampling.
 - `SamplerBuilder` gained `constrain_with_json_schema`, `constrain_with_regex`, `constrain_with_grammar` and `json`, so a constraint can be combined with a temperature or a repetition penalty — the equivalent `SamplerPresets` each produce a finished sampler and cannot be layered. Available for all bindings.
+- Support for the model scheme that [llama.app](https://llama.app) uses for its GGUF models which is `owner/repo:quantization`, where the repo name must end with `-GGUF`. Unlike llama.cpp, a quantization with no exact match in the repo is an error rather than a fallback to the repo's first model. Available for all bindings.
 
 ### Changed
 
