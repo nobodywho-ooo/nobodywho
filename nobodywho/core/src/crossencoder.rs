@@ -1,7 +1,7 @@
 use crate::errors::{CrossEncoderWorkerError, InitWorkerError};
-use crate::inference::{BatchedReadError, EngineContext};
+use crate::inference::{BatchedReadError, EngineContext, InferenceEngine};
 use crate::llm;
-use crate::llm::{Worker, WorkerGuard};
+use crate::llm::WorkerGuard;
 use llama_cpp_2::context::params::LlamaPoolingType;
 use std::sync::Arc;
 use tracing::{error, warn};
@@ -46,7 +46,7 @@ impl CrossEncoderAsync {
         let (msg_tx, msg_rx) = std::sync::mpsc::channel();
 
         let join_handle = std::thread::spawn(move || {
-            let worker = Worker::new_crossencoder_worker(&model, n_ctx);
+            let worker = CrossEncoderWorker::new(&model, n_ctx);
             let mut worker_state = match worker {
                 Ok(worker_state) => worker_state,
                 Err(errmsg) => {
@@ -113,7 +113,7 @@ enum CrossEncoderMsg {
 }
 
 /// Handle one message, reporting success or failure on its reply channel.
-fn process_worker_msg(worker_state: &mut Worker<'_, CrossEncoderWorker>, msg: CrossEncoderMsg) {
+fn process_worker_msg(worker_state: &mut CrossEncoderWorker<'_>, msg: CrossEncoderMsg) {
     match msg {
         CrossEncoderMsg::Rank {
             query,
@@ -127,20 +127,15 @@ fn process_worker_msg(worker_state: &mut Worker<'_, CrossEncoderWorker>, msg: Cr
     }
 }
 
-struct CrossEncoderWorker {}
-
-impl llm::PoolingType for CrossEncoderWorker {
-    fn pooling_type(&self) -> LlamaPoolingType {
-        LlamaPoolingType::Rank
-    }
+struct CrossEncoderWorker<'a> {
+    engine: InferenceEngine<'a>,
 }
 
-impl<'a> Worker<'a, CrossEncoderWorker> {
-    pub fn new_crossencoder_worker(
-        model: &llm::Model,
-        n_ctx: u32,
-    ) -> Result<Worker<'_, CrossEncoderWorker>, InitWorkerError> {
-        Worker::new_with_type(model, n_ctx, true, None, None, CrossEncoderWorker {})
+impl<'a> CrossEncoderWorker<'a> {
+    pub fn new(model: &'a llm::Model, n_ctx: u32) -> Result<Self, InitWorkerError> {
+        let engine =
+            InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::Rank)?;
+        Ok(Self { engine })
     }
 
     pub fn rank(
@@ -148,31 +143,29 @@ impl<'a> Worker<'a, CrossEncoderWorker> {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        // Get CLS and SEP tokens from the model (CLS = BOS per llama.cpp, the current CLS token is deprecated.)
-        let mut decoder = encoding_rs::UTF_8.new_decoder();
-        let cls = self
-            .engine
-            .ctx
-            .model
-            .token_to_piece(self.engine.ctx.model.token_bos(), &mut decoder, true, None)
-            .unwrap_or_else(|_| {
-                warn!("Failed to convert BOS/CLS token to string, using fallback");
-                "<s>".to_string()
-            });
+        let vocab = self.engine.ctx.model.vocab();
 
-        let sep = self
-            .engine
-            .ctx
-            .model
-            .token_to_piece(self.engine.ctx.model.token_sep(), &mut decoder, true, None)
-            .unwrap_or_else(|_| {
-                warn!("Failed to convert SEP token to string, using fallback");
-                "</s>".to_string()
-            });
+        let bos = vocab.bos();
+        let bos = if bos.0 != -1 {
+            let bos = vocab.token_to_piece(bos, true, None);
+            let (bos, _) = encoding_rs::UTF_8.decode_without_bom_handling(&bos);
+            bos.to_string()
+        } else {
+            "".to_string()
+        };
+
+        let sep = vocab.sep();
+        let sep = if sep.0 != -1 {
+            let sep = vocab.token_to_piece(sep, true, None);
+            let (sep, _) = encoding_rs::UTF_8.decode_without_bom_handling(&sep);
+            sep.to_string()
+        } else {
+            "".to_string()
+        };
 
         let inputs = documents
             .into_iter()
-            .map(|document| format!("{cls}{query}{sep}{document}{sep}"))
+            .map(|document| format!("{bos}{query}{sep}{document}{sep}"))
             .collect();
 
         self.engine

@@ -1,0 +1,25 @@
+name: "Changesets"
+
+# Standalone rather than a plan.yml bucket: it has to rerun when the `no-changelog` or `edit-changelog`
+# label is removed, and build-and-test.yml does not trigger on `unlabeled`.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: "Check change files"
+        # Validates every change file, then fails unless this PR adds one (waived by `no-changelog`)
+        # and leaves the changelogs alone (waived by `edit-changelog`).
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: python3 .github/scripts/changesets.py check --pr-base "origin/${{ github.base_ref }}" --pr-labels "$LABELS"

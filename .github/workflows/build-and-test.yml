@@ -135,12 +135,70 @@ jobs:
       MAVEN_SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
 
   docs:
-    # Build+deploy only happens on main (or the legacy deploy branch). On PRs
-    # docs.yml would publish from a non-main ref, so keep this ref-gated even
-    # when run_docs is true. PR-time docs verification is a future improvement.
+    # Production build+deploy only happens on main (or the legacy deploy branch),
+    # so keep this ref-gated even when run_docs is true. PR previews are the
+    # separate docs-preview job below, triggered by /docs-ci.
     needs: plan
     if: needs.plan.outputs.run_docs == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy-cloudflare-pages')
     uses: ./.github/workflows/docs.yml
+    with:
+      branch: main
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  docs-preview:
+    # /docs-ci on a PR: deploy this branch's docs as a Cloudflare Pages preview
+    # (never production). Dispatch-only, so it only runs for branches in this
+    # repo, never for fork code.
+    needs: plan
+    if: >-
+      needs.plan.outputs.run_docs_preview == 'true'
+      && github.event_name == 'workflow_dispatch'
+      && github.ref != 'refs/heads/main'
+    uses: ./.github/workflows/docs.yml
+    with:
+      branch: ${{ github.ref_name }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  docs-preview-comment:
+    # Posts the preview link on the branch's PR, editing one marked comment on reruns.
+    needs: docs-preview
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v8
+        env:
+          BRANCH: ${{ github.ref_name }}
+          URL: ${{ needs.docs-preview.outputs.url }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { BRANCH: branch, URL: url } = process.env;
+            if (!url) {
+              core.setFailed('Pages deploy produced no URL');
+              return;
+            }
+            const sha = context.sha.slice(0, 7);
+            await core.summary.addRaw(`Docs preview for \`${branch}\` (${sha}): ${url}`).write();
+
+            // head=owner:branch matches only PRs from this repo, not forks.
+            const { data: prs } = await github.rest.pulls.list({ owner, repo, state: 'open', head: `${owner}:${branch}` });
+            if (prs.length === 0) {
+              core.notice(`No open PR for ${branch}; preview is at ${url}`);
+              return;
+            }
+            const marker = '<!-- docs-preview -->';
+            const body = `${marker}\n📖 **Docs preview** for \`${sha}\`: ${url}`;
+            for (const pr of prs) {
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: pr.number, per_page: 100 });
+              const existing = comments.find((c) => c.user.type === 'Bot' && c.body.startsWith(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: pr.number, body });
+              }
+            }

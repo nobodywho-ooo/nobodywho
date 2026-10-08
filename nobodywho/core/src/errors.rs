@@ -1,11 +1,4 @@
-// `miette`'s `Diagnostic` derive (we're on miette 5) expands `#[error(..)]` /
-// `#[diagnostic(help(..))]` format arguments into assignments that rustc 1.92+ reports as
-// `unused_assignments`, pointing at the enum's own field declarations. The lint is a
-// macro-expansion artifact — there is nothing to fix at these sites — and it fails
-// `cargo clippy -- -D warnings`. Drop this once miette is upgraded.
-#![allow(unused_assignments)]
-
-use llama_cpp_2::{context::kv_cache::KvCacheConversionError, TokenToStringError};
+use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use std::path::PathBuf;
 
 // Memory errors
@@ -391,9 +384,6 @@ pub enum InitWorkerError {
     )]
     ChatTemplate(#[from] SelectTemplateError),
 
-    #[error("Failed to tokenize eos or bos tokens: {0}")]
-    TokenToStringError(#[from] TokenToStringError),
-
     #[error("Got no response after initializing worker.")]
     NoResponse,
 
@@ -425,7 +415,14 @@ pub enum InitWorkerError {
 
     #[error("Failed setting up tool calling: {0}")]
     ToolCallingSetup(#[from] ToolCallingSetupError),
+
+    #[error(transparent)]
+    InvalidContextShiftOptions(#[from] InvalidContextShiftOptions),
 }
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("Invalid context shift options: {0}")]
+pub struct InvalidContextShiftOptions(pub(crate) String);
 
 #[derive(Debug, thiserror::Error)]
 pub enum InitContextError {
@@ -495,6 +492,9 @@ pub enum SetterError {
 
     #[error("MTP speculative decode call failed: {0}")]
     MtpSpeculative(#[from] llama_cpp_2::speculative::MtpSpeculativeError),
+
+    #[error(transparent)]
+    InvalidContextShiftOptions(#[from] InvalidContextShiftOptions),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -902,31 +902,6 @@ pub(crate) enum ChatWorkerError {
     Setter(#[from] SetterError),
 }
 
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
-pub enum WrappedResponseError {
-    #[error("Error during context shift: {0}")]
-    #[diagnostic(transparent)]
-    Shift(#[from] ShiftError),
-
-    #[error("Error rendering chat history with chat template: {0}")]
-    #[diagnostic(transparent)]
-    Render(#[from] RenderError),
-
-    #[error("Error removing tokens not present in the common prefix: {0}")]
-    KVCacheUpdate(#[from] KvCacheConversionError),
-
-    #[error("Error syncing context and reading prompt: {0}")]
-    #[diagnostic(transparent)]
-    ReadError(#[from] ContextSyncError),
-
-    #[error("Error while generating response: {0}")]
-    #[diagnostic(transparent)]
-    GenerateResponse(#[from] GenerateResponseError),
-
-    #[error("Error receiving generated response: {0}")]
-    Receive(#[from] std::sync::mpsc::RecvError),
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum InferenceError {
     #[error("Error reading tokens: {0}")]
@@ -940,13 +915,15 @@ pub enum GenerateResponseError {
     #[error("Error removing tokens from context after context shift")]
     KVCacheUpdate(#[from] KvCacheConversionError),
 
-    #[error("Error reading updated chat template render after context shift: {0}")]
+    #[error("Error reading generated tokens back after context shift: {0}")]
     Read(#[from] ReadError),
 
-    #[error("Error rendering template after context shift: {0}")]
+    #[error("Error rendering chat history with chat template: {0}")]
+    #[diagnostic(transparent)]
     Render(#[from] RenderError),
 
-    #[error("Error syncing context after context shift: {0}")]
+    #[error("Error syncing context with chat history: {0}")]
+    #[diagnostic(transparent)]
     ReadError(#[from] ContextSyncError),
 
     #[error("Error during context shift: {0}")]
@@ -958,12 +935,6 @@ pub enum GenerateResponseError {
         )
     )]
     Shift(#[from] ShiftError),
-
-    #[error("Error converting token to bytes: {0}")]
-    TokenToString(#[from] llama_cpp_2::TokenToStringError),
-
-    #[error("Error tokenizing tool-call begin token: {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 
     #[error("Error while decoding next token: {0}")]
     Decoding(#[from] DecodingError),
@@ -1032,10 +1003,6 @@ pub enum SayError {
     #[error("Error finding token difference: {0}")]
     #[diagnostic(transparent)]
     Render(#[from] RenderError),
-
-    #[error("Error creating response: {0}")]
-    #[diagnostic(transparent)]
-    WrappedResponse(#[from] WrappedResponseError),
 
     #[error("Tokenization error: {0}")]
     Tokenization(#[from] TokenizationError),
@@ -1117,22 +1084,10 @@ pub enum MultimodalError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TokenizationError {
-    #[error("Could not tokenize string: {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
-
     #[error("Failed to tokenize image {image_index} of {total_images}: {error}")]
     ImageTokenizationFailed {
         image_index: usize,
         total_images: usize,
-        error: String,
-    },
-
-    #[error(
-        "Failed to tokenize text segment at position {position} (preview: {text_preview}): {error}"
-    )]
-    TextTokenizationFailed {
-        position: usize,
-        text_preview: String,
         error: String,
     },
 
@@ -1171,8 +1126,15 @@ pub enum ShiftError {
     )]
     TooFewMessages,
 
-    #[error("Could not tokenize template render {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
+    #[error("Context is full and context shifting is disabled")]
+    #[diagnostic(
+        code(nobodywho::context_shift_disabled),
+        help(
+            "Enable context shifting with ChatBuilder::with_context_shift, \
+             or increase the context size by setting a larger n_ctx."
+        )
+    )]
+    Disabled,
 
     #[error("Could not render messages with template {0}")]
     TemplateRender(#[from] RenderError),
@@ -1189,9 +1151,6 @@ pub enum ShiftError {
 pub enum ContextSyncError {
     #[error("Error removing tokens from context {0}")]
     KvCacheConversionError(#[from] KvCacheConversionError),
-
-    #[error("Could not tokenize template render {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 
     #[error("Could not render messages {0}")]
     #[diagnostic(transparent)]
@@ -1234,9 +1193,6 @@ pub enum RenderError {
     InlineSystemMessageUnsupported,
 
     #[error("Could not tokenize string: {0}")]
-    CreateContext(#[from] llama_cpp_2::StringToTokenError),
-
-    #[error("Could not tokenize string: {0}")]
     Tokenize(#[from] TokenizationError),
 }
 
@@ -1247,9 +1203,6 @@ pub enum SelectTemplateError {
 
     #[error("Could not parse chat template as UTF8: {0}")]
     TemplateUtf8(#[from] std::str::Utf8Error),
-
-    #[error("Could not detokenize string: {0}")]
-    Detokenize(#[from] llama_cpp_2::TokenToStringError),
 
     #[error("Could not create chat template: {0}")]
     CreateChatTemplate(#[from] minijinja::Error),
@@ -1274,9 +1227,6 @@ pub enum ToolCallingSetupError {
 
     #[error("Failed to build tool-call sampler: {0}")]
     Sampler(#[from] SamplerError),
-
-    #[error("Failed to tokenize the tool-call begin token: {0}")]
-    StringToToken(#[from] llama_cpp_2::StringToTokenError),
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]

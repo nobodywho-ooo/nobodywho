@@ -26,6 +26,18 @@ rec
     url = "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/mmproj-F16.gguf";
     sha256 = "sha256-cxGZ4BbsXyJ7gpP++DmJlHLg7kxRrfX55ctm9lWPoUI=";
   };
+  # Hybrid-recurrent (Gated Delta Networks), and an M-RoPE vision model whose
+  # images take fewer KV positions than tokens.
+  TEST_RECURRENT_MODEL = fetchurl {
+    name = "Qwen_Qwen3.5-2B-Q4_K_M-vendor-sampling.gguf";
+    url = "https://huggingface.co/NobodyWho/Qwen_Qwen3.5-2B-GGUF/resolve/main/Qwen_Qwen3.5-2B-Q4_K_M-vendor-sampling.gguf";
+    sha256 = "sha256-3iqa3kOoguEsomShdal7XEHL1tyA09AyhB4OhKjGS5s=";
+  };
+  TEST_RECURRENT_MMPROJ_MODEL = fetchurl {
+    name = "mmproj-Qwen_Qwen3.5-2B-BF16.gguf";
+    url = "https://huggingface.co/NobodyWho/Qwen_Qwen3.5-2B-GGUF/resolve/main/mmproj-BF16.gguf";
+    sha256 = "sha256-8XGWwNj8dWvGW+YAdb1KNZkX7uikOFBWOVEXJ8WF08I=";
+  };
 
   # onnx-community/whisper-base — multi-file ONNX repo assembled into a local dir.
   # The STT tests request quantization="default" (fp32), so the local dir
@@ -100,8 +112,6 @@ rec
   # safetensors voices), so TEST_TTS_SOURCE can point straight at a local
   # dir and the dev shell runs the TTS suite offline. The source string
   # contains "kokoro", which is what the architecture inference matches on.
-  # (Not wired into the nix sandbox test: ort under the sandbox-built godot
-  # extension hits a heap-corruption abort — see tests/default.nix.)
   TEST_TTS_SOURCE = "${fetchgit {
     name = "kokoro-82M";
     url = "https://huggingface.co/NobodyWho/Kokoro-82M";

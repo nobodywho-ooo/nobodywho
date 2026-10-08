@@ -33,7 +33,9 @@ class Chat(
      * (performance cores only, on Apple silicon) — hyperthreads and efficiency cores make
      * inference slower, not faster. Lower it to leave CPU headroom for the rest of the app.
      */
-    threadCount: UInt? = null
+    threadCount: UInt? = null,
+    /** How old turns are forgotten when the context is full. Null uses the defaults. */
+    contextShift: ContextShiftOptions? = null
 ) : Closeable {
     private val inner: InternalRustChat = InternalRustChat(
         model.inner,
@@ -43,7 +45,8 @@ class Chat(
         tools?.map { it.inner },
         sampler,
         mtp,
-        threadCount
+        threadCount,
+        contextShift
     )
 
     companion object {
@@ -60,10 +63,11 @@ class Chat(
             sampler: SamplerConfig? = null,
             mtp: MtpConfig? = null,
             threadCount: UInt? = null,
+            contextShift: ContextShiftOptions? = null,
             onDownloadProgress: ((downloaded: ULong, total: ULong) -> Unit)? = null
         ): Chat {
             val model = Model.load(modelPath, useGpu, projectionModelPath, draftModelPath, onDownloadProgress)
-            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler, mtp, threadCount)
+            return Chat(model, systemPrompt, contextSize, templateVariables, tools, sampler, mtp, threadCount, contextShift)
         }
     }
 
@@ -102,6 +106,7 @@ class Chat(
     suspend fun setChatHistory(messages: List<Message>) = inner.setChatHistory(messages.map { Message.toUniFFI(it) })
     suspend fun getSystemPrompt(): String? = inner.getSystemPrompt()
     suspend fun setSystemPrompt(systemPrompt: String?) = inner.setSystemPrompt(systemPrompt)
+    suspend fun setContextShift(options: ContextShiftOptions) = inner.setContextShift(options)
     suspend fun setTools(tools: List<Tool>) = inner.setTools(tools.map { it.inner })
     suspend fun setTemplateVariable(name: String, value: Boolean) = inner.setTemplateVariable(name, value)
     suspend fun getTemplateVariables(): Map<String, Boolean> = inner.getTemplateVariables()

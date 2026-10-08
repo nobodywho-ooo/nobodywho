@@ -78,6 +78,32 @@ pub(crate) mod test_utils {
         )
     }
 
+    /// Load an optional model named by `var`, with the projector named by
+    /// `mmproj_var` if given; `None` (and a note) if `var` is unset.
+    pub(crate) fn load_model_from_env(var: &str, mmproj_var: Option<&str>) -> Option<Arc<Model>> {
+        init_test_tracing();
+
+        let Ok(path) = std::env::var(var) else {
+            eprintln!("skipping: set {var} to run this test");
+            return None;
+        };
+        let mmproj = mmproj_var.map(|mmproj_var| {
+            std::env::var(mmproj_var)
+                .unwrap_or_else(|_| panic!("should have {mmproj_var} if {var} is set"))
+        });
+        Some(Arc::new(
+            get_model(&path, true, mmproj.as_deref(), None, None)
+                .unwrap_or_else(|e| panic!("failed to load {var} from {path}: {e}")),
+        ))
+    }
+
+    /// Test image path: `TEST_IMAGE` if set (the nix sandbox only has `core/`), else the repo copy.
+    pub(crate) fn test_image() -> String {
+        std::env::var("TEST_IMAGE").unwrap_or_else(|_| {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png").to_string()
+        })
+    }
+
     /// Load the embeddings model with GPU acceleration if available
     pub(crate) fn load_embeddings_model() -> Arc<Model> {
         init_test_tracing();

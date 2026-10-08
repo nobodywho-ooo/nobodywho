@@ -1,0 +1,10 @@
+[package]
+name = "make_stubs"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Separate from nobodywho-python so running it doesn't rebuild pyo3 without
+# the env that `maturin develop` sets.
+[dependencies]
+pyo3-introspection = "0.29.0"

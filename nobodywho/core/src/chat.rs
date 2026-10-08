@@ -25,13 +25,13 @@
 
 pub use crate::content::{ContentPart, MessageContent};
 use crate::errors::{
-    ChatWorkerError, CompleteError, ContextSyncError, GenerateResponseError, InitWorkerError,
-    InvalidHistoryError, MultimodalError, RenderError, SayError, SetterError, ShiftError,
-    TokenizeError, ToolCallingSetupError, WrappedResponseError,
+    ChatWorkerError, CompleteError, CompletionError, ContextSyncError, GenerateResponseError,
+    InitWorkerError, InvalidContextShiftOptions, InvalidHistoryError, MultimodalError, RenderError,
+    SayError, SetterError, ShiftError, TokenizeError, ToolCallingSetupError,
 };
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm;
-use crate::llm::{GlobalInferenceLockToken, Worker, WorkerGuard, WriteOutput};
+use crate::llm::{GlobalInferenceLockToken, WorkerGuard};
 use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::GrammarFactory;
 use crate::sampler::SamplerConfig;
@@ -40,14 +40,15 @@ use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChu
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
+use llama_cpp_2::context::params::LlamaPoolingType;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
 use serde::{Deserialize, Serialize};
-use std::cmp::min;
 use std::collections::HashSet;
 use std::hash::Hasher;
+use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, MutexGuard};
 use tracing::{debug, error, info, trace, warn};
@@ -306,10 +307,6 @@ fn check_answerable(messages: &History) -> Result<(), InvalidHistoryError> {
     Ok(())
 }
 
-/// Turns kept at the end of the history during a context shift; the first turn
-/// is always kept too.
-const PRESERVED_RECENT_TURNS: usize = 2;
-
 /// Indices of the user messages, i.e. the start of each conversational turn.
 /// Anything before the first index is a prefix that a context shift never touches.
 fn user_message_indices(messages: &[Message]) -> Vec<usize> {
@@ -389,6 +386,74 @@ impl Default for MtpConfig {
     }
 }
 
+/// How a chat forgets old turns when its context is full.
+///
+/// A turn is a user message and everything up to the next one. System messages
+/// and anything before the first user message are always kept.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ContextShiftOptions {
+    /// Turns always kept at the start of the history.
+    pub keep_first_turns: usize,
+    /// Turns always kept at the end of the history. Must be at least 1, so the
+    /// message being answered survives.
+    pub keep_last_turns: usize,
+    /// Size the rendered history is shrunk to.
+    pub target: ShiftTarget,
+}
+
+impl Default for ContextShiftOptions {
+    fn default() -> Self {
+        Self {
+            keep_first_turns: 1,
+            keep_last_turns: 2,
+            target: ShiftTarget::Fraction(0.5),
+        }
+    }
+}
+
+/// Size a context shift shrinks the rendered history to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ShiftTarget {
+    /// A fraction of the context size, in `(0, 1)`.
+    Fraction(f32),
+    /// A number of tokens, below the context size.
+    Tokens(u32),
+}
+
+/// [`ContextShiftOptions`] checked against a context size; only
+/// [`ContextShiftOptions::parse`] makes one.
+#[derive(Debug, Clone, Copy)]
+struct ContextShift {
+    keep_first_turns: usize,
+    keep_last_turns: NonZeroUsize,
+    target_tokens: usize,
+}
+
+impl ContextShiftOptions {
+    fn parse(self, n_ctx: u32) -> Result<ContextShift, InvalidContextShiftOptions> {
+        let invalid = InvalidContextShiftOptions;
+        let keep_last_turns = NonZeroUsize::new(self.keep_last_turns)
+            .ok_or_else(|| invalid("keep_last_turns must be at least 1".into()))?;
+        let target_tokens = match self.target {
+            ShiftTarget::Fraction(f) if !(f > 0.0 && f < 1.0) => {
+                return Err(invalid(format!("target fraction {f} is not in (0, 1)")));
+            }
+            ShiftTarget::Tokens(t) if t == 0 || t >= n_ctx => {
+                return Err(invalid(format!(
+                    "target of {t} tokens is not in (0, {n_ctx})"
+                )));
+            }
+            ShiftTarget::Fraction(f) => (n_ctx as f32 * f) as usize,
+            ShiftTarget::Tokens(t) => t as usize,
+        };
+        Ok(ContextShift {
+            keep_first_turns: self.keep_first_turns,
+            keep_last_turns,
+            target_tokens,
+        })
+    }
+}
+
 /// Configuration for chat sessions.
 ///
 /// This struct groups all the settings needed to initialize a chat worker.
@@ -415,6 +480,9 @@ pub struct ChatConfig {
     /// efficiency cores slow down ggml's per-node thread barrier. Set it lower to leave CPU
     /// headroom for other work. Values are clamped to the logical CPU count.
     pub n_threads: Option<u32>,
+    /// How old turns are forgotten when the context is full. `None` disables
+    /// shifting, so a full context is an error instead.
+    pub context_shift: Option<ContextShiftOptions>,
 }
 
 impl Default for ChatConfig {
@@ -427,6 +495,7 @@ impl Default for ChatConfig {
             sampler_config: None,
             mtp: None,
             n_threads: None,
+            context_shift: Some(ContextShiftOptions::default()),
         }
     }
 }
@@ -546,6 +615,12 @@ impl ChatBuilder {
         self
     }
 
+    /// Set how old turns are forgotten when the context is full; `None` disables it.
+    pub fn with_context_shift(mut self, options: Option<ContextShiftOptions>) -> Self {
+        self.config.context_shift = options;
+        self
+    }
+
     /// Build a blocking chat handle and start the background worker.
     pub fn build(self) -> Result<ChatHandle, InitWorkerError> {
         ChatHandle::new(self.model, self.config)
@@ -598,17 +673,6 @@ impl ChatHandle {
         })
     }
 
-    /// Send a message and get a tokio channel
-    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        prompt: Prompt,
-    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
-        output_rx
-    }
-
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
@@ -623,24 +687,12 @@ impl ChatHandle {
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStream {
-        TokenStream::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
-    }
-
-    /// Answer a full message list and get a tokio channel.
-    pub fn complete_channel(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
-        let messages = History::new(messages)?;
-        check_answerable(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Complete {
-            messages,
-            options,
-            output_tx,
+        self.guard.send(ChatMsg::Turn {
+            input: TurnInput::Ask(prompt.to_prompt()),
+            output: TurnOutput::Text(output_tx),
         });
-        Ok(output_rx)
+        TokenStream::new(output_rx)
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -676,9 +728,19 @@ impl ChatHandle {
         messages: Vec<Message>,
         options: Options,
     ) -> Result<TokenStream, InvalidHistoryError> {
-        Ok(TokenStream::new(forward_write_output(
-            self.complete_channel(messages, options)?,
-        )))
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Turn {
+            input: TurnInput::Complete {
+                messages,
+                options,
+                max_tokens: None,
+                execute_tools: true,
+            },
+            output: TurnOutput::Text(output_tx),
+        });
+        Ok(TokenStream::new(output_rx))
     }
 
     pub fn complete_with_metadata(
@@ -951,6 +1013,17 @@ impl ChatHandle {
         )
     }
 
+    /// Set how old turns are forgotten when the context is full; `None` disables it.
+    pub fn set_context_shift(
+        &self,
+        options: Option<ContextShiftOptions>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_blocking(
+            |output_tx| ChatMsg::SetContextShift { options, output_tx },
+            "set_context_shift",
+        )
+    }
+
     /// Get the system prompt
     pub fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
@@ -1018,17 +1091,6 @@ impl ChatHandleAsync {
         })
     }
 
-    /// Send a message and get a tokio channel
-    /// TODO: deprecate this in favor of plain `ask` once integrations are updated
-    pub fn ask_channel(
-        &self,
-        prompt: Prompt,
-    ) -> tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput> {
-        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Ask { prompt, output_tx });
-        output_rx
-    }
-
     /// Send a message and collect tokens as they arrive.
     ///
     /// # Example
@@ -1043,24 +1105,12 @@ impl ChatHandleAsync {
     /// # }
     /// ```
     pub fn ask(&self, prompt: impl Promptable) -> TokenStreamAsync {
-        TokenStreamAsync::new(forward_write_output(self.ask_channel(prompt.to_prompt())))
-    }
-
-    /// Answer a full message list and get a tokio channel.
-    pub fn complete_channel(
-        &self,
-        messages: Vec<Message>,
-        options: Options,
-    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>, InvalidHistoryError> {
-        let messages = History::new(messages)?;
-        check_answerable(&messages)?;
         let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
-        self.guard.send(ChatMsg::Complete {
-            messages,
-            options,
-            output_tx,
+        self.guard.send(ChatMsg::Turn {
+            input: TurnInput::Ask(prompt.to_prompt()),
+            output: TurnOutput::Text(output_tx),
         });
-        Ok(output_rx)
+        TokenStreamAsync::new(output_rx)
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -1091,9 +1141,19 @@ impl ChatHandleAsync {
         messages: Vec<Message>,
         options: Options,
     ) -> Result<TokenStreamAsync, InvalidHistoryError> {
-        Ok(TokenStreamAsync::new(forward_write_output(
-            self.complete_channel(messages, options)?,
-        )))
+        let messages = History::new(messages)?;
+        check_answerable(&messages)?;
+        let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel();
+        self.guard.send(ChatMsg::Turn {
+            input: TurnInput::Complete {
+                messages,
+                options,
+                max_tokens: None,
+                execute_tools: true,
+            },
+            output: TurnOutput::Text(output_tx),
+        });
+        Ok(TokenStreamAsync::new(output_rx))
     }
 
     pub fn complete_with_metadata(
@@ -1383,6 +1443,18 @@ impl ChatHandleAsync {
         .await
     }
 
+    /// Set how old turns are forgotten when the context is full; `None` disables it.
+    pub async fn set_context_shift(
+        &self,
+        options: Option<ContextShiftOptions>,
+    ) -> Result<(), crate::errors::SetterError> {
+        self.set_and_wait_async(
+            |output_tx| ChatMsg::SetContextShift { options, output_tx },
+            "set_context_shift",
+        )
+        .await
+    }
+
     /// Get the system prompt
     pub async fn get_system_prompt(&self) -> Result<Option<String>, crate::errors::GetterError> {
         let (output_tx, mut output_rx) = tokio::sync::mpsc::channel(1);
@@ -1527,12 +1599,14 @@ fn completion_receiver(
     let messages = History::new(messages)?;
     check_answerable(&messages)?;
     let (output_tx, output_rx) = tokio::sync::mpsc::channel(32);
-    guard.send(ChatMsg::StructuredComplete {
-        messages,
-        options,
-        max_tokens,
-        execute_tools,
-        output_tx,
+    guard.send(ChatMsg::Turn {
+        input: TurnInput::Complete {
+            messages,
+            options,
+            max_tokens,
+            execute_tools,
+        },
+        output: TurnOutput::Completion(output_tx),
     });
     Ok(CompletionReceiver::new(output_rx))
 }
@@ -1559,37 +1633,6 @@ impl CompletionStreamAsync {
     }
 }
 
-/// Convert a raw `WriteOutput` channel into a typed `StreamOutput<CompletionError>` channel.
-///
-/// `ask_channel` intentionally stays as `WriteOutput` so the Godot binding
-/// (which pattern-matches on it directly) is not broken. `ask` uses this
-/// forwarder to serve the generic `TokenStream`.
-fn forward_write_output(
-    rx: tokio::sync::mpsc::UnboundedReceiver<llm::WriteOutput>,
-) -> tokio::sync::mpsc::UnboundedReceiver<crate::stream::StreamOutput<crate::errors::CompletionError>>
-{
-    let (tx, new_rx) = tokio::sync::mpsc::unbounded_channel();
-    // Use std::thread::spawn so this is callable from non-Tokio threads (e.g. the
-    // Flutter Rust Bridge sync dispatcher).  blocking_recv() is safe here because
-    // this thread is not inside any async executor.
-    std::thread::spawn(move || {
-        let mut rx = rx;
-        while let Some(output) = rx.blocking_recv() {
-            let item = match output {
-                llm::WriteOutput::Token(t) => crate::stream::StreamOutput::Token(t),
-                llm::WriteOutput::Done(s) => crate::stream::StreamOutput::Done(s),
-                llm::WriteOutput::Error(e) => crate::stream::StreamOutput::Error(
-                    crate::errors::CompletionError::WorkerError(e),
-                ),
-            };
-            if tx.send(item).is_err() {
-                break;
-            }
-        }
-    });
-    new_rx
-}
-
 pub struct ChatStats {
     pub context_size: u32,
     pub context_used: u32,
@@ -1599,22 +1642,62 @@ pub struct ChatStats {
 /// caller instead of ending the worker. See [`process_worker_msg`].
 type SetterReply = tokio::sync::mpsc::Sender<Result<(), SetterError>>;
 
-enum ChatMsg {
-    Ask {
-        prompt: Prompt,
-        output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
-    },
+/// What a turn answers.
+enum TurnInput {
+    /// A new user message, added to the history.
+    Ask(Prompt),
+    /// A full message list, which replaces the history.
     Complete {
-        messages: History,
-        options: Options,
-        output_tx: tokio::sync::mpsc::UnboundedSender<llm::WriteOutput>,
-    },
-    StructuredComplete {
         messages: History,
         options: Options,
         max_tokens: Option<usize>,
         execute_tools: bool,
-        output_tx: tokio::sync::mpsc::Sender<ExternalCompletionOutput>,
+    },
+}
+
+/// Where a turn's output goes, as the API that asked for the turn reports it.
+enum TurnOutput {
+    /// Tokens, then the answer's text, as `ask` and `complete` stream them.
+    Text(tokio::sync::mpsc::UnboundedSender<crate::stream::StreamOutput<CompletionError>>),
+    /// Tokens, then the whole response, as `complete_with_metadata` streams them.
+    Completion(tokio::sync::mpsc::Sender<ExternalCompletionOutput>),
+}
+
+impl TurnOutput {
+    /// Sends `chunk`, and returns whether anyone is still receiving.
+    fn send(&self, chunk: CompletionChunk) -> bool {
+        use crate::stream::StreamOutput;
+        match (self, chunk) {
+            (TurnOutput::Text(tx), CompletionChunk::Token(token)) => {
+                tx.send(StreamOutput::Token(token)).is_ok()
+            }
+            (TurnOutput::Text(tx), CompletionChunk::Done(response)) => {
+                tx.send(StreamOutput::Done(response.content)).is_ok()
+            }
+            (TurnOutput::Completion(tx), CompletionChunk::Token(token)) => tx
+                .blocking_send(ExternalCompletionOutput::Token(token))
+                .is_ok(),
+            (TurnOutput::Completion(tx), CompletionChunk::Done(response)) => tx
+                .blocking_send(ExternalCompletionOutput::Done(response))
+                .is_ok(),
+        }
+    }
+
+    fn fail(&self, error: Box<dyn miette::Diagnostic + Send + Sync>) {
+        let error = CompletionError::WorkerError(error);
+        let _ = match self {
+            TurnOutput::Text(tx) => tx.send(crate::stream::StreamOutput::Error(error)).is_ok(),
+            TurnOutput::Completion(tx) => tx
+                .blocking_send(ExternalCompletionOutput::Error(error))
+                .is_ok(),
+        };
+    }
+}
+
+enum ChatMsg {
+    Turn {
+        input: TurnInput,
+        output: TurnOutput,
     },
     ResetChat {
         system_prompt: Option<String>,
@@ -1631,6 +1714,10 @@ enum ChatMsg {
     },
     GetSystemPrompt {
         output_tx: tokio::sync::mpsc::Sender<Option<String>>,
+    },
+    SetContextShift {
+        options: Option<ContextShiftOptions>,
+        output_tx: SetterReply,
     },
     SetThinking {
         allow_thinking: bool,
@@ -1677,13 +1764,15 @@ enum ChatMsg {
 impl std::fmt::Debug for ChatMsg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ChatMsg::Ask { prompt, .. } => f.debug_struct("Ask").field("text", prompt).finish(),
-            ChatMsg::Complete { messages, .. } => f
+            ChatMsg::Turn {
+                input: TurnInput::Ask(prompt),
+                ..
+            } => f.debug_struct("Ask").field("text", prompt).finish(),
+            ChatMsg::Turn {
+                input: TurnInput::Complete { messages, .. },
+                ..
+            } => f
                 .debug_struct("Complete")
-                .field("messages", &format!("[{} messages]", messages.len()))
-                .finish(),
-            ChatMsg::StructuredComplete { messages, .. } => f
-                .debug_struct("StructuredComplete")
                 .field("messages", &format!("[{} messages]", messages.len()))
                 .finish(),
             ChatMsg::ResetChat {
@@ -1704,6 +1793,10 @@ impl std::fmt::Debug for ChatMsg {
                 .field("system_prompt", system_prompt)
                 .finish(),
             ChatMsg::GetSystemPrompt { .. } => f.debug_struct("GetSystemPrompt").finish(),
+            ChatMsg::SetContextShift { options, .. } => f
+                .debug_struct("SetContextShift")
+                .field("options", options)
+                .finish(),
             ChatMsg::SetThinking { allow_thinking, .. } => f
                 .debug_struct("SetThinking")
                 .field("allow_thinking", allow_thinking)
@@ -1747,72 +1840,29 @@ impl std::fmt::Debug for ChatMsg {
 fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
     info!(?msg, "Worker processing:");
     match msg {
-        ChatMsg::Ask { prompt, output_tx } => {
+        ChatMsg::Turn { input, output } => {
             let should_stop = Arc::clone(&worker_state.should_stop);
-            let error_tx = output_tx.clone();
-            let callback = move |out| {
-                if output_tx.send(out).is_err() {
-                    // Receiver was dropped or the buffer is full with nobody consuming.
-                    // Either way, stop generating immediately.
+            let on_chunk = |chunk| {
+                if !output.send(chunk) {
+                    // Nobody is receiving any more, so stop generating.
                     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
             };
-            if let Err(e) = worker_state.ask(prompt, callback) {
-                let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
-                // Return Ok — error is communicated through the channel, worker stays alive.
-            }
-        }
-        ChatMsg::Complete {
-            messages,
-            options,
-            output_tx,
-        } => {
-            let should_stop = Arc::clone(&worker_state.should_stop);
-            let error_tx = output_tx.clone();
-            let callback = move |out| {
-                if output_tx.send(out).is_err() {
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
+            let result = match input {
+                TurnInput::Ask(prompt) => worker_state
+                    .ask(prompt, on_chunk)
+                    .map_err(|error| Box::new(error) as _),
+                TurnInput::Complete {
+                    messages,
+                    options,
+                    max_tokens,
+                    execute_tools,
+                } => worker_state
+                    .complete(messages, options, max_tokens, execute_tools, on_chunk)
+                    .map_err(|error| Box::new(error) as _),
             };
-            if let Err(e) = worker_state.complete(messages, options, callback) {
-                let _ = error_tx.send(llm::WriteOutput::Error(Box::new(e)));
-            }
-        }
-        ChatMsg::StructuredComplete {
-            messages,
-            options,
-            max_tokens,
-            execute_tools,
-            output_tx,
-        } => {
-            let should_stop = Arc::clone(&worker_state.should_stop);
-            let event_tx = output_tx.clone();
-            let callback = move |out| {
-                let result = match out {
-                    llm::WriteOutput::Token(token) => {
-                        event_tx.blocking_send(ExternalCompletionOutput::Token(token))
-                    }
-                    llm::WriteOutput::Done(_) => Ok(()),
-                    llm::WriteOutput::Error(error) => {
-                        event_tx.blocking_send(ExternalCompletionOutput::Error(
-                            crate::errors::CompletionError::WorkerError(error),
-                        ))
-                    }
-                };
-                if result.is_err() {
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
-            };
-            match worker_state.complete_once(messages, options, max_tokens, execute_tools, callback)
-            {
-                Ok(response) => {
-                    let _ = output_tx.blocking_send(ExternalCompletionOutput::Done(response));
-                }
-                Err(error) => {
-                    let _ = output_tx.blocking_send(ExternalCompletionOutput::Error(
-                        crate::errors::CompletionError::WorkerError(Box::new(error)),
-                    ));
-                }
+            if let Err(error) = result {
+                output.fail(error);
             }
         }
         ChatMsg::ResetChat {
@@ -1835,6 +1885,9 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
         ChatMsg::GetSystemPrompt { output_tx } => {
             let system_prompt = worker_state.get_system_prompt();
             let _ = output_tx.blocking_send(system_prompt);
+        }
+        ChatMsg::SetContextShift { options, output_tx } => {
+            let _ = output_tx.blocking_send(worker_state.set_context_shift(options));
         }
         ChatMsg::SetThinking {
             allow_thinking,
@@ -1903,37 +1956,24 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
     }
 }
 
-// TOOLS TYPE STUFF
-
-// the callback closure isn't normally Send
-// but we just cheat a little here
-// so far it has been fine...
-// unsafe impl Send for Tool {}
-
-// TOOL CHAT WORKER
-
-struct ChatContext {
-    /// Here we keep the current tokens + media embeddings, which are in the KV cache.
-    chunks: TokenizerChunks,
-    /// Here we keep a list of the media bitmaps, which are needed for tokenization.
+/// Decoded media the history refers to, kept so every render can re-tokenize it.
+/// Ids are content hashes and only mean something within this worker.
+struct MediaStore {
     bitmaps: IndexMap<ChunkId, MtmdBitmap>,
 }
 
-impl ChatContext {
+impl MediaStore {
     fn new() -> Self {
         Self {
-            chunks: TokenizerChunks::new(),
             bitmaps: IndexMap::new(),
         }
     }
 
-    pub fn add_bitmaps(
-        &mut self,
-        bitmaps: Vec<MtmdBitmap>,
-    ) -> Result<Vec<String>, MultimodalError> {
+    /// Store `bitmaps` and tag each with its id, returned in the same order.
+    fn register(&mut self, bitmaps: Vec<MtmdBitmap>) -> Result<Vec<ChunkId>, MultimodalError> {
         let mut bitmap_ids = Vec::with_capacity(bitmaps.len());
         for bitmap in bitmaps {
-            let id = self.create_bitmap_id(&bitmap);
+            let id = bitmap_id(&bitmap);
             bitmap.set_id(&id)?;
             bitmap_ids.push(id.clone());
             self.bitmaps.entry(id).or_insert(bitmap);
@@ -1943,41 +1983,26 @@ impl ChatContext {
 
     /// Whether this worker has the bitmap an id names. Ids are worker-local, so
     /// content from elsewhere carries ids this answers `false` for.
-    fn has_bitmap(&self, id: &str) -> bool {
+    fn contains(&self, id: &str) -> bool {
         self.bitmaps.contains_key(id)
     }
 
-    pub fn garbage_collect_bitmaps(&mut self, messages: &[Message]) {
-        // Garbage collection for the bitmaps.
-        let referenced_bitmaps: HashSet<String> = messages
-            .iter()
-            .flat_map(|msg| msg.media_ids())
-            .map(str::to_string)
-            .collect();
-
-        let unreferenced_bitmap_ids: Vec<_> = self
-            .bitmaps
-            .keys()
-            .filter(|id| !referenced_bitmaps.contains(id.as_str()))
-            .cloned()
-            .collect();
-
-        self.remove_bitmaps(unreferenced_bitmap_ids);
+    fn get(&self, id: &str) -> Option<&MtmdBitmap> {
+        self.bitmaps.get(id)
     }
 
-    fn create_bitmap_id(&self, bitmap: &MtmdBitmap) -> String {
-        let mut hasher = AHasher::default();
-        hasher.write(bitmap.data());
-        hasher.finish().to_string()
+    /// Drop the bitmaps no message refers to anymore.
+    fn retain_referenced(&mut self, messages: &[Message]) {
+        let referenced: HashSet<&str> = messages.iter().flat_map(|msg| msg.media_ids()).collect();
+        self.bitmaps
+            .retain(|id, _| referenced.contains(id.as_str()));
     }
+}
 
-    fn remove_bitmaps(&mut self, bitmap_ids: Vec<String>) {
-        for id in bitmap_ids {
-            if let Some(bitmap) = self.bitmaps.shift_remove(&id) {
-                drop(bitmap);
-            }
-        }
-    }
+fn bitmap_id(bitmap: &MtmdBitmap) -> ChunkId {
+    let mut hasher = AHasher::default();
+    hasher.write(bitmap.data());
+    hasher.finish().to_string()
 }
 
 /// Builds the tool-call grammar sampler for an already-detected `tool_format`
@@ -2017,8 +2042,9 @@ fn build_tool_sampler(
     let tool_sampler =
         sampler_config.build_sampler_with_prepended_step(model, Some(grammar_step))?;
 
-    let begin_tokens =
-        model.str_to_token(tool_format.begin_token(), llama_cpp_2::model::AddBos::Never)?;
+    let begin_tokens = model
+        .vocab()
+        .tokenize(tool_format.begin_token().as_bytes(), false, true);
 
     // Every fallible function has run, so the rebuilt factory can be committed.
     if rebuilt.is_some() {
@@ -2157,7 +2183,8 @@ struct Chat<'a> {
     template_variables: std::collections::HashMap<String, bool>,
     tools: Vec<Tool>,
     chat_template: ChatTemplate,
-    context: ChatContext,
+    media: MediaStore,
+    shift: Option<ContextShift>,
 }
 
 impl<'a> Chat<'a> {
@@ -2209,10 +2236,20 @@ impl<'a> Chat<'a> {
             tool_format.as_ref(),
         )?;
 
-        // Build the low-level inference engine via the shared Worker constructor,
-        // then take ownership of just the engine for the chat session.
-        let Worker { engine, extra: () } =
-            Worker::new_with_type(model, config.n_ctx, false, config.mtp, config.n_threads, ())?;
+        let engine = InferenceEngine::new_with_type(
+            model,
+            config.n_ctx,
+            false,
+            config.mtp,
+            config.n_threads,
+            LlamaPoolingType::None,
+        )?;
+
+        // Parse against the real context, which may be capped below the requested n_ctx.
+        let shift = config
+            .context_shift
+            .map(|options| options.parse(engine.ctx.n_ctx()))
+            .transpose()?;
 
         Ok(Chat {
             engine,
@@ -2226,7 +2263,8 @@ impl<'a> Chat<'a> {
             chat_template: template,
             template_variables: config.template_variables,
             tools: config.tools,
-            context: ChatContext::new(),
+            media: MediaStore::new(),
+            shift,
         })
     }
 
@@ -2262,100 +2300,110 @@ impl<'a> Chat<'a> {
         &mut self,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let mut chunks = self.render_as_chunks(&self.messages, true)?;
+        let mut chunks = self.render_as_chunks(&self.messages)?;
         if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
-            self.context_shift()?;
-            chunks = self.render_as_chunks(&self.messages, true)?;
+            self.context_shift(0)?;
+            chunks = self.render_as_chunks(&self.messages)?;
         }
 
         // We should never try to sync with an empty render
         debug_assert!(!chunks.is_empty());
 
         // Diff against the chunks currently in the KV cache and load only the new tail.
-        let prev = std::mem::take(&mut self.context.chunks);
-        let new_chunks = self
-            .engine
-            .sync_context(chunks, &prev, inference_lock_token)?;
-        self.context.chunks = new_chunks;
-        self.context.garbage_collect_bitmaps(&self.messages);
+        self.engine.sync_context(chunks, inference_lock_token)?;
+        self.media.retain_referenced(&self.messages);
 
         Ok(())
     }
 
-    /// Drop whole turns from the middle of the history until the render fits
-    /// `n_ctx / 2`. A turn starts at a user message and runs until just before
-    /// the next one; the first turn, the last [`PRESERVED_RECENT_TURNS`] turns,
-    /// and any messages preceding the first user message are always kept. System
-    /// messages are kept too, wherever they sit: they are instructions for the
-    /// rest of the conversation, not part of the exchange being forgotten.
-    ///
-    /// With three or fewer turns there is nothing deletable, so the history
-    /// comes back as-is even if it is still too large.
-    fn context_shift(&mut self) -> Result<(), ShiftError> {
+    /// Drop the fewest whole turns after the kept first ones for the render, plus
+    /// `reserved` tokens, to fit the target. System messages are always kept.
+    fn context_shift(&mut self, reserved: usize) -> Result<(), ShiftError> {
         info!("Context shift happens!");
-        let target_token_size = (self.engine.ctx.n_ctx() / 2) as usize;
-        let mut messages = self.messages.clone();
+        let Some(shift) = self.shift else {
+            return Err(ShiftError::Disabled);
+        };
+        let target_token_size = shift.target_tokens.saturating_sub(reserved);
 
-        match user_message_indices(&self.messages).len() {
+        let turn_starts = user_message_indices(&self.messages);
+        match turn_starts.len() {
             0 => return Err(ShiftError::NoUserMessages),
             1 => return Err(ShiftError::TooFewMessages),
             _ => {}
         }
 
-        // Delete messages until context is small enough or only essential messages are left.
-        // Double the number of messages to delete each iteration. This is a simple and kind of stupid solution, as it might overshoot by a lot.
-        // Plenty of optimization options here.
-        let mut turns_to_delete = 1;
-
-        loop {
-            let n_tokens = self.render_as_chunks(&messages, false)?.n_tokens();
-            if n_tokens <= target_token_size {
-                break;
+        let first = shift.keep_first_turns;
+        let deletable = turn_starts
+            .len()
+            .saturating_sub(first + shift.keep_last_turns.get());
+        // keep_last_turns is nonzero, so `first + k` always indexes a kept turn.
+        let without = |k: usize| {
+            let mut messages = self.messages.clone();
+            if k > 0 {
+                messages.forget(turn_starts[first]..turn_starts[first + k]);
             }
+            messages
+        };
+        let measure_ntokens_without = |k: usize| -> Result<usize, ShiftError> {
+            Ok(self.render_as_chunks(&without(k))?.n_tokens())
+        };
 
-            let turn_starts = user_message_indices(&messages);
-            // Everything between the first turn and the preserved recent ones.
-            // Zero means there is nothing left this may take.
-            let deletable = turn_starts.len().saturating_sub(PRESERVED_RECENT_TURNS + 1);
-            if deletable == 0 {
-                // The always-kept messages alone are over target.
-                warn!(
-                    n_tokens,
-                    target_token_size,
-                    system_messages = messages.iter().filter(|m| m.is_system()).count(),
-                    "Context shift could not reach its target: nothing left to delete."
-                );
-                break;
-            }
-
-            // 1 <= n <= turn_starts.len() - 3, so the range is never empty and
-            // never reaches the preserved turns.
-            let n = min(turns_to_delete, deletable);
-            // The range starts at a user message, so every pass still removes at
-            // least one turn start and the loop keeps converging.
-            messages.forget(turn_starts[1]..turn_starts[1 + n]);
-            turns_to_delete = turns_to_delete.saturating_mul(2);
+        if measure_ntokens_without(0)? <= target_token_size {
+            // We are already under the target, so no shift is needed.
+            return Ok(());
         }
 
-        self.messages = messages;
+        let n_tokens = measure_ntokens_without(deletable)?;
+        if n_tokens > target_token_size {
+            // The always-kept messages alone are over target.
+            // Delete all deletable messages, leaving only the always-kept ones.
+            warn!(
+                n_tokens,
+                target_token_size,
+                system_messages = self.messages.iter().filter(|m| m.is_system()).count(),
+                "Context shift could not reach its target: nothing left to delete."
+            );
+            self.messages = without(deletable);
+            return Ok(());
+        }
+
+        // Smallest k that fits: measure_ntokens_without(lo - 1) is over target,
+        // measure_ntokens_without(hi) fits.
+        let (mut lo, mut hi) = (1, deletable);
+        while lo < hi {
+            // Binary search!
+            let mid = lo + (hi - lo) / 2;
+            if measure_ntokens_without(mid)? <= target_token_size {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+
+        self.messages = without(hi);
         Ok(())
     }
 
-    // ---------- IMPORTANT ----------
-    // Should only be used under a global inference lock
-    // This is a safety meassure to prevent bugs from multiple
-    // contexts with the same model. It might not be necessary
-    // but assume it is.
-    fn generate_response_until_done_with_limit<F>(
+    /// One generation: brings the context up to date with the history, then
+    /// streams the model's response until the model ends it, `max_tokens`
+    /// runs out or the chat is stopped. The tool calls themselves aren't
+    /// streamed.
+    fn generate(
         &mut self,
-        mut respond: F,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
         max_tokens: Option<usize>,
-    ) -> Result<usize, GenerateResponseError>
-    where
-        F: FnMut(WriteOutput),
-    {
-        // Token generation loop
+        on_chunk: &mut impl FnMut(CompletionChunk),
+    ) -> Result<GeneratedResponse, GenerateResponseError> {
+        // One generation at a time across all chats, in case contexts of one
+        // model would interfere with each other.
+        let inference_lock_token = &acquire_inference_lock();
+        self.sync_context_with_render(inference_lock_token)?;
+        let prompt_tokens = self.engine.kv_mirror().n_tokens();
+        let tool_call_begin_token = self
+            .tool_format
+            .as_ref()
+            .map(|format| format.begin_token().to_string());
+        let mut streaming = true;
+
         info!("Worker writing until done");
 
         self.engine.reset_mtp_stats();
@@ -2376,7 +2424,8 @@ impl<'a> Chat<'a> {
         {
             // Check if the context is full
             if self.engine.is_context_full() {
-                self.context_shift()?;
+                // Leave room for the partial response, which is read back in below.
+                self.context_shift(tokens_written_until_now.len())?;
                 self.sync_context_with_render(inference_lock_token)?;
                 if !tokens_written_until_now.is_empty() {
                     let mut generated_chunks = TokenizerChunks::new();
@@ -2389,26 +2438,17 @@ impl<'a> Chat<'a> {
             }
 
             let new_token = self.engine.next_token(&mut self.sampler)?;
+            assert_ne!(new_token.0, -1, "invalid token generated");
 
             tokens_written_until_now.push(new_token);
 
-            // Attempt to convert token(s) to bytes
-            let token_bytes = match self
+            // Convert token to bytes
+            let token_bytes = self
                 .engine
                 .ctx
                 .model
-                .token_to_piece_bytes(new_token, 64, true, None)
-            {
-                Err(llama_cpp_2::TokenToStringError::InsufficientBufferSpace(i)) => {
-                    self.engine.ctx.model.token_to_piece_bytes(
-                        new_token,
-                        (-i).try_into().expect("Error buffer size is positive"),
-                        true,
-                        None,
-                    )
-                }
-                x => x,
-            }?;
+                .vocab()
+                .token_to_piece(new_token, true, None);
 
             // Attempt to convert bytes to utf8 string.
             let max_len = decoder
@@ -2422,29 +2462,39 @@ impl<'a> Chat<'a> {
             let (_result, _bytes_read, _had_errors) =
                 decoder.decode_to_string(&token_bytes, &mut token_str, false);
 
-            let has_eog = self.engine.ctx.model.is_eog_token(new_token);
+            let has_eog = self.engine.ctx.model.vocab().is_eog(new_token);
             trace!(?new_token, ?token_str, ?has_eog);
 
             if has_eog {
                 break;
             }
 
+            // Nothing is streamed from the first tool call on.
+            if tool_call_begin_token.as_ref() == Some(&token_str) {
+                streaming = false;
+            }
             full_response.push_str(&token_str);
             generated_tokens += 1;
-            trace!(?token_str, "Sending out token:");
-            respond(WriteOutput::Token(token_str));
+            if streaming {
+                trace!(?token_str, "Sending out token:");
+                on_chunk(CompletionChunk::Token(token_str));
+            }
         }
 
-        // we're done!
-        debug!(%full_response, "Sending out");
-        respond(WriteOutput::Done(full_response));
-        Ok(generated_tokens)
+        debug!(%full_response, "Generated response");
+        Ok(GeneratedResponse {
+            content: full_response,
+            prompt_tokens,
+            completion_tokens: generated_tokens,
+            hit_token_limit: max_tokens.is_some_and(|max_tokens| generated_tokens >= max_tokens),
+        })
     }
 
-    pub fn ask<F>(&mut self, prompt: Prompt, respond: F) -> Result<&mut Self, SayError>
-    where
-        F: Fn(llm::WriteOutput) + Clone,
-    {
+    pub fn ask(
+        &mut self,
+        prompt: Prompt,
+        on_chunk: impl FnMut(CompletionChunk),
+    ) -> Result<(), SayError> {
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -2456,9 +2506,9 @@ impl<'a> Chat<'a> {
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
-        self.run_turn(respond, None, true)?;
+        self.run_turn(None, true, on_chunk)?;
 
-        Ok(self)
+        Ok(())
     }
 
     /// Load each media part's file, register its bitmap and write the bitmap id
@@ -2477,7 +2527,7 @@ impl<'a> Chat<'a> {
             .media_parts()
             .into_iter()
             .map(|part| {
-                if part.id().is_some_and(|id| self.context.has_bitmap(id)) {
+                if part.id().is_some_and(|id| self.media.contains(id)) {
                     return Ok(None);
                 }
                 match part {
@@ -2498,7 +2548,7 @@ impl<'a> Chat<'a> {
             .filter_map(|(position, bitmap)| bitmap.map(|bitmap| (position, bitmap)))
             .unzip();
 
-        let bitmap_ids = self.context.add_bitmaps(loaded)?;
+        let bitmap_ids = self.media.register(loaded)?;
         let mut parts = content.media_parts_mut();
         for (position, id) in positions.into_iter().zip(bitmap_ids) {
             parts[position].set_id(id);
@@ -2506,27 +2556,23 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Generate assistant output from the current messages.
-    ///
-    /// Tool callbacks run until the model stops calling tools. When
-    /// `execute_tools` is false, the first calls are returned to the caller.
-    fn run_turn<F>(
+    /// Answers the history, streaming the response to `on_chunk` and ending
+    /// with the whole turn. The tools the model calls run until it stops
+    /// calling them, unless `execute_tools` is false, in which case its first
+    /// calls end the turn for the caller to run.
+    fn run_turn(
         &mut self,
-        respond: F,
         max_tokens: Option<usize>,
         execute_tools: bool,
-    ) -> Result<CompletionResponse, SayError>
-    where
-        F: Fn(llm::WriteOutput) + Clone,
-    {
+        mut on_chunk: impl FnMut(CompletionChunk),
+    ) -> Result<(), SayError> {
         // The tool-call grammar is NOT pre-injected into the chain. Lark/
         // llguidance has no "trigger word" mechanism, so an always-on grammar
         // would block EOS when the model just wants to chat. Instead the
-        // grammar is added dynamically inside `generate_response_until_done_with_limit`
-        // the moment the begin token appears in the streamed output.
+        // grammar is added dynamically inside `generate` the moment the begin
+        // token appears in the streamed output.
 
-        let mut generated =
-            self.wrapped_update_context_and_generate_response(respond.clone(), max_tokens)?;
+        let mut generated = self.generate(max_tokens, &mut on_chunk)?;
         let mut usage = CompletionUsage {
             prompt_tokens: generated.prompt_tokens,
             completion_tokens: generated.completion_tokens,
@@ -2547,13 +2593,13 @@ impl<'a> Chat<'a> {
 
                 if !execute_tools {
                     let content = content.to_string();
-                    self.context.chunks = self.render_as_chunks(&self.messages, true)?;
-                    return Ok(CompletionResponse {
+                    on_chunk(CompletionChunk::Done(CompletionResponse {
                         content,
                         tool_calls,
                         finish_reason: FinishReason::ToolCalls,
                         usage,
-                    });
+                    }));
+                    return Ok(());
                 }
 
                 for tool_call in tool_calls {
@@ -2583,10 +2629,7 @@ impl<'a> Chat<'a> {
 
                 let remaining_tokens =
                     max_tokens.map(|limit| limit.saturating_sub(usage.completion_tokens));
-                generated = self.wrapped_update_context_and_generate_response(
-                    respond.clone(),
-                    remaining_tokens,
-                )?;
+                generated = self.generate(remaining_tokens, &mut on_chunk)?;
                 usage.prompt_tokens += generated.prompt_tokens;
                 usage.completion_tokens += generated.completion_tokens;
                 hit_token_limit = generated.hit_token_limit;
@@ -2599,9 +2642,8 @@ impl<'a> Chat<'a> {
             .as_ref()
             .is_none_or(|fmt| !response.contains(fmt.begin_token())));
         self.add_assistant_message(response.clone());
-        self.context.chunks = self.render_as_chunks(&self.messages, true)?;
 
-        Ok(CompletionResponse {
+        on_chunk(CompletionChunk::Done(CompletionResponse {
             content: response,
             tool_calls: Vec::new(),
             finish_reason: if hit_token_limit {
@@ -2610,7 +2652,8 @@ impl<'a> Chat<'a> {
                 FinishReason::Stop
             },
             usage,
-        })
+        }));
+        Ok(())
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -2621,30 +2664,14 @@ impl<'a> Chat<'a> {
     /// later system message, which the chat template renders in place — and the
     /// turn's output is appended as usual, so a following [`ask`](Self::ask)
     /// continues that conversation.
-    pub fn complete<F>(
-        &mut self,
-        messages: History,
-        options: Options,
-        respond: F,
-    ) -> Result<&mut Self, CompleteError>
-    where
-        F: Fn(llm::WriteOutput) + Clone,
-    {
-        self.complete_once(messages, options, None, true, respond)?;
-        Ok(self)
-    }
-
-    fn complete_once<F>(
+    pub fn complete(
         &mut self,
         mut messages: History,
         options: Options,
         max_tokens: Option<usize>,
         execute_tools: bool,
-        respond: F,
-    ) -> Result<CompletionResponse, CompleteError>
-    where
-        F: Fn(llm::WriteOutput) + Clone,
-    {
+        on_chunk: impl FnMut(CompletionChunk),
+    ) -> Result<(), CompleteError> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
         let hoisted = messages.take_system_prompt();
@@ -2656,7 +2683,8 @@ impl<'a> Chat<'a> {
             self.system_prompt = Some(system_prompt);
         }
         self.messages = messages;
-        Ok(self.run_turn(respond, max_tokens, execute_tools)?)
+        self.run_turn(max_tokens, execute_tools, on_chunk)?;
+        Ok(())
     }
 
     /// Re-read the media files referenced by `messages` and relink the parts to
@@ -2672,14 +2700,7 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Go for the unhandled mode when you are context shifting.
-    /// That is for avoiding the render will concat system message with the first user message.
-    /// Otherwise please handle stuff.
-    fn render_as_chunks(
-        &self,
-        messages: &History,
-        handled: bool,
-    ) -> Result<TokenizerChunks, RenderError> {
+    fn render_as_chunks(&self, messages: &History) -> Result<TokenizerChunks, RenderError> {
         // Callers pass the conversation they want rendered — which may be a
         // shortened one, during a context shift. The system prompt is not part
         // of that, so it is added here.
@@ -2689,53 +2710,14 @@ impl<'a> Chat<'a> {
             (!self.tools.is_empty()).then(|| self.tools.clone()),
         );
 
-        let rendered_chat = if handled {
-            self.chat_template.render(messages, &template_context)?
-        } else {
-            self.chat_template
-                .render_unhandled(messages, &template_context)?
-        };
+        let rendered_chat = self.chat_template.render(messages, &template_context)?;
 
         let bitmaps: Vec<&MtmdBitmap> = messages
             .iter()
             .flat_map(|msg| msg.media_ids())
-            .filter_map(|id| self.context.bitmaps.get(id))
+            .filter_map(|id| self.media.get(id))
             .collect();
         Ok(self.engine.tokenize(rendered_chat, bitmaps)?)
-    }
-
-    fn wrapped_update_context_and_generate_response<F>(
-        &mut self,
-        respond: F,
-        max_tokens: Option<usize>,
-    ) -> Result<GeneratedResponse, WrappedResponseError>
-    where
-        F: Fn(llm::WriteOutput) + Clone,
-    {
-        let inference_lock_token = acquire_inference_lock();
-        self.sync_context_with_render(&inference_lock_token)?;
-
-        let tool_call_begin_token = self
-            .tool_format
-            .as_ref()
-            .map(|format| format.begin_token().to_string());
-        let (wrapped_respond, resp_receiver) =
-            crate::inference::wrap_respond(respond, tool_call_begin_token);
-
-        let prompt_tokens = self.context.chunks.n_tokens();
-        let completion_tokens = self.generate_response_until_done_with_limit(
-            wrapped_respond,
-            &inference_lock_token,
-            max_tokens,
-        )?;
-        let hit_token_limit = max_tokens.is_some_and(|max_tokens| completion_tokens >= max_tokens);
-
-        Ok(GeneratedResponse {
-            content: resp_receiver.recv()?,
-            prompt_tokens,
-            completion_tokens,
-            hit_token_limit,
-        })
     }
 
     pub fn reset_chat(
@@ -2757,7 +2739,7 @@ impl<'a> Chat<'a> {
         self.tools = tools;
         self.messages = History::default();
         self.system_prompt = system_prompt;
-        self.context = ChatContext::new();
+        self.media = MediaStore::new();
         Ok(())
     }
 
@@ -2847,6 +2829,16 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
+    pub fn set_context_shift(
+        &mut self,
+        options: Option<ContextShiftOptions>,
+    ) -> Result<(), SetterError> {
+        self.shift = options
+            .map(|options| options.parse(self.engine.ctx.n_ctx()))
+            .transpose()?;
+        Ok(())
+    }
+
     pub fn set_system_prompt(&mut self, system_prompt: Option<String>) {
         self.system_prompt = system_prompt;
     }
@@ -2877,7 +2869,7 @@ impl<'a> Chat<'a> {
         // sync with an empty render and we only render when there are
         // messages present in the history.
 
-        self.context.garbage_collect_bitmaps(&self.messages);
+        self.media.retain_referenced(&self.messages);
 
         Ok(())
     }
@@ -3050,14 +3042,14 @@ mod tests {
             }
         };
 
-        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
 
         let resp = receiver.recv()?;
         println!("{}", resp);
 
         assert!(resp.contains("Copenhagen"));
 
-        worker.ask("What language do they speak there?".into(), f)?;
+        worker.ask("What language do they speak there?".into(), text(f))?;
         let resp = receiver.recv()?;
         println!("{}", resp);
 
@@ -3096,7 +3088,7 @@ mod tests {
                 sender.send(resp).unwrap();
             }
         };
-        worker.ask("What is the capital of Denmark?".into(), f)?;
+        worker.ask("What is the capital of Denmark?".into(), text(f))?;
         let resp = receiver.recv()?;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Copenhagen"));
@@ -3107,7 +3099,7 @@ mod tests {
                 sender.send(resp).unwrap();
             }
         };
-        worker.ask("Are you sure?".into(), f)?;
+        worker.ask("Are you sure?".into(), text(f))?;
         let resp = receiver.recv()?;
         println!("MTP response: {}", resp);
         assert!(resp.contains("Yes"));
@@ -3136,7 +3128,7 @@ mod tests {
         };
 
         // do it once
-        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
         let resp1 = receiver.recv()?;
         println!("{}", resp1);
         assert!(resp1.to_lowercase().contains("woof"));
@@ -3148,7 +3140,7 @@ mod tests {
         );
 
         // do it again
-        worker.ask("What is the capital of Denmark?".into(), f.clone())?;
+        worker.ask("What is the capital of Denmark?".into(), text(f.clone()))?;
         let resp2 = receiver.recv()?;
         println!("{}", resp2);
         assert!(resp2.to_lowercase().contains("meow"));
@@ -3186,7 +3178,7 @@ mod tests {
             llm::WriteOutput::Error(_) => (),
         };
 
-        worker.ask("Count from 0 to 9".into(), f.clone())?;
+        worker.ask("Count from 0 to 9".into(), text(f.clone()))?;
 
         let response = receiver.recv()?;
         println!("{}", response);
@@ -3288,11 +3280,14 @@ mod tests {
         // Warmup: one discarded turn to put GPU pipeline in steady state.
         let (warmup_tx, warmup_rx) = std::sync::mpsc::channel::<String>();
         worker
-            .ask("Hello.".into(), move |x| {
-                if let llm::WriteOutput::Done(r) = x {
-                    let _ = warmup_tx.send(r);
-                }
-            })
+            .ask(
+                "Hello.".into(),
+                text(move |x| {
+                    if let llm::WriteOutput::Done(r) = x {
+                        let _ = warmup_tx.send(r);
+                    }
+                }),
+            )
             .expect("warmup failed");
         let _ = warmup_rx.recv();
 
@@ -3311,7 +3306,7 @@ mod tests {
                 }
             };
             let turn_start = std::time::Instant::now();
-            worker.ask((*prompt).into(), f).expect("ask failed");
+            worker.ask((*prompt).into(), text(f)).expect("ask failed");
             let _ = receiver.recv().unwrap();
             eprintln!(
                 "[bench] turn {} ({} chars): {} ms",
@@ -3379,11 +3374,14 @@ mod tests {
         let ask = |worker: &mut Chat, prompt: &str| {
             let (sender, receiver) = std::sync::mpsc::channel();
             worker
-                .ask(prompt.into(), move |x| {
-                    if let llm::WriteOutput::Done(resp) = x {
-                        sender.send(resp).unwrap();
-                    }
-                })
+                .ask(
+                    prompt.into(),
+                    text(move |x| {
+                        if let llm::WriteOutput::Done(resp) = x {
+                            sender.send(resp).unwrap();
+                        }
+                    }),
+                )
                 .expect("generation failed");
             receiver.recv().unwrap()
         };
@@ -3432,7 +3430,7 @@ mod tests {
             .ask(
                 "I would like to know the temperature in two cities: Copenhagen and Beijing."
                     .into(),
-                f,
+                text(f),
             )
             .expect("fuck");
 
@@ -3462,6 +3460,33 @@ mod tests {
         }
     }
 
+    /// A turn that runs out of tokens partway through an item still ends, as
+    /// out of tokens, having generated exactly its budget.
+    #[test]
+    fn a_turn_out_of_tokens_finishes_with_length() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                n_ctx: 1024,
+                tools: vec![test_tool()],
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+        let messages = History::new(vec![user("What's the temperature in Copenhagen?")])?;
+        let mut finished = None;
+        worker.complete(messages, Options::new(), Some(8), true, |chunk| {
+            if let CompletionChunk::Done(response) = chunk {
+                finished = Some(response);
+            }
+        })?;
+        let response = finished.expect("a turn ends with its response");
+        assert_eq!(response.finish_reason, FinishReason::Length);
+        assert_eq!(response.usage.completion_tokens, 8);
+        Ok(())
+    }
+
     #[test]
     fn test_multi_tool_call() {
         let model = test_utils::load_test_model();
@@ -3485,7 +3510,7 @@ mod tests {
         worker.ask(
             "I would like to know the temperature in Copenhagen and the DKK to USD exchange rate."
                 .into(),
-            f,
+            text(f),
         )
         .expect("dammit");
 
@@ -3558,6 +3583,7 @@ mod tests {
         let chat = ChatBuilder::new(model)
             .with_context_size(2048)
             .with_system_prompt(Some("You are a dog. End all responses with woof."))
+            .with_template_variable("enable_thinking".to_string(), false)
             .build()
             .expect("chat build failed in test");
 
@@ -3567,7 +3593,10 @@ mod tests {
 
         chat.set_system_prompt(Some("You are a cat. End all responses with meow.".into()))
             .unwrap();
-        let cat_response = chat.ask("Hello again!").completed().unwrap();
+        let cat_response = chat
+            .ask("Now say the correct animal sound!")
+            .completed()
+            .unwrap();
         assert!(cat_response.to_lowercase().contains("meow"));
     }
 
@@ -3591,178 +3620,15 @@ mod tests {
         assert!(chat.get_chat_history().unwrap().is_empty());
     }
 
-    #[test]
-    fn test_context_shift() -> Result<(), Box<dyn std::error::Error>> {
-        let model = test_utils::load_test_model();
-
-        // Use a very small context size to force shifting
-        let n_ctx = 512;
-        let n_messages = 8;
-        let mut worker = Chat::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx,
-                system_prompt: Some("You are a helpful assistant that provides informative and detailed responses. End every response with \"Do you have any further questions?\"".into()),
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-
-        // Add many exchanges with longer messages to fill up the context
-        for i in 1..=n_messages {
-            worker.add_user_message(format!(
-                "This is user message number {}. What is {} * {}?",
-                i, i, i
-            ));
-            worker.add_assistant_message(format!(
-                "<think> </think> The answer is {}. Do you have any further questions?",
-                i * i
-            ));
-        }
-
-        worker.add_user_message("Hello!".to_string());
-
-        // Check that we have many messages before shift
-        let messages_before = worker.messages.len();
-        assert!(
-            messages_before > 6,
-            "Should have more than 6 messages before shift"
-        );
-
-        // Trigger context shift
-        worker.context_shift()?;
-
-        println!("{:?}", worker.messages);
-
-        let messages_after = worker.messages.clone();
-
-        // Verify essential messages are preserved:
-        // 1. The system prompt is a setting rather than a message, so the shift
-        //    cannot delete it — but it must still reach a render of the
-        //    shortened history.
-        let rendered = worker.chat_template.render(
-            &worker
-                .messages
-                .with_system_prompt(worker.system_prompt.as_deref()),
-            &ChatTemplateContext::new(worker.template_variables.clone(), None),
-        )?;
-        assert!(
-            rendered.contains("helpful assistant"),
-            "System prompt should still be rendered after a shift: {rendered}"
-        );
-
-        // 2. Should have first user message
-        let first_user_idx = messages_after.iter().position(|m| m.is_user());
-        assert!(
-            first_user_idx.is_some(),
-            "First user message should be preserved"
-        );
-
-        // 3. Count remaining user messages - should have at least 3 (first + last 2)
-        let user_count = messages_after.iter().filter(|m| m.is_user()).count();
-        assert!(
-            user_count >= 3,
-            "Should preserve first user message and last 2 user messages"
-        );
-
-        // 4. Verify the last user message is there
-        let last_user = messages_after.iter().rev().find(|m| m.is_user());
-
-        if let Some(Message::User { content, .. }) = last_user {
-            assert!(
-                content.to_string().contains("Hello!"),
-                "Last user message should be preserved"
-            );
-        }
-
-        // 5. Verify token count is within target
-        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
-
-        let target_size = (n_ctx / 2) as usize;
-        assert!(
-            token_count <= target_size,
-            "Token count {} should be <= target size {}",
-            token_count,
-            target_size
-        );
-
-        // 6. Fewer messages after shift
-        assert!(
-            messages_after.len() < messages_before,
-            "Should have fewer messages after shift"
-        );
-
-        // 7. Check that message structure is still valid
-        assert_valid_message_structure(&messages_after);
-
-        println!("Messages before shift: {}", messages_before);
-        println!("Messages after shift: {}", messages_after.len());
-        println!("Token count after shift: {}", token_count);
-        println!("Target token size: {}", target_size);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_context_shift_measures_shortened_history() -> Result<(), Box<dyn std::error::Error>> {
-        let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx: 512,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
-
-        for (user, assistant) in [
-            ("first".to_string(), "first".to_string()),
-            ("padding ".repeat(target_size), "large".to_string()),
-            ("keep".to_string(), "keep".to_string()),
-            ("recent".to_string(), "recent".to_string()),
-        ] {
-            worker.add_user_message(user);
-            worker.add_assistant_message(assistant);
-        }
-        worker.add_user_message("final".to_string());
-
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
-
-        let mut shortened_messages = worker.messages.clone();
-        shortened_messages.forget(2..4);
-        assert!(
-            worker
-                .render_as_chunks(&shortened_messages, false)?
-                .n_tokens()
-                <= target_size
-        );
-
-        worker.context_shift()?;
-
-        assert!(worker.messages.iter().any(|message| {
-            matches!(message, Message::User { content, .. } if content.to_string() == "keep")
-        }));
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() <= target_size);
-
-        Ok(())
-    }
-
-    /// A shift keeps the first turn and the last [`PRESERVED_RECENT_TURNS`], so
-    /// below that many turns it has nothing it may delete and must leave the
-    /// history alone however oversized it is.
-    ///
-    /// Both boundaries used to be broken. Two turns is `[user, assistant, user]`,
-    /// where computing the last deletable index underflowed once the system
-    /// prompt was no longer there to keep that index off zero. Three turns is the
-    /// exact cutoff, where an off-by-one does not panic but spins: nothing is
-    /// deletable, so the drain is empty and the history never shrinks.
+    /// Below keep_first_turns + keep_last_turns turns nothing is deletable, so the
+    /// shift leaves the history alone however oversized it is.
     #[test]
     fn test_context_shift_below_deletable_threshold_is_a_noop(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
 
-        for turn_count in [2, PRESERVED_RECENT_TURNS + 1] {
+        let defaults = ContextShiftOptions::default();
+        for turn_count in [2, defaults.keep_first_turns + defaults.keep_last_turns] {
             let mut worker = Chat::new_chat_worker(
                 &model,
                 ChatConfig {
@@ -3781,10 +3647,10 @@ mod tests {
             }
 
             assert_eq!(user_message_indices(&worker.messages).len(), turn_count);
-            assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
+            assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > target_size);
 
             let before = serde_json::to_value(&worker.messages)?;
-            worker.context_shift()?;
+            worker.context_shift(0)?;
             assert_eq!(
                 serde_json::to_value(&worker.messages)?,
                 before,
@@ -3792,58 +3658,6 @@ mod tests {
                  so the shift must leave the history alone"
             );
         }
-
-        Ok(())
-    }
-
-    /// A mid-conversation system message is an instruction for the rest of the
-    /// conversation, so a shift keeps it even when the turn it sits in is dropped.
-    #[test]
-    fn test_context_shift_keeps_system_messages() -> Result<(), Box<dyn std::error::Error>> {
-        let model = test_utils::load_test_model();
-        let mut worker = Chat::new_chat_worker(
-            &model,
-            ChatConfig {
-                n_ctx: 512,
-                ..Default::default()
-            },
-            Arc::new(AtomicBool::new(false)),
-        )?;
-        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
-
-        worker.add_user_message("first".to_string());
-        worker.add_assistant_message("first".to_string());
-        // The oversized turn, the one a shift has to drop, with an instruction
-        // in it.
-        worker.add_user_message("padding ".repeat(target_size));
-        worker.add_assistant_message("large".to_string());
-        worker
-            .messages
-            .push_system("Answer in French.".to_string())?;
-        for (user, assistant) in [("keep", "keep"), ("recent", "recent")] {
-            worker.add_user_message(user.to_string());
-            worker.add_assistant_message(assistant.to_string());
-        }
-        worker.add_user_message("final".to_string());
-
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() > target_size);
-
-        worker.context_shift()?;
-
-        assert!(
-            worker.messages.iter().any(|message| {
-                matches!(message, Message::System { content } if content.to_string() == "Answer in French.")
-            }),
-            "the system message should have survived the shift: {:?}",
-            worker.messages
-        );
-        assert!(
-            !worker.messages.iter().any(|message| {
-                matches!(message, Message::User { content } if content.to_string().starts_with("padding"))
-            }),
-            "the oversized turn should be gone: {:?}",
-            worker.messages
-        );
 
         Ok(())
     }
@@ -3861,17 +3675,180 @@ mod tests {
         )?;
 
         assert!(matches!(
-            worker.context_shift(),
+            worker.context_shift(0),
             Err(ShiftError::NoUserMessages)
         ));
 
         worker.add_user_message("only".to_string());
         assert!(matches!(
-            worker.context_shift(),
+            worker.context_shift(0),
             Err(ShiftError::TooFewMessages)
         ));
 
         Ok(())
+    }
+
+    fn worker_with_turns<'a>(
+        model: &'a llm::Model,
+        context_shift: Option<ContextShiftOptions>,
+        turns: usize,
+    ) -> Result<Chat<'a>, Box<dyn std::error::Error>> {
+        let mut worker = Chat::new_chat_worker(
+            model,
+            ChatConfig {
+                n_ctx: 512,
+                context_shift,
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )?;
+        for i in 0..turns {
+            worker.add_user_message(format!("Question {i}: tell me about the number {i}."));
+            worker.add_assistant_message(format!(
+                "The number {i} is a fine number, and there is plenty to say about it."
+            ));
+        }
+        worker.add_user_message("Thanks!".to_string());
+        Ok(worker)
+    }
+
+    /// The shift removes the fewest turns that fit, found by brute force here.
+    #[test]
+    fn test_context_shift_deletes_fewest_turns() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
+        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+        let original = worker.messages.clone();
+        let turn_starts = user_message_indices(&original);
+
+        let expected = (1..turn_starts.len() - 2)
+            .find(|&k| {
+                let mut messages = original.clone();
+                messages.forget(turn_starts[1]..turn_starts[1 + k]);
+                worker.render_as_chunks(&messages).unwrap().n_tokens() <= target_size
+            })
+            .expect("some deletion should reach the target");
+
+        worker.context_shift(0)?;
+        let deleted = turn_starts.len() - user_message_indices(&worker.messages).len();
+        assert_eq!(deleted, expected);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_custom_options() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let options = ContextShiftOptions {
+            keep_first_turns: 2,
+            keep_last_turns: 3,
+            target: ShiftTarget::Tokens(200),
+        };
+        let mut worker = worker_with_turns(&model, Some(options), 20)?;
+        let before: Vec<String> = worker
+            .messages
+            .iter()
+            .filter(|m| m.is_user())
+            .map(|m| m.content().to_string())
+            .collect();
+
+        worker.context_shift(0)?;
+
+        let after: Vec<String> = worker
+            .messages
+            .iter()
+            .filter(|m| m.is_user())
+            .map(|m| m.content().to_string())
+            .collect();
+        assert!(after.len() < before.len());
+        assert_eq!(after[..2], before[..2]);
+        assert_eq!(after[after.len() - 3..], before[before.len() - 3..]);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= 200);
+        assert_valid_message_structure(&worker.messages);
+
+        Ok(())
+    }
+
+    /// Room reserved for a partial response comes off the target.
+    #[test]
+    fn test_context_shift_reserves_tokens() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
+        let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
+
+        worker.context_shift(100)?;
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size - 100);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_disabled() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, None, 20)?;
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > 512);
+
+        let inference_lock_token = acquire_inference_lock();
+        assert!(matches!(
+            worker.sync_context_with_render(&inference_lock_token),
+            Err(ContextSyncError::Shift(ShiftError::Disabled))
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_set_context_shift() -> Result<(), Box<dyn std::error::Error>> {
+        let model = test_utils::load_test_model();
+        let mut worker = worker_with_turns(&model, Some(ContextShiftOptions::default()), 20)?;
+
+        let invalid = ContextShiftOptions {
+            target: ShiftTarget::Tokens(512),
+            ..Default::default()
+        };
+        assert!(matches!(
+            worker.set_context_shift(Some(invalid)),
+            Err(SetterError::InvalidContextShiftOptions(_))
+        ));
+
+        worker.set_context_shift(None)?;
+        assert!(matches!(worker.context_shift(0), Err(ShiftError::Disabled)));
+
+        worker.set_context_shift(Some(ContextShiftOptions {
+            target: ShiftTarget::Tokens(200),
+            ..Default::default()
+        }))?;
+        worker.context_shift(0)?;
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= 200);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_context_shift_options_are_validated() {
+        let invalid = [
+            ShiftTarget::Fraction(1.5),
+            ShiftTarget::Fraction(0.0),
+            ShiftTarget::Tokens(0),
+            ShiftTarget::Tokens(512),
+        ]
+        .map(|target| ContextShiftOptions {
+            target,
+            ..Default::default()
+        });
+        let no_last_turn = ContextShiftOptions {
+            keep_last_turns: 0,
+            ..Default::default()
+        };
+
+        for options in invalid.into_iter().chain([no_last_turn]) {
+            assert!(
+                options.parse(512).is_err(),
+                "{options:?} should be rejected"
+            );
+        }
+        assert!(ContextShiftOptions::default().parse(512).is_ok());
     }
 
     /// `complete()` can hand over a history that does not start with a user
@@ -3902,7 +3879,7 @@ mod tests {
         }
         worker.add_user_message("final".to_string());
 
-        worker.context_shift()?;
+        worker.context_shift(0)?;
 
         assert!(
             matches!(&worker.messages[0], Message::Assistant { content, .. }
@@ -3916,7 +3893,7 @@ mod tests {
             "the first turn should survive: {:?}",
             worker.messages[1]
         );
-        assert!(worker.render_as_chunks(&worker.messages, false)?.n_tokens() <= target_size);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size);
 
         Ok(())
     }
@@ -3967,66 +3944,10 @@ mod tests {
 
         worker.add_user_message("Final question!".to_string());
 
-        // Check that we have many messages before shift
-        let messages_before = worker.messages.len();
-        println!("Messages before shift: {}", messages_before);
+        worker.context_shift(0)?;
 
-        // Trigger context shift
-        worker.context_shift()?;
-
-        println!("{:?}", worker.messages);
-
-        let messages_after = worker.messages.clone();
-
-        // Verify essential messages are preserved:
-        // 1. Should have first user message
-        let first_user_idx = messages_after.iter().position(|m| m.is_user());
-        assert!(
-            first_user_idx.is_some(),
-            "First user message should be preserved"
-        );
-
-        // 2. Count remaining user messages - should have at least 3 (first + last 2)
-        let user_count = messages_after.iter().filter(|m| m.is_user()).count();
-        assert!(
-            user_count >= 3,
-            "Should preserve first user message and last 2 user messages"
-        );
-
-        // 3. Verify the last user message is there
-        let last_user = messages_after.iter().rev().find(|m| m.is_user());
-
-        if let Some(Message::User { content, .. }) = last_user {
-            assert!(
-                content.to_string().contains("Final question!"),
-                "Last user message should be preserved"
-            );
-        }
-
-        // 4. Verify token count is within target
-        let token_count = worker.render_as_chunks(&worker.messages, true)?.n_tokens();
-
-        let target_size = (n_ctx / 2) as usize;
-        assert!(
-            token_count <= target_size,
-            "Token count {} should be <= target size {}",
-            token_count,
-            target_size
-        );
-
-        // 5. Fewer messages after shift
-        assert!(
-            messages_after.len() < messages_before,
-            "Should have fewer messages after shift"
-        );
-
-        // 6. Check that message structure is still valid
-        assert_valid_message_structure(&messages_after);
-
-        println!("Messages before shift: {}", messages_before);
-        println!("Messages after shift: {}", messages_after.len());
-        println!("Token count after shift: {}", token_count);
-        println!("Target token size: {}", target_size);
+        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= (n_ctx / 2) as usize);
+        assert_valid_message_structure(&worker.messages);
 
         Ok(())
     }
@@ -4070,7 +3991,7 @@ mod tests {
         // This should trigger context shift internally because there's not enough space
         worker.ask(
             "This is a new question that will not fit in the context! What is 10 * 10?".into(),
-            f,
+            text(f),
         )?;
 
         let _response = receiver.recv()?;
@@ -4147,7 +4068,7 @@ mod tests {
         };
 
         // This should trigger context shift internally because there's not enough space
-        worker.ask("What is 10 * 10?".into(), f)?;
+        worker.ask("What is 10 * 10?".into(), text(f))?;
 
         let _response = receiver.recv()?;
         let messages_after = worker.messages.clone();
@@ -4308,6 +4229,16 @@ mod tests {
             resp.contains("Copenhagen"),
             "Model failed to answer after reset"
         );
+    }
+
+    /// A turn's chunks as `ask` and `complete` stream them to `respond`.
+    fn text(respond: impl Fn(llm::WriteOutput)) -> impl FnMut(CompletionChunk) {
+        move |chunk| {
+            respond(match chunk {
+                CompletionChunk::Token(token) => llm::WriteOutput::Token(token),
+                CompletionChunk::Done(response) => llm::WriteOutput::Done(response.content),
+            })
+        }
     }
 
     fn user(content: &str) -> Message {
@@ -4689,10 +4620,8 @@ mod tests {
             user("How are you?"),
         ])?;
 
-        // `complete` returns `&mut Self` on success, which has no `Debug`.
         let err = worker
-            .complete(unrenderable, Options::new(), |_| {})
-            .map(|_| ())
+            .complete(unrenderable, Options::new(), None, true, |_| {})
             .unwrap_err();
 
         // The help has to survive every wrapper between the template and the
@@ -4846,7 +4775,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let image = test_utils::test_image();
         let mut content = MessageContent::parts([
             ContentPart::text("What is in this image?"),
             ContentPart::image(image),
@@ -4862,7 +4791,7 @@ mod tests {
             .id()
             .expect("the part should carry a freshly registered id");
         assert_ne!(registered, "id-from-another-session");
-        assert!(worker.context.bitmaps.contains_key(registered));
+        assert!(worker.media.bitmaps.contains_key(registered));
 
         Ok(())
     }
@@ -4888,7 +4817,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
+        let image = test_utils::test_image();
         let messages: Vec<Message> = serde_json::from_value(serde_json::json!([{
             "role": "user",
             "content": [
@@ -4899,11 +4828,17 @@ mod tests {
         }]))?;
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(History::new(messages)?, Options::new(), move |out| {
-            if let llm::WriteOutput::Done(resp) = out {
-                sender.send(resp).unwrap();
-            }
-        })?;
+        worker.complete(
+            History::new(messages)?,
+            Options::new(),
+            None,
+            true,
+            text(move |out| {
+                if let llm::WriteOutput::Done(resp) = out {
+                    sender.send(resp).unwrap();
+                }
+            }),
+        )?;
         let resp = receiver.recv()?.to_lowercase();
 
         assert!(
@@ -4913,7 +4848,7 @@ mod tests {
             "the interleaved image did not reach the model: {resp}"
         );
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             1,
             "the image part should have been registered"
         );
@@ -4960,10 +4895,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = std::path::PathBuf::from(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../python/tests/img/dog.png"
-        ));
+        let image = std::path::PathBuf::from(test_utils::test_image());
         worker.ask(
             Prompt::parts([
                 ContentPart::text("What is in this image?"),
@@ -4972,7 +4904,7 @@ mod tests {
             |_| {},
         )?;
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             1,
             "expected the image to be registered"
         );
@@ -4990,15 +4922,17 @@ mod tests {
             serde_json::to_value(&stored)?,
             "an already-registered part should keep its id rather than be reloaded"
         );
-        assert_eq!(worker.context.bitmaps.len(), 1);
+        assert_eq!(worker.media.bitmaps.len(), 1);
 
         worker.complete(
             History::new(vec![user("Say the word 'banana'.")])?,
             Options::new(),
+            None,
+            true,
             |_| {},
         )?;
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             0,
             "the replaced history's image bitmap should have been released"
         );
@@ -5015,11 +4949,17 @@ mod tests {
         let replayed = Message::User { content };
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        worker.complete(History::new(vec![replayed])?, Options::new(), move |out| {
-            if let llm::WriteOutput::Done(resp) = out {
-                sender.send(resp).unwrap();
-            }
-        })?;
+        worker.complete(
+            History::new(vec![replayed])?,
+            Options::new(),
+            None,
+            true,
+            text(move |out| {
+                if let llm::WriteOutput::Done(resp) = out {
+                    sender.send(resp).unwrap();
+                }
+            }),
+        )?;
         let resp = receiver.recv()?.to_lowercase();
 
         assert!(
@@ -5029,7 +4969,7 @@ mod tests {
             "the image was not reloaded from its path: {resp}"
         );
         assert_eq!(
-            worker.context.bitmaps.len(),
+            worker.media.bitmaps.len(),
             1,
             "the reloaded bitmap should be registered"
         );
@@ -5058,9 +4998,10 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
 
-        let image = concat!(env!("CARGO_MANIFEST_DIR"), "/../python/tests/img/dog.png");
-        let screenshot =
-            || MessageContent::parts([ContentPart::text("Here it is:"), ContentPart::image(image)]);
+        let image = test_utils::test_image();
+        let screenshot = || {
+            MessageContent::parts([ContentPart::text("Here it is:"), ContentPart::image(&image)])
+        };
         let mut messages = History::new(vec![
             user("Take a screenshot."),
             Message::new_tool("screenshot".to_string(), screenshot()),
@@ -5072,13 +5013,13 @@ mod tests {
             for part in message.content_ref().media_parts() {
                 assert!(
                     part.id()
-                        .is_some_and(|id| worker.context.bitmaps.contains_key(id)),
+                        .is_some_and(|id| worker.media.bitmaps.contains_key(id)),
                     "media on a {} message was not registered: {part:?}",
                     message.role(),
                 );
             }
         }
-        assert_eq!(worker.context.bitmaps.len(), 1);
+        assert_eq!(worker.media.bitmaps.len(), 1);
 
         Ok(())
     }
@@ -5144,6 +5085,64 @@ mod tests {
         assert_eq!(chat.get_chat_history().await?.len(), 2);
 
         Ok(())
+    }
+
+    /// Before each turn the KV cache must hold exactly the rendered chat, by
+    /// position and by token count.
+    fn assert_cache_matches_render(model: &llm::Model, first: MessageContent) {
+        let mut chat = Chat::new_chat_worker(
+            model,
+            ChatConfig {
+                n_ctx: 4096,
+                sampler_config: Some(SamplerPresets::greedy()),
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .unwrap();
+        for mut prompt in [
+            first,
+            "Say bye in one word.".into(),
+            "Count to three.".into(),
+        ] {
+            chat.register_media(&mut prompt).unwrap();
+            chat.add_user_message(prompt);
+            chat.sync_context_with_render(&acquire_inference_lock())
+                .unwrap();
+            let render = chat.render_as_chunks(&chat.messages).unwrap();
+            assert_eq!(
+                chat.engine.ctx.kv_cache_seq_pos_max(0) + 1,
+                render.n_positions() as i32
+            );
+            assert_eq!(chat.engine.actual_context_size(), render.n_tokens() as i32);
+            chat.run_turn(Some(64), true, |_| {}).unwrap();
+        }
+    }
+
+    /// Gemma 3 ends a turn with a newline after the end-of-turn token the model generates.
+    #[test]
+    fn test_cache_matches_render_gemma() {
+        let Some(model) = test_utils::load_model_from_env("TEST_VISION_MODEL", None) else {
+            return;
+        };
+        assert_cache_matches_render(&model, "Say hi in one word.".into());
+    }
+
+    /// Qwen3.5 gives an image fewer KV positions than tokens (M-RoPE).
+    #[test]
+    fn test_cache_matches_render_mrope_image() {
+        let Some(model) = test_utils::load_model_from_env(
+            "TEST_RECURRENT_MODEL",
+            Some("TEST_RECURRENT_MMPROJ_MODEL"),
+        ) else {
+            return;
+        };
+        let image = test_utils::test_image();
+        let first = MessageContent::parts([
+            ContentPart::image(image),
+            ContentPart::text("What animal is this? One word."),
+        ]);
+        assert_cache_matches_render(&model, first);
     }
 
     // Template rendering tests have been moved to template.rs module

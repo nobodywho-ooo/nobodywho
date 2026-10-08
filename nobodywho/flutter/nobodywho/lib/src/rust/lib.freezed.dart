@@ -1269,4 +1269,296 @@ as String,
 
 }
 
+/// @nodoc
+mixin _$ShiftTarget {
+
+ num get field0;
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ShiftTarget&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'ShiftTarget(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+class $ShiftTargetCopyWith<$Res>  {
+$ShiftTargetCopyWith(ShiftTarget _, $Res Function(ShiftTarget) __);
+}
+
+
+/// Adds pattern-matching-related methods to [ShiftTarget].
+extension ShiftTargetPatterns on ShiftTarget {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( ShiftTarget_Fraction value)?  fraction,TResult Function( ShiftTarget_Tokens value)?  tokens,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case ShiftTarget_Fraction() when fraction != null:
+return fraction(_that);case ShiftTarget_Tokens() when tokens != null:
+return tokens(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( ShiftTarget_Fraction value)  fraction,required TResult Function( ShiftTarget_Tokens value)  tokens,}){
+final _that = this;
+switch (_that) {
+case ShiftTarget_Fraction():
+return fraction(_that);case ShiftTarget_Tokens():
+return tokens(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( ShiftTarget_Fraction value)?  fraction,TResult? Function( ShiftTarget_Tokens value)?  tokens,}){
+final _that = this;
+switch (_that) {
+case ShiftTarget_Fraction() when fraction != null:
+return fraction(_that);case ShiftTarget_Tokens() when tokens != null:
+return tokens(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( double field0)?  fraction,TResult Function( int field0)?  tokens,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case ShiftTarget_Fraction() when fraction != null:
+return fraction(_that.field0);case ShiftTarget_Tokens() when tokens != null:
+return tokens(_that.field0);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( double field0)  fraction,required TResult Function( int field0)  tokens,}) {final _that = this;
+switch (_that) {
+case ShiftTarget_Fraction():
+return fraction(_that.field0);case ShiftTarget_Tokens():
+return tokens(_that.field0);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( double field0)?  fraction,TResult? Function( int field0)?  tokens,}) {final _that = this;
+switch (_that) {
+case ShiftTarget_Fraction() when fraction != null:
+return fraction(_that.field0);case ShiftTarget_Tokens() when tokens != null:
+return tokens(_that.field0);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class ShiftTarget_Fraction extends ShiftTarget {
+  const ShiftTarget_Fraction(this.field0): super._();
+  
+
+@override final  double field0;
+
+/// Create a copy of ShiftTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ShiftTarget_FractionCopyWith<ShiftTarget_Fraction> get copyWith => _$ShiftTarget_FractionCopyWithImpl<ShiftTarget_Fraction>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ShiftTarget_Fraction&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'ShiftTarget.fraction(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ShiftTarget_FractionCopyWith<$Res> implements $ShiftTargetCopyWith<$Res> {
+  factory $ShiftTarget_FractionCopyWith(ShiftTarget_Fraction value, $Res Function(ShiftTarget_Fraction) _then) = _$ShiftTarget_FractionCopyWithImpl;
+@useResult
+$Res call({
+ double field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$ShiftTarget_FractionCopyWithImpl<$Res>
+    implements $ShiftTarget_FractionCopyWith<$Res> {
+  _$ShiftTarget_FractionCopyWithImpl(this._self, this._then);
+
+  final ShiftTarget_Fraction _self;
+  final $Res Function(ShiftTarget_Fraction) _then;
+
+/// Create a copy of ShiftTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(ShiftTarget_Fraction(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class ShiftTarget_Tokens extends ShiftTarget {
+  const ShiftTarget_Tokens(this.field0): super._();
+  
+
+@override final  int field0;
+
+/// Create a copy of ShiftTarget
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ShiftTarget_TokensCopyWith<ShiftTarget_Tokens> get copyWith => _$ShiftTarget_TokensCopyWithImpl<ShiftTarget_Tokens>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ShiftTarget_Tokens&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'ShiftTarget.tokens(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ShiftTarget_TokensCopyWith<$Res> implements $ShiftTargetCopyWith<$Res> {
+  factory $ShiftTarget_TokensCopyWith(ShiftTarget_Tokens value, $Res Function(ShiftTarget_Tokens) _then) = _$ShiftTarget_TokensCopyWithImpl;
+@useResult
+$Res call({
+ int field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$ShiftTarget_TokensCopyWithImpl<$Res>
+    implements $ShiftTarget_TokensCopyWith<$Res> {
+  _$ShiftTarget_TokensCopyWithImpl(this._self, this._then);
+
+  final ShiftTarget_Tokens _self;
+  final $Res Function(ShiftTarget_Tokens) _then;
+
+/// Create a copy of ShiftTarget
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(ShiftTarget_Tokens(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
+}
+
 // dart format on

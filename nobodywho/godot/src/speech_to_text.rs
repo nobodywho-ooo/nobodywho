@@ -44,7 +44,8 @@ impl NobodyWhoSpeechToText {
     /// - `"language"` (String): ISO 639-1 code (e.g. `"en"`); `""`/omit =
     ///   auto-detect.
     /// - `"quantization"` (String): ONNX precision variant — `"default"` (fp32),
-    ///   `"fp32"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, or `"quantized"`;
+    ///   `"fp32"`, `"fp16"`, `"int8"`, `"uint8"`, `"bnb4"`, `"q4"`, `"q4f16"`, or
+    ///   `"quantized"`;
     ///   `""`/omit = core default (`"q4"`, falling back to `"default"`
     ///   when the repo ships no `q4` variant).
     /// - `"device"` (String): `"auto"` (default), `"cpu"`, or `"cuda"`.
@@ -169,22 +170,21 @@ fn parse_stt_config(
         .map(|s| s.to_string());
     if let Some(q) = dict_get::<GString>(config, "quantization")?.filter(|s| !s.is_empty()) {
         let q = q.to_string().to_ascii_lowercase();
-        // `fp16`/`q4f16` are deliberately excluded: the bundled ONNX Runtime
-        // cannot load those graphs (upstream fp16 graph-loading bug), so they
-        // can only ever fail — reject them up front instead.
         if ![
             "default",
             "fp32",
+            "fp16",
             "int8",
             "uint8",
             "bnb4",
             "q4",
+            "q4f16",
             "quantized",
         ]
         .contains(&q.as_str())
         {
             return Err(format!(
-                "quantization must be 'default', 'fp32', 'int8', 'uint8', 'bnb4', 'q4', or 'quantized', got '{q}'"
+                "quantization must be 'default', 'fp32', 'fp16', 'int8', 'uint8', 'bnb4', 'q4', 'q4f16', or 'quantized', got '{q}'"
             ));
         }
         cfg.quantization = q;

@@ -18,7 +18,10 @@ mod qwen35_36;
 
 use bashkit::{ExecutionLimits, InMemoryFs};
 use llama_cpp_2::model::LlamaModel;
-use monty::{LimitedTracker, MontyRun, PrintWriter, ResourceLimits};
+use monty::MontyRun;
+use monty_types::{
+    CompileOptions, PrintWriter, ResourceLimits, ResourceTracker, DEFAULT_MAX_SUSPENSIONS,
+};
 use serde::{ser::Serializer, Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 use tracing::debug;
@@ -133,22 +136,22 @@ impl Tool {
                         return "ERROR: Code parameter could not be extracted".to_string();
                     };
 
-                    let runner = match MontyRun::new(code.to_string(), "script.py", vec![], vec![]) {
+                    let runner = match MontyRun::new(code.to_string(), "script.py", vec![], CompileOptions::default()) {
                         Ok(runner) => runner,
                         Err(e) => return format!("ERROR: Failed to create Python runner: {e}"),
                     };
 
-                    let mut output = PrintWriter::Collect(String::new());
+                    let mut output = String::new();
                     let limits = ResourceLimits {
                         max_duration,
                         max_memory,
                         gc_interval: None, // we dont let the user configure this
-                        max_allocations: None, // we dont let the user configure this
-                        max_recursion_depth,
+                        max_recursion_depth: max_recursion_depth.unwrap_or(usize::MAX),
+                        max_suspensions: DEFAULT_MAX_SUSPENSIONS, // we dont let the user configure this
                     };
 
-                    match runner.run(vec![], LimitedTracker::new(limits), &mut output) {
-                        Ok(_) => output.collected_output().unwrap_or_default().to_string(),
+                    match runner.run(vec![], ResourceTracker::new(limits), PrintWriter::collect_string(&mut output)) {
+                        Ok(_) => output,
                         Err(e) => format!("ERROR: Failed to run Python code: {e}"),
                     }
                 }
@@ -199,13 +202,13 @@ impl Tool {
 
                         match bash.exec(commands).await {
                             Ok(result) => {
-                                let mut output = result.stdout;
+                                let mut output = result.stdout.text_lossy().to_string();
                                 if !result.stderr.is_empty() {
                                     if !output.is_empty() {
                                         output.push('\n');
                                     }
                                     output.push_str("STDERR: ");
-                                    output.push_str(&result.stderr);
+                                    output.push_str(&result.stderr.text_lossy());
                                 }
                                 output
                             }
@@ -304,18 +307,14 @@ pub(crate) fn escape_lark_string(s: &str) -> String {
 /// literal form is always used.
 pub(crate) fn lark_delimiter(model: Option<&LlamaModel>, s: &str) -> String {
     if let Some(model) = model {
-        if let Ok(tokens) = model.str_to_token(s, llama_cpp_2::model::AddBos::Never) {
-            if tokens.len() == 1 {
-                let tok = tokens[0];
-                // A control token has no plaintext rendering: `special=false`
-                // yields empty bytes or errors. Anything else is ordinary text.
-                let is_control = model
-                    .token_to_piece_bytes(tok, 32, false, None)
-                    .map(|b| b.is_empty())
-                    .unwrap_or(true);
-                if is_control {
-                    return format!("<[{}]>", tok.0);
-                }
+        let tokens = model.vocab().tokenize(s.as_bytes(), false, true);
+        if tokens.len() == 1 {
+            let tok = tokens[0];
+            // A control token has no plaintext rendering: `special=false`
+            // yields empty bytes or errors. Anything else is ordinary text.
+            let is_control = model.vocab().token_to_piece(tok, false, None).is_empty();
+            if is_control {
+                return format!("<[{}]>", tok.0);
             }
         }
     }
@@ -815,11 +814,12 @@ mod tests {
         // this is the case the toktrie's `tokenize_special` can't reproduce.
         let tokens: Vec<u32> = model
             .language_model
-            .str_to_token(
-                "<|tool_call_start|>[get_weather(city=\"Paris\")]<|tool_call_end|>",
-                llama_cpp_2::model::AddBos::Never,
+            .vocab()
+            .tokenize(
+                b"<|tool_call_start|>[get_weather(city=\"Paris\")]<|tool_call_end|>",
+                false,
+                true,
             )
-            .unwrap()
             .iter()
             .map(|t| t.0 as u32)
             .collect();
@@ -865,11 +865,12 @@ mod tests {
 
         let tokens: Vec<u32> = model
             .language_model
-            .str_to_token(
-                "[TOOL_CALLS]get_weather[ARGS]{\"city\": \"Paris\"}",
-                llama_cpp_2::model::AddBos::Never,
+            .vocab()
+            .tokenize(
+                b"[TOOL_CALLS]get_weather[ARGS]{\"city\": \"Paris\"}",
+                false,
+                true,
             )
-            .unwrap()
             .iter()
             .map(|t| t.0 as u32)
             .collect();

@@ -745,6 +745,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history(
     ): Short
+    external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift(
+    ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config(
     ): Short
     external fun uniffi_nobodywho_uniffi_checksum_method_rustchat_set_system_prompt(
@@ -889,7 +891,7 @@ internal object UniffiLib {
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_free_rustchat(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,`threadCount`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+external fun uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(`model`: Long,`systemPrompt`: RustBuffer.ByValue,`contextSize`: Int,`templateVariables`: RustBuffer.ByValue,`tools`: RustBuffer.ByValue,`sampler`: RustBuffer.ByValue,`mtp`: RustBuffer.ByValue,`threadCount`: RustBuffer.ByValue,`contextShift`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_ask(`ptr`: Long,`message`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Long
@@ -916,6 +918,8 @@ external fun uniffi_nobodywho_uniffi_fn_method_rustchat_reset_context(`ptr`: Lon
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_reset_history(`ptr`: Long,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(`ptr`: Long,`messages`: RustBuffer.ByValue,
+): Long
+external fun uniffi_nobodywho_uniffi_fn_method_rustchat_set_context_shift(`ptr`: Long,`options`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_nobodywho_uniffi_fn_method_rustchat_set_sampler_config(`ptr`: Long,`sampler`: Long,
 ): Long
@@ -1322,6 +1326,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_chat_history() != 6058.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_context_shift() != 58540.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_nobodywho_uniffi_checksum_method_rustchat_set_sampler_config() != 28012.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1466,7 +1473,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_nobodywho_uniffi_checksum_method_samplerconfig_to_json() != 51798.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 2313.toShort()) {
+    if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustchat_new() != 4810.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_nobodywho_uniffi_checksum_constructor_rustcrossencoder_new() != 9022.toShort()) {
@@ -2126,6 +2133,11 @@ public interface RustChatInterface {
     suspend fun `setChatHistory`(`messages`: List<Message>)
     
     /**
+     * Set how old turns are forgotten when the context is full.
+     */
+    suspend fun `setContextShift`(`options`: ContextShiftOptions)
+    
+    /**
      * Set the sampler configuration.
      */
     suspend fun `setSamplerConfig`(`sampler`: SamplerConfig)
@@ -2200,13 +2212,16 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
      * detects the device's physical core count (performance cores only, on
      * Apple silicon), since hyperthreads and efficiency cores make inference
      * slower. Clamped to the CPU count.
+     *
+     * `context_shift` sets how old turns are forgotten when the context is
+     * full; `null` uses the defaults.
      */
-    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?, `threadCount`: kotlin.UInt?) :
+    constructor(`model`: RustModel, `systemPrompt`: kotlin.String?, `contextSize`: kotlin.UInt, `templateVariables`: Map<kotlin.String, kotlin.Boolean>?, `tools`: List<RustTool>?, `sampler`: SamplerConfig?, `mtp`: MtpConfig?, `threadCount`: kotlin.UInt?, `contextShift`: ContextShiftOptions?) :
         this(UniffiWithHandle, 
     uniffiRustCallWithError(NobodyWhoException) { _status ->
     UniffiLib.uniffi_nobodywho_uniffi_fn_constructor_rustchat_new(
     
-        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),FfiConverterOptionalUInt.lower(`threadCount`),_status)
+        FfiConverterTypeRustModel.lower(`model`),FfiConverterOptionalString.lower(`systemPrompt`),FfiConverterUInt.lower(`contextSize`),FfiConverterOptionalMapStringBoolean.lower(`templateVariables`),FfiConverterOptionalSequenceTypeRustTool.lower(`tools`),FfiConverterOptionalTypeSamplerConfig.lower(`sampler`),FfiConverterOptionalTypeMtpConfig.lower(`mtp`),FfiConverterOptionalUInt.lower(`threadCount`),FfiConverterOptionalTypeContextShiftOptions.lower(`contextShift`),_status)
 }
     )
 
@@ -2570,6 +2585,31 @@ open class RustChat: Disposable, AutoCloseable, RustChatInterface
             UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_set_chat_history(
                 uniffiHandle,
                 FfiConverterSequenceTypeMessage.lower(`messages`),
+            )
+        },
+        { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_nobodywho_uniffi_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        NobodyWhoException.ErrorHandler,
+    )
+    }
+
+    
+    /**
+     * Set how old turns are forgotten when the context is full.
+     */
+    @Throws(NobodyWhoException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+    override suspend fun `setContextShift`(`options`: ContextShiftOptions) {
+        return uniffiRustCallAsync(
+        callWithHandle { uniffiHandle ->
+            UniffiLib.uniffi_nobodywho_uniffi_fn_method_rustchat_set_context_shift(
+                uniffiHandle,
+                FfiConverterTypeContextShiftOptions.lower(`options`),
             )
         },
         { future, callback, continuation -> UniffiLib.ffi_nobodywho_uniffi_rust_future_poll_void(future, callback, continuation) },
@@ -6599,6 +6639,68 @@ public object FfiConverterTypeChatStats: FfiConverterRustBuffer<ChatStats> {
 
 
 /**
+ * How a chat forgets old turns when its context is full. A turn is a user
+ * message and everything up to the next one; system messages are always kept.
+ */
+data class ContextShiftOptions (
+    /**
+     * `false` disables shifting, so a full context is an error instead.
+     */
+    var `enabled`: kotlin.Boolean = true 
+    , 
+    /**
+     * Turns always kept at the start of the history.
+     */
+    var `keepFirstTurns`: kotlin.UInt = 1u 
+    , 
+    /**
+     * Turns always kept at the end of the history; at least 1.
+     */
+    var `keepLastTurns`: kotlin.UInt = 2u 
+    , 
+    /**
+     * Size the history is shrunk to. `null` means half the context size.
+     */
+    var `target`: ShiftTarget? = null 
+    
+){
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeContextShiftOptions: FfiConverterRustBuffer<ContextShiftOptions> {
+    override fun read(buf: ByteBuffer): ContextShiftOptions {
+        return ContextShiftOptions(
+            FfiConverterBoolean.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterOptionalTypeShiftTarget.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ContextShiftOptions) = (
+            FfiConverterBoolean.allocationSize(value.`enabled`) +
+            FfiConverterUInt.allocationSize(value.`keepFirstTurns`) +
+            FfiConverterUInt.allocationSize(value.`keepLastTurns`) +
+            FfiConverterOptionalTypeShiftTarget.allocationSize(value.`target`)
+    )
+
+    override fun write(value: ContextShiftOptions, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`enabled`, buf)
+            FfiConverterUInt.write(value.`keepFirstTurns`, buf)
+            FfiConverterUInt.write(value.`keepLastTurns`, buf)
+            FfiConverterOptionalTypeShiftTarget.write(value.`target`, buf)
+    }
+}
+
+
+
+/**
  * Tuning for MTP speculative decoding. Passing one to `RustChat::new`
  * enables MTP; `null` runs the solo decode path. Requires the model to
  * have been loaded with a compatible `draft_model_path`.
@@ -7214,6 +7316,93 @@ public object FfiConverterTypeNobodyWhoError : FfiConverterRustBuffer<NobodyWhoE
 
 
 /**
+ * Size a context shift shrinks the chat history to.
+ */
+sealed class ShiftTarget {
+    
+    /**
+     * A fraction of the context size, in `(0, 1)`.
+     */
+    data class Fraction(
+        val `fraction`: kotlin.Float) : ShiftTarget()
+        
+    {
+        
+
+        companion object
+    }
+    
+    /**
+     * A number of tokens, below the context size.
+     */
+    data class Tokens(
+        val `tokens`: kotlin.UInt) : ShiftTarget()
+        
+    {
+        
+
+        companion object
+    }
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeShiftTarget : FfiConverterRustBuffer<ShiftTarget>{
+    override fun read(buf: ByteBuffer): ShiftTarget {
+        return when(buf.getInt()) {
+            1 -> ShiftTarget.Fraction(
+                FfiConverterFloat.read(buf),
+                )
+            2 -> ShiftTarget.Tokens(
+                FfiConverterUInt.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: ShiftTarget) = when(value) {
+        is ShiftTarget.Fraction -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterFloat.allocationSize(value.`fraction`)
+            )
+        }
+        is ShiftTarget.Tokens -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`tokens`)
+            )
+        }
+    }
+
+    override fun write(value: ShiftTarget, buf: ByteBuffer) {
+        when(value) {
+            is ShiftTarget.Fraction -> {
+                buf.putInt(1)
+                FfiConverterFloat.write(value.`fraction`, buf)
+                Unit
+            }
+            is ShiftTarget.Tokens -> {
+                buf.putInt(2)
+                FfiConverterUInt.write(value.`tokens`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
+/**
  * `push` always returns one of these: `Speech`/`Silence` for the confirmed
  * state when unchanged since the last call, or `SpeechStarted`/`SpeechEnded`
  * on the call that confirmed the transition.
@@ -7547,6 +7736,38 @@ public object FfiConverterOptionalTypeSamplerConfig: FfiConverterRustBuffer<Samp
 /**
  * @suppress
  */
+public object FfiConverterOptionalTypeContextShiftOptions: FfiConverterRustBuffer<ContextShiftOptions?> {
+    override fun read(buf: ByteBuffer): ContextShiftOptions? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeContextShiftOptions.read(buf)
+    }
+
+    override fun allocationSize(value: ContextShiftOptions?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeContextShiftOptions.allocationSize(value)
+        }
+    }
+
+    override fun write(value: ContextShiftOptions?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeContextShiftOptions.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalTypeMtpConfig: FfiConverterRustBuffer<MtpConfig?> {
     override fun read(buf: ByteBuffer): MtpConfig? {
         if (buf.get().toInt() == 0) {
@@ -7601,6 +7822,38 @@ public object FfiConverterOptionalTypePendingToolCall: FfiConverterRustBuffer<Pe
         } else {
             buf.put(1)
             FfiConverterTypePendingToolCall.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeShiftTarget: FfiConverterRustBuffer<ShiftTarget?> {
+    override fun read(buf: ByteBuffer): ShiftTarget? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeShiftTarget.read(buf)
+    }
+
+    override fun allocationSize(value: ShiftTarget?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeShiftTarget.allocationSize(value)
+        }
+    }
+
+    override fun write(value: ShiftTarget?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeShiftTarget.write(value, buf)
         }
     }
 }

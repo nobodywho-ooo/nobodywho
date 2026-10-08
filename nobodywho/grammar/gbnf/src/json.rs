@@ -1062,10 +1062,9 @@ pub fn json_schema_to_grammar(
     root: &str,
 ) -> Result<GbnfGrammar, JsonSchemaError> {
     let value = schema.into_schema()?;
-    if !jsonschema::meta::is_valid(&value) {
+    if let Err(err) = jsonschema::meta::validate(&value) {
         return Err(JsonSchemaError::InvalidSchema(format!(
-            "Not a valid json schema: {}",
-            value
+            "not a valid json schema: {err}"
         )));
     };
     let mut converter = JsonSchemaConverter::new();
@@ -1379,5 +1378,15 @@ mod tests {
         assert!(gbnf.contains("json-integer"));
         // Should have json-null for nullable types
         assert!(gbnf.contains("json-null"));
+    }
+
+    #[test]
+    #[should_panic = "not a valid json schema: Resource 'http://example.com/schema' is not present in a registry and retrieving it failed"]
+    fn validation_does_not_resolve() {
+        let schema = r#"
+        {"$schema": "http://example.com/schema", "type": "string"}
+        "#;
+
+        let _grammar = json_schema_to_grammar(schema, "root").unwrap();
     }
 }

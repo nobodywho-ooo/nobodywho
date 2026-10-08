@@ -1,4 +1,5 @@
 import React, {useState, useRef, useEffect} from 'react';
+import useIsBrowser from '@docusaurus/useIsBrowser';
 
 const GH_BASE =
   'https://github.com/nobodywho-ooo/nobodywho/blob/main/docs/';
@@ -17,7 +18,7 @@ const ICONS = {
 };
 
 function Icon({name}: {name: keyof typeof ICONS}) {
-  return <span style={{display: 'inline-flex', alignItems: 'center', flexShrink: 0}} dangerouslySetInnerHTML={{__html: ICONS[name]}} />;
+  return <span className="page-action__icon" aria-hidden="true" dangerouslySetInnerHTML={{__html: ICONS[name]}} />;
 }
 
 function deriveSourcePath(pathname: string): string {
@@ -54,14 +55,9 @@ function CopyPageButton() {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="button button--secondary button--sm"
-      style={{fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '5px'}}
-    >
+    <button type="button" onClick={handleCopy} className="page-action">
       <Icon name={copied ? 'check' : 'copy'} />
-      {copied ? 'Copied!' : 'Copy Page'}
+      {copied ? 'Copied' : 'Copy page'}
     </button>
   );
 }
@@ -69,6 +65,8 @@ function CopyPageButton() {
 export default function PageActions(): React.JSX.Element | null {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // False during SSR and hydration, so the first client render matches the server HTML
+  const isBrowser = useIsBrowser();
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -85,7 +83,8 @@ export default function PageActions(): React.JSX.Element | null {
     };
   }, []);
 
-  if (typeof window === 'undefined') return null;
+  // Placeholder with the buttons' size, so the layout doesn't shift when they render
+  if (!isBrowser) return <div className="page-actions page-actions--placeholder" aria-hidden="true" />;
 
   const pathname = window.location.pathname;
   const sourcePath = deriveSourcePath(pathname);
@@ -101,64 +100,24 @@ export default function PageActions(): React.JSX.Element | null {
     {label: 'View on GitHub', icon: 'github' as const, href: githubUrl},
   ];
 
-  const menuItemStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '6px 10px',
-    borderRadius: '4px',
-    fontSize: '0.85rem',
-    color: 'var(--ifm-font-color-base)',
-    textDecoration: 'none',
-    whiteSpace: 'nowrap',
-  };
-
   return (
-    <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+    <div className="page-actions">
       <CopyPageButton />
-      <div ref={ref} style={{position: 'relative', display: 'inline-block'}}>
+      <div ref={ref} className="page-actions__menu">
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="button button--secondary button--sm"
+          className="page-action page-action--menu"
           aria-haspopup="menu"
           aria-expanded={open}
-          style={{fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '5px'}}
         >
           <Icon name="externalLink" />
-          Open in...
+          Open in
         </button>
         {open && (
-          <div
-            role="menu"
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: '100%',
-              marginTop: '4px',
-              minWidth: '200px',
-              padding: '0.5rem',
-              borderRadius: '8px',
-              border: '1px solid var(--ifm-toc-border-color)',
-              backgroundColor: 'var(--ifm-background-surface-color, #000)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              zIndex: 50,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '2px',
-            }}
-          >
+          <div role="menu" className="page-actions__list">
             {items.map(({label, icon, href}) => (
-              <a
-                key={label}
-                href={href}
-                target="_blank"
-                rel="noreferrer noopener"
-                role="menuitem"
-                style={menuItemStyle}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--ifm-code-background)')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-              >
+              <a key={label} href={href} target="_blank" rel="noreferrer noopener" role="menuitem">
                 <Icon name={icon} />
                 {label}
               </a>

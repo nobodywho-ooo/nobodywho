@@ -18,7 +18,7 @@ maturin develop --uv
 Also, don't forget to create and format the Python type stubs (which unfortunately have to be generated separately):
 ```
 cargo build
-cargo run --bin make_stubs
+cargo run -p make_stubs
 uv run ruff format nobodywho.pyi
 ```
 Then you should be able to run `nobodywho`:

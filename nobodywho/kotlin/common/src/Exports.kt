@@ -8,6 +8,8 @@ typealias CachedModel = uniffi.nobodywho.CachedModel
 typealias VoiceActivityDetectionEvent = uniffi.nobodywho.VoiceActivityDetectionEvent
 typealias ContentPart = uniffi.nobodywho.ContentPart
 typealias MessageContent = uniffi.nobodywho.MessageContent
+typealias ContextShiftOptions = uniffi.nobodywho.ContextShiftOptions
+typealias ShiftTarget = uniffi.nobodywho.ShiftTarget
 
 /**
  * Settings to apply before a `complete` turn. Null keeps what the chat has; a set
@@ -34,6 +36,14 @@ fun MessageContent(text: String): MessageContent =
 /** Content holding interleaved text and media. */
 fun MessageContent(vararg parts: ContentPart): MessageContent =
     uniffi.nobodywho.MessageContent.Parts(parts.toList())
+
+/** A shift target that is a fraction of the context size, in (0, 1). */
+fun ShiftTarget(fraction: Float): ShiftTarget =
+    uniffi.nobodywho.ShiftTarget.Fraction(fraction)
+
+/** A shift target that is a number of tokens, below the context size. */
+fun ShiftTarget(tokens: UInt): ShiftTarget =
+    uniffi.nobodywho.ShiftTarget.Tokens(tokens)
 
 /**
  * This content as text.
