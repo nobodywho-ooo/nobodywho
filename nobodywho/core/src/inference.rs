@@ -610,14 +610,17 @@ impl<'a> InferenceEngine<'a> {
     /// Remove tokens from `index` onward from the KV cache, and return how many are kept.
     /// That can be fewer than `index`: media is never split, recurrent models can only go
     /// back to a checkpoint, and without one the whole context is reset.
-    fn remove_tokens_from(&mut self, index: usize) -> Result<usize, KvCacheConversionError> {
-        if self.kv_mirror().n_tokens() <= index {
+    fn remove_kv_cache_suffix(
+        &mut self,
+        start_index: usize,
+    ) -> Result<usize, KvCacheConversionError> {
+        if self.kv_mirror().n_tokens() <= start_index {
             return Ok(self.kv_mirror.n_tokens());
         }
 
         // The cache is cut by position, which falls behind the token count after M-RoPE media.
         // Media can't be split, so a cut inside one moves back to its start and it is re-read.
-        let (index, position) = self.kv_mirror.cut_at(index);
+        let (index, position) = self.kv_mirror.cut_at(start_index);
         // Recurrent and hybrid models can only cut within the last decode, which we don't have a way of checking.
         // Instead those models always fall back to the last checkpoint or a full reset.
         let seq_rm_success = if !self.needs_checkpoints() || index == 0 {
@@ -693,11 +696,11 @@ impl<'a> InferenceEngine<'a> {
         // `target[..kept]`, and `read_until` continues from there.
         let cached = self.kv_mirror().n_tokens();
         let diverge = find_chunks_prefix_difference(&self.kv_mirror, &target);
-        let mut kept = self.remove_tokens_from(diverge)?;
+        let mut kept = self.remove_kv_cache_suffix(diverge)?;
         if kept == end && kept < cached {
             // The target ends inside the cache, whose logits are for a token we just
             // removed. Read the last token again to get its logits.
-            kept = self.remove_tokens_from(end - 1)?;
+            kept = self.remove_kv_cache_suffix(end - 1)?;
         }
 
         // The cache can't be saved at a point it is already past, and an older checkpoint
