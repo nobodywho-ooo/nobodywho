@@ -575,10 +575,11 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
-      - uses: ./.github/actions/prepare-android-gpu
-        with:
-          target: ${{ matrix.target }}
-          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: ${{ matrix.target }}
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
 
       - name: Setup Flutter SDK
         if: matrix.integration == 'flutter'

@@ -158,10 +158,11 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
-      - uses: ./.github/actions/prepare-android-gpu
-        with:
-          target: aarch64-linux-android
-          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: aarch64-linux-android
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
 
       # Mirrors build.yml's cargo-build-android for the aarch64 slice only —
       # a device run needs just the arm64-v8a .so.
@@ -375,10 +376,11 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
-      - uses: ./.github/actions/prepare-android-gpu
-        with:
-          target: aarch64-linux-android
-          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: aarch64-linux-android
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
 
       # Without this the plugin's resolve_binary.dart silently downloads the
       # last *released* .so, so the job would test a stale binary instead of the
@@ -577,10 +579,11 @@ jobs:
           ndk-version: r28
           add-to-path: false
 
-      - uses: ./.github/actions/prepare-android-gpu
-        with:
-          target: aarch64-linux-android
-          ndk: ${{ steps.setup-ndk.outputs.ndk-path }}
+      - name: Prepare Android GPU dependencies
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          GPU_TARGET: aarch64-linux-android
+        run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
 
       - name: "Build uniffi .so (aarch64-linux-android)"
         working-directory: ./nobodywho
