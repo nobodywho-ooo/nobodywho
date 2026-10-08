@@ -15,4 +15,4 @@ runs:
       env:
         ANDROID_NDK_ROOT: ${{ inputs.ndk }}
         GPU_TARGET: ${{ inputs.target }}
-      run: bash nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"
+      run: ./nobodywho/android/prepare-gpu.sh "$GPU_TARGET" --github-env >> "$GITHUB_ENV"

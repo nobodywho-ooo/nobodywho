@@ -8,7 +8,7 @@ With NDK r28, CMake and curl installed, run from `nobodywho/` in Bash:
 
 ```bash
 export ANDROID_NDK_ROOT=/absolute/path/to/android-ndk
-gpu_env=$(bash android/prepare-gpu.sh aarch64-linux-android) || exit
+gpu_env=$(./android/prepare-gpu.sh aarch64-linux-android) || exit
 eval "$gpu_env"
 export ORT_CXX_STDLIB=c++_static
 cargo ndk -t arm64-v8a -p 28 build -p nobodywho-uniffi --release --locked
