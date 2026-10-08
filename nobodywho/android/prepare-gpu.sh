@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Build Android GPU dependencies. stdout contains environment assignments;
 # build output goes to stderr. Run from any directory; see README.md.
+#
+# FIXME(madsmtm): Merge this into llama-cpp-sys-2 or similar, such that
+# `cargo build` simply works, without having to run this script?
 set -euo pipefail
 
 target="${1:?usage: prepare-gpu.sh <Rust Android target> [--github-env]}"

@@ -91,6 +91,8 @@ fn select_gpu_from(
         let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
         // Android can expose the same GPU through two APIs. Prefer OpenCL,
         // then Vulkan; use this same choice for model loading and planning.
+        //
+        // FIXME(madsmtm): Is OpenCL actually faster?
         let backend_priority = if prefer_android_backends {
             match d.backend.as_str() {
                 "OpenCL" => 2,

@@ -3,6 +3,7 @@
 if(NOT ANDROID OR NOT PROJECT_NAME STREQUAL "llama.cpp")
     return()
 endif()
+# FIXME(madsmtm): Why do we need this?
 set(GGML_OPENCL_USE_ADRENO_KERNELS OFF CACHE BOOL "" FORCE)
 if(ANDROID_ABI STREQUAL "arm64-v8a")
     set(GGML_CPU_ARM_ARCH "armv8-a" CACHE STRING "" FORCE)
