@@ -26,6 +26,7 @@ deps_dir="$(cd "$deps_dir" && pwd)"
 
 # Immutable revisions, shared between the two Android ABI builds.
 headers_rev=8a97ebc88daa3495d6f57ec10bb515224400186f # v2025.07.22
+docs_rev=85da0d12c298ffa9eefd2adb1864f2c8193cbe3e # v3.0.19, matches what ^ is updated to
 vulkan_rev=409c16be502e39fe70dd6fe2d9ad4842ef2c9a53 # v1.4.313
 spirv_rev=aa6cef192b8e693916eb713e7a9ccadf06062ceb # SDK 1.4.313.0
 
@@ -44,17 +45,21 @@ fetch_source() {
 }
 
 headers="$deps_dir/OpenCL-Headers-$headers_rev"
+docs="$deps_dir/OpenCL-Docs-$docs_rev"
 vulkan="$deps_dir/Vulkan-Headers-$vulkan_rev"
 spirv="$deps_dir/SPIRV-Headers-$spirv_rev"
 fetch_source OpenCL-Headers "$headers_rev" "$headers" >&2
+fetch_source OpenCL-Docs "$docs_rev" "$docs" >&2
 fetch_source Vulkan-Headers "$vulkan_rev" "$vulkan" >&2
 fetch_source SPIRV-Headers "$spirv_rev" "$spirv" >&2
+
+"$script_dir/gen-shim.py" -registry $docs/xml/cl.xml >&2
 
 build_dir="$deps_dir/$target/opencl-shim"
 mkdir -p "$build_dir"
 toolchain="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$host_tag/bin"
 "$toolchain/${target}24-clang" -c "$script_dir/opencl-shim.c" \
-  -I"$headers" -O2 -g -fPIC -fvisibility=hidden -Wall -Wextra -Werror \
+  -I"$headers" -O2 -g -fPIC -fvisibility=hidden -Wall -Wextra -Werror -Wno-deprecated-declarations \
   -o "$build_dir/opencl-shim.o"
 "$toolchain/llvm-ar" rcs "$build_dir/libOpenCL.a" "$build_dir/opencl-shim.o"
 
