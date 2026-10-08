@@ -89,6 +89,10 @@ fn select_gpu_from(
 ) -> Option<llama_cpp_2::LlamaBackendDevice> {
     usable_gpus(devices, prefer_android_backends).max_by_key(|d| {
         let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
+        let is_integrated_gpu = matches!(
+            d.device_type,
+            llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+        );
         // Android can expose the same GPU through two APIs. Prefer Vulkan,
         // even though the OpenCL backend may be slightly faster, the
         // implementation in llama.cpp is... of questionable quality.
@@ -104,7 +108,7 @@ fn select_gpu_from(
         } else {
             0
         };
-        (backend_priority, is_gpu, device_free(d))
+        (backend_priority, is_gpu, is_integrated_gpu, device_free(d))
     })
 }
 
