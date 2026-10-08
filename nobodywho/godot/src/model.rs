@@ -32,6 +32,7 @@ impl NobodyWhoModel {
     /// - `"use_gpu"` (bool, default true): offload to GPU when available.
     /// - `"mmproj_path"` (String): multimodal projector file for vision models.
     /// - `"draft_path"` (String): MTP draft-heads gguf for speculative decoding.
+    ///   For models that bundle MTP layers (e.g. Qwen3.5), pass the model file itself.
     ///
     /// Pass `{}` for defaults. Unknown keys and values of the wrong type are
     /// errors (resolve to null).

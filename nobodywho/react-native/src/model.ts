@@ -41,7 +41,8 @@ export class Model {
    * @param opts.projectionModelPath - Path to a multimodal projector file for vision models
    * @param opts.draftModelPath - Optional MTP draft-heads gguf. Loading it lets `Chat`
    *   instances opt into MTP speculative decoding via `new Chat({ ..., mtp: true })`.
-   *   Adds around 5% to VRAM usage.
+   *   Adds around 5% to VRAM usage. For models that bundle MTP layers (e.g. Qwen3.5),
+   *   pass the model file itself; it is only loaded once.
    * @param opts.onDownloadProgress - Invoked with `(downloaded, total)` byte counts while a remote model is being downloaded. Throttled to ~10 Hz with a guaranteed final emit on completion. Not invoked for cached/local files.
    */
   static async load(opts: {

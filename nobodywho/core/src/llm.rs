@@ -41,7 +41,22 @@ pub struct Model {
     source: String,
     pub(crate) language_model: LlamaModel,
     pub(crate) projection_model: Option<ProjectionModel>,
-    pub(crate) draft_model: Option<LlamaModel>,
+    pub(crate) draft_model: Option<DraftModel>,
+}
+
+#[derive(Debug)]
+pub(crate) enum DraftModel {
+    /// A separate MTP-heads gguf, e.g. for Gemma-4.
+    Separate(LlamaModel),
+    /// MTP layers bundled in the target file, e.g. Qwen3.5; drafts run on `language_model`.
+    Bundled,
+}
+
+fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
 }
 
 impl Model {
@@ -199,7 +214,13 @@ pub fn get_model_cancellable(
 
     info!(use_gpu = use_gpu, gpu_layers = gpu_layers, "Loading model");
 
-    let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
+    // llama.cpp skips bundled MTP layers unless asked, so load them with the target instead of twice.
+    let mtp_bundled = real_draft_model_path
+        .as_deref()
+        .is_some_and(|p| same_file(p, &real_model_path));
+    let model_params = LlamaModelParams::default()
+        .with_n_gpu_layers(gpu_layers)
+        .with_load_mtp(mtp_bundled);
 
     let model_params = pin!(model_params);
     let load_span = info_span!("model_load", path = %real_model_path.display());
@@ -229,25 +250,30 @@ pub fn get_model_cancellable(
         .map(|path| ProjectionModel::from_path(path, &language_model, use_gpu))
         .transpose()?;
 
-    let draft_model = real_draft_model_path
-        .as_ref()
-        .map(|path| {
+    let draft_model = match real_draft_model_path.as_ref() {
+        None => None,
+        Some(_) if mtp_bundled => {
+            info!("Using MTP layers bundled in the target model");
+            Some(DraftModel::Bundled)
+        }
+        Some(path) => {
             info!(path = %path.display(), "Loading MTP draft model");
-            // Qwen3.5 ships its MTP layers in the main file, and llama.cpp skips them by default.
             let draft_params = pin!(LlamaModelParams::default()
                 .with_n_gpu_layers(gpu_layers)
                 .with_load_mtp(true));
-            LlamaModel::load_from_file(&LLAMA_BACKEND, path, &draft_params).map_err(|e| {
-                let error_msg = format!(
-                    "Failed to load MTP draft model at {}: {}",
-                    path.display(),
-                    e
-                );
-                error!(error = %error_msg, "Failed to load MTP draft model");
-                LoadModelError::InvalidModel(error_msg)
-            })
-        })
-        .transpose()?;
+            let draft =
+                LlamaModel::load_from_file(&LLAMA_BACKEND, path, &draft_params).map_err(|e| {
+                    let error_msg = format!(
+                        "Failed to load MTP draft model at {}: {}",
+                        path.display(),
+                        e
+                    );
+                    error!(error = %error_msg, "Failed to load MTP draft model");
+                    LoadModelError::InvalidModel(error_msg)
+                })?;
+            Some(DraftModel::Separate(draft))
+        }
+    };
 
     Ok(Model {
         source,
@@ -395,7 +421,12 @@ impl<'a> InferenceEngine<'a> {
         let n_batch = planned_n_ctx as usize;
 
         let engine_ctx = if let Some(mtp_config) = mtp {
-            match &model.draft_model {
+            let draft_model = match &model.draft_model {
+                Some(DraftModel::Separate(draft_model)) => Some(draft_model),
+                Some(DraftModel::Bundled) => Some(&model.language_model),
+                None => None,
+            };
+            match draft_model {
                 Some(draft_model) => {
                     info!("Initializing MTP speculative draft context");
                     // MTP replays every batch the target decodes, prompts included.
