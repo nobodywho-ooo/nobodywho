@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod client;
 pub mod event;
 pub mod response;
 
@@ -166,6 +168,7 @@ impl EventStream {
             EventKind::McpCallFailed(progress)
         };
         call.result = Some(result);
+        self.response.output[index.0] = item.clone();
         Ok(vec![
             self.emit(finished, vec![]),
             self.emit(
@@ -208,13 +211,13 @@ impl EventStream {
         if self.open.is_some() || unfinished {
             return Err(EventStreamError::Unfinished);
         }
-        let mut response = self.response.clone();
-        response.status = status;
-        response.incomplete_details = incomplete_details;
-        response.usage = Some(ResponseUsage {
+        self.response.status = status;
+        self.response.incomplete_details = incomplete_details;
+        self.response.usage = Some(ResponseUsage {
             input_tokens: self.input_tokens,
             output_tokens: self.output_tokens,
         });
+        let response = self.response.clone();
         let kind = match status {
             Status::Incomplete => EventKind::Incomplete { response },
             _ => EventKind::Completed { response },
@@ -222,8 +225,9 @@ impl EventStream {
         Ok(vec![self.emit(kind, vec![])])
     }
 
-    /// Numbers an event, gives it the tokens carried so far along with its
-    /// own, and applies it to the response.
+    /// Numbers an event and gives it the tokens carried so far along with its
+    /// own. The caller has already made the change it describes to the
+    /// response.
     fn emit(&mut self, kind: EventKind, tokens: Vec<Token>) -> StreamEvent {
         let mut all_tokens = std::mem::take(&mut self.carried);
         all_tokens.extend(tokens);
@@ -233,10 +237,6 @@ impl EventStream {
             tokens: all_tokens,
         };
         self.next_sequence_number = self.next_sequence_number.next();
-        // The response starts out as the one `Created` carries.
-        if !matches!(event.kind, EventKind::Created { .. }) {
-            self.response.consume_event(event.clone());
-        }
         event
     }
 
@@ -285,6 +285,7 @@ impl EventStream {
             status: Status::InProgress,
             kind,
         };
+        self.response.output.push(item.clone());
         let mut events = vec![self.emit(
             EventKind::OutputItemAdded(OutputItemAddedEvent {
                 output_index: index,
@@ -293,6 +294,13 @@ impl EventStream {
             tokens,
         )];
         if let Some(part) = part {
+            match &mut self.response.output[index.0].kind {
+                ItemKind::Message(MessageItem { content, .. })
+                | ItemKind::Reasoning(ReasoningItem { content, .. }) => content.push(part.clone()),
+                ItemKind::FunctionCall(_) | ItemKind::McpCall(_) => {
+                    unreachable!("only messages and reasoning have parts")
+                }
+            }
             events.push(self.emit(
                 EventKind::ContentPartAdded(ContentPartAddedEvent {
                     item_id: id.clone(),
@@ -322,6 +330,14 @@ impl EventStream {
 
     fn delta(&mut self, delta: String, tokens: Vec<Token>) -> StreamEvent {
         let open = self.open.as_ref().expect("checked by the caller");
+        match &mut self.response.output[open.index.0].kind {
+            ItemKind::Message(MessageItem { content, .. })
+            | ItemKind::Reasoning(ReasoningItem { content, .. }) => {
+                content[0].text.push_str(&delta)
+            }
+            ItemKind::FunctionCall(FunctionCallItem { arguments, .. })
+            | ItemKind::McpCall(McpCallItem { arguments, .. }) => arguments.push_str(&delta),
+        }
         let item_id = open.id.clone();
         let output_index = open.index;
         let kind = match open.kind {
@@ -359,6 +375,9 @@ impl EventStream {
         let open = self.open.take().expect("checked by the caller");
         let mut item = self.response.output[open.index.0].clone();
         item.status = Status::Completed;
+        if !matches!(item.kind, ItemKind::McpCall(_)) {
+            self.response.output[open.index.0].status = Status::Completed;
+        }
         let mut events = match &item.kind {
             ItemKind::Message(MessageItem { content, .. }) => {
                 let text = content[0].text.clone();
@@ -524,37 +543,107 @@ mod tests {
 
     const INPUT_TOKENS: u64 = 12;
 
+    /// An `EventStream` with a client following along. Each event goes to the
+    /// client as JSON, and after every call, even one the stream refuses, the
+    /// response the client has rebuilt is the stream's own.
+    struct Followed {
+        stream: EventStream,
+        /// `None` until the client has seen `Created`.
+        client: Option<ResponseObject>,
+        /// Every event so far.
+        events: Vec<StreamEvent>,
+    }
+
+    impl Followed {
+        fn new(runs_calls: bool) -> Self {
+            let (stream, events) = EventStream::new(runs_calls, StdRng::seed_from_u64(0));
+            let mut followed = Followed {
+                stream,
+                client: None,
+                events: Vec::new(),
+            };
+            followed.follow(Ok(events)).unwrap();
+            followed
+        }
+
+        fn piece(&mut self, piece: Piece) -> Result<Vec<StreamEvent>, EventStreamError> {
+            let events = self.stream.consume_piece(piece);
+            self.follow(events)
+        }
+
+        fn call_result(
+            &mut self,
+            index: OutputIndex,
+            result: Result<String, McpCallError>,
+        ) -> Result<Vec<StreamEvent>, EventStreamError> {
+            let events = self.stream.call_result(index, result);
+            self.follow(events)
+        }
+
+        fn complete(&mut self) -> Result<Vec<StreamEvent>, EventStreamError> {
+            let events = self.stream.complete();
+            self.follow(events)
+        }
+
+        fn cut_off(
+            &mut self,
+            details: Option<IncompleteDetails>,
+        ) -> Result<Vec<StreamEvent>, EventStreamError> {
+            let events = self.stream.cut_off(details);
+            self.follow(events)
+        }
+
+        fn follow(
+            &mut self,
+            events: Result<Vec<StreamEvent>, EventStreamError>,
+        ) -> Result<Vec<StreamEvent>, EventStreamError> {
+            for event in events.iter().flatten() {
+                let json = serde_json::to_string(event).unwrap();
+                let event: StreamEvent = serde_json::from_str(&json).unwrap();
+                assert_eq!(event.sequence_number, SequenceNumber(self.events.len()));
+                self.events.push(event.clone());
+                match (event.kind, &mut self.client) {
+                    (EventKind::Created { response }, None) => self.client = Some(response),
+                    (kind, Some(client)) => client.consume_event(StreamEvent { kind, ..event }),
+                    (kind, None) => panic!("a response starts with `Created`, not {kind:?}"),
+                }
+            }
+            assert_eq!(self.client.as_ref(), Some(self.stream.response()));
+            events
+        }
+    }
+
     /// The events of a response of one generation, `pieces`, which is cut off
     /// as out of tokens if the model didn't end it.
     fn stream(pieces: Vec<Piece>) -> Vec<StreamEvent> {
         let cut_off = pieces
             .iter()
             .any(|piece| matches!(piece.kind, PieceKind::End { cut_off: true }));
-        let (mut stream, mut events) = EventStream::new(false, StdRng::seed_from_u64(0));
-        events.extend(generation(&mut stream, pieces));
-        let end = if cut_off {
-            stream.cut_off(Some(IncompleteDetails {
+        let mut followed = Followed::new(false);
+        generation(&mut followed, pieces);
+        if cut_off {
+            followed.cut_off(Some(IncompleteDetails {
                 reason: IncompleteReason::MaxOutputTokens,
             }))
         } else {
-            stream.complete()
-        };
-        events.extend(end.unwrap());
-        events
+            followed.complete()
+        }
+        .unwrap();
+        followed.events
     }
 
     /// The events of a generation, `pieces`, which carry the same tokens in
     /// the same order once the next event has taken what they carry over.
-    fn generation(stream: &mut EventStream, pieces: Vec<Piece>) -> Vec<StreamEvent> {
+    fn generation(followed: &mut Followed, pieces: Vec<Piece>) -> Vec<StreamEvent> {
         let tokens: Vec<Token> = pieces.iter().flat_map(|p| p.tokens.clone()).collect();
-        stream.add_input_tokens(INPUT_TOKENS);
+        followed.stream.add_input_tokens(INPUT_TOKENS);
         let mut events = Vec::new();
         for piece in pieces {
-            events.extend(stream.consume_piece(piece).unwrap());
+            events.extend(followed.piece(piece).unwrap());
         }
         let event_tokens: Vec<Token> = events.iter().flat_map(|e| e.tokens.clone()).collect();
         assert_eq!(event_tokens, tokens[..event_tokens.len()]);
-        assert_eq!(stream.carried, tokens[event_tokens.len()..]);
+        assert_eq!(followed.stream.carried, tokens[event_tokens.len()..]);
         events
     }
 
@@ -567,7 +656,8 @@ mod tests {
             .collect()
     }
 
-    /// The response a client builds from the events, sent to it as JSON.
+    /// The response a client rebuilds from `events`, sent to it as JSON,
+    /// which checks that each event fits the response so far.
     fn consume(events: &[StreamEvent]) -> ResponseObject {
         let json = serde_json::to_string(events).unwrap();
         let events: Vec<StreamEvent> = serde_json::from_str(&json).unwrap();
@@ -801,17 +891,17 @@ mod tests {
 
     #[test]
     fn pieces_have_to_fit_where_the_response_is() {
-        let (mut stream, _) = EventStream::new(false, StdRng::seed_from_u64(0));
+        let mut followed = Followed::new(false);
         let delta = PieceKind::Delta("more".to_string());
         assert!(matches!(
-            stream.consume_piece(piece(delta.clone())),
+            followed.piece(piece(delta.clone())),
             Err(EventStreamError::Misplaced(_))
         ));
         let end = PieceKind::End { cut_off: false };
-        stream.consume_piece(piece(end)).unwrap();
-        stream.complete().unwrap();
+        followed.piece(piece(end)).unwrap();
+        followed.complete().unwrap();
         assert!(matches!(
-            stream.consume_piece(piece(delta)),
+            followed.piece(piece(delta)),
             Err(EventStreamError::Ended)
         ));
     }
@@ -820,9 +910,9 @@ mod tests {
     /// none of the calls or what follows them.
     #[test]
     fn a_generation_streams_its_text_up_to_its_first_call() {
-        let (mut stream, _) = EventStream::new(false, StdRng::seed_from_u64(0));
+        let mut followed = Followed::new(false);
         let response = format!("<think>\nHmm.\n</think>\n\nLet me check.\n{CALL}");
-        let events = generation(&mut stream, pieces(PROMPT, &response));
+        let events = generation(&mut followed, pieces(PROMPT, &response));
         let mut text = GenerationText::default();
         let streamed: String = events.iter().flat_map(|event| text.push(event)).collect();
         // The formatting before the call streams if it shares a token with the
@@ -831,7 +921,7 @@ mod tests {
             streamed.trim_end(),
             "<think>\nHmm.\n</think>\n\nLet me check."
         );
-        let events = stream.complete().unwrap();
+        let events = followed.complete().unwrap();
         assert!(events.iter().all(|event| text.push(event).is_empty()));
     }
 
@@ -841,12 +931,12 @@ mod tests {
     /// A response in which we run the call the model makes, and the model
     /// answers with what the call returned.
     fn run_call(result: Result<String, McpCallError>) -> Vec<StreamEvent> {
-        let (mut stream, mut events) = EventStream::new(true, StdRng::seed_from_u64(0));
-        events.extend(generation(&mut stream, pieces(PROMPT, CALL)));
-        events.extend(stream.call_result(OutputIndex(0), result).unwrap());
-        events.extend(generation(&mut stream, pieces(PROMPT, ANSWER)));
-        events.extend(stream.complete().unwrap());
-        events
+        let mut followed = Followed::new(true);
+        generation(&mut followed, pieces(PROMPT, CALL));
+        followed.call_result(OutputIndex(0), result).unwrap();
+        generation(&mut followed, pieces(PROMPT, ANSWER));
+        followed.complete().unwrap();
+        followed.events
     }
 
     /// A call we run streams as the Responses API streams an MCP call.
@@ -959,23 +1049,52 @@ mod tests {
 
     #[test]
     fn only_running_calls_get_results_and_only_finished_responses_end() {
-        let (mut stream, _) = EventStream::new(true, StdRng::seed_from_u64(0));
-        generation(&mut stream, pieces(PROMPT, CALL));
+        let mut followed = Followed::new(true);
+        generation(&mut followed, pieces(PROMPT, CALL));
         assert!(matches!(
-            stream.complete(),
+            followed.complete(),
             Err(EventStreamError::Unfinished)
         ));
         assert!(matches!(
-            stream.call_result(OutputIndex(1), Ok(String::new())),
+            followed.call_result(OutputIndex(1), Ok(String::new())),
             Err(EventStreamError::NotRunning(_))
         ));
-        stream
+        followed
             .call_result(OutputIndex(0), Ok(String::new()))
             .unwrap();
         assert!(matches!(
-            stream.call_result(OutputIndex(0), Ok(String::new())),
+            followed.call_result(OutputIndex(0), Ok(String::new())),
             Err(EventStreamError::NotRunning(_))
         ));
-        stream.complete().unwrap();
+        followed.complete().unwrap();
+    }
+
+    /// A client that follows the events has the stream's own response after
+    /// every step, through every kind of item, a call we run, and the steps
+    /// the stream refuses.
+    #[test]
+    fn a_client_following_the_events_has_the_streams_response() {
+        let mut followed = Followed::new(true);
+        let thinking = "<think>\nI should check.\n</think>\n\nLet me check.\n";
+        generation(&mut followed, pieces(PROMPT, &format!("{thinking}{CALL}")));
+        assert!(followed.complete().is_err());
+        followed
+            .call_result(OutputIndex(2), Ok("17°C and cloudy".to_string()))
+            .unwrap();
+        generation(&mut followed, pieces(PROMPT, ANSWER));
+        followed.complete().unwrap();
+        assert!(followed.piece(piece(PieceKind::Close)).is_err());
+
+        let response = followed.stream.response();
+        assert_eq!(response.status, Status::Completed);
+        assert_eq!(
+            output(response),
+            [
+                ("reasoning", "I should check.".to_string()),
+                ("message", "Let me check.".to_string()),
+                ("mcp_call", r#"get_weather{"city":"Oslo"}"#.to_string()),
+                ("message", "It's cloudy.".to_string()),
+            ]
+        );
     }
 }
