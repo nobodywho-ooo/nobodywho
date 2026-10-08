@@ -58,12 +58,11 @@ fn is_unusable_android_gpu(device: &llama_cpp_2::LlamaBackendDevice) -> bool {
 }
 
 pub(crate) fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
-    select_gpu_from(backend_devices(), cfg!(target_os = "android"))
+    select_gpu_from(backend_devices())
 }
 
 fn usable_gpus(
     devices: Vec<llama_cpp_2::LlamaBackendDevice>,
-    prefer_android_backends: bool,
 ) -> impl Iterator<Item = llama_cpp_2::LlamaBackendDevice> {
     devices
         .into_iter()
@@ -75,7 +74,7 @@ fn usable_gpus(
             )
         })
         .filter(move |d| {
-            let skip = prefer_android_backends && is_unusable_android_gpu(d);
+            let skip = cfg!(target_os = "android") && is_unusable_android_gpu(d);
             if skip {
                 warn!(device = %d.description, "Skipping Adreno Vulkan shader failure; using OpenCL or CPU");
             }
@@ -85,9 +84,8 @@ fn usable_gpus(
 
 fn select_gpu_from(
     devices: Vec<llama_cpp_2::LlamaBackendDevice>,
-    prefer_android_backends: bool,
 ) -> Option<llama_cpp_2::LlamaBackendDevice> {
-    usable_gpus(devices, prefer_android_backends).max_by_key(|d| {
+    usable_gpus(devices).max_by_key(|d| {
         let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
         let is_integrated_gpu = matches!(
             d.device_type,
@@ -99,7 +97,7 @@ fn select_gpu_from(
         //
         // FIXME(madsmtm): Could we select OpenCL on certain GPUs where we
         // know it works and is faster?
-        let backend_priority = if prefer_android_backends {
+        let backend_priority = if cfg!(target_os = "android") {
             match d.backend.as_str() {
                 "Vulkan" => 2,
                 "OpenCL" => 1,
@@ -154,7 +152,7 @@ pub(crate) fn available_model_memory(
     use_gpu: bool,
 ) -> Result<AvailableMemory, MemoryDetectionError> {
     let host = host_memory::available()?;
-    let gpus = usable_gpus(backend_devices(), cfg!(target_os = "android"))
+    let gpus = usable_gpus(backend_devices())
         .map(|device| GpuMemory {
             free_bytes: device_free(&device),
             total_bytes: device.memory_total as u64,
