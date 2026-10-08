@@ -67,7 +67,9 @@ To get a full overview of the functionality provided by NobodyWho, simply keep r
 
 ## Android requirements
 
-If you use the x86_64 Android emulator for development, your app must set `minSdkVersion` to at least 31. This is due to a threading feature (ELF TLS) that the Rust runtime requires on x86_64. ARM64 devices (i.e. all real phones) work with any `minSdkVersion`.
+NobodyWho ships native libraries for `arm64-v8a` and `x86_64`, 32-bit Android devices (`armeabi-v7a`, `x86`) are not supported.
+
+If you use the x86_64 Android emulator for development, your app must set `minSdkVersion` to at least 31. This is due to a threading feature (ELF TLS) that the Rust runtime requires on x86_64. `arm64-v8a` devices work with any `minSdkVersion`.
 
 No specific NDK version is required — NobodyWho ships prebuilt shared libraries, so your project's NDK version does not affect the Rust code.
 

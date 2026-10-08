@@ -43,8 +43,28 @@ fn device_free(d: &llama_cpp_2::LlamaBackendDevice) -> u64 {
     memory_free.min(memory_total)
 }
 
-fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
+fn backend_devices() -> Vec<llama_cpp_2::LlamaBackendDevice> {
     llama_cpp_2::list_llama_ggml_backend_devices()
+}
+
+/// Avoid the observed Adreno Q4_K shader abort (llama.cpp#12421), except Turnip.
+fn is_unusable_android_gpu(device: &llama_cpp_2::LlamaBackendDevice) -> bool {
+    if device.backend != "Vulkan" {
+        return false;
+    }
+    let ident = format!("{} {}", device.description, device.name);
+    let qualcomm = ident.contains("Adreno") || ident.contains("Qualcomm");
+    qualcomm && !ident.contains("Turnip")
+}
+
+pub(crate) fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
+    select_gpu_from(backend_devices())
+}
+
+fn usable_gpus(
+    devices: Vec<llama_cpp_2::LlamaBackendDevice>,
+) -> impl Iterator<Item = llama_cpp_2::LlamaBackendDevice> {
+    devices
         .into_iter()
         .filter(|d| {
             matches!(
@@ -53,10 +73,41 @@ fn select_best_gpu() -> Option<llama_cpp_2::LlamaBackendDevice> {
                     | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
             )
         })
-        .max_by_key(|d| {
-            let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
-            (is_gpu, device_free(d))
+        .filter(move |d| {
+            let skip = cfg!(target_os = "android") && is_unusable_android_gpu(d);
+            if skip {
+                warn!(device = %d.description, "Skipping Adreno Vulkan shader failure; using OpenCL or CPU");
+            }
+            !skip
         })
+}
+
+fn select_gpu_from(
+    devices: Vec<llama_cpp_2::LlamaBackendDevice>,
+) -> Option<llama_cpp_2::LlamaBackendDevice> {
+    usable_gpus(devices).max_by_key(|d| {
+        let is_gpu = matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Gpu);
+        let is_integrated_gpu = matches!(
+            d.device_type,
+            llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
+        );
+        // Android can expose the same GPU through two APIs. Prefer Vulkan,
+        // even though the OpenCL backend may be slightly faster, the
+        // implementation in llama.cpp is... of questionable quality.
+        //
+        // FIXME(madsmtm): Could we select OpenCL on certain GPUs where we
+        // know it works and is faster?
+        let backend_priority = if cfg!(target_os = "android") {
+            match d.backend.as_str() {
+                "Vulkan" => 2,
+                "OpenCL" => 1,
+                _ => 0,
+            }
+        } else {
+            0
+        };
+        (backend_priority, is_gpu, is_integrated_gpu, device_free(d))
+    })
 }
 
 fn gpu_shares_host_memory(
@@ -101,15 +152,7 @@ pub(crate) fn available_model_memory(
     use_gpu: bool,
 ) -> Result<AvailableMemory, MemoryDetectionError> {
     let host = host_memory::available()?;
-    let gpus = llama_cpp_2::list_llama_ggml_backend_devices()
-        .into_iter()
-        .filter(|device| {
-            matches!(
-                device.device_type,
-                llama_cpp_2::LlamaBackendDeviceType::Gpu
-                    | llama_cpp_2::LlamaBackendDeviceType::IntegratedGpu
-            )
-        })
+    let gpus = usable_gpus(backend_devices())
         .map(|device| GpuMemory {
             free_bytes: device_free(&device),
             total_bytes: device.memory_total as u64,
@@ -283,7 +326,7 @@ pub(crate) fn plan_context(
         );
     }
 
-    let devices = llama_cpp_2::list_llama_ggml_backend_devices();
+    let devices = backend_devices();
     let cpu_free: u64 = devices
         .iter()
         .find(|d| matches!(d.device_type, llama_cpp_2::LlamaBackendDeviceType::Cpu))

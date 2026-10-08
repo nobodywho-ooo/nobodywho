@@ -20,6 +20,28 @@ on:
         required: false
 
 jobs:
+  # The tag's binding's GitHub release notes, from the change files the release commit consumed.
+  release-notes:
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The notes list changes in the order their change files were added.
+          fetch-depth: 0
+
+      - name: "Render release notes"
+        id: notes
+        run: |
+          binding=${GITHUB_REF_NAME#nobodywho-}
+          binding=${binding%-v*}
+          {
+            echo 'notes<<NOTES_EOF'
+            python3 .github/scripts/changesets.py notes "$binding"
+            echo 'NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
   godot-distributable:
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
@@ -46,7 +68,7 @@ jobs:
             path: ./nobodywho-release
 
   create-github-release-godot:
-    needs: [godot-distributable]
+    needs: [godot-distributable, release-notes]
     if: startsWith(github.ref, 'refs/tags/nobodywho-godot-')
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
@@ -63,6 +85,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.release-notes.outputs.notes }}
           files: "./nobodywho-godot-${{ github.ref_name }}.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -105,7 +128,8 @@ jobs:
   publish-wheels:
     needs:
       [
-        test-publish-wheels
+        test-publish-wheels,
+        release-notes
       ]
     runs-on: warp-ubuntu-latest-x64-2x
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
@@ -135,7 +159,7 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_AUTH_TOKEN }}
 
   create-github-release-python:
-    needs: [publish-wheels]
+    needs: [publish-wheels, release-notes]
     if: startsWith(github.ref, 'refs/tags/nobodywho-python-')
     runs-on: warp-ubuntu-latest-x64-2x
     steps:
@@ -152,11 +176,13 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.release-notes.outputs.notes }}
           files: ./nobodywho-python-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   create-github-release-flutter:
+    needs: [release-notes]
     if: startsWith(github.ref, 'refs/tags/nobodywho-flutter-')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
@@ -187,6 +213,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.release-notes.outputs.notes }}
           files: ./nobodywho-flutter-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -202,6 +229,7 @@ jobs:
 
   # Create GitHub Release with native binaries, then publish to npm.
   create-github-release-react-native:
+    needs: [release-notes]
     if: startsWith(github.ref, 'refs/tags/nobodywho-react-native-v')
     runs-on: warp-ubuntu-latest-x64-2x
     permissions:
@@ -234,6 +262,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.release-notes.outputs.notes }}
           files: ./nobodywho-react-native-release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -265,6 +294,7 @@ jobs:
 
   # Create GitHub Release with xcframework, then push to nobodywho-swift mirror repo.
   create-github-release-swift:
+    needs: [release-notes]
     if: startsWith(github.ref, 'refs/tags/nobodywho-swift-')
     runs-on: warp-macos-15-arm64-6x
     permissions:
@@ -281,6 +311,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.release-notes.outputs.notes }}
           files: ./release/NobodyWhoNative.xcframework.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -320,6 +351,7 @@ jobs:
 
   # Build AAR + JAR with native libs, create GitHub Release, publish to Maven Central.
   create-github-release-kotlin:
+    needs: [release-notes]
     if: startsWith(github.ref, 'refs/tags/nobodywho-kotlin-v')
     runs-on: ubuntu-24.04
     permissions:
@@ -393,6 +425,7 @@ jobs:
       - name: "Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.release-notes.outputs.notes }}
           files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -39,9 +39,7 @@ class DeviceInferenceTest {
 
     @Test
     fun chatCompletesStreamsAndCallsTools() = runBlocking {
-        // Ask for the GPU like a real app would. Android has no GPU backend
-        // yet, so this falls back to CPU today and starts exercising the GPU
-        // path automatically once one lands.
+        // Select OpenCL/Vulkan if available, or fall back to CPU.
         val model: Model = Model.load(modelUrl(), useGpu = true)
 
         // Completion
