@@ -16,16 +16,19 @@ cargo ndk -t arm64-v8a -p 28 build -p nobodywho-uniffi --release --locked
 
 The helper caches pinned dependencies in `target/android-gpu`; `--github-env`
 prints CI environment assignments. `VULKAN_GLSLC` overrides the NDK compiler.
-The shim opens the device's public `libOpenCL.so` once and resolves functions
-by name. It never reads vendor objects' ICD dispatch tables. This path is
-vendor-neutral, including Qualcomm and Mali; device testing is still required.
-Missing libraries or required OpenCL 1.2 entry points disable OpenCL discovery.
-The newer buffer-with-properties and subgroup-info APIs are optional.
-Flutter/Kotlin/React Native declare it optional; Godot custom Android exports
-must add `<uses-native-library android:name="libOpenCL.so" android:required="false" />`
-inside `<application>` to access public vendor drivers on Android 12+.
 
-Selection is OpenCL → Vulkan → CPU; `useGpu=false` forces CPU. The current
-Adreno Vulkan exclusion avoids observed shader crashes (llama.cpp#12421),
-while Turnip remains eligible. Vision/audio projection stays on CPU because
-mtmd cannot select its GPU. Selection does not recover from native driver crashes.
+
+## Shim
+
+Ideally, we'd use `OpenCL-ICD-Loader`, but that doesn't really seem to support
+static linking, see:
+<https://github.com/KhronosGroup/OpenCL-ICD-Loader/blob/5192c84f8059e5f703e5452929b613f9487f6e4c/CMakeLists.txt#L16-L49>
+
+FIXME(madsmtm): Maybe report and fix this upstream in OpenCL-ICD-Loader?
+
+Instead, we create a small shim that `dlopen`s the device's public
+`libOpenCL.so` and resolves functions using `dlsym`, instead of reading vendor
+objects' ICD dispatch tables.
+
+Note that a `<uses-native-library android:name="libOpenCL.so" android:required="false" />`
+inside `<application>` is required to access public vendor drivers on Android 12+.
