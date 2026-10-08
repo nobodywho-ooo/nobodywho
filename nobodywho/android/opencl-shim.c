@@ -21,7 +21,7 @@ static bool driver_ready;
 #undef X
 
 static void missing_symbol(const char *name, bool required) {
-  LOG(required ? ANDROID_LOG_WARN : ANDROID_LOG_INFO,
+  LOG(required ? ANDROID_LOG_WARN : ANDROID_LOG_VERBOSE,
       "OpenCL shim: missing %s (%s)", name, required ? "required" : "optional");
   if (required)
     driver_ready = false;
@@ -43,7 +43,7 @@ static void load_driver(void) {
     missing_symbol(#name, required);
 #include "opencl-functions.inc"
 #undef X
-  LOG(driver_ready ? ANDROID_LOG_INFO : ANDROID_LOG_WARN,
+  LOG(driver_ready ? ANDROID_LOG_DEBUG : ANDROID_LOG_WARN,
       "OpenCL shim: libOpenCL.so %s",
       driver_ready ? "ready" : "unusable; OpenCL unavailable");
 }
