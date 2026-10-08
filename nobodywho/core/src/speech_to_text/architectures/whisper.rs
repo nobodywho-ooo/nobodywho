@@ -578,11 +578,11 @@ mod tests {
     use crate::speech_to_text::audio::{AudioResampler, DecodedAudio};
 
     fn first_window_of_test_clip() -> Vec<f32> {
-        let path = Path::new(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../assets/sound.mp3"
-        ));
-        let audio = DecodedAudio::from_file(path).unwrap();
+        // `TEST_AUDIO_FILE` if set (the nix sandbox only has `core/`), else the repo copy.
+        let path = std::env::var("TEST_AUDIO_FILE").unwrap_or_else(|_| {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/sound.mp3").to_string()
+        });
+        let audio = DecodedAudio::from_file(Path::new(&path)).unwrap();
         let mut windows = AudioResampler::default()
             .resample(audio)
             .unwrap()
