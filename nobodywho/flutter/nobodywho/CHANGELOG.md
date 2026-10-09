@@ -1,3 +1,18 @@
+## 5.1.0
+
+### Added
+
+- Added support for the OpenCL and Vulkan backends on Android. This should give substantially higher performance on Android phones.
+- Chats with recurrent and hybrid models, such as Qwen3.5, no longer re-read the whole conversation on most turns. The chat now saves the model state after each user message and rewinds to it, where it used to start over whenever an earlier answer was re-rendered differently, for example when thinking is dropped from the history.
+
+  MTP speculative decoding now also works with recurrent and hybrid models, where it used to fail when a draft was rejected. For Qwen3.5, which keeps its MTP layers in the model file, pass the model file itself as the draft model; it is only loaded once.
+
+### Fixed
+
+- Chats no longer leave stray tokens in the model's context after a reply. The chat assumed the model had read the whole rendered reply, including template text after the end-of-turn token that was never decoded, so later turns could land one token off and keep stale text in context (seen with Gemma 3).
+- Qwen3.5 chats with an image no longer keep stale text in the model's context. The same applies to the older Qwen2-VL, Qwen2.5-VL and Qwen3-VL, and to PaddleOCR-VL. These models give an image fewer context positions than tokens, which the chat didn't account for, so after an image the old end of the conversation was never removed and new text was added after it. The context-full check and the reported context usage now also count all of an image's tokens.
+- Speech-to-text no longer mixes up languages when one `SpeechToText` transcribes several files, or audio longer than 30 seconds. Language detection ran on whatever the previous transcription had left behind, so audio could be detected as, and transcribed in, the previous language.
+
 ## 5.0.0
 
 ### Added
