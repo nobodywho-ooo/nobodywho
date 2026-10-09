@@ -463,16 +463,16 @@ jobs:
           xcodebuild -create-xcframework \
             -library device/libnobodywho_uniffi.a \
             -library sim/libnobodywho_uniffi.a \
-            -output NobodywhoFramework.xcframework
+            -output NobodyWho.xcframework
 
       - name: "Zip XCFramework"
-        run: zip -y -r NobodywhoFramework.xcframework.zip NobodywhoFramework.xcframework
+        run: zip -y -r NobodyWho.xcframework.zip NobodyWho.xcframework
 
       - name: "Upload build artifact"
         uses: actions/upload-artifact@v5
         with:
           name: nobodywho-react-native-xcframework
-          path: ./NobodywhoFramework.xcframework.zip
+          path: ./NobodyWho.xcframework.zip
 
   # builds an xcframework containing static libraries + headers for Swift SPM
   build-swift-xcframework:

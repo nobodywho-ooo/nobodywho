@@ -176,7 +176,7 @@ cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
 
 In CI, native `.so` files are cross-compiled and uploaded as GitHub Release assets. At install time:
 - **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version
-- **iOS:** `Nobodywho.podspec` downloads and extracts `NobodywhoFramework.xcframework.zip` from the same release
+- **iOS:** `Nobodywho.podspec` downloads and extracts `NobodyWho.xcframework.zip` from the same release
 
 This keeps the npm package small (code only, no binaries).
 

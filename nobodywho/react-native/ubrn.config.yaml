@@ -7,6 +7,12 @@ bindings:
   cpp: generated/cpp
   ts: generated/ts
 
+ios:
+  frameworkName: NobodyWho
+  targets:
+  - aarch64-apple-ios
+  - aarch64-apple-ios-sim
+
 noOverwrite:
 # Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
 - Nobodywho.podspec
