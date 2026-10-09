@@ -19,10 +19,6 @@ use tracing::debug;
 /// How a model family writes its output: its tool calls, and its reasoning if
 /// it has any. The end of generation comes from the vocabulary instead, which
 /// records it for every model.
-///
-/// The strings are copied from the model's chat template. A marker the
-/// vocabulary has as a control token must be a whole string here, since control
-/// tokens have no text to match partway through.
 #[derive(Clone, Copy, Debug)]
 pub struct OutputFormat {
     /// For logs and errors.
@@ -33,10 +29,6 @@ pub struct OutputFormat {
 }
 
 /// A block of tool calls, written `before_begin begin CALLS end after_end`.
-///
-/// `before_begin` and `after_end` are formatting the template writes around the
-/// block, which is neither text nor part of the calls. Between two blocks the
-/// template writes `after_end`, and possibly `before_begin` after it.
 #[derive(Clone, Copy, Debug)]
 pub struct ToolCallSyntax {
     pub before_begin: &'static str,
@@ -46,12 +38,10 @@ pub struct ToolCallSyntax {
     /// `begin` or the end of the output.
     pub end: Option<&'static str>,
     pub after_end: &'static str,
-    /// Set when one block holds several calls, as in `[a(), b()]`. Otherwise
+    /// Set when one block holds several calls. Otherwise
     /// each call gets a block of its own.
     pub list: Option<ListSyntax>,
-    /// Whether a response can hold several blocks. If not, the grammar ends
-    /// the response after its first, as a model may otherwise repeat it.
-    pub several_blocks: bool,
+    pub several_blocks_allowed: bool,
     pub call: CallSyntax,
 }
 
@@ -62,8 +52,6 @@ pub struct ToolCallSyntax {
 /// includes a label like the channel name after Gemma4's `<|channel>`.
 #[derive(Clone, Copy, Debug)]
 pub struct ThinkingSyntax {
-    /// Must be a single special token, like `end`. A model whose vocabulary
-    /// lacks either is taken not to reason.
     pub begin: &'static str,
     pub after_begin: &'static str,
     pub before_end: &'static str,
@@ -74,8 +62,6 @@ pub struct ThinkingSyntax {
 #[derive(Clone, Copy, Debug)]
 pub enum CallSyntax {
     Parts(CallParts),
-    /// One JSON object holding the name and the arguments under these keys,
-    /// read in either order.
     JsonObject {
         name_key: &'static str,
         arguments_key: &'static str,
@@ -109,17 +95,15 @@ pub enum ArgsSyntax {
 /// How a single argument's value is written.
 #[derive(Clone, Copy, Debug)]
 pub enum ValueSyntax {
-    /// JSON. Python's `True`, `False`, `None` and single-quoted strings are read
-    /// too, but never generated.
     Json,
-    /// Strings as they are, anything else as JSON. The value runs up to the
-    /// argument's `after_value`, which has to be text.
     Raw,
     /// Every value as text between two copies of a marker, whatever its type.
     Delimited(&'static str),
     /// JSON's shape, but with strings unescaped between two copies of `quote`,
     /// and object keys bare.
-    JsonLike { quote: &'static str },
+    JsonLike {
+        quote: &'static str,
+    },
 }
 
 /// Several calls in one block, written `open CALL separator CALL ... close`.
@@ -132,17 +116,17 @@ pub struct ListSyntax {
 
 #[derive(Debug, thiserror::Error)]
 pub enum FormatError {
-    #[error("{format} expects {marker:?} to be a single special token, but the vocabulary doesn't have one")]
+    #[error("{format_name} expects {marker:?} to be a single special token, but the vocabulary doesn't have one")]
     NotSpecial {
-        /// The format's name.
-        format: &'static str,
+        format_name: &'static str,
         marker: &'static str,
     },
 
-    #[error("{format} needs {marker:?} to be text, but the vocabulary has it as a control token")]
+    #[error(
+        "{format_name} needs {marker:?} to be text, but the vocabulary has it as a control token"
+    )]
     NotText {
-        /// The format's name.
-        format: &'static str,
+        format_name: &'static str,
         marker: &'static str,
     },
 
@@ -156,11 +140,9 @@ pub enum FormatError {
     ChatTemplate(#[from] llama_cpp_2::ChatTemplateError),
 }
 
-/// A vocabulary entry a marker can name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpecialToken {
     pub id: LlamaToken,
-    /// Control tokens have no text, so a grammar has to name them by id.
     pub control: bool,
 }
 
@@ -168,7 +150,7 @@ pub trait Vocab {
     /// The special token spelled exactly `text`, if the vocabulary has one.
     fn special_token(&self, text: &str) -> Option<SpecialToken>;
 
-    /// The tokens that end generation.
+    /// The tokens that each end generation.
     fn end_of_generation(&self) -> Vec<LlamaToken>;
 }
 
@@ -192,27 +174,22 @@ impl Vocab for LlamaModel {
     }
 }
 
-/// A format checked against a model's vocabulary, ready to constrain
-/// generation and to read it.
+/// A format with the information needed from the vocabulary for parsing.
 #[derive(Clone, Debug)]
 pub struct ResolvedFormat {
     format: OutputFormat,
     tool_calls: ToolCallTokens,
-    /// `None` if the model doesn't reason.
     thinking: Option<ThinkingTokens>,
     end_of_generation: Vec<LlamaToken>,
-    /// The tool call markers that the vocabulary has as control tokens.
     control: HashMap<&'static str, LlamaToken>,
 }
 
-/// The tokens of `ToolCallSyntax`'s markers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct ToolCallTokens {
     begin: LlamaToken,
     end: Option<LlamaToken>,
 }
 
-/// The tokens of `ThinkingSyntax`'s markers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct ThinkingTokens {
     begin: LlamaToken,
@@ -224,7 +201,7 @@ impl ResolvedFormat {
         let syntax = format.tool_calls;
         let special = |marker: &'static str| {
             vocab.special_token(marker).ok_or(FormatError::NotSpecial {
-                format: format.name,
+                format_name: format.name,
                 marker,
             })
         };
@@ -256,14 +233,12 @@ impl ResolvedFormat {
                 token.control.then_some((marker, token.id))
             })
             .collect();
-
-        // A lazily matched value can only stop at text.
         if let Some(marker) = text_markers(&syntax)
             .into_iter()
             .find(|marker| control.contains_key(marker))
         {
             return Err(FormatError::NotText {
-                format: format.name,
+                format_name: format.name,
                 marker,
             });
         }
@@ -281,30 +256,24 @@ impl ResolvedFormat {
         &self.format
     }
 
-    /// A splitter for the response to `prompt`, the rendered template it
-    /// continues. `tools` is only used to read argument values by their schema
-    /// type.
+    /// A splitter that parses model output according to this format.
     pub fn splitter(self, tools: Vec<crate::tool_calling::Tool>, prompt: &str) -> Splitter {
         let opens_thinking = self.opens_thinking(prompt);
         Splitter::new(self, tools, opens_thinking)
     }
 
-    /// Whether `prompt` leaves the response already reasoning, as templates do
-    /// that open the reasoning for the model. If so, gives the prompt from
+    /// Whether `prompt` ends with an open reasoning block. If so, gives the prompt from
     /// `begin` on, and the formatting after `begin` that it hasn't written yet.
     fn opens_thinking(&self, prompt: &str) -> Option<(String, &'static str)> {
         let thinking = self.format.thinking.filter(|_| self.thinking.is_some())?;
         let begin = prompt.rfind(thinking.begin)?;
-        // Only a prompt that ends in the reasoning it opens leaves it open, not
-        // one with an unclosed marker further back, as in an earlier turn.
+
         let written = &prompt[begin + thinking.begin.len()..];
         let formatting = thinking.after_begin.strip_prefix(written)?;
         Some((prompt[begin..].to_string(), formatting))
     }
 }
 
-/// How a model's responses are read: in its format, or, if its format isn't
-/// known, as text that only the end of generation ends.
 #[derive(Clone, Debug)]
 pub enum ModelOutput {
     Formatted(Box<ResolvedFormat>),
@@ -325,7 +294,7 @@ impl ModelOutput {
         }
     }
 
-    /// A splitter for the response to `prompt`, as [`ResolvedFormat::splitter`].
+    /// A splitter that parses model output according to this format.
     pub fn splitter(self, tools: Vec<crate::tool_calling::Tool>, prompt: &str) -> Splitter {
         match self {
             ModelOutput::Formatted(format) => (*format).splitter(tools, prompt),
@@ -334,7 +303,7 @@ impl ModelOutput {
     }
 }
 
-/// Every string tool calls use, so each can be checked against the vocabulary.
+/// All strings used by the tool call syntax.
 fn markers(syntax: &ToolCallSyntax) -> Vec<&'static str> {
     let mut markers = vec![syntax.begin];
     markers.extend(syntax.end);
@@ -363,7 +332,6 @@ fn markers(syntax: &ToolCallSyntax) -> Vec<&'static str> {
     markers
 }
 
-/// The markers that end a lazily matched value.
 fn text_markers(syntax: &ToolCallSyntax) -> Vec<&'static str> {
     match syntax.call {
         CallSyntax::Parts(CallParts {

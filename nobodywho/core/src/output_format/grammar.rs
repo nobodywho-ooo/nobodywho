@@ -42,7 +42,7 @@ impl ResolvedFormat {
         ]);
 
         let mut lark = String::from("%llguidance {}\n");
-        if syntax.several_blocks {
+        if syntax.several_blocks_allowed {
             lark.push_str("start: tool_calls (ws? tool_calls)* ws?\n");
         } else {
             lark.push_str("start: tool_calls ws?\n");

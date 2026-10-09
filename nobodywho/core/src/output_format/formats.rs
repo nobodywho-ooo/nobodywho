@@ -20,7 +20,7 @@ pub fn qwen3() -> OutputFormat {
         end: Some("</tool_call>"),
         after_end: "",
         list: None,
-        several_blocks: true,
+        several_blocks_allowed: true,
         call: CallSyntax::JsonObject {
             name_key: "name",
             arguments_key: "arguments",
@@ -42,7 +42,7 @@ pub fn qwen35() -> OutputFormat {
         end: Some("</tool_call>"),
         after_end: "\n",
         list: None,
-        several_blocks: true,
+        several_blocks_allowed: true,
         call: CallSyntax::Parts(CallParts {
             before_name: "\n<function=",
             after_name: ">\n",
@@ -71,7 +71,7 @@ pub fn function_gemma() -> OutputFormat {
         end: Some("<end_function_call>"),
         after_end: "",
         list: None,
-        several_blocks: false,
+        several_blocks_allowed: false,
         call: CallSyntax::Parts(CallParts {
             before_name: "call:",
             after_name: "{",
@@ -100,7 +100,7 @@ pub fn gemma4() -> OutputFormat {
         end: Some("<tool_call|>"),
         after_end: "",
         list: None,
-        several_blocks: true,
+        several_blocks_allowed: true,
         call: CallSyntax::Parts(CallParts {
             before_name: "call:",
             after_name: "{",
@@ -135,7 +135,7 @@ pub fn ministral3() -> OutputFormat {
         end: None,
         after_end: "",
         list: None,
-        several_blocks: true,
+        several_blocks_allowed: true,
         call: CallSyntax::Parts(CallParts {
             before_name: "",
             after_name: "[ARGS]",
@@ -168,7 +168,7 @@ pub fn lfm2() -> OutputFormat {
             separator: ", ",
             close: "]",
         }),
-        several_blocks: false,
+        several_blocks_allowed: false,
         call: CallSyntax::Parts(CallParts {
             before_name: "",
             after_name: "(",

@@ -1401,7 +1401,7 @@ fn every_grammar_accepts_what_its_format_writes() {
             );
         }
         let syntax = format.tool_calls;
-        if syntax.list.is_some() || syntax.several_blocks {
+        if syntax.list.is_some() || syntax.several_blocks_allowed {
             let text = render_response(&format, &calls);
             assert!(
                 accepts_tokens(&model, &grammar, &marked_tokens(&model, &format, &text)),
@@ -1423,7 +1423,7 @@ fn only_formats_with_several_blocks_allow_another() {
         let twice = format!("{block}{block}");
         assert_eq!(
             accepts_tokens(&model, &grammar, &marked_tokens(&model, &format, &twice)),
-            format.tool_calls.several_blocks,
+            format.tool_calls.several_blocks_allowed,
             "{} on {twice:?}\n{grammar}",
             format.name
         );
