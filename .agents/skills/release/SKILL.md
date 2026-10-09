@@ -124,11 +124,11 @@ For "Driven by", name the change file or files that set the binding's highest bu
 - A binding that no change file names is **not** released. Say so explicitly for each such binding.
 - A different version means different bumps in the change files, never edited version files. That change is the user's to make; once they have, re-run the preview and show the table again.
 - `prepare-release` has no option to release only some of the pending bindings. If the user wants to hold a binding back, stop and work out with them how to handle its change files before going on.
-- Godot's major version is offset from the others (currently `11.x`). Keep its own cadence; do not align it.
+- Godot's major version is offset from the others. Keep its own cadence; do not align it.
 
 Also ask about the two crates that change files don't cover:
 
-- `nobodywho/uniffi/Cargo.toml` is versioned separately from the kotlin/swift/react-native tags. Past releases bumped its minor along with them (0.4.0 → 0.5.0). Propose a bump if the UniFFI surface changed.
+- `nobodywho/uniffi/Cargo.toml` is versioned separately from the kotlin/swift/react-native tags. Past releases bumped its minor along with them. Propose a bump if the UniFFI surface changed.
 - `nobodywho/core/Cargo.toml` (package name `nobodywho`). The user has said a core bump is "not necessary", so **ask before bumping core**.
 
 **Stop and get the user's approval of the versions, the uniffi/core decision and the changelog wording before going on.**
