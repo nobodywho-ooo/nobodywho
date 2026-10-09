@@ -360,7 +360,7 @@ def bullet(text: str) -> str:
 
 
 def central_entry(change: Change) -> str:
-    """Render a change for CHANGELOG.md, which has to say which bindings it concerns."""
+    """Render a change for CHANGELOG.md, led by which bindings it breaks and concerns."""
     packages = [p for p in BINDINGS if p in change.bumps]
     names = [BINDINGS[p] for p in packages]
     breaking = [BINDINGS[p] for p in packages if change.bumps[p] == Bump.MAJOR]
@@ -370,14 +370,10 @@ def central_entry(change: Change) -> str:
         prefix += "**Breaking:** "
     elif breaking:
         prefix += f"**Breaking for {join(breaking)}:** "
-    if len(packages) == 1:
-        return bullet(f"{prefix}**{names[0]}:** {change.body}")
-
-    verb = "Available for" if change.section == "added" else "Affects"
-    scope = "all bindings" if len(packages) == len(BINDINGS) else join(names)
-    # A body with several paragraphs gets the scope as a paragraph of its own.
-    separator = "\n\n" if "\n\n" in change.body else " "
-    return bullet(f"{prefix}{change.body}{separator}{verb} {scope}.")
+    # A change to every binding is the default, so it names none.
+    if len(packages) < len(BINDINGS):
+        prefix += f"**{join(names)}:** "
+    return bullet(prefix + change.body)
 
 
 def binding_entry(change: Change, package: str) -> str:
