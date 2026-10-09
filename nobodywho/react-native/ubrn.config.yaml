@@ -17,7 +17,7 @@ android:
   targets:
   - arm64-v8a
   - x86_64
-  # apiLevel: 21
+  apiLevel: 28
   useSharedLibrary: true
 
 noOverwrite:
