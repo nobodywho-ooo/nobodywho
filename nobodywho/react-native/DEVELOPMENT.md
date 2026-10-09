@@ -54,8 +54,8 @@ react-native/
 │   └── Nobodywho.mm
 │
 ├── android/                     # Android native module
-│   ├── build.gradle             # Customized — downloads .so from GitHub Releases
-│   ├── CMakeLists.txt           # Customized — links shared lib + uniffi headers
+│   ├── build.gradle             # Customized — downloads .so from GitHub Releases into src/main/jniLibs
+│   ├── CMakeLists.txt           # Generated — links src/main/jniLibs/<abi>/libnobodywho_uniffi.so
 │   ├── cpp-adapter.cpp          # Generated glue
 │   └── src/main/
 │       ├── AndroidManifest.xml
@@ -139,15 +139,15 @@ nix develop .#android --command bash -c \
 Then copy the `.so` files to where the Android build expects them:
 
 ```bash
-mkdir -p nobodywho/react-native/android/build/nobodywho-native/{arm64-v8a,x86_64}
+mkdir -p nobodywho/react-native/android/src/main/jniLibs/{arm64-v8a,x86_64}
 
 # ARM64
 cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-  nobodywho/react-native/android/build/nobodywho-native/arm64-v8a/
+  nobodywho/react-native/android/src/main/jniLibs/arm64-v8a/
 
 # x86_64
 cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.so \
-  nobodywho/react-native/android/build/nobodywho-native/x86_64/
+  nobodywho/react-native/android/src/main/jniLibs/x86_64/
 ```
 
 For iOS:
