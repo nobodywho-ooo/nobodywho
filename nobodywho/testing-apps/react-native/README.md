@@ -31,8 +31,7 @@ npm ci --prefix ../../react-native   # the linked binding's own deps; npm does n
 # JavaScript against an old native library fails to link on uniffi's checksum
 # symbols.
 cargo build -p nobodywho-uniffi --target aarch64-linux-android --release
-VERSION=$(node -p "require('../../react-native/package.json').version")
-DEST=../../react-native/android/build/nobodywho-native/$VERSION/arm64-v8a
+DEST=../../react-native/android/src/main/jniLibs/arm64-v8a
 mkdir -p "$DEST"
 cp ../../target/aarch64-linux-android/release/libnobodywho_uniffi.so "$DEST/"
 
