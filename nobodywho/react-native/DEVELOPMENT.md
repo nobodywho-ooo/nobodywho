@@ -152,15 +152,18 @@ cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.so \
 
 For iOS:
 ```bash
-cargo build -p nobodywho-uniffi --target aarch64-apple-ios --release
-cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
+cd nobodywho/react-native
+npm run ios -- --release
 ```
+
+`pod install` only download the released binaries if nothing is present at these paths, so locally built libraries are used as-is.
+Remember to delete them (or rebuild) after bumping the package version, as stale binaries are not detected.
 
 ### Release builds (CI)
 
 In CI, native `.so` files are cross-compiled and uploaded as GitHub Release assets. At install time:
-- **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version
-- **iOS:** `Nobodywho.podspec` downloads and extracts `NobodyWho.xcframework.zip` from the same release
+- **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version into `android/src/main/jniLibs/`
+- **iOS:** `Nobodywho.podspec` downloads and extracts `NobodyWho.xcframework.zip` from the same release into `NobodyWho.xcframework/`
 
 This keeps the npm package small (code only, no binaries).
 

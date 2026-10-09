@@ -12,28 +12,33 @@ zip_name = "#{framework_name}.zip"
 zip_path = File.join(__dir__, zip_name)
 url = "https://github.com/nobodywho-ooo/nobodywho/releases/download/nobodywho-react-native-v#{version}/#{zip_name}"
 
-# Always download a fresh xcframework to ensure it matches the package version.
-FileUtils.rm_rf(framework_dir) if File.exist?(framework_dir)
+# Download the xcframework unless one is already present. When installed from
+# npm, upgrading the package replaces this directory, so an existing framework
+# always matches the package version. For local development, place a locally
+# built xcframework here and it will be used as-is.
+if File.exist?(framework_dir)
+  puts "[NobodyWho] Using existing xcframework at #{framework_dir}"
+else
+  puts "[NobodyWho] Downloading xcframework from #{url}"
 
-puts "[NobodyWho] Downloading xcframework from #{url}"
+  system("curl", "-L", "-f", "-o", zip_path, url) or
+    raise "Failed to download NobodyWho xcframework.\n" \
+          "URL: #{url}\n" \
+          "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v#{version}\n" \
+          "For local development, manually place the xcframework at: #{framework_dir}"
 
-system("curl", "-L", "-f", "-o", zip_path, url) or
-  raise "Failed to download NobodyWho xcframework.\n" \
-        "URL: #{url}\n" \
-        "Check that the release exists: https://github.com/nobodywho-ooo/nobodywho/releases/tag/nobodywho-react-native-v#{version}\n" \
-        "For local development, manually place the xcframework at: #{framework_dir}"
+  puts "[NobodyWho] Extracting xcframework..."
+  system("unzip", "-o", "-q", zip_path, "-d", __dir__) or
+    raise "Failed to extract #{zip_name}"
 
-puts "[NobodyWho] Extracting xcframework..."
-system("unzip", "-o", "-q", zip_path, "-d", __dir__) or
-  raise "Failed to extract #{zip_name}"
+  File.delete(zip_path) if File.exist?(zip_path)
 
-File.delete(zip_path) if File.exist?(zip_path)
+  unless File.exist?(framework_dir)
+    raise "xcframework not found after extraction: #{framework_dir}"
+  end
 
-unless File.exist?(framework_dir)
-  raise "xcframework not found after extraction: #{framework_dir}"
+  puts "[NobodyWho] xcframework ready at #{framework_dir}"
 end
-
-puts "[NobodyWho] xcframework ready at #{framework_dir}"
 
 Pod::Spec.new do |s|
   s.name         = "Nobodywho"
