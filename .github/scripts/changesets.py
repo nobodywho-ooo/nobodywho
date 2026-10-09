@@ -656,6 +656,8 @@ def remote_tags() -> dict[str, str]:
 
 # How often `wait_for_run` repeats a status that hasn't changed.
 HEARTBEAT_SECONDS = 5 * 60
+# How many failed `gh run list` calls in a row `wait_for_run` retries before giving up.
+MAX_GH_POLL_FAILURES = 5
 
 
 def wait_for_run(tag: str, commit: str) -> None:
@@ -663,16 +665,29 @@ def wait_for_run(tag: str, commit: str) -> None:
     print(f"Waiting for {tag}'s Build and test run to start…")
     start = time.monotonic()
     last, last_print = None, start
+    failures = 0
     while True:
-        out = subprocess.run(
+        result = subprocess.run(
             ["gh", "run", "list", "--workflow", "build-and-test.yml", "--branch", tag]
             + ["--limit", "5", "--json", "status,conclusion,url,headSha"],
             cwd=ROOT,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
-        ).stdout
-        runs = [run for run in json.loads(out) if run["headSha"] == commit]
+        )
+        if result.returncode != 0:
+            failures += 1
+            print(
+                f"  {tag}: gh run list failed ({failures}/{MAX_GH_POLL_FAILURES}): {result.stderr.strip()}"
+            )
+            if failures >= MAX_GH_POLL_FAILURES:
+                sys.exit(
+                    f"::error::gh run list failed {failures} times in a row for {tag}"
+                )
+            time.sleep(30)
+            continue
+        failures = 0
+        runs = [run for run in json.loads(result.stdout) if run["headSha"] == commit]
         status = runs[0]["status"] if runs else "not created yet"
         now = time.monotonic()
         # Report every change, and the unchanged status every few minutes as a heartbeat.
