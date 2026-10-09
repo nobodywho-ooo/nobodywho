@@ -29,9 +29,17 @@ use crate::errors::{
     InitWorkerError, InvalidContextShiftOptions, InvalidHistoryError, MultimodalError, RenderError,
     SayError, SetterError, ShiftError, TokenizeError, ToolCallingSetupError,
 };
+use crate::event_stream::{
+    event::{EventKind, OutputIndex, OutputItemDoneEvent, StreamEvent},
+    response::{
+        FunctionCallItem, IncompleteDetails, IncompleteReason, Item, ItemKind, McpCallError,
+        McpCallItem, ResponseObject,
+    },
+    EventStream, GenerationText,
+};
 use crate::inference::{acquire_inference_lock, InferenceEngine};
 use crate::llm::{self, GlobalInferenceLockToken, WorkerGuard};
-use crate::output_format::{self, FormatError, ModelOutput, ResolvedFormat};
+use crate::output_format::{self, FormatError, ModelOutput, Piece, ResolvedFormat};
 use crate::response_parser::ResponseParser;
 use crate::sampler::{read_sampler_from_metadata, GrammarFactory, SamplerConfig};
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
@@ -1843,15 +1851,18 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
     match msg {
         ChatMsg::Turn { input, output } => {
             let should_stop = Arc::clone(&worker_state.should_stop);
-            let on_chunk = |chunk| {
-                if !output.send(chunk) {
-                    // Nobody is receiving any more, so stop generating.
-                    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
-                }
+            let mut text = TextStream::default();
+            let on_event = |event: TurnEvent| {
+                text.send(&event, |chunk| {
+                    if !output.send(chunk) {
+                        // Nobody is receiving any more, so stop generating.
+                        should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                })
             };
             let result = match input {
                 TurnInput::Ask(prompt) => worker_state
-                    .ask(prompt, on_chunk)
+                    .ask(prompt, on_event)
                     .map_err(|error| Box::new(error) as _),
                 TurnInput::Complete {
                     messages,
@@ -1859,7 +1870,7 @@ fn process_worker_msg(worker_state: &mut Chat<'_>, msg: ChatMsg) {
                     max_tokens,
                     execute_tools,
                 } => worker_state
-                    .complete(messages, options, max_tokens, execute_tools, on_chunk)
+                    .complete(messages, options, max_tokens, execute_tools, on_event)
                     .map_err(|error| Box::new(error) as _),
             };
             if let Err(error) = result {
@@ -2116,13 +2127,144 @@ impl ChatSampler {
     }
 }
 
-struct GeneratedResponse {
-    /// What the history keeps of the generation.
-    content: String,
-    tool_calls: Vec<ToolCall>,
-    prompt_tokens: usize,
-    completion_tokens: usize,
-    hit_token_limit: bool,
+/// What a turn puts out, in order.
+enum TurnEvent {
+    /// An event of the turn's response.
+    Event(StreamEvent),
+    /// What the history keeps of the generation that just ended, exactly as
+    /// the prompt and the model wrote it.
+    Written(String),
+}
+
+/// Why a generation stopped.
+enum Ending {
+    /// The model ended it.
+    Ended,
+    OutOfTokens,
+    Stopped,
+}
+
+/// Hands `pieces` to `stream` and sends on the events they make.
+fn stream_pieces(
+    stream: &mut EventStream,
+    pieces: Vec<Piece>,
+    on_event: &mut impl FnMut(TurnEvent),
+) {
+    for piece in pieces {
+        let events = stream
+            .consume_piece(piece)
+            .expect("the splitter's pieces fit together");
+        events
+            .into_iter()
+            .for_each(|event| on_event(TurnEvent::Event(event)));
+    }
+}
+
+/// The calls in a response's `output` from index `from` on, with their
+/// output indices.
+fn tool_calls(output: &[Item], from: usize) -> Vec<(OutputIndex, ToolCall)> {
+    output
+        .iter()
+        .enumerate()
+        .skip(from)
+        .filter_map(|(index, item)| {
+            let (ItemKind::FunctionCall(FunctionCallItem {
+                name, arguments, ..
+            })
+            | ItemKind::McpCall(McpCallItem {
+                name, arguments, ..
+            })) = &item.kind
+            else {
+                return None;
+            };
+            let call = ToolCall {
+                name: name.clone(),
+                arguments: serde_json::from_str(arguments)
+                    .expect("the splitter writes arguments as JSON"),
+            };
+            Some((OutputIndex(index), call))
+        })
+        .collect()
+}
+
+/// Used by `ask` and `complete` to turn a turn's events into what they report.
+/// It streams the raw text of each generation, reasoning and all, up to its
+/// first tool call, as tokens. Once the response ends, it sends `Done` with the
+/// text of the last generation, and gives back the whole turn as a
+/// [`CompletionResponse`].
+#[derive(Default)]
+struct TextStream {
+    /// The text of the generation the events are of.
+    generation: GenerationText,
+    /// What the history keeps of the last generation to end.
+    written: String,
+}
+
+impl TextStream {
+    /// Sends the text decoding of the tokens `event` stands for, and the
+    /// finished response once `event` ends it.
+    fn send(&mut self, event: &TurnEvent, mut send: impl FnMut(CompletionChunk)) {
+        let event = match event {
+            TurnEvent::Event(event) => event,
+            TurnEvent::Written(written) => return self.written.clone_from(written),
+        };
+        match &event.kind {
+            // What follows a call's result is the next generation.
+            EventKind::OutputItemDone(OutputItemDoneEvent { item, .. })
+                if matches!(item.kind, ItemKind::McpCall(_)) =>
+            {
+                self.generation = GenerationText::default();
+            }
+            EventKind::Completed { response } | EventKind::Incomplete { response } => {
+                return send(CompletionChunk::Done(self.finished(response)));
+            }
+            _ => {}
+        }
+        for text in self.generation.push(event) {
+            if !text.is_empty() {
+                trace!(text, "Sending out token:");
+                send(CompletionChunk::Token(text.to_string()));
+            }
+        }
+    }
+
+    /// `response` as `complete` reports it: what its last generation said,
+    /// and the calls it leaves to the caller.
+    fn finished(&self, response: &ResponseObject) -> CompletionResponse {
+        let last_generation = response
+            .output
+            .iter()
+            .rposition(|item| matches!(item.kind, ItemKind::McpCall(_)))
+            .map_or(0, |index| index + 1);
+        let tool_calls: Vec<ToolCall> = tool_calls(&response.output, last_generation)
+            .into_iter()
+            .map(|(_, call)| call)
+            .collect();
+        let out_of_tokens = response.incomplete_details
+            == Some(IncompleteDetails {
+                reason: IncompleteReason::MaxOutputTokens,
+            });
+        let finish_reason = if out_of_tokens {
+            FinishReason::Length
+        } else if !tool_calls.is_empty() {
+            FinishReason::ToolCalls
+        } else {
+            FinishReason::Stop
+        };
+        let usage = response
+            .usage
+            .as_ref()
+            .map_or_else(Default::default, |usage| CompletionUsage {
+                prompt_tokens: usage.input_tokens as usize,
+                completion_tokens: usage.output_tokens as usize,
+            });
+        CompletionResponse {
+            content: self.written.clone(),
+            tool_calls,
+            finish_reason,
+            usage,
+        }
+    }
 }
 
 /// A chat session: owns an [`InferenceEngine`] plus all the conversational state
@@ -2362,19 +2504,20 @@ impl<'a> Chat<'a> {
     }
 
     /// One generation: brings the context up to date with the history, then
-    /// streams the model's response until the model ends it, `max_tokens`
-    /// runs out or the chat is stopped. The tool calls themselves aren't
-    /// streamed.
+    /// streams the model's response into `stream` until the model ends it,
+    /// `max_tokens` runs out or the chat is stopped. Returns why it stopped,
+    /// along with what the history keeps of it.
     fn generate(
         &mut self,
+        stream: &mut EventStream,
         max_tokens: Option<usize>,
-        on_chunk: &mut impl FnMut(CompletionChunk),
-    ) -> Result<GeneratedResponse, GenerateResponseError> {
+        on_event: &mut impl FnMut(TurnEvent),
+    ) -> Result<(Ending, String), GenerateResponseError> {
         // One generation at a time across all chats, in case contexts of one
         // model would interfere with each other.
         let inference_lock_token = &acquire_inference_lock();
         let prompt = self.sync_context_with_render(inference_lock_token)?;
-        let prompt_tokens = self.engine.kv_mirror().n_tokens();
+        stream.add_input_tokens(self.engine.kv_mirror().n_tokens() as u64);
 
         info!("Worker writing until done");
 
@@ -2384,18 +2527,16 @@ impl<'a> Chat<'a> {
         // Owned, so the parser doesn't borrow `self` while generating.
         let mut parser =
             ResponseParser::new(self.model_output.clone(), self.tools.clone(), &prompt);
-        let mut stream = |text: Vec<String>| {
-            for text in text.into_iter().filter(|text| !text.is_empty()) {
-                trace!(text, "Sending out token:");
-                on_chunk(CompletionChunk::Token(text));
-            }
-        };
 
         let mut tokens_written_until_now = Vec::new();
-        let mut generated_tokens = 0;
-        while !self.should_stop()
-            && max_tokens.is_none_or(|max_tokens| generated_tokens < max_tokens)
-        {
+        let ending = loop {
+            if self.should_stop() {
+                break Ending::Stopped;
+            }
+            if max_tokens.is_some_and(|max_tokens| tokens_written_until_now.len() >= max_tokens) {
+                break Ending::OutOfTokens;
+            }
+
             // Check if the context is full
             if self.engine.is_context_full() {
                 // Leave room for the partial response, which is read back in below.
@@ -2423,34 +2564,21 @@ impl<'a> Chat<'a> {
                 .vocab()
                 .token_to_piece(new_token, true, None);
             let was_in_tool_calls = parser.in_tool_calls();
-            let text = parser.push(new_token, &bytes);
+            stream_pieces(stream, parser.push(new_token, &bytes), on_event);
             if !was_in_tool_calls && parser.in_tool_calls() {
                 self.sampler.activate_tool_grammar(new_token);
             }
-            stream(text);
             if parser.ended() {
-                break;
+                break Ending::Ended;
             }
-            generated_tokens += 1;
-        }
-        let (text, generation) = parser.finish();
-        stream(text);
-
-        debug!(written = %generation.written, calls = ?generation.calls, "Generated response");
-        Ok(GeneratedResponse {
-            content: generation.written,
-            tool_calls: generation.calls,
-            prompt_tokens,
-            completion_tokens: generated_tokens,
-            hit_token_limit: max_tokens.is_some_and(|max_tokens| generated_tokens >= max_tokens),
-        })
+        };
+        let (pieces, written) = parser.finish();
+        stream_pieces(stream, pieces, on_event);
+        on_event(TurnEvent::Written(written.clone()));
+        Ok((ending, written))
     }
 
-    pub fn ask(
-        &mut self,
-        prompt: Prompt,
-        on_chunk: impl FnMut(CompletionChunk),
-    ) -> Result<(), SayError> {
+    pub fn ask(&mut self, prompt: Prompt, on_event: impl FnMut(TurnEvent)) -> Result<(), SayError> {
         // reset the stop flag
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -2462,7 +2590,7 @@ impl<'a> Chat<'a> {
         self.register_media(&mut content)?;
         self.add_user_message(content);
 
-        self.run_turn(None, true, on_chunk)?;
+        self.run_turn(None, true, on_event)?;
 
         Ok(())
     }
@@ -2512,75 +2640,74 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    /// Answers the history, streaming the response to `on_chunk` and ending
-    /// with the whole turn. The tools the model calls run until it stops
-    /// calling them, unless `execute_tools` is false, in which case its first
-    /// calls end the turn for the caller to run.
+    /// Answers the history as one response, streaming its events to
+    /// `on_event`. The tools the model calls run until it stops calling them,
+    /// unless `execute_tools` is false, in which case its first calls end the
+    /// response for the caller to run.
     fn run_turn(
         &mut self,
         max_tokens: Option<usize>,
         execute_tools: bool,
-        mut on_chunk: impl FnMut(CompletionChunk),
+        mut on_event: impl FnMut(TurnEvent),
     ) -> Result<(), SayError> {
         // The tool-call grammar is NOT pre-injected into the chain. Lark/
         // llguidance has no "trigger word" mechanism, so an always-on grammar
         // would block EOS when the model just wants to chat. Instead `generate`
         // switches to it the moment the response enters a block of tool calls.
 
-        let mut generated = self.generate(max_tokens, &mut on_chunk)?;
-        let mut usage = CompletionUsage {
-            prompt_tokens: generated.prompt_tokens,
-            completion_tokens: generated.completion_tokens,
-        };
-        let mut hit_token_limit = generated.hit_token_limit;
-
-        while !generated.tool_calls.is_empty() {
-            let tool_calls = generated.tool_calls;
-            debug!(?tool_calls, "Got tool calls:");
+        let (mut stream, events) = EventStream::new(execute_tools, rand::make_rng());
+        events
+            .into_iter()
+            .for_each(|event| on_event(TurnEvent::Event(event)));
+        let ending = loop {
+            let start = stream.response().output.len();
+            let budget = max_tokens
+                .map(|max_tokens| max_tokens.saturating_sub(stream.output_tokens() as usize));
+            let (ending, content) = self.generate(&mut stream, budget, &mut on_event)?;
+            let calls = tool_calls(&stream.response().output, start);
+            if calls.is_empty() {
+                self.add_assistant_message(content);
+                break ending;
+            }
+            debug!(?calls, "Got tool calls:");
 
             // Whatever the model said before the call is part of the turn,
             // so it goes into the history message alongside the calls.
-            self.add_tool_calls(generated.content.clone(), tool_calls.clone());
-
+            self.add_tool_calls(
+                content,
+                calls.iter().map(|(_, call)| call.clone()).collect(),
+            );
             if !execute_tools {
-                on_chunk(CompletionChunk::Done(CompletionResponse {
-                    content: generated.content,
-                    tool_calls,
-                    finish_reason: FinishReason::ToolCalls,
-                    usage,
-                }));
-                return Ok(());
+                break ending;
             }
 
-            for call in tool_calls {
-                self.run_tool(call);
+            for (index, call) in calls {
+                let result = self.run_tool(call);
+                let events = stream
+                    .call_result(index, result)
+                    .expect("the calls come from the stream's own running calls");
+                events
+                    .into_iter()
+                    .for_each(|event| on_event(TurnEvent::Event(event)));
             }
+        };
 
-            let remaining_tokens =
-                max_tokens.map(|limit| limit.saturating_sub(usage.completion_tokens));
-            generated = self.generate(remaining_tokens, &mut on_chunk)?;
-            usage.prompt_tokens += generated.prompt_tokens;
-            usage.completion_tokens += generated.completion_tokens;
-            hit_token_limit = generated.hit_token_limit;
-        }
-
-        self.add_assistant_message(generated.content.clone());
-
-        on_chunk(CompletionChunk::Done(CompletionResponse {
-            content: generated.content,
-            tool_calls: Vec::new(),
-            finish_reason: if hit_token_limit {
-                FinishReason::Length
-            } else {
-                FinishReason::Stop
-            },
-            usage,
-        }));
+        let events = match ending {
+            Ending::Ended => stream.complete(),
+            Ending::OutOfTokens => stream.cut_off(Some(IncompleteDetails {
+                reason: IncompleteReason::MaxOutputTokens,
+            })),
+            Ending::Stopped => stream.cut_off(None),
+        };
+        events
+            .expect("every item is finished once the generation and its calls are")
+            .into_iter()
+            .for_each(|event| on_event(TurnEvent::Event(event)));
         Ok(())
     }
 
     /// Runs `call` and records its result in the history.
-    fn run_tool(&mut self, call: ToolCall) {
+    fn run_tool(&mut self, call: ToolCall) -> Result<String, McpCallError> {
         // find the tool
         // this is just a stupid linear search
         // but I think it's probably faster than something fancy as long as we have few tools
@@ -2594,15 +2721,20 @@ impl<'a> Chat<'a> {
                 "Model triggered tool call for invalid tool name:",
             );
             let errmsg = format!("ERROR - Invalid tool name: {}", call.name);
-            self.add_tool_resp(call.name, errmsg);
-            return;
+            self.add_tool_resp(call.name, errmsg.clone());
+            // What an MCP server answers a call to a tool it doesn't have.
+            return Err(McpCallError::Protocol {
+                code: -32602,
+                message: errmsg,
+            });
         };
 
         // call the tool
         let response = (tool.function)(call.arguments);
         debug!(%call.name, %response, "Tool call result:");
 
-        self.add_tool_resp(call.name, response);
+        self.add_tool_resp(call.name, response.clone());
+        Ok(response)
     }
 
     /// Answer a full message list, which replaces the chat history.
@@ -2619,7 +2751,7 @@ impl<'a> Chat<'a> {
         options: Options,
         max_tokens: Option<usize>,
         execute_tools: bool,
-        on_chunk: impl FnMut(CompletionChunk),
+        on_event: impl FnMut(TurnEvent),
     ) -> Result<(), CompleteError> {
         self.should_stop
             .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -2632,7 +2764,7 @@ impl<'a> Chat<'a> {
             self.system_prompt = Some(system_prompt);
         }
         self.messages = messages;
-        self.run_turn(max_tokens, execute_tools, on_chunk)?;
+        self.run_turn(max_tokens, execute_tools, on_event)?;
         Ok(())
     }
 
@@ -3453,11 +3585,14 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )?;
         let messages = History::new(vec![user("What's the temperature in Copenhagen?")])?;
+        let mut text = TextStream::default();
         let mut finished = None;
-        worker.complete(messages, Options::new(), Some(8), true, |chunk| {
-            if let CompletionChunk::Done(response) = chunk {
-                finished = Some(response);
-            }
+        worker.complete(messages, Options::new(), Some(8), true, |event| {
+            text.send(&event, |chunk| {
+                if let CompletionChunk::Done(response) = chunk {
+                    finished = Some(response);
+                }
+            })
         })?;
         let response = finished.expect("a turn ends with its response");
         assert_eq!(response.finish_reason, FinishReason::Length);
@@ -4210,12 +4345,15 @@ mod tests {
         );
     }
 
-    /// A turn's chunks as `ask` and `complete` stream them to `respond`.
-    fn text(respond: impl Fn(llm::WriteOutput)) -> impl FnMut(CompletionChunk) {
-        move |chunk| {
-            respond(match chunk {
-                CompletionChunk::Token(token) => llm::WriteOutput::Token(token),
-                CompletionChunk::Done(response) => llm::WriteOutput::Done(response.content),
+    /// A turn's events as `ask` and `complete` stream them to `respond`.
+    fn text(respond: impl Fn(llm::WriteOutput)) -> impl FnMut(TurnEvent) {
+        let mut text = TextStream::default();
+        move |event| {
+            text.send(&event, |chunk| {
+                respond(match chunk {
+                    CompletionChunk::Token(token) => llm::WriteOutput::Token(token),
+                    CompletionChunk::Done(response) => llm::WriteOutput::Done(response.content),
+                })
             })
         }
     }
@@ -5205,10 +5343,13 @@ mod tests {
             let cached = chat.engine.kv_mirror().n_tokens() as i32;
             let mut answer = String::new();
             let decoded = prompt_tokens_decoded(&mut chat, |chat| {
-                chat.ask(prompt.into(), |chunk| {
-                    if let CompletionChunk::Done(response) = chunk {
-                        answer = response.content;
-                    }
+                let mut text = TextStream::default();
+                chat.ask(prompt.into(), |event| {
+                    text.send(&event, |chunk| {
+                        if let CompletionChunk::Done(response) = chunk {
+                            answer = response.content;
+                        }
+                    })
                 })
                 .unwrap();
             });
