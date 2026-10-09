@@ -555,7 +555,7 @@ pub enum CrossEncoderWorkerError {
     NoResponse,
 
     #[error("Llama.cpp failed getting embeddings: {0}")]
-    GettingEmbeddings(#[from] llama_cpp_2::EmbeddingsError),
+    GettingEmbeddings(#[from] llama_cpp_2::EmbeddingsSeqError),
 
     #[error("Empty classification head")]
     EmptyClassificationHead,
@@ -573,6 +573,9 @@ pub enum EncoderWorkerError {
 
     #[error("Error encoding text: {0}")]
     Embeddings(#[from] llama_cpp_2::EmbeddingsError),
+
+    #[error("Error encoding text: {0}")]
+    EmbeddingsSeq(#[from] llama_cpp_2::EmbeddingsSeqError),
 
     #[error("Error encoding: {0}")]
     Encode(String),

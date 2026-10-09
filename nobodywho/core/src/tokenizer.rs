@@ -1,6 +1,6 @@
-use std::ffi::CString;
 use std::path::Path;
 use std::rc::Rc;
+use std::{ffi::CString, sync::RwLock};
 
 use ahash::AHasher;
 use llama_cpp_2::{
@@ -429,11 +429,14 @@ impl ProjectionModel {
 #[derive(Debug)]
 pub struct Tokenizer<'a> {
     model: &'a LlamaModel,
-    projection_model: Option<&'a ProjectionModel>,
+    projection_model: Option<&'a RwLock<ProjectionModel>>,
 }
 
 impl<'a> Tokenizer<'a> {
-    pub fn new(model: &'a LlamaModel, projection_model: Option<&'a ProjectionModel>) -> Self {
+    pub fn new(
+        model: &'a LlamaModel,
+        projection_model: Option<&'a RwLock<ProjectionModel>>,
+    ) -> Self {
         Self {
             projection_model,
             model,
@@ -499,7 +502,7 @@ impl<'a> Tokenizer<'a> {
         // Tokenize each media item separately to get individual chunks
         bitmaps
             .iter()
-            .map(|bitmap| projection_model.tokenize(bitmap))
+            .map(|bitmap| projection_model.read().unwrap().tokenize(bitmap))
             .collect::<Result<Vec<_>, TokenizationError>>()
     }
 

@@ -9,6 +9,7 @@ use crate::tokenizer::{
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeError};
@@ -17,7 +18,7 @@ use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::MutexGuard;
+use std::sync::{MutexGuard, RwLock};
 use tracing::{debug, debug_span, trace, trace_span, warn};
 
 pub(crate) fn acquire_inference_lock() -> MutexGuard<'static, GlobalInferenceLockToken> {
@@ -226,7 +227,7 @@ pub(crate) struct BatchCapacity {
 #[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
     pub(crate) ctx: EngineContext<'a>,
-    projection_model: Option<&'a ProjectionModel>,
+    projection_model: Option<&'a RwLock<ProjectionModel>>,
     /// The token position in the KV cache that we've logically read.
     ///
     /// This does not include drafts.
@@ -250,8 +251,9 @@ pub(crate) struct InferenceEngine<'a> {
 
 impl<'a> InferenceEngine<'a> {
     pub(crate) fn new(
+        model: &LlamaModel,
         ctx: EngineContext<'a>,
-        projection_model: Option<&'a ProjectionModel>,
+        projection_model: Option<&'a RwLock<ProjectionModel>>,
         batch_capacity: BatchCapacity,
         tokenizer: Tokenizer<'a>,
         use_embeddings: bool,
@@ -259,7 +261,7 @@ impl<'a> InferenceEngine<'a> {
         // The batch limit is sequence IDs per token; each embedding token
         // belongs to one sequence.
         let batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
-        let needs_checkpoints = ctx.model.is_recurrent() || ctx.model.is_hybrid();
+        let needs_checkpoints = model.is_recurrent() || model.is_hybrid();
 
         Self {
             n_past: 0,
@@ -513,7 +515,7 @@ impl<'a> InferenceEngine<'a> {
     ) -> Result<&mut Self, ReadError> {
         let projection_model = self
             .projection_model
-            .as_ref()
+            .as_mut()
             .ok_or(ReadError::ProjectionModelNotInitialized)?;
 
         let n_tokens = embeddings.as_ref().total_tokens();
@@ -523,8 +525,8 @@ impl<'a> InferenceEngine<'a> {
         let decode_guard = decode_span.enter();
         let n_ctx = self.ctx.n_ctx() as i32;
         self.n_past = embeddings.eval_chunks(
-            &projection_model.ctx,
-            &self.ctx,
+            &mut projection_model.write().unwrap().ctx,
+            &mut self.ctx,
             self.n_past,
             0,
             n_ctx,
@@ -748,6 +750,8 @@ impl<'a> InferenceEngine<'a> {
         self.projection_model
             .as_ref()
             .ok_or(MultimodalError::ProjectionModelNotInitialized)?
+            .read()
+            .unwrap()
             .load_image(path)
     }
 
@@ -755,6 +759,8 @@ impl<'a> InferenceEngine<'a> {
         self.projection_model
             .as_ref()
             .ok_or(MultimodalError::ProjectionModelNotInitialized)?
+            .read()
+            .unwrap()
             .load_audio(path)
     }
 
