@@ -96,12 +96,6 @@ cd react-native
 npx uniffi-bindgen-react-native generate jsi turbo-module --config ubrn.config.yaml nobodywho
 ```
 
-**WARNING:** This overwrites `Nobodywho.podspec`, `android/build.gradle`, and `android/CMakeLists.txt` with defaults, destroying custom build logic (binary download, xcframework support, etc.). After running, restore these files:
-
-```bash
-git checkout -- Nobodywho.podspec android/build.gradle android/CMakeLists.txt
-```
-
 **Do not regenerate for:** Rust API changes, adding new functions/types — those only affect the bindings layer above.
 
 ### 3. TypeScript wrappers (`src/*.ts` except `NativeNobodywho.ts` and `index.tsx`)
@@ -115,8 +109,8 @@ git checkout -- Nobodywho.podspec android/build.gradle android/CMakeLists.txt
 | Rust API (`uniffi/src/lib.rs`) | Yes | No | Yes |
 | Core Rust library (`core/src/`) | No | No | Yes |
 | TypeScript wrappers (`src/*.ts`) | No | No | No |
-| Module name / `codegenConfig` | No | Yes (then restore build files) | No |
-| `uniffi-bindgen-react-native` version | Yes | Yes (then restore build files) | No |
+| Module name / `codegenConfig` | No | Yes| No |
+| `uniffi-bindgen-react-native` version | Yes | Yes| No |
 
 ## Build system overview
 
@@ -222,19 +216,6 @@ adb install -r nobodywho/react-native/test-app/android/app/build/outputs/apk/deb
 adb reverse tcp:8081 tcp:8081
 adb shell am start -n com.nobodywhotest/.MainActivity
 ```
-
-## Customized files (do not regenerate)
-
-These files were initially generated but have been customized with project-specific logic:
-
-- **`Nobodywho.podspec`** — Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
-- **`android/build.gradle`** — Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
-- **`android/CMakeLists.txt`** — Links shared lib with `IMPORTED_NO_SONAME` for correct runtime resolution
-- **`android/src/main/java/ooo/nobodywho/NobodywhoModule.kt`** — Loads `libnobodywho_uniffi.so` before the bridge lib
-- **`android/src/main/java/ooo/nobodywho/NobodywhoPackage.kt`** — Uses `BaseReactPackage` instead of deprecated `TurboReactPackage`
-- **`android/cpp-adapter.cpp`** — JNI symbols use `ooo_nobodywho` package path (generator defaults to `com_nobodywho`)
-
-If you regenerate the turbo-module glue, these get overwritten with defaults. Always restore them with `git checkout`.
 
 ## Native crate initialization
 

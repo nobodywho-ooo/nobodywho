@@ -7,6 +7,14 @@ bindings:
   cpp: generated/cpp
   ts: generated/ts
 
-turboModule:
-  cpp: cpp
-  ts: src
+noOverwrite:
+# Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
+- Nobodywho.podspec
+# Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
+- android/build.gradle
+# Links shared lib with `IMPORTED_NO_SONAME` for correct runtime resolution
+- android/CMakeLists.txt
+# Loads `libnobodywho_uniffi.so` before the bridge lib
+- android/src/main/java/ooo/nobodywho/NobodywhoModule.kt
+# Enables `libOpenCL.so` linking.
+- android/src/main/AndroidManifest.xml
