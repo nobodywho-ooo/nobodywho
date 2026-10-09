@@ -4,7 +4,6 @@ use crate::inference::{BatchCapacity, EngineContext, InferenceEngine, Speculativ
 use crate::memory;
 use crate::model_selection;
 use crate::tokenizer::{ProjectionModel, Tokenizer};
-use lazy_static::lazy_static;
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaContextType, LlamaPoolingType};
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
@@ -12,7 +11,7 @@ use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeParams};
 use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, RwLock};
 use tracing::{error, info, info_span, warn};
 
 // Back-compat re-exports: bindings (Python, Godot, Flutter) import these via
@@ -21,13 +20,6 @@ pub use crate::huggingface::{
     default_progress_callback, get_cached_models, throttled_progress_callback,
     DownloadCancellationCallback, DownloadProgressCallback,
 };
-
-#[derive(Debug)]
-pub(crate) struct GlobalInferenceLockToken;
-lazy_static! {
-    pub(crate) static ref GLOBAL_INFERENCE_LOCK: Mutex<GlobalInferenceLockToken> =
-        Mutex::new(GlobalInferenceLockToken);
-}
 
 pub(crate) static LLAMA_BACKEND: LazyLock<LlamaBackend> = LazyLock::new(|| {
     // HACK: On Qualcomm Snapdragon 750G, Adreno 619, Fairphone 4, the OpenCL
@@ -50,7 +42,7 @@ const MAX_EMBEDDING_SEQUENCES: u32 = 256;
 pub struct Model {
     source: String,
     pub(crate) language_model: LlamaModel,
-    pub(crate) projection_model: Option<ProjectionModel>,
+    pub(crate) projection_model: Option<RwLock<ProjectionModel>>,
     pub(crate) draft_model: Option<DraftModel>,
 }
 
@@ -259,7 +251,8 @@ pub fn get_model_cancellable(
                 use_gpu && !cfg!(target_os = "android"),
             )
         })
-        .transpose()?;
+        .transpose()?
+        .map(RwLock::new);
 
     let draft_model = match real_draft_model_path.as_ref() {
         None => None,
@@ -473,6 +466,7 @@ impl<'a> InferenceEngine<'a> {
         let tokenizer = Tokenizer::new(&model.language_model, projection_model);
 
         Ok(InferenceEngine::new(
+            &model.language_model,
             engine_ctx,
             projection_model,
             BatchCapacity {
@@ -593,7 +587,6 @@ mod tests {
         else {
             return;
         };
-        let lock = crate::inference::acquire_inference_lock();
         // MTP sets n_rs_seq, which lets recurrent memory roll back a few tokens.
         let new_engine = || {
             let params = LlamaContextParams::default().with_n_rs_seq(3);
@@ -606,12 +599,19 @@ mod tests {
                 sequences: 1,
             };
             let tokenizer = Tokenizer::new(&model.language_model, None);
-            InferenceEngine::new(EngineContext::Solo(ctx), None, capacity, tokenizer, false)
+            InferenceEngine::new(
+                &model.language_model,
+                EngineContext::Solo(ctx),
+                None,
+                capacity,
+                tokenizer,
+                false,
+            )
         };
         let sync = |engine: &mut InferenceEngine, tokens: &[LlamaToken]| {
             let mut chunks = TokenizerChunks::new();
             chunks.append(TokenizerChunk::new_text(tokens.to_vec()));
-            engine.sync_context(chunks, None, &lock).unwrap();
+            engine.sync_context(chunks, None).unwrap();
         };
 
         let tokens =

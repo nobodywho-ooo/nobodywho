@@ -128,6 +128,7 @@ fn process_worker_msg(worker_state: &mut CrossEncoderWorker<'_>, msg: CrossEncod
 }
 
 struct CrossEncoderWorker<'a> {
+    model: &'a llm::Model,
     engine: InferenceEngine<'a>,
 }
 
@@ -135,7 +136,7 @@ impl<'a> CrossEncoderWorker<'a> {
     pub fn new(model: &'a llm::Model, n_ctx: u32) -> Result<Self, InitWorkerError> {
         let engine =
             InferenceEngine::new_with_type(model, n_ctx, true, None, None, LlamaPoolingType::Rank)?;
-        Ok(Self { engine })
+        Ok(Self { model, engine })
     }
 
     pub fn rank(
@@ -143,7 +144,7 @@ impl<'a> CrossEncoderWorker<'a> {
         query: String,
         documents: Vec<String>,
     ) -> Result<Vec<f32>, CrossEncoderWorkerError> {
-        let vocab = self.engine.ctx.model.vocab();
+        let vocab = self.model.language_model.vocab();
 
         let bos = vocab.bos();
         let bos = if bos.0 != -1 {

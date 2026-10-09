@@ -2,13 +2,13 @@
 
 use crate::chat::ChatSampler;
 use crate::errors::{ContextSyncError, DecodingError, MultimodalError, ReadError, RollbackError};
-use crate::llm::{GlobalInferenceLockToken, GLOBAL_INFERENCE_LOCK};
 use crate::tokenizer::{
     find_chunks_prefix_difference, ProjectionModel, Tokenizer, TokenizerChunk, TokenizerChunks,
 };
 use llama_cpp_2::context::kv_cache::KvCacheConversionError;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::mtmd::MtmdBitmap;
 use llama_cpp_2::mtmd::MtmdInputChunks;
 use llama_cpp_2::speculative::{MtpSpeculative, MtpSpeculativeError};
@@ -17,12 +17,8 @@ use llama_cpp_2::{LlamaStateSeqFlags, SeqState};
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::MutexGuard;
+use std::sync::RwLock;
 use tracing::{debug, debug_span, trace, trace_span, warn};
-
-pub(crate) fn acquire_inference_lock() -> MutexGuard<'static, GlobalInferenceLockToken> {
-    GLOBAL_INFERENCE_LOCK.lock().unwrap()
-}
 
 /// MTP state.
 ///
@@ -226,7 +222,7 @@ pub(crate) struct BatchCapacity {
 #[derive(Debug)]
 pub(crate) struct InferenceEngine<'a> {
     pub(crate) ctx: EngineContext<'a>,
-    projection_model: Option<&'a ProjectionModel>,
+    projection_model: Option<&'a RwLock<ProjectionModel>>,
     /// The token position in the KV cache that we've logically read.
     ///
     /// This does not include drafts.
@@ -250,8 +246,9 @@ pub(crate) struct InferenceEngine<'a> {
 
 impl<'a> InferenceEngine<'a> {
     pub(crate) fn new(
+        model: &LlamaModel,
         ctx: EngineContext<'a>,
-        projection_model: Option<&'a ProjectionModel>,
+        projection_model: Option<&'a RwLock<ProjectionModel>>,
         batch_capacity: BatchCapacity,
         tokenizer: Tokenizer<'a>,
         use_embeddings: bool,
@@ -259,7 +256,7 @@ impl<'a> InferenceEngine<'a> {
         // The batch limit is sequence IDs per token; each embedding token
         // belongs to one sequence.
         let batch = LlamaBatch::new(ctx.n_ctx() as usize, 1);
-        let needs_checkpoints = ctx.model.is_recurrent() || ctx.model.is_hybrid();
+        let needs_checkpoints = model.is_recurrent() || model.is_hybrid();
 
         Self {
             n_past: 0,
@@ -456,7 +453,6 @@ impl<'a> InferenceEngine<'a> {
 
             let n_tokens = self.batch.n_tokens();
             let n_sequences = range.len();
-            let inference_lock_token = acquire_inference_lock();
             self.reset_context().expect("failed resetting context");
 
             let decode_span = debug_span!(
@@ -476,7 +472,6 @@ impl<'a> InferenceEngine<'a> {
                         .map_err(BatchedReadError::Output)?,
                 );
             }
-            drop(inference_lock_token);
 
             debug!(n_tokens, n_sequences, "Completed embedding batch");
         }
@@ -484,19 +479,15 @@ impl<'a> InferenceEngine<'a> {
         Ok(outputs)
     }
 
-    pub(crate) fn read_chunks(
-        &mut self,
-        chunks: TokenizerChunks,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, ReadError> {
+    pub(crate) fn read_chunks(&mut self, chunks: TokenizerChunks) -> Result<&mut Self, ReadError> {
         for chunk in chunks.into_iter() {
             self.kv_mirror();
             match &chunk {
                 TokenizerChunk::Text(tokens, _) => {
-                    self.read_text_tokens(tokens, inference_lock_token)?;
+                    self.read_text_tokens(tokens)?;
                 }
                 TokenizerChunk::Image(embeddings, _) | TokenizerChunk::Audio(embeddings, _) => {
-                    self.read_media_embeddings(embeddings.clone(), inference_lock_token)?;
+                    self.read_media_embeddings(embeddings.clone())?;
                 }
             }
             self.kv_mirror.append(chunk);
@@ -509,11 +500,10 @@ impl<'a> InferenceEngine<'a> {
     fn read_media_embeddings(
         &mut self,
         embeddings: Rc<MtmdInputChunks>,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<&mut Self, ReadError> {
         let projection_model = self
             .projection_model
-            .as_ref()
+            .as_mut()
             .ok_or(ReadError::ProjectionModelNotInitialized)?;
 
         let n_tokens = embeddings.as_ref().total_tokens();
@@ -523,8 +513,8 @@ impl<'a> InferenceEngine<'a> {
         let decode_guard = decode_span.enter();
         let n_ctx = self.ctx.n_ctx() as i32;
         self.n_past = embeddings.eval_chunks(
-            &projection_model.ctx,
-            &self.ctx,
+            &mut projection_model.write().unwrap().ctx,
+            &mut self.ctx,
             self.n_past,
             0,
             n_ctx,
@@ -540,17 +530,8 @@ impl<'a> InferenceEngine<'a> {
         Ok(self)
     }
 
-    // ---------- IMPORTANT ----------
-    // Should only be used under a global inference lock
-    // This is a safety meassure to prevent bugs from multiple
-    // contexts with the same model. It might not be necessary
-    // but assume it is.
     #[tracing::instrument(level = "trace", skip(self))]
-    fn read_text_tokens(
-        &mut self,
-        tokens: &[LlamaToken],
-        _inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<&mut Self, ReadError> {
+    fn read_text_tokens(&mut self, tokens: &[LlamaToken]) -> Result<&mut Self, ReadError> {
         let n_tokens = tokens.len();
         debug!(n_tokens, "Reading tokens:");
 
@@ -656,17 +637,12 @@ impl<'a> InferenceEngine<'a> {
 
     /// Read `target` from where the KV mirror ends up to token `end`. The mirror must be
     /// a prefix of `target`, so its length is how far into `target` the cache already is.
-    fn read_until(
-        &mut self,
-        target: &TokenizerChunks,
-        end: usize,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
-    ) -> Result<(), ReadError> {
+    fn read_until(&mut self, target: &TokenizerChunks, end: usize) -> Result<(), ReadError> {
         let start = self.kv_mirror().n_tokens();
         if start < end {
             let mut chunks = target.tail(start);
             chunks.truncate(end - start);
-            self.read_chunks(chunks, inference_lock_token)?;
+            self.read_chunks(chunks)?;
         }
         Ok(())
     }
@@ -679,7 +655,6 @@ impl<'a> InferenceEngine<'a> {
         &mut self,
         target: TokenizerChunks,
         checkpoint_at: Option<usize>,
-        inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
         if let EngineContext::Speculative(spec) = &mut self.ctx {
             // Clear draft state.
@@ -709,10 +684,10 @@ impl<'a> InferenceEngine<'a> {
             kept <= ckpt && self.checkpoint.as_ref().is_none_or(|c| c.n_tokens < ckpt)
         });
         if let Some(at) = checkpoint_at {
-            self.read_until(&target, at, inference_lock_token)?;
+            self.read_until(&target, at)?;
             self.save_checkpoint();
         }
-        self.read_until(&target, end, inference_lock_token)?;
+        self.read_until(&target, end)?;
 
         Ok(())
     }
@@ -748,6 +723,8 @@ impl<'a> InferenceEngine<'a> {
         self.projection_model
             .as_ref()
             .ok_or(MultimodalError::ProjectionModelNotInitialized)?
+            .read()
+            .unwrap()
             .load_image(path)
     }
 
@@ -755,6 +732,8 @@ impl<'a> InferenceEngine<'a> {
         self.projection_model
             .as_ref()
             .ok_or(MultimodalError::ProjectionModelNotInitialized)?
+            .read()
+            .unwrap()
             .load_audio(path)
     }
 
@@ -780,6 +759,13 @@ impl<'a> InferenceEngine<'a> {
         // ideally, we always want a decoding stage in progress, so that all
         // the various other work we do (including the work the user does)
         // isn't going to block inference.
+
+        // Explicitly wait for decoding to finish. This is done implicitly
+        // inside `.sample` as well, but doing it explicitly here makes it
+        // easier to see in traces where the actual work happens.
+        let span = trace_span!("synchronize").entered();
+        self.ctx.synchronize();
+        drop(span);
 
         let span = trace_span!("sample").entered();
         let token = if let EngineContext::Speculative(spec) = &mut self.ctx {
@@ -845,8 +831,8 @@ impl<'a> InferenceEngine<'a> {
         // llm go brr?
         //
         // We _start_ the decoding here, though we don't wait for it to finish
-        // (see comment further up), so beware that timings might be somewhat
-        // confusing if you're trying to benchmark.
+        // (that is done in `synchronize` further up), so beware that timings
+        // might be somewhat confusing if you're trying to benchmark.
         let span = trace_span!("decode", n_past = self.n_past).entered();
         self.ctx.decode(&mut self.batch)?;
         drop(span);
