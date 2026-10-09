@@ -6,7 +6,7 @@ package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 version = package["version"]
 folly_compiler_flags = '-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -Wno-comma -Wno-shorten-64-to-32'
 
-framework_name = "NobodywhoFramework.xcframework"
+framework_name = "NobodyWho.xcframework"
 framework_dir = File.join(__dir__, framework_name)
 zip_name = "#{framework_name}.zip"
 zip_path = File.join(__dir__, zip_name)
