@@ -1,6 +1,7 @@
 {
   "name": "react-native-nobodywho",
   "version": "5.1.0",
+  "author": "NobodyWho <info@nobodywho.ooo>",
   "description": "Run LLMs locally and offline with React Native & Expo - Tool calling, RAG, Speech-to-Text, Text-to-Speech, and VAD",
   "main": "src/wrapper.ts",
   "types": "src/wrapper.ts",
@@ -36,10 +37,20 @@
     "!android/.cxx",
     "!android/src/main/jniLibs"
   ],
+  "scripts": {
+    "ios": "ubrn build ios",
+    "android": "ubrn build android",
+    "generate": "generate-turbo-module && generate-jsi",
+    "generate-turbo-module": "ubrn generate jsi turbo-module nobodywho",
+    "generate-bindings": "cd ../uniffi && ubrn generate jsi bindings --library --ts-dir ../react-native/generated/ts --cpp-dir ../react-native/generated/cpp"
+  },
   "codegenConfig": {
     "name": "NobodywhoSpec",
     "type": "modules",
-    "jsSrcsDir": "src"
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "ooo.nobodywho"
+    }
   },
   "repository": {
     "type": "git",
@@ -50,11 +61,17 @@
     "react-native": "*"
   },
   "dependencies": {
-    "uniffi-bindgen-react-native": "0.30.0-1"
+    "@ubjs/core": "0.31.0-6",
+    "uniffi-bindgen-react-native": "0.31.0-6"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
-    "ts-jest": "^29.4.9"
+    "ts-jest": "^29.4.9",
+    "prettier": "^3.9.9"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }

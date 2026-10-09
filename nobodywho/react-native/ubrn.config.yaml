@@ -7,6 +7,25 @@ bindings:
   cpp: generated/cpp
   ts: generated/ts
 
-turboModule:
-  cpp: cpp
-  ts: src
+ios:
+  frameworkName: NobodyWho
+  targets:
+  - aarch64-apple-ios
+  - aarch64-apple-ios-sim
+
+android:
+  targets:
+  - arm64-v8a
+  - x86_64
+  apiLevel: 28
+  useSharedLibrary: true
+
+noOverwrite:
+# Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
+- Nobodywho.podspec
+# Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
+- android/build.gradle
+# Loads `libnobodywho_uniffi.so` before the bridge lib
+- android/src/main/java/ooo/nobodywho/NobodywhoModule.kt
+# Enables `libOpenCL.so` linking.
+- android/src/main/AndroidManifest.xml

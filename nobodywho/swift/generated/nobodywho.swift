@@ -541,7 +541,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -557,7 +561,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -788,6 +793,11 @@ public convenience init(model: RustModel, systemPrompt: String?, contextSize: UI
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustchat(handle, $0) }
     }
 
@@ -1310,6 +1320,11 @@ public convenience init(model: RustModel, contextSize: UInt32?) {
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustcrossencoder(handle, $0) }
     }
 
@@ -1475,6 +1490,11 @@ public convenience init(model: RustModel, contextSize: UInt32?) {
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustencoder(handle, $0) }
     }
 
@@ -1620,6 +1640,11 @@ open class RustModel: RustModelProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustmodel(handle, $0) }
     }
 
@@ -1775,6 +1800,11 @@ public convenience init(source: String, language: String?, quantization: String?
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustspeechtotext(handle, $0) }
     }
 
@@ -1919,6 +1949,11 @@ open class RustSpeechToTextStream: RustSpeechToTextStreamProtocol, @unchecked Se
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustspeechtotextstream(handle, $0) }
     }
 
@@ -2091,6 +2126,11 @@ public convenience init(source: String, architecture: String?, voice: String?, l
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rusttexttospeech(handle, $0) }
     }
 
@@ -2234,6 +2274,11 @@ open class RustTokenStream: RustTokenStreamProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rusttokenstream(handle, $0) }
     }
 
@@ -2404,6 +2449,11 @@ public convenience init(name: String, description: String, parameters: [ToolPara
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rusttool(handle, $0) }
     }
 
@@ -2626,6 +2676,11 @@ public convenience init(source: String?, sampleRate: UInt32, threshold: Float?, 
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_rustvoiceactivitydetection(handle, $0) }
     }
 
@@ -2900,6 +2955,11 @@ public convenience init() {
 }
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_samplerbuilder(handle, $0) }
     }
 
@@ -3278,6 +3338,11 @@ open class SamplerConfig: SamplerConfigProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_nobodywho_uniffi_fn_free_samplerconfig(handle, $0) }
     }
 
@@ -3369,6 +3434,8 @@ public struct CachedModel: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -3419,6 +3486,8 @@ public struct ChatStats: Equatable, Hashable {
         self.contextSize = contextSize
         self.contextUsed = contextUsed
     }
+
+    
 
     
 }
@@ -3505,6 +3574,8 @@ public struct ContextShiftOptions: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -3584,6 +3655,8 @@ public struct MtpConfig: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -3656,6 +3729,8 @@ public struct Options {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -3713,6 +3788,8 @@ public struct PendingToolCall: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -3763,6 +3840,8 @@ public struct ToolCall: Equatable, Hashable {
         self.name = name
         self.argumentsJson = argumentsJson
     }
+
+    
 
     
 }
@@ -3823,6 +3902,8 @@ public struct ToolParameter: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -3878,6 +3959,8 @@ public enum ContentPart: Equatable, Hashable {
     )
     case audio(path: String
     )
+
+
 
 
 
@@ -3961,6 +4044,8 @@ public enum Message: Equatable, Hashable {
     )
     case tool(name: String, content: MessageContent
     )
+
+
 
 
 
@@ -4059,6 +4144,8 @@ public enum MessageContent: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -4132,6 +4219,8 @@ public enum NobodyWhoError: Swift.Error, Equatable, Hashable, Foundation.Localiz
     
     
     case Error(message: String)
+    
+
     
 
     
@@ -4219,6 +4308,8 @@ public enum ShiftTarget: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -4292,6 +4383,8 @@ public enum VoiceActivityDetectionEvent: Equatable, Hashable {
     case speechStarted
     case speechEnded
     case silence
+
+
 
 
 
@@ -4384,9 +4477,8 @@ fileprivate struct UniffiCallbackInterfaceRustDownloadProgressCallback {
     // Create the VTable using a series of closures.
     // Swift automatically converts these into C callback functions.
     //
-    // This creates 1-element array, since this seems to be the only way to construct a const
-    // pointer that we can pass to the Rust code.
-    static let vtable: [UniffiVTableCallbackInterfaceRustDownloadProgressCallback] = [UniffiVTableCallbackInterfaceRustDownloadProgressCallback(
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfaceRustDownloadProgressCallback = UniffiVTableCallbackInterfaceRustDownloadProgressCallback(
         uniffiFree: { (uniffiHandle: UInt64) -> () in
             do {
                 try FfiConverterCallbackInterfaceRustDownloadProgressCallback.handleMap.remove(handle: uniffiHandle)
@@ -4427,11 +4519,23 @@ fileprivate struct UniffiCallbackInterfaceRustDownloadProgressCallback {
                 writeReturn: writeReturn
             )
         }
-    )]
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfaceRustDownloadProgressCallback> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfaceRustDownloadProgressCallback>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
 }
 
 private func uniffiCallbackInitRustDownloadProgressCallback() {
-    uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(UniffiCallbackInterfaceRustDownloadProgressCallback.vtable)
+    uniffi_nobodywho_uniffi_fn_init_callback_vtable_rustdownloadprogresscallback(UniffiCallbackInterfaceRustDownloadProgressCallback.vtablePtr)
 }
 
 // FfiConverter protocol for callback interfaces
@@ -4516,9 +4620,8 @@ fileprivate struct UniffiCallbackInterfaceRustToolCallback {
     // Create the VTable using a series of closures.
     // Swift automatically converts these into C callback functions.
     //
-    // This creates 1-element array, since this seems to be the only way to construct a const
-    // pointer that we can pass to the Rust code.
-    static let vtable: [UniffiVTableCallbackInterfaceRustToolCallback] = [UniffiVTableCallbackInterfaceRustToolCallback(
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfaceRustToolCallback = UniffiVTableCallbackInterfaceRustToolCallback(
         uniffiFree: { (uniffiHandle: UInt64) -> () in
             do {
                 try FfiConverterCallbackInterfaceRustToolCallback.handleMap.remove(handle: uniffiHandle)
@@ -4557,11 +4660,23 @@ fileprivate struct UniffiCallbackInterfaceRustToolCallback {
                 writeReturn: writeReturn
             )
         }
-    )]
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfaceRustToolCallback> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfaceRustToolCallback>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
 }
 
 private func uniffiCallbackInitRustToolCallback() {
-    uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(UniffiCallbackInterfaceRustToolCallback.vtable)
+    uniffi_nobodywho_uniffi_fn_init_callback_vtable_rusttoolcallback(UniffiCallbackInterfaceRustToolCallback.vtablePtr)
 }
 
 // FfiConverter protocol for callback interfaces
@@ -5440,10 +5555,6 @@ public func getCachedModels()throws  -> [CachedModel]  {
  * loaded once. Whether MTP is
  * actually used is a per-chat decision — pass it through
  * `Chat`-level config on the wrapping binding.
- *
- * This is a free function instead of an async constructor because
- * uniffi-bindgen-react-native generates invalid JS (`async static` instead
- * of `static async`) for async constructors.
  */
 public func loadModel(modelPath: String, useGpu: Bool, projectionModelPath: String?, draftModelPath: String?, onDownloadProgress: RustDownloadProgressCallback?)async throws  -> RustModel  {
     return
@@ -5643,7 +5754,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_nobodywho_uniffi_checksum_func_get_cached_models() != 12002) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 8315) {
+    if (uniffi_nobodywho_uniffi_checksum_func_load_model() != 30733) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() != 3224) {

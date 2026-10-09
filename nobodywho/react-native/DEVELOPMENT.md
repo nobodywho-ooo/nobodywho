@@ -54,8 +54,8 @@ react-native/
 │   └── Nobodywho.mm
 │
 ├── android/                     # Android native module
-│   ├── build.gradle             # Customized — downloads .so from GitHub Releases
-│   ├── CMakeLists.txt           # Customized — links shared lib + uniffi headers
+│   ├── build.gradle             # Customized — downloads .so from GitHub Releases into src/main/jniLibs
+│   ├── CMakeLists.txt           # Generated — links src/main/jniLibs/<abi>/libnobodywho_uniffi.so
 │   ├── cpp-adapter.cpp          # Generated glue
 │   └── src/main/
 │       ├── AndroidManifest.xml
@@ -78,12 +78,17 @@ There are three layers of generated code. Each layer only needs regeneration for
 **Regenerate when:** Rust API changes — adding/removing/renaming functions, types, errors, or changing their signatures in `uniffi/src/lib.rs`.
 
 ```bash
-# From nobodywho/ (workspace root)
-cargo build -p nobodywho-uniffi
-npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
-  --library --ts-dir react-native/generated/ts --cpp-dir react-native/generated/cpp \
-  target/debug/libnobodywho_uniffi.so
+cargo build -pnobodywho-uniffi
+# Linux
+npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.so
+# macOS
+npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.dylib
 ```
+
+This builds the UniFFI crate for the host, reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
+- `generated/ts/nobodywho.ts` — TypeScript classes, enums, free functions
+- `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
+- `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation
 
 **Do not regenerate for:** TypeScript wrapper changes, build config changes, version bumps.
 
@@ -92,14 +97,7 @@ npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
 **Regenerate when:** Module name changes, `codegenConfig` in `package.json` changes, or upgrading `uniffi-bindgen-react-native` version.
 
 ```bash
-cd react-native
-npx uniffi-bindgen-react-native generate jsi turbo-module --config ubrn.config.yaml nobodywho
-```
-
-**WARNING:** This overwrites `Nobodywho.podspec`, `android/build.gradle`, and `android/CMakeLists.txt` with defaults, destroying custom build logic (binary download, xcframework support, etc.). After running, restore these files:
-
-```bash
-git checkout -- Nobodywho.podspec android/build.gradle android/CMakeLists.txt
+npm run generate-turbo-module
 ```
 
 **Do not regenerate for:** Rust API changes, adding new functions/types — those only affect the bindings layer above.
@@ -115,30 +113,10 @@ git checkout -- Nobodywho.podspec android/build.gradle android/CMakeLists.txt
 | Rust API (`uniffi/src/lib.rs`) | Yes | No | Yes |
 | Core Rust library (`core/src/`) | No | No | Yes |
 | TypeScript wrappers (`src/*.ts`) | No | No | No |
-| Module name / `codegenConfig` | No | Yes (then restore build files) | No |
-| `uniffi-bindgen-react-native` version | Yes | Yes (then restore build files) | No |
+| Module name / `codegenConfig` | No | Yes| No |
+| `uniffi-bindgen-react-native` version | Yes | Yes| No |
 
 ## Build system overview
-
-### Generate bindings from Rust
-
-Build the UniFFI crate for the host, then run the bindgen to produce TypeScript + C++:
-
-```bash
-# From nobodywho/ (workspace root)
-cargo build -p nobodywho-uniffi
-
-npx --prefix react-native uniffi-bindgen-react-native generate jsi bindings \
-  --library \
-  --ts-dir react-native/generated/ts \
-  --cpp-dir react-native/generated/cpp \
-  target/debug/libnobodywho_uniffi.so
-```
-
-This reads the UniFFI metadata embedded in the compiled `.so`/`.dylib` and generates:
-- `generated/ts/nobodywho.ts` — TypeScript classes, enums, free functions
-- `generated/ts/nobodywho-ffi.ts` — low-level FFI type bridge
-- `generated/cpp/nobodywho.{cpp,hpp}` — C++ JSI bridge implementation
 
 ### Build native shared libraries for mobile targets
 
@@ -161,28 +139,31 @@ nix develop .#android --command bash -c \
 Then copy the `.so` files to where the Android build expects them:
 
 ```bash
-mkdir -p nobodywho/react-native/android/build/nobodywho-native/{arm64-v8a,x86_64}
+mkdir -p nobodywho/react-native/android/src/main/jniLibs/{arm64-v8a,x86_64}
 
 # ARM64
 cp nobodywho/target/aarch64-linux-android/release/libnobodywho_uniffi.so \
-  nobodywho/react-native/android/build/nobodywho-native/arm64-v8a/
+  nobodywho/react-native/android/src/main/jniLibs/arm64-v8a/
 
 # x86_64
 cp nobodywho/target/x86_64-linux-android/release/libnobodywho_uniffi.so \
-  nobodywho/react-native/android/build/nobodywho-native/x86_64/
+  nobodywho/react-native/android/src/main/jniLibs/x86_64/
 ```
 
 For iOS:
 ```bash
-cargo build -p nobodywho-uniffi --target aarch64-apple-ios --release
-cargo build -p nobodywho-uniffi --target aarch64-apple-ios-sim --release
+cd nobodywho/react-native
+npm run ios -- --release
 ```
+
+`pod install` only download the released binaries if nothing is present at these paths, so locally built libraries are used as-is.
+Remember to delete them (or rebuild) after bumping the package version, as stale binaries are not detected.
 
 ### Release builds (CI)
 
 In CI, native `.so` files are cross-compiled and uploaded as GitHub Release assets. At install time:
-- **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version
-- **iOS:** `Nobodywho.podspec` downloads and extracts `NobodywhoFramework.xcframework.zip` from the same release
+- **Android:** `build.gradle` downloads `.so` files from the GitHub Release matching the package version into `android/src/main/jniLibs/`
+- **iOS:** `Nobodywho.podspec` downloads and extracts `NobodyWho.xcframework.zip` from the same release into `NobodyWho.xcframework/`
 
 This keeps the npm package small (code only, no binaries).
 
@@ -222,19 +203,6 @@ adb install -r nobodywho/react-native/test-app/android/app/build/outputs/apk/deb
 adb reverse tcp:8081 tcp:8081
 adb shell am start -n com.nobodywhotest/.MainActivity
 ```
-
-## Customized files (do not regenerate)
-
-These files were initially generated but have been customized with project-specific logic:
-
-- **`Nobodywho.podspec`** — Downloads prebuilt xcframework from GitHub Releases, custom authors/source fields
-- **`android/build.gradle`** — Downloads prebuilt `.so` files from GitHub Releases at build time, optional NDK version
-- **`android/CMakeLists.txt`** — Links shared lib with `IMPORTED_NO_SONAME` for correct runtime resolution
-- **`android/src/main/java/ooo/nobodywho/NobodywhoModule.kt`** — Loads `libnobodywho_uniffi.so` before the bridge lib
-- **`android/src/main/java/ooo/nobodywho/NobodywhoPackage.kt`** — Uses `BaseReactPackage` instead of deprecated `TurboReactPackage`
-- **`android/cpp-adapter.cpp`** — JNI symbols use `ooo_nobodywho` package path (generator defaults to `com_nobodywho`)
-
-If you regenerate the turbo-module glue, these get overwritten with defaults. Always restore them with `git checkout`.
 
 ## Native crate initialization
 
