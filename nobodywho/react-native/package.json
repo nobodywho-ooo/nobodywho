@@ -39,7 +39,10 @@
   "codegenConfig": {
     "name": "NobodywhoSpec",
     "type": "modules",
-    "jsSrcsDir": "src"
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "ooo.nobodywho"
+    }
   },
   "repository": {
     "type": "git",
@@ -50,11 +53,13 @@
     "react-native": "*"
   },
   "dependencies": {
-    "uniffi-bindgen-react-native": "0.30.0-1"
+    "@ubjs/core": "0.31.0-6",
+    "uniffi-bindgen-react-native": "0.31.0-6"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "jest": "^30.3.0",
-    "ts-jest": "^29.4.9"
+    "ts-jest": "^29.4.9",
+    "prettier": "^3.9.9"
   }
 }
