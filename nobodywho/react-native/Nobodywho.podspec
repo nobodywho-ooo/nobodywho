@@ -41,7 +41,7 @@ Pod::Spec.new do |s|
   s.summary      = package["description"]
   s.homepage     = package["homepage"]
   s.license      = package["license"]
-  s.authors      = package["author"] || { "NobodyWho" => "info@nobodywho.ooo" }
+  s.authors      = package["author"]
 
   s.platforms    = { :ios => min_ios_version_supported }
   s.source       = { :git => "https://github.com/nobodywho-ooo/nobodywho.git", :tag => "#{s.version}" }
