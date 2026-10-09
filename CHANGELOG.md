@@ -6,6 +6,24 @@ We follow [Semantic Versioning](https://semver.org/) for published bindings, whi
 
 Format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), but we keep unreleased changes in individual files in [`.changeset/`](.changeset/) rather than editing them into this file directly. See [CONTRIBUTING.md](CONTRIBUTING.md#changelog-entries) for details.
 
+## [Python v4.1.0, Flutter v5.1.0, Godot v12.1.0, Kotlin v5.1.0, React Native v5.1.0, Swift v5.1.0] - 2026-10-09
+
+### Added
+
+- Added support for the OpenCL and Vulkan backends on Android. This should give substantially higher performance on Android phones. Available for Flutter, Godot, Kotlin and React Native.
+- Chats with recurrent and hybrid models, such as Qwen3.5, no longer re-read the whole conversation on most turns. The chat now saves the model state after each user message and rewinds to it, where it used to start over whenever an earlier answer was re-rendered differently, for example when thinking is dropped from the history.
+
+  MTP speculative decoding now also works with recurrent and hybrid models, where it used to fail when a draft was rejected. For Qwen3.5, which keeps its MTP layers in the model file, pass the model file itself as the draft model; it is only loaded once.
+
+  Available for all bindings.
+
+### Fixed
+
+- **Python:** `chat.completions.create()` and `responses.create()` no longer hang, and no longer occasionally return an empty answer. They hung on any answer of 32 tokens or more, and on shorter ones when Python logging was set to `INFO` or lower or when no other chat had answered in the process yet. With `stream=True`, chunks now arrive as they are generated, rather than all at once after the whole answer.
+- Chats no longer leave stray tokens in the model's context after a reply. The chat assumed the model had read the whole rendered reply, including template text after the end-of-turn token that was never decoded, so later turns could land one token off and keep stale text in context (seen with Gemma 3). Affects all bindings.
+- Qwen3.5 chats with an image no longer keep stale text in the model's context. The same applies to the older Qwen2-VL, Qwen2.5-VL and Qwen3-VL, and to PaddleOCR-VL. These models give an image fewer context positions than tokens, which the chat didn't account for, so after an image the old end of the conversation was never removed and new text was added after it. The context-full check and the reported context usage now also count all of an image's tokens. Affects all bindings.
+- Speech-to-text no longer mixes up languages when one `SpeechToText` transcribes several files, or audio longer than 30 seconds. Language detection ran on whatever the previous transcription had left behind, so audio could be detected as, and transcribed in, the previous language. Affects all bindings.
+
 ## [Python v4.0.0, Flutter v5.0.0, Godot v12.0.0, Kotlin v5.0.0, React Native v5.0.0, Swift v5.0.0] - 2026-10-05
 
 ### Added
