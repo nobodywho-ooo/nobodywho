@@ -322,7 +322,9 @@ pub struct RustModel {
 ///
 /// Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
 /// `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
-/// speculative decoding on chats built from this model. Whether MTP is
+/// speculative decoding on chats built from this model. For models that
+/// bundle MTP layers (e.g. Qwen3.5), pass the model file itself; it is only
+/// loaded once. Whether MTP is
 /// actually used is a per-chat decision — pass it through
 /// `Chat`-level config on the wrapping binding.
 ///

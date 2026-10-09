@@ -36,7 +36,9 @@ use crate::sampler::read_sampler_from_metadata;
 use crate::sampler::GrammarFactory;
 use crate::sampler::SamplerConfig;
 use crate::template::{select_template, ChatTemplate, ChatTemplateContext};
-use crate::tokenizer::{ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks};
+use crate::tokenizer::{
+    find_chunks_prefix_difference, ChunkId, Prompt, Promptable, TokenizerChunk, TokenizerChunks,
+};
 use crate::tool_calling::{detect_tool_format, Tool, ToolCall, ToolFormat, ToolFormatError};
 use ahash::AHasher;
 use indexmap::IndexMap;
@@ -2300,20 +2302,37 @@ impl<'a> Chat<'a> {
         &mut self,
         inference_lock_token: &MutexGuard<'_, GlobalInferenceLockToken>,
     ) -> Result<(), ContextSyncError> {
-        let mut chunks = self.render_as_chunks(&self.messages)?;
+        let mut chunks = self.render_as_chunks(&self.messages, true)?;
         if chunks.n_tokens() > self.engine.ctx.n_ctx() as usize {
             self.context_shift(0)?;
-            chunks = self.render_as_chunks(&self.messages)?;
+            chunks = self.render_as_chunks(&self.messages, true)?;
         }
 
         // We should never try to sync with an empty render
         debug_assert!(!chunks.is_empty());
 
-        // Diff against the chunks currently in the KV cache and load only the new tail.
-        self.engine.sync_context(chunks, inference_lock_token)?;
+        // If the model supports checkpoints, we save a checkpoint at this position
+        // in sync_context: after the user message, before the generation prompt ("<im_start>assistant", etc.)
+        let checkpoint_at = self.checkpoint_index(&chunks)?;
+
+        // Diff against the KV mirror and load only the new tail.
+        self.engine
+            .sync_context(chunks, checkpoint_at, inference_lock_token)?;
         self.media.retain_referenced(&self.messages);
 
         Ok(())
+    }
+
+    /// Where a recurrent model should checkpoint in `render`: the end of the last user
+    /// message, which later turns keep while e.g. dropping the answer's thinking.
+    fn checkpoint_index(&self, chunks: &TokenizerChunks) -> Result<Option<usize>, RenderError> {
+        // Not at a tool response: the next turn may re-render the tool call before it.
+        if !self.engine.needs_checkpoints() || !self.messages.last().is_some_and(Message::is_user) {
+            return Ok(None);
+        }
+        let history = self.render_as_chunks(&self.messages, false)?;
+        // Tokens can merge across the generation prompt, so take the shared prefix, instead of history.n_tokens() - 1.
+        Ok(Some(find_chunks_prefix_difference(&history, chunks)))
     }
 
     /// Drop the fewest whole turns after the kept first ones for the render, plus
@@ -2345,7 +2364,7 @@ impl<'a> Chat<'a> {
             messages
         };
         let measure_ntokens_without = |k: usize| -> Result<usize, ShiftError> {
-            Ok(self.render_as_chunks(&without(k))?.n_tokens())
+            Ok(self.render_as_chunks(&without(k), true)?.n_tokens())
         };
 
         if measure_ntokens_without(0)? <= target_token_size {
@@ -2700,7 +2719,12 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    fn render_as_chunks(&self, messages: &History) -> Result<TokenizerChunks, RenderError> {
+    /// Ends in the generation prompt if `allow_generation_prompt` and the model is to answer next.
+    fn render_as_chunks(
+        &self,
+        messages: &History,
+        allow_generation_prompt: bool,
+    ) -> Result<TokenizerChunks, RenderError> {
         // Callers pass the conversation they want rendered — which may be a
         // shortened one, during a context shift. The system prompt is not part
         // of that, so it is added here.
@@ -2710,7 +2734,9 @@ impl<'a> Chat<'a> {
             (!self.tools.is_empty()).then(|| self.tools.clone()),
         );
 
-        let rendered_chat = self.chat_template.render(messages, &template_context)?;
+        let rendered_chat =
+            self.chat_template
+                .render(messages, &template_context, allow_generation_prompt)?;
 
         let bitmaps: Vec<&MtmdBitmap> = messages
             .iter()
@@ -2904,6 +2930,11 @@ mod tests {
     use super::*;
     use crate::sampler::SamplerPresets;
     use crate::test_utils;
+
+    /// The render the model answers from, generation prompt included.
+    fn render(chat: &Chat, messages: &History) -> Result<TokenizerChunks, RenderError> {
+        chat.render_as_chunks(messages, true)
+    }
 
     fn image_system_message() -> Message {
         Message::new_system(vec![
@@ -3568,6 +3599,7 @@ mod tests {
                     worker.template_variables.clone(),
                     Some(worker.tools.clone()),
                 ),
+                true,
             )
             .expect("rendering a history with a tool call");
         assert!(
@@ -3647,7 +3679,7 @@ mod tests {
             }
 
             assert_eq!(user_message_indices(&worker.messages).len(), turn_count);
-            assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > target_size);
+            assert!(render(&worker, &worker.messages)?.n_tokens() > target_size);
 
             let before = serde_json::to_value(&worker.messages)?;
             worker.context_shift(0)?;
@@ -3725,14 +3757,14 @@ mod tests {
             .find(|&k| {
                 let mut messages = original.clone();
                 messages.forget(turn_starts[1]..turn_starts[1 + k]);
-                worker.render_as_chunks(&messages).unwrap().n_tokens() <= target_size
+                render(&worker, &messages).unwrap().n_tokens() <= target_size
             })
             .expect("some deletion should reach the target");
 
         worker.context_shift(0)?;
         let deleted = turn_starts.len() - user_message_indices(&worker.messages).len();
         assert_eq!(deleted, expected);
-        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size);
+        assert!(render(&worker, &worker.messages)?.n_tokens() <= target_size);
 
         Ok(())
     }
@@ -3764,7 +3796,7 @@ mod tests {
         assert!(after.len() < before.len());
         assert_eq!(after[..2], before[..2]);
         assert_eq!(after[after.len() - 3..], before[before.len() - 3..]);
-        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= 200);
+        assert!(render(&worker, &worker.messages)?.n_tokens() <= 200);
         assert_valid_message_structure(&worker.messages);
 
         Ok(())
@@ -3778,7 +3810,7 @@ mod tests {
         let target_size = (worker.engine.ctx.n_ctx() / 2) as usize;
 
         worker.context_shift(100)?;
-        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size - 100);
+        assert!(render(&worker, &worker.messages)?.n_tokens() <= target_size - 100);
 
         Ok(())
     }
@@ -3787,7 +3819,7 @@ mod tests {
     fn test_context_shift_disabled() -> Result<(), Box<dyn std::error::Error>> {
         let model = test_utils::load_test_model();
         let mut worker = worker_with_turns(&model, None, 20)?;
-        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() > 512);
+        assert!(render(&worker, &worker.messages)?.n_tokens() > 512);
 
         let inference_lock_token = acquire_inference_lock();
         assert!(matches!(
@@ -3820,7 +3852,7 @@ mod tests {
             ..Default::default()
         }))?;
         worker.context_shift(0)?;
-        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= 200);
+        assert!(render(&worker, &worker.messages)?.n_tokens() <= 200);
 
         Ok(())
     }
@@ -3893,7 +3925,7 @@ mod tests {
             "the first turn should survive: {:?}",
             worker.messages[1]
         );
-        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= target_size);
+        assert!(render(&worker, &worker.messages)?.n_tokens() <= target_size);
 
         Ok(())
     }
@@ -3946,7 +3978,7 @@ mod tests {
 
         worker.context_shift(0)?;
 
-        assert!(worker.render_as_chunks(&worker.messages)?.n_tokens() <= (n_ctx / 2) as usize);
+        assert!(render(&worker, &worker.messages)?.n_tokens() <= (n_ctx / 2) as usize);
         assert_valid_message_structure(&worker.messages);
 
         Ok(())
@@ -5087,34 +5119,56 @@ mod tests {
         Ok(())
     }
 
+    /// Prompt tokens llama.cpp decodes during `turn`; generated tokens aren't counted.
+    fn prompt_tokens_decoded(chat: &mut Chat, turn: impl FnOnce(&mut Chat)) -> i32 {
+        // llama.cpp counts a decode once it finishes, which reading the logits waits for.
+        let _ = chat.engine.ctx.get_logits();
+        chat.engine.ctx.reset_timings();
+        turn(chat);
+        let _ = chat.engine.ctx.get_logits();
+        chat.engine.ctx.timings().n_p_eval()
+    }
+
     /// Before each turn the KV cache must hold exactly the rendered chat, by
-    /// position and by token count.
-    fn assert_cache_matches_render(model: &llm::Model, first: MessageContent) {
+    /// position and by token count, and later turns must not re-read all of it.
+    fn assert_cache_matches_render(model: &llm::Model, config: ChatConfig, first: MessageContent) {
         let mut chat = Chat::new_chat_worker(
             model,
             ChatConfig {
                 n_ctx: 4096,
                 sampler_config: Some(SamplerPresets::greedy()),
-                ..Default::default()
+                ..config
             },
             Arc::new(AtomicBool::new(false)),
         )
         .unwrap();
-        for mut prompt in [
+        for (turn, mut prompt) in [
             first,
             "Say bye in one word.".into(),
             "Count to three.".into(),
-        ] {
+        ]
+        .into_iter()
+        .enumerate()
+        {
             chat.register_media(&mut prompt).unwrap();
             chat.add_user_message(prompt);
-            chat.sync_context_with_render(&acquire_inference_lock())
-                .unwrap();
-            let render = chat.render_as_chunks(&chat.messages).unwrap();
-            assert_eq!(
-                chat.engine.ctx.kv_cache_seq_pos_max(0) + 1,
-                render.n_positions() as i32
-            );
-            assert_eq!(chat.engine.actual_context_size(), render.n_tokens() as i32);
+            let render = render(&chat, &chat.messages).unwrap();
+            let decoded = prompt_tokens_decoded(&mut chat, |chat| {
+                chat.sync_context_with_render(&acquire_inference_lock())
+                    .unwrap();
+                assert_eq!(
+                    chat.engine.ctx.kv_cache_seq_pos_max(0) + 1,
+                    render.n_positions() as i32
+                );
+                assert_eq!(chat.engine.actual_context_size(), render.n_tokens() as i32);
+            });
+            if turn > 0 {
+                assert!(
+                    decoded < render.n_tokens() as i32,
+                    "turn {turn} re-read the whole chat"
+                );
+            }
+            // MTP verifies its drafts in batches, which llama.cpp counts as prompt tokens.
             chat.run_turn(Some(64), true, |_| {}).unwrap();
         }
     }
@@ -5125,7 +5179,7 @@ mod tests {
         let Some(model) = test_utils::load_model_from_env("TEST_VISION_MODEL", None) else {
             return;
         };
-        assert_cache_matches_render(&model, "Say hi in one word.".into());
+        assert_cache_matches_render(&model, ChatConfig::default(), "Say hi in one word.".into());
     }
 
     /// Qwen3.5 gives an image fewer KV positions than tokens (M-RoPE).
@@ -5142,7 +5196,80 @@ mod tests {
             ContentPart::image(image),
             ContentPart::text("What animal is this? One word."),
         ]);
-        assert_cache_matches_render(&model, first);
+        assert_cache_matches_render(&model, ChatConfig::default(), first);
+    }
+
+    /// Qwen3.5 drops an answer's thinking from the history, so each turn rewinds
+    /// its recurrent state to the checkpoint at the end of the last user message.
+    #[test]
+    fn test_recurrent_thinking_restores_checkpoint() {
+        let Some(model) = test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None) else {
+            return;
+        };
+        let config = ChatConfig {
+            template_variables: [("enable_thinking".to_string(), true)].into(),
+            ..Default::default()
+        };
+        assert_cache_matches_render(&model, config, "Say hi in one word.".into());
+    }
+
+    /// MTP on a recurrent model rolls rejected drafts back natively, and the draft
+    /// context's own cache follows each rewind of the target's.
+    #[test]
+    fn test_recurrent_mtp_restores_checkpoint() {
+        test_utils::init_test_tracing();
+        let Ok(path) = std::env::var("TEST_RECURRENT_MTP_MODEL") else {
+            eprintln!("skipping: set TEST_RECURRENT_MTP_MODEL to run this test");
+            return;
+        };
+        // Qwen3.5 keeps its MTP head in the same file.
+        let model = llm::get_model(&path, true, None, Some(&path), None).unwrap();
+        let config = ChatConfig {
+            mtp: Some(MtpConfig::default()),
+            template_variables: [("enable_thinking".to_string(), true)].into(),
+            ..Default::default()
+        };
+        assert_cache_matches_render(&model, config, "Say hi in one word.".into());
+    }
+
+    /// A tool call adds a sync at the tool response; the checkpoint has to stay at
+    /// the user message, which the next turn rewinds to.
+    #[test]
+    fn test_recurrent_tool_calls_restore_checkpoint() {
+        let Some(model) = test_utils::load_model_from_env("TEST_RECURRENT_MODEL", None) else {
+            return;
+        };
+        let mut chat = Chat::new_chat_worker(
+            &model,
+            ChatConfig {
+                tools: vec![test_tool()],
+                template_variables: [("enable_thinking".to_string(), false)].into(),
+                sampler_config: Some(SamplerPresets::greedy()),
+                ..Default::default()
+            },
+            Arc::new(AtomicBool::new(false)),
+        )
+        .unwrap();
+        for (prompt, expected) in [
+            ("What is the temperature in Copenhagen?", "13.37"),
+            ("What is the temperature in Beijing?", "42.69"),
+            ("And Copenhagen again?", "13.37"),
+        ] {
+            let cached = chat.engine.kv_mirror().n_tokens() as i32;
+            let mut answer = String::new();
+            let decoded = prompt_tokens_decoded(&mut chat, |chat| {
+                chat.ask(prompt.into(), |chunk| {
+                    if let CompletionChunk::Done(response) = chunk {
+                        answer = response.content;
+                    }
+                })
+                .unwrap();
+            });
+            assert!(answer.contains(expected), "expected {expected} in {answer}");
+            if cached > 0 {
+                assert!(decoded < cached, "{prompt:?} re-read the whole chat");
+            }
+        }
     }
 
     // Template rendering tests have been moved to template.rs module

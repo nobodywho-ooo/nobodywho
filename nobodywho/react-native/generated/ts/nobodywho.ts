@@ -152,7 +152,9 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
  *
  * Pass `draft_model_path` pointing to a compatible MTP heads gguf (e.g.
  * `mtp-gemma-4-E2B-it.gguf` for Gemma-4-E2B) to enable MTP
- * speculative decoding on chats built from this model. Whether MTP is
+ * speculative decoding on chats built from this model. For models that
+ * bundle MTP layers (e.g. Qwen3.5), pass the model file itself; it is only
+ * loaded once. Whether MTP is
  * actually used is a per-chat decision — pass it through
  * `Chat`-level config on the wrapping binding.
  *
@@ -5168,7 +5170,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_get_cached_models() !== 12002) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_get_cached_models");
     }
-    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 22964) {
+    if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !== 8315) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_nobodywho_uniffi_checksum_func_load_model");
     }
     if (nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_speech_to_text() !== 3224) {

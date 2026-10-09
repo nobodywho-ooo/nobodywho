@@ -308,7 +308,8 @@ impl Model {
     ///     use_gpu: Whether to use GPU acceleration. Defaults to true.
     ///     projection_model_path: Optional path to a `.mmproj` file for vision/multimodal models.
     ///     draft_model_path: Optional path to an MTP draft-heads gguf. Loading it lets
-    ///         chats built from this model opt into MTP speculative decoding.
+    ///         chats built from this model opt into MTP speculative decoding. For models that
+    ///         bundle MTP layers (e.g. Qwen3.5), pass the model file itself; it is only loaded once.
     pub fn max_ctx(&self) -> u32 {
         self.model.max_ctx()
     }
