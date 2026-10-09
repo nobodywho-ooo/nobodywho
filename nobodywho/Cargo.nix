@@ -602,9 +602,9 @@ rec {
       };
       "askama" = rec {
         crateName = "askama";
-        version = "0.13.1";
+        version = "0.14.0";
         edition = "2021";
-        sha256 = "19z1zjabw7xbzf4491bwn8mdx6k8b5a8y7a43f1la9pg5vnl8isx";
+        sha256 = "1i3m3dzshx46v94w24chl6xg7xjyf350gqzzyijy46vp9f3n6lzp";
         license = "MIT OR Apache-2.0";
         dependencies = [
           {
@@ -638,24 +638,23 @@ rec {
         ];
         features = {
           "alloc" = [ "askama_derive?/alloc" "serde?/alloc" "serde_json?/alloc" "percent-encoding?/alloc" ];
-          "askama_derive" = [ "dep:askama_derive" ];
           "blocks" = [ "askama_derive?/blocks" ];
           "code-in-doc" = [ "askama_derive?/code-in-doc" ];
           "config" = [ "askama_derive?/config" ];
           "default" = [ "config" "derive" "std" "urlencode" "askama_derive?/default" ];
-          "derive" = [ "askama_derive" ];
+          "derive" = [ "dep:askama_derive" ];
           "full" = [ "default" "blocks" "code-in-doc" "serde_json" "askama_derive?/full" ];
           "serde_json" = [ "std" "askama_derive?/serde_json" "dep:serde" "dep:serde_json" ];
           "std" = [ "alloc" "askama_derive?/std" "serde?/std" "serde_json?/std" "percent-encoding?/std" ];
           "urlencode" = [ "askama_derive?/urlencode" "dep:percent-encoding" ];
         };
-        resolvedDefaultFeatures = [ "alloc" "askama_derive" "config" "derive" ];
+        resolvedDefaultFeatures = [ "alloc" "config" "derive" ];
       };
       "askama_derive" = rec {
         crateName = "askama_derive";
-        version = "0.13.1";
+        version = "0.14.0";
         edition = "2021";
-        sha256 = "1b26ijv1b3gxyalwqsgj32v0qzp6268d0y4gqha5qsp3ggsy0qfn";
+        sha256 = "0kx9sfych8m7cswcs75jhq0cy9pqn7iah1w4lvl8hc781wh9g4qj";
         procMacro = true;
         license = "MIT OR Apache-2.0";
         dependencies = [
@@ -722,9 +721,9 @@ rec {
       };
       "askama_parser" = rec {
         crateName = "askama_parser";
-        version = "0.13.0";
+        version = "0.14.0";
         edition = "2021";
-        sha256 = "0kqd9pg96dd6w9pm4q7zdhmchhkdrwsljygz56qpp1acabk5qcfg";
+        sha256 = "0n235ljbvbvlhwr54s675x1z6lgbjmzrfrq1c8rg5snmncq5dayn";
         license = "MIT OR Apache-2.0";
         dependencies = [
           {
@@ -4469,7 +4468,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_System_Diagnostics_Debug" ];
           }
@@ -8559,7 +8558,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" ];
           }
@@ -13080,7 +13079,7 @@ rec {
         dependencies = [
           {
             name = "siphasher";
-            packageId = "siphasher 1.0.3";
+            packageId = "siphasher";
           }
         ];
         features = {
@@ -13102,7 +13101,7 @@ rec {
         dependencies = [
           {
             name = "siphasher";
-            packageId = "siphasher 1.0.3";
+            packageId = "siphasher";
           }
         ];
         features = {
@@ -13123,7 +13122,7 @@ rec {
         dependencies = [
           {
             name = "siphasher";
-            packageId = "siphasher 1.0.3";
+            packageId = "siphasher";
           }
         ];
         features = {
@@ -15534,7 +15533,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Networking_WinSock" ];
           }
@@ -16573,25 +16572,7 @@ rec {
         };
         resolvedDefaultFeatures = [ "default" "inline" "text" ];
       };
-      "siphasher 0.3.11" = rec {
-        crateName = "siphasher";
-        version = "0.3.11";
-        edition = "2018";
-        sha256 = "03axamhmwsrmh0psdw3gf7c0zc4fyl5yjxfifz9qfka6yhkqid9q";
-        license = "MIT/Apache-2.0";
-        authors = [
-          "Frank Denis <github@pureftpd.org>"
-        ];
-        features = {
-          "default" = [ "std" ];
-          "serde" = [ "dep:serde" ];
-          "serde_json" = [ "dep:serde_json" ];
-          "serde_no_std" = [ "serde/alloc" ];
-          "serde_std" = [ "std" "serde/std" ];
-        };
-        resolvedDefaultFeatures = [ "default" "std" ];
-      };
-      "siphasher 1.0.3" = rec {
+      "siphasher" = rec {
         crateName = "siphasher";
         version = "1.0.3";
         edition = "2018";
@@ -17399,7 +17380,7 @@ rec {
           }
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Storage_FileSystem" "Win32_Foundation" ];
           }
@@ -19049,10 +19030,10 @@ rec {
       };
       "uniffi" = rec {
         crateName = "uniffi";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
         crateBin = [];
-        sha256 = "0kiglfqqbfr6klm3wcfx76jslb294pbv52xnd3q3sk7hqckzcrn8";
+        sha256 = "0zr6f3yp909zy8h33ycm2blc5py690s9vx5i8vd30ab0d1agvvj6";
         license = "MPL-2.0";
         dependencies = [
           {
@@ -19080,6 +19061,7 @@ rec {
             name = "uniffi_bindgen";
             packageId = "uniffi_bindgen";
             optional = true;
+            usesDefaultFeatures = false;
           }
           {
             name = "uniffi_core";
@@ -19110,9 +19092,9 @@ rec {
       };
       "uniffi_bindgen" = rec {
         crateName = "uniffi_bindgen";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
-        sha256 = "19a1hlzd46si5wxwqa65jwrxlba982pm94msr3kynhbn2q0ad33w";
+        sha256 = "0545i3hlwas1fz8bmpair3xgdv2y975xggdjrmji6bnkfnrwk864";
         license = "MPL-2.0";
         dependencies = [
           {
@@ -19201,13 +19183,13 @@ rec {
           "default" = [ "cargo-metadata" ];
           "ffi-trace" = [ "uniffi_testing?/ffi-trace" ];
         };
-        resolvedDefaultFeatures = [ "cargo-metadata" "default" ];
+        resolvedDefaultFeatures = [ "cargo-metadata" ];
       };
       "uniffi_core" = rec {
         crateName = "uniffi_core";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
-        sha256 = "1yc9h29rj6qvw04p12w2isqnh91wxxab25hlz568zzmziq1mlyky";
+        sha256 = "15ahcr0frkh3vs4l7abpn6q8wijw9c0r4pdyzgv825kh2aqigh7f";
         license = "MPL-2.0";
         dependencies = [
           {
@@ -19234,9 +19216,9 @@ rec {
       };
       "uniffi_internal_macros" = rec {
         crateName = "uniffi_internal_macros";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
-        sha256 = "1prf3nhd0k91nmx6m3fgy6jwa2na4p76ws8m41p74wvv7vwsdhp3";
+        sha256 = "0k5hkivi4rxb6ikil4rj2awpyqf7v425137h1zlcbyzy92dncha6";
         procMacro = true;
         license = "MPL-2.0";
         dependencies = [
@@ -19268,9 +19250,9 @@ rec {
       };
       "uniffi_macros" = rec {
         crateName = "uniffi_macros";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
-        sha256 = "0hb1jgw1f04qcb1lnaizxz5vqmn6b6qcbh1vq2pr4ybcqfgk1ik4";
+        sha256 = "0dxp5hldhgs1jkbsbmfrdgsb782vf4agays1yz525phlx1z63f7f";
         procMacro = true;
         license = "MPL-2.0";
         dependencies = [
@@ -19320,9 +19302,9 @@ rec {
       };
       "uniffi_meta" = rec {
         crateName = "uniffi_meta";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
-        sha256 = "08nwkkgfcz0mxhmjx1g5glayxl4pkxl74j29maq1kfid74iqh4qa";
+        sha256 = "099adldxm769c6jqxyfajndn0mvfy331bg9854dx40r8r57vkmaq";
         license = "MPL-2.0";
         dependencies = [
           {
@@ -19331,7 +19313,7 @@ rec {
           }
           {
             name = "siphasher";
-            packageId = "siphasher 0.3.11";
+            packageId = "siphasher";
           }
           {
             name = "uniffi_internal_macros";
@@ -19346,9 +19328,9 @@ rec {
       };
       "uniffi_pipeline" = rec {
         crateName = "uniffi_pipeline";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
-        sha256 = "0a9c89rqk5d7qi8jxbqfli233757766273liri9qwpyj2nsw89wc";
+        sha256 = "1jlhrqh2pv10dib38sbbv3766088mznrv28m9j8pcmbjxjrkj9q3";
         license = "MPL-2.0";
         dependencies = [
           {
@@ -19376,9 +19358,9 @@ rec {
       };
       "uniffi_udl" = rec {
         crateName = "uniffi_udl";
-        version = "0.30.0";
+        version = "0.31.2";
         edition = "2021";
-        sha256 = "1jmgvv7vx0il8qlmwh2x68qjbs6m47vd5xss9ypxgvlahkfsrbfh";
+        sha256 = "1ikfs0a3cgflvp5i1bzd5gxkg28dmikvly6fx3wimkjj0851s2pw";
         license = "MPL-2.0";
         dependencies = [
           {
@@ -20616,7 +20598,7 @@ rec {
         dependencies = [
           {
             name = "windows-sys";
-            packageId = "windows-sys 0.52.0";
+            packageId = "windows-sys 0.61.2";
             target = { target, features }: (target."windows" or false);
             features = [ "Win32_Foundation" "Win32_Storage_FileSystem" "Win32_System_Console" "Win32_System_SystemInformation" ];
           }
@@ -21320,7 +21302,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_SystemInformation" "Win32_System_Threading" "default" ];
+        resolvedDefaultFeatures = [ "Win32" "Win32_Foundation" "Win32_System" "Win32_System_Threading" "default" ];
       };
       "windows-sys 0.61.2" = rec {
         crateName = "windows-sys";
@@ -21583,7 +21565,7 @@ rec {
           "Win32_Web" = [ "Win32" ];
           "Win32_Web_InternetExplorer" = [ "Win32_Web" ];
         };
-        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
+        resolvedDefaultFeatures = [ "Wdk" "Wdk_Foundation" "Wdk_Storage" "Wdk_Storage_FileSystem" "Wdk_System" "Wdk_System_IO" "Win32" "Win32_Foundation" "Win32_Globalization" "Win32_Networking" "Win32_Networking_WinSock" "Win32_Security" "Win32_Storage" "Win32_Storage_FileSystem" "Win32_System" "Win32_System_Com" "Win32_System_Console" "Win32_System_Diagnostics" "Win32_System_Diagnostics_Debug" "Win32_System_IO" "Win32_System_Pipes" "Win32_System_SystemInformation" "Win32_System_SystemServices" "Win32_System_Threading" "Win32_System_WindowsProgramming" "Win32_UI" "Win32_UI_Input" "Win32_UI_Input_KeyboardAndMouse" "Win32_UI_Shell" "default" ];
       };
       "windows-targets 0.48.5" = rec {
         crateName = "windows-targets";

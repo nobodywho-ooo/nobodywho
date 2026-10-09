@@ -182,10 +182,6 @@ export function getCachedModels(): Array<CachedModel> /*throws*/ {
  * loaded once. Whether MTP is
  * actually used is a per-chat decision — pass it through
  * `Chat`-level config on the wrapping binding.
- *
- * This is a free function instead of an async constructor because
- * uniffi-bindgen-react-native generates invalid JS (`async static` instead
- * of `static async`) for async constructors.
  */
 export async function loadModel(
   modelPath: string,
@@ -6477,7 +6473,7 @@ function uniffiEnsureInitialized() {
   }
   if (
     nativeModule().ubrn_uniffi_nobodywho_uniffi_checksum_func_load_model() !==
-    8315
+    30733
   ) {
     throw new UniffiInternalError.ApiChecksumMismatch(
       "uniffi_nobodywho_uniffi_checksum_func_load_model",

@@ -327,10 +327,9 @@ pub struct RustModel {
 /// loaded once. Whether MTP is
 /// actually used is a per-chat decision — pass it through
 /// `Chat`-level config on the wrapping binding.
-///
-/// This is a free function instead of an async constructor because
-/// uniffi-bindgen-react-native generates invalid JS (`async static` instead
-/// of `static async`) for async constructors.
+//
+// This is a free function since async constructors don't work on Kotlin and
+// React Native.
 #[uniffi::export]
 pub async fn load_model(
     model_path: String,
