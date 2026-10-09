@@ -1,0 +1,6 @@
+node_modules/
+android/build/
+android/.cxx/
+android/src/main/jniLibs/
+NobodyWho.xcframework/
+test-app/
