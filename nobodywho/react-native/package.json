@@ -38,6 +38,8 @@
     "!android/src/main/jniLibs"
   ],
   "scripts": {
+    "ios": "uniffi-bindgen-react-native build ios",
+    "android": "uniffi-bindgen-react-native build android",
     "generate-turbo-module": "uniffi-bindgen-react-native generate jsi turbo-module nobodywho",
     "generate-bindings": "cd ../uniffi && uniffi-bindgen-react-native generate jsi bindings --library --ts-dir ../react-native/generated/ts --cpp-dir ../react-native/generated/cpp"
   },
