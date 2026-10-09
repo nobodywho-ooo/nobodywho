@@ -1,6 +1,7 @@
 {
   "name": "react-native-nobodywho",
   "version": "5.1.0",
+  "author": "NobodyWho <info@nobodywho.ooo>",
   "description": "Run LLMs locally and offline with React Native & Expo - Tool calling, RAG, Speech-to-Text, Text-to-Speech, and VAD",
   "main": "src/wrapper.ts",
   "types": "src/wrapper.ts",
