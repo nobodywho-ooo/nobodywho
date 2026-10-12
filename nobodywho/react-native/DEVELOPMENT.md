@@ -78,6 +78,7 @@ There are three layers of generated code. Each layer only needs regeneration for
 **Regenerate when:** Rust API changes — adding/removing/renaming functions, types, errors, or changing their signatures in `uniffi/src/lib.rs`.
 
 ```bash
+cd nobodywho/react-native
 cargo build -pnobodywho-uniffi
 # Linux
 npm run generate-bindings -- ../target/debug/libnobodywho_uniffi.so
@@ -97,6 +98,7 @@ This builds the UniFFI crate for the host, reads the UniFFI metadata embedded in
 **Regenerate when:** Module name changes, `codegenConfig` in `package.json` changes, or upgrading `uniffi-bindgen-react-native` version.
 
 ```bash
+cd nobodywho/react-native
 npm run generate-turbo-module
 ```
 
