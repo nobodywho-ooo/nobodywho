@@ -5,8 +5,8 @@ on:
     types: [created]
 
 env:
-  AI_REVIEW_PROVIDER: opencode-go
-  AI_REVIEW_MODEL: glm-5.3
+  AI_REVIEW_PROVIDER: openrouter
+  AI_REVIEW_MODEL: z-ai/glm-5.3
   AI_REVIEW_THINKING: high
 
 jobs:
@@ -195,7 +195,7 @@ jobs:
         if: steps.auth.outputs.allowed == 'true' && steps.pr.outputs.same_repo == 'true'
         id: ai_review
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          AI_REVIEW_API_KEY: ${{ secrets.AI_REVIEW_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.issue.number }}
           BASE_REF: ${{ steps.pr.outputs.base_ref }}
@@ -236,7 +236,7 @@ jobs:
           pi \
             --provider "$AI_REVIEW_PROVIDER" \
             --model "$AI_REVIEW_MODEL" \
-            --api-key "$OPENCODE_API_KEY" \
+            --api-key "$AI_REVIEW_API_KEY" \
             --thinking "$AI_REVIEW_THINKING" \
             --approve \
             --skill "$TRUSTED_AI_REVIEW_SKILL" \
